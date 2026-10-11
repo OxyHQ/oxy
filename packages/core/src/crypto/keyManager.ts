@@ -93,7 +93,7 @@ export class IdentityAlreadyExistsError extends Error {
     super(
       'An identity already exists on this device. Refusing to overwrite without explicit consent. ' +
         'If you really want to replace it, ensure the user has saved their recovery phrase, then call ' +
-        'the operation with { overwrite: true }.'
+        'the operation with { overwrite: true }.',
     );
     this.existingPublicKey = existingPublicKey;
   }
@@ -107,7 +107,10 @@ export class IdentityAlreadyExistsError extends Error {
  */
 export class IdentityPersistError extends Error {
   override readonly name = 'IdentityPersistError';
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message);
   }
 }
@@ -126,7 +129,10 @@ export class IdentityPersistError extends Error {
  */
 export class IdentityUnavailableError extends Error {
   override readonly name = 'IdentityUnavailableError';
-  constructor(message: string, readonly cause?: unknown) {
+  constructor(
+    message: string,
+    readonly cause?: unknown,
+  ) {
     super(message);
   }
 }
@@ -334,7 +340,7 @@ async function initExpoCrypto(): Promise<ExpoCryptoLike> {
  */
 function uint8ArrayToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
@@ -356,7 +362,7 @@ async function getSecureRandomBytes(length: number): Promise<Uint8Array> {
     const Crypto = await initExpoCrypto();
     return Crypto.getRandomBytes(length);
   }
-  
+
   // In Node.js, use Node's crypto module.
   //
   // `loadNodeCrypto` is per-platform: the default variant performs
@@ -499,7 +505,9 @@ export class KeyManager {
     store: Awaited<ReturnType<typeof initSecureStore>>,
     service?: string,
   ): OxySecureStoreOptions {
-    const opts: OxySecureStoreOptions = { keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY };
+    const opts: OxySecureStoreOptions = {
+      keychainAccessible: store.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    };
     if (service) {
       opts.keychainService = service;
     }
@@ -566,7 +574,11 @@ export class KeyManager {
     } catch (error) {
       // Advisory only — a failed write just re-runs the cheap slot check next launch.
       if (isDev()) {
-        logger.debug('Failed to set slots-migrated flag (advisory)', { component: 'KeyManager' }, error);
+        logger.debug(
+          'Failed to set slots-migrated flag (advisory)',
+          { component: 'KeyManager' },
+          error,
+        );
       }
     }
   }
@@ -741,7 +753,11 @@ export class KeyManager {
         backupPublic = await store.getItemAsync(STORAGE_KEYS.BACKUP_PUBLIC_KEY);
       } catch (error) {
         if (isDev()) {
-          logger.debug('Legacy backup unreadable during migration (non-fatal)', { component: 'KeyManager' }, error);
+          logger.debug(
+            'Legacy backup unreadable during migration (non-fatal)',
+            { component: 'KeyManager' },
+            error,
+          );
         }
         backupPrivate = null;
         backupPublic = null;
@@ -773,7 +789,11 @@ export class KeyManager {
         KeyManager._slotOpts(V2_BACKUP_KEYCHAIN_SERVICE),
       );
     } catch (error) {
-      logger.warn('Failed to migrate identity backup slot to v2 (non-fatal)', { component: 'KeyManager' }, error);
+      logger.warn(
+        'Failed to migrate identity backup slot to v2 (non-fatal)',
+        { component: 'KeyManager' },
+        error,
+      );
     }
   }
 
@@ -795,8 +815,16 @@ export class KeyManager {
   private static async _bestEffortDeleteV2Primary(
     store: Awaited<ReturnType<typeof initSecureStore>>,
   ): Promise<void> {
-    await KeyManager._bestEffortDelete(store, V2_STORAGE_KEYS.PRIVATE_KEY, V2_PRIMARY_KEYCHAIN_SERVICE);
-    await KeyManager._bestEffortDelete(store, V2_STORAGE_KEYS.PUBLIC_KEY, V2_PRIMARY_KEYCHAIN_SERVICE);
+    await KeyManager._bestEffortDelete(
+      store,
+      V2_STORAGE_KEYS.PRIVATE_KEY,
+      V2_PRIMARY_KEYCHAIN_SERVICE,
+    );
+    await KeyManager._bestEffortDelete(
+      store,
+      V2_STORAGE_KEYS.PUBLIC_KEY,
+      V2_PRIMARY_KEYCHAIN_SERVICE,
+    );
   }
 
   private static async _bestEffortDeleteLegacyPrimaryAndBackup(
@@ -812,9 +840,21 @@ export class KeyManager {
   private static async _bestEffortDeleteBackupsAllGenerations(
     store: Awaited<ReturnType<typeof initSecureStore>>,
   ): Promise<void> {
-    await KeyManager._bestEffortDelete(store, V2_STORAGE_KEYS.BACKUP_PRIVATE_KEY, V2_BACKUP_KEYCHAIN_SERVICE);
-    await KeyManager._bestEffortDelete(store, V2_STORAGE_KEYS.BACKUP_PUBLIC_KEY, V2_BACKUP_KEYCHAIN_SERVICE);
-    await KeyManager._bestEffortDelete(store, V2_STORAGE_KEYS.BACKUP_TIMESTAMP, V2_BACKUP_KEYCHAIN_SERVICE);
+    await KeyManager._bestEffortDelete(
+      store,
+      V2_STORAGE_KEYS.BACKUP_PRIVATE_KEY,
+      V2_BACKUP_KEYCHAIN_SERVICE,
+    );
+    await KeyManager._bestEffortDelete(
+      store,
+      V2_STORAGE_KEYS.BACKUP_PUBLIC_KEY,
+      V2_BACKUP_KEYCHAIN_SERVICE,
+    );
+    await KeyManager._bestEffortDelete(
+      store,
+      V2_STORAGE_KEYS.BACKUP_TIMESTAMP,
+      V2_BACKUP_KEYCHAIN_SERVICE,
+    );
     await KeyManager._bestEffortDelete(store, STORAGE_KEYS.BACKUP_PRIVATE_KEY);
     await KeyManager._bestEffortDelete(store, STORAGE_KEYS.BACKUP_PUBLIC_KEY);
     await KeyManager._bestEffortDelete(store, STORAGE_KEYS.BACKUP_TIMESTAMP);
@@ -837,7 +877,11 @@ export class KeyManager {
       }
       KeyManager.invalidateSharedCache();
     } catch (error) {
-      logger.warn('Failed to clear shared identity slot during force delete', { component: 'KeyManager' }, error);
+      logger.warn(
+        'Failed to clear shared identity slot during force delete',
+        { component: 'KeyManager' },
+        error,
+      );
     }
   }
 
@@ -850,7 +894,9 @@ export class KeyManager {
       );
     }
     if (!(await signer.write(privateKey, publicKey))) {
-      throw new IdentityPersistError(`The identity signer store (${signer.name}) did not confirm the write.`);
+      throw new IdentityPersistError(
+        `The identity signer store (${signer.name}) did not confirm the write.`,
+      );
     }
   }
 
@@ -863,7 +909,11 @@ export class KeyManager {
     try {
       await signer.clear();
     } catch (error) {
-      logger.warn(`Failed to clear the identity signer store (${signer.name})`, { component: 'KeyManager' }, error);
+      logger.warn(
+        `Failed to clear the identity signer store (${signer.name})`,
+        { component: 'KeyManager' },
+        error,
+      );
     } finally {
       KeyManager.invalidateSharedCache();
     }
@@ -882,10 +932,16 @@ export class KeyManager {
     }
     try {
       if (!(await signer.write(privateKey, publicKey))) {
-        logger.warn(`The identity signer store (${signer.name}) did not confirm the write`, { component: 'KeyManager' });
+        logger.warn(`The identity signer store (${signer.name}) did not confirm the write`, {
+          component: 'KeyManager',
+        });
       }
     } catch (error) {
-      logger.warn(`Failed to write the identity signer store (${signer.name})`, { component: 'KeyManager' }, error);
+      logger.warn(
+        `Failed to write the identity signer store (${signer.name})`,
+        { component: 'KeyManager' },
+        error,
+      );
     } finally {
       KeyManager.invalidateSharedCache();
     }
@@ -982,7 +1038,7 @@ export class KeyManager {
         await store.setItemAsync(STORAGE_KEYS.SHARED_PUBLIC_KEY, publicKey, publicOpts);
       } catch (error) {
         throw new Error(
-          `Failed to create shared identity on iOS. Ensure your app has the Keychain Sharing capability enabled with access group "${IOS_KEYCHAIN_GROUP}". Error: ${error}`
+          `Failed to create shared identity on iOS. Ensure your app has the Keychain Sharing capability enabled with access group "${IOS_KEYCHAIN_GROUP}". Error: ${error}`,
         );
       }
     } else if (isAndroid()) {
@@ -1118,11 +1174,15 @@ export class KeyManager {
     return {
       primaryPublicKey,
       sharedPublicKey,
-      activePublicKey: isAndroid() ? (primaryPublicKey ?? sharedPublicKey) : (sharedPublicKey ?? primaryPublicKey),
+      activePublicKey: isAndroid()
+        ? (primaryPublicKey ?? sharedPublicKey)
+        : (sharedPublicKey ?? primaryPublicKey),
       // Only a real disagreement is out of sync. A device with just one slot
       // populated has nothing to contradict.
       inSync:
-        primaryPublicKey === null || sharedPublicKey === null || primaryPublicKey === sharedPublicKey,
+        primaryPublicKey === null ||
+        sharedPublicKey === null ||
+        primaryPublicKey === sharedPublicKey,
     };
   }
 
@@ -1286,7 +1346,11 @@ export class KeyManager {
       const storage = await KeyManager._advisoryStorage();
       await storage?.setItem(ROTATION_PENDING_KEY, '');
     } catch (error) {
-      logger.warn('Failed to clear the pending key rotation marker', { component: 'KeyManager' }, error);
+      logger.warn(
+        'Failed to clear the pending key rotation marker',
+        { component: 'KeyManager' },
+        error,
+      );
     }
   }
 
@@ -1320,7 +1384,11 @@ export class KeyManager {
     ) {
       return false;
     }
-    await KeyManager._persistIdentityAtomic(pair.privateKey, pair.publicKey.toLowerCase(), 'import');
+    await KeyManager._persistIdentityAtomic(
+      pair.privateKey,
+      pair.publicKey.toLowerCase(),
+      'import',
+    );
     KeyManager.invalidateCache();
     await KeyManager.completeKeyRotation();
     logger.warn(
@@ -1413,7 +1481,9 @@ export class KeyManager {
       priorPrivate = await store.getItemAsync(layout.primaryPrivateKeyName, primaryReadOpts);
       priorPublic = await store.getItemAsync(layout.primaryPublicKeyName, primaryReadOpts);
     } catch (error) {
-      logger.error('Failed to read existing primary before persist', error, { component: 'KeyManager' });
+      logger.error('Failed to read existing primary before persist', error, {
+        component: 'KeyManager',
+      });
       throw new IdentityPersistError(
         'Could not read existing identity before writing a new one; refusing to overwrite blind.',
         error,
@@ -1449,11 +1519,24 @@ export class KeyManager {
             KeyManager.canonicalPrivateKey(priorPrivate),
             backupPrivWriteOpts,
           );
-          await store.setItemAsync(layout.backupPublicKeyName, priorPublic.toLowerCase(), backupPubWriteOpts);
-          await store.setItemAsync(layout.backupTimestampName, Date.now().toString(), backupPubWriteOpts);
+          await store.setItemAsync(
+            layout.backupPublicKeyName,
+            priorPublic.toLowerCase(),
+            backupPubWriteOpts,
+          );
+          await store.setItemAsync(
+            layout.backupTimestampName,
+            Date.now().toString(),
+            backupPubWriteOpts,
+          );
         } catch (error) {
-          logger.error('Failed to back up existing identity before overwrite', error, { component: 'KeyManager' });
-          throw new IdentityPersistError('Failed to back up existing identity before overwrite', error);
+          logger.error('Failed to back up existing identity before overwrite', error, {
+            component: 'KeyManager',
+          });
+          throw new IdentityPersistError(
+            'Failed to back up existing identity before overwrite',
+            error,
+          );
         }
       }
     }
@@ -1464,9 +1547,15 @@ export class KeyManager {
     // new primary is proven durable.
     try {
       await store.setItemAsync(layout.primaryPublicKeyName, canonicalPublic, primaryPubWriteOpts);
-      await store.setItemAsync(layout.primaryPrivateKeyName, canonicalPrivate, primaryPrivWriteOpts);
+      await store.setItemAsync(
+        layout.primaryPrivateKeyName,
+        canonicalPrivate,
+        primaryPrivWriteOpts,
+      );
     } catch (error) {
-      logger.error('Failed to write primary identity to secure store', error, { component: 'KeyManager' });
+      logger.error('Failed to write primary identity to secure store', error, {
+        component: 'KeyManager',
+      });
       await KeyManager._rollbackPrimary(store, layout, priorPrivate, priorPublic);
       throw new IdentityPersistError('Failed to write identity to secure store', error);
     }
@@ -1493,9 +1582,13 @@ export class KeyManager {
       readBackPrivate?.toLowerCase() !== canonicalPrivate ||
       readBackPublic?.toLowerCase() !== canonicalPublic
     ) {
-      logger.error('Identity round-trip mismatch after write', undefined, { component: 'KeyManager' });
+      logger.error('Identity round-trip mismatch after write', undefined, {
+        component: 'KeyManager',
+      });
       await KeyManager._rollbackPrimary(store, layout, priorPrivate, priorPublic);
-      throw new IdentityPersistError('Identity write was not persisted correctly (round-trip mismatch).');
+      throw new IdentityPersistError(
+        'Identity write was not persisted correctly (round-trip mismatch).',
+      );
     }
 
     // Final sanity: derive public from the stored private and confirm the
@@ -1535,7 +1628,9 @@ export class KeyManager {
       priorBackupPublic = await store.getItemAsync(layout.backupPublicKeyName, backupReadOpts);
       priorBackupTimestamp = await store.getItemAsync(layout.backupTimestampName, backupReadOpts);
     } catch (error) {
-      logger.error('Failed to snapshot identity backup before refresh', error, { component: 'KeyManager' });
+      logger.error('Failed to snapshot identity backup before refresh', error, {
+        component: 'KeyManager',
+      });
       await KeyManager._rollbackPrimary(store, layout, priorPrivate, priorPublic);
       throw new IdentityPersistError('Failed to snapshot identity backup before refresh', error);
     }
@@ -1543,12 +1638,27 @@ export class KeyManager {
     try {
       await store.setItemAsync(layout.backupPrivateKeyName, canonicalPrivate, backupPrivWriteOpts);
       await store.setItemAsync(layout.backupPublicKeyName, canonicalPublic, backupPubWriteOpts);
-      await store.setItemAsync(layout.backupTimestampName, Date.now().toString(), backupPubWriteOpts);
+      await store.setItemAsync(
+        layout.backupTimestampName,
+        Date.now().toString(),
+        backupPubWriteOpts,
+      );
     } catch (error) {
-      logger.error('Failed to refresh identity backup after primary write', error, { component: 'KeyManager' });
-      await KeyManager._rollbackBackup(store, layout, priorBackupPrivate, priorBackupPublic, priorBackupTimestamp);
+      logger.error('Failed to refresh identity backup after primary write', error, {
+        component: 'KeyManager',
+      });
+      await KeyManager._rollbackBackup(
+        store,
+        layout,
+        priorBackupPrivate,
+        priorBackupPublic,
+        priorBackupTimestamp,
+      );
       await KeyManager._rollbackPrimary(store, layout, priorPrivate, priorPublic);
-      throw new IdentityPersistError('Failed to refresh identity backup after primary write', error);
+      throw new IdentityPersistError(
+        'Failed to refresh identity backup after primary write',
+        error,
+      );
     }
 
     // Update cache only after we are certain the identity is durable, then fan
@@ -1603,7 +1713,11 @@ export class KeyManager {
       }
       const sameIdentity = existing?.publicKey === publicKey;
       const keptMnemonic = mnemonic ?? (sameIdentity ? existing?.mnemonic : undefined);
-      if (sameIdentity && existing?.privateKey === privateKey && existing?.mnemonic === keptMnemonic) {
+      if (
+        sameIdentity &&
+        existing?.privateKey === privateKey &&
+        existing?.mnemonic === keptMnemonic
+      ) {
         return true; // Already current; do not churn the store.
       }
       await store.write(
@@ -1635,12 +1749,19 @@ export class KeyManager {
     try {
       await store.clear();
     } catch (error) {
-      logger.warn(`Failed to clear the identity device backup (${store.name})`, { component: 'KeyManager' }, error);
+      logger.warn(
+        `Failed to clear the identity device backup (${store.name})`,
+        { component: 'KeyManager' },
+        error,
+      );
     }
   }
 
   /** True when `phrase` is a valid BIP-39 phrase that derives `publicKey`. @internal */
-  private static async _phraseDerivesPublicKey(phrase: string, publicKey: string): Promise<boolean> {
+  private static async _phraseDerivesPublicKey(
+    phrase: string,
+    publicKey: string,
+  ): Promise<boolean> {
     try {
       // Imported lazily: `./recoveryPhrase` imports this module, and the phrase
       // derivation is frozen there, so it is reused rather than copied.
@@ -1653,10 +1774,17 @@ export class KeyManager {
   }
 
   /** The primary pair when it reads back healthy, else `null`. Never throws. @internal */
-  private static async _readHealthyPrimary(): Promise<{ privateKey: string; publicKey: string } | null> {
+  private static async _readHealthyPrimary(): Promise<{
+    privateKey: string;
+    publicKey: string;
+  } | null> {
     try {
       const direct = await KeyManager._readPrimaryDirect();
-      if (KeyManager._isHealthyPair(direct.privateKey, direct.publicKey) && direct.privateKey && direct.publicKey) {
+      if (
+        KeyManager._isHealthyPair(direct.privateKey, direct.publicKey) &&
+        direct.privateKey &&
+        direct.publicKey
+      ) {
         return {
           privateKey: KeyManager.canonicalPrivateKey(direct.privateKey),
           publicKey: direct.publicKey.toLowerCase(),
@@ -1734,7 +1862,11 @@ export class KeyManager {
         await writeIdentityMarker({ publicKey, origin });
       }
     } catch (error) {
-      logger.warn('Failed to sync identity marker after persist (non-fatal)', { component: 'KeyManager' }, error);
+      logger.warn(
+        'Failed to sync identity marker after persist (non-fatal)',
+        { component: 'KeyManager' },
+        error,
+      );
     }
   }
 
@@ -1756,24 +1888,46 @@ export class KeyManager {
     const backupReadOpts = KeyManager._slotOpts(layout.backupService);
     try {
       if (priorBackupPrivate) {
-        await store.setItemAsync(layout.backupPrivateKeyName, priorBackupPrivate, backupPrivWriteOpts);
+        await store.setItemAsync(
+          layout.backupPrivateKeyName,
+          priorBackupPrivate,
+          backupPrivWriteOpts,
+        );
       } else {
-        try { await store.deleteItemAsync(layout.backupPrivateKeyName, backupReadOpts); } catch { /* best effort */ }
+        try {
+          await store.deleteItemAsync(layout.backupPrivateKeyName, backupReadOpts);
+        } catch {
+          /* best effort */
+        }
       }
 
       if (priorBackupPublic) {
         await store.setItemAsync(layout.backupPublicKeyName, priorBackupPublic, backupPubWriteOpts);
       } else {
-        try { await store.deleteItemAsync(layout.backupPublicKeyName, backupReadOpts); } catch { /* best effort */ }
+        try {
+          await store.deleteItemAsync(layout.backupPublicKeyName, backupReadOpts);
+        } catch {
+          /* best effort */
+        }
       }
 
       if (priorBackupTimestamp) {
-        await store.setItemAsync(layout.backupTimestampName, priorBackupTimestamp, backupPubWriteOpts);
+        await store.setItemAsync(
+          layout.backupTimestampName,
+          priorBackupTimestamp,
+          backupPubWriteOpts,
+        );
       } else {
-        try { await store.deleteItemAsync(layout.backupTimestampName, backupReadOpts); } catch { /* best effort */ }
+        try {
+          await store.deleteItemAsync(layout.backupTimestampName, backupReadOpts);
+        } catch {
+          /* best effort */
+        }
       }
     } catch (rollbackError) {
-      logger.error('Failed to roll back identity backup after a failed refresh', rollbackError, { component: 'KeyManager' });
+      logger.error('Failed to roll back identity backup after a failed refresh', rollbackError, {
+        component: 'KeyManager',
+      });
     }
   }
 
@@ -1803,11 +1957,21 @@ export class KeyManager {
       } else {
         // There was no prior identity — leave the device empty rather than
         // half-written so hasIdentity() does not lie.
-        try { await store.deleteItemAsync(layout.primaryPublicKeyName, primaryReadOpts); } catch { /* best effort */ }
-        try { await store.deleteItemAsync(layout.primaryPrivateKeyName, primaryReadOpts); } catch { /* best effort */ }
+        try {
+          await store.deleteItemAsync(layout.primaryPublicKeyName, primaryReadOpts);
+        } catch {
+          /* best effort */
+        }
+        try {
+          await store.deleteItemAsync(layout.primaryPrivateKeyName, primaryReadOpts);
+        } catch {
+          /* best effort */
+        }
       }
     } catch (rollbackError) {
-      logger.error('Failed to roll back primary identity after a failed write', rollbackError, { component: 'KeyManager' });
+      logger.error('Failed to roll back primary identity after a failed write', rollbackError, {
+        component: 'KeyManager',
+      });
     } finally {
       // Whatever happened, the cached verdict is no longer trustworthy.
       KeyManager.invalidateCache();
@@ -1825,7 +1989,9 @@ export class KeyManager {
    */
   static async createIdentity(options?: { overwrite?: boolean }): Promise<string> {
     if (isWebPlatform()) {
-      throw new Error('Identity creation is only available on native platforms (iOS/Android). Please use the native app to create your identity.');
+      throw new Error(
+        'Identity creation is only available on native platforms (iOS/Android). Please use the native app to create your identity.',
+      );
     }
 
     // CRITICAL SAFEGUARD: never silently overwrite an existing identity.
@@ -1861,7 +2027,10 @@ export class KeyManager {
    *
    * @internal
    */
-  private static async _readPrimaryDirect(): Promise<{ privateKey: string | null; publicKey: string | null }> {
+  private static async _readPrimaryDirect(): Promise<{
+    privateKey: string | null;
+    publicKey: string | null;
+  }> {
     const migration = await KeyManager._ensureIdentitySlotsMigrated();
     if (migration.mode === 'deferred') {
       throw new IdentityUnavailableError(
@@ -1877,7 +2046,10 @@ export class KeyManager {
       const publicKey = await store.getItemAsync(layout.primaryPublicKeyName, readOpts);
       return { privateKey, publicKey };
     } catch (error) {
-      throw new IdentityUnavailableError('Could not read existing identity; refusing to write blind.', error);
+      throw new IdentityUnavailableError(
+        'Could not read existing identity; refusing to write blind.',
+        error,
+      );
     }
   }
 
@@ -1894,7 +2066,9 @@ export class KeyManager {
     options?: { overwrite?: boolean },
   ): Promise<string> {
     if (isWebPlatform()) {
-      throw new Error('Identity import is only available on native platforms (iOS/Android). Please use the native app to import your identity.');
+      throw new Error(
+        'Identity import is only available on native platforms (iOS/Android). Please use the native app to import your identity.',
+      );
     }
 
     if (!KeyManager.isValidPrivateKey(privateKey)) {
@@ -2061,7 +2235,11 @@ export class KeyManager {
     if (KeyManager.deviceBackupStore) {
       const primary = await KeyManager._readHealthyPrimary();
       if (primary && (await KeyManager._phraseDerivesPublicKey(mnemonic, primary.publicKey))) {
-        await KeyManager._writeDeviceBackup(primary.privateKey, primary.publicKey, mnemonic.trim().toLowerCase());
+        await KeyManager._writeDeviceBackup(
+          primary.privateKey,
+          primary.publicKey,
+          mnemonic.trim().toLowerCase(),
+        );
       }
     }
   }
@@ -2091,7 +2269,10 @@ export class KeyManager {
       if (isDev()) {
         logger.warn('Failed to read recovery mnemonic', { component: 'KeyManager' }, error);
       }
-      throw new IdentityUnavailableError('Failed to read recovery mnemonic from secure storage.', error);
+      throw new IdentityUnavailableError(
+        'Failed to read recovery mnemonic from secure storage.',
+        error,
+      );
     }
   }
 
@@ -2105,7 +2286,11 @@ export class KeyManager {
       return; // Identity storage is only available on native platforms
     }
     const store = await initSecureStore();
-    await KeyManager._bestEffortDelete(store, RECOVERY_MNEMONIC_STORAGE_KEY, RECOVERY_MNEMONIC_KEYCHAIN_SERVICE);
+    await KeyManager._bestEffortDelete(
+      store,
+      RECOVERY_MNEMONIC_STORAGE_KEY,
+      RECOVERY_MNEMONIC_KEYCHAIN_SERVICE,
+    );
   }
 
   /**
@@ -2132,7 +2317,10 @@ export class KeyManager {
 
     const migration = await KeyManager._ensureIdentitySlotsMigrated();
     if (migration.mode === 'deferred') {
-      throw new IdentityUnavailableError('Identity storage is temporarily unavailable.', migration.cause);
+      throw new IdentityUnavailableError(
+        'Identity storage is temporarily unavailable.',
+        migration.cause,
+      );
     }
 
     let privateKey: string | null;
@@ -2140,15 +2328,23 @@ export class KeyManager {
     try {
       const store = await initSecureStore();
       [privateKey, publicKey] = await Promise.all([
-        store.getItemAsync(migration.layout.primaryPrivateKeyName, KeyManager._slotOpts(migration.layout.primaryService)),
-        store.getItemAsync(migration.layout.primaryPublicKeyName, KeyManager._slotOpts(migration.layout.primaryService)),
+        store.getItemAsync(
+          migration.layout.primaryPrivateKeyName,
+          KeyManager._slotOpts(migration.layout.primaryService),
+        ),
+        store.getItemAsync(
+          migration.layout.primaryPublicKeyName,
+          KeyManager._slotOpts(migration.layout.primaryService),
+        ),
       ]);
     } catch (error) {
       // Storage threw — could be a transient keychain lock (e.g., background
       // fetch before the device is unlocked). Do NOT cache; throw a TYPED error
       // so callers distinguish "temporarily unavailable" from "genuinely absent"
       // instead of silently treating a locked keystore as a blank device.
-      logger.error('Failed to read identity from secure storage', error, { component: 'KeyManager' });
+      logger.error('Failed to read identity from secure storage', error, {
+        component: 'KeyManager',
+      });
       throw new IdentityUnavailableError('Failed to read identity from secure storage.', error);
     }
 
@@ -2163,9 +2359,7 @@ export class KeyManager {
       // sign-in flow when SignatureService.sign() can't find the keypair.
       if (KeyManager.isValidPrivateKey(privateKey) && KeyManager.isValidPublicKey(publicKey)) {
         try {
-          const derived = deriveSecp256k1PublicKey(
-            KeyManager.canonicalPrivateKey(privateKey),
-          );
+          const derived = deriveSecp256k1PublicKey(KeyManager.canonicalPrivateKey(privateKey));
           // Hex equality is case-insensitive; normalize on both sides to
           // tolerate legacy uppercase-stored public keys.
           hasIdentity = derived.toLowerCase() === publicKey.toLowerCase();
@@ -2183,10 +2377,9 @@ export class KeyManager {
           );
         }
       } else {
-        logger.warn(
-          'KeyManager.hasIdentity: stored key material is malformed',
-          { component: 'KeyManager' },
-        );
+        logger.warn('KeyManager.hasIdentity: stored key material is malformed', {
+          component: 'KeyManager',
+        });
       }
     }
 
@@ -2300,16 +2493,18 @@ export class KeyManager {
    * @param userConfirmed - If true, user has explicitly confirmed deletion (default: false)
    */
   static async deleteIdentity(
-    skipBackup = false, 
+    skipBackup = false,
     force = false,
-    userConfirmed = false
+    userConfirmed = false,
   ): Promise<void> {
     if (isWebPlatform()) {
       return; // Identity storage is only available on native platforms, nothing to delete
     }
     // CRITICAL SAFEGUARD: Require explicit user confirmation unless force is true
     if (!force && !userConfirmed) {
-      throw new Error('Identity deletion requires explicit user confirmation. This is a safety measure to prevent accidental data loss.');
+      throw new Error(
+        'Identity deletion requires explicit user confirmation. This is a safety measure to prevent accidental data loss.',
+      );
     }
 
     if (!force) {
@@ -2328,11 +2523,17 @@ export class KeyManager {
       try {
         const backupSuccess = await KeyManager.backupIdentity();
         if (!backupSuccess && isDev()) {
-          logger.warn('Failed to backup identity before deletion - proceeding anyway', { component: 'KeyManager' });
+          logger.warn('Failed to backup identity before deletion - proceeding anyway', {
+            component: 'KeyManager',
+          });
         }
       } catch (backupError) {
         if (isDev()) {
-          logger.warn('Failed to backup identity before deletion', { component: 'KeyManager' }, backupError);
+          logger.warn(
+            'Failed to backup identity before deletion',
+            { component: 'KeyManager' },
+            backupError,
+          );
         }
       }
     }
@@ -2378,7 +2579,11 @@ export class KeyManager {
     try {
       await clearIdentityMarker();
     } catch (error) {
-      logger.warn('Failed to clear identity marker during delete', { component: 'KeyManager' }, error);
+      logger.warn(
+        'Failed to clear identity marker during delete',
+        { component: 'KeyManager' },
+        error,
+      );
     }
 
     // Invalidate cache LAST — its subscriber fan-out fires only after both the
@@ -2418,8 +2623,16 @@ export class KeyManager {
         privateKey,
         KeyManager._privateWriteOpts(store, layout.backupService),
       );
-      await store.setItemAsync(layout.backupPublicKeyName, publicKey, KeyManager._slotOpts(layout.backupService));
-      await store.setItemAsync(layout.backupTimestampName, Date.now().toString(), KeyManager._slotOpts(layout.backupService));
+      await store.setItemAsync(
+        layout.backupPublicKeyName,
+        publicKey,
+        KeyManager._slotOpts(layout.backupService),
+      );
+      await store.setItemAsync(
+        layout.backupTimestampName,
+        Date.now().toString(),
+        KeyManager._slotOpts(layout.backupService),
+      );
 
       return true;
     } catch (error) {
@@ -2473,7 +2686,9 @@ export class KeyManager {
       const probeHash = '0'.repeat(64);
       const signature = signSecp256k1Digest(canonicalPrivateKey, probeHash);
       if (!verifySecp256k1Digest(publicKey, probeHash, signature)) {
-        logger.error('Identity sign/verify probe failed during integrity check', undefined, { component: 'KeyManager' });
+        logger.error('Identity sign/verify probe failed during integrity check', undefined, {
+          component: 'KeyManager',
+        });
         return false;
       }
 
@@ -2554,15 +2769,23 @@ export class KeyManager {
       }
 
       // Load + validate the backup.
-      const backupPrivateKey = await store.getItemAsync(layout.backupPrivateKeyName, backupReadOpts);
+      const backupPrivateKey = await store.getItemAsync(
+        layout.backupPrivateKeyName,
+        backupReadOpts,
+      );
       const backupPublicKey = await store.getItemAsync(layout.backupPublicKeyName, backupReadOpts);
 
       if (!backupPrivateKey || !backupPublicKey) {
         return false; // No backup available
       }
 
-      if (!KeyManager.isValidPrivateKey(backupPrivateKey) || !KeyManager.isValidPublicKey(backupPublicKey)) {
-        logger.warn('Backup identity is malformed; refusing to restore', { component: 'KeyManager' });
+      if (
+        !KeyManager.isValidPrivateKey(backupPrivateKey) ||
+        !KeyManager.isValidPublicKey(backupPublicKey)
+      ) {
+        logger.warn('Backup identity is malformed; refusing to restore', {
+          component: 'KeyManager',
+        });
         return false;
       }
 
@@ -2571,7 +2794,9 @@ export class KeyManager {
       // be considered valid.
       const derivedPublicKey = KeyManager.derivePublicKey(backupPrivateKey);
       if (derivedPublicKey.toLowerCase() !== backupPublicKey.toLowerCase()) {
-        logger.warn('Backup public key does not match derived; refusing to restore', { component: 'KeyManager' });
+        logger.warn('Backup public key does not match derived; refusing to restore', {
+          component: 'KeyManager',
+        });
         return false;
       }
 
@@ -2581,10 +2806,7 @@ export class KeyManager {
       // the user. We check the private key too (not just the public): a
       // present private key that derives to a non-backup public means a real,
       // different identity is sitting in the primary slot.
-      if (
-        primaryPublic &&
-        primaryPublic.toLowerCase() !== backupPublicKey.toLowerCase()
-      ) {
+      if (primaryPublic && primaryPublic.toLowerCase() !== backupPublicKey.toLowerCase()) {
         logger.error(
           'Primary public key is present, corrupt-or-mismatched, AND differs from the backup. Refusing to restore to avoid switching accounts.',
           undefined,
@@ -2610,7 +2832,9 @@ export class KeyManager {
       try {
         await KeyManager._persistIdentityAtomic(backupPrivateKey, backupPublicKey, 'restore');
       } catch (error) {
-        logger.error('Failed to persist identity restored from backup', error, { component: 'KeyManager' });
+        logger.error('Failed to persist identity restored from backup', error, {
+          component: 'KeyManager',
+        });
         return false;
       }
 
@@ -2685,7 +2909,9 @@ export class KeyManager {
     const backupCandidate = await KeyManager._readBackupCandidate();
     if (backupCandidate) {
       if (backupCandidate.publicKey.toLowerCase() === expectedPublic) {
-        if (await KeyManager._commitRecovery(backupCandidate.privateKey, backupCandidate.publicKey)) {
+        if (
+          await KeyManager._commitRecovery(backupCandidate.privateKey, backupCandidate.publicKey)
+        ) {
           return { recovered: true, source: 'backup', publicKey: backupCandidate.publicKey };
         }
       } else {
@@ -2697,7 +2923,9 @@ export class KeyManager {
     const sharedCandidate = await KeyManager._readSharedCandidate();
     if (sharedCandidate) {
       if (sharedCandidate.publicKey.toLowerCase() === expectedPublic) {
-        if (await KeyManager._commitRecovery(sharedCandidate.privateKey, sharedCandidate.publicKey)) {
+        if (
+          await KeyManager._commitRecovery(sharedCandidate.privateKey, sharedCandidate.publicKey)
+        ) {
           return { recovered: true, source: 'shared', publicKey: sharedCandidate.publicKey };
         }
       } else {
@@ -2739,7 +2967,11 @@ export class KeyManager {
         publicKey: record.publicKey.toLowerCase(),
       };
     } catch (error) {
-      logger.warn(`Recovery: failed to read the device backup (${store.name})`, { component: 'KeyManager' }, error);
+      logger.warn(
+        `Recovery: failed to read the device backup (${store.name})`,
+        { component: 'KeyManager' },
+        error,
+      );
       return null;
     }
   }
@@ -2753,18 +2985,28 @@ export class KeyManager {
     if (!(await KeyManager._commitRecovery(record.privateKey, record.publicKey))) {
       return false;
     }
-    if (record.mnemonic && (await KeyManager._phraseDerivesPublicKey(record.mnemonic, record.publicKey))) {
+    if (
+      record.mnemonic &&
+      (await KeyManager._phraseDerivesPublicKey(record.mnemonic, record.publicKey))
+    ) {
       try {
         await KeyManager.storeRecoveryMnemonic(record.mnemonic);
       } catch (error) {
-        logger.warn('Recovery: restored the identity but not its phrase slot', { component: 'KeyManager' }, error);
+        logger.warn(
+          'Recovery: restored the identity but not its phrase slot',
+          { component: 'KeyManager' },
+          error,
+        );
       }
     }
     return true;
   }
 
   /** Read the active-layout backup slot as a healthy candidate, or null. @internal */
-  private static async _readBackupCandidate(): Promise<{ privateKey: string; publicKey: string } | null> {
+  private static async _readBackupCandidate(): Promise<{
+    privateKey: string;
+    publicKey: string;
+  } | null> {
     try {
       const migration = await KeyManager._ensureIdentitySlotsMigrated();
       if (migration.mode === 'deferred') {
@@ -2790,7 +3032,10 @@ export class KeyManager {
    * keychain group, or on Android Commons' own signer store (read in-process;
    * Commons never gets it back over IPC). @internal
    */
-  private static async _readSharedCandidate(): Promise<{ privateKey: string; publicKey: string } | null> {
+  private static async _readSharedCandidate(): Promise<{
+    privateKey: string;
+    publicKey: string;
+  } | null> {
     try {
       let privateKey: string | null = null;
       let publicKey: string | null = null;
@@ -2819,7 +3064,9 @@ export class KeyManager {
       KeyManager.invalidateCache();
       return true;
     } catch (error) {
-      logger.error('Recovery: failed to persist recovered identity', error, { component: 'KeyManager' });
+      logger.error('Recovery: failed to persist recovered identity', error, {
+        component: 'KeyManager',
+      });
       return false;
     }
   }
@@ -2966,7 +3213,10 @@ export class KeyManager {
    * @returns the signature, or `null` on web / when no identity key is
    *          available to this app.
    */
-  static async signSocialReceive(index: number, digest: string): Promise<CommonsSocialReceiveSignature | null> {
+  static async signSocialReceive(
+    index: number,
+    digest: string,
+  ): Promise<CommonsSocialReceiveSignature | null> {
     if (isWebPlatform()) {
       return null;
     }

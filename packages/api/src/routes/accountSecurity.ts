@@ -43,7 +43,14 @@ import { sendSecurityNotice, type SecurityNotice } from '../services/accountEmai
 import { readPasswordHash, storePassword } from '../services/password.service';
 import { startReauthEmail, verifyReauth } from '../services/reauth.service';
 import sessionService from '../services/session.service';
-import { confirmTotp, disableTotp, enrollTotp, isTotpEnabled, readTotpState, regenerateBackupCodes } from '../services/totp.service';
+import {
+  confirmTotp,
+  disableTotp,
+  enrollTotp,
+  isTotpEnabled,
+  readTotpState,
+  regenerateBackupCodes,
+} from '../services/totp.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
@@ -59,7 +66,9 @@ function accountLimiter(name: string, windowMs: number, max: number) {
     message: 'Too many attempts. Please try again later.',
     keyGenerator: (req): string => {
       const userId = (req as AuthRequest).user?.id;
-      return userId ? `account:security:${name}:${userId}` : `account:security:${name}:ip:${hashedIpKey(req)}`;
+      return userId
+        ? `account:security:${name}:${userId}`
+        : `account:security:${name}:ip:${hashedIpKey(req)}`;
     },
   });
 }
@@ -69,7 +78,12 @@ const readLimiter = accountLimiter('read', 15 * 60 * 1000, 120);
 const reauthEmailLimiter = accountLimiter('reauth-email', HOUR, 10);
 const changeLimiter = accountLimiter('change', HOUR, 30);
 
-router.use(['/sign-in-methods', '/reauth', '/password', '/totp'], requireOfficialOrigin, authMiddleware, requireFirstPartyDeviceAccess);
+router.use(
+  ['/sign-in-methods', '/reauth', '/password', '/totp'],
+  requireOfficialOrigin,
+  authMiddleware,
+  requireFirstPartyDeviceAccess,
+);
 
 interface Owner {
   userId: string;
@@ -86,12 +100,20 @@ async function owner(req: AuthRequest, options: { keyless?: boolean } = {}): Pro
   const userId = req.user?.id;
   if (!userId) throw new UnauthorizedError('Authentication required');
   const [row] = await getDb()
-    .select({ email: users.email, username: users.username, kind: users.kind, publicKey: users.publicKey })
+    .select({
+      email: users.email,
+      username: users.username,
+      kind: users.kind,
+      publicKey: users.publicKey,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
   if (!row) throw new NotFoundError('User not found');
-  if (row.kind !== 'personal') throw new ForbiddenError('Only a personal account signs in with a password or an authenticator');
+  if (row.kind !== 'personal')
+    throw new ForbiddenError(
+      'Only a personal account signs in with a password or an authenticator',
+    );
   if (options.keyless && row.publicKey) {
     throw new ForbiddenError('This account signs in with Commons');
   }
@@ -101,10 +123,14 @@ async function owner(req: AuthRequest, options: { keyless?: boolean } = {}): Pro
 function notify(account: Owner, notice: SecurityNotice): void {
   if (!account.email) return;
   sendSecurityNotice(account.email, notice, account.username).catch((error: unknown) => {
-    logger.error('Security notice could not be sent', error instanceof Error ? error : new Error(String(error)), {
-      component: 'accountSecurity',
-      notice,
-    });
+    logger.error(
+      'Security notice could not be sent',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'accountSecurity',
+        notice,
+      },
+    );
   });
 }
 
@@ -113,7 +139,10 @@ router.get(
   readLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const account = await owner(req);
-    const [password, totp] = await Promise.all([readPasswordHash(account.userId), readTotpState(account.userId)]);
+    const [password, totp] = await Promise.all([
+      readPasswordHash(account.userId),
+      readTotpState(account.userId),
+    ]);
     const methods: SignInMethods = {
       hasEmail: account.email !== null,
       hasPassword: password !== null,
@@ -186,7 +215,11 @@ router.post(
     const account = await owner(req);
     const body = req.body as TotpReauthRequest;
     if (!(await isTotpEnabled(account.userId))) {
-      throw new ApiError(400, 'This account has no authenticator', SIGN_IN_ERROR_CODES.totpNotEnabled);
+      throw new ApiError(
+        400,
+        'This account has no authenticator',
+        SIGN_IN_ERROR_CODES.totpNotEnabled,
+      );
     }
     await verifyReauth(account.userId, body.reauth, 'totp');
     await disableTotp(account.userId);

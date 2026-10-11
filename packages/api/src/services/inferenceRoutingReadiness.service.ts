@@ -73,18 +73,18 @@ export async function readInferenceRoutingReadinessRows(): Promise<
     .from(inferenceDeployments)
     .innerJoin(
       inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .leftJoin(
       inferenceDeploymentRoutingScores,
-      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId),
     )
     .leftJoin(
       priceVersionUnitPrices,
       and(
         eq(BILLING_PRICE_VERSION_ID, priceVersionUnitPrices.priceVersionId),
-        eq(priceVersionUnitPrices.unit, 'requests')
-      )
+        eq(priceVersionUnitPrices.unit, 'requests'),
+      ),
     )
     .where(
       and(
@@ -97,10 +97,10 @@ export async function readInferenceRoutingReadinessRows(): Promise<
             'platform_internal',
             'byok_only',
           ]),
-          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
         ),
-        isNull(inferenceModelRevisions.retiredAt)
-      )
+        isNull(inferenceModelRevisions.retiredAt),
+      ),
     );
 }
 
@@ -113,10 +113,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
  */
 function isPriceOnlyRoute(route: InferenceRoutingReadinessRow): boolean {
   return (
-    route.synced &&
-    route.latency === null &&
-    route.throughput === null &&
-    route.balanced === null
+    route.synced && route.latency === null && route.throughput === null && route.balanced === null
   );
 }
 
@@ -124,7 +121,7 @@ function isPriceOnlyRoute(route: InferenceRoutingReadinessRow): boolean {
 export function assessInferenceRoutingReadiness(
   rows: readonly InferenceRoutingReadinessRow[],
   now: Date,
-  minimumValidUntil: Date
+  minimumValidUntil: Date,
 ): InferenceRoutingReadinessAssessment {
   if (rows.length === 0) return { status: 'empty' };
 
@@ -141,7 +138,7 @@ export function assessInferenceRoutingReadiness(
   // requested score, so a price-only route beside a measured one would take the
   // measured route's latency, throughput and balanced ranking down with it.
   const measuredRevisions = new Set(
-    rows.filter((route) => !isPriceOnlyRoute(route)).map((route) => route.modelRevisionId)
+    rows.filter((route) => !isPriceOnlyRoute(route)).map((route) => route.modelRevisionId),
   );
 
   const incomplete = rows.filter(
@@ -153,7 +150,7 @@ export function assessInferenceRoutingReadiness(
       route.scorePriceVersionId !== route.currentPriceVersionId ||
       (isPriceOnlyRoute(route)
         ? measuredRevisions.has(route.modelRevisionId)
-        : isMeasuredEvidenceIncomplete(route, now, minimumValidUntil))
+        : isMeasuredEvidenceIncomplete(route, now, minimumValidUntil)),
   );
   return incomplete.length === 0
     ? { status: 'ready' }
@@ -163,7 +160,7 @@ export function assessInferenceRoutingReadiness(
 function isMeasuredEvidenceIncomplete(
   route: InferenceRoutingReadinessRow,
   now: Date,
-  minimumValidUntil: Date
+  minimumValidUntil: Date,
 ): boolean {
   return (
     route.latency === null ||
@@ -191,7 +188,7 @@ function isMeasuredEvidenceIncomplete(
  * it now falls inside the configured horizon.
  */
 export function earliestInferenceRoutingEvidenceExpiry(
-  rows: readonly InferenceRoutingReadinessRow[]
+  rows: readonly InferenceRoutingReadinessRow[],
 ): { readonly deploymentId: string | null; readonly validUntil: Date } | undefined {
   let earliest: { deploymentId: string | null; validUntil: Date } | undefined;
   for (const route of rows) {

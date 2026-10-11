@@ -3,23 +3,25 @@ import type { SecurityEventType, SecurityEventSeverity, SecurityActivity } from 
 
 // Severity mapping (matches backend - single source of truth)
 const SECURITY_EVENT_SEVERITY_MAP: Record<SecurityEventType, SecurityEventSeverity> = {
-  'sign_in': 'low',
-  'sign_out': 'low',
-  'profile_updated': 'low',
-  'email_changed': 'medium',
-  'device_added': 'medium',
-  'device_removed': 'medium',
-  'security_settings_changed': 'medium',
-  'account_recovery': 'high',
-  'private_key_exported': 'high',
-  'backup_created': 'high',
-  'suspicious_activity': 'critical',
+  sign_in: 'low',
+  sign_out: 'low',
+  profile_updated: 'low',
+  email_changed: 'medium',
+  device_added: 'medium',
+  device_removed: 'medium',
+  security_settings_changed: 'medium',
+  account_recovery: 'high',
+  private_key_exported: 'high',
+  backup_created: 'high',
+  suspicious_activity: 'critical',
 };
 
 /**
  * Get icon name for security event type
  */
-export function getEventIcon(eventType: SecurityEventType): keyof typeof MaterialCommunityIcons.glyphMap {
+export function getEventIcon(
+  eventType: SecurityEventType,
+): keyof typeof MaterialCommunityIcons.glyphMap {
   switch (eventType) {
     case 'sign_in':
       return 'login';
@@ -51,19 +53,22 @@ export function getEventIcon(eventType: SecurityEventType): keyof typeof Materia
 /**
  * Get color for security event severity
  */
-export function getSeverityColor(severity: SecurityEventSeverity, colorScheme: 'light' | 'dark'): string {
+export function getSeverityColor(
+  severity: SecurityEventSeverity,
+  colorScheme: 'light' | 'dark',
+): string {
   const colors = {
     light: {
-      low: '#34C759',        // Green - normal operations
-      medium: '#FF9500',     // Orange - important changes
-      high: '#AF52DE',       // Purple - critical actions
-      critical: '#FF3B30',   // Red - security threats
+      low: '#34C759', // Green - normal operations
+      medium: '#FF9500', // Orange - important changes
+      high: '#AF52DE', // Purple - critical actions
+      critical: '#FF3B30', // Red - security threats
     },
     dark: {
-      low: '#30D158',        // Green - normal operations
-      medium: '#FF9F0A',     // Orange - important changes
-      high: '#BF5AF2',       // Purple - critical actions
-      critical: '#FF453A',   // Red - security threats
+      low: '#30D158', // Green - normal operations
+      medium: '#FF9F0A', // Orange - important changes
+      high: '#BF5AF2', // Purple - critical actions
+      critical: '#FF453A', // Red - security threats
     },
   };
 
@@ -88,7 +93,7 @@ export function formatEventDescription(activity: SecurityActivity): string {
 
   // For profile updates, show which fields were updated
   if (eventType === 'profile_updated' && metadata?.updatedFields) {
-    const fields = Array.isArray(metadata.updatedFields) 
+    const fields = Array.isArray(metadata.updatedFields)
       ? metadata.updatedFields.join(', ')
       : String(metadata.updatedFields);
     return `Profile updated: ${fields}`;
@@ -103,4 +108,3 @@ export function formatEventDescription(activity: SecurityActivity): string {
 export function getEventSeverity(eventType: SecurityEventType): SecurityEventSeverity {
   return SECURITY_EVENT_SEVERITY_MAP[eventType] || 'low';
 }
-

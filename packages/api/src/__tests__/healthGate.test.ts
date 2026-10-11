@@ -33,8 +33,7 @@ jest.unmock('socket.io');
 // `server.ts` runs `validateRequiredEnvVars()` at import and `process.exit(1)`s
 // when anything is missing — which would take the whole jest worker with it.
 // CI supplies these; a developer running `bun run test` with no `.env` does not.
-// `??=` so a real value always wins. No MONGODB_URI placeholder: it is not a
-// required var any more, and `bootGate.test.ts` is where that is held.
+// `??=` so a real value always wins.
 process.env.ACCESS_TOKEN_SECRET ??= 'health-gate-access-token-secret-32-chars';
 process.env.REFRESH_TOKEN_SECRET ??= 'health-gate-refresh-token-secret-32-chars';
 process.env.AWS_REGION ??= 'us-west-2';
@@ -101,21 +100,25 @@ describe('GET /health', () => {
   });
 
   // MUST stay last: it destroys the database this suite is pointed at.
-  it('answers 503 once the database stops answering UNDER A LIVE POOL', async () => {
-    // The pool is open and has already served a query. Dropping the database
-    // with `FORCE` terminates its backends, so the next query on the SAME pool
-    // fails — while `client` is still a perfectly good object. A probe that
-    // reports on the handle rather than on the server cannot tell the
-    // difference, which is exactly what this asserts it does not do.
-    await dropTestDatabase(ownDatabaseUrl);
+  it(
+    'answers 503 once the database stops answering UNDER A LIVE POOL',
+    async () => {
+      // The pool is open and has already served a query. Dropping the database
+      // with `FORCE` terminates its backends, so the next query on the SAME pool
+      // fails — while `client` is still a perfectly good object. A probe that
+      // reports on the handle rather than on the server cannot tell the
+      // difference, which is exactly what this asserts it does not do.
+      await dropTestDatabase(ownDatabaseUrl);
 
-    const { status, body } = await health();
+      const { status, body } = await health();
 
-    expect(status).toBe(503);
-    expect(body.status).toBe('down');
-    expect(body.database).toBe('disconnected');
-    expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
-  }, SLOW_STEP_TIMEOUT_MS);
+      expect(status).toBe(503);
+      expect(body.status).toBe('down');
+      expect(body.database).toBe('disconnected');
+      expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
+    },
+    SLOW_STEP_TIMEOUT_MS,
+  );
 
   it('keeps answering 503 — a dead database does not heal itself', async () => {
     const { status, body } = await health();

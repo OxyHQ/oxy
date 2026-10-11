@@ -65,7 +65,12 @@ const commaList = z
   .string()
   .trim()
   .min(1)
-  .transform((raw) => raw.split(',').map((part) => part.trim()).filter((part) => part.length > 0));
+  .transform((raw) =>
+    raw
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0),
+  );
 
 /**
  * `GET /chains/records` — the multi-subject read.

@@ -63,7 +63,15 @@ function claims(overrides: Record<string, unknown> = {}) {
 
 describe('Oxy API Ed25519 service tokens', () => {
   it('the common issuer produces exactly a five-minute credential or workload token', () => {
-    const token = mintServiceToken({ appId: 'app', appName: 'test', credentialId: 'key', ownerAccountId: 'owner', environment: 'production', tier: 'internal', scopes: ['user:read'] });
+    const token = mintServiceToken({
+      appId: 'app',
+      appName: 'test',
+      credentialId: 'key',
+      ownerAccountId: 'owner',
+      environment: 'production',
+      tier: 'internal',
+      scopes: ['user:read'],
+    });
     const payload = JSON.parse(Buffer.from(token.split('.')[1]!, 'base64url').toString('utf8'));
     expect(payload.exp - payload.iat).toBe(300);
     expect(verifyServiceToken(token)).toMatchObject({ ok: true });

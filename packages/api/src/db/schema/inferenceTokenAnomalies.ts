@@ -57,7 +57,16 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { bigint, check, doublePrecision, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  check,
+  doublePrecision,
+  index,
+  integer,
+  pgTable,
+  text,
+  unique,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
 import { users } from './users';
 
@@ -118,7 +127,7 @@ export const inferenceTokenAnomalies = pgTable(
     // "What has this account triggered lately", newest first — the staff read.
     index('inference_token_anomalies_account_id_detected_for_hour_idx').on(
       t.accountId,
-      t.detectedForHour.desc()
+      t.detectedForHour.desc(),
     ),
     // "What fired across the platform in the last day", which is not scoped to an
     // account and so cannot use the compound above.
@@ -131,7 +140,7 @@ export const inferenceTokenAnomalies = pgTable(
     // another writer reintroducing it.
     check(
       'inference_token_anomalies_baseline_median_tokens_check',
-      sql`${t.baselineMedianTokens} > 0`
+      sql`${t.baselineMedianTokens} > 0`,
     ),
     // A multiple of 1 or less flags an account for using a normal number of tokens.
     check('inference_token_anomalies_threshold_multiple_check', sql`${t.thresholdMultiple} > 1`),
@@ -141,7 +150,7 @@ export const inferenceTokenAnomalies = pgTable(
     // refused here rather than filling the table with non-events.
     check(
       'inference_token_anomalies_is_a_spike_check',
-      sql`${t.hourTokens} > ${t.baselineMedianTokens}`
+      sql`${t.hourTokens} > ${t.baselineMedianTokens}`,
     ),
-  ]
+  ],
 );

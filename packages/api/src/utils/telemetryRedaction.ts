@@ -1,4 +1,5 @@
-const SECRET_AUTH_SESSION_PATH = /(?:^|\/)(?:auth\/)?session\/(?:status|authorize|cancel|finalize)\/[^/?#]+/;
+const SECRET_AUTH_SESSION_PATH =
+  /(?:^|\/)(?:auth\/)?session\/(?:status|authorize|cancel|finalize)\/[^/?#]+/;
 
 /**
  * Return true when a raw HTTP target may contain a credential.

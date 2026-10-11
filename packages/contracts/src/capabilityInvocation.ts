@@ -16,27 +16,27 @@
 
 /** The part of a catalog tool this module needs. */
 export interface CatalogInvocationTemplate {
-    readonly method: string;
-    readonly path: string;
+  readonly method: string;
+  readonly path: string;
 }
 
 interface InvocationCarrier {
-    readonly name: string;
-    readonly invocation: CatalogInvocationTemplate;
+  readonly name: string;
+  readonly invocation: CatalogInvocationTemplate;
 }
 
 const PARAMETER_SEGMENT = /^\{([A-Za-z][A-Za-z0-9_]*)\}$/;
 
 function pathSegments(path: string): string[] {
-    return path.split('/').filter(Boolean);
+  return path.split('/').filter(Boolean);
 }
 
 /** The `{name}` placeholders of a path template, in order. */
 export function catalogInvocationPathParameters(path: string): string[] {
-    return pathSegments(path).flatMap((segment) => {
-        const parameter = PARAMETER_SEGMENT.exec(segment)?.[1];
-        return parameter ? [parameter] : [];
-    });
+  return pathSegments(path).flatMap((segment) => {
+    const parameter = PARAMETER_SEGMENT.exec(segment)?.[1];
+    return parameter ? [parameter] : [];
+  });
 }
 
 /**
@@ -48,17 +48,17 @@ export function catalogInvocationPathParameters(path: string): string[] {
  * `/messages/{id}` and `/messages/{id}/thread` do not.
  */
 export function catalogInvocationsOverlap(
-    left: CatalogInvocationTemplate,
-    right: CatalogInvocationTemplate,
+  left: CatalogInvocationTemplate,
+  right: CatalogInvocationTemplate,
 ): boolean {
-    if (left.method.toUpperCase() !== right.method.toUpperCase()) return false;
-    const leftSegments = pathSegments(left.path);
-    const rightSegments = pathSegments(right.path);
-    if (leftSegments.length !== rightSegments.length) return false;
-    return leftSegments.every((segment, index) => {
-        const other = rightSegments[index] ?? '';
-        return segment === other || PARAMETER_SEGMENT.test(segment) || PARAMETER_SEGMENT.test(other);
-    });
+  if (left.method.toUpperCase() !== right.method.toUpperCase()) return false;
+  const leftSegments = pathSegments(left.path);
+  const rightSegments = pathSegments(right.path);
+  if (leftSegments.length !== rightSegments.length) return false;
+  return leftSegments.every((segment, index) => {
+    const other = rightSegments[index] ?? '';
+    return segment === other || PARAMETER_SEGMENT.test(segment) || PARAMETER_SEGMENT.test(other);
+  });
 }
 
 /**
@@ -69,65 +69,65 @@ export function catalogInvocationsOverlap(
  * Used to say which documented REST operation shares its address with a tool.
  */
 export function catalogInvocationTemplatesEquivalent(
-    left: CatalogInvocationTemplate,
-    right: CatalogInvocationTemplate,
+  left: CatalogInvocationTemplate,
+  right: CatalogInvocationTemplate,
 ): boolean {
-    if (left.method.toUpperCase() !== right.method.toUpperCase()) return false;
-    const leftSegments = pathSegments(left.path);
-    const rightSegments = pathSegments(right.path);
-    if (leftSegments.length !== rightSegments.length) return false;
-    return leftSegments.every((segment, index) => {
-        const other = rightSegments[index] ?? '';
-        const leftIsParameter = PARAMETER_SEGMENT.test(segment);
-        return leftIsParameter ? PARAMETER_SEGMENT.test(other) : segment === other;
-    });
+  if (left.method.toUpperCase() !== right.method.toUpperCase()) return false;
+  const leftSegments = pathSegments(left.path);
+  const rightSegments = pathSegments(right.path);
+  if (leftSegments.length !== rightSegments.length) return false;
+  return leftSegments.every((segment, index) => {
+    const other = rightSegments[index] ?? '';
+    const leftIsParameter = PARAMETER_SEGMENT.test(segment);
+    return leftIsParameter ? PARAMETER_SEGMENT.test(other) : segment === other;
+  });
 }
 
 /** Every pair of tools whose invocations overlap — empty for a valid catalog. */
 export function findOverlappingCatalogInvocations<T extends InvocationCarrier>(
-    tools: readonly T[],
+  tools: readonly T[],
 ): Array<readonly [T, T]> {
-    const overlaps: Array<readonly [T, T]> = [];
-    for (let left = 0; left < tools.length; left += 1) {
-        for (let right = left + 1; right < tools.length; right += 1) {
-            const a = tools[left];
-            const b = tools[right];
-            if (a && b && catalogInvocationsOverlap(a.invocation, b.invocation)) overlaps.push([a, b]);
-        }
+  const overlaps: Array<readonly [T, T]> = [];
+  for (let left = 0; left < tools.length; left += 1) {
+    for (let right = left + 1; right < tools.length; right += 1) {
+      const a = tools[left];
+      const b = tools[right];
+      if (a && b && catalogInvocationsOverlap(a.invocation, b.invocation)) overlaps.push([a, b]);
     }
-    return overlaps;
+  }
+  return overlaps;
 }
 
 export interface CatalogInvocationMatch<T> {
-    readonly tool: T;
-    /** Decoded path parameters, keyed by their template names. */
-    readonly params: Record<string, string>;
+  readonly tool: T;
+  /** Decoded path parameters, keyed by their template names. */
+  readonly params: Record<string, string>;
 }
 
 function matchTemplate(
-    template: CatalogInvocationTemplate,
-    method: string,
-    requestSegments: readonly string[],
+  template: CatalogInvocationTemplate,
+  method: string,
+  requestSegments: readonly string[],
 ): Record<string, string> | null {
-    if (template.method.toUpperCase() !== method.toUpperCase()) return null;
-    const templateSegments = pathSegments(template.path);
-    if (templateSegments.length !== requestSegments.length) return null;
-    const params: Record<string, string> = {};
-    for (const [index, templateSegment] of templateSegments.entries()) {
-        const requestSegment = requestSegments[index];
-        if (!requestSegment) return null;
-        const parameter = PARAMETER_SEGMENT.exec(templateSegment)?.[1];
-        if (!parameter) {
-            if (templateSegment !== requestSegment) return null;
-            continue;
-        }
-        try {
-            params[parameter] = decodeURIComponent(requestSegment);
-        } catch {
-            return null;
-        }
+  if (template.method.toUpperCase() !== method.toUpperCase()) return null;
+  const templateSegments = pathSegments(template.path);
+  if (templateSegments.length !== requestSegments.length) return null;
+  const params: Record<string, string> = {};
+  for (const [index, templateSegment] of templateSegments.entries()) {
+    const requestSegment = requestSegments[index];
+    if (!requestSegment) return null;
+    const parameter = PARAMETER_SEGMENT.exec(templateSegment)?.[1];
+    if (!parameter) {
+      if (templateSegment !== requestSegment) return null;
+      continue;
     }
-    return params;
+    try {
+      params[parameter] = decodeURIComponent(requestSegment);
+    } catch {
+      return null;
+    }
+  }
+  return params;
 }
 
 /**
@@ -140,29 +140,29 @@ function matchTemplate(
  * templates — so it throws rather than guessing which tool the ticket meant.
  */
 export function matchCatalogInvocation<T extends InvocationCarrier>(
-    tools: readonly T[],
-    method: string,
-    path: string,
+  tools: readonly T[],
+  method: string,
+  path: string,
 ): CatalogInvocationMatch<T> | null {
-    const requestSegments = pathSegments(path);
-    const matches: Array<CatalogInvocationMatch<T>> = [];
-    for (const tool of tools) {
-        const params = matchTemplate(tool.invocation, method, requestSegments);
-        if (params) matches.push({ tool, params });
-    }
-    if (matches.length > 1) {
-        throw new Error(
-            `Ambiguous catalog invocation ${method} ${path}: ${matches.map(({ tool }) => tool.name).join(', ')}`,
-        );
-    }
-    return matches[0] ?? null;
+  const requestSegments = pathSegments(path);
+  const matches: Array<CatalogInvocationMatch<T>> = [];
+  for (const tool of tools) {
+    const params = matchTemplate(tool.invocation, method, requestSegments);
+    if (params) matches.push({ tool, params });
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `Ambiguous catalog invocation ${method} ${path}: ${matches.map(({ tool }) => tool.name).join(', ')}`,
+    );
+  }
+  return matches[0] ?? null;
 }
 
 export interface ResolvedCatalogInvocation {
-    readonly method: string;
-    readonly url: URL;
-    /** JSON body for non-GET invocations; GET arguments travel in the query. */
-    readonly body?: Record<string, unknown>;
+  readonly method: string;
+  readonly url: URL;
+  /** JSON body for non-GET invocations; GET arguments travel in the query. */
+  readonly body?: Record<string, unknown>;
 }
 
 /**
@@ -176,33 +176,35 @@ export interface ResolvedCatalogInvocation {
  * tool's own schema. The resolved URL must stay on `internalBaseUrl`'s origin.
  */
 export function resolveCatalogInvocation(
-    catalog: { readonly internalBaseUrl: string },
-    tool: InvocationCarrier,
-    args: Readonly<Record<string, unknown>>,
+  catalog: { readonly internalBaseUrl: string },
+  tool: InvocationCarrier,
+  args: Readonly<Record<string, unknown>>,
 ): ResolvedCatalogInvocation {
-    const remaining: Record<string, unknown> = { ...args };
-    const path = tool.invocation.path.replace(/\{(\w+)\}/g, (_match, parameter: string) => {
-        const value = Object.prototype.hasOwnProperty.call(remaining, parameter) ? remaining[parameter] : undefined;
-        delete remaining[parameter];
-        if (value === undefined || value === null || value === '') {
-            throw new Error(`Missing required path parameter: ${parameter}`);
-        }
-        return encodeURIComponent(String(value));
-    });
-    const baseUrl = new URL(catalog.internalBaseUrl);
-    const url = new URL(path, `${baseUrl.origin}/`);
-    if (url.origin !== baseUrl.origin) {
-        throw new Error(`Catalog invocation for ${tool.name} escapes its registered app origin`);
+  const remaining: Record<string, unknown> = { ...args };
+  const path = tool.invocation.path.replace(/\{(\w+)\}/g, (_match, parameter: string) => {
+    const value = Object.prototype.hasOwnProperty.call(remaining, parameter)
+      ? remaining[parameter]
+      : undefined;
+    delete remaining[parameter];
+    if (value === undefined || value === null || value === '') {
+      throw new Error(`Missing required path parameter: ${parameter}`);
     }
-    const method = tool.invocation.method.toUpperCase();
-    if (method !== 'GET') return { method, url, body: remaining };
+    return encodeURIComponent(String(value));
+  });
+  const baseUrl = new URL(catalog.internalBaseUrl);
+  const url = new URL(path, `${baseUrl.origin}/`);
+  if (url.origin !== baseUrl.origin) {
+    throw new Error(`Catalog invocation for ${tool.name} escapes its registered app origin`);
+  }
+  const method = tool.invocation.method.toUpperCase();
+  if (method !== 'GET') return { method, url, body: remaining };
 
-    for (const [key, value] of Object.entries(remaining)) {
-        if (value === undefined || value === null) continue;
-        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
-            throw new Error(`GET argument ${key} of ${tool.name} must be a string, number or boolean`);
-        }
-        url.searchParams.set(key, String(value));
+  for (const [key, value] of Object.entries(remaining)) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+      throw new Error(`GET argument ${key} of ${tool.name} must be a string, number or boolean`);
     }
-    return { method, url };
+    url.searchParams.set(key, String(value));
+  }
+  return { method, url };
 }

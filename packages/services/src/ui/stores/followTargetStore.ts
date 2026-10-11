@@ -136,7 +136,7 @@ export function followRecordsToStatusMap(records: FollowRecord[]): Record<string
  */
 export function withApplicationMode(
   status: FollowStatus,
-  mode: FollowApplicationMode
+  mode: FollowApplicationMode,
 ): FollowStatus {
   return {
     ...status,

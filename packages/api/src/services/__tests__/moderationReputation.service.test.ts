@@ -1,14 +1,11 @@
 /**
  * The moderation → reputation bridge, against a REAL Postgres.
  *
- * The suite this replaces built a ~300-line in-memory Mongo emulator with
- * hand-written unique-index enforcement, and its own header argued at length
- * that the emulator HAD to enforce those indexes or every idempotency assertion
- * would be vacuous. That argument was correct and it is now moot: the three
- * indexes are real, declared in `conductStrikes.ts`, `moderationEffects.ts` and
- * `reputationTransactions.ts`, and Postgres enforces them. What the emulator
- * could never do — and what every count below now does — is fail when the
- * SCHEMA loses one.
+ * Every idempotency assertion here rests on three unique indexes, declared in
+ * `conductStrikes.ts`, `moderationEffects.ts` and `reputationTransactions.ts`
+ * and enforced by Postgres. Against an in-memory stand-in those assertions
+ * would be only as good as its hand-written index emulation; against real rows
+ * every count below fails when the SCHEMA loses one.
  *
  * THE TWO SCENARIOS THAT DEFINE DONE, asserted against stored rows:
  *   1. A final global infraction produces EXACTLY ONE ledger transaction, ONE
@@ -19,16 +16,9 @@
  *
  * ## The one collaborator that is stubbed, and exactly what that costs
  *
- * `resolveBindingProof` (`services/identityBinding.service.ts`) is the ONE
- * module on this path that has NOT been ported: it still queries the Mongoose
- * `IdentityBinding` model, and it gates on `mongoose.Types.ObjectId.isValid`
- * before doing so — a guard the migration contract deletes on sight. A
- * Postgres-generated `identity_bindings.id` is a uuid v7, which that guard
- * rejects outright, so TODAY every call to `applyModerationDecision` returns
- * `no_binding_proof` and the bridge can apply nothing at all. (Measured, not
- * inferred — see the report accompanying this rewrite.)
- *
- * So it is stubbed, and the stub is deliberately DUMB: it returns whatever
+ * `resolveBindingProof` (`services/identityBinding.service.ts`) is stubbed: it
+ * is a collaborator with its own suite, not the subject. The stub is
+ * deliberately DUMB: it returns whatever
  * resolution the test states outright. It re-implements none of the resolver's
  * predicates, so nothing here can be mistaken for a test of them — those live
  * in `identityBinding.service.test.ts`. What IS tested here, and is entirely a
@@ -73,7 +63,7 @@ const mockResolveBindingProof = jest.fn(
   async (_params: ResolveBindingParams): Promise<BindingStub> => ({
     ok: false,
     reason: 'no_binding_proof',
-  })
+  }),
 );
 
 jest.mock('../identityBinding.service', () => ({
@@ -96,9 +86,7 @@ import { moderationPolicyStandingThresholds } from '../../db/schema/moderationPo
 import { reputationBalances } from '../../db/schema/reputationBalances';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
-import moderationReputationService, {
-  buildIdempotencyKey,
-} from '../moderationReputation.service';
+import moderationReputationService, { buildIdempotencyKey } from '../moderationReputation.service';
 import reputationService from '../reputation.service';
 import { REPUTATION_RULES, type ReputationRuleDefinition } from '../reputationRules';
 
@@ -280,7 +268,10 @@ async function makeAttestedWorld(): Promise<World> {
   });
   return {
     ...world,
-    context: { emitterApplicationId: world.emitterApplicationId, emitterCredentialId: credentialId },
+    context: {
+      emitterApplicationId: world.emitterApplicationId,
+      emitterCredentialId: credentialId,
+    },
   };
 }
 
@@ -295,7 +286,7 @@ const HARASSMENT_MEDIUM: ModerationFinding = {
 /** A well-formed decision event for a world, with per-call unique identifiers. */
 function makeEvent(
   world: World,
-  overrides: Partial<ModerationDecisionEvent> = {}
+  overrides: Partial<ModerationDecisionEvent> = {},
 ): ModerationDecisionEvent {
   const key = uniqueId().slice(0, 12);
   return {
@@ -344,10 +335,7 @@ async function ledgerRows(userId: string) {
 }
 
 async function strikeRows(userId: string) {
-  return getDb()
-    .select()
-    .from(conductStrikes)
-    .where(eq(conductStrikes.userId, userId));
+  return getDb().select().from(conductStrikes).where(eq(conductStrikes.userId, userId));
 }
 
 async function effectRows(incidentId: string) {
@@ -389,10 +377,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
     const world = await makeWorld();
     const event = makeEvent(world);
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(true);
     expect(result.idempotent).toBe(false);
@@ -465,7 +450,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
         incidentId: first.incidentId,
         decisionId: first.decisionId,
       }),
-      world.context
+      world.context,
     );
 
     expect(second.applied).toBe(true);
@@ -495,12 +480,14 @@ describe('DoD: a final global infraction creates exactly one transaction and one
       .update(moderationEffects)
       .set({ strikeId: null })
       .where(eq(moderationEffects.incidentId, first.incidentId));
-    await getDb().delete(moderationEffects).where(eq(moderationEffects.incidentId, first.incidentId));
+    await getDb()
+      .delete(moderationEffects)
+      .where(eq(moderationEffects.incidentId, first.incidentId));
     await getDb().delete(conductStrikes).where(eq(conductStrikes.userId, world.subjectId));
 
     await moderationReputationService.applyModerationDecision(
       makeEvent(world, { incidentId: first.incidentId, decisionId: first.decisionId }),
-      world.context
+      world.context,
     );
 
     const ledger = await ledgerRows(world.subjectId);
@@ -522,7 +509,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
         decisionId: first.decisionId,
         decisionRevision: 2,
       }),
-      world.context
+      world.context,
     );
 
     expect(revision2.idempotent).toBe(false);
@@ -552,7 +539,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
         },
         findings: [{ ...HARASSMENT_MEDIUM, attribution: 'sharer' }],
       }),
-      world.context
+      world.context,
     );
 
     expect(second.applied).toBe(true);
@@ -582,7 +569,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
           },
         ],
       }),
-      world.context
+      world.context,
     );
 
     expect(second.applied).toBe(true);
@@ -595,7 +582,7 @@ describe('DoD: a final global infraction creates exactly one transaction and one
     const ledger = await ledgerRows(world.subjectId);
     expect(ledger).toHaveLength(2);
     expect(ledger.map((row) => row.actionType).sort()).toEqual(
-      [MODERATION_VIOLATION_ACTIONS.medium, REPORT_ABUSE_CONFIRMED_ACTION].sort()
+      [MODERATION_VIOLATION_ACTIONS.medium, REPORT_ABUSE_CONFIRMED_ACTION].sort(),
     );
   });
 });
@@ -632,7 +619,7 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       event.decisionId,
       1,
       'Appeal accepted: the material was quoted criticism, not abuse',
-      world.context.emitterCredentialId
+      world.context.emitterCredentialId,
     );
 
     expect(result.idempotent).toBe(false);
@@ -674,14 +661,14 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId
+      world.context.emitterCredentialId,
     );
 
     const again = await moderationReputationService.reverseModerationDecision(
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId
+      world.context.emitterCredentialId,
     );
 
     expect(again.idempotent).toBe(true);
@@ -689,7 +676,7 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
     expect((await reputationService.getBalance(world.subjectId)).total).toBe(0);
   });
 
-  it('cannot reverse another service credential\'s colliding decision id', async () => {
+  it("cannot reverse another service credential's colliding decision id", async () => {
     const owner = await makeWorld();
     const other = await makeWorld();
     const decisionId = `dec_shared_${uniqueId().slice(0, 8)}`;
@@ -702,7 +689,7 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
       decisionId,
       1,
       'Appeal accepted',
-      owner.context.emitterCredentialId
+      owner.context.emitterCredentialId,
     );
 
     expect(result.reversed).toHaveLength(1);
@@ -718,8 +705,8 @@ describe('DoD: an accepted appeal compensates the points and removes the active 
         `dec_never_${uniqueId().slice(0, 8)}`,
         1,
         'Appeal accepted',
-        world.context.emitterCredentialId
-      )
+        world.context.emitterCredentialId,
+      ),
     ).rejects.toThrow(/No moderation effect/);
   });
 });
@@ -752,7 +739,7 @@ describe('validation — the emitting credential', () => {
     await expect(
       moderationReputationService.applyModerationDecision(makeEvent(world), {
         emitterApplicationId: '',
-      })
+      }),
     ).rejects.toThrow(/service credential/i);
   });
 
@@ -785,10 +772,7 @@ describe('validation — the decision must be effective', () => {
     const world = await makeWorld();
     const event = makeEvent(world, { decisionStatus: 'inconclusive' });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('decision_not_effective');
@@ -799,10 +783,7 @@ describe('validation — the decision must be effective', () => {
     const world = await makeWorld();
     const event = makeEvent(world, { decisionStatus: 'provisional' });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('decision_not_effective');
@@ -817,10 +798,7 @@ describe('validation — the decision must be effective', () => {
       .where(eq(moderationPolicies.policyVersion, world.policyVersion));
     const event = makeEvent(world, { decisionStatus: 'provisional' });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(true);
     expect(await ledgerRows(world.subjectId)).toHaveLength(1);
@@ -830,10 +808,7 @@ describe('validation — the decision must be effective', () => {
     const world = await makeWorld();
     const event = makeEvent(world, { decisionStatus: 'superseded' });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('decision_superseded');
@@ -844,10 +819,7 @@ describe('validation — the decision must be effective', () => {
     const world = await makeWorld();
     const event = makeEvent(world, { decisionStatus: 'corrected' });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('decision_superseded');
@@ -878,7 +850,7 @@ describe('validation — the binding proof', () => {
 
       const result = await moderationReputationService.applyModerationDecision(
         event,
-        world.context
+        world.context,
       );
 
       expect(result.applied).toBe(false);
@@ -911,10 +883,7 @@ describe('validation — the finding must reach the network', () => {
       findings: [{ ...HARASSMENT_MEDIUM, scope: 'application_local' }],
     });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('finding_scope_local');
@@ -934,10 +903,7 @@ describe('validation — the finding must reach the network', () => {
       ],
     });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(true);
     expect(await ledgerRows(world.subjectId)).toHaveLength(1);
@@ -958,7 +924,7 @@ describe('validation — the policy version must recognise the finding', () => {
     });
 
     await expect(
-      moderationReputationService.applyModerationDecision(event, world.context)
+      moderationReputationService.applyModerationDecision(event, world.context),
     ).rejects.toThrow(/Unknown Oxy conduct policy version/);
     await expectNothingWritten(world, event.incidentId);
   });
@@ -969,10 +935,7 @@ describe('validation — the policy version must recognise the finding', () => {
       findings: [{ ...HARASSMENT_MEDIUM, family: 'astrology', code: 'astrology.bad_takes' }],
     });
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('finding_not_in_policy');
@@ -992,15 +955,12 @@ describe('validation — the policy version must recognise the finding', () => {
       .where(
         and(
           eq(moderationPolicySeverityRules.policyId, policy.id),
-          eq(moderationPolicySeverityRules.severity, 'medium')
-        )
+          eq(moderationPolicySeverityRules.severity, 'medium'),
+        ),
       );
     const event = makeEvent(world);
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('finding_not_in_policy');
@@ -1013,10 +973,7 @@ describe('validation — the reported application must be permitted', () => {
     const world = await makeWorld({ globalEffects: false });
     const event = makeEvent(world);
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('application_not_permitted');
@@ -1042,10 +999,7 @@ describe('validation — the reported application must be permitted', () => {
     mockResolveBindingProof.mockResolvedValue({ ok: true, binding: { id: bindingId } });
     const event = makeEvent(world);
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(false);
     expect(result.skipReason).toBe('application_not_permitted');
@@ -1067,7 +1021,7 @@ describe('the service does not trust its caller', () => {
     const event = makeEvent(world, { decisionRevision: 'not-a-number' as never });
 
     await expect(
-      moderationReputationService.applyModerationDecision(event, world.context)
+      moderationReputationService.applyModerationDecision(event, world.context),
     ).rejects.toThrow(/decisionRevision must be a positive integer/);
     await expectNothingWritten(world, event.incidentId);
   });
@@ -1080,7 +1034,7 @@ describe('the service does not trust its caller', () => {
     const event = makeEvent(world, { occurredAt: 'not-a-date' });
 
     await expect(
-      moderationReputationService.applyModerationDecision(event, world.context)
+      moderationReputationService.applyModerationDecision(event, world.context),
     ).rejects.toThrow(/occurredAt must be a valid ISO 8601 timestamp/);
     await expectNothingWritten(world, event.incidentId);
   });
@@ -1095,8 +1049,8 @@ describe('the service does not trust its caller', () => {
         { toString: () => 'anything' } as never,
         1,
         'Appeal accepted',
-        world.context.emitterCredentialId
-      )
+        world.context.emitterCredentialId,
+      ),
     ).rejects.toThrow(/No moderation effect/);
 
     // The real consequence is untouched: nothing was compensated.
@@ -1117,7 +1071,7 @@ describe('repetition and multi-finding caps', () => {
     const world = await makeWorld();
     const result = await moderationReputationService.applyModerationDecision(
       makeEvent(world),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.repetitionMultiplier).toBe(1);
@@ -1131,7 +1085,7 @@ describe('repetition and multi-finding caps', () => {
 
     const second = await moderationReputationService.applyModerationDecision(
       makeEvent(world),
-      world.context
+      world.context,
     );
 
     expect(second.effect?.repetitionMultiplier).toBe(1.5);
@@ -1154,7 +1108,7 @@ describe('repetition and multi-finding caps', () => {
         decisionId: first.decisionId,
         findings: [{ ...HARASSMENT_MEDIUM, attribution: 'reporter' }],
       }),
-      world.context
+      world.context,
     );
     const strikes = await strikeRows(world.subjectId);
     expect(strikes).toHaveLength(2);
@@ -1162,7 +1116,7 @@ describe('repetition and multi-finding caps', () => {
 
     const next = await moderationReputationService.applyModerationDecision(
       makeEvent(world),
-      world.context
+      world.context,
     );
     expect(next.effect?.repetitionMultiplier).toBe(1.5);
   });
@@ -1175,12 +1129,12 @@ describe('repetition and multi-finding caps', () => {
       first.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId
+      world.context.emitterCredentialId,
     );
 
     const next = await moderationReputationService.applyModerationDecision(
       makeEvent(world),
-      world.context
+      world.context,
     );
     expect(next.effect?.repetitionMultiplier).toBe(1);
   });
@@ -1193,7 +1147,7 @@ describe('repetition and multi-finding caps', () => {
       makeEvent(world, {
         findings: [{ ...HARASSMENT_MEDIUM, family: 'spam', code: 'spam.bulk' }],
       }),
-      world.context
+      world.context,
     );
     expect(other.effect?.repetitionMultiplier).toBe(1);
   });
@@ -1201,10 +1155,7 @@ describe('repetition and multi-finding caps', () => {
   it('bounds escalation at the last multiplier the policy declares', async () => {
     const world = await makeWorld();
     for (let i = 0; i < 6; i += 1) {
-      await moderationReputationService.applyModerationDecision(
-        makeEvent(world),
-        world.context
-      );
+      await moderationReputationService.applyModerationDecision(makeEvent(world), world.context);
     }
 
     const strikes = await strikeRows(world.subjectId);
@@ -1232,7 +1183,7 @@ describe('repetition and multi-finding caps', () => {
           { ...HARASSMENT_MEDIUM, code: 'harassment.e', severity: 'low' },
         ],
       }),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.multiFindingMultiplier).toBe(BASELINE_MULTI_FINDING_CAP);
@@ -1248,7 +1199,7 @@ describe('repetition and multi-finding caps', () => {
           { ...HARASSMENT_MEDIUM, severity: 'high', code: 'harassment.severe' },
         ],
       }),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.severity).toBe('high');
@@ -1270,7 +1221,7 @@ describe('repetition and multi-finding caps', () => {
           { ...HARASSMENT_MEDIUM, severity: 'critical', family: 'astrology', code: 'astrology.x' },
         ],
       }),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.severity).toBe('medium');
@@ -1291,7 +1242,7 @@ describe('repetition and multi-finding caps', () => {
           },
         ],
       }),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.activeRisk).toBe(20);
@@ -1299,7 +1250,7 @@ describe('repetition and multi-finding caps', () => {
     // A critical strike needs a specialised recovery review, not a timer.
     expect(strike.expiresAt).toBeNull();
     expect((await reputationService.getBalance(world.subjectId)).conduct.standing).toBe(
-      'restricted'
+      'restricted',
     );
   });
 });
@@ -1348,7 +1299,7 @@ describe('expireConductStrikes', () => {
           },
         ],
       }),
-      world.context
+      world.context,
     );
 
     const result = await moderationReputationService.expireConductStrikes(100);
@@ -1372,10 +1323,7 @@ describe('expireConductStrikes', () => {
   it('bounds one pass by the limit, so a backlog cannot stall a tick', async () => {
     const world = await makeWorld();
     for (let i = 0; i < 3; i += 1) {
-      await moderationReputationService.applyModerationDecision(
-        makeEvent(world),
-        world.context
-      );
+      await moderationReputationService.applyModerationDecision(makeEvent(world), world.context);
     }
     await getDb()
       .update(conductStrikes)
@@ -1385,14 +1333,14 @@ describe('expireConductStrikes', () => {
     const first = await moderationReputationService.expireConductStrikes(2);
     expect(first).toEqual({ expired: 2, subjects: 1 });
     expect(
-      (await strikeRows(world.subjectId)).filter((row) => row.status === 'active')
+      (await strikeRows(world.subjectId)).filter((row) => row.status === 'active'),
     ).toHaveLength(1);
 
     // The remainder is picked up by the next tick rather than lost.
     const second = await moderationReputationService.expireConductStrikes(2);
     expect(second).toEqual({ expired: 1, subjects: 1 });
     expect(
-      (await strikeRows(world.subjectId)).filter((row) => row.status === 'expired')
+      (await strikeRows(world.subjectId)).filter((row) => row.status === 'expired'),
     ).toHaveLength(3);
   });
 
@@ -1407,7 +1355,7 @@ describe('expireConductStrikes', () => {
       event.decisionId,
       1,
       'Appeal accepted',
-      world.context.emitterCredentialId
+      world.context.emitterCredentialId,
     );
     await getDb()
       .update(conductStrikes)
@@ -1432,8 +1380,12 @@ describe('one transaction per change of standing', () => {
     const first = makeEvent(world);
     await moderationReputationService.applyModerationDecision(first, world.context);
     await moderationReputationService.applyModerationDecision(
-      makeEvent(world, { incidentId: first.incidentId, decisionId: first.decisionId, decisionRevision: 2 }),
-      world.context
+      makeEvent(world, {
+        incidentId: first.incidentId,
+        decisionId: first.decisionId,
+        decisionRevision: 2,
+      }),
+      world.context,
     );
 
     const effects = await effectRows(first.incidentId);
@@ -1459,8 +1411,8 @@ describe('one transaction per change of standing', () => {
         event.decisionId,
         1,
         'appeal upheld',
-        world.context.emitterCredentialId
-      )
+        world.context.emitterCredentialId,
+      ),
     ).rejects.toThrow('connection lost');
     spy.mockRestore();
 
@@ -1482,9 +1434,13 @@ describe('one transaction per change of standing', () => {
 
     await expect(
       moderationReputationService.applyModerationDecision(
-        makeEvent(world, { incidentId: first.incidentId, decisionId: first.decisionId, decisionRevision: 2 }),
-        world.context
-      )
+        makeEvent(world, {
+          incidentId: first.incidentId,
+          decisionId: first.decisionId,
+          decisionRevision: 2,
+        }),
+        world.context,
+      ),
     ).rejects.toThrow('connection lost');
     spy.mockRestore();
 
@@ -1513,7 +1469,7 @@ describe('finalizeModerationDecision', () => {
 
     const effects = await moderationReputationService.finalizeModerationDecision(
       event.decisionId,
-      1
+      1,
     );
 
     expect(effects).toHaveLength(1);
@@ -1531,8 +1487,8 @@ describe('finalizeModerationDecision', () => {
     await expect(
       moderationReputationService.finalizeModerationDecision(
         `dec_never_${uniqueId().slice(0, 8)}`,
-        1
-      )
+        1,
+      ),
     ).rejects.toThrow(/No moderation effect/);
   });
 });
@@ -1568,7 +1524,7 @@ describe('conduct action types are bridge-only', () => {
         actionType: MODERATION_VIOLATION_ACTIONS.high,
         applicationId,
         sourceActionId: `attacker-chosen-${uniqueId().slice(0, 8)}`,
-      })
+      }),
     ).rejects.toThrow(/produced only by the moderation reputation bridge/);
     expect(await ledgerRows(userId)).toEqual([]);
   });
@@ -1577,7 +1533,7 @@ describe('conduct action types are bridge-only', () => {
     // A conduct rule would be a second, mutable authority for a figure the
     // versioned conduct policy owns.
     expect(REPUTATION_RULES.filter((rule) => CONDUCT_ACTION_TYPES.has(rule.actionType))).toEqual(
-      []
+      [],
     );
   });
 
@@ -1585,10 +1541,7 @@ describe('conduct action types are bridge-only', () => {
     const world = await makeWorld();
     const event = makeEvent(world);
 
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
 
     expect(result.applied).toBe(true);
     const ledger = await ledgerRows(world.subjectId);
@@ -1596,7 +1549,7 @@ describe('conduct action types are bridge-only', () => {
     expect(ledger[0].actionType).toBe(MODERATION_VIOLATION_ACTIONS.medium);
     // No rule for that action was needed.
     expect(
-      REPUTATION_RULES.some((rule) => rule.actionType === MODERATION_VIOLATION_ACTIONS.medium)
+      REPUTATION_RULES.some((rule) => rule.actionType === MODERATION_VIOLATION_ACTIONS.medium),
     ).toBe(false);
   });
 });
@@ -1623,11 +1576,9 @@ describe('contribution points never cancel an active strike', () => {
     const world = await makeWorld();
     await moderationReputationService.applyModerationDecision(
       makeEvent(world, { findings: [{ ...HARASSMENT_MEDIUM, severity: 'high' }] }),
-      world.context
+      world.context,
     );
-    expect((await reputationService.getBalance(world.subjectId)).conduct.standing).toBe(
-      'limited'
-    );
+    expect((await reputationService.getBalance(world.subjectId)).conduct.standing).toBe('limited');
 
     await seedContribution(world.subjectId, 5000);
     const balance = await reputationService.recalculateBalance(world.subjectId);
@@ -1656,7 +1607,7 @@ describe('contribution points never cancel an active strike', () => {
           },
         ],
       }),
-      world.context
+      world.context,
     );
 
     await seedContribution(world.subjectId, 50_000);
@@ -1743,10 +1694,7 @@ describe('the conduct ledger row explains itself without becoming a dossier', ()
   it('exposes the effect’s ledger row for the owner-facing explanation surface', async () => {
     const world = await makeWorld();
     const event = makeEvent(world);
-    const result = await moderationReputationService.applyModerationDecision(
-      event,
-      world.context
-    );
+    const result = await moderationReputationService.applyModerationDecision(event, world.context);
     expect(result.effect).toBeDefined();
     if (!result.effect) return;
 
@@ -1841,7 +1789,7 @@ describe('seedBaselinePolicy', () => {
 
     const result = await moderationReputationService.applyModerationDecision(
       makeEvent(world),
-      world.context
+      world.context,
     );
 
     expect(result.effect?.points).toBe(-8);

@@ -59,7 +59,7 @@ describe('ShipClient', () => {
   test('initAssets posts applicationId + assets and unwraps { data }', async () => {
     const calls: RecordedCall[] = [];
     const res = await client(
-      mockFetch(calls, { data: { missing: [], existing: [SHA_A] } })
+      mockFetch(calls, { data: { missing: [], existing: [SHA_A] } }),
     ).initAssets([{ sha256: SHA_A, contentType: 'image/png', size: 10 }]);
 
     expect(res.existing).toEqual([SHA_A]);
@@ -73,7 +73,7 @@ describe('ShipClient', () => {
   test('createUpdate returns the update from { data: { update } }', async () => {
     const calls: RecordedCall[] = [];
     const update = await client(
-      mockFetch(calls, { data: { update: { id: 'new-uuid', rolloutPercent: 100 } } })
+      mockFetch(calls, { data: { update: { id: 'new-uuid', rolloutPercent: 100 } } }),
     ).createUpdate({
       channel: 'production',
       runtimeVersion: '1.0.0',
@@ -94,7 +94,7 @@ describe('ShipClient', () => {
     await expect(
       client(mockFetch(calls, '{"error":"forbidden"}', false, 403)).initAssets([
         { sha256: SHA_A, contentType: 'image/png', size: 1 },
-      ])
+      ]),
     ).rejects.toThrow(/403/);
   });
 
@@ -108,7 +108,7 @@ describe('ShipClient', () => {
         'image/png',
         'public, max-age=31536000, immutable',
         'AQIDBA==',
-        tmp
+        tmp,
       );
     } finally {
       fs.rmSync(tmp, { force: true });
@@ -125,28 +125,36 @@ describe('ShipClient', () => {
   test('rollback URL-encodes the channel and returns { rolledBack, head }', async () => {
     const calls: RecordedCall[] = [];
     const res = await client(
-      mockFetch(calls, { data: { rolledBack: { id: 'h' }, head: { id: 'p' } } })
+      mockFetch(calls, { data: { rolledBack: { id: 'h' }, head: { id: 'p' } } }),
     ).rollback('pr-1', '1.0.0', 'ios');
     expect(res.rolledBack.id).toBe('h');
     expect(res.head?.id).toBe('p');
     expect(calls[0].url).toBe('http://api.test/updates/v1/channels/pr-1/rollback');
-    expect(calls[0].json).toEqual({ applicationId: 'app123', runtimeVersion: '1.0.0', platform: 'ios' });
+    expect(calls[0].json).toEqual({
+      applicationId: 'app123',
+      runtimeVersion: '1.0.0',
+      platform: 'ios',
+    });
   });
 
   test('promote posts to the target channel and returns the new update', async () => {
     const calls: RecordedCall[] = [];
     const update = await client(
-      mockFetch(calls, { data: { update: { id: 'promoted', rolloutPercent: 50 } } })
+      mockFetch(calls, { data: { update: { id: 'promoted', rolloutPercent: 50 } } }),
     ).promote('preview', 'source-uuid', 50);
     expect(update.id).toBe('promoted');
     expect(calls[0].url).toBe('http://api.test/updates/v1/channels/preview/promote');
-    expect(calls[0].json).toEqual({ applicationId: 'app123', updateId: 'source-uuid', rolloutPercent: 50 });
+    expect(calls[0].json).toEqual({
+      applicationId: 'app123',
+      updateId: 'source-uuid',
+      rolloutPercent: 50,
+    });
   });
 
   test('listChannels passes applicationId as a query param', async () => {
     const calls: RecordedCall[] = [];
     const channels = await client(
-      mockFetch(calls, { data: { channels: [{ name: 'production', rollbacksToEmbedded: [] }] } })
+      mockFetch(calls, { data: { channels: [{ name: 'production', rollbacksToEmbedded: [] }] } }),
     ).listChannels();
     expect(channels).toHaveLength(1);
     expect(calls[0].url).toBe('http://api.test/updates/v1/channels?applicationId=app123');
@@ -155,7 +163,9 @@ describe('ShipClient', () => {
 
   test('listUpdates targets the channel-scoped route with filters', async () => {
     const calls: RecordedCall[] = [];
-    const updates = await client(mockFetch(calls, { data: { updates: [{ id: 'u1' }] } })).listUpdates({
+    const updates = await client(
+      mockFetch(calls, { data: { updates: [{ id: 'u1' }] } }),
+    ).listUpdates({
       channel: 'production',
       runtimeVersion: '1.0.0',
       platform: 'ios',

@@ -477,7 +477,7 @@ receivedAt          when our server received it
 `GET /email/search` accepts Gmail-style read-state operators in its `q` query
 parameter: `is:unread` maps to `flags.seen=false` and `is:read` maps to
 `flags.seen=true`. The operators are removed before the remaining text is sent
-to MongoDB full-text search; combining both operators is rejected.
+to PostgreSQL full-text search; combining both operators is rejected.
 
 Messages do not currently persist a canonical `threadId`. `messageId`,
 `inReplyTo`, and `references` are RFC headers and can be absent or incomplete,

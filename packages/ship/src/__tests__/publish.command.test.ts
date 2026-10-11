@@ -38,7 +38,7 @@ const fakeClient = {
     url: string,
     _contentType: string,
     cacheControl: string,
-    _checksumSHA256: string
+    _checksumSHA256: string,
   ) => {
     uploadCalls.push({ url, cacheControl });
   },
@@ -87,7 +87,7 @@ beforeAll(() => {
           assets: [{ path: 'assets/shared', ext: 'png' }],
         },
       },
-    })
+    }),
   );
 });
 

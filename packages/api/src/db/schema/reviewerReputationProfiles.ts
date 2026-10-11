@@ -89,28 +89,28 @@ export const reviewerReputationProfiles = pgTable(
   },
   (t) => [
     unique('reviewer_reputation_profiles_user_id_key').on(t.userId),
-    // Drawing a panel selects on status; Mongo declared the same index.
+    // Drawing a panel selects on status.
     index('reviewer_reputation_profiles_status_idx').on(t.status),
 
     check(
       'reviewer_reputation_profiles_status_check',
-      sql`${t.status} in (${sql.raw(inList(REVIEWER_PROFILE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(REVIEWER_PROFILE_STATUSES))})`,
     ),
     check(
       'reviewer_reputation_profiles_category_reliability_object_check',
-      sql`jsonb_typeof(${t.categoryReliability}) = 'object'`
+      sql`jsonb_typeof(${t.categoryReliability}) = 'object'`,
     ),
     check(
       'reviewer_reputation_profiles_language_reliability_object_check',
-      sql`jsonb_typeof(${t.languageReliability}) = 'object'`
+      sql`jsonb_typeof(${t.languageReliability}) = 'object'`,
     ),
     check(
       'reviewer_reputation_profiles_counts_check',
-      sql`${t.agreements} >= 0 and ${t.disagreements} >= 0 and ${t.goldPassed} >= 0 and ${t.goldFailed} >= 0 and ${t.overturned} >= 0`
+      sql`${t.agreements} >= 0 and ${t.disagreements} >= 0 and ${t.goldPassed} >= 0 and ${t.goldFailed} >= 0 and ${t.overturned} >= 0`,
     ),
     check(
       'reviewer_reputation_profiles_global_reliability_check',
-      sql`${t.globalReliability} >= 0 and ${t.globalReliability} <= 1`
+      sql`${t.globalReliability} >= 0 and ${t.globalReliability} <= 1`,
     ),
     // NOT added: a check pairing `status = 'suspended'` with `suspended_at`.
     // The pairing looks obvious and nothing maintains it — both profile tables
@@ -120,5 +120,5 @@ export const reviewerReputationProfiles = pgTable(
     // a 500. The equivalent checks on `conduct_strikes` and `moderation_effects`
     // are there precisely because their write paths were read and DO set both
     // fields in one statement.
-  ]
+  ],
 );

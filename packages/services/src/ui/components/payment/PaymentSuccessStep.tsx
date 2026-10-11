@@ -9,59 +9,59 @@ import type { PaymentColors, PaymentStepAnimations } from './types';
 import { useI18n } from '../../hooks/useI18n';
 
 interface PaymentSuccessStepProps {
-    colors: PaymentColors;
-    animations: PaymentStepAnimations;
-    onDone: () => void;
+  colors: PaymentColors;
+  animations: PaymentStepAnimations;
+  onDone: () => void;
 }
 
-const PaymentSuccessStep: React.FC<PaymentSuccessStepProps> = ({
-    colors,
-    animations,
-    onDone,
-}) => {
-    const styles = useMemo(() => createPaymentStyles(colors), [colors]);
-    const { t } = useI18n();
-    const { fadeAnim, slideAnim, scaleAnim } = animations;
+const PaymentSuccessStep: React.FC<PaymentSuccessStepProps> = ({ colors, animations, onDone }) => {
+  const styles = useMemo(() => createPaymentStyles(colors), [colors]);
+  const { t } = useI18n();
+  const { fadeAnim, slideAnim, scaleAnim } = animations;
 
-    return (
-        <Animated.View
-            style={[
-                styles.stepContainer,
-                {
-                    opacity: fadeAnim,
-                    transform: [
-                        { translateY: slideAnim },
-                        { scale: scaleAnim },
-                    ],
-                },
-            ]}
-            accessibilityRole="none"
-            accessibilityLabel="Payment complete"
-        >
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>{t('payment.success.title')}</Text>
+  return (
+    <Animated.View
+      style={[
+        styles.stepContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        },
+      ]}
+      accessibilityRole="none"
+      accessibilityLabel="Payment complete"
+    >
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t('payment.success.title')}</Text>
 
-                <View style={styles.successCard}>
-                    <View style={styles.successContent}>
-                        <Ionicons
-                            name="checkmark-circle"
-                            size={64}
-                            color={colors.success}
-                            style={styles.successIcon}
-                        />
-                        <Text style={styles.successMainTitle}>{t('payment.success.heading')}</Text>
-                        <Text style={styles.successSubtitle}>{t('payment.success.thanks')}</Text>
-                        <View style={{ height: 18 }} />
-                        <Text style={styles.successMessage}>{t('payment.success.processed')}</Text>
-                    </View>
-                </View>
-            </View>
+        <View style={styles.successCard}>
+          <View style={styles.successContent}>
+            <Ionicons
+              name="checkmark-circle"
+              size={64}
+              color={colors.success}
+              style={styles.successIcon}
+            />
+            <Text style={styles.successMainTitle}>{t('payment.success.heading')}</Text>
+            <Text style={styles.successSubtitle}>{t('payment.success.thanks')}</Text>
+            <View style={{ height: 18 }} />
+            <Text style={styles.successMessage}>{t('payment.success.processed')}</Text>
+          </View>
+        </View>
+      </View>
 
-            <Button appearance="solid" tone="accent" onPress={onDone} size="sm" icon={<Ionicons name="checkmark" size={16} />} iconPosition="right">
-                {t('payment.actions.done')}
-            </Button>
-        </Animated.View>
-    );
+      <Button
+        appearance="solid"
+        tone="accent"
+        onPress={onDone}
+        size="sm"
+        icon={<Ionicons name="checkmark" size={16} />}
+        iconPosition="right"
+      >
+        {t('payment.actions.done')}
+      </Button>
+    </Animated.View>
+  );
 };
 
 export default PaymentSuccessStep;

@@ -21,9 +21,7 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { useSilentKeySignIn } from '@/hooks/useSilentKeySignIn';
-// eslint-disable-next-line import/first
 import { useBiometricSignIn } from '@/hooks/useBiometricSignIn';
 
 const sdkSignIn = jest.fn(async () => ({ id: 'me' }));

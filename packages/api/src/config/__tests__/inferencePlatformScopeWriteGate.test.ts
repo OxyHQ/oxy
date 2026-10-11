@@ -5,8 +5,10 @@ import {
   type PlatformScopeRolloutReader,
 } from '../inferencePlatformScopeWriteGate';
 
-const SERVICE_TASK_DEFINITION = 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:207';
-const BOOTSTRAP_TASK_DEFINITION = 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-catalogue-bootstrap:12';
+const SERVICE_TASK_DEFINITION =
+  'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:207';
+const BOOTSTRAP_TASK_DEFINITION =
+  'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-kaana-catalogue-bootstrap:12';
 const IMAGE = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${'a'.repeat(64)}`;
 const METADATA_URI = 'http://169.254.170.2/v4/fixture-id';
 const NOW = Date.parse('2026-09-03T10:05:00.000Z');
@@ -30,11 +32,13 @@ const TASK_ARNS = [
   'arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/task-2',
 ] as const;
 
-function serviceResponse(options: {
-  readonly desiredCount?: number;
-  readonly oldRunningCount?: number;
-  readonly rolloutState?: string;
-} = {}): unknown {
+function serviceResponse(
+  options: {
+    readonly desiredCount?: number;
+    readonly oldRunningCount?: number;
+    readonly rolloutState?: string;
+  } = {},
+): unknown {
   const desiredCount = options.desiredCount ?? 2;
   return {
     failures: [],
@@ -55,8 +59,7 @@ function serviceResponse(options: {
             pendingCount: 0,
           },
           {
-            taskDefinition:
-              'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:206',
+            taskDefinition: 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:206',
             status: 'ACTIVE',
             rolloutState: 'COMPLETED',
             desiredCount: 0,
@@ -69,11 +72,13 @@ function serviceResponse(options: {
   };
 }
 
-function createRolloutReader(options: {
-  readonly serviceForCall?: (call: number) => unknown;
-  readonly taskArnsForCall?: (call: number) => readonly string[];
-  readonly image?: string;
-} = {}): PlatformScopeRolloutReader {
+function createRolloutReader(
+  options: {
+    readonly serviceForCall?: (call: number) => unknown;
+    readonly taskArnsForCall?: (call: number) => readonly string[];
+    readonly image?: string;
+  } = {},
+): PlatformScopeRolloutReader {
   let serviceCalls = 0;
   let listCalls = 0;
   return {
@@ -263,7 +268,10 @@ describe('the platform-internal write rollout gate', () => {
     ],
     [
       'different immutable image',
-      { ...VALID_ENV, KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE: `${IMAGE.slice(0, -64)}${'b'.repeat(64)}` },
+      {
+        ...VALID_ENV,
+        KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE: `${IMAGE.slice(0, -64)}${'b'.repeat(64)}`,
+      },
       /does not match the bootstrap image/,
     ],
     [
@@ -298,26 +306,34 @@ describe('the platform-internal write rollout gate', () => {
       'different immutable image repository',
       {
         ...VALID_ENV,
-        KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE:
-          `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/other@sha256:${'a'.repeat(64)}`,
+        KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE: `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/other@sha256:${'a'.repeat(64)}`,
       },
       /immutable image URI/,
     ],
   ])('refuses APPLY with %s', async (_label, env, expected) => {
     await expect(
-      assertPlatformScopeWriteRolloutComplete(true, env, async () => METADATA, () => NOW),
+      assertPlatformScopeWriteRolloutComplete(
+        true,
+        env,
+        async () => METADATA,
+        () => NOW,
+      ),
     ).rejects.toThrow(expected);
   });
 
   it('refuses a stale attestation before consulting task metadata', async () => {
     const reader = jest.fn(async () => METADATA);
-    await expect(assertPlatformScopeWriteRolloutComplete(
-      true,
-      VALID_ENV,
-      reader,
-      () => Date.parse(VALID_ENV.KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT)
-        + PLATFORM_SCOPE_ROLLOUT_ATTESTATION_MAX_AGE_MS + 1,
-    )).rejects.toThrow(/stale or from the future/);
+    await expect(
+      assertPlatformScopeWriteRolloutComplete(
+        true,
+        VALID_ENV,
+        reader,
+        () =>
+          Date.parse(VALID_ENV.KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT) +
+          PLATFORM_SCOPE_ROLLOUT_ATTESTATION_MAX_AGE_MS +
+          1,
+      ),
+    ).rejects.toThrow(/stale or from the future/);
     expect(reader).not.toHaveBeenCalled();
   });
 });

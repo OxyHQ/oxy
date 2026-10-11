@@ -26,7 +26,9 @@ jest.mock('../inboxInference.service', () => ({
 import { cardExtractionService } from '../cardExtraction.service';
 
 it('does no work when explicit card extraction is disabled', async () => {
-  await expect(cardExtractionService.extractAndUpdate('user-id', 'message-id')).resolves.toBeUndefined();
+  await expect(
+    cardExtractionService.extractAndUpdate('user-id', 'message-id'),
+  ).resolves.toBeUndefined();
   expect(mockGetDb).not.toHaveBeenCalled();
   expect(mockExecuteInference).not.toHaveBeenCalled();
 });

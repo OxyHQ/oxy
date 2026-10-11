@@ -1,12 +1,7 @@
 /**
  * The v2 per-subject hash chain (F0.2), against a REAL Postgres.
  *
- * The suite this replaces mocked `SignedRecord`, `RepoHead` and
- * `mongoose.startSession`, then asserted on the ARGUMENTS handed to
- * `SignedRecord.create` and `RepoHead.findOneAndUpdate`. None of those models is
- * imported by the service any more, so the mocks were inert and the assertions
- * described a Mongoose call shape that no longer exists. The chain's actual
- * guarantees are structural, so they are asserted against stored rows here:
+ * The chain's guarantees are structural, so they are asserted against stored rows here:
  *
  *  - **`prev` is the content address of the record before it.** The chain is
  *    walked from genesis to head and every link is re-derived with
@@ -38,7 +33,6 @@ import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
 
-
 /** A wall-clock base every envelope's `issuedAt` is offset from, so ordering is explicit. */
 const T0 = 1_700_000_000_000;
 
@@ -68,7 +62,7 @@ async function signer(): Promise<Signer> {
 /** Build + sign a v2 (chained) envelope. Defaults to the genesis position. */
 function v2Envelope(
   subject: Signer,
-  overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {}
+  overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {},
 ): SignedRecordEnvelope {
   return signRecordEnvelope(
     {
@@ -86,7 +80,7 @@ function v2Envelope(
       alg: 'ES256K-DER-SHA256',
       ...overrides,
     },
-    subject.privateKey
+    subject.privateKey,
   );
 }
 
@@ -210,7 +204,7 @@ describe('a refused append leaves the ledger AND the head untouched', () => {
     // a chain the rejection broke.
     const secondId = await append(
       subject,
-      v2Envelope(subject, { seq: 1, prev: genesisId, issuedAt: T0 + 2_000, record: { ok: true } })
+      v2Envelope(subject, { seq: 1, prev: genesisId, issuedAt: T0 + 2_000, record: { ok: true } }),
     );
     expect(await headRow(subject.userId)).toMatchObject({
       seq: 1,
@@ -225,7 +219,10 @@ describe('a refused append leaves the ledger AND the head untouched', () => {
     const subject = await signer();
     const genesisId = await append(subject, v2Envelope(subject));
 
-    const regenesis = v2Envelope(subject, { issuedAt: T0 + 1_000, record: { displayName: 'Reset' } });
+    const regenesis = v2Envelope(subject, {
+      issuedAt: T0 + 1_000,
+      record: { displayName: 'Reset' },
+    });
     expect(await verifyAndStoreRecord(regenesis, subject.userId)).toEqual({
       ok: false,
       reason: 'chain_fork',
@@ -313,7 +310,7 @@ describe('one chain per account', () => {
     const firstGenesis = await append(first, v2Envelope(first));
     await append(
       first,
-      v2Envelope(first, { seq: 1, prev: firstGenesis, issuedAt: T0 + 1_000, record: { n: 2 } })
+      v2Envelope(first, { seq: 1, prev: firstGenesis, issuedAt: T0 + 1_000, record: { n: 2 } }),
     );
 
     // The second account's FIRST record is a genesis even though the first

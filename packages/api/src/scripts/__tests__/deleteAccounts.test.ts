@@ -40,7 +40,12 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { wallets } from '../../db/schema/wallets';
 import * as holdsService from '../../services/accountFinancialHolds.service';
-import { parseDeleteAccountsArgs, planAccountDeletions, recheckPlannedAccount, runAccountDeletions } from '../delete-accounts';
+import {
+  parseDeleteAccountsArgs,
+  planAccountDeletions,
+  recheckPlannedAccount,
+  runAccountDeletions,
+} from '../delete-accounts';
 
 jest.setTimeout(60_000);
 
@@ -48,7 +53,9 @@ function handle(prefix: string): string {
   return `${prefix}${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 }
 
-async function account(values: Partial<typeof users.$inferInsert> = {}): Promise<{ id: string; username: string }> {
+async function account(
+  values: Partial<typeof users.$inferInsert> = {},
+): Promise<{ id: string; username: string }> {
   const username = values.username ?? handle('del');
   const [row] = await getDb()
     .insert(users)
@@ -76,12 +83,24 @@ afterEach(() => {
 
 describe('parseDeleteAccountsArgs', () => {
   it('is a dry run unless --confirm is given', () => {
-    expect(parseDeleteAccountsArgs(['alice', 'bob'])).toEqual({ identifiers: ['alice', 'bob'], confirm: false, allowKey: false });
-    expect(parseDeleteAccountsArgs(['alice', '--confirm'])).toEqual({ identifiers: ['alice'], confirm: true, allowKey: false });
+    expect(parseDeleteAccountsArgs(['alice', 'bob'])).toEqual({
+      identifiers: ['alice', 'bob'],
+      confirm: false,
+      allowKey: false,
+    });
+    expect(parseDeleteAccountsArgs(['alice', '--confirm'])).toEqual({
+      identifiers: ['alice'],
+      confirm: true,
+      allowKey: false,
+    });
   });
 
   it('reads --allow-key', () => {
-    expect(parseDeleteAccountsArgs(['--allow-key', 'alice'])).toEqual({ identifiers: ['alice'], confirm: false, allowKey: true });
+    expect(parseDeleteAccountsArgs(['--allow-key', 'alice'])).toEqual({
+      identifiers: ['alice'],
+      confirm: false,
+      allowKey: true,
+    });
     expect(() => parseDeleteAccountsArgs(['--allow-key'])).toThrow(/at least one account/);
   });
 
@@ -97,7 +116,11 @@ describe('planAccountDeletions', () => {
     const byName = await account();
     const byId = await account();
 
-    const plan = await planAccountDeletions([byName.username.toUpperCase(), byId.id, byId.username]);
+    const plan = await planAccountDeletions([
+      byName.username.toUpperCase(),
+      byId.id,
+      byId.username,
+    ]);
 
     expect(plan.refused).toEqual([]);
     expect(plan.planned.map((entry) => entry.id)).toEqual([byName.id, byId.id]);
@@ -132,11 +155,15 @@ describe('planAccountDeletions', () => {
       email: `${handle('m')}@example.com`,
     });
 
-    const plan = await planAccountDeletions([keyed.username, unnamed.id, keyedWithEmail.username], { allowKey: true });
+    const plan = await planAccountDeletions([keyed.username, unnamed.id, keyedWithEmail.username], {
+      allowKey: true,
+    });
 
     expect(plan.planned.map((entry) => entry.id)).toEqual([keyed.id, unnamed.id]);
     expect(plan.planned[1]).toMatchObject({ username: null, outcome: 'delete' });
-    expect(plan.refused).toEqual([{ identifier: keyedWithEmail.username, reason: expect.stringMatching(/has an email/) }]);
+    expect(plan.refused).toEqual([
+      { identifier: keyedWithEmail.username, reason: expect.stringMatching(/has an email/) },
+    ]);
   });
 
   it('refuses unknown, non-personal, non-local and closed accounts', async () => {
@@ -145,12 +172,20 @@ describe('planAccountDeletions', () => {
     const archived = await account({ accountStatus: 'archived' });
     const missing = handle('nobody');
 
-    const plan = await planAccountDeletions([missing, federated.username, bot.username, archived.username]);
+    const plan = await planAccountDeletions([
+      missing,
+      federated.username,
+      bot.username,
+      archived.username,
+    ]);
 
     expect(plan.planned).toEqual([]);
     expect(plan.refused).toEqual([
       { identifier: missing, reason: 'no such account' },
-      { identifier: federated.username, reason: expect.stringMatching(/not a local personal account/) },
+      {
+        identifier: federated.username,
+        reason: expect.stringMatching(/not a local personal account/),
+      },
       { identifier: bot.username, reason: expect.stringMatching(/not a local personal account/) },
       { identifier: archived.username, reason: 'account is archived' },
     ]);
@@ -168,14 +203,20 @@ describe('planAccountDeletions', () => {
     const plan = await planAccountDeletions([subscribed.username]);
 
     expect(plan.planned).toEqual([]);
-    expect(plan.refused).toEqual([{ identifier: subscribed.username, reason: expect.stringMatching(/live subscription/) }]);
+    expect(plan.refused).toEqual([
+      { identifier: subscribed.username, reason: expect.stringMatching(/live subscription/) },
+    ]);
   });
 });
 
 describe('runAccountDeletions', () => {
   it('deletes nothing on a dry run', async () => {
     const target = await account();
-    const report = await runAccountDeletions({ identifiers: [target.username], confirm: false, allowKey: false });
+    const report = await runAccountDeletions({
+      identifiers: [target.username],
+      confirm: false,
+      allowKey: false,
+    });
     expect(report.plan.planned).toHaveLength(1);
     expect(report.results).toEqual([]);
     expect(await exists([target.id])).toEqual([target.id]);
@@ -184,7 +225,11 @@ describe('runAccountDeletions', () => {
   it('deletes nothing when any account is refused, even with --confirm', async () => {
     const target = await account();
     const federated = await account({ type: 'federated' });
-    const report = await runAccountDeletions({ identifiers: [target.username, federated.username], confirm: true, allowKey: false });
+    const report = await runAccountDeletions({
+      identifiers: [target.username, federated.username],
+      confirm: true,
+      allowKey: false,
+    });
     expect(report.plan.refused).toHaveLength(1);
     expect(report.results).toEqual([]);
     expect(await exists([target.id, federated.id])).toHaveLength(2);
@@ -195,14 +240,26 @@ describe('runAccountDeletions', () => {
     const [planned] = (await planAccountDeletions([target.username])).planned;
     expect(await recheckPlannedAccount(planned)).toBeNull();
 
-    await getDb().update(users).set({ email: `${handle('late')}@example.com` }).where(eq(users.id, target.id));
+    await getDb()
+      .update(users)
+      .set({ email: `${handle('late')}@example.com` })
+      .where(eq(users.id, target.id));
     expect(await recheckPlannedAccount(planned)).toBe('has an email now');
-    await getDb().update(users).set({ email: null, publicKey: `04${randomUUID().replace(/-/g, '')}` }).where(eq(users.id, target.id));
+    await getDb()
+      .update(users)
+      .set({ email: null, publicKey: `04${randomUUID().replace(/-/g, '')}` })
+      .where(eq(users.id, target.id));
     expect(await recheckPlannedAccount(planned)).toBe('has a key now');
     expect(await recheckPlannedAccount(planned, { allowKey: true })).toBeNull();
-    await getDb().update(users).set({ publicKey: null, accountStatus: 'archived' }).where(eq(users.id, target.id));
+    await getDb()
+      .update(users)
+      .set({ publicKey: null, accountStatus: 'archived' })
+      .where(eq(users.id, target.id));
     expect(await recheckPlannedAccount(planned)).toBe('is now archived');
-    await getDb().update(users).set({ accountStatus: 'active', kind: 'bot' }).where(eq(users.id, target.id));
+    await getDb()
+      .update(users)
+      .set({ accountStatus: 'active', kind: 'bot' })
+      .where(eq(users.id, target.id));
     expect(await recheckPlannedAccount(planned)).toBe('is no longer a local personal account');
   });
 
@@ -215,29 +272,58 @@ describe('runAccountDeletions', () => {
     jest.spyOn(deletion, 'deleteAccount').mockImplementation(async (id, username) => {
       const result = await real(id, username);
       if (id === first.id) {
-        await getDb().update(users).set({ email: `${handle('race')}@example.com` }).where(eq(users.id, second.id));
+        await getDb()
+          .update(users)
+          .set({ email: `${handle('race')}@example.com` })
+          .where(eq(users.id, second.id));
       }
       return result;
     });
 
-    const report = await runAccountDeletions({ identifiers: [first.username, second.username], confirm: true, allowKey: false });
+    const report = await runAccountDeletions({
+      identifiers: [first.username, second.username],
+      confirm: true,
+      allowKey: false,
+    });
 
     expect(report.results.map((entry) => entry.id)).toEqual([first.id]);
-    expect(report.aborted).toEqual({ identifier: second.username, reason: 'changed since the plan: has an email now' });
+    expect(report.aborted).toEqual({
+      identifier: second.username,
+      reason: 'changed since the plan: has an email now',
+    });
     expect(await exists([first.id, second.id])).toEqual([second.id]);
   });
 
   it('plans a full delete for an account with only an empty, never-used wallet, and removes the wallet', async () => {
     const target = await account();
-    const [wallet] = await getDb().insert(wallets).values({ userId: target.id }).returning({ id: wallets.id });
+    const [wallet] = await getDb()
+      .insert(wallets)
+      .values({ userId: target.id })
+      .returning({ id: wallets.id });
 
     const [planned] = (await planAccountDeletions([target.username])).planned;
-    expect(planned).toMatchObject({ outcome: 'delete', emptyWalletsRemoved: 1, retainedRecords: [] });
+    expect(planned).toMatchObject({
+      outcome: 'delete',
+      emptyWalletsRemoved: 1,
+      retainedRecords: [],
+    });
 
-    const report = await runAccountDeletions({ identifiers: [target.username], confirm: true, allowKey: false });
-    expect(report.results).toEqual([{ id: target.id, username: target.username, result: expect.objectContaining({ retained: false }) }]);
+    const report = await runAccountDeletions({
+      identifiers: [target.username],
+      confirm: true,
+      allowKey: false,
+    });
+    expect(report.results).toEqual([
+      {
+        id: target.id,
+        username: target.username,
+        result: expect.objectContaining({ retained: false }),
+      },
+    ]);
     expect(await exists([target.id])).toEqual([]);
-    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id))).toHaveLength(0);
+    expect(
+      await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, wallet.id)),
+    ).toHaveLength(0);
   });
 
   it('deletes a keyed test identity without a username with --allow-key --confirm', async () => {
@@ -246,23 +332,40 @@ describe('runAccountDeletions', () => {
       .values({ color: 'teal', publicKey: `04${randomUUID().replace(/-/g, '')}` })
       .returning({ id: users.id });
 
-    const refused = await runAccountDeletions({ identifiers: [unnamed.id], confirm: true, allowKey: false });
+    const refused = await runAccountDeletions({
+      identifiers: [unnamed.id],
+      confirm: true,
+      allowKey: false,
+    });
     expect(refused.results).toEqual([]);
     expect(await exists([unnamed.id])).toEqual([unnamed.id]);
 
-    const report = await runAccountDeletions({ identifiers: [unnamed.id], confirm: true, allowKey: true });
-    expect(report.results).toEqual([{ id: unnamed.id, username: null, result: expect.objectContaining({ retained: false }) }]);
+    const report = await runAccountDeletions({
+      identifiers: [unnamed.id],
+      confirm: true,
+      allowKey: true,
+    });
+    expect(report.results).toEqual([
+      { id: unnamed.id, username: null, result: expect.objectContaining({ retained: false }) },
+    ]);
     expect(await exists([unnamed.id])).toEqual([]);
   });
 
   it('deletes every planned account with --confirm, through the one workflow', async () => {
     const first = await account();
     const second = await account();
-    const report = await runAccountDeletions({ identifiers: [first.username, second.id], confirm: true, allowKey: false });
+    const report = await runAccountDeletions({
+      identifiers: [first.username, second.id],
+      confirm: true,
+      allowKey: false,
+    });
     expect(report.results.map((entry) => entry.id)).toEqual([first.id, second.id]);
     expect(report.results.every((entry) => entry.result.retained === false)).toBe(true);
     expect(await exists([first.id, second.id])).toEqual([]);
-    const [gone] = await getDb().select({ id: users.id }).from(users).where(eq(users.username, first.username));
+    const [gone] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, first.username));
     expect(gone).toBeUndefined();
   });
 });

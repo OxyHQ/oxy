@@ -28,7 +28,9 @@ const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUser(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `u${id}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}` });
   return id;
 }
 
@@ -40,9 +42,7 @@ async function edgeExists(followerId: string, followedId: string): Promise<boole
   const rows = await getDb()
     .select({ id: userFollows.id })
     .from(userFollows)
-    .where(
-      and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId))
-    );
+    .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)));
   return rows.length === 1;
 }
 
@@ -66,11 +66,7 @@ describe('bulkUnfollow removes exactly the edges that existed', () => {
     await follow(viewer, followedB);
     await follow(viewer, keep);
 
-    const result = await userService.bulkUnfollow(viewer, [
-      followedA,
-      followedB,
-      neverFollowed,
-    ]);
+    const result = await userService.bulkUnfollow(viewer, [followedA, followedB, neverFollowed]);
 
     expect(result.unfollowedCount).toBe(2);
     expect(result.results).toEqual([

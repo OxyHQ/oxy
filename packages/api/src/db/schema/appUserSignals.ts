@@ -71,20 +71,19 @@ export const appUserSignals = pgTable(
     // One roll-up per (application, user) — what makes the ingest `$inc` an
     // upsert rather than a duplicate.
     unique('app_user_signals_application_id_user_id_key').on(t.applicationId, t.userId),
-    // ADDED, not ported: the scorer's top-N read
-    // (`find({applicationId}).sort({endorsementScore:-1}).limit(N)`,
-    // `routes/profiles.ts:1047`) has no supporting index in Mongo at all, so it
-    // fetches every row for the application and sorts them in memory.
+    // The scorer's top-N read (`routes/profiles.ts`): one application's rows,
+    // highest endorsement score first, limited to N. Without this index it
+    // would fetch every row for the application and sort them in memory.
     index('app_user_signals_application_id_endorsement_score_idx').on(
       t.applicationId,
-      t.endorsementScore.desc()
+      t.endorsementScore.desc(),
     ),
     // Cross-app lookups for a single user, and the index that keeps a user
     // delete from scanning the table.
     index('app_user_signals_user_id_idx').on(t.userId),
     check(
       'app_user_signals_interest_score_check',
-      sql`${t.interestScore} >= 0 and ${t.interestScore} <= 1`
+      sql`${t.interestScore} >= 0 and ${t.interestScore} <= 1`,
     ),
-  ]
+  ],
 );

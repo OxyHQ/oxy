@@ -74,7 +74,11 @@ export function snapshot(queryClient: QueryClient, filters: PersistFilters): str
  * it is still wanted immediately before. Returns false when there was nothing
  * usable (absent, unreadable or expired), in which case the caller removes it.
  */
-export function hydrateSnapshot(queryClient: QueryClient, raw: string | null, maxAge: number): boolean {
+export function hydrateSnapshot(
+  queryClient: QueryClient,
+  raw: string | null,
+  maxAge: number,
+): boolean {
   if (!raw) return false;
   let blob: PersistedBlob;
   try {
@@ -82,7 +86,11 @@ export function hydrateSnapshot(queryClient: QueryClient, raw: string | null, ma
   } catch {
     return false;
   }
-  if (!blob?.clientState || typeof blob.timestamp !== 'number' || Date.now() - blob.timestamp > maxAge) {
+  if (
+    !blob?.clientState ||
+    typeof blob.timestamp !== 'number' ||
+    Date.now() - blob.timestamp > maxAge
+  ) {
     return false;
   }
   const sameBuild = blob.buster === getOxyBuildId();

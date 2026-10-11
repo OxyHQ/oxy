@@ -143,11 +143,9 @@ edits rules, reverses, voids or recalculates anyone's reputation by hand, and
 there are no disputes to resolve. Argument and return types come from
 `@oxy.so/contracts`.
 
-> **Not pending.** Karma was hard-replaced by this ledger (b28f886b), and the
-> `karmas`/`karmarules` collections were verified empty cluster-wide before the
-> Postgres port, so `migrate-karma-to-reputation.ts` was a no-op against
-> production. It has been deleted with the rest of the Mongo one-shots; balances
-> come from `reputation_transactions` and always have.
+> **Not pending.** Karma was hard-replaced by this ledger (b28f886b), and
+> `migrate-karma-to-reputation.ts` was a no-op against production. It has been
+> deleted; balances come from `reputation_transactions` and always have.
 
 ---
 

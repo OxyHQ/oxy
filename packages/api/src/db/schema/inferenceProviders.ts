@@ -116,13 +116,13 @@ export const inferenceProviders = pgTable(
 
     check(
       'inference_providers_byok_terms_url',
-      sql`not ${t.byokTermsAcknowledgementRequired} or ${t.byokTermsUrl} is not null`
+      sql`not ${t.byokTermsAcknowledgementRequired} or ${t.byokTermsUrl} is not null`,
     ),
 
     check('inference_providers_slug_format', sql`${t.slug} ~ ${sql.raw(SLUG_CHECK_PATTERN)}`),
     check(
       'inference_providers_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(INFERENCE_PROVIDER_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(INFERENCE_PROVIDER_KINDS))})`,
     ),
 
     /**
@@ -137,13 +137,13 @@ export const inferenceProviders = pgTable(
      */
     check(
       'inference_providers_retention_coherent',
-      sql`${t.retentionDays} >= 0 and ${t.retentionDays} <= 3650 and (${t.retainsPayloads} or ${t.retentionDays} = 0)`
+      sql`${t.retentionDays} >= 0 and ${t.retentionDays} <= 3650 and (${t.retainsPayloads} or ${t.retentionDays} = 0)`,
     ),
     check(
       'inference_providers_training_requires_retention',
-      sql`${t.retainsPayloads} or not ${t.trainsOnCustomerData}`
+      sql`${t.retainsPayloads} or not ${t.trainsOnCustomerData}`,
     ),
-  ]
+  ],
 );
 
 export type InferenceProviderRow = typeof inferenceProviders.$inferSelect;

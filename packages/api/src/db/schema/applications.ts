@@ -22,16 +22,15 @@
  *   `text` + CHECK rule: `scopes <@ array[…]`, derived from the SAME
  *   `APPLICATION_SCOPES` tuple the routes and the service-token mint use. The
  *   tuple is imported rather than copied — `utils/applicationScopes.ts` is
- *   deliberately dependency-free (no mongoose), so `drizzle.config.ts` can load
- *   this file without dragging a model in.
+ *   deliberately dependency-free, so `drizzle.config.ts` can load this file
+ *   without dragging the rest of the API in.
  * - **`capabilities`** IS queried by element —
  *   `Application.find({ status: 'active', capabilities: 'identity:approval' })`
- *   (`services/authSessionDelivery.service.ts:81`) runs on every push-delivery
- *   request and is a collection scan under Mongo, which declared no index for
- *   it. Here it gets a GIN index and the query becomes
+ *   (`services/authSessionDelivery.service.ts`) runs on every push-delivery
+ *   request, so it gets a GIN index and the query is
  *   `capabilities @> array['identity:approval']`. Deliberately NOT
- *   CHECK-constrained: the Mongoose field declares no enum, and the vocabulary
- *   is staff-controlled and meant to grow without a migration.
+ *   CHECK-constrained: the vocabulary is staff-controlled and meant to grow
+ *   without a migration.
  *
  * ## What `ON DELETE` says about ownership
  *
@@ -50,27 +49,17 @@ import { users } from './users';
  * silently drops it for a non-staff caller (`routes/applications.ts`), so a
  * self-service third-party app can never promote itself.
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and `check-drizzle-snapshot-sync`
- * holds that rendering against the migration the database was actually built
- * from, so editing it without regenerating a migration fails CI.
+ * This tuple is the SINGLE declaration. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
-export const APPLICATION_TYPES = [
-  'first_party',
-  'third_party',
-  'internal',
-  'system',
-] as const;
+export const APPLICATION_TYPES = ['first_party', 'third_party', 'internal', 'system'] as const;
 
 export type ApplicationType = (typeof APPLICATION_TYPES)[number];
 
 /** Lifecycle. `deleted` is a soft delete — the row and its OAuth history stay. */
-export const APPLICATION_STATUSES = [
-  'active',
-  'suspended',
-  'deleted',
-  'pending_review',
-] as const;
+export const APPLICATION_STATUSES = ['active', 'suspended', 'deleted', 'pending_review'] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
@@ -103,25 +92,16 @@ export const applications = pgTable(
     /** Gates service-token issuance and internal-only endpoints. */
     isInternal: boolean().notNull().default(false),
     /** Opaque platform capability flags — see the header. */
-    capabilities: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    capabilities: text().array().notNull().default(sql`'{}'::text[]`),
 
     // ---- OAuth -------------------------------------------------------------
     /**
      * Exact-match allowlist for the authorization-code flow. Order is the
      * author's and is preserved; matching happens in application code.
      */
-    redirectUris: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    redirectUris: text().array().notNull().default(sql`'{}'::text[]`),
     /** Granted scopes. CHECK-constrained to `APPLICATION_SCOPES` — see header. */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
 
     /**
      * Lexicon namespace PREFIXES this application may append records under, on
@@ -146,10 +126,7 @@ export const applications = pgTable(
      * `config/chainCollectionPolicy.ts` — writing under your namespace does not
      * make a collection publishable.
      */
-    chainNamespaces: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    chainNamespaces: text().array().notNull().default(sql`'{}'::text[]`),
 
     // ---- webhooks ----------------------------------------------------------
     webhookUrl: text(),
@@ -162,12 +139,11 @@ export const applications = pgTable(
      * caller's effective `AccountMember` role over this account is what grants
      * RBAC access — there is no per-app member table.
      *
-     * `CASCADE`, and it is a FIX rather than a translation: `ownerAccountId` is
-     * `required`, so there is no ownerless state, and under Mongo a deleted
-     * owner left the row — and therefore its OAuth client and every service
-     * credential under it — working forever with nobody able to administer or
-     * revoke it. The GDPR delete path (`routes/users.ts:1517`) does not touch
-     * applications today.
+     * `CASCADE`: `ownerAccountId` is `NOT NULL`, so there is no ownerless
+     * state, and keeping the row after its owner is deleted would leave its
+     * OAuth client and every service credential under it working forever with
+     * nobody able to administer or revoke it. The GDPR delete path
+     * (`routes/users.ts:1517`) does not touch applications today.
      */
     ownerAccountId: text()
       .notNull()
@@ -175,14 +151,12 @@ export const applications = pgTable(
     /**
      * The user who created the application — pure ATTRIBUTION, not ownership.
      *
-     * NULLABLE with `SET NULL`, deliberately relaxing Mongoose's
-     * `required: true`. What `required` guaranteed was that a creator was
-     * RECORDED at insert time; Mongo could not keep that true afterwards, since
-     * deleting the user left a dangling id with no error. NULL states that
-     * honestly. The alternatives are both worse: `CASCADE` would let a departing
-     * member's account erasure delete an application their ORGANIZATION owns
-     * (the exact failure `users.ts` refused for `parent_account_id`), and
-     * `RESTRICT` would make a GDPR erasure fail on an audit field.
+     * NULLABLE with `SET NULL`. A creator is RECORDED at insert time, but the
+     * creator can later be deleted; NULL states that honestly. The alternatives
+     * are both worse: `CASCADE` would let a departing member's account erasure
+     * delete an application their ORGANIZATION owns (the exact failure
+     * `users.ts` refused for `parent_account_id`), and `RESTRICT` would make a
+     * GDPR erasure fail on an audit field.
      *
      * No index: nothing queries by it (it is written and serialized only), and
      * the FK-maintenance scan on a user delete is over a small table.
@@ -195,18 +169,14 @@ export const applications = pgTable(
   },
   (t) => [
     // The list query is `find({ownerAccountId: {$in}, status: {$ne:'deleted'}})
-    // .sort({createdAt: -1})` (`routes/applications.ts:479`). Mongo's
-    // `{ownerAccountId, status}` cannot serve a `$ne` and leaves the sort in
-    // memory; leading with the owner and ordering by `created_at desc` serves
+    // .sort({createdAt: -1})` (`routes/applications.ts`). An
+    // `(owner_account_id, status)` index cannot serve a `!=` and leaves the sort
+    // in memory; leading with the owner and ordering by `created_at desc` serves
     // both, so this replaces BOTH that compound and the standalone
     // `{ownerAccountId}`.
-    index('applications_owner_account_id_created_at_idx').on(
-      t.ownerAccountId,
-      t.createdAt.desc()
-    ),
+    index('applications_owner_account_id_created_at_idx').on(t.ownerAccountId, t.createdAt.desc()),
     // `find({status:'active', capabilities: 'identity:approval'})` on every push
-    // delivery. Mongo declared no index for the array, so this is ADDED, not
-    // ported: `capabilities @> array['identity:approval']`.
+    // delivery: `capabilities @> array['identity:approval']`.
     index('applications_capabilities_idx').using('gin', t.capabilities),
 
     // Dropped, each with a reason:
@@ -222,13 +192,13 @@ export const applications = pgTable(
     check('applications_type_check', sql`${t.type} in (${sql.raw(inList(APPLICATION_TYPES))})`),
     check(
       'applications_status_check',
-      sql`${t.status} in (${sql.raw(inList(APPLICATION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(APPLICATION_STATUSES))})`,
     ),
     // The array analogue of a closed value set: every element must be a known
     // scope. `<@` is containment, so an empty array trivially satisfies it.
     check(
       'applications_scopes_check',
-      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`
+      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
     ),
-  ]
+  ],
 );

@@ -19,7 +19,7 @@ describe('ensureExtensions', () => {
     await expect(
       ensureExtensions('postgres://unreachable.invalid/db', [
         { name: 'postgis"; drop database x; --', reason: 'malicious' },
-      ])
+      ]),
     ).rejects.toThrow(/must match/);
   });
 
@@ -29,7 +29,7 @@ describe('ensureExtensions', () => {
     // that: if this implementation opened a connection unconditionally, the
     // promise would reject (or hang) instead of resolving.
     await expect(
-      ensureExtensions('postgres://unreachable.invalid/db', [])
+      ensureExtensions('postgres://unreachable.invalid/db', []),
     ).resolves.toBeUndefined();
   });
 });

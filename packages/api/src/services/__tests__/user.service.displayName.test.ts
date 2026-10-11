@@ -5,10 +5,8 @@
  * — nothing else. Federated names are STRIPPED on ingest; a native edit gets a
  * 400 so the user fixes it at the source. This suite is about the native half.
  *
- * The suite this replaces asserted `expect(mockUser.findById).not.toHaveBeenCalled()`
- * to prove the rejection came "before any DB write". That is a proxy: it says
- * a particular Mongoose call did not happen, not that the column is unchanged —
- * and the call it watched no longer exists. Here the account is seeded with a
+ * Asserting that a mocked call did not happen is a proxy for "before any DB
+ * write", not proof that the column is unchanged. Here the account is seeded with a
  * KNOWN name and re-read after the rejection, so "nothing was written" is
  * checked directly, against the row.
  */
@@ -30,12 +28,14 @@ const SEEDED = { first: 'Original', last: 'Name' } as const;
 
 async function makeUser(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({
-    id,
-    username: `u${id}`,
-    nameFirst: SEEDED.first,
-    nameLast: SEEDED.last,
-  });
+  await getDb()
+    .insert(users)
+    .values({
+      id,
+      username: `u${id}`,
+      nameFirst: SEEDED.first,
+      nameLast: SEEDED.last,
+    });
   return id;
 }
 
@@ -71,7 +71,7 @@ describe('a name outside the policy is refused and nothing is stored', () => {
       message: INVALID_NAME_MESSAGE,
     });
     await expect(userService.updateUserProfile(id, { name })).rejects.toBeInstanceOf(
-      BadRequestError
+      BadRequestError,
     );
 
     // The column is untouched. A validator that ran AFTER the write would fail
@@ -86,7 +86,7 @@ describe('a name outside the policy is refused and nothing is stored', () => {
     const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(id, { name: { first: 'Agent007' }, bio: 'sneaks in' })
+      userService.updateUserProfile(id, { name: { first: 'Agent007' }, bio: 'sneaks in' }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     const [row] = await getDb()

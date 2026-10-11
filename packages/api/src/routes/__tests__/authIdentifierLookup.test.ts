@@ -9,11 +9,9 @@
  * expression on both sides. A plain `username = $1` is correct-looking,
  * case-SENSITIVE, and would not use the index.
  *
- * Behaviour difference this pins, deliberately: `check-username` and
- * `check-publickey` are now case-INSENSITIVE. Mongo indexed `username`
- * case-sensitively (so `Nate` and `nate` could coexist) while every lookup ran an
- * anchored `/i` regex; the expression index resolves that contradiction in favour
- * of one account per casing.
+ * Behaviour this pins, deliberately: `check-username` and `check-publickey` are
+ * case-INSENSITIVE, matching the expression index, so `Nate` and `nate` are one
+ * account.
  */
 
 import express from 'express';
@@ -66,15 +64,18 @@ let server: http.Server;
 function get(path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => {
-        raw += chunk;
-      });
-      res.on('end', () =>
-        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-      );
-    });
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -153,7 +154,7 @@ describe('GET /auth/check-username/:username', () => {
     async (username) => {
       const res = await get(`/auth/check-username/${username}`);
       expect(res.status).toBe(400);
-    }
+    },
   );
 });
 

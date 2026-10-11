@@ -42,11 +42,11 @@ export { useFollow, useFollowerCounts, useSeedFollowStatuses } from './hooks/use
 export { useFollowTarget } from './hooks/useFollowTarget';
 export type { UseFollowTargetResult } from './hooks/useFollowTarget';
 export {
-    useUserProfile,
-    useUserProfiles,
-    useCurrentUser,
-    useUserById,
-    useUserByUsername,
+  useUserProfile,
+  useUserProfiles,
+  useCurrentUser,
+  useUserById,
+  useUserByUsername,
 } from './hooks/queries/useAccountQueries';
 export { useStorage } from './hooks/useStorage';
 export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
@@ -56,37 +56,37 @@ export type { UseStorageOptions, UseStorageResult } from './hooks/useStorage';
 
 // Follow rules, for an app drawing its own follow affordance
 export {
-    buildFollowMenuItems,
-    resolveFollowPrimaryAction,
-    FOLLOW_ACTION_LEAVES_ACTIVE,
+  buildFollowMenuItems,
+  resolveFollowPrimaryAction,
+  FOLLOW_ACTION_LEAVES_ACTIVE,
 } from './components/followRules';
 export type { FollowDuration, FollowMenuItem } from './components/followRules';
 
 // Query keys, cache invalidation and the canonical user-cache upsert
 export {
-    queryKeys,
-    invalidateAccountQueries,
-    invalidateUserQueries,
-    invalidateSessionQueries,
-    invalidateDeviceQueries,
-    invalidatePrivacyQueries,
-    invalidateSecurityQueries,
-    invalidateStorageQueries,
-    invalidatePaymentsQueries,
-    invalidateConnectedAppsQueries,
-    invalidateAuthMethodsQueries,
+  queryKeys,
+  invalidateAccountQueries,
+  invalidateUserQueries,
+  invalidateSessionQueries,
+  invalidateDeviceQueries,
+  invalidatePrivacyQueries,
+  invalidateSecurityQueries,
+  invalidateStorageQueries,
+  invalidatePaymentsQueries,
+  invalidateConnectedAppsQueries,
+  invalidateAuthMethodsQueries,
 } from './hooks/queries/queryKeys';
 export {
-    upsertCachedUser,
-    upsertCachedUsers,
-    CLEARABLE_USER_FIELDS,
-    clearedFieldsFromProfileUpdate,
-    clearedFieldsFromAccountUpdate,
+  upsertCachedUser,
+  upsertCachedUsers,
+  CLEARABLE_USER_FIELDS,
+  clearedFieldsFromProfileUpdate,
+  clearedFieldsFromAccountUpdate,
 } from './hooks/queries/userCache';
 export type {
-    CacheableUser,
-    ClearableUserField,
-    UpsertCachedUserOptions,
+  CacheableUser,
+  ClearableUserField,
+  UpsertCachedUserOptions,
 } from './hooks/queries/userCache';
 
 // Stores
@@ -94,9 +94,9 @@ export { useAuthStore } from './stores/authStore';
 
 // Error handler utilities
 export {
-    handleAuthError,
-    isInvalidSessionError,
-    isTimeoutOrNetworkError,
-    extractErrorMessage,
+  handleAuthError,
+  isInvalidSessionError,
+  isTimeoutOrNetworkError,
+  extractErrorMessage,
 } from './utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './utils/errorHandlers';

@@ -535,7 +535,7 @@ describe('a concrete model is never silently substituted', () => {
   }
 
   async function switchFixture(
-    fallbackOverride?: Partial<RoutingPolicyControls['fallback']>
+    fallbackOverride?: Partial<RoutingPolicyControls['fallback']>,
   ): Promise<SwitchFixture> {
     const accountId = await insertAccount();
     const applicationId = await insertApplication(accountId);

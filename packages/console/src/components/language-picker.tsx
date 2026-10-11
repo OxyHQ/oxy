@@ -1,11 +1,6 @@
 import { useId } from 'react';
-import type {Locale} from '@/lib/i18n';
-import {
-  LOCALE_LABELS,
-  
-  SUPPORTED_LOCALES,
-  useTranslation
-} from '@/lib/i18n';
+import type { Locale } from '@/lib/i18n';
+import { LOCALE_LABELS, SUPPORTED_LOCALES, useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /**

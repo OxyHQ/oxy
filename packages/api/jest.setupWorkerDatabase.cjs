@@ -11,7 +11,7 @@ const { OXY_JEST_DATABASE_MANIFEST } = require('./jest.workerCount.cjs');
 const manifestPath = process.env[OXY_JEST_DATABASE_MANIFEST];
 if (!manifestPath) {
   throw new Error(
-    `${OXY_JEST_DATABASE_MANIFEST} is unset — jest.globalSetup.ts must run before workers`
+    `${OXY_JEST_DATABASE_MANIFEST} is unset — jest.globalSetup.ts must run before workers`,
   );
 }
 
@@ -25,7 +25,7 @@ const index = workerId - 1;
 if (!Number.isFinite(workerId) || index < 0 || index >= urls.length) {
   throw new Error(
     `JEST_WORKER_ID=${process.env.JEST_WORKER_ID ?? '(unset)'} is out of range ` +
-      `for ${urls.length} provisioned database(s)`
+      `for ${urls.length} provisioned database(s)`,
   );
 }
 

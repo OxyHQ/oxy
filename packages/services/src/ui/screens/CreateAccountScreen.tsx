@@ -3,7 +3,14 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import Ionicons from '../icons/Ionicons';
 import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxy.so/core';
-import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxy.so/core';
+import {
+  accountCategoryLabel,
+  DISPLAY_NAME_INVALID_MESSAGE,
+  isValidDisplayName,
+  MAX_ACCOUNT_CATEGORIES,
+  MAX_DISPLAY_NAME_LENGTH,
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+} from '@oxy.so/core';
 import {
   applyBotUsernameSuffix,
   stripDisallowedUsernameCharacters,
@@ -84,7 +91,9 @@ const kindDescription = (
     case 'organization':
       return t('accounts.kinds.organization.description') || 'A shared team account with members';
     case 'bot':
-      return t('accounts.kinds.bot.description') || 'A programmatic account with service credentials';
+      return (
+        t('accounts.kinds.bot.description') || 'A programmatic account with service credentials'
+      );
     default:
       return t('accounts.kinds.project.description') || 'A separate account you control';
   }
@@ -103,19 +112,16 @@ const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUN
  * account via the `parentAccountId` prop. NOT the cryptographic Commons/DID
  * "identity" — that is a separate concept.
  */
-const CreateAccountScreen: React.FC<BaseScreenProps> = ({
-  onClose,
-  goBack,
-  parentAccountId,
-}) => {
+const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, parentAccountId }) => {
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount } = useOxy();
   const { t, locale } = useI18n();
 
   useSurfaceHeader({
     title: t('accounts.create.title') || 'Create account',
-    subtitle: t('accounts.create.subtitle')
-      || 'Create an account you control. It will have its own profile, members, and apps.',
+    subtitle:
+      t('accounts.create.subtitle') ||
+      'Create an account you control. It will have its own profile, members, and apps.',
   });
 
   const parentId = typeof parentAccountId === 'string' ? parentAccountId : undefined;
@@ -138,12 +144,15 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const usernameCheckSeqRef = useRef(0);
 
-  useEffect(() => () => {
-    usernameCheckSeqRef.current += 1;
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      usernameCheckSeqRef.current += 1;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    },
+    [],
+  );
 
   // Debounced username availability check
   //
@@ -152,76 +161,84 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   // has not landed yet when it calls. Reading the state here would validate the
   // previously chosen kind — an off-by-one that shows "available" for a bot
   // handle `POST /accounts` will refuse.
-  const checkUsername = useCallback((value: string, forKind: CreatableAccountKind) => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    if (!value || value.length < USERNAME_MIN_LENGTH) {
-      setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
-      setUsernameMessage(
-        value.length > 0
-          ? (t('accounts.create.username.tooShort')
-            || `Username must be at least ${USERNAME_MIN_LENGTH} characters`)
-          : '',
-      );
-      return;
-    }
-
-    // The ONE policy, from `@oxy.so/contracts`, for the kind being created. This
-    // screen used to carry a private copy of the rule, and the server it talks to
-    // enforced a LOOSER one — so a name this field refused was a name
-    // `POST /accounts` would happily have stored.
-    //
-    // WHICH half failed decides the copy: for a bot the rule has two, and telling
-    // somebody who typed `a.b` to append `bot` sends them to be refused a second
-    // time. The issue is read to choose between two LOCALIZED strings rather than
-    // shown directly — the schema's message is English, and this screen is not.
-    const parsed = usernameSchemaForAccountKind(forKind).safeParse(value);
-    if (!parsed.success) {
-      const failedTheLabel = parsed.error.issues[0]?.message === BOT_USERNAME_INVALID_MESSAGE;
-      setUsernameStatus('invalid');
-      setUsernameMessage(
-        failedTheLabel
-          ? (t('accounts.create.username.mustEndInBot') || BOT_USERNAME_INVALID_MESSAGE)
-          : (t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE),
-      );
-      return;
-    }
-
-    setUsernameStatus('checking');
-    setUsernameMessage('');
-
-    const seq = ++usernameCheckSeqRef.current;
-    debounceTimerRef.current = setTimeout(async () => {
-      try {
-        const result = await oxyServices.auth.checkUsername(value);
-        if (seq !== usernameCheckSeqRef.current) return;
-        setUsernameStatus(result.available ? 'available' : 'taken');
-        setUsernameMessage(
-          result.message
-          || (result.available
-            ? (t('accounts.create.username.available') || 'Username is available')
-            : (t('accounts.create.username.taken') || 'Username is taken')),
-        );
-      } catch {
-        if (seq !== usernameCheckSeqRef.current) return;
-        setUsernameStatus('idle');
-        setUsernameMessage(t('accounts.create.username.checkFailed') || 'Could not check availability');
+  const checkUsername = useCallback(
+    (value: string, forKind: CreatableAccountKind) => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
-    }, DEBOUNCE_MS);
-  }, [oxyServices, t]);
 
-  const handleUsernameChange = useCallback((value: string) => {
-    // Filters characters the policy forbids, and nothing else. It no longer
-    // lower-cases: `MyBot` is stored as `MyBot`, and uniqueness is decided
-    // case-insensitively by the database index rather than by rewriting what
-    // somebody typed. It does NOT label a bot handle either — appending `bot` to
-    // every keystroke would fight the person typing `mybot` one letter at a time.
-    const cleaned = stripDisallowedUsernameCharacters(value);
-    setUsername(cleaned);
-    checkUsername(cleaned, kind);
-  }, [checkUsername, kind]);
+      if (!value || value.length < USERNAME_MIN_LENGTH) {
+        setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
+        setUsernameMessage(
+          value.length > 0
+            ? t('accounts.create.username.tooShort') ||
+                `Username must be at least ${USERNAME_MIN_LENGTH} characters`
+            : '',
+        );
+        return;
+      }
+
+      // The ONE policy, from `@oxy.so/contracts`, for the kind being created. This
+      // screen used to carry a private copy of the rule, and the server it talks to
+      // enforced a LOOSER one — so a name this field refused was a name
+      // `POST /accounts` would happily have stored.
+      //
+      // WHICH half failed decides the copy: for a bot the rule has two, and telling
+      // somebody who typed `a.b` to append `bot` sends them to be refused a second
+      // time. The issue is read to choose between two LOCALIZED strings rather than
+      // shown directly — the schema's message is English, and this screen is not.
+      const parsed = usernameSchemaForAccountKind(forKind).safeParse(value);
+      if (!parsed.success) {
+        const failedTheLabel = parsed.error.issues[0]?.message === BOT_USERNAME_INVALID_MESSAGE;
+        setUsernameStatus('invalid');
+        setUsernameMessage(
+          failedTheLabel
+            ? t('accounts.create.username.mustEndInBot') || BOT_USERNAME_INVALID_MESSAGE
+            : t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE,
+        );
+        return;
+      }
+
+      setUsernameStatus('checking');
+      setUsernameMessage('');
+
+      const seq = ++usernameCheckSeqRef.current;
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          const result = await oxyServices.auth.checkUsername(value);
+          if (seq !== usernameCheckSeqRef.current) return;
+          setUsernameStatus(result.available ? 'available' : 'taken');
+          setUsernameMessage(
+            result.message ||
+              (result.available
+                ? t('accounts.create.username.available') || 'Username is available'
+                : t('accounts.create.username.taken') || 'Username is taken'),
+          );
+        } catch {
+          if (seq !== usernameCheckSeqRef.current) return;
+          setUsernameStatus('idle');
+          setUsernameMessage(
+            t('accounts.create.username.checkFailed') || 'Could not check availability',
+          );
+        }
+      }, DEBOUNCE_MS);
+    },
+    [oxyServices, t],
+  );
+
+  const handleUsernameChange = useCallback(
+    (value: string) => {
+      // Filters characters the policy forbids, and nothing else. It no longer
+      // lower-cases: `MyBot` is stored as `MyBot`, and uniqueness is decided
+      // case-insensitively by the database index rather than by rewriting what
+      // somebody typed. It does NOT label a bot handle either — appending `bot` to
+      // every keystroke would fight the person typing `mybot` one letter at a time.
+      const cleaned = stripDisallowedUsernameCharacters(value);
+      setUsername(cleaned);
+      checkUsername(cleaned, kind);
+    },
+    [checkUsername, kind],
+  );
 
   /**
    * Choosing the account type re-decides the handle, because the policy differs
@@ -234,31 +251,37 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
    * only ever adds the label, and only when moving to `bot` — moving away leaves
    * the name alone, since the label is not forbidden to anybody else.
    */
-  const handleKindChange = useCallback((nextKind: CreatableAccountKind) => {
-    setKind(nextKind);
-    if (!username) return;
-    const proposed = nextKind === 'bot' ? applyBotUsernameSuffix(username) : username;
-    setUsername(proposed);
-    checkUsername(proposed, nextKind);
-  }, [checkUsername, username]);
+  const handleKindChange = useCallback(
+    (nextKind: CreatableAccountKind) => {
+      setKind(nextKind);
+      if (!username) return;
+      const proposed = nextKind === 'bot' ? applyBotUsernameSuffix(username) : username;
+      setUsername(proposed);
+      checkUsername(proposed, nextKind);
+    },
+    [checkUsername, username],
+  );
 
-  const handleDisplayNameChange = useCallback((value: string) => {
-    setDisplayName(value);
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setDisplayNameError('');
-      return;
-    }
-    const nameParts = trimmed.split(/\s+/);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-    const invalidPart = [firstName, lastName].find((part) => part && !isValidDisplayName(part));
-    setDisplayNameError(
-      invalidPart
-        ? (t('accounts.create.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE)
-        : '',
-    );
-  }, [t]);
+  const handleDisplayNameChange = useCallback(
+    (value: string) => {
+      setDisplayName(value);
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setDisplayNameError('');
+        return;
+      }
+      const nameParts = trimmed.split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+      const invalidPart = [firstName, lastName].find((part) => part && !isValidDisplayName(part));
+      setDisplayNameError(
+        invalidPart
+          ? t('accounts.create.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE
+          : '',
+      );
+    },
+    [t],
+  );
 
   /**
    * Append on select, splice out on de-select. Never sorts — appending is what
@@ -277,10 +300,11 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
     });
   }, []);
 
-  const canCreate = usernameStatus === 'available'
-    && displayName.trim().length > 0
-    && !displayNameError
-    && !isCreating;
+  const canCreate =
+    usernameStatus === 'available' &&
+    displayName.trim().length > 0 &&
+    !displayNameError &&
+    !isCreating;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
@@ -317,28 +341,41 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 
       onClose?.();
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : (t('accounts.create.toasts.failed') || 'Failed to create account');
+      const message =
+        error instanceof Error
+          ? error.message
+          : t('accounts.create.toasts.failed') || 'Failed to create account';
       toast.error(message);
     } finally {
       setIsCreating(false);
     }
-  }, [canCreate, kind, accountCategories, username, displayName, bio, parentId, createAccount, switchToAccount, onClose, t]);
+  }, [
+    canCreate,
+    kind,
+    accountCategories,
+    username,
+    displayName,
+    bio,
+    parentId,
+    createAccount,
+    switchToAccount,
+    onClose,
+    t,
+  ]);
 
   // Status icon + color shown alongside the username field message
   const usernameIsInvalid = usernameStatus === 'taken' || usernameStatus === 'invalid';
-  const statusColor = usernameStatus === 'available'
-    ? bloomTheme.colors.success
-    : usernameIsInvalid
-      ? bloomTheme.colors.negative
-      : bloomTheme.colors.textSecondary;
+  const statusColor =
+    usernameStatus === 'available'
+      ? bloomTheme.colors.success
+      : usernameIsInvalid
+        ? bloomTheme.colors.negative
+        : bloomTheme.colors.textSecondary;
 
   const title = t('accounts.create.title') || 'Create account';
 
   return (
     <View className="gap-space-16 px-screen-margin pt-space-16 pb-space-32">
-
       {/* Account type — canonical grouped selection rows (checkmark on the chosen one) */}
       <SettingsListGroup title={t('accounts.create.typeSection') || 'Account type'}>
         {KIND_OPTIONS.map((option) => {
@@ -346,20 +383,22 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
           return (
             <SettingsListItem
               key={option.value}
-              icon={(
+              icon={
                 <Ionicons
                   name={option.icon}
                   size={22}
                   color={selected ? bloomTheme.colors.primary : bloomTheme.colors.icon}
                 />
-              )}
+              }
               title={kindLabel(t, option.value)}
               description={kindDescription(t, option.value)}
               onPress={() => handleKindChange(option.value)}
               showChevron={false}
-              rightElement={selected ? (
-                <Ionicons name="checkmark-circle" size={20} color={bloomTheme.colors.primary} />
-              ) : undefined}
+              rightElement={
+                selected ? (
+                  <Ionicons name="checkmark-circle" size={20} color={bloomTheme.colors.primary} />
+                ) : undefined
+              }
               accessibilityLabel={kindLabel(t, option.value)}
             />
           );
@@ -383,9 +422,13 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
                 onPress={() => toggleAccountCategory(option)}
                 showChevron={false}
-                rightElement={selected ? (
-                  <Text className="text-caption-1 font-semibold text-primary">{position + 1}</Text>
-                ) : undefined}
+                rightElement={
+                  selected ? (
+                    <Text className="text-caption-1 font-semibold text-primary">
+                      {position + 1}
+                    </Text>
+                  ) : undefined
+                }
                 accessibilityLabel={label}
               />
             );
@@ -414,7 +457,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 maxLength={USERNAME_MAX_LENGTH}
               />
             </TextField>
-            {(usernameStatus === 'checking' || usernameMessage) ? (
+            {usernameStatus === 'checking' || usernameMessage ? (
               <View className="flex-row items-center gap-space-4 px-space-4">
                 {usernameStatus === 'checking' ? (
                   <ActivityIndicator size="small" color={bloomTheme.colors.primary} />
@@ -474,7 +517,8 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 
       {/* Create Button */}
       <Button
-        appearance="solid" tone="accent"
+        appearance="solid"
+        tone="accent"
         onPress={handleCreate}
         disabled={!canCreate}
         loading={isCreating}

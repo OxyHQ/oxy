@@ -159,12 +159,13 @@ function presentInternal<K extends RouteName>(
   // SurfaceScreen imports these presenters, while presenting one renders a
   // SurfaceScreen) without a `require()` — which ESM output must never contain,
   // see the note on `screenComponents` in `./routes`.
-  const result = bloomSurfaces.present<SurfaceResult<K>>((surface: SurfaceControls) =>
-    createElement(SurfaceScreen, {
-      navStack,
-      surface,
-      dismissOnBackdrop: bloomOpts.dismissOnBackdrop ?? true,
-    }),
+  const result = bloomSurfaces.present<SurfaceResult<K>>(
+    (surface: SurfaceControls) =>
+      createElement(SurfaceScreen, {
+        navStack,
+        surface,
+        dismissOnBackdrop: bloomOpts.dismissOnBackdrop ?? true,
+      }),
     bloomOpts,
   );
 

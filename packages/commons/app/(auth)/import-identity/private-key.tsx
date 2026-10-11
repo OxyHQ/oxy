@@ -2,14 +2,16 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  IdentityAlreadyExistsError,
+  IdentityUnavailableError,
+} from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { Fonts } from '@/constants/theme';
 import { withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
@@ -100,7 +102,9 @@ export default function ImportPrivateKeyScreen() {
   }, [privateKey, importIdentityFromPrivateKey, router, setRecoveryPhraseAcknowledgedPersisted, t]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.title, { color: colors.text }]}>{t('importPrivateKey.title')}</Text>
         <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>
@@ -119,13 +123,26 @@ export default function ImportPrivateKeyScreen() {
           spellCheck={false}
           style={[
             styles.input,
-            { color: colors.text, borderColor: withAlpha(colors.text, 0.2), backgroundColor: colors.card },
+            {
+              color: colors.text,
+              borderColor: withAlpha(colors.text, 0.2),
+              backgroundColor: colors.card,
+            },
           ]}
         />
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={handleImport}
+          disabled={isLoading}
+          loading={isLoading}
+          className="mt-space-32"
+        >
+          {isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}
+        </Button>
 
         <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}

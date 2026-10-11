@@ -14,8 +14,18 @@ function sticker(id: string, packId = 'pack-1'): Sticker {
     keywords: [],
     size: 512,
     durationMs: 2000,
-    animation: { url: `https://cloud.oxy.so/content/${id}.json`, sha256: 'a'.repeat(64), mime: 'application/json', bytes: 10 },
-    fallback: { url: `https://cloud.oxy.so/content/${id}.webp`, sha256: 'b'.repeat(64), mime: 'image/webp', bytes: 10 },
+    animation: {
+      url: `https://cloud.oxy.so/content/${id}.json`,
+      sha256: 'a'.repeat(64),
+      mime: 'application/json',
+      bytes: 10,
+    },
+    fallback: {
+      url: `https://cloud.oxy.so/content/${id}.webp`,
+      sha256: 'b'.repeat(64),
+      mime: 'image/webp',
+      bytes: 10,
+    },
   };
 }
 
@@ -33,7 +43,9 @@ function transport(handler: (method: string, url: string, data?: unknown) => unk
 describe('resolve', () => {
   it('asks only for ids it has not seen, and remembers what came back', async () => {
     const { oxy, calls } = transport((_method, _url, data) => ({
-      stickers: (data as { ids: string[] }).ids.filter((id) => id !== 'unknown').map((id) => sticker(id)),
+      stickers: (data as { ids: string[] }).ids
+        .filter((id) => id !== 'unknown')
+        .map((id) => sticker(id)),
     }));
     const client = createStickersClient(oxy);
 
@@ -48,11 +60,15 @@ describe('resolve', () => {
   });
 
   it('splits more than 100 unseen ids into batches', async () => {
-    const { oxy, calls } = transport((_m, _u, data) => ({ stickers: (data as { ids: string[] }).ids.map((id) => sticker(id)) }));
+    const { oxy, calls } = transport((_m, _u, data) => ({
+      stickers: (data as { ids: string[] }).ids.map((id) => sticker(id)),
+    }));
     const ids = Array.from({ length: 250 }, (_, index) => `id-${index}`);
     const result = await createStickersClient(oxy).resolve(ids);
     expect(result.size).toBe(250);
-    expect(calls.map((call) => (call.data as { ids: string[] }).ids.length)).toEqual([100, 100, 50]);
+    expect(calls.map((call) => (call.data as { ids: string[] }).ids.length)).toEqual([
+      100, 100, 50,
+    ]);
   });
 
   it('answers null for an unknown single sticker', async () => {
@@ -65,7 +81,8 @@ describe('packs', () => {
   it('turns a 404 into null and seeds the memo from a pack', async () => {
     const { oxy, calls } = transport((_method, url) => {
       if (url.endsWith('/missing')) throw Object.assign(new Error('not found'), { status: 404 });
-      if (url.startsWith('/stickers/packs/')) return { id: 'p', slug: 'cats', stickers: [sticker('s1')] };
+      if (url.startsWith('/stickers/packs/'))
+        return { id: 'p', slug: 'cats', stickers: [sticker('s1')] };
       return { stickers: [] };
     });
     const client = createStickersClient(oxy);
@@ -83,7 +100,10 @@ describe('packs', () => {
   });
 
   it('reads a page of the shop from the paginated envelope', async () => {
-    const { oxy, calls } = transport(() => ({ data: [{ id: 'p', cover: sticker('c') }], pagination: { total: 30, hasMore: true } }));
+    const { oxy, calls } = transport(() => ({
+      data: [{ id: 'p', cover: sticker('c') }],
+      pagination: { total: 30, hasMore: true },
+    }));
     const page = await createStickersClient(oxy).listPacks({ offset: 24 });
     expect(page).toMatchObject({ total: 30, hasMore: true });
     expect(calls[0].url).toBe('/stickers/packs?limit=24&offset=24');
@@ -91,20 +111,27 @@ describe('packs', () => {
 
   it('builds the reference an app stores', () => {
     const { oxy } = transport(() => ({}));
-    expect(createStickersClient(oxy).refOf(sticker('s1'))).toEqual({ stickerId: 's1', packId: 'pack-1', sha256: 'a'.repeat(64) });
+    expect(createStickersClient(oxy).refOf(sticker('s1'))).toEqual({
+      stickerId: 's1',
+      packId: 'pack-1',
+      sha256: 'a'.repeat(64),
+    });
   });
 });
 
 describe('verifyStickerBytes', () => {
   beforeAll(() => {
-    if (!globalThis.crypto?.subtle) Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
+    if (!globalThis.crypto?.subtle)
+      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
   });
 
   it('accepts the exact bytes and refuses any other', async () => {
     const bytes = new TextEncoder().encode('{"v":"5.7.4"}');
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     expect(await verifyStickerBytes({ sha256 }, bytes)).toBe(true);
-    expect(await verifyStickerBytes({ sha256 }, new TextEncoder().encode('{"v":"5.7.5"}'))).toBe(false);
+    expect(await verifyStickerBytes({ sha256 }, new TextEncoder().encode('{"v":"5.7.5"}'))).toBe(
+      false,
+    );
   });
 
   it('uses a supplied hasher where WebCrypto is missing', async () => {

@@ -71,15 +71,17 @@ describe('OxyServices.mintFromDeviceSecret', () => {
       Object.assign(new Error('account_not_on_device'), { status: 401, code: 'UNAUTHORIZED' }),
     );
 
-    const error = await oxy
-      .devices.mintToken('dev-1', 'ds-1', { accountId: 'vault-user' })
-      .then(
-        () => null,
-        (thrown: unknown) => thrown,
-      );
+    const error = await oxy.devices.mintToken('dev-1', 'ds-1', { accountId: 'vault-user' }).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
 
     expect(error).toBeInstanceOf(AccountNotOnDeviceError);
-    expect(error).toMatchObject({ name: 'AccountNotOnDeviceError', accountId: 'vault-user', status: 401 });
+    expect(error).toMatchObject({
+      name: 'AccountNotOnDeviceError',
+      accountId: 'vault-user',
+      status: 401,
+    });
   });
 
   it('leaves every OTHER 401 as an ordinary error (a bad secret is not an identity problem)', async () => {
@@ -87,12 +89,10 @@ describe('OxyServices.mintFromDeviceSecret', () => {
       Object.assign(new Error('invalid_device_secret'), { status: 401, code: 'UNAUTHORIZED' }),
     );
 
-    const error = await oxy
-      .devices.mintToken('dev-1', 'ds-1', { accountId: 'vault-user' })
-      .then(
-        () => null,
-        (thrown: unknown) => thrown,
-      );
+    const error = await oxy.devices.mintToken('dev-1', 'ds-1', { accountId: 'vault-user' }).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
 
     expect(error).not.toBeInstanceOf(AccountNotOnDeviceError);
     expect(error).toMatchObject({ message: 'invalid_device_secret', status: 401 });

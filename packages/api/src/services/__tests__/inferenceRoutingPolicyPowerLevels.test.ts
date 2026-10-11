@@ -121,8 +121,12 @@ describe('same-model deployment failover', () => {
       createdByUserId: optedOut.accountId,
     });
     if (on.status !== 'written' || off.status !== 'written') throw new Error('not written');
-    expect((await getRoutingPolicy(on.policy.routingPolicyId))?.policy.fallback.sameModelDeployment).toBe(true);
-    expect((await getRoutingPolicy(off.policy.routingPolicyId))?.policy.fallback.sameModelDeployment).toBe(false);
+    expect(
+      (await getRoutingPolicy(on.policy.routingPolicyId))?.policy.fallback.sameModelDeployment,
+    ).toBe(true);
+    expect(
+      (await getRoutingPolicy(off.policy.routingPolicyId))?.policy.fallback.sameModelDeployment,
+    ).toBe(false);
   });
 });
 

@@ -9,8 +9,8 @@
  * same shape of authority as `isTrustedApplication()`. Never gate a platform
  * behaviour on a hardcoded client id, bundle id or application name.
  *
- * Intentionally dependency-free (no Mongoose) so it is trivially unit-testable
- * and importable without loading a model.
+ * Intentionally dependency-free (no database) so it is trivially unit-testable
+ * and importable without loading the schema.
  */
 
 export const APPLICATION_CAPABILITIES = [
@@ -30,9 +30,7 @@ export const APPLICATION_CAPABILITIES = [
 
 export type BuiltInApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
 export type CatalogApplicationCapability = `catalog:${string}`;
-export type ApplicationCapability =
-  | BuiltInApplicationCapability
-  | CatalogApplicationCapability;
+export type ApplicationCapability = BuiltInApplicationCapability | CatalogApplicationCapability;
 
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
@@ -59,13 +57,13 @@ export function catalogApplicationCapability(appId: string): CatalogApplicationC
 /**
  * Predicate: does this application carry `capability`?
  *
- * Accepts a bare shape (not a Mongoose document) so callers can test lean query
+ * Accepts a bare shape (not a full row) so callers can pass partial query
  * results. A missing / non-array `capabilities` reads as "no capabilities" —
  * fails closed.
  */
 export function hasApplicationCapability(
   application: { capabilities?: string[] | null },
-  capability: ApplicationCapability
+  capability: ApplicationCapability,
 ): boolean {
   return Array.isArray(application.capabilities) && application.capabilities.includes(capability);
 }

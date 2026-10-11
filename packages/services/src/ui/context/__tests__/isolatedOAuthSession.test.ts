@@ -2,7 +2,11 @@ import { logoutIsolatedOAuthSession } from '../isolatedOAuthSession';
 
 const session = { sessionId: 'isolated-session', clientId: 'oxy_dk_external' };
 function deps() {
-  return { session, revokeSelf: jest.fn().mockResolvedValue(undefined), clearSessionState: jest.fn().mockResolvedValue(undefined) };
+  return {
+    session,
+    revokeSelf: jest.fn().mockResolvedValue(undefined),
+    clearSessionState: jest.fn().mockResolvedValue(undefined),
+  };
 }
 
 it('revokes exactly itself before clearing runtime/cache/token state', async () => {
@@ -10,12 +14,16 @@ it('revokes exactly itself before clearing runtime/cache/token state', async () 
   await expect(logoutIsolatedOAuthSession(input)).resolves.toEqual({ status: 'signed-out' });
   expect(input.revokeSelf).toHaveBeenCalledWith(session.sessionId);
   expect(input.clearSessionState).toHaveBeenCalledTimes(1);
-  expect(input.revokeSelf.mock.invocationCallOrder[0]).toBeLessThan(input.clearSessionState.mock.invocationCallOrder[0]);
+  expect(input.revokeSelf.mock.invocationCallOrder[0]).toBeLessThan(
+    input.clearSessionState.mock.invocationCallOrder[0],
+  );
 });
 
 it('rejects another target before contacting any revocation endpoint', async () => {
   const input = deps();
-  expect((await logoutIsolatedOAuthSession({ ...input, targetSessionId: 'other-app-session' })).status).toBe('failed');
+  expect(
+    (await logoutIsolatedOAuthSession({ ...input, targetSessionId: 'other-app-session' })).status,
+  ).toBe('failed');
   expect(input.revokeSelf).not.toHaveBeenCalled();
   expect(input.clearSessionState).not.toHaveBeenCalled();
 });

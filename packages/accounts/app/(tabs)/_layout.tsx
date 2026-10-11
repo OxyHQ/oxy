@@ -1,7 +1,15 @@
 import { Slot, useRouter, usePathname } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import React, { useRef, useCallback, useState } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, TextInput, TouchableOpacity, type ViewStyle } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  TextInput,
+  TouchableOpacity,
+  type ViewStyle,
+} from 'react-native';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useColors } from '@/hooks/useColors';
@@ -246,14 +254,27 @@ export default function TabLayout() {
             accessibilityRole="button"
             accessibilityLabel={showGoToTopButton ? t('a11y.scrollToTop') : t('a11y.scanQr')}
           >
-            <View style={[styles.fabIconContainer, { backgroundColor: mode === 'dark' ? colors.text : colors.background }]}>
+            <View
+              style={[
+                styles.fabIconContainer,
+                { backgroundColor: mode === 'dark' ? colors.text : colors.background },
+              ]}
+            >
               {/* Scan Icon - shown when at top */}
               <Animated.View style={[styles.fabIconAbsolute, scanIconAnimatedStyle]}>
-                <MaterialCommunityIcons name="qrcode-scan" size={26} color={mode === 'dark' ? colors.background : colors.text} />
+                <MaterialCommunityIcons
+                  name="qrcode-scan"
+                  size={26}
+                  color={mode === 'dark' ? colors.background : colors.text}
+                />
               </Animated.View>
               {/* Go to Top Icon - shown when scrolling */}
               <Animated.View style={[styles.fabIconAbsolute, fabIconAnimatedStyle]}>
-                <MaterialCommunityIcons name="arrow-up" size={26} color={mode === 'dark' ? colors.background : colors.text} />
+                <MaterialCommunityIcons
+                  name="arrow-up"
+                  size={26}
+                  color={mode === 'dark' ? colors.background : colors.text}
+                />
               </Animated.View>
             </View>
           </TouchableOpacity>

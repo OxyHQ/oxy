@@ -31,7 +31,12 @@ import crypto from 'crypto';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import type { UpdatePlatform } from '@oxy.so/contracts';
 import { getDb } from '../../config/postgres';
-import { appUpdateAssets, appUpdates, updateChannelRollbacks, updateChannels } from '../../db/schema';
+import {
+  appUpdateAssets,
+  appUpdates,
+  updateChannelRollbacks,
+  updateChannels,
+} from '../../db/schema';
 import { updateAssetCdnUrl, sha256HexToBase64Url } from './assetKeys';
 import { signPartBytes } from './signing.service';
 
@@ -103,7 +108,7 @@ const ROLLOUT_LOOKBACK = 25;
 export function isInRollout(
   updateId: string,
   rolloutPercent: number,
-  deviceKey: string | undefined
+  deviceKey: string | undefined,
 ): boolean {
   if (rolloutPercent >= 100) return true;
   if (rolloutPercent <= 0) return false;
@@ -137,7 +142,7 @@ interface HeadRow {
 /** Resolve the rollout-aware head update, or undefined when none applies to this device. */
 async function resolveHead(
   input: ManifestRequest,
-  channelId: string
+  channelId: string,
 ): Promise<HeadRow | undefined> {
   // `order by created_at desc` matches `app_updates_head_idx` exactly, so the
   // lookback is served from the index rather than by sorting the track.
@@ -162,14 +167,14 @@ async function resolveHead(
         eq(appUpdates.channelId, channelId),
         eq(appUpdates.runtimeVersion, input.runtimeVersion),
         eq(appUpdates.platform, input.platform),
-        eq(appUpdates.status, 'published')
-      )
+        eq(appUpdates.status, 'published'),
+      ),
     )
     .orderBy(desc(appUpdates.createdAt))
     .limit(ROLLOUT_LOOKBACK);
 
   return candidates.find((candidate) =>
-    isInRollout(candidate.updateId, candidate.rolloutPercent, input.deviceKey)
+    isInRollout(candidate.updateId, candidate.rolloutPercent, input.deviceKey),
   );
 }
 
@@ -229,14 +234,14 @@ async function decide(input: ManifestRequest): Promise<ManifestDecision> {
       and(
         eq(updateChannelRollbacks.channelId, updateChannels.id),
         eq(updateChannelRollbacks.runtimeVersion, input.runtimeVersion),
-        eq(updateChannelRollbacks.platform, input.platform)
-      )
+        eq(updateChannelRollbacks.platform, input.platform),
+      ),
     )
     .where(
       and(
         eq(updateChannels.applicationId, input.applicationId),
-        eq(updateChannels.name, input.channelName)
-      )
+        eq(updateChannels.name, input.channelName),
+      ),
     );
   if (!channel) {
     return { kind: 'noUpdate' };
@@ -265,10 +270,7 @@ async function decide(input: ManifestRequest): Promise<ManifestDecision> {
 }
 
 /** Build a single expo manifest asset object from a stored descriptor. */
-function assetToManifest(
-  ref: ManifestAssetRef,
-  isLaunchAsset: boolean
-): Record<string, unknown> {
+function assetToManifest(ref: ManifestAssetRef, isLaunchAsset: boolean): Record<string, unknown> {
   const asset: Record<string, unknown> = {
     hash: sha256HexToBase64Url(ref.sha256),
     key: ref.key,
@@ -335,7 +337,7 @@ function jsonPartResponse(
   name: 'manifest' | 'directive',
   json: Record<string, unknown>,
   expectSignature: boolean,
-  extraParts: MultipartPart[] = []
+  extraParts: MultipartPart[] = [],
 ): ManifestResponse {
   const body = Buffer.from(JSON.stringify(json), 'utf8');
   // signPartBytes throws CodeSigningNotConfiguredError when a signature is
@@ -391,7 +393,7 @@ export async function buildManifestResponse(input: ManifestRequest): Promise<Man
         type: 'rollBackToEmbedded',
         parameters: { commitTime: decision.commitTime.toISOString() },
       },
-      input.expectSignature
+      input.expectSignature,
     );
   }
 

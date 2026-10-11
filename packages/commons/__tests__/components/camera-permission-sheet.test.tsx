@@ -20,7 +20,6 @@ let mockDialogProps: MockDialogProps | null = null;
 let mockDialogControl: { open: jest.Mock; close: jest.Mock } | null = null;
 
 jest.mock('@oxy.so/bloom/dialog', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react') as typeof import('react');
   return {
     useDialogControl: () => {
@@ -39,7 +38,6 @@ jest.mock('@oxy.so/bloom/dialog', () => {
 });
 
 // Imported after Bloom is mocked so the component binds to the action contract.
-// eslint-disable-next-line import/first
 import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 
 function renderSheet({

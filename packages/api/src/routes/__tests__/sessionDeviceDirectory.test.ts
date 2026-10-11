@@ -87,7 +87,10 @@ async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<s
 }
 
 async function organization(operatorId: string): Promise<string> {
-  const orgId = await account({ kind: 'organization', username: `org-${randomUUID().slice(0, 8)}` });
+  const orgId = await account({
+    kind: 'organization',
+    username: `org-${randomUUID().slice(0, 8)}`,
+  });
   await getDb()
     .insert(accountMembers)
     .values({ accountId: orgId, memberUserId: operatorId, role: 'admin', status: 'active' });
@@ -99,9 +102,12 @@ async function signIn(deviceId: string, userId: string): Promise<string> {
   const session = await sessionService.createSession(
     userId,
     { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never,
-    { deviceId }
+    { deviceId },
   );
-  await deviceSessionService.addAccount(deviceId, { accountId: userId, sessionId: session.sessionId });
+  await deviceSessionService.addAccount(deviceId, {
+    accountId: userId,
+    sessionId: session.sessionId,
+  });
   return session.sessionId;
 }
 
@@ -133,9 +139,9 @@ async function requestJson(method: string, path: string, payload?: unknown, bear
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} })
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
         );
-      }
+      },
     );
     req.on('error', reject);
     if (body) req.write(body);
@@ -165,7 +171,7 @@ async function directory(): Promise<ReturnType<typeof deviceDirectorySchema.pars
 function contextFor(
   tree: ReturnType<typeof deviceDirectorySchema.parse>,
   principalUserId: string,
-  accountId: string
+  accountId: string,
 ) {
   return tree.principals
     .find((principal) => principal.userId === principalUserId)
@@ -177,11 +183,16 @@ beforeAll(async () => {
   process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
   process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
-  mockAuthMiddleware.mockImplementation((req: { user?: unknown }, _res: unknown, next: () => void) => {
-    req.user = { _id: { toString: () => callerAccountId }, id: callerAccountId };
-    next();
-  });
-  mockDecodeToken.mockImplementation(() => ({ sessionId: callerSessionId, deviceId: callerDeviceId }));
+  mockAuthMiddleware.mockImplementation(
+    (req: { user?: unknown }, _res: unknown, next: () => void) => {
+      req.user = { _id: { toString: () => callerAccountId }, id: callerAccountId };
+      next();
+    },
+  );
+  mockDecodeToken.mockImplementation(() => ({
+    sessionId: callerSessionId,
+    deviceId: callerDeviceId,
+  }));
   const app = express();
   app.use(express.json());
   app.use('/session/device', sessionDeviceRouter);
@@ -374,7 +385,7 @@ describe('POST /session/device/signout — the removal meanings', () => {
     callerIs(device, alice, await signIn(device, alice));
     callerIs(device, nate, await signIn(device, nate));
     const natePrincipal = (await directory()).principals.find(
-      (principal) => principal.userId === nate
+      (principal) => principal.userId === nate,
     );
 
     const res = await requestJson('POST', '/session/device/signout', {
@@ -420,9 +431,9 @@ describe('POST /session/device/signout — the removal meanings', () => {
 
     const byAccount = await requestJson('POST', '/session/device/signout', { accountId: nate });
     expect(byAccount.status).toBe(200);
-    expect((byAccount.body as { data: { state: { accounts: unknown[] } } }).data.state.accounts).toEqual(
-      []
-    );
+    expect(
+      (byAccount.body as { data: { state: { accounts: unknown[] } } }).data.state.accounts,
+    ).toEqual([]);
 
     const nothing = await requestJson('POST', '/session/device/signout', {});
     expect(nothing.status).toBe(400);
@@ -432,7 +443,6 @@ describe('POST /session/device/signout — the removal meanings', () => {
   });
 });
 
-
 describe('#1549 bearerless background-token context binding', () => {
   it('rejects a former operator secret after autoheal while the other operator stays usable', async () => {
     const device = `dev-${randomUUID()}`;
@@ -440,24 +450,44 @@ describe('#1549 bearerless background-token context binding', () => {
     const second = await account();
     const org = await organization(first);
     await signIn(device, first);
-    const firstContext = contextFor(await deviceSessionService.getDirectory(device), first, org)?.id ?? '';
-    expect((await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never)).ok).toBe(true);
+    const firstContext =
+      contextFor(await deviceSessionService.getDirectory(device), first, org)?.id ?? '';
+    expect(
+      (await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never))
+        .ok,
+    ).toBe(true);
     const firstState = await deviceSessionService.getState(device);
     const firstSession = firstState.accounts.find((row) => row.accountId === org)?.sessionId ?? '';
     const credential = await deviceSessionService.issueBackgroundCredential(device, org);
     if (!credential) throw new Error('Expected initial real background issuance');
-    await getDb().insert(accountMembers).values({ accountId: org, memberUserId: second, role: 'admin', status: 'active' });
+    await getDb()
+      .insert(accountMembers)
+      .values({ accountId: org, memberUserId: second, role: 'admin', status: 'active' });
     await signIn(device, second);
-    const secondContext = contextFor(await deviceSessionService.getDirectory(device), second, org)?.id ?? '';
-    expect((await deviceSessionService.activateContext(device, secondContext, { headers: {} } as never)).ok).toBe(true);
-    expect((await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never)).ok).toBe(true);
-    await getDb().delete(accountMembers).where(and(eq(accountMembers.accountId, org), eq(accountMembers.memberUserId, first)));
+    const secondContext =
+      contextFor(await deviceSessionService.getDirectory(device), second, org)?.id ?? '';
+    expect(
+      (await deviceSessionService.activateContext(device, secondContext, { headers: {} } as never))
+        .ok,
+    ).toBe(true);
+    expect(
+      (await deviceSessionService.activateContext(device, firstContext, { headers: {} } as never))
+        .ok,
+    ).toBe(true);
+    await getDb()
+      .delete(accountMembers)
+      .where(and(eq(accountMembers.accountId, org), eq(accountMembers.memberUserId, first)));
     expect(await sessionService.getAccessToken(firstSession)).toBeNull();
     const healed = await deviceSessionService.getState(device);
     const surviving = await deviceSessionService.resolveTokenForAccount(healed, org);
     expect(validateAccessToken(surviving?.accessToken ?? '').payload?.act?.sub).toBe(second);
     mockAuthMiddleware.mockClear();
-    const response = await requestJson('POST', '/session/device/background-token', { deviceId: device, secret: credential.secret }, false);
+    const response = await requestJson(
+      'POST',
+      '/session/device/background-token',
+      { deviceId: device, secret: credential.secret },
+      false,
+    );
     expect(mockAuthMiddleware).not.toHaveBeenCalled();
     expect(response.status).toBe(401);
     expect(response.body).toEqual({ error: 'background_credential_invalid' });

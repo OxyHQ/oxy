@@ -4,7 +4,7 @@ import { useAuth } from '@oxy.so/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Add01Icon, Delete02Icon, Image01Icon } from '@hugeicons/core-free-icons';
 import { toast } from '@oxy.so/bloom/toast';
-import type {Application, CallerAccess} from '@/hooks/use-applications';
+import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,12 +23,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getErrorMessage } from '@/lib/api-error';
-import { availablePaymentsScopes, hasAliaMachineScopes, mergeAliaMachineScopes, mergePaymentsScopes } from '@/lib/application-scopes';
-import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 import {
-  useDeleteApplication,
-  useUpdateApplication,
-} from '@/hooks/use-applications';
+  availablePaymentsScopes,
+  hasAliaMachineScopes,
+  mergeAliaMachineScopes,
+  mergePaymentsScopes,
+} from '@/lib/application-scopes';
+import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
+import { useDeleteApplication, useUpdateApplication } from '@/hooks/use-applications';
 
 function arraysEqual(a: Array<string>, b: Array<string>): boolean {
   if (a.length !== b.length) {
@@ -64,19 +66,20 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   // the same hazard as the permission call sites above, in the adjacent
   // vocabulary.
   const grantedPaymentsScopes = availablePaymentsScopes(application.scopes);
-  const [paymentsRead, setPaymentsRead] = useState(
-    grantedPaymentsScopes.includes('payments:read')
-  );
+  const [paymentsRead, setPaymentsRead] = useState(grantedPaymentsScopes.includes('payments:read'));
   const [paymentsWrite, setPaymentsWrite] = useState(
-    grantedPaymentsScopes.includes('payments:write')
+    grantedPaymentsScopes.includes('payments:write'),
   );
   const [aliaMachineAccess, setAliaMachineAccess] = useState<boolean | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const nextScopes = mergeAliaMachineScopes(mergePaymentsScopes(application.scopes, {
-    read: paymentsRead,
-    write: paymentsWrite,
-  }), aliaMachineAccess);
+  const nextScopes = mergeAliaMachineScopes(
+    mergePaymentsScopes(application.scopes, {
+      read: paymentsRead,
+      write: paymentsWrite,
+    }),
+    aliaMachineAccess,
+  );
 
   const isDirty =
     name !== application.name ||
@@ -293,7 +296,11 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
               placeholder="https://example.com/callback"
               type="url"
             />
-            <Button variant="outline" onClick={handleAddRedirectUri} disabled={!newRedirectUri.trim()}>
+            <Button
+              variant="outline"
+              onClick={handleAddRedirectUri}
+              disabled={!newRedirectUri.trim()}
+            >
               <HugeiconsIcon icon={Add01Icon} size={14} className="mr-1.5" />
               Add
             </Button>
@@ -316,11 +323,7 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
                 Read payment intents and webhook deliveries
               </p>
             </div>
-            <Switch
-              checked={paymentsRead}
-              onCheckedChange={setPaymentsRead}
-              disabled={!canEdit}
-            />
+            <Switch checked={paymentsRead} onCheckedChange={setPaymentsRead} disabled={!canEdit} />
           </div>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -340,13 +343,16 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
         <div>
           <h2 className="text-sm font-semibold text-foreground">Alia chat and inference</h2>
           <p className="text-sm text-muted-foreground">
-            App-only Alia chat, billed to this application. Select both capabilities when creating an API key.
+            App-only Alia chat, billed to this application. Select both capabilities when creating
+            an API key.
           </p>
         </div>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
           <div>
             <p className="text-sm font-medium text-foreground">alia:chat + inference:invoke</p>
-            <p className="text-xs text-muted-foreground">Grant or remove both application capabilities</p>
+            <p className="text-xs text-muted-foreground">
+              Grant or remove both application capabilities
+            </p>
           </div>
           <Switch
             aria-label="Alia chat and inference"

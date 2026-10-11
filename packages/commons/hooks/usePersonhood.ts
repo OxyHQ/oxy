@@ -33,9 +33,7 @@ const PERSONHOOD_GC_TIME_MS = 24 * 60 * 60 * 1000;
  * @param userId - The subject account's id, or `null` (query disabled) when the
  *   DID could not be resolved.
  */
-export function usePersonhood(
-  userId: string | null,
-): UseQueryResult<PersonhoodStatusResult> {
+export function usePersonhood(userId: string | null): UseQueryResult<PersonhoodStatusResult> {
   const { oxyServices } = useOxy();
 
   return useQuery<PersonhoodStatusResult>({

@@ -84,7 +84,6 @@ jest.mock('../../src/ui/components/OxyAuthChooser', () => ({
   default: () => null,
 }));
 
-// eslint-disable-next-line import/first
 import OxyAccountDialogScreen from '../../src/ui/components/OxyAccountDialogScreen';
 
 /** The most recent header config the screen contributed. */

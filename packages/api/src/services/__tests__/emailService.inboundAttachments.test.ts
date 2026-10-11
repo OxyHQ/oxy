@@ -13,8 +13,8 @@
  *   - the parent and its children are ONE transaction, so a message can never
  *     be stored claiming addressees it does not have;
  *   - `ord` preserves header order;
- *   - addresses are lower-cased and trimmed at the call site, the obligation
- *     Mongoose discharged with a setter that Postgres has no counterpart for.
+ *   - addresses are lower-cased and trimmed at the call site, an obligation
+ *     Postgres has no setter to discharge.
  */
 
 const mockUploadFileDirect = jest.fn();
@@ -204,8 +204,8 @@ describe('storeIncomingMessage — attachment deposit', () => {
       { source: 'email-inbound' },
     );
 
-    // The wire shape is unchanged: the child rows are reassembled into the
-    // same `attachments` array the Mongo subdocument produced.
+    // The wire shape: the child rows are reassembled into the `attachments`
+    // array the API returns.
     expect(stored.attachments).toEqual([
       {
         fileId: pdf.id,
@@ -305,11 +305,14 @@ describe('storeIncomingMessage — the message itself', () => {
       .from(normalizedAppEventOutbox)
       .where(inArray(normalizedAppEventOutbox.eventId, eventIds));
     expect(events).toHaveLength(2);
-    expect(events.every(({ event }) =>
-      event.accountId === user.id
-      && event.resource.effectiveAccountId === user.id
-      && event.resource.resourceId === stored.mailboxId
-    )).toBe(true);
+    expect(
+      events.every(
+        ({ event }) =>
+          event.accountId === user.id &&
+          event.resource.effectiveAccountId === user.id &&
+          event.resource.resourceId === stored.mailboxId,
+      ),
+    ).toBe(true);
     const newEmail = events.find(({ event }) => event.type === 'new_email')?.event;
     expect(newEmail?.data).toMatchObject({ snippet: 'Body', folder: 'inbox' });
   });
@@ -322,7 +325,12 @@ describe('storeIncomingMessage — the message itself', () => {
     const events = await getDb()
       .select({ event: normalizedAppEventOutbox.event })
       .from(normalizedAppEventOutbox)
-      .where(inArray(normalizedAppEventOutbox.eventId, [`${spam.id}:new_email`, `${spam.id}:email_needs_reply`]));
+      .where(
+        inArray(normalizedAppEventOutbox.eventId, [
+          `${spam.id}:new_email`,
+          `${spam.id}:email_needs_reply`,
+        ]),
+      );
     expect(events.map(({ event }) => event.type)).toEqual(['new_email']);
     expect(events[0]?.event.data).toMatchObject({ folder: 'spam' });
     expect(String(events[0]?.event.data.snippet).length).toBeLessThanOrEqual(140);
@@ -345,18 +353,15 @@ describe('storeIncomingMessage — the message itself', () => {
   });
 
   it('stores the recipients in header order, lower-cased and trimmed', async () => {
-    // Mongoose applied `lowercase: true, trim: true` with a setter. Postgres
-    // has none, so the call site owns it — and if it forgets, address matching
+    // Postgres has no setter to lower-case and trim, so the call site owns
+    // it — and if it forgets, address matching
     // quietly becomes case-sensitive with nothing to notice.
     const user = await recipient();
 
     const stored = await emailService.storeIncomingMessage(
       baseParams(user.username, {
         from: { name: '  Alice  ', address: '  Alice@Example.COM ' },
-        to: [
-          { name: 'Bob', address: ' BOB@Oxy.SO ' },
-          { address: 'Carol@Example.com' },
-        ],
+        to: [{ name: 'Bob', address: ' BOB@Oxy.SO ' }, { address: 'Carol@Example.com' }],
         cc: [{ address: 'Dave@Example.com' }],
       }),
     );
@@ -370,7 +375,11 @@ describe('storeIncomingMessage — the message itself', () => {
     expect(stored.bcc).toEqual([]);
 
     const rows = await getDb()
-      .select({ kind: messageRecipients.kind, ord: messageRecipients.ord, address: messageRecipients.address })
+      .select({
+        kind: messageRecipients.kind,
+        ord: messageRecipients.ord,
+        address: messageRecipients.address,
+      })
       .from(messageRecipients)
       .where(eq(messageRecipients.messageId, stored.id))
       .orderBy(asc(messageRecipients.kind), asc(messageRecipients.ord));

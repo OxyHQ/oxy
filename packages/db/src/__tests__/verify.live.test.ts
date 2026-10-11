@@ -25,11 +25,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { runMigrations } from '../migrate/runner';
-import {
-  compareLedger,
-  readAppliedRows,
-  readJournalWithHashes,
-} from '../migrate/verify';
+import { compareLedger, readAppliedRows, readJournalWithHashes } from '../migrate/verify';
 import { createTestDatabase, dropTestDatabase } from '../testing';
 
 const ADMIN_URL = process.env.OXYDB_TEST_ADMIN_URL;
@@ -63,7 +59,7 @@ function writeMigrationsFolder(files: typeof MIGRATIONS): string {
         tag: file.tag,
         breakpoints: true,
       })),
-    })
+    }),
   );
   for (const file of files) writeFileSync(join(folder, `${file.tag}.sql`), file.sql);
   return folder;

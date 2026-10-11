@@ -561,7 +561,7 @@ describe('session-backed user tokens bind identity to the validated session', ()
     expect(req.user).toEqual({ id: VICTIM_ID });
   });
 
-  it('accepts a session identified by the raw Mongo _id shape', async () => {
+  it('accepts a session identified by the raw _id shape', async () => {
     jest
       .spyOn(oxy.session, 'validate')
       .mockResolvedValue(validSessionFor({ _id: VICTIM_ID } as unknown as User));
@@ -723,12 +723,16 @@ describe('authSocket keeps refusing session-less tokens', () => {
     jest.spyOn(oxy.session, 'validate').mockResolvedValue(validSessionFor(asUser(ATTACKER_ID)));
     const next = jest.fn();
     const socket: MockSocket = {
-      handshake: { auth: { token: forgeToken({ userId: VICTIM_ID, sessionId: 'attacker-session' }) } },
+      handshake: {
+        auth: { token: forgeToken({ userId: VICTIM_ID, sessionId: 'attacker-session' }) },
+      },
     };
 
     await runSocket(socket, next);
 
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Session user mismatch' }));
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Session user mismatch' }),
+    );
     expect(socket.user).toBeUndefined();
   });
 
@@ -737,7 +741,9 @@ describe('authSocket keeps refusing session-less tokens', () => {
     const next = jest.fn();
     const socket: MockSocket = {
       handshake: {
-        auth: { token: signToken({ userId: VICTIM_ID, sessionId: 'session-1' }, ACCESS_TOKEN_SECRET) },
+        auth: {
+          token: signToken({ userId: VICTIM_ID, sessionId: 'session-1' }, ACCESS_TOKEN_SECRET),
+        },
       },
     };
 

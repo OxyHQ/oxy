@@ -197,8 +197,7 @@ function maskIPv6(ip: string, bits: number): string {
  * salt. The result is a short hex digest with no colons, so it is Redis-safe.
  */
 function hashAnonymousIp(ip: string): string {
-  const normalized =
-    isIPv6(ip) && !ip.startsWith('::ffff:') ? maskIPv6(ip, IPV6_SUBNET_BITS) : ip;
+  const normalized = isIPv6(ip) && !ip.startsWith('::ffff:') ? maskIPv6(ip, IPV6_SUBNET_BITS) : ip;
   const salt = process.env.IP_HASH_SALT || process.env.DEVICE_ID_SALT || '';
   return createHmac('sha256', salt).update(`rl|${normalized}`).digest('hex').slice(0, 24);
 }
@@ -273,8 +272,7 @@ export function createOxyRateLimit(
   // not just to the bucket calculation.
   const resolveSession = createOptionalOxyAuth(oxy, { auth });
 
-  const skip = (req: Request): boolean =>
-    isBuiltInExempt(req) || (exempt ? exempt(req) : false);
+  const skip = (req: Request): boolean => isBuiltInExempt(req) || (exempt ? exempt(req) : false);
 
   const limiter = rateLimit({
     windowMs,

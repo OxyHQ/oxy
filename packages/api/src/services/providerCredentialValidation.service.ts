@@ -22,9 +22,7 @@ import { uuidv7 } from '@oxy.so/db';
 import { getDb, type Transaction } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import { inferenceDeployments } from '../db/schema/inferenceDeployments';
-import {
-  inferenceProviderConnectionAuditEvents,
-} from '../db/schema/inferenceProviderConnectionAuditEvents';
+import { inferenceProviderConnectionAuditEvents } from '../db/schema/inferenceProviderConnectionAuditEvents';
 import {
   inferenceProviderConnections,
   type InferenceProviderConnectionRow,
@@ -62,7 +60,10 @@ export async function listProviderCredentialValidationDeployments(input: {
   readonly connectionId: string;
   readonly applicationId: string;
 }): Promise<
-  | { readonly status: 'available'; readonly deployments: readonly ProviderCredentialValidationDeployment[] }
+  | {
+      readonly status: 'available';
+      readonly deployments: readonly ProviderCredentialValidationDeployment[];
+    }
   | { readonly status: 'unknown-connection' }
   | { readonly status: 'application-unavailable' }
   | { readonly status: 'application-not-applicable' }
@@ -88,9 +89,7 @@ export async function listProviderCredentialValidationDeployments(input: {
       );
     return {
       status: 'available' as const,
-      deployments: rows.map((row) =>
-        providerCredentialValidationDeploymentSchema.parse(row),
-      ),
+      deployments: rows.map((row) => providerCredentialValidationDeploymentSchema.parse(row)),
     };
   });
 }
@@ -258,7 +257,8 @@ export async function recordProviderCredentialValidationOutcome(
     if (operation === undefined) return { status: 'unknown-operation' };
     if (!outcomeMatches(operation, outcome)) return { status: 'selector-mismatch' };
     if (operation.state !== 'pending') {
-      return operation.state === outcome.state && operation.failureCode === (outcome.failureCode ?? null)
+      return operation.state === outcome.state &&
+        operation.failureCode === (outcome.failureCode ?? null)
         ? { status: 'recorded', operation: validationOperation(operation) }
         : { status: 'outcome-conflict' };
     }
@@ -455,9 +455,7 @@ async function applicationApplicability(
     return 'application-unavailable';
   }
   if (connection.scopeKind === 'application') {
-    return connection.applicationId === applicationId
-      ? 'applicable'
-      : 'application-not-applicable';
+    return connection.applicationId === applicationId ? 'applicable' : 'application-not-applicable';
   }
   if (connection.scopeKind === 'project') {
     return connection.ownerAccountId === application.ownerAccountId

@@ -36,7 +36,9 @@ function jwtFor(accountId: string): string {
 /** Comfortably beyond the 60s refresh lead window. */
 const farFuture = (): string => new Date(Date.now() + 3_600_000).toISOString();
 
-function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) => Promise<DeviceSecretMintOutcome> {
+function makeMintSingleFlight(): (
+  mint: () => Promise<DeviceSecretMintOutcome>,
+) => Promise<DeviceSecretMintOutcome> {
   let inFlight: Promise<DeviceSecretMintOutcome> | null = null;
   return (mint) => {
     if (!inFlight) {
@@ -92,21 +94,25 @@ interface OxyOverrides {
 function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: jest.Mock } {
   const setTokens = jest.fn();
   const oxy = {
-    get baseURL() { return 'https://api.oxy.so'; },
+    get baseURL() {
+      return 'https://api.oxy.so';
+    },
     http: { runSingleFlightDeviceSecretMint: makeMintSingleFlight(), getSessionEpoch: () => 0 },
     session: {
       setAccessToken: setTokens,
     },
     devices: {
-      mintToken: overrides.mintFromDeviceSecret
-      ?? (async () => {
-        throw new Error('mintFromDeviceSecret not stubbed');
-      }),
+      mintToken:
+        overrides.mintFromDeviceSecret ??
+        (async () => {
+          throw new Error('mintFromDeviceSecret not stubbed');
+        }),
     },
     auth: {
       signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null),
-      requestChallenge: overrides.requestChallenge
-      ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
+      requestChallenge:
+        overrides.requestChallenge ??
+        (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
       verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
     },
   } as unknown as OxyServices;
@@ -122,7 +128,9 @@ function signWith(publicKey: string): (challenge: string) => Promise<AuthChallen
 }
 
 /** An identity binding, optionally pre-seeded with a pin. */
-async function makeBinding(options: { pin?: IdentityPin; publicKey?: string } = {}): Promise<IdentityBinding> {
+async function makeBinding(
+  options: { pin?: IdentityPin; publicKey?: string } = {},
+): Promise<IdentityBinding> {
   const publicKey = options.publicKey ?? PUBLIC_KEY;
   const pinStore = createMemoryIdentityPinStore();
   if (options.pin) {
@@ -351,7 +359,10 @@ describe('runSessionColdBoot — identity-key-signin vs commons-proof-signin', (
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
-    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false, requestOptions: { retry: false } });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({
+      plantTokens: false,
+      requestOptions: { retry: false },
+    });
     expect(requestChallenge).not.toHaveBeenCalled();
   });
 

@@ -117,7 +117,11 @@ interface HttpResponse {
  * point: the address is held constant so any difference in outcome can only have
  * come from the account.
  */
-function call(method: 'GET' | 'DELETE' | 'POST', path: string, account: string | null): Promise<HttpResponse> {
+function call(
+  method: 'GET' | 'DELETE' | 'POST',
+  path: string,
+  account: string | null,
+): Promise<HttpResponse> {
   const address = server.address() as AddressInfo;
   const body = method === 'POST' ? '{}' : null;
   const headers: Record<string, string | number> = { Authorization: 'Bearer t' };

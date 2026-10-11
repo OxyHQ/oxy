@@ -1,12 +1,12 @@
 /**
  * Premium-plan resolution — against a REAL Postgres.
  *
- * This used to mock both Mongoose models, which meant it asserted the call
- * SHAPE and nothing about the query. That mattered here more than usual: the
- * legacy `subscriptions` table lost its Mongo TTL index (which DELETED lapsed
- * rows and destroyed the record of what was bought), so the read is now the only
- * thing standing between a lapsed subscription and a live premium entitlement.
- * A mock cannot see that, so the whole suite runs against real rows.
+ * A mock would assert the call SHAPE and nothing about the query. That matters
+ * here more than usual: lapsed rows in the legacy `subscriptions` table are
+ * kept (deleting them would destroy the record of what was bought), so the
+ * read is the only thing standing between a lapsed subscription and a live
+ * premium entitlement. A mock cannot see that, so the whole suite runs against
+ * real rows.
  */
 
 import { eq } from 'drizzle-orm';
@@ -36,32 +36,40 @@ async function giveBillingSubscription(
   userId: string,
   values: { planName: string; status: 'active' | 'trialing' | 'canceled' | 'past_due' },
 ): Promise<void> {
-  await getDb().insert(billingSubscriptions).values({
-    userId,
-    stripeCustomerId: `cus_${userId}`,
-    stripeSubscriptionId: `sub_${userId}`,
-    stripePriceId: 'price_test',
-    status: values.status,
-    currentPeriodStart: new Date(Date.now() - DAY_MS),
-    currentPeriodEnd: new Date(Date.now() + 30 * DAY_MS),
-    planName: values.planName,
-    planCreditsPerMonth: 10_000,
-    planPriceMinorUnits: 2999,
-    planCurrency: 'usd',
-  });
+  await getDb()
+    .insert(billingSubscriptions)
+    .values({
+      userId,
+      stripeCustomerId: `cus_${userId}`,
+      stripeSubscriptionId: `sub_${userId}`,
+      stripePriceId: 'price_test',
+      status: values.status,
+      currentPeriodStart: new Date(Date.now() - DAY_MS),
+      currentPeriodEnd: new Date(Date.now() + 30 * DAY_MS),
+      planName: values.planName,
+      planCreditsPerMonth: 10_000,
+      planPriceMinorUnits: 2999,
+      planCurrency: 'usd',
+    });
 }
 
 async function giveLegacySubscription(
   userId: string,
-  values: { plan: 'basic' | 'pro' | 'business'; status: 'active' | 'canceled' | 'expired'; endDate: Date },
+  values: {
+    plan: 'basic' | 'pro' | 'business';
+    status: 'active' | 'canceled' | 'expired';
+    endDate: Date;
+  },
 ): Promise<void> {
-  await getDb().insert(subscriptions).values({
-    userId,
-    plan: values.plan,
-    status: values.status,
-    startDate: new Date(Date.now() - 30 * DAY_MS),
-    endDate: values.endDate,
-  });
+  await getDb()
+    .insert(subscriptions)
+    .values({
+      userId,
+      plan: values.plan,
+      status: values.status,
+      startDate: new Date(Date.now() - 30 * DAY_MS),
+      endDate: values.endDate,
+    });
 }
 
 describe('resolveUserSubscriptionPlan', () => {

@@ -324,7 +324,14 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       // uploads / clears the picked photo — the single shared avatar write path.
       onEditAvatar: () => openAvatarPicker(),
     }),
-    [handleActivate, handleRemoveContext, handleRemovePrincipal, handleAdd, handleManage, openAvatarPicker],
+    [
+      handleActivate,
+      handleRemoveContext,
+      handleRemovePrincipal,
+      handleAdd,
+      handleManage,
+      openAvatarPicker,
+    ],
   );
 
   /**
@@ -337,7 +344,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
    * The accent is not in that category — every row is drawn in its own account's
    * (issue #961), this one included, from the same field.
    */
-  const hero = useMemo<AccountHeroModel | null>(() => (user ? buildHero(user, theme.colors.primary, oxyServices) : null),
+  const hero = useMemo<AccountHeroModel | null>(
+    () => (user ? buildHero(user, theme.colors.primary, oxyServices) : null),
     [user, theme.colors.primary, oxyServices],
   );
 
@@ -438,7 +446,13 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   }
 
   if (view === 'signup') {
-    return <OxySignUpPanel host="dialog" onSignedIn={() => onComplete?.()} onSignIn={() => controller.setView('signin')} />;
+    return (
+      <OxySignUpPanel
+        host="dialog"
+        onSignedIn={() => onComplete?.()}
+        onSignIn={() => controller.setView('signin')}
+      />
+    );
   }
 
   return (

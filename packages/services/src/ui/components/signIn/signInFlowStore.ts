@@ -21,7 +21,11 @@ export function readSignInFlow<T>(owner: object | null | undefined, key: string)
 }
 
 /** Save the state of flow `key`; `undefined` drops it. */
-export function writeSignInFlow(owner: object | null | undefined, key: string, value: unknown): void {
+export function writeSignInFlow(
+  owner: object | null | undefined,
+  key: string,
+  value: unknown,
+): void {
   if (!owner) return;
   let saved = flows.get(owner);
   if (value === undefined) {

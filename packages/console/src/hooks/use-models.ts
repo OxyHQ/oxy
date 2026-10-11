@@ -59,8 +59,7 @@ export function useRoutingProfiles() {
 
   return useQuery({
     queryKey: queryKeys.routingProfiles,
-    queryFn: () =>
-      oxyServices.request<Array<RoutingProfile>>('GET', '/models/routing-profiles'),
+    queryFn: () => oxyServices.request<Array<RoutingProfile>>('GET', '/models/routing-profiles'),
     staleTime: 1000 * 60 * 5,
     retry: 1,
   });

@@ -63,7 +63,8 @@ export interface StorageDeletionStore {
 
 const defaultStore: StorageDeletionStore = {
   deleteObject: (key) => s3Service.deleteFile(key),
-  listKeys: async (prefix, maxKeys) => (await s3Service.listFiles(prefix, maxKeys)).map((item) => item.key),
+  listKeys: async (prefix, maxKeys) =>
+    (await s3Service.listFiles(prefix, maxKeys)).map((item) => item.key),
 };
 
 export interface StorageDeletionBatchOptions {
@@ -100,23 +101,25 @@ function claimableRows(
   return db
     .select({ id: storageObjectDeletions.id })
     .from(storageObjectDeletions)
-    .where(and(
-      ids === undefined ? undefined : inArray(storageObjectDeletions.id, [...ids]),
-      isNull(storageObjectDeletions.completedAt),
-      // Due-time applies to the sweep, never to rows named by id. A delete drains
-      // the rows it JUST recorded, whose `next_attempt_at` is the database's
-      // `now()` — microsecond precision, on the database's clock — while `now`
-      // here is a JavaScript Date, truncated to the millisecond, on this
-      // process's clock. Recorded and drained within one millisecond (or with
-      // the database clock a hair ahead), the row read as "not due yet" and the
-      // drain claimed nothing: the purge silently waited for the next sweep, and
-      // a test waiting on it hung until its timeout.
-      ids === undefined ? lte(storageObjectDeletions.nextAttemptAt, now) : undefined,
-      or(
-        isNull(storageObjectDeletions.claimedAt),
-        lt(storageObjectDeletions.claimedAt, claimedBefore),
+    .where(
+      and(
+        ids === undefined ? undefined : inArray(storageObjectDeletions.id, [...ids]),
+        isNull(storageObjectDeletions.completedAt),
+        // Due-time applies to the sweep, never to rows named by id. A delete drains
+        // the rows it JUST recorded, whose `next_attempt_at` is the database's
+        // `now()` — microsecond precision, on the database's clock — while `now`
+        // here is a JavaScript Date, truncated to the millisecond, on this
+        // process's clock. Recorded and drained within one millisecond (or with
+        // the database clock a hair ahead), the row read as "not due yet" and the
+        // drain claimed nothing: the purge silently waited for the next sweep, and
+        // a test waiting on it hung until its timeout.
+        ids === undefined ? lte(storageObjectDeletions.nextAttemptAt, now) : undefined,
+        or(
+          isNull(storageObjectDeletions.claimedAt),
+          lt(storageObjectDeletions.claimedAt, claimedBefore),
+        ),
       ),
-    ))
+    )
     .orderBy(asc(storageObjectDeletions.nextAttemptAt))
     .limit(limit)
     .for('update', { skipLocked: true });
@@ -164,7 +167,11 @@ export async function storageSpellingsInUse(
 
   const exists = async (where: ReturnType<typeof and>, viaVariants: boolean): Promise<boolean> => {
     const query = viaVariants
-      ? db.select({ id: files.id }).from(fileVariants).innerJoin(files, eq(files.id, fileVariants.fileId)).where(where)
+      ? db
+          .select({ id: files.id })
+          .from(fileVariants)
+          .innerJoin(files, eq(files.id, fileVariants.fileId))
+          .where(where)
       : db.select({ id: files.id }).from(files).where(where);
     const [hit] = await query.limit(1);
     return hit !== undefined;
@@ -214,7 +221,9 @@ async function deletePrefix(store: StorageDeletionStore, prefix: string): Promis
     }
   }
   if ((await store.listKeys(prefix, 1)).length > 0) {
-    throw new Error(`Objects remain under ${prefix} after ${STORAGE_DELETION_MAX_LIST_ROUNDS} rounds; continuing next attempt`);
+    throw new Error(
+      `Objects remain under ${prefix} after ${STORAGE_DELETION_MAX_LIST_ROUNDS} rounds; continuing next attempt`,
+    );
   }
 }
 
@@ -241,29 +250,46 @@ export async function runStorageDeletionBatch(
 ): Promise<StorageDeletionBatchResult> {
   const db = getDb();
   const now = options.now ?? (() => new Date());
-  const batchSize = options.batchSize
-    ?? (options.ids ? Math.max(options.ids.length, 1) : getEnvNumber('STORAGE_DELETION_BATCH_SIZE', DEFAULT_BATCH_SIZE));
+  const batchSize =
+    options.batchSize ??
+    (options.ids
+      ? Math.max(options.ids.length, 1)
+      : getEnvNumber('STORAGE_DELETION_BATCH_SIZE', DEFAULT_BATCH_SIZE));
   const leaseMs = options.leaseMs ?? STORAGE_DELETION_LEASE_MS;
   const claimTime = now();
 
   const claimed = await db
     .update(storageObjectDeletions)
     .set({ claimedAt: claimTime, claimedBy: options.ownerId })
-    .where(inArray(
-      storageObjectDeletions.id,
-      claimableRows(db, claimTime, new Date(claimTime.getTime() - leaseMs), batchSize, options.ids),
-    ))
+    .where(
+      inArray(
+        storageObjectDeletions.id,
+        claimableRows(
+          db,
+          claimTime,
+          new Date(claimTime.getTime() - leaseMs),
+          batchSize,
+          options.ids,
+        ),
+      ),
+    )
     .returning();
 
-  const result: StorageDeletionBatchResult = { claimed: claimed.length, deleted: 0, retainedShared: 0, failed: 0 };
+  const result: StorageDeletionBatchResult = {
+    claimed: claimed.length,
+    deleted: 0,
+    retainedShared: 0,
+    failed: 0,
+  };
   if (claimed.length === 0) return result;
 
   const store = options.store ?? defaultStore;
-  const ownedBy = (id: string) => and(
-    eq(storageObjectDeletions.id, id),
-    eq(storageObjectDeletions.claimedBy, options.ownerId),
-    isNull(storageObjectDeletions.completedAt),
-  );
+  const ownedBy = (id: string) =>
+    and(
+      eq(storageObjectDeletions.id, id),
+      eq(storageObjectDeletions.claimedBy, options.ownerId),
+      isNull(storageObjectDeletions.completedAt),
+    );
 
   for (const row of claimed) {
     const attempts = row.attempts + 1;
@@ -272,30 +298,40 @@ export async function runStorageDeletionBatch(
       // bytes belong to a new live row takes the same lock around its insert, so
       // it either committed before the check (kept) or waits until the delete is
       // done (and then writes its own bytes).
-      const outcome = await withContentHashLock(row.sha256, async (tx): Promise<StorageObjectDeletionOutcome> => {
-        const inUse = await storageSpellingsInUse(row, tx);
-        await deleteSpellings(store, row, inUse);
-        return inUse.base || inUse.public ? 'retained_shared' : 'deleted';
-      });
-      const completed = await db.update(storageObjectDeletions).set({
-        attempts,
-        completedAt: now(),
-        outcome,
-        lastError: null,
-      }).where(ownedBy(row.id)).returning({ id: storageObjectDeletions.id });
+      const outcome = await withContentHashLock(
+        row.sha256,
+        async (tx): Promise<StorageObjectDeletionOutcome> => {
+          const inUse = await storageSpellingsInUse(row, tx);
+          await deleteSpellings(store, row, inUse);
+          return inUse.base || inUse.public ? 'retained_shared' : 'deleted';
+        },
+      );
+      const completed = await db
+        .update(storageObjectDeletions)
+        .set({
+          attempts,
+          completedAt: now(),
+          outcome,
+          lastError: null,
+        })
+        .where(ownedBy(row.id))
+        .returning({ id: storageObjectDeletions.id });
       if (completed.length === 1) {
         if (outcome === 'deleted') result.deleted += 1;
         else result.retainedShared += 1;
       }
     } catch (caught) {
       const error = describeError(caught);
-      await db.update(storageObjectDeletions).set({
-        attempts,
-        lastError: error,
-        claimedAt: null,
-        claimedBy: null,
-        nextAttemptAt: new Date(now().getTime() + storageDeletionBackoffMs(attempts)),
-      }).where(ownedBy(row.id));
+      await db
+        .update(storageObjectDeletions)
+        .set({
+          attempts,
+          lastError: error,
+          claimedAt: null,
+          claimedBy: null,
+          nextAttemptAt: new Date(now().getTime() + storageDeletionBackoffMs(attempts)),
+        })
+        .where(ownedBy(row.id));
       result.failed += 1;
       // The target is a content-addressed key: no name, no account content.
       logger.warn('[StorageDeletion] Delete failed; will retry', {
@@ -316,10 +352,12 @@ export async function countPendingStorageDeletions(accountId?: string): Promise<
   const [row] = await getDb()
     .select({ count: sql<number>`count(*)::int` })
     .from(storageObjectDeletions)
-    .where(and(
-      isNull(storageObjectDeletions.completedAt),
-      accountId === undefined ? undefined : eq(storageObjectDeletions.accountId, accountId),
-    ));
+    .where(
+      and(
+        isNull(storageObjectDeletions.completedAt),
+        accountId === undefined ? undefined : eq(storageObjectDeletions.accountId, accountId),
+      ),
+    );
   return row?.count ?? 0;
 }
 

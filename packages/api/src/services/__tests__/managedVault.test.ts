@@ -52,7 +52,6 @@ import { NODE_COLLECTION, NODE_RKEY } from '../../utils/nodes.constants';
 import { OXY_DID, buildUserDid } from '../did.service';
 import { getUserNode, provisionManagedVault, removeNode } from '../nodeRegistry.service';
 
-
 /** Oxy's custodial keypair for the run — what a managed vault is signed with. */
 const oxyKey = generateSecp256k1KeyPair();
 const OXY_PUBLIC_KEY = oxyKey.publicKey;
@@ -137,7 +136,8 @@ async function settleProbe(userId: string): Promise<void> {
   for (;;) {
     const row = await storedNode(userId);
     if (row === undefined || row.lastProbeAt !== null) return;
-    if (Date.now() > deadline) throw new Error('timed out waiting for the managed-vault liveness probe');
+    if (Date.now() > deadline)
+      throw new Error('timed out waiting for the managed-vault liveness probe');
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
@@ -205,7 +205,11 @@ describe('provisionManagedVault — the vault is a chain registration', () => {
       controller: 'oxy',
       status: 'active',
     });
-    expect(await storedNode(userId)).toMatchObject({ managed: true, controller: 'oxy', status: 'active' });
+    expect(await storedNode(userId)).toMatchObject({
+      managed: true,
+      controller: 'oxy',
+      status: 'active',
+    });
     expect(invalidateSpy).toHaveBeenCalledWith(userId);
 
     await settleProbe(userId);
@@ -250,7 +254,10 @@ describe('provisionManagedVault — fails closed', () => {
     delete process.env.OXY_PRIVATE_KEY;
     const userId = await account();
 
-    expect(await provisionManagedVault(userId)).toEqual({ ok: false, reason: 'oxy_key_unconfigured' });
+    expect(await provisionManagedVault(userId)).toEqual({
+      ok: false,
+      reason: 'oxy_key_unconfigured',
+    });
 
     await expectNothingProvisioned(userId);
   });
@@ -259,7 +266,10 @@ describe('provisionManagedVault — fails closed', () => {
     delete process.env.OXY_PUBLIC_KEY;
     const userId = await account();
 
-    expect(await provisionManagedVault(userId)).toEqual({ ok: false, reason: 'oxy_key_unconfigured' });
+    expect(await provisionManagedVault(userId)).toEqual({
+      ok: false,
+      reason: 'oxy_key_unconfigured',
+    });
 
     await expectNothingProvisioned(userId);
   });
@@ -344,15 +354,17 @@ describe('provisionManagedVault — idempotent re-provision', () => {
 
   it('re-provisions when the existing node is SELF-hosted, not managed', async () => {
     const userId = await account();
-    await getDb().insert(userNodes).values({
-      userId,
-      endpoint: `https://nodes.oxy.so/u/${userId}`,
-      nodePublicKey: 'ab'.repeat(33),
-      mode: 'pull',
-      managed: false,
-      controller: 'self',
-      status: 'active',
-    });
+    await getDb()
+      .insert(userNodes)
+      .values({
+        userId,
+        endpoint: `https://nodes.oxy.so/u/${userId}`,
+        nodePublicKey: 'ab'.repeat(33),
+        mode: 'pull',
+        managed: false,
+        controller: 'self',
+        status: 'active',
+      });
 
     const result = await provisionManagedVault(userId);
 

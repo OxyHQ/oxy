@@ -4,10 +4,7 @@ import {
   kaanaCredentialValidationTaskSchema,
   type KaanaCredentialValidationTask,
 } from '@oxy.so/contracts';
-import {
-  resolveKaanaDataPlane,
-  type KaanaDataPlaneConfig,
-} from '../config/kaanaDataPlane';
+import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
 
 const VALIDATION_PATH = '/internal/v1/customer-provider-credentials/validations';
 const SIGNATURE_DOMAIN = 'oxy-kaana-credential-validation:v1';

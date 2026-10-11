@@ -78,7 +78,6 @@ describe('oxy.assets.publicUrl', () => {
         'https://cloud.oxy.so/a%2Fb%20c?variant=large%20size',
       );
     });
-
   });
 
   describe('token-safe URL generation', () => {
@@ -130,9 +129,10 @@ describe('oxy.assets.url', () => {
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
     oxy.session.setAccessToken(makeJwt({ userId: 'viewer-A' }));
 
-    const scopedUrl =
-      'https://api.oxy.so/assets/priv1/stream?variant=thumb&mt=SCOPED-MEDIA-TOKEN';
-    fetchMock.mockResolvedValueOnce(jsonResponse({ url: scopedUrl, variant: 'thumb', expiresIn: 600 }));
+    const scopedUrl = 'https://api.oxy.so/assets/priv1/stream?variant=thumb&mt=SCOPED-MEDIA-TOKEN';
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ url: scopedUrl, variant: 'thumb', expiresIn: 600 }),
+    );
 
     const resolved = await oxy.assets.url('priv1', 'thumb');
 
@@ -149,7 +149,11 @@ describe('oxy.assets.url', () => {
     oxy.session.setAccessToken(makeJwt({ userId: 'viewer-A' }));
 
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ url: 'https://cloud.oxy.so/pub1?variant=thumb', variant: 'thumb', expiresIn: 3600 }),
+      jsonResponse({
+        url: 'https://cloud.oxy.so/pub1?variant=thumb',
+        variant: 'thumb',
+        expiresIn: 3600,
+      }),
     );
 
     const resolved = await oxy.assets.url('pub1', 'thumb');
@@ -162,9 +166,7 @@ describe('oxy.assets.url', () => {
 
     fetchMock.mockResolvedValue(errorResponse(403, 'Access denied'));
 
-    await expect(oxy.assets.url('priv1', 'thumb')).rejects.toBeInstanceOf(
-      AssetUrlResolutionError,
-    );
+    await expect(oxy.assets.url('priv1', 'thumb')).rejects.toBeInstanceOf(AssetUrlResolutionError);
 
     // Prove the failure was surfaced instead of a silent public-CDN fallback.
     const err = await oxy.assets
@@ -184,9 +186,7 @@ describe('oxy.assets.url', () => {
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ url: '', variant: undefined, expiresIn: 600 }));
 
-    await expect(oxy.assets.url('priv1')).rejects.toBeInstanceOf(
-      AssetUrlResolutionError,
-    );
+    await expect(oxy.assets.url('priv1')).rejects.toBeInstanceOf(AssetUrlResolutionError);
   });
 });
 
@@ -290,10 +290,7 @@ describe('oxy.assets.urls (variant-aware batch)', () => {
     const body = JSON.parse(String(init.body));
     // Dedup on (fileId, variant): the two thumb entries collapse; the
     // variant-less img1 is a DIFFERENT request and survives; blank id dropped.
-    expect(body.files).toEqual([
-      { fileId: 'img1', variant: 'thumb' },
-      { fileId: 'img1' },
-    ]);
+    expect(body.files).toEqual([{ fileId: 'img1', variant: 'thumb' }, { fileId: 'img1' }]);
   });
 
   it('makes NO network call for an all-empty request list', async () => {

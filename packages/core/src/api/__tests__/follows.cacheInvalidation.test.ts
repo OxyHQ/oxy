@@ -154,9 +154,15 @@ describe('follow-status cache invalidation', () => {
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
     const [spec] = invalidateSpy.mock.calls[0];
     expect(spec.keys).toEqual(
-      expect.arrayContaining(['GET:/users/target-3/follow-status', 'GET:/users/target-3', 'GET:/users/me/graph']),
+      expect.arrayContaining([
+        'GET:/users/target-3/follow-status',
+        'GET:/users/target-3',
+        'GET:/users/me/graph',
+      ]),
     );
-    expect(spec.prefixes).toEqual(expect.arrayContaining(['GET:/profiles/username/', 'GET:/profiles/resolve']));
+    expect(spec.prefixes).toEqual(
+      expect.arrayContaining(['GET:/profiles/username/', 'GET:/profiles/resolve']),
+    );
     invalidateSpy.mockRestore();
   });
 

@@ -20,7 +20,12 @@ const mockSendMail = jest.fn();
 
 jest.mock('nodemailer', () => ({
   __esModule: true,
-  default: { createTransport: () => ({ sendMail: (...args: unknown[]) => mockSendMail(...args), close: jest.fn() }) },
+  default: {
+    createTransport: () => ({
+      sendMail: (...args: unknown[]) => mockSendMail(...args),
+      close: jest.fn(),
+    }),
+  },
 }));
 jest.mock('../assetServiceSingleton', () => ({
   assetService: { uploadFileDirect: jest.fn(), linkFile: jest.fn(), getFileBuffer: jest.fn() },
@@ -55,7 +60,10 @@ let user: { id: string; username: string; address: string };
 beforeAll(async () => {
   await connectPostgres();
   const username = `sender${unique().slice(0, 10)}`;
-  const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
   user = { id: row.id, username, address: `${username}@oxy.so` };
   await emailService.ensureMailboxes(user.id);
 });
@@ -82,13 +90,18 @@ function reply(idempotencyKey?: string, parent = `<case-${unique()}@example.com>
 }
 
 async function sentRows(messageId: string) {
-  return getDb().select().from(messages).where(and(eq(messages.userId, user.id), eq(messages.messageId, messageId)));
+  return getDb()
+    .select()
+    .from(messages)
+    .where(and(eq(messages.userId, user.id), eq(messages.messageId, messageId)));
 }
 
 describe('smtpOutbound.send', () => {
   it('sends a concurrently retried key once and files one Sent row', async () => {
     let release!: () => void;
-    const relayAnswered = new Promise<void>((resolve) => { release = resolve; });
+    const relayAnswered = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     mockSendMail.mockImplementation(async () => {
       await relayAnswered;
       return { response: `250 Ok ${SES_ID}` };
@@ -110,11 +123,17 @@ describe('smtpOutbound.send', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].relayMessageId).toBe(`<${SES_ID}@us-west-2.amazonses.com>`);
 
-    const [outbox] = await getDb().select().from(emailOutbox).where(eq(emailOutbox.messageId, sent.messageId));
+    const [outbox] = await getDb()
+      .select()
+      .from(emailOutbox)
+      .where(eq(emailOutbox.messageId, sent.messageId));
     expect(outbox.status).toBe('sent');
 
     // A later retry of the same key reports the first outcome, without sending.
-    expect(await smtpOutbound.send(reply(key))).toEqual({ messageId: sent.messageId, queued: false });
+    expect(await smtpOutbound.send(reply(key))).toEqual({
+      messageId: sent.messageId,
+      queued: false,
+    });
     expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
 
@@ -125,21 +144,30 @@ describe('smtpOutbound.send', () => {
   });
 
   it('gives the key back after a permanent refusal, so a corrected retry can send', async () => {
-    mockSendMail.mockRejectedValueOnce(Object.assign(new Error('554 rejected'), { responseCode: 554 }));
+    mockSendMail.mockRejectedValueOnce(
+      Object.assign(new Error('554 rejected'), { responseCode: 554 }),
+    );
     const key = `k:${unique()}`;
     await expect(smtpOutbound.send(reply(key))).rejects.toThrow('554 rejected');
-    expect(await getDb().select().from(emailOutbox).where(eq(emailOutbox.idempotencyKey, key))).toHaveLength(0);
+    expect(
+      await getDb().select().from(emailOutbox).where(eq(emailOutbox.idempotencyKey, key)),
+    ).toHaveLength(0);
 
     mockSendMail.mockResolvedValueOnce({ response: '250 2.0.0 Ok: queued as ABC' });
     expect((await smtpOutbound.send(reply(key))).queued).toBe(false);
   });
 
   it('leaves a transient failure in the outbox for the worker, under the same claim', async () => {
-    mockSendMail.mockRejectedValueOnce(Object.assign(new Error('421 try later'), { responseCode: 421 }));
+    mockSendMail.mockRejectedValueOnce(
+      Object.assign(new Error('421 try later'), { responseCode: 421 }),
+    );
     const key = `k:${unique()}`;
     const result = await smtpOutbound.send(reply(key));
     expect(result.queued).toBe(true);
-    const rows = await getDb().select().from(emailOutbox).where(eq(emailOutbox.idempotencyKey, key));
+    const rows = await getDb()
+      .select()
+      .from(emailOutbox)
+      .where(eq(emailOutbox.idempotencyKey, key));
     expect(rows).toHaveLength(1);
     expect(rows[0].status).toBe('failed');
   });
@@ -149,7 +177,10 @@ describe('the sender receiving their own message', () => {
   it('links it to the Sent row, threads it by the relay id, and shows the conversation once', async () => {
     mockSendMail.mockResolvedValue({ response: `250 Ok ${SES_ID.replace('8a9c', 'aaaa')}` });
     const parent = `<case-${unique()}@example.com>`;
-    const sent = await smtpOutbound.send({ ...reply(`k:${unique()}`, parent), to: [{ name: '', address: user.address }] });
+    const sent = await smtpOutbound.send({
+      ...reply(`k:${unique()}`, parent),
+      to: [{ name: '', address: user.address }],
+    });
     const [sentRow] = await sentRows(sent.messageId);
 
     // What comes back through the relay: SES's Message-ID, our header intact.

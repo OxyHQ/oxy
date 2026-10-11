@@ -1,9 +1,8 @@
 /**
  * `GET` / `POST /profiles/recommendations` against a REAL Postgres.
  *
- * Four things here are worth a test, and the previous version could verify none
- * of them: it reimplemented the Mongo aggregation inside the test file and then
- * asserted the pipeline it had just built.
+ * Four things here are worth a test, each checked against real rows rather
+ * than against a query the test builds itself:
  *
  *  1. **The exclusion set.** The viewer, everyone they already follow, and any
  *     caller-supplied `excludeIds` must never be recommended — on BOTH the
@@ -39,7 +38,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { recommendationResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
-
 /** The principal the mocked dual-auth middleware attaches. */
 let currentUserId: string | undefined;
 let currentServiceApp: { appId: string; scopes: string[] } | undefined;
@@ -50,7 +48,13 @@ jest.mock('../../middleware/optionalAuth', () => ({
   optionalUserOrServiceAuth: (
     req: {
       user?: { _id: string };
-      serviceApp?: { type: string; appId: string; appName: string; credentialId: string; scopes: string[] };
+      serviceApp?: {
+        type: string;
+        appId: string;
+        appName: string;
+        credentialId: string;
+        scopes: string[];
+      };
     },
     _res: unknown,
     next: () => void,
@@ -470,7 +474,7 @@ describe('GET /profiles/recommendations — scored ranking', () => {
     expect(scores[1]).toBeGreaterThan(scores[2]);
   });
 
-  it('carries each account\'s accent colour', async () => {
+  it("carries each account's accent colour", async () => {
     const teal = await account({ username: handle('teal'), avatar: 'file_a', color: 'teal' });
     const amber = await account({ username: handle('amber'), avatar: 'file_b', color: 'amber' });
     const { viewer } = await viewerWithOverlap([teal, amber]);

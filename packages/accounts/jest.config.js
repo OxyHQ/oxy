@@ -24,9 +24,7 @@ module.exports = {
       },
     ],
   },
-  testMatch: [
-    '<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)',
-  ],
+  testMatch: ['<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
@@ -36,8 +34,7 @@ module.exports = {
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     // Mock heavy native modules with lightweight stubs.
     '^react-native$': '<rootDir>/__mocks__/react-native.ts',
-    '^@react-native-async-storage/async-storage$':
-      '<rootDir>/__mocks__/async-storage.ts',
+    '^@react-native-async-storage/async-storage$': '<rootDir>/__mocks__/async-storage.ts',
     '^@oxy.so/services$': '<rootDir>/__mocks__/oxy-services.ts',
     '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',

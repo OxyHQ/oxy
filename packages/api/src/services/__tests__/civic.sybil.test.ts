@@ -63,16 +63,18 @@ async function signer(): Promise<Signer> {
 /** An active session for `userId` on `deviceId`. */
 async function session(userId: string, deviceId: string): Promise<void> {
   const token = unique();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
 }
 
 /**
@@ -83,7 +85,7 @@ async function session(userId: string, deviceId: string): Promise<void> {
 async function vouch(
   voucher: Signer,
   subjectUserId: string,
-  status: 'active' | 'withdrawn' | 'slashed' = 'active'
+  status: 'active' | 'withdrawn' | 'slashed' = 'active',
 ): Promise<void> {
   const head = await getHead(voucher.id);
   const envelope = signRecordEnvelope(
@@ -101,7 +103,7 @@ async function vouch(
       publicKey: voucher.publicKey,
       alg: 'ES256K-DER-SHA256',
     },
-    voucher.privateKey
+    voucher.privateKey,
   );
   const stored = await verifyAndStoreRecord(envelope, voucher.id);
   if (!stored.ok) {
@@ -290,7 +292,7 @@ describe('the combined penalty', () => {
     expect(signal.sharedFingerprintFraction).toBe(1);
     expect(signal.ringDensity).toBe(1);
     expect(SYBIL_SHARED_FINGERPRINT_WEIGHT + SYBIL_VOUCH_RING_WEIGHT).toBeGreaterThan(
-      SYBIL_PENALTY_CAP
+      SYBIL_PENALTY_CAP,
     );
     expect(signal.penalty).toBe(SYBIL_PENALTY_CAP);
   });
@@ -315,7 +317,7 @@ describe('the combined penalty', () => {
     expect(signal.ringDensity).toBe(0.5);
     expect(signal.penalty).toBeCloseTo(
       SYBIL_SHARED_FINGERPRINT_WEIGHT * 0.5 + SYBIL_VOUCH_RING_WEIGHT * 0.5,
-      5
+      5,
     );
   });
 });

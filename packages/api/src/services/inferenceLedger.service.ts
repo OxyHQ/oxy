@@ -73,10 +73,7 @@ import { priceVersions, priceVersionUnitPrices } from '../db/schema/priceVersion
 import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
 import { usageRefunds } from '../db/schema/usageRefunds';
 import { usageReservations } from '../db/schema/usageReservations';
-import {
-  evaluateSpendingLimits,
-  type SpendingLimitVerdict,
-} from './spendingLimit.service';
+import { evaluateSpendingLimits, type SpendingLimitVerdict } from './spendingLimit.service';
 import type {
   ExternalPaymentKind,
   ExternalPaymentProvider,
@@ -175,7 +172,7 @@ export type BillingAccountResolution =
  */
 export async function resolveBillingAccount(
   db: DatabaseOrTransaction,
-  accountId: string
+  accountId: string,
 ): Promise<BillingAccountResolution> {
   if (!accountId) {
     return { status: 'not-provisioned', accountId };
@@ -207,7 +204,7 @@ export async function resolveBillingAccount(
       -- the immediate parent (user_ancestors is ordered root-first by depth).
       order by is_self desc, depth desc
       limit 1
-    `
+    `,
   );
 
   const row = rows[0];
@@ -245,7 +242,7 @@ export interface ProvisionBillingProfileInput {
  * decide what an unlockable profile means.
  */
 export async function provisionBillingProfile(
-  input: ProvisionBillingProfileInput
+  input: ProvisionBillingProfileInput,
 ): Promise<BillingAccount> {
   return getDb().transaction(async (tx) => {
     await tx
@@ -266,7 +263,7 @@ export async function provisionBillingProfile(
 
     if (!profile) {
       throw new Error(
-        `billing profile for account ${input.accountId} vanished between insert and read`
+        `billing profile for account ${input.accountId} vanished between insert and read`,
       );
     }
 
@@ -297,7 +294,7 @@ export interface AccountBalanceView {
 export async function getAccountBalance(
   db: DatabaseOrTransaction,
   accountId: string,
-  currency: string
+  currency: string,
 ): Promise<AccountBalanceView | null> {
   const [row] = await db
     .select()
@@ -390,7 +387,7 @@ export function recordTopUp(input: FundingInput): Promise<FundingResult> {
  * `RESERVATION_DRAW_ORDER`.
  */
 export function recordPromotionalGrant(
-  input: PromotionalGrantFundingInput
+  input: PromotionalGrantFundingInput,
 ): Promise<FundingResult> {
   return recordFunding(input, 'promotional_grant', 'promotional_issuance', 'promotional_funds');
 }
@@ -399,7 +396,7 @@ async function recordFunding(
   input: FundingInput,
   kind: LedgerEntryKind,
   source: LedgerAccount,
-  destination: LedgerAccount
+  destination: LedgerAccount,
 ): Promise<FundingResult> {
   return getDb().transaction(async (tx) => {
     const locked = await lockBalance(tx, input.accountId, input.currency);
@@ -459,7 +456,7 @@ async function recordFunding(
 async function recordExternalPayment(
   tx: DatabaseOrTransaction,
   input: FundingInput,
-  ledgerEntryId: string
+  ledgerEntryId: string,
 ): Promise<void> {
   const payment = input.externalPayment;
   if (payment === undefined) return;
@@ -507,7 +504,7 @@ async function recordExternalPayment(
  */
 export async function getAvailableToSpend(
   db: DatabaseOrTransaction,
-  billing: BillingAccount
+  billing: BillingAccount,
 ): Promise<string> {
   const draw = await computeDraw(db, billing, '0');
   return draw.available;
@@ -536,12 +533,17 @@ export type QuoteResult =
  */
 export async function publishedUnitPrice(
   priceVersionId: string,
-  unit: UsageUnit
+  unit: UsageUnit,
 ): Promise<'zero' | 'positive' | 'missing'> {
   const [row] = await getDb()
     .select({ amount: priceVersionUnitPrices.amount })
     .from(priceVersionUnitPrices)
-    .where(and(eq(priceVersionUnitPrices.priceVersionId, priceVersionId), eq(priceVersionUnitPrices.unit, unit)))
+    .where(
+      and(
+        eq(priceVersionUnitPrices.priceVersionId, priceVersionId),
+        eq(priceVersionUnitPrices.unit, unit),
+      ),
+    )
     .limit(1);
   if (row === undefined) return 'missing';
   // Exact decimal text, compared as text: no float may round a price to zero.
@@ -564,7 +566,7 @@ export async function publishedUnitPrice(
  */
 export async function quoteUnits(
   priceVersionId: string,
-  units: Partial<Record<UsageUnit, number>>
+  units: Partial<Record<UsageUnit, number>>,
 ): Promise<QuoteResult> {
   const db = getDb();
 
@@ -630,89 +632,95 @@ export type ReserveResult =
   | { readonly status: 'spending-limit-exceeded'; readonly limit: SpendingLimitVerdict };
 
 type ReservationPreparation =
-  | { status: 'eligible'; billing: BillingAccount; draw: Awaited<ReturnType<typeof computeDraw>>;
-      limits: Extract<Awaited<ReturnType<typeof evaluateSpendingLimits>>, { status: 'within' }> }
+  | {
+      status: 'eligible';
+      billing: BillingAccount;
+      draw: Awaited<ReturnType<typeof computeDraw>>;
+      limits: Extract<Awaited<ReturnType<typeof evaluateSpendingLimits>>, { status: 'within' }>;
+    }
   | Exclude<ReserveResult, { status: 'reserved' }>;
 
 /** Same locked eligibility check for preview and reserve; preview never writes a hold or alert. */
 async function prepareReservation(
-  tx: DatabaseOrTransaction, input: ReserveInput, recordNotifications: boolean
+  tx: DatabaseOrTransaction,
+  input: ReserveInput,
+  recordNotifications: boolean,
 ): Promise<ReservationPreparation> {
-    const resolution = await resolveBillingAccount(tx, input.attribution.accountId);
-    if (resolution.status === 'not-provisioned') {
-      return { status: 'no-billing-profile', accountId: input.attribution.accountId };
-    }
-    const billing = resolution.billingAccount;
+  const resolution = await resolveBillingAccount(tx, input.attribution.accountId);
+  if (resolution.status === 'not-provisioned') {
+    return { status: 'no-billing-profile', accountId: input.attribution.accountId };
+  }
+  const billing = resolution.billingAccount;
 
-    if (billing.currency !== input.currency) {
-      return { status: 'currency-mismatch', expected: billing.currency, received: input.currency };
-    }
+  if (billing.currency !== input.currency) {
+    return { status: 'currency-mismatch', expected: billing.currency, received: input.currency };
+  }
 
-    const locked = await lockBalance(tx, billing.accountId, billing.currency);
-    if (!locked) {
-      return { status: 'no-billing-profile', accountId: billing.accountId };
-    }
+  const locked = await lockBalance(tx, billing.accountId, billing.currency);
+  if (!locked) {
+    return { status: 'no-billing-profile', accountId: billing.accountId };
+  }
 
-    const existing = await findReservationByKey(tx, input.idempotencyKey);
-    if (existing) {
-      // A duplicate is always a refusal, including a restricted caller naming
-      // an older unrestricted hold. Never borrow or convert that reservation.
-      return { status: 'already-reserved', reservation: existing };
-    }
+  const existing = await findReservationByKey(tx, input.idempotencyKey);
+  if (existing) {
+    // A duplicate is always a refusal, including a restricted caller naming
+    // an older unrestricted hold. Never borrow or convert that reservation.
+    return { status: 'already-reserved', reservation: existing };
+  }
 
-    const limits = await evaluateSpendingLimits(
+  const limits = await evaluateSpendingLimits(
+    tx,
+    {
+      accountId: input.attribution.accountId,
+      applicationId: input.attribution.applicationId,
+      applicationCredentialId: input.attribution.applicationCredentialId,
+    },
+    billing.currency,
+    input.maxAmount,
+    recordNotifications,
+  );
+  if (limits.status === 'exceeded') {
+    return { status: 'spending-limit-exceeded', limit: limits.limit };
+  }
+
+  // The balance row is locked above. Check the restricted bucket before the
+  // normal draw calculation; its cash/invoice fallback must never be reached
+  // with an insufficient promotional balance.
+  if (input.fundingRestriction === 'promotional-only') {
+    const [promotion] = await executeRows<{ available: string; sufficient: boolean }>(
       tx,
-      {
-        accountId: input.attribution.accountId,
-        applicationId: input.attribution.applicationId,
-        applicationCredentialId: input.attribution.applicationCredentialId,
-      },
-      billing.currency,
-      input.maxAmount,
-      recordNotifications
-    );
-    if (limits.status === 'exceeded') {
-      return { status: 'spending-limit-exceeded', limit: limits.limit };
-    }
-
-    // The balance row is locked above. Check the restricted bucket before the
-    // normal draw calculation; its cash/invoice fallback must never be reached
-    // with an insufficient promotional balance.
-    if (input.fundingRestriction === 'promotional-only') {
-      const [promotion] = await executeRows<{ available: string; sufficient: boolean }>(
-        tx,
-        sql`select round(promotional_balance, ${MONEY_SCALE})::text as available,
+      sql`select round(promotional_balance, ${MONEY_SCALE})::text as available,
                    promotional_balance >= ${input.maxAmount}::numeric as sufficient
             from ${accountBalances}
-            where account_id = ${billing.accountId} and currency = ${billing.currency}`
-      );
-      if (!promotion?.sufficient) {
-        return {
-          status: 'insufficient-funds',
-          available: promotion?.available ?? '0',
-          required: input.maxAmount,
-          currency: billing.currency,
-        };
-      }
-    }
-
-    const draw = await computeDraw(tx, billing, input.maxAmount);
-    if (!draw.sufficient) {
+            where account_id = ${billing.accountId} and currency = ${billing.currency}`,
+    );
+    if (!promotion?.sufficient) {
       return {
         status: 'insufficient-funds',
-        available: draw.available,
+        available: promotion?.available ?? '0',
         required: input.maxAmount,
         currency: billing.currency,
       };
     }
+  }
 
-    return { status: 'eligible', billing, draw, limits };
+  const draw = await computeDraw(tx, billing, input.maxAmount);
+  if (!draw.sufficient) {
+    return {
+      status: 'insufficient-funds',
+      available: draw.available,
+      required: input.maxAmount,
+      currency: billing.currency,
+    };
+  }
+
+  return { status: 'eligible', billing, draw, limits };
 }
 
 /** Read-only spending preflight; reserve repeats it atomically after classification. */
-export async function previewReservation(input: ReserveInput): Promise<
-  { status: 'eligible' } | Exclude<ReserveResult, { status: 'reserved' }>
-> {
+export async function previewReservation(
+  input: ReserveInput,
+): Promise<{ status: 'eligible' } | Exclude<ReserveResult, { status: 'reserved' }>> {
   return getDb().transaction(async (tx) => {
     const result = await prepareReservation(tx, input, false);
     return result.status === 'eligible' ? { status: 'eligible' } : result;
@@ -765,7 +773,7 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
       const raced = await findReservationByKey(tx, input.idempotencyKey);
       if (!raced) {
         throw new Error(
-          `reservation ${input.idempotencyKey} conflicted but could not be read back`
+          `reservation ${input.idempotencyKey} conflicted but could not be read back`,
         );
       }
       return { status: 'already-reserved', reservation: raced };
@@ -858,7 +866,11 @@ export type SettleResult =
     }
   | { readonly status: 'already-settled'; readonly receipt: ReceiptView }
   | { readonly status: 'unknown-reservation'; readonly reservationId: string }
-  | { readonly status: 'reservation-not-held'; readonly reservationId: string; readonly reservationStatus: string }
+  | {
+      readonly status: 'reservation-not-held';
+      readonly reservationId: string;
+      readonly reservationStatus: string;
+    }
   | { readonly status: 'no-billing-profile'; readonly accountId: string }
   | {
       readonly status: 'unpriced-units';
@@ -1144,7 +1156,11 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
     }
 
     // No reservation: the charge leaves the customer's buckets directly.
-    const draw = directDraw ?? { promotionalFunds: '0', purchasedFunds: '0', invoiceReceivable: '0' };
+    const draw = directDraw ?? {
+      promotionalFunds: '0',
+      purchasedFunds: '0',
+      invoiceReceivable: '0',
+    };
     await writeEntry(tx, {
       idempotencyKey: `settle:${input.idempotencyKey}`,
       accountId: billing.accountId,
@@ -1306,7 +1322,7 @@ async function expireOne(reservationId: string): Promise<ExpiredReservation | nu
     await applySettlementBalance(
       tx,
       { accountId: reservation.accountId, currency: reservation.currency },
-      { reservedDelta: reservation.reservedAmount, released: heldSplit }
+      { reservedDelta: reservation.reservedAmount, released: heldSplit },
     );
 
     return { reservationId, releasedAmount: reservation.reservedAmount };
@@ -1352,9 +1368,7 @@ export type ReverseReceiptResult =
  * Unwinding in the same order it was consumed would inflate the promotional
  * bucket, which is the one that can expire and can never be paid out.
  */
-export async function reverseReceipt(
-  input: ReverseReceiptInput
-): Promise<ReverseReceiptResult> {
+export async function reverseReceipt(input: ReverseReceiptInput): Promise<ReverseReceiptResult> {
   return getDb().transaction(async (tx): Promise<ReverseReceiptResult> => {
     const [receipt] = await tx
       .select()
@@ -1439,7 +1453,7 @@ export async function reverseReceipt(
 export async function lockBalance(
   tx: DatabaseOrTransaction,
   accountId: string,
-  currency: string
+  currency: string,
 ): Promise<boolean> {
   const rows = await executeRows<{ account_id: string }>(
     tx,
@@ -1449,14 +1463,14 @@ export async function lockBalance(
       where ${accountBalances.accountId} = ${accountId}
         and ${accountBalances.currency} = ${currency}
       for update
-    `
+    `,
   );
   return rows.length > 0;
 }
 
 async function findReservationByKey(
   tx: DatabaseOrTransaction,
-  idempotencyKey: string
+  idempotencyKey: string,
 ): Promise<ReservationView | undefined> {
   const [row] = await tx
     .select()
@@ -1475,7 +1489,7 @@ async function findReservationByKey(
 
 async function findReceiptByKey(
   tx: DatabaseOrTransaction,
-  idempotencyKey: string
+  idempotencyKey: string,
 ): Promise<ReceiptView | undefined> {
   const [row] = await tx
     .select()
@@ -1488,7 +1502,7 @@ async function findReceiptByKey(
 
 async function findRefundByKey(
   tx: DatabaseOrTransaction,
-  idempotencyKey: string
+  idempotencyKey: string,
 ): Promise<string | undefined> {
   const [row] = await tx
     .select({ id: usageRefunds.id })
@@ -1500,7 +1514,7 @@ async function findRefundByKey(
 
 async function findEntryByKey(
   tx: DatabaseOrTransaction,
-  idempotencyKey: string
+  idempotencyKey: string,
 ): Promise<string | undefined> {
   const [row] = await tx
     .select({ id: billingLedgerEntries.id })
@@ -1551,10 +1565,7 @@ export interface EntryInput {
  * journal, free to diverge on the idempotency read-back and on the zero-amount
  * rule. A wider export surface is the cheaper of the two risks.
  */
-export async function writeEntry(
-  tx: DatabaseOrTransaction,
-  input: EntryInput
-): Promise<string> {
+export async function writeEntry(tx: DatabaseOrTransaction, input: EntryInput): Promise<string> {
   const [entry] = await tx
     .insert(billingLedgerEntries)
     .values({
@@ -1594,7 +1605,7 @@ export async function writeEntry(
         sourceAccount: posting.source,
         destinationAccount: posting.destination,
         amount: posting.amount,
-      }))
+      })),
     );
   }
 
@@ -1616,7 +1627,7 @@ function isZeroLiteral(amount: string): boolean {
 async function isZero(tx: DatabaseOrTransaction, amount: string): Promise<boolean> {
   const [row] = await executeRows<{ zero: boolean }>(
     tx,
-    sql`select (${amount}::numeric = 0) as zero`
+    sql`select (${amount}::numeric = 0) as zero`,
   );
   return row?.zero === true;
 }
@@ -1624,11 +1635,11 @@ async function isZero(tx: DatabaseOrTransaction, amount: string): Promise<boolea
 async function greaterThan(
   tx: DatabaseOrTransaction,
   left: string,
-  right: string
+  right: string,
 ): Promise<boolean> {
   const [row] = await executeRows<{ greater: boolean }>(
     tx,
-    sql`select (${left}::numeric > ${right}::numeric) as greater`
+    sql`select (${left}::numeric > ${right}::numeric) as greater`,
   );
   return row?.greater === true;
 }
@@ -1636,19 +1647,15 @@ async function greaterThan(
 async function exceedsHold(
   tx: DatabaseOrTransaction,
   billed: string,
-  reserved: string
+  reserved: string,
 ): Promise<boolean> {
   return greaterThan(tx, billed, reserved);
 }
 
-async function subtract(
-  tx: DatabaseOrTransaction,
-  left: string,
-  right: string
-): Promise<string> {
+async function subtract(tx: DatabaseOrTransaction, left: string, right: string): Promise<string> {
   const [row] = await executeRows<{ result: string }>(
     tx,
-    sql`select round(${left}::numeric - ${right}::numeric, ${MONEY_SCALE})::text as result`
+    sql`select round(${left}::numeric - ${right}::numeric, ${MONEY_SCALE})::text as result`,
   );
   if (!row) throw new Error('subtraction returned no row');
   return row.result;
@@ -1665,7 +1672,7 @@ async function subtract(
 async function computeDraw(
   tx: DatabaseOrTransaction,
   billing: BillingAccount,
-  amount: string
+  amount: string,
 ): Promise<{ sufficient: boolean; available: string; split: DrawSplit }> {
   const [row] = await executeRows<DrawRow>(
     tx,
@@ -1703,7 +1710,7 @@ async function computeDraw(
         (promotional + purchased + receivable >= amount) as sufficient,
         round(promotional_balance + purchased_balance + credit_room, ${MONEY_SCALE})::text as available
       from d3
-    `
+    `,
   );
 
   if (!row) {
@@ -1740,10 +1747,10 @@ async function computeDraw(
 async function computeCharge(
   tx: DatabaseOrTransaction,
   priceVersionId: string,
-  units: Partial<Record<UsageUnit, number>>
+  units: Partial<Record<UsageUnit, number>>,
 ): Promise<{ amount: string; unpricedUnits: number }> {
   const metered = Object.entries(units).filter(
-    (entry): entry is [UsageUnit, number] => typeof entry[1] === 'number' && entry[1] > 0
+    (entry): entry is [UsageUnit, number] => typeof entry[1] === 'number' && entry[1] > 0,
   );
 
   if (metered.length === 0) {
@@ -1752,7 +1759,7 @@ async function computeCharge(
 
   const values = sql.join(
     metered.map(([unit, quantity]) => sql`(${unit}::text, ${quantity}::bigint)`),
-    sql`, `
+    sql`, `,
   );
 
   const [row] = await executeRows<{ amount: string; unpriced: number }>(
@@ -1770,7 +1777,7 @@ async function computeCharge(
       from (values ${values}) as q(unit, quantity)
       left join ${priceVersionUnitPrices} p
         on p.price_version_id = ${priceVersionId} and p.unit = q.unit
-    `
+    `,
   );
 
   if (!row) throw new Error('charge computation returned no row');
@@ -1778,10 +1785,7 @@ async function computeCharge(
 }
 
 /** What a hold drew, per bucket, read back from its own journal entry. */
-async function readHoldSplit(
-  tx: DatabaseOrTransaction,
-  reservationId: string
-): Promise<DrawSplit> {
+async function readHoldSplit(tx: DatabaseOrTransaction, reservationId: string): Promise<DrawSplit> {
   const rows = await executeRows<{ source_account: string; amount: string }>(
     tx,
     sql`
@@ -1792,7 +1796,7 @@ async function readHoldSplit(
         and e.kind = 'reservation_hold'
         and p.destination_account = 'reserved_funds'
       group by p.source_account
-    `
+    `,
   );
   return bucketsFrom(rows.map((row) => [row.source_account, row.amount]));
 }
@@ -1801,7 +1805,7 @@ async function readHoldSplit(
 async function readSettlementConsumption(
   tx: DatabaseOrTransaction,
   receiptId: string,
-  billedAmount: string
+  billedAmount: string,
 ): Promise<DrawSplit> {
   const rows = await executeRows<{ source_account: string; amount: string }>(
     tx,
@@ -1813,7 +1817,7 @@ async function readSettlementConsumption(
         and e.kind = 'settlement'
         and p.destination_account = 'platform_revenue'
       group by p.source_account
-    `
+    `,
   );
 
   const direct = bucketsFrom(rows.map((row) => [row.source_account, row.amount]));
@@ -1830,7 +1834,7 @@ async function readSettlementConsumption(
       from ${billingLedgerEntries} e
       where e.receipt_id = ${receiptId} and e.kind = 'settlement'
       limit 1
-    `
+    `,
   );
   if (!entry?.reservation_id) return direct;
 
@@ -1854,7 +1858,7 @@ function bucketsFrom(pairs: readonly (readonly [string, string])[]): DrawSplit {
 async function splitHold(
   tx: DatabaseOrTransaction,
   held: DrawSplit,
-  settled: string
+  settled: string,
 ): Promise<{ consumed: DrawSplit; released: DrawSplit }> {
   const [row] = await executeRows<{
     consumed_promotional: string;
@@ -1894,7 +1898,7 @@ async function splitHold(
         round(purchased - consumed_purchased, ${MONEY_SCALE})::text as released_purchased,
         round(receivable - consumed_receivable, ${MONEY_SCALE})::text as released_receivable
       from c3
-    `
+    `,
   );
 
   if (!row) throw new Error('hold split returned no row');
@@ -1921,7 +1925,7 @@ async function splitHold(
 async function splitReverse(
   tx: DatabaseOrTransaction,
   consumed: DrawSplit,
-  amount: string
+  amount: string,
 ): Promise<DrawSplit> {
   const [row] = await executeRows<{
     promotional: string;
@@ -1953,7 +1957,7 @@ async function splitReverse(
         round(ret_purchased, ${MONEY_SCALE})::text as purchased,
         round(ret_receivable, ${MONEY_SCALE})::text as receivable
       from r3
-    `
+    `,
   );
 
   if (!row) throw new Error('reversal split returned no row');
@@ -1977,9 +1981,17 @@ function drawPostings(split: DrawSplit, destination: 'hold' | 'revenue'): Postin
 /** Postings for a reversal: `platform_revenue` back into each non-zero bucket. */
 function reversalPostings(split: DrawSplit): PostingInput[] {
   return [
-    { source: 'platform_revenue', destination: 'promotional_funds', amount: split.promotionalFunds },
+    {
+      source: 'platform_revenue',
+      destination: 'promotional_funds',
+      amount: split.promotionalFunds,
+    },
     { source: 'platform_revenue', destination: 'purchased_funds', amount: split.purchasedFunds },
-    { source: 'platform_revenue', destination: 'invoice_receivable', amount: split.invoiceReceivable },
+    {
+      source: 'platform_revenue',
+      destination: 'invoice_receivable',
+      amount: split.invoiceReceivable,
+    },
   ];
 }
 
@@ -1988,7 +2000,11 @@ function releasePostings(split: DrawSplit): PostingInput[] {
   return [
     { source: 'reserved_funds', destination: 'promotional_funds', amount: split.promotionalFunds },
     { source: 'reserved_funds', destination: 'purchased_funds', amount: split.purchasedFunds },
-    { source: 'reserved_funds', destination: 'invoice_receivable', amount: split.invoiceReceivable },
+    {
+      source: 'reserved_funds',
+      destination: 'invoice_receivable',
+      amount: split.invoiceReceivable,
+    },
   ];
 }
 
@@ -1999,7 +2015,7 @@ function releasePostings(split: DrawSplit): PostingInput[] {
 async function applySettlementBalance(
   tx: DatabaseOrTransaction,
   billing: Pick<BillingAccount, 'accountId' | 'currency'>,
-  movement: { reservedDelta: string; released: DrawSplit }
+  movement: { reservedDelta: string; released: DrawSplit },
 ): Promise<void> {
   await tx.execute(sql`
     update ${accountBalances}
@@ -2042,7 +2058,10 @@ function totalMeteredUnits(units: Partial<Record<UsageUnit, number>>): number {
  * the expiry sweep instead — see `settle`'s own "A completed request consumed
  * something".
  */
-function releaseReason(outcome: InferenceRequestOutcome, usageSource: UsageSource): UsageRefundReason {
+function releaseReason(
+  outcome: InferenceRequestOutcome,
+  usageSource: UsageSource,
+): UsageRefundReason {
   if (usageSource === 'estimated') return 'usage_unavailable';
   switch (outcome) {
     case 'cancelled':

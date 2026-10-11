@@ -21,14 +21,16 @@ type ApplicationType = (typeof APPLICATION_TYPES)[number];
  *  - Requiring an Origin proof before showing official branding on the device
  *    consent UI (`auth.ts` `POST /session/create`).
  */
-export function isTrustedApplication(
-  app: { isOfficial?: boolean; isInternal?: boolean; type?: ApplicationType }
-): boolean {
+export function isTrustedApplication(app: {
+  isOfficial?: boolean;
+  isInternal?: boolean;
+  type?: ApplicationType;
+}): boolean {
   return Boolean(
     app.isOfficial ||
       app.isInternal ||
       app.type === 'first_party' ||
       app.type === 'internal' ||
-      app.type === 'system'
+      app.type === 'system',
   );
 }

@@ -18,14 +18,13 @@
  *    member award is idempotent on (applicationId, sourceActionId = edge id).
  *  - A `remove` for an edge that does not exist is a no-op.
  *
- * ## What "invalid" means now
+ * ## What "invalid" means
  *
- * Under Mongo an id was rejected on its FORMAT (`ObjectId.isValid`), which is
- * gone: a Postgres id is `text` and any string is well-formed. What replaces it
- * is stronger — every id column here carries a real FOREIGN KEY, so an id that
- * names no user (or no application) is refused by the database. Those rejections
- * are counted as `invalid` per item, exactly as a malformed id was, and never
- * fail the surrounding batch.
+ * An id is never rejected on its FORMAT: an id is `text` and any string is
+ * well-formed. Instead every id column here carries a real FOREIGN KEY, so an id
+ * that names no user (or no application) is refused by the database. Those
+ * rejections are counted as `invalid` per item and never fail the surrounding
+ * batch.
  */
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -39,17 +38,10 @@ import {
   users,
 } from '../db/schema';
 import reputationService from './reputation.service';
-import {
-  ENDORSEMENT_RECEIVED_ACTION,
-  INFLUENCE_MIN,
-} from '../utils/reputation.constants';
+import { ENDORSEMENT_RECEIVED_ACTION, INFLUENCE_MIN } from '../utils/reputation.constants';
 import { decayAffinity, affinityEventWeight } from '../utils/recommendationWeights';
 import { logger } from '../utils/logger';
-import type {
-  AppEndorsementInput,
-  AppInterestInput,
-  AppAffinityEvent,
-} from '@oxy.so/contracts';
+import type { AppEndorsementInput, AppInterestInput, AppAffinityEvent } from '@oxy.so/contracts';
 
 /** Postgres `foreign_key_violation` — an id that names no row. */
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -110,9 +102,8 @@ class AppSignalsService {
    * Resolve the ranking weight of an endorsement giver from the denormalized
    * `users.reputation_rank_weight` (kept in sync by `recalculateBalance`).
    *
-   * The column is `NOT NULL` with a floor default, so the "denorm field absent →
-   * recompute via the reputation service" branch the Mongo version carried
-   * cannot happen here and does not travel. A row that is missing entirely
+   * The column is `NOT NULL` with a floor default, so there is no "denorm field
+   * absent → recompute via the reputation service" branch. A row that is missing entirely
    * resolves to the influence floor, and the edge insert that follows will be
    * refused by the foreign key anyway.
    */
@@ -131,7 +122,7 @@ class AppSignalsService {
    */
   async ingestEndorsements(
     applicationId: string,
-    edges: AppEndorsementInput[]
+    edges: AppEndorsementInput[],
   ): Promise<EndorsementIngestResult> {
     const result: EndorsementIngestResult = {
       added: 0,
@@ -141,11 +132,10 @@ class AppSignalsService {
     };
 
     for (const edge of edges) {
-      // `AppEndorsementEdge.sourceId` was `trim: true` in Mongoose, which has no
-      // Postgres counterpart — re-applied here. Its `default: ''` does not
-      // travel: an empty string is a VALUE, and the column's CHECK forbids it.
-      // Absent is NULL, and the idempotency index is `NULLS NOT DISTINCT` so two
-      // unset sources still collide exactly as Mongo intended.
+      // `sourceId` is stored trimmed; Postgres has no column-level trim, so it
+      // is applied here. An empty string is a VALUE, and the column's CHECK
+      // forbids it. Absent is NULL, and the idempotency index is
+      // `NULLS NOT DISTINCT` so two unset sources still collide.
       const sourceId = edge.sourceId?.trim() || null;
 
       // A user cannot endorse themselves into the recommendation surface.
@@ -170,7 +160,7 @@ class AppSignalsService {
     ownerId: string,
     memberId: string,
     sourceId: string | null,
-    result: EndorsementIngestResult
+    result: EndorsementIngestResult,
   ): Promise<void> {
     const db = getDb();
     const weight = await this.resolveOwnerWeight(ownerId);
@@ -203,7 +193,7 @@ class AppSignalsService {
         throw error;
       }
       // An endorsement between ids that name no row cannot be applied. Counted
-      // like a malformed id was under Mongo — the batch continues.
+      // as `invalid` — the batch continues.
       logger.warn('appSignals: endorsement rejected by a foreign key', {
         component: 'appSignals.service',
         applicationId,
@@ -264,7 +254,7 @@ class AppSignalsService {
     ownerId: string,
     memberId: string,
     sourceId: string | null,
-    result: EndorsementIngestResult
+    result: EndorsementIngestResult,
   ): Promise<void> {
     const db = getDb();
 
@@ -280,8 +270,8 @@ class AppSignalsService {
           eq(appEndorsementEdges.memberId, memberId),
           sourceId === null
             ? isNull(appEndorsementEdges.sourceId)
-            : eq(appEndorsementEdges.sourceId, sourceId)
-        )
+            : eq(appEndorsementEdges.sourceId, sourceId),
+        ),
       )
       .returning({ weight: appEndorsementEdges.weight });
     if (!removed) {
@@ -298,10 +288,7 @@ class AppSignalsService {
         endorsementScore: sql`${appUserSignals.endorsementScore} - ${removed.weight}`,
       })
       .where(
-        and(
-          eq(appUserSignals.applicationId, applicationId),
-          eq(appUserSignals.userId, memberId)
-        )
+        and(eq(appUserSignals.applicationId, applicationId), eq(appUserSignals.userId, memberId)),
       );
 
     // The member's reputation award is intentionally NOT reversed here — an
@@ -316,7 +303,7 @@ class AppSignalsService {
    */
   async ingestInterests(
     applicationId: string,
-    items: AppInterestInput[]
+    items: AppInterestInput[],
   ): Promise<InterestIngestResult> {
     const db = getDb();
     const result: InterestIngestResult = { upserted: 0, invalid: 0 };
@@ -367,7 +354,7 @@ class AppSignalsService {
    */
   async ingestAffinityEvents(
     applicationId: string,
-    events: AppAffinityEvent[]
+    events: AppAffinityEvent[],
   ): Promise<AffinityIngestResult> {
     const result: AffinityIngestResult = {
       applied: 0,
@@ -395,9 +382,8 @@ class AppSignalsService {
       // Idempotency: an app-supplied eventId is folded at most once. The unique
       // (applicationId, eventId) index + the expiry sweep bound the ledger; a
       // conflicting insert (or a pre-existing marker) marks the event as seen.
-      // `AppAffinityEventSeen.eventId` was `trim: true` in Mongoose, which has no
-      // Postgres counterpart — re-applied here so the two spellings of one id
-      // cannot both reserve.
+      // `eventId` is stored trimmed; Postgres has no column-level trim, so it is
+      // applied here so the two spellings of one id cannot both reserve.
       const eventId = event.eventId?.trim();
       if (eventId) {
         const alreadySeen = await this.reserveAffinityEventId(applicationId, eventId);
@@ -416,7 +402,7 @@ class AppSignalsService {
         event.toUserId,
         weight,
         eventAt,
-        result
+        result,
       );
     }
 
@@ -430,10 +416,7 @@ class AppSignalsService {
    * "already seen" for every loser of the unique-index race, so an event folds at
    * most once.
    */
-  private async reserveAffinityEventId(
-    applicationId: string,
-    eventId: string
-  ): Promise<boolean> {
+  private async reserveAffinityEventId(applicationId: string, eventId: string): Promise<boolean> {
     const reserved = await getDb()
       .insert(appAffinitySeenEvents)
       .values({ applicationId, eventId })
@@ -460,7 +443,7 @@ class AppSignalsService {
     toUserId: string,
     weight: number,
     eventAt: Date,
-    result: AffinityIngestResult
+    result: AffinityIngestResult,
   ): Promise<void> {
     const db = getDb();
     const now = Date.now();
@@ -475,8 +458,8 @@ class AppSignalsService {
         and(
           eq(appAffinityEdges.applicationId, applicationId),
           eq(appAffinityEdges.fromUserId, fromUserId),
-          eq(appAffinityEdges.toUserId, toUserId)
-        )
+          eq(appAffinityEdges.toUserId, toUserId),
+        ),
       )
       .limit(1);
 

@@ -28,58 +28,58 @@
  */
 
 /** Message type carrying a join code. */
-export const BRIDGE_CODE_MESSAGE_TYPE = "oxy:bridge:code"
+export const BRIDGE_CODE_MESSAGE_TYPE = 'oxy:bridge:code';
 /** Message type carrying a failure. */
-export const BRIDGE_ERROR_MESSAGE_TYPE = "oxy:bridge:error"
+export const BRIDGE_ERROR_MESSAGE_TYPE = 'oxy:bridge:error';
 
 export interface BridgeCodeMessage {
-  type: typeof BRIDGE_CODE_MESSAGE_TYPE
-  code: string
-  state: string
+  type: typeof BRIDGE_CODE_MESSAGE_TYPE;
+  code: string;
+  state: string;
 }
 
 export interface BridgeErrorMessage {
-  type: typeof BRIDGE_ERROR_MESSAGE_TYPE
-  error: string
-  state: string
+  type: typeof BRIDGE_ERROR_MESSAGE_TYPE;
+  error: string;
+  state: string;
 }
 
-export type BridgeMessage = BridgeCodeMessage | BridgeErrorMessage
+export type BridgeMessage = BridgeCodeMessage | BridgeErrorMessage;
 
 /** A validated bridge request. */
 export interface BridgeRequest {
-  clientId: string
-  redirectUri: string
-  state: string
-  codeChallenge: string
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
   /** The redirect URI's origin — the ONLY window the result is posted to. */
-  targetOrigin: string
+  targetOrigin: string;
 }
 
-const PKCE_S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/
+const PKCE_S256_CHALLENGE = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * Parse the query. `null` when anything is missing or malformed — including a
  * redirect URI without a web origin, which could never be a message target.
  */
 export function parseBridgeRequest(search: string): BridgeRequest | null {
-  const params = new URLSearchParams(search)
-  const clientId = params.get("client_id")
-  const redirectUri = params.get("redirect_uri")
-  const state = params.get("state")
-  const codeChallenge = params.get("code_challenge")
-  const method = params.get("code_challenge_method") ?? "S256"
-  if (!clientId || !redirectUri || !state || !codeChallenge) return null
-  if (method !== "S256" || !PKCE_S256_CHALLENGE.test(codeChallenge)) return null
-  let targetOrigin: string
+  const params = new URLSearchParams(search);
+  const clientId = params.get('client_id');
+  const redirectUri = params.get('redirect_uri');
+  const state = params.get('state');
+  const codeChallenge = params.get('code_challenge');
+  const method = params.get('code_challenge_method') ?? 'S256';
+  if (!clientId || !redirectUri || !state || !codeChallenge) return null;
+  if (method !== 'S256' || !PKCE_S256_CHALLENGE.test(codeChallenge)) return null;
+  let targetOrigin: string;
   try {
-    const url = new URL(redirectUri)
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null
-    targetOrigin = url.origin
+    const url = new URL(redirectUri);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    targetOrigin = url.origin;
   } catch {
-    return null
+    return null;
   }
-  return { clientId, redirectUri, state, codeChallenge, targetOrigin }
+  return { clientId, redirectUri, state, codeChallenge, targetOrigin };
 }
 
 /** A failed API call: its HTTP status and the API's `error` code, when any. */
@@ -88,39 +88,46 @@ export class BridgeApiError extends Error {
     readonly status: number,
     readonly code: string | null,
   ) {
-    super(code ?? `HTTP ${status}`)
-    this.name = "BridgeApiError"
+    super(code ?? `HTTP ${status}`);
+    this.name = 'BridgeApiError';
   }
 }
 
 export interface DeviceCredential {
-  deviceId: string
-  deviceSecret: string
+  deviceId: string;
+  deviceSecret: string;
 }
 
 /** The slice of core's `AuthStateStore` the bridge uses. */
 export interface BridgeCredentialStore {
-  load(): Promise<{ deviceId?: string; deviceSecret?: string } | null>
-  save(state: { sessionId: string; userId: string; deviceId: string; deviceSecret: string }): Promise<boolean>
+  load(): Promise<{ deviceId?: string; deviceSecret?: string } | null>;
+  save(state: {
+    sessionId: string;
+    userId: string;
+    deviceId: string;
+    deviceSecret: string;
+  }): Promise<boolean>;
 }
 
 export interface BridgeDeps {
-  store: BridgeCredentialStore
-  registerDevice(): Promise<DeviceCredential>
-  requestJoinCode(input: DeviceCredential & {
-    clientId: string
-    redirectUri: string
-    codeChallenge: string
-    codeChallengeMethod: "S256"
-  }): Promise<{ code: string }>
+  store: BridgeCredentialStore;
+  registerDevice(): Promise<DeviceCredential>;
+  requestJoinCode(
+    input: DeviceCredential & {
+      clientId: string;
+      redirectUri: string;
+      codeChallenge: string;
+      codeChallengeMethod: 'S256';
+    },
+  ): Promise<{ code: string }>;
 }
 
 async function registerAndSave(deps: BridgeDeps): Promise<DeviceCredential> {
-  const credential = await deps.registerDevice()
+  const credential = await deps.registerDevice();
   // A device-only state: nobody is signed in on it yet. auth.oxy.so's own
   // provider restores from it like any other holder.
-  await deps.store.save({ sessionId: "", userId: "", ...credential })
-  return credential
+  await deps.store.save({ sessionId: '', userId: '', ...credential });
+  return credential;
 }
 
 /**
@@ -129,42 +136,42 @@ async function registerAndSave(deps: BridgeDeps): Promise<DeviceCredential> {
  * in) is replaced by a newly registered device, once.
  */
 export async function obtainJoinCode(deps: BridgeDeps, request: BridgeRequest): Promise<string> {
-  const stored = await deps.store.load()
+  const stored = await deps.store.load();
   let credential: DeviceCredential =
     stored?.deviceId && stored.deviceSecret
       ? { deviceId: stored.deviceId, deviceSecret: stored.deviceSecret }
-      : await registerAndSave(deps)
+      : await registerAndSave(deps);
   const ask = () =>
     deps.requestJoinCode({
       ...credential,
       clientId: request.clientId,
       redirectUri: request.redirectUri,
       codeChallenge: request.codeChallenge,
-      codeChallengeMethod: "S256",
-    })
+      codeChallengeMethod: 'S256',
+    });
   try {
-    return (await ask()).code
+    return (await ask()).code;
   } catch (error) {
-    if (!(error instanceof BridgeApiError) || error.code !== "invalid_device_secret") throw error
-    credential = await registerAndSave(deps)
-    return (await ask()).code
+    if (!(error instanceof BridgeApiError) || error.code !== 'invalid_device_secret') throw error;
+    credential = await registerAndSave(deps);
+    return (await ask()).code;
   }
 }
 
 /** The message for the opener: a code, or an error code. Never throws. */
 export async function runBridge(deps: BridgeDeps, request: BridgeRequest): Promise<BridgeMessage> {
   try {
-    const code = await obtainJoinCode(deps, request)
-    return { type: BRIDGE_CODE_MESSAGE_TYPE, code, state: request.state }
+    const code = await obtainJoinCode(deps, request);
+    return { type: BRIDGE_CODE_MESSAGE_TYPE, code, state: request.state };
   } catch (error) {
-    const code = error instanceof BridgeApiError && error.code ? error.code : "bridge_failed"
-    return { type: BRIDGE_ERROR_MESSAGE_TYPE, error: code, state: request.state }
+    const code = error instanceof BridgeApiError && error.code ? error.code : 'bridge_failed';
+    return { type: BRIDGE_ERROR_MESSAGE_TYPE, error: code, state: request.state };
   }
 }
 
 /** The opener surface a message is posted to. */
 export interface BridgeOpener {
-  postMessage(message: BridgeMessage, targetOrigin: string): void
+  postMessage(message: BridgeMessage, targetOrigin: string): void;
 }
 
 /**
@@ -176,12 +183,12 @@ export function deliverBridgeMessage(
   message: BridgeMessage,
   targetOrigin: string,
 ): boolean {
-  if (!opener || !targetOrigin || targetOrigin === "null" || targetOrigin === "*") return false
+  if (!opener || !targetOrigin || targetOrigin === 'null' || targetOrigin === '*') return false;
   try {
-    opener.postMessage(message, targetOrigin)
-    return true
+    opener.postMessage(message, targetOrigin);
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -191,26 +198,29 @@ export function deliverBridgeMessage(
  */
 export function createBridgeApi(apiBaseUrl: string, fetchImpl: typeof fetch = fetch) {
   const post = async <T>(path: string, body: unknown): Promise<T> => {
-    const response = await fetchImpl(`${apiBaseUrl.replace(/\/$/, "")}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+    const response = await fetchImpl(`${apiBaseUrl.replace(/\/$/, '')}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
-      credentials: "omit",
-    })
-    let json: { data?: T; error?: unknown } | null = null
+      credentials: 'omit',
+    });
+    let json: { data?: T; error?: unknown } | null = null;
     try {
-      json = (await response.json()) as { data?: T; error?: unknown }
+      json = (await response.json()) as { data?: T; error?: unknown };
     } catch {
-      json = null
+      json = null;
     }
     if (!response.ok || !json?.data) {
-      throw new BridgeApiError(response.status, typeof json?.error === "string" ? json.error : null)
+      throw new BridgeApiError(
+        response.status,
+        typeof json?.error === 'string' ? json.error : null,
+      );
     }
-    return json.data
-  }
+    return json.data;
+  };
   return {
-    registerDevice: () => post<DeviceCredential>("/session/device/register", {}),
-    requestJoinCode: (input: Parameters<BridgeDeps["requestJoinCode"]>[0]) =>
-      post<{ code: string }>("/session/device/join-code", input),
-  }
+    registerDevice: () => post<DeviceCredential>('/session/device/register', {}),
+    requestJoinCode: (input: Parameters<BridgeDeps['requestJoinCode']>[0]) =>
+      post<{ code: string }>('/session/device/join-code', input),
+  };
 }

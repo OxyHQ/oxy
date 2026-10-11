@@ -71,7 +71,7 @@ describe('family_members — closed value sets', () => {
       getDb().execute(sql`
         insert into family_members (id, family_id, member_user_id, role, status)
         values (${randomUUID()}, ${await family()}, ${await personalUser()}, 'admin', 'active')
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -81,7 +81,7 @@ describe('family_members — closed value sets', () => {
       getDb().execute(sql`
         insert into family_members (id, family_id, member_user_id, role, status)
         values (${randomUUID()}, ${await family()}, ${await personalUser()}, 'member', 'pending')
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -91,20 +91,28 @@ describe('family_members — compound unique (family, member)', () => {
   it('rejects a second row for the same (family, member) pair', async () => {
     const familyId = await family();
     const memberUserId = await personalUser();
-    await getDb().insert(familyMembers).values({ familyId, memberUserId, role: 'member', status: 'invited' });
+    await getDb()
+      .insert(familyMembers)
+      .values({ familyId, memberUserId, role: 'member', status: 'invited' });
 
     const error = await rejection(
-      getDb().insert(familyMembers).values({ familyId, memberUserId, role: 'member', status: 'invited' })
+      getDb()
+        .insert(familyMembers)
+        .values({ familyId, memberUserId, role: 'member', status: 'invited' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
   it('allows the same person to hold rows on two different families', async () => {
     const memberUserId = await personalUser();
-    await getDb().insert(familyMembers).values({ familyId: await family(), memberUserId, role: 'member', status: 'invited' });
+    await getDb()
+      .insert(familyMembers)
+      .values({ familyId: await family(), memberUserId, role: 'member', status: 'invited' });
 
     await expect(
-      getDb().insert(familyMembers).values({ familyId: await family(), memberUserId, role: 'member', status: 'invited' })
+      getDb()
+        .insert(familyMembers)
+        .values({ familyId: await family(), memberUserId, role: 'member', status: 'invited' }),
     ).resolves.toBeDefined();
   });
 });
@@ -122,7 +130,7 @@ describe('family_members — a person may be ACTIVE in more than one family', ()
     await expect(
       getDb()
         .insert(familyMembers)
-        .values({ familyId: await family(), memberUserId, role: 'member', status: 'active' })
+        .values({ familyId: await family(), memberUserId, role: 'member', status: 'active' }),
     ).resolves.toBeDefined();
   });
 });
@@ -132,12 +140,22 @@ describe('family_members — at most one ACTIVE organizer per family', () => {
     const familyId = await family();
     await getDb()
       .insert(familyMembers)
-      .values({ familyId, memberUserId: await personalUser(), role: 'organizer', status: 'active' });
+      .values({
+        familyId,
+        memberUserId: await personalUser(),
+        role: 'organizer',
+        status: 'active',
+      });
 
     const error = await rejection(
       getDb()
         .insert(familyMembers)
-        .values({ familyId, memberUserId: await personalUser(), role: 'organizer', status: 'active' })
+        .values({
+          familyId,
+          memberUserId: await personalUser(),
+          role: 'organizer',
+          status: 'active',
+        }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -146,29 +164,44 @@ describe('family_members — at most one ACTIVE organizer per family', () => {
     const familyId = await family();
     await getDb()
       .insert(familyMembers)
-      .values({ familyId, memberUserId: await personalUser(), role: 'organizer', status: 'active' });
+      .values({
+        familyId,
+        memberUserId: await personalUser(),
+        role: 'organizer',
+        status: 'active',
+      });
 
     await expect(
       getDb()
         .insert(familyMembers)
-        .values({ familyId, memberUserId: await personalUser(), role: 'member', status: 'active' })
+        .values({ familyId, memberUserId: await personalUser(), role: 'member', status: 'active' }),
     ).resolves.toBeDefined();
     await expect(
       getDb()
         .insert(familyMembers)
-        .values({ familyId, memberUserId: await personalUser(), role: 'member', status: 'active' })
+        .values({ familyId, memberUserId: await personalUser(), role: 'member', status: 'active' }),
     ).resolves.toBeDefined();
   });
 
   it('allows two different families to each have their own active organizer', async () => {
     await getDb()
       .insert(familyMembers)
-      .values({ familyId: await family(), memberUserId: await personalUser(), role: 'organizer', status: 'active' });
+      .values({
+        familyId: await family(),
+        memberUserId: await personalUser(),
+        role: 'organizer',
+        status: 'active',
+      });
 
     await expect(
       getDb()
         .insert(familyMembers)
-        .values({ familyId: await family(), memberUserId: await personalUser(), role: 'organizer', status: 'active' })
+        .values({
+          familyId: await family(),
+          memberUserId: await personalUser(),
+          role: 'organizer',
+          status: 'active',
+        }),
     ).resolves.toBeDefined();
   });
 });
@@ -183,7 +216,10 @@ describe('family_members — what deleting a row on either side actually does', 
 
     await getDb().delete(families).where(eq(families.id, familyId));
 
-    const [row] = await getDb().select().from(familyMembers).where(eq(familyMembers.id, membershipId));
+    const [row] = await getDb()
+      .select()
+      .from(familyMembers)
+      .where(eq(familyMembers.id, membershipId));
     expect(row).toBeUndefined();
   });
 
@@ -196,7 +232,10 @@ describe('family_members — what deleting a row on either side actually does', 
 
     await getDb().delete(users).where(eq(users.id, memberUserId));
 
-    const [row] = await getDb().select().from(familyMembers).where(eq(familyMembers.id, membershipId));
+    const [row] = await getDb()
+      .select()
+      .from(familyMembers)
+      .where(eq(familyMembers.id, membershipId));
     expect(row).toBeUndefined();
   });
 
@@ -217,7 +256,10 @@ describe('family_members — what deleting a row on either side actually does', 
 
     await getDb().delete(users).where(eq(users.id, inviterId));
 
-    const [row] = await getDb().select().from(familyMembers).where(eq(familyMembers.id, membershipId));
+    const [row] = await getDb()
+      .select()
+      .from(familyMembers)
+      .where(eq(familyMembers.id, membershipId));
     expect(row).toBeDefined();
     expect(row.invitedByUserId).toBeNull();
   });

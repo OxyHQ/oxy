@@ -24,7 +24,9 @@ function firstHeaderValue(value: TelemetryHeaderValue): string | undefined {
 }
 
 export function normalizeEdgePop(value: TelemetryHeaderValue): string | undefined {
-  return firstHeaderValue(value)?.match(/^[a-z]{3}$/i)?.[0]?.toLowerCase();
+  return firstHeaderValue(value)
+    ?.match(/^[a-z]{3}$/i)?.[0]
+    ?.toLowerCase();
 }
 
 export function normalizeActivityId(value: TelemetryHeaderValue): string | undefined {
@@ -59,7 +61,11 @@ export function presenceBucket(observedAt: number, bucketMs = DEFAULT_PRESENCE_B
   return Math.floor(observedAt / bucketMs);
 }
 
-export function presenceKeys(sourceRegion: string, observedAt: number, bucketMs = DEFAULT_PRESENCE_BUCKET_MS): readonly [string, string] {
+export function presenceKeys(
+  sourceRegion: string,
+  observedAt: number,
+  bucketMs = DEFAULT_PRESENCE_BUCKET_MS,
+): readonly [string, string] {
   const current = presenceBucket(observedAt, bucketMs);
   return [
     `platform-activity:clients:${sourceRegion}:${current}`,

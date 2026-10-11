@@ -341,11 +341,13 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
 
       // No throw, no coercion — the caller routes this to QR.
       expect(result).toEqual({ delivered: false, targets: 0 });
-      expect(selectCommonsDelivery({
-        platform: 'desktop',
-        commonsAvailable: false,
-        pushTargets: pushTargetsFromDelivery(result),
-      })).toBe('qr');
+      expect(
+        selectCommonsDelivery({
+          platform: 'desktop',
+          commonsAvailable: false,
+          pushTargets: pushTargetsFromDelivery(result),
+        }),
+      ).toBe('qr');
     });
 
     it('routes a positive target count to the push wait', async () => {
@@ -353,11 +355,13 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
 
       const result = await oxy.auth.commons.deliver('code-1');
 
-      expect(selectCommonsDelivery({
-        platform: 'desktop',
-        commonsAvailable: false,
-        pushTargets: pushTargetsFromDelivery(result),
-      })).toBe('await-push');
+      expect(
+        selectCommonsDelivery({
+          platform: 'desktop',
+          commonsAvailable: false,
+          pushTargets: pushTargetsFromDelivery(result),
+        }),
+      ).toBe('await-push');
     });
 
     it('falls back to QR when delivery failed despite eligible targets', async () => {
@@ -366,11 +370,13 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       const result = await oxy.auth.commons.deliver('code-1');
 
       expect(result).toEqual({ delivered: false, targets: 1 });
-      expect(selectCommonsDelivery({
-        platform: 'desktop',
-        commonsAvailable: false,
-        pushTargets: pushTargetsFromDelivery(result),
-      })).toBe('qr');
+      expect(
+        selectCommonsDelivery({
+          platform: 'desktop',
+          commonsAvailable: false,
+          pushTargets: pushTargetsFromDelivery(result),
+        }),
+      ).toBe('qr');
     });
 
     it.each([
@@ -379,9 +385,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
     ])('rejects %s rather than returning it', async (_label, value) => {
       makeRequestSpy.mockResolvedValue(value);
 
-      await expect(oxy.auth.commons.deliver('code-1')).rejects.toThrow(
-        /unexpected response shape/,
-      );
+      await expect(oxy.auth.commons.deliver('code-1')).rejects.toThrow(/unexpected response shape/);
     });
 
     it.each([
@@ -972,7 +976,11 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
     function bridge(overrides: Partial<CommonsIdentityBridge> = {}): CommonsIdentityBridge {
       return {
         describe: jest.fn(async () => ({ v: 2, publicKey: PUB })),
-        proveIdentity: jest.fn(async () => ({ publicKey: PUB, signature: '3044beef', timestamp: 1700000000789 })),
+        proveIdentity: jest.fn(async () => ({
+          publicKey: PUB,
+          signature: '3044beef',
+          timestamp: 1700000000789,
+        })),
         deriveScopedSeed: jest.fn(async () => null),
         signSocialReceive: jest.fn(async () => null),
         ...overrides,
@@ -987,9 +995,14 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       const requestChallengeSpy = jest
         .spyOn(oxy.auth, 'requestChallenge')
         .mockResolvedValue({ challenge: CHALLENGE, expiresAt: '2026-06-26T00:05:00.000Z' });
-      const verifyChallengeSpy = jest.spyOn(oxy.auth, 'verifyChallenge').mockResolvedValue(sessionFixture);
+      const verifyChallengeSpy = jest
+        .spyOn(oxy.auth, 'verifyChallenge')
+        .mockResolvedValue(sessionFixture);
 
-      const result = await oxy.auth.signInWithCommonsIdentity({ requestOptions: { retry: false }, plantTokens: false });
+      const result = await oxy.auth.signInWithCommonsIdentity({
+        requestOptions: { retry: false },
+        plantTokens: false,
+      });
 
       expect(requestChallengeSpy).toHaveBeenCalledWith(PUB, { retry: false });
       expect(commons.proveIdentity).toHaveBeenCalledWith(CHALLENGE);
@@ -1028,7 +1041,6 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(verifyChallengeSpy).not.toHaveBeenCalled();
     });
   });
-
 });
 
 describe('selectCommonsDelivery — automatic delivery selection', () => {
@@ -1104,9 +1116,9 @@ describe('selectCommonsDelivery — automatic delivery selection', () => {
     ['NaN', Number.NaN],
     ['Infinity', Number.POSITIVE_INFINITY],
   ])('degrades %s to QR rather than a push nobody will answer', (_label, pushTargets) => {
-    expect(selectCommonsDelivery({ platform: 'desktop', commonsAvailable: false, pushTargets })).toBe(
-      'qr',
-    );
+    expect(
+      selectCommonsDelivery({ platform: 'desktop', commonsAvailable: false, pushTargets }),
+    ).toBe('qr');
   });
 
   it('is pure — the same facts always yield the same route', () => {

@@ -24,12 +24,15 @@ export default function PersonalInfoScreen() {
   // the current account.
   const { user, isLoading: oxyLoading, showBottomSheet } = useOxy();
   const handlePressIn = useHapticPress();
-  const handleEditField = useCallback((field: string) => {
-    showBottomSheet?.({
-      screen: 'EditProfileField',
-      props: { fieldType: field }
-    });
-  }, [showBottomSheet]);
+  const handleEditField = useCallback(
+    (field: string) => {
+      showBottomSheet?.({
+        screen: 'EditProfileField',
+        props: { fieldType: field },
+      });
+    },
+    [showBottomSheet],
+  );
 
   // Compute current-account profile data.
   const displayName = useMemo(
@@ -37,7 +40,10 @@ export default function PersonalInfoScreen() {
     [user],
   );
   const userUsername = useMemo(() => user?.username ?? null, [user?.username]);
-  const userEmail = useMemo(() => user?.email ?? t('personalInfo.fields.noEmail'), [user?.email, t]);
+  const userEmail = useMemo(
+    () => user?.email ?? t('personalInfo.fields.noEmail'),
+    [user?.email, t],
+  );
   const userPhone = useMemo(() => user?.phone ?? null, [user]);
   const userAddress = useMemo(() => user?.address ?? null, [user]);
   const userBirthday = useMemo(() => {
@@ -49,130 +55,164 @@ export default function PersonalInfoScreen() {
     return birthday ? formatDate(birthday) : null;
   }, [user]);
 
-  const personalInfoCards = useMemo<AccountInfoCard[]>(() => [
-    {
-      id: 'name',
-      icon: 'account-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('personalInfo.fields.fullName'),
-      value: displayName ?? t('common.notSet'),
-      onPress: () => handleEditField('displayName'),
-    },
-    {
-      id: 'username',
-      icon: 'at',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('personalInfo.fields.username'),
-      value: userUsername ? `@${userUsername}` : t('common.notSet'),
-      onPress: () => handleEditField('username'),
-    },
-    {
-      id: 'email',
-      icon: 'email-outline',
-      iconColor: colors.sidebarIconSecurity,
-      title: t('personalInfo.fields.email'),
-      value: userEmail,
-    },
-    {
-      id: 'phone',
-      icon: 'phone-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('personalInfo.fields.phone'),
-      value: userPhone ?? t('common.notSet'),
-      onPress: () => handleEditField('phone'),
-    },
-    {
-      id: 'address',
-      icon: 'map-marker-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('personalInfo.fields.address'),
-      value: userAddress ?? t('common.notSet'),
-      onPress: () => handleEditField('address'),
-    },
-    {
-      id: 'birthday',
-      icon: 'calendar-star',
-      iconColor: colors.sidebarIconFamily,
-      title: t('personalInfo.fields.birthday'),
-      value: userBirthday ?? t('common.notSet'),
-      onPress: () => handleEditField('birthday'),
-    },
-    {
-      id: 'created',
-      icon: 'calendar-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('personalInfo.fields.accountCreated'),
-      value: user?.createdAt ? formatDate(user.createdAt) : t('common.unknown'),
-    },
-  ], [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, colors.sidebarIconData, colors.sidebarIconFamily, displayName, userUsername, userEmail, userPhone, userAddress, userBirthday, user?.createdAt, handleEditField, t]);
+  const personalInfoCards = useMemo<AccountInfoCard[]>(
+    () => [
+      {
+        id: 'name',
+        icon: 'account-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('personalInfo.fields.fullName'),
+        value: displayName ?? t('common.notSet'),
+        onPress: () => handleEditField('displayName'),
+      },
+      {
+        id: 'username',
+        icon: 'at',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('personalInfo.fields.username'),
+        value: userUsername ? `@${userUsername}` : t('common.notSet'),
+        onPress: () => handleEditField('username'),
+      },
+      {
+        id: 'email',
+        icon: 'email-outline',
+        iconColor: colors.sidebarIconSecurity,
+        title: t('personalInfo.fields.email'),
+        value: userEmail,
+      },
+      {
+        id: 'phone',
+        icon: 'phone-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('personalInfo.fields.phone'),
+        value: userPhone ?? t('common.notSet'),
+        onPress: () => handleEditField('phone'),
+      },
+      {
+        id: 'address',
+        icon: 'map-marker-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('personalInfo.fields.address'),
+        value: userAddress ?? t('common.notSet'),
+        onPress: () => handleEditField('address'),
+      },
+      {
+        id: 'birthday',
+        icon: 'calendar-star',
+        iconColor: colors.sidebarIconFamily,
+        title: t('personalInfo.fields.birthday'),
+        value: userBirthday ?? t('common.notSet'),
+        onPress: () => handleEditField('birthday'),
+      },
+      {
+        id: 'created',
+        icon: 'calendar-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('personalInfo.fields.accountCreated'),
+        value: user?.createdAt ? formatDate(user.createdAt) : t('common.unknown'),
+      },
+    ],
+    [
+      colors.sidebarIconPersonalInfo,
+      colors.sidebarIconSecurity,
+      colors.sidebarIconData,
+      colors.sidebarIconFamily,
+      displayName,
+      userUsername,
+      userEmail,
+      userPhone,
+      userAddress,
+      userBirthday,
+      user?.createdAt,
+      handleEditField,
+      t,
+    ],
+  );
 
-  const contactItems = useMemo(() => [
-    {
-      id: 'email',
-      icon: 'email-outline',
-      iconColor: colors.sidebarIconSecurity,
-      title: t('personalInfo.fields.email'),
-      subtitle: userEmail,
-      showChevron: false,
-    },
-    {
-      id: 'phone',
-      icon: 'phone-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('personalInfo.fields.phone'),
-      subtitle: userPhone ?? t('common.notSet'),
-      showChevron: false,
-      onPress: () => handleEditField('phone'),
-    },
-    {
-      id: 'address',
-      icon: 'map-marker-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('personalInfo.fields.address'),
-      subtitle: userAddress ?? t('common.notSet'),
-      showChevron: false,
-      onPress: () => handleEditField('address'),
-    },
-    {
-      id: 'birthday',
-      icon: 'calendar-star',
-      iconColor: colors.sidebarIconFamily,
-      title: t('personalInfo.fields.birthday'),
-      subtitle: userBirthday ?? t('common.notSet'),
-      showChevron: false,
-      onPress: () => handleEditField('birthday'),
-    },
-  ], [colors.sidebarIconSecurity, colors.sidebarIconPersonalInfo, colors.sidebarIconData, colors.sidebarIconFamily, userEmail, userPhone, userAddress, userBirthday, handleEditField, t]);
+  const contactItems = useMemo(
+    () => [
+      {
+        id: 'email',
+        icon: 'email-outline',
+        iconColor: colors.sidebarIconSecurity,
+        title: t('personalInfo.fields.email'),
+        subtitle: userEmail,
+        showChevron: false,
+      },
+      {
+        id: 'phone',
+        icon: 'phone-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('personalInfo.fields.phone'),
+        subtitle: userPhone ?? t('common.notSet'),
+        showChevron: false,
+        onPress: () => handleEditField('phone'),
+      },
+      {
+        id: 'address',
+        icon: 'map-marker-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('personalInfo.fields.address'),
+        subtitle: userAddress ?? t('common.notSet'),
+        showChevron: false,
+        onPress: () => handleEditField('address'),
+      },
+      {
+        id: 'birthday',
+        icon: 'calendar-star',
+        iconColor: colors.sidebarIconFamily,
+        title: t('personalInfo.fields.birthday'),
+        subtitle: userBirthday ?? t('common.notSet'),
+        showChevron: false,
+        onPress: () => handleEditField('birthday'),
+      },
+    ],
+    [
+      colors.sidebarIconSecurity,
+      colors.sidebarIconPersonalInfo,
+      colors.sidebarIconData,
+      colors.sidebarIconFamily,
+      userEmail,
+      userPhone,
+      userAddress,
+      userBirthday,
+      handleEditField,
+      t,
+    ],
+  );
 
-  const actionsItems = useMemo(() => [
-    {
-      id: 'edit-profile',
-      icon: 'account-edit-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('personalInfo.actions.editProfile'),
-      subtitle: t('personalInfo.actions.editProfileSubtitle'),
-      onPress: () => showBottomSheet?.({ screen: 'EditProfile' }),
-      showChevron: true,
-    },
-    {
-      id: 'manage-sessions',
-      icon: 'monitor-lock',
-      iconColor: colors.sidebarIconSecurity,
-      title: t('personalInfo.actions.manageSessions'),
-      subtitle: t('personalInfo.actions.manageSessionsSubtitle'),
-      onPress: () => showBottomSheet?.('ManageAccount'),
-      showChevron: true,
-    },
-    {
-      id: 'account-overview',
-      icon: 'shield-key',
-      iconColor: colors.sidebarIconSecurity,
-      title: t('personalInfo.actions.identitySecurity'),
-      subtitle: t('personalInfo.actions.identitySecuritySubtitle'),
-      onPress: () => showBottomSheet?.('ManageAccount'),
-      showChevron: true,
-    },
-  ], [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, showBottomSheet, t]);
+  const actionsItems = useMemo(
+    () => [
+      {
+        id: 'edit-profile',
+        icon: 'account-edit-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('personalInfo.actions.editProfile'),
+        subtitle: t('personalInfo.actions.editProfileSubtitle'),
+        onPress: () => showBottomSheet?.({ screen: 'EditProfile' }),
+        showChevron: true,
+      },
+      {
+        id: 'manage-sessions',
+        icon: 'monitor-lock',
+        iconColor: colors.sidebarIconSecurity,
+        title: t('personalInfo.actions.manageSessions'),
+        subtitle: t('personalInfo.actions.manageSessionsSubtitle'),
+        onPress: () => showBottomSheet?.('ManageAccount'),
+        showChevron: true,
+      },
+      {
+        id: 'account-overview',
+        icon: 'shield-key',
+        iconColor: colors.sidebarIconSecurity,
+        title: t('personalInfo.actions.identitySecurity'),
+        subtitle: t('personalInfo.actions.identitySecuritySubtitle'),
+        onPress: () => showBottomSheet?.('ManageAccount'),
+        showChevron: true,
+      },
+    ],
+    [colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, showBottomSheet, t],
+  );
 
   // Show loading state while OxyServices is initializing
   if (oxyLoading) {
@@ -180,7 +220,9 @@ export default function PersonalInfoScreen() {
       <ScreenContentWrapper>
         <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('common.loadingShort')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );
@@ -239,4 +281,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

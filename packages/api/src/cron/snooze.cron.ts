@@ -46,7 +46,10 @@ export async function runEmailMaintenance(): Promise<void> {
   try {
     await processEmailOutbox();
   } catch (err) {
-    logger.error('Durable outbound email worker failed', err instanceof Error ? err : new Error(String(err)));
+    logger.error(
+      'Durable outbound email worker failed',
+      err instanceof Error ? err : new Error(String(err)),
+    );
   }
 }
 

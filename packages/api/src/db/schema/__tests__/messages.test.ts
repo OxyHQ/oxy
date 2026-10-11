@@ -4,13 +4,13 @@
  * Three things here are load-bearing and could each be subtly wrong while
  * looking right:
  *
- *   1. **The weighted text index.** Mongo's `weights: {subject: 10, text: 1}`
- *      becomes `setweight(..., 'A') || setweight(..., 'D')`. Postgres weights
+ *   1. **The weighted text index.** A subject hit ranks ten times a body hit,
+ *      via `setweight(..., 'A') || setweight(..., 'D')`. Postgres weights
  *      are fixed multipliers, so B or C would compile, index, and silently
  *      re-rank every search result — only a RANK comparison catches it.
  *   2. **The four hidden bodies.** `select: false` has no drizzle counterpart;
  *      `publicColumns` is the replacement, and it is worthless if the registry
- *      drifts from the columns Mongoose actually protected.
+ *      drifts from the columns that must stay hidden.
  *   3. **The child tables.** `to`/`cc`/`bcc` and `attachments` became rows
  *      precisely so they could be searched and joined; a `jsonb` port would
  *      pass a round-trip test and fail every one of those reads.
@@ -41,9 +41,9 @@ const GENERATED_ALWAYS = '428C9';
  *
  * Deriving them would make the assertion tautological: deleting a registry
  * entry would delete the expectation with it. This is the independent statement
- * of what Mongo protected.
+ * of which message bodies are protected.
  */
-const MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS = ['text', 'html', 'headers', 'encryptedBody'] as const;
+const BASE_PROTECTED_MESSAGE_FIELDS = ['text', 'html', 'headers', 'encryptedBody'] as const;
 
 const unique = () => randomUUID().replace(/-/g, '');
 
@@ -86,15 +86,14 @@ async function mailbox(userId: string, path = `INBOX-${unique()}`): Promise<stri
 }
 
 async function insertMessage(
-  values: Partial<typeof messages.$inferInsert> & { userId: string; mailboxId: string }
+  values: Partial<typeof messages.$inferInsert> & { userId: string; mailboxId: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(messages)
     .values({
       messageId: `<${unique()}@oxy.so>`,
       fromAddress: 'sender@example.com',
-      // NOT NULL with no default — the writer always supplies it, which is what
-      // Mongoose's application-side `default: ''` did.
+      // NOT NULL with no default — the writer always supplies it.
       subject: '',
       size: 2048,
       date: new Date(),
@@ -113,8 +112,8 @@ afterAll(async () => {
 });
 
 describe('messages — the weighted text index', () => {
-  it('ranks a subject match ten times a body match, as Mongo weighted it', async () => {
-    // Mongo: `weights: {subject: 10, text: 1}`. Postgres weights are FIXED
+  it('ranks a subject match ten times a body match', async () => {
+    // Intended weights: subject 10, text 1. Postgres weights are FIXED
     // multipliers — A=1.0, B=0.4, C=0.2, D=0.1 — so only the A/D pair
     // reproduces the ratio. B or C would index fine and quietly re-rank every
     // search result, which is why this compares RANKS and not just matches.
@@ -181,7 +180,7 @@ describe('messages — the weighted text index', () => {
     const error = await rejection(
       getDb().execute(sql`
         update messages set search_vector = to_tsvector('english', 'a lie') where id = ${id}
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(GENERATED_ALWAYS);
@@ -193,7 +192,10 @@ describe('messages — the weighted text index', () => {
     const term = `gammaword${unique().slice(0, 8)}`;
     const id = await insertMessage({ userId, mailboxId, subject: 'before' });
 
-    await getDb().update(messages).set({ subject: `now with ${term}` }).where(eq(messages.id, id));
+    await getDb()
+      .update(messages)
+      .set({ subject: `now with ${term}` })
+      .where(eq(messages.id, id));
 
     const matches = await getDb().execute<{ id: string }>(sql`
       select id from messages
@@ -214,8 +216,8 @@ describe('messages — the weighted text index', () => {
 });
 
 describe('messages — the protected bodies', () => {
-  it('protects every column Mongoose marked `select: false`', () => {
-    for (const field of MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS) {
+  it('protects every hidden body column', () => {
+    for (const field of BASE_PROTECTED_MESSAGE_FIELDS) {
       expect([...MESSAGES_PROTECTED_COLUMNS]).toContain(field);
     }
   });
@@ -223,13 +225,13 @@ describe('messages — the protected bodies', () => {
   it('protects the search vector too, and states why that is the only addition', () => {
     // `search_vector` is derived FROM `text` and carries every lexeme with its
     // position, so a guard on the source alone is not a guard. It is the ONLY
-    // entry beyond the Mongoose set — anything else appearing here is a
+    // entry beyond the base set — anything else appearing here is a
     // decision somebody must justify, not a silent addition.
-    const beyondMongoose = MESSAGES_PROTECTED_COLUMNS.filter(
-      (column) => !(MONGOOSE_SELECT_FALSE_MESSAGE_FIELDS as readonly string[]).includes(column)
+    const beyondBase = MESSAGES_PROTECTED_COLUMNS.filter(
+      (column) => !(BASE_PROTECTED_MESSAGE_FIELDS as readonly string[]).includes(column),
     );
 
-    expect(beyondMongoose).toEqual(['searchVector']);
+    expect(beyondBase).toEqual(['searchVector']);
   });
 
   it('withholds exactly those columns from publicColumns and nothing else', () => {
@@ -241,7 +243,7 @@ describe('messages — the protected bodies', () => {
     }
     const missing = all.filter(
       (name) =>
-        !selectable.has(name) && !(MESSAGES_PROTECTED_COLUMNS as readonly string[]).includes(name)
+        !selectable.has(name) && !(MESSAGES_PROTECTED_COLUMNS as readonly string[]).includes(name),
     );
     expect(missing).toEqual([]);
     // The columns a list view is actually built from must survive.
@@ -263,7 +265,10 @@ describe('messages — the protected bodies', () => {
       headers: { received: 'from mx.example.com (203.0.113.9)' },
     });
 
-    const [row] = await getDb().select(publicColumns(messages, PROTECTED_COLUMNS_BY_TABLE)).from(messages).where(eq(messages.id, id));
+    const [row] = await getDb()
+      .select(publicColumns(messages, PROTECTED_COLUMNS_BY_TABLE))
+      .from(messages)
+      .where(eq(messages.id, id));
     const serialized = JSON.stringify(row);
 
     expect(Object.keys(row)).not.toContain('text');
@@ -296,12 +301,14 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const mailboxId = await mailbox(userId);
     const messageId = await insertMessage({ userId, mailboxId });
 
-    await getDb().insert(messageRecipients).values([
-      { messageId, kind: 'to', ord: 0, name: 'Ada', address: 'ada@example.com' },
-      { messageId, kind: 'to', ord: 1, address: 'grace@example.com' },
-      { messageId, kind: 'cc', ord: 0, address: 'alan@example.com' },
-      { messageId, kind: 'bcc', ord: 0, address: 'edsger@example.com' },
-    ]);
+    await getDb()
+      .insert(messageRecipients)
+      .values([
+        { messageId, kind: 'to', ord: 0, name: 'Ada', address: 'ada@example.com' },
+        { messageId, kind: 'to', ord: 1, address: 'grace@example.com' },
+        { messageId, kind: 'cc', ord: 0, address: 'alan@example.com' },
+        { messageId, kind: 'bcc', ord: 0, address: 'edsger@example.com' },
+      ]);
 
     const to = await getDb()
       .select({ address: messageRecipients.address, name: messageRecipients.name })
@@ -322,10 +329,12 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const first = await insertMessage({ userId, mailboxId });
     const second = await insertMessage({ userId, mailboxId });
 
-    await getDb().insert(messageRecipients).values([
-      { messageId: first, kind: 'to', ord: 0, address },
-      { messageId: second, kind: 'bcc', ord: 0, address },
-    ]);
+    await getDb()
+      .insert(messageRecipients)
+      .values([
+        { messageId: first, kind: 'to', ord: 0, address },
+        { messageId: second, kind: 'bcc', ord: 0, address },
+      ]);
 
     const found = await getDb()
       .select({ messageId: messageRecipients.messageId, kind: messageRecipients.kind })
@@ -347,7 +356,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     const error = await rejection(
       getDb()
         .insert(messageRecipients)
-        .values({ messageId, kind: 'to', ord: 0, address: 'b@example.com' })
+        .values({ messageId, kind: 'to', ord: 0, address: 'b@example.com' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
@@ -355,7 +364,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
     await expect(
       getDb()
         .insert(messageRecipients)
-        .values({ messageId, kind: 'cc', ord: 0, address: 'b@example.com' })
+        .values({ messageId, kind: 'cc', ord: 0, address: 'b@example.com' }),
     ).resolves.toBeDefined();
   });
 
@@ -368,7 +377,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
       getDb().execute(sql`
         insert into message_recipients (id, message_id, kind, ord, address)
         values (${unique()}, ${messageId}, 'reply-to', 0, 'x@example.com')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -393,7 +402,7 @@ describe('message_recipients — one table, a kind discriminator, real order', (
   });
 });
 
-describe('message_attachments — the reverse lookup Mongo indexed for', () => {
+describe('message_attachments — the reverse lookup by file', () => {
   it('finds every message referencing one file, scoped to a user', async () => {
     const userId = await owner();
     const other = await owner();
@@ -414,24 +423,26 @@ describe('message_attachments — the reverse lookup Mongo indexed for', () => {
 
     const mine = await insertMessage({ userId, mailboxId });
     const theirs = await insertMessage({ userId: other, mailboxId: otherMailbox });
-    await getDb().insert(messageAttachments).values([
-      {
-        messageId: mine,
-        ord: 0,
-        fileId: file.id,
-        name: 'a.pdf',
-        contentType: 'application/pdf',
-        size: 10,
-      },
-      {
-        messageId: theirs,
-        ord: 0,
-        fileId: file.id,
-        name: 'a.pdf',
-        contentType: 'application/pdf',
-        size: 10,
-      },
-    ]);
+    await getDb()
+      .insert(messageAttachments)
+      .values([
+        {
+          messageId: mine,
+          ord: 0,
+          fileId: file.id,
+          name: 'a.pdf',
+          contentType: 'application/pdf',
+          size: 10,
+        },
+        {
+          messageId: theirs,
+          ord: 0,
+          fileId: file.id,
+          name: 'a.pdf',
+          contentType: 'application/pdf',
+          size: 10,
+        },
+      ]);
 
     const found = await getDb()
       .select({ id: messages.id })
@@ -444,7 +455,7 @@ describe('message_attachments — the reverse lookup Mongo indexed for', () => {
 });
 
 describe('messages — flags, arrays and the extracted card', () => {
-  it('stores the six flags as columns with the defaults Mongo declared', async () => {
+  it('stores the six flags as columns with their declared defaults', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
     const id = await insertMessage({ userId, mailboxId });
@@ -486,7 +497,7 @@ describe('messages — flags, arrays and the extracted card', () => {
     expect(found.map((row) => row.id)).toEqual([tagged]);
   });
 
-  it('defaults both arrays to empty, never null — Mongo defaulted to []', async () => {
+  it('defaults both arrays to empty, never null', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
     const id = await insertMessage({ userId, mailboxId });
@@ -519,19 +530,18 @@ describe('messages — flags, arrays and the extracted card', () => {
     expect(row.cardType).toBe('purchase');
     expect(row.cardData).toEqual({ total: '42.00', currency: 'EUR' });
 
-    // Mongo required `type` INSIDE the sub-document, so "a card exists" and
-    // "the card has a type" were one statement. Flattened to columns they are
-    // two, and the CHECK is what keeps them one.
+    // "A card exists" and "the card has a type" must be one statement.
+    // Flattened to columns they are two, and the CHECK is what keeps them one.
     const error = await rejection(
       getDb().execute(sql`
         insert into messages (id, user_id, mailbox_id, message_id, from_address, subject, size, date, card_data)
         values (${unique()}, ${userId}, ${mailboxId}, ${unique()}, 'a@b.c', '', 1, now(), '{"total":"1"}'::jsonb)
-      `)
+      `),
     );
     expect(pgConstraint(error)).toBe('messages_card_complete_check');
   });
 
-  it('refuses a negative size — Mongo`s `min: 0`', async () => {
+  it('refuses a negative size', async () => {
     const userId = await owner();
     const mailboxId = await mailbox(userId);
 
@@ -547,12 +557,14 @@ describe('mailboxes and the deletes that hang off them', () => {
     await getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path });
 
     const error = await rejection(
-      getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path })
+      getDb().insert(mailboxes).values({ userId: first, name: 'Projects', path }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     await expect(
-      getDb().insert(mailboxes).values({ userId: await owner(), name: 'Projects', path })
+      getDb()
+        .insert(mailboxes)
+        .values({ userId: await owner(), name: 'Projects', path }),
     ).resolves.toBeDefined();
   });
 
@@ -633,11 +645,11 @@ describe('messages — the partial indexes that replaced boolean-wide ones', () 
     `);
     const byName = new Map(rows.map((row) => [row.indexname, row.indexdef]));
 
-    // Mongo indexed BOTH values of each boolean; only one is ever queried.
+    // Only one value of each boolean is ever queried, so the index is partial.
     expect(byName.get('messages_unseen_idx')).toContain('WHERE');
     expect(byName.get('messages_unseen_idx')).toContain('NOT');
     expect(byName.get('messages_starred_idx')).toContain('WHERE');
-    // Mongo's two `sparse` cron indexes.
+    // The two cron indexes cover only rows that carry a time.
     expect(byName.get('messages_snoozed_until_idx')).toContain('IS NOT NULL');
     expect(byName.get('messages_scheduled_at_idx')).toContain('IS NOT NULL');
     // The listing index carries the sort every list actually issues.

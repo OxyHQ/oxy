@@ -15,10 +15,10 @@
  * the whole response collapsed to `null`. The PENDING case below is that EXACT
  * shape and MUST parse.
  *
- * Two port-specific hazards this now also covers: `authorized_session_id` /
+ * Two storage hazards this also covers: `authorized_session_id` /
  * `authorized_user_id` are NULLABLE columns (not absent fields), and `purpose`
- * is `NOT NULL DEFAULT 'device_sign_in'` — the `?? 'device_sign_in'` fallback for
- * pre-field Mongo documents does not travel.
+ * is `NOT NULL DEFAULT 'device_sign_in'`, so no missing-purpose fallback is
+ * needed.
  */
 
 import express from 'express';
@@ -74,15 +74,18 @@ let server: http.Server;
 function get(path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => {
-        raw += chunk;
-      });
-      res.on('end', () =>
-        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-      );
-    });
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -93,7 +96,9 @@ async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise
   return row.id;
 }
 
-async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+async function application(
+  fields: Partial<typeof applications.$inferInsert> = {},
+): Promise<string> {
   const ownerAccountId = await account();
   const [row] = await getDb()
     .insert(applications)
@@ -216,8 +221,8 @@ describe('GET /auth/session/status/:sessionToken — @oxy.so/contracts sessionSt
 
   it('omits an absent optional rather than emitting null', async () => {
     // `serializePublicApplication` drops undefined/null optionals entirely, and
-    // Drizzle hands it `null` where Mongoose handed it `undefined` — so this is
-    // exactly where the port could have started emitting `termsUrl: null`.
+    // Drizzle hands it `null` for an unset column — so this is exactly where
+    // `termsUrl: null` could start leaking onto the wire.
     const applicationId = await application({ privacyPolicyUrl: null, termsUrl: null });
     const sessionToken = await authRequest({ applicationId });
 
@@ -275,8 +280,14 @@ describe('GET /auth/session/status/:sessionToken — @oxy.so/contracts sessionSt
     });
     const withoutProgress = await authRequest();
 
-    const a = (await get(`/auth/session/status/${withProgress}`)).body.data as Record<string, unknown>;
-    const b = (await get(`/auth/session/status/${withoutProgress}`)).body.data as Record<string, unknown>;
+    const a = (await get(`/auth/session/status/${withProgress}`)).body.data as Record<
+      string,
+      unknown
+    >;
+    const b = (await get(`/auth/session/status/${withoutProgress}`)).body.data as Record<
+      string,
+      unknown
+    >;
 
     expect(a.pushSentAt).toBe('2026-07-27T10:00:00.000Z');
     expect(a.openedAt).toBe('2026-07-27T10:00:05.000Z');

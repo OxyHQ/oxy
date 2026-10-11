@@ -60,7 +60,9 @@ import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/c
 import { useAuthStore } from '../../src/ui/stores/authStore';
 import { createSessionClient } from '../../src/ui/session';
 
-const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<typeof createSessionClient>;
+const mockedCreateSessionClient = createSessionClient as jest.MockedFunction<
+  typeof createSessionClient
+>;
 
 type StateListener = (state: DeviceSessionState | null) => void;
 
@@ -163,7 +165,11 @@ describe('SessionClient projection into OxyContext (Task 1 — additive, inert u
     const setCurrentAccountId = jest.fn();
     mockedCreateSessionClient.mockReturnValue({
       client: fake.fakeClient as never,
-      host: { setCurrentAccountId, setDeviceCredential: jest.fn(), getDeviceCredential: () => null } as never,
+      host: {
+        setCurrentAccountId,
+        setDeviceCredential: jest.fn(),
+        getDeviceCredential: () => null,
+      } as never,
     });
 
     const sink = makeSink();
@@ -191,7 +197,11 @@ describe('SessionClient projection into OxyContext (Task 1 — additive, inert u
     const fake = buildFakeClient(null);
     mockedCreateSessionClient.mockReturnValue({
       client: fake.fakeClient as never,
-      host: { setCurrentAccountId: jest.fn(), setDeviceCredential: jest.fn(), getDeviceCredential: () => null } as never,
+      host: {
+        setCurrentAccountId: jest.fn(),
+        setDeviceCredential: jest.fn(),
+        getDeviceCredential: () => null,
+      } as never,
     });
 
     const sink = makeSink();

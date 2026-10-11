@@ -63,7 +63,11 @@ import { lockLiveAgentKeyForAuthorization } from './agentKeyAuthority.service';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
-import { intersectScopes, isUserConsentRequiredScope, userConsentRequiredScopes } from '../utils/applicationScopes';
+import {
+  intersectScopes,
+  isUserConsentRequiredScope,
+  userConsentRequiredScopes,
+} from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   issueAuthCode,
@@ -142,11 +146,11 @@ export function decideOAuthConsent(input: OAuthConsentInput): OAuthConsentDecisi
  * Record (or refresh) a user's standing consent for an application — the
  * "Connected apps" entry. Upsert on `(user_id, application_id)`.
  *
- * The scope merge is Mongo's `$addToSet: { scopes: { $each } }`: the granted set
- * is a UNION that keeps each scope's FIRST position, so an existing grant keeps
- * the order it was written in and genuinely new scopes are appended.
- * `first_granted_at` is deliberately absent from the conflict branch — that is
- * `$setOnInsert`, and re-stamping it would erase when the user first consented.
+ * The scope merge is a set UNION that keeps each scope's FIRST position, so an
+ * existing grant keeps the order it was written in and genuinely new scopes are
+ * appended. `first_granted_at` is deliberately absent from the conflict branch —
+ * it is set on insert only, and re-stamping it would erase when the user first
+ * consented.
  *
  * `updated_at` is set explicitly: drizzle's `$onUpdate` fires for `db.update()`,
  * not for the update arm of an upsert.
@@ -156,7 +160,7 @@ async function recordAppGrant(
   userId: string,
   applicationId: string,
   scopes: string[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   await db
     .insert(appGrants)
@@ -179,7 +183,6 @@ async function recordAppGrant(
     });
 }
 
-
 export interface PersistOAuthAuthorizationInput {
   decision: OAuthConsentDecision;
   /**
@@ -196,12 +199,16 @@ export interface PersistOAuthAuthorizationInput {
  * them cannot be stored; nothing is then left behind and no code exists.
  */
 export async function persistOAuthAuthorization(
-  input: PersistOAuthAuthorizationInput
+  input: PersistOAuthAuthorizationInput,
 ): Promise<IssueCodeResult> {
   const { decision, code } = input;
   return getDb().transaction(async (tx) => {
     if (code.authMethod) {
-      await lockLiveAgentKeyForAuthorization(tx, code.authMethod, code.operatedByUserId ?? code.userId);
+      await lockLiveAgentKeyForAuthorization(
+        tx,
+        code.authMethod,
+        code.operatedByUserId ?? code.userId,
+      );
     }
     if (decision.recordGrant || decision.clearsActingAsRevocation) {
       await bumpServiceActingAsEpoch(code.userId, code.appId, tx);

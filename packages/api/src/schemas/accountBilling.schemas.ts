@@ -110,9 +110,7 @@ export const topUpCheckoutBody = z
   })
   .strict();
 
-export const accountPortalBody = z
-  .object({ returnUrl: z.string().url().max(2048) })
-  .strict();
+export const accountPortalBody = z.object({ returnUrl: z.string().url().max(2048) }).strict();
 
 /**
  * Issue promotional credit. Staff-only at the route.

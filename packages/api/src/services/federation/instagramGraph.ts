@@ -40,12 +40,24 @@ const NOT_A_BUSINESS_ACCOUNT_SUBCODE = 2207013;
 const INSTAGRAM_USERNAME = /^[a-z0-9._]{1,30}$/;
 const GRAPH_USER_ID = /^[0-9]{1,32}$/;
 
-export type InstagramGraphFailureReason = 'not_configured' | 'invalid_username' | 'not_found' | 'throttled'
-  | 'token_invalid' | 'http_status' | 'transport_unavailable' | 'unreadable_document' | 'identity_mismatch';
-export type InstagramGraphLookup = { ok: true; profile: ExternalActorProfile; igUserId: string }
+export type InstagramGraphFailureReason =
+  | 'not_configured'
+  | 'invalid_username'
+  | 'not_found'
+  | 'throttled'
+  | 'token_invalid'
+  | 'http_status'
+  | 'transport_unavailable'
+  | 'unreadable_document'
+  | 'identity_mismatch';
+export type InstagramGraphLookup =
+  | { ok: true; profile: ExternalActorProfile; igUserId: string }
   | { ok: false; reason: InstagramGraphFailureReason };
 
-interface GraphConfig { token: string; businessAccountId: string }
+interface GraphConfig {
+  token: string;
+  businessAccountId: string;
+}
 
 /** Read per call so a credential rotation (or a test) needs no process restart. */
 export function instagramGraphConfig(): GraphConfig | null {
@@ -85,7 +97,11 @@ export function instagramUsernameFromAcct(acct: string): string | null {
 
 /** A handle or instagram.com profile URL naming an Instagram account → `<username>@instagram.com`. */
 export function instagramAcctFromHandle(value: string): string | null {
-  const acct = (federatedUsernameFromUpstreamUrl(value) ?? value).trim().replace(/^acct:/i, '').replace(/^@/, '').toLowerCase();
+  const acct = (federatedUsernameFromUpstreamUrl(value) ?? value)
+    .trim()
+    .replace(/^acct:/i, '')
+    .replace(/^@/, '')
+    .toLowerCase();
   if (!acct.endsWith(`@${INSTAGRAM_NETWORK_DOMAIN}`)) return null;
   const username = instagramUsernameFromAcct(acct);
   return username ? `${username}@${INSTAGRAM_NETWORK_DOMAIN}` : null;
@@ -109,27 +125,49 @@ function remember(username: string, result: InstagramGraphLookup): InstagramGrap
   return result;
 }
 
-function fail(reason: InstagramGraphFailureReason, context: Record<string, unknown> = {}): InstagramGraphLookup {
-  logger.warn('Instagram Graph lookup failed', { operation: 'instagram_graph_business_discovery', reason, ...context });
+function fail(
+  reason: InstagramGraphFailureReason,
+  context: Record<string, unknown> = {},
+): InstagramGraphLookup {
+  logger.warn('Instagram Graph lookup failed', {
+    operation: 'instagram_graph_business_discovery',
+    reason,
+    ...context,
+  });
   return { ok: false, reason };
 }
 
 function readJsonLimited(response: IncomingMessage): Promise<Record<string, unknown> | null> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
-    const finish = (value: Record<string, unknown> | null) => { if (!settled) { settled = true; resolve(value); } };
+    const finish = (value: Record<string, unknown> | null) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
     response.on('data', (chunk: Buffer) => {
       total += chunk.length;
-      if (total > GRAPH_MAX_JSON_BYTES) { response.destroy(); finish(null); return; }
+      if (total > GRAPH_MAX_JSON_BYTES) {
+        response.destroy();
+        finish(null);
+        return;
+      }
       chunks.push(chunk);
     });
     response.on('end', () => {
       try {
         const parsed: unknown = JSON.parse(Buffer.concat(chunks, total).toString('utf-8'));
-        finish(parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null);
-      } catch { finish(null); }
+        finish(
+          parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null,
+        );
+      } catch {
+        finish(null);
+      }
     });
     response.on('error', () => finish(null));
     response.on('close', () => finish(null));
@@ -143,9 +181,13 @@ function appUsagePercent(header: string | string[] | undefined): number | undefi
   try {
     const usage: unknown = JSON.parse(raw);
     if (!usage || typeof usage !== 'object') return undefined;
-    const values = Object.values(usage).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const values = Object.values(usage).filter(
+      (value): value is number => typeof value === 'number' && Number.isFinite(value),
+    );
     return values.length ? Math.max(...values) : undefined;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 function stringField(value: unknown, max: number): string | undefined {
@@ -156,7 +198,9 @@ function stringField(value: unknown, max: number): string | undefined {
  * Look one Instagram username up through Business Discovery. Only Business and
  * Creator accounts are visible; a personal or nonexistent account is `not_found`.
  */
-export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promise<InstagramGraphLookup> {
+export async function fetchInstagramGraphProfile(
+  usernameOrAcct: string,
+): Promise<InstagramGraphLookup> {
   const config = instagramGraphConfig();
   if (!config) return { ok: false, reason: 'not_configured' };
   const username = instagramUsernameFromAcct(usernameOrAcct);
@@ -165,7 +209,11 @@ export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promis
   if (cached && cached.expiresAt > Date.now()) return cached.result;
   if (cached) resultCache.delete(username);
   if (cooldownUntil > Date.now()) {
-    return fail('throttled', { username, cooldownRemainingMs: cooldownUntil - Date.now(), phase: 'local_cooldown' });
+    return fail('throttled', {
+      username,
+      cooldownRemainingMs: cooldownUntil - Date.now(),
+      phase: 'local_cooldown',
+    });
   }
 
   // The username is validated against Instagram's alphabet before it is placed
@@ -182,21 +230,43 @@ export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promis
       maxRedirects: 0,
     });
   } catch (error) {
-    return fail('transport_unavailable', { username, ssrfRejected: error instanceof SsrfRejection });
+    return fail('transport_unavailable', {
+      username,
+      ssrfRejected: error instanceof SsrfRejection,
+    });
   }
   const usage = appUsagePercent(res.headers['x-app-usage']);
-  if (usage !== undefined && usage >= APP_USAGE_COOLDOWN_PERCENT) cooldownUntil = Date.now() + THROTTLE_COOLDOWN_MS;
+  if (usage !== undefined && usage >= APP_USAGE_COOLDOWN_PERCENT)
+    cooldownUntil = Date.now() + THROTTLE_COOLDOWN_MS;
   const body = await readJsonLimited(res.response);
-  if (!body) return fail('unreadable_document', { username, httpStatus: res.status, appUsagePercent: usage });
+  if (!body)
+    return fail('unreadable_document', {
+      username,
+      httpStatus: res.status,
+      appUsagePercent: usage,
+    });
 
-  const error = body.error && typeof body.error === 'object' ? body.error as Record<string, unknown> : undefined;
+  const error =
+    body.error && typeof body.error === 'object'
+      ? (body.error as Record<string, unknown>)
+      : undefined;
   if (res.status < 200 || res.status >= 300 || error) {
     const code = typeof error?.code === 'number' ? error.code : undefined;
     const subcode = typeof error?.error_subcode === 'number' ? error.error_subcode : undefined;
-    const context = { username, httpStatus: res.status, code, subcode, appUsagePercent: usage,
-      fbtraceId: stringField(error?.fbtrace_id, 64) };
+    const context = {
+      username,
+      httpStatus: res.status,
+      code,
+      subcode,
+      appUsagePercent: usage,
+      fbtraceId: stringField(error?.fbtrace_id, 64),
+    };
     if (subcode === NOT_A_BUSINESS_ACCOUNT_SUBCODE) {
-      logger.info('Instagram Graph account not discoverable', { operation: 'instagram_graph_business_discovery', reason: 'not_found', ...context });
+      logger.info('Instagram Graph account not discoverable', {
+        operation: 'instagram_graph_business_discovery',
+        reason: 'not_found',
+        ...context,
+      });
       return remember(username, { ok: false, reason: 'not_found' });
     }
     if ((code !== undefined && THROTTLE_ERROR_CODES.has(code)) || res.status === 429) {
@@ -207,12 +277,20 @@ export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promis
     return fail('http_status', context);
   }
 
-  const discovered = body.business_discovery && typeof body.business_discovery === 'object'
-    ? body.business_discovery as Record<string, unknown> : undefined;
-  const igUserId = typeof discovered?.id === 'string' && GRAPH_USER_ID.test(discovered.id) ? discovered.id : undefined;
-  const returnedUsername = typeof discovered?.username === 'string' ? discovered.username.toLowerCase() : undefined;
-  if (!discovered || !igUserId) return fail('unreadable_document', { username, httpStatus: res.status });
-  if (returnedUsername !== username) return fail('identity_mismatch', { username, httpStatus: res.status });
+  const discovered =
+    body.business_discovery && typeof body.business_discovery === 'object'
+      ? (body.business_discovery as Record<string, unknown>)
+      : undefined;
+  const igUserId =
+    typeof discovered?.id === 'string' && GRAPH_USER_ID.test(discovered.id)
+      ? discovered.id
+      : undefined;
+  const returnedUsername =
+    typeof discovered?.username === 'string' ? discovered.username.toLowerCase() : undefined;
+  if (!discovered || !igUserId)
+    return fail('unreadable_document', { username, httpStatus: res.status });
+  if (returnedUsername !== username)
+    return fail('identity_mismatch', { username, httpStatus: res.status });
 
   const acct = `${username}@${INSTAGRAM_NETWORK_DOMAIN}`;
   const picture = stringField(discovered.profile_picture_url, 2048);
@@ -223,7 +301,11 @@ export async function fetchInstagramGraphProfile(usernameOrAcct: string): Promis
     username: acct,
     transportAcct: acct,
     displayName: stringField(discovered.name, 256) ?? username,
-    bio: normalizeExternalBio(sanitizePlainText(stringField(discovered.biography, 4096) ?? ''), INSTAGRAM_NETWORK_DOMAIN, INSTAGRAM_NETWORK_DOMAIN),
+    bio: normalizeExternalBio(
+      sanitizePlainText(stringField(discovered.biography, 4096) ?? ''),
+      INSTAGRAM_NETWORK_DOMAIN,
+      INSTAGRAM_NETWORK_DOMAIN,
+    ),
     avatarUrl: picture?.startsWith('https://') ? picture : undefined,
     // Graph sources carry no rel=me claims and no stable id: they never create
     // cross-network edges and never trigger the stable-owner revocation path.

@@ -1,7 +1,15 @@
 import { createElement, type ComponentProps, type ComponentType } from 'react';
 
 /** Function built-ins and statics a function component must not inherit. */
-const NOT_COPIED = new Set(['length', 'name', 'prototype', 'caller', 'arguments', 'defaultProps', 'displayName']);
+const NOT_COPIED = new Set([
+  'length',
+  'name',
+  'prototype',
+  'caller',
+  'arguments',
+  'defaultProps',
+  'displayName',
+]);
 
 /**
  * Wrap an icon-font family so every glyph it renders is hidden from assistive
@@ -27,7 +35,10 @@ const NOT_COPIED = new Set(['length', 'name', 'prototype', 'caller', 'arguments'
  * over, so the wrapper is a drop-in for the family itself.
  */
 // biome-ignore lint/suspicious/noExplicitAny: an icon family's own props are whatever `createIconSet` typed them as; the wrapper returns the SAME type.
-export function decorativeIconSet<T extends ComponentType<any>>(IconSet: T, displayName: string): T {
+export function decorativeIconSet<T extends ComponentType<any>>(
+  IconSet: T,
+  displayName: string,
+): T {
   function DecorativeIcon(props: ComponentProps<T>) {
     return createElement(IconSet, { ...props, 'aria-hidden': true });
   }

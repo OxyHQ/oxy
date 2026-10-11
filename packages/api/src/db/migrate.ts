@@ -130,8 +130,8 @@ function readRun(argv: readonly string[]): MigrationRun {
   if (flags.length === 0) {
     throw new ConfigurationError(
       `--phase is required. Use one of: ${MIGRATION_RUNS.map((run) => `--phase=${run}`).join(', ')}. ` +
-      'See the header of src/db/migrate.ts for which one a given caller wants; ' +
-      '`--phase=all` is the right answer for a developer database or a manual dispatch.'
+        'See the header of src/db/migrate.ts for which one a given caller wants; ' +
+        '`--phase=all` is the right answer for a developer database or a manual dispatch.',
     );
   }
   if (flags.length > 1) {
@@ -141,7 +141,7 @@ function readRun(argv: readonly string[]): MigrationRun {
   const value = flags[0].slice('--phase='.length);
   if (!(MIGRATION_RUNS as readonly string[]).includes(value)) {
     throw new ConfigurationError(
-      `Unrecognised --phase=${value}. Use one of: ${MIGRATION_RUNS.join(', ')}.`
+      `Unrecognised --phase=${value}. Use one of: ${MIGRATION_RUNS.join(', ')}.`,
     );
   }
   return value as MigrationRun;
@@ -152,7 +152,7 @@ function readRequiredAppliedTags(argv: readonly string[]): string[] {
   const flags = argv.filter((argument) => argument.startsWith('--require-applied='));
   if (flags.length > 1) {
     throw new ConfigurationError(
-      `--require-applied was given ${flags.length} times: ${flags.join(' ')}.`
+      `--require-applied was given ${flags.length} times: ${flags.join(' ')}.`,
     );
   }
   if (flags.length === 0) return [];
@@ -164,7 +164,7 @@ function readRequiredAppliedTags(argv: readonly string[]): string[] {
     new Set(tags).size !== tags.length
   ) {
     throw new ConfigurationError(
-      '--require-applied must be a comma-separated list of unique migration tags.'
+      '--require-applied must be a comma-separated list of unique migration tags.',
     );
   }
   return tags;
@@ -201,9 +201,9 @@ async function acquireMigrationLock(client: postgres.Sql): Promise<void> {
     if (Date.now() >= deadline) {
       throw new Error(
         `Another migration has held the ${MIGRATION_LOCK_NAMESPACE} advisory lock for ` +
-        `${Math.round(LOCK_WAIT_MS / 1000)}s. Refusing to migrate alongside it: drizzle's ` +
-        'migrator takes no lock of its own, so two concurrent runs replay the same DDL. ' +
-        'Find the other run before retrying.'
+          `${Math.round(LOCK_WAIT_MS / 1000)}s. Refusing to migrate alongside it: drizzle's ` +
+          'migrator takes no lock of its own, so two concurrent runs replay the same DDL. ' +
+          'Find the other run before retrying.',
       );
     }
 
@@ -229,7 +229,7 @@ async function main(): Promise<void> {
   if (!url) {
     throw new ConfigurationError(
       'DATABASE_URL is not set. See packages/api/.env.example, or start a local ' +
-      'Postgres with: docker compose -f docker-compose.dev.yml up -d postgres'
+        'Postgres with: docker compose -f docker-compose.dev.yml up -d postgres',
     );
   }
 

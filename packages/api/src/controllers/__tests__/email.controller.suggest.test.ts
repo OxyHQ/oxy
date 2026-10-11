@@ -1,11 +1,9 @@
 /**
  * `GET /email/contacts/suggest`, against a REAL Postgres.
  *
- * Mongo built the candidate set with `$concatArrays` of `from`, `to` and `cc`
- * followed by `$unwind` — an operation that only existed because all three
- * lived on one document. `to` and `cc` are a child table now, so the concat IS
- * a union, and the two halves have to be joined back to `messages` to stay
- * scoped to the reading account.
+ * The candidate set is `from`, `to` and `cc`. `to` and `cc` are a child table,
+ * so the set is a union, and the two halves have to be joined back to
+ * `messages` to stay scoped to the reading account.
  *
  * That join is a CORRELATED shape, and the failure mode it has in Drizzle is an
  * empty result with no error at all (`db/schema/CONVENTIONS.md`). So the
@@ -47,7 +45,10 @@ interface SuggestRequest {
 }
 
 /** Call the handler and return what it wrote to the response. */
-async function suggest(userId: string, q: string): Promise<Array<{ name: string | null; address: string }>> {
+async function suggest(
+  userId: string,
+  q: string,
+): Promise<Array<{ name: string | null; address: string }>> {
   let captured: Array<{ name: string | null; address: string }> = [];
   const res = {
     json: (payload: { data: Array<{ name: string | null; address: string }> }) => {
@@ -80,7 +81,10 @@ async function store(
   userId: string,
   mailboxId: string,
   from: { name?: string; address: string },
-  recipients: { to?: Array<{ name?: string; address: string }>; cc?: Array<{ name?: string; address: string }> } = {},
+  recipients: {
+    to?: Array<{ name?: string; address: string }>;
+    cc?: Array<{ name?: string; address: string }>;
+  } = {},
   date = new Date(),
 ): Promise<string> {
   const [row] = await getDb()
@@ -205,7 +209,7 @@ describe('suggestContacts — the union that replaced $concatArrays', () => {
   });
 
   it('prefers the most recently used spelling of a name', async () => {
-    // `$first` after no `$sort` picked whichever document Mongo scanned first.
+    // Without an explicit order, "first" would be whichever row the scan hit first.
     const userId = await owner();
     const mailboxId = await folder(userId);
     const tag = unique().slice(0, 8);

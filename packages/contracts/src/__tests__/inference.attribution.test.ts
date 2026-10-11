@@ -34,9 +34,9 @@ describe('billingPrincipalSchema', () => {
     // ADR 0007: the delegated end user is never the billing identity. Strict
     // rather than stripping, because a stripped field still exists upstream of
     // the parse — in the caller that set it, and in whatever it logs.
-    expect(
-      billingPrincipalSchema.safeParse({ accountId: 'acc_1', userId: 'usr_1' }).success,
-    ).toBe(false);
+    expect(billingPrincipalSchema.safeParse({ accountId: 'acc_1', userId: 'usr_1' }).success).toBe(
+      false,
+    );
   });
 
   it('rejects an empty account id', () => {

@@ -1419,7 +1419,7 @@ Affected: `ReputationCategory`, `TrustTier`, `ReputationTransactionStatus`,
 **One shape changed as well.** `ReputationLeaderboardEntry.user` was
 `Pick<User, …> & Partial<User>`; it is now the pinned
 **`ReputationLeaderboardUser`** (`id`, `username`, `name`, `avatar?`,
-`publicKey?`). The API was emitting Mongo's `_id` on that object, so `user.id`
+`publicKey?`). The API was emitting the raw `_id` on that object, so `user.id`
 was `undefined` for every leaderboard row — it now really is the user id.
 
 ### BREAKING — reputation balance view split

@@ -1,34 +1,32 @@
 /**
- * Expiry Sweep Registry — the replacement for Mongo TTL indexes
+ * Expiry Sweep Registry — row expiry for this schema
  *
- * Postgres has no TTL index. Fourteen models relied on one, so every table
- * that needs it adds an entry here rather than growing its own cleanup path.
+ * Postgres has no TTL index. Fourteen tables need their rows expired, so every
+ * table that needs it adds an entry here rather than growing its own cleanup path.
  * The mechanism that reads this registry (`sweepExpiredRows`,
  * `sweepAllExpiredRows`) lives in `@oxy.so/db/expiry` — shared plumbing with no
  * opinion on which tables to sweep. This registry is this schema's own data.
  *
  * ## The shape
  *
- * A Mongo TTL index is `{ <field>: 1 }, { expireAfterSeconds: N }` — delete a
- * document once `<field>` is more than N seconds in the past. A registry entry
- * is exactly that pair, so no semantic can be lost in translation:
+ * An entry says: delete a row once `<column>` is more than N seconds in the
+ * past.
  *
  *   { table, column, retentionSeconds }  →  delete where column <= now() - N
  *
- * All three uses in the Mongo schema collapse into it:
+ * Three uses collapse into it:
  *
- *   - `expireAfterSeconds: 0` on `expiresAt` — the column IS the deadline
- *     (`retentionSeconds: 0`).
- *   - `expireAfterSeconds: N` on `createdAt`/`timestamp` — a retention window
+ *   - `retentionSeconds: 0` on `expiresAt` — the column IS the deadline.
+ *   - `retentionSeconds: N` on `createdAt`/`timestamp` — a retention window
  *     on a birth column.
- *   - `expireAfterSeconds: N` on `expiresAt` — a deliberate GRACE window: the
+ *   - `retentionSeconds: N` on `expiresAt` — a deliberate GRACE window: the
  *     row outlives its own deadline by N seconds so a read can still answer
  *     "expired" rather than "never existed". Same entry, different column.
  *
  * ## Coexistence with read paths — the part that must not be lost
  *
- * Mongo's TTL monitor runs about once a minute, so an expired document stays
- * readable for up to ~60s. A sweep has the same property. Two classes of read
+ * A sweep runs on an interval, so an expired row stays readable until the next
+ * pass. Two classes of read
  * path exist today and they are NOT interchangeable:
  *
  *   (A) Reads that filter on expiry themselves — `expiresAt: { $gt: new Date() }`
@@ -100,10 +98,7 @@ import {
 import { senderAvatars } from './schema/senderAvatars';
 import { sessions } from './schema/sessions';
 
-import {
-  API_KEY_USAGE_RETENTION_SECONDS,
-  apiKeyUsageEvents,
-} from './schema/apiKeyUsageEvents';
+import { API_KEY_USAGE_RETENTION_SECONDS, apiKeyUsageEvents } from './schema/apiKeyUsageEvents';
 import {
   INFERENCE_USAGE_RETENTION_SECONDS,
   inferenceUsageEvents,
@@ -130,7 +125,7 @@ import {
 export const EXPIRY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
- * Every table that had a Mongo TTL index. A table with an expiry column but no
+ * Every table whose rows expire. A table with an expiry column but no
  * entry here is never swept.
  */
 export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
@@ -192,10 +187,10 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: mcpOauthAccountLinkIntents.expiresAt,
     retentionSeconds: 300,
     reason:
-      'Five-minute replay-detection grace after the link deadline, matching the '
-      + 'authorization codes: approval filters expiry and atomically stamps '
-      + '`used_at`, so a spent invitation is recognised as spent rather than as '
-      + 'an unknown link.',
+      'Five-minute replay-detection grace after the link deadline, matching the ' +
+      'authorization codes: approval filters expiry and atomically stamps ' +
+      '`used_at`, so a spent invitation is recognised as spent rather than as ' +
+      'an unknown link.',
   },
   {
     table: mcpOauthAccessTokens,
@@ -294,7 +289,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     reason:
       'SECURITY parameter, not housekeeping: the row IS the used-nonce record, ' +
       'so deleting it frees its hash for reuse. The 10-minute pad is how long ' +
-      'a replay stays detectable past the nonce\'s own deadline.',
+      "a replay stays detectable past the nonce's own deadline.",
   },
   {
     table: securityActivities,
@@ -311,7 +306,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       'Bounds the avatar cache. Housekeeping ONLY because the port adds the ' +
-      'read-side filter Mongo never had — `senderAvatarIsFresh()`. Without ' +
+      'read-side filter `senderAvatarIsFresh()`. Without ' +
       'that filter this entry would be the sole thing keeping a stale avatar ' +
       'off the screen, which is the class-(B) read this module warns about.',
   },
@@ -345,7 +340,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: apiKeyUsageEvents.createdAt,
     retentionSeconds: API_KEY_USAGE_RETENTION_SECONDS,
     reason:
-      'Ninety days of request telemetry, exactly as the Mongo TTL kept. The ' +
+      'Ninety days of request telemetry. The ' +
       'two readers already bound their own window (`timestamp: { $gte: since }`, ' +
       '`routes/credits.ts:59` and `routes/applications.ts:961`), so the sweep ' +
       'is housekeeping and no reported figure depends on it running.',
@@ -379,7 +374,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: storageObjectDeletions.completedAt,
     retentionSeconds: STORAGE_OBJECT_DELETION_RETENTION_SECONDS,
     reason:
-      'Thirty days of proof that a deleted account\'s stored uploads were ' +
+      "Thirty days of proof that a deleted account's stored uploads were " +
       'removed, keyed on COMPLETION: an unfinished row has a NULL ' +
       '`completed_at`, which no range predicate matches, so a deletion still ' +
       'retrying is never swept away with its keys.',

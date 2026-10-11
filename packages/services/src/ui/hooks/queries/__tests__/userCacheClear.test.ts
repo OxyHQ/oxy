@@ -45,9 +45,7 @@ function readByUsername(
   username: string,
   viewerId: string,
 ): CacheableUser | undefined {
-  return qc.getQueryData<CacheableUser>(
-    queryKeys.users.byUsername(username, viewerId),
-  );
+  return qc.getQueryData<CacheableUser>(queryKeys.users.byUsername(username, viewerId));
 }
 
 /** A warm, fully-populated entry — what an authoritative profile fetch stored. */
@@ -129,27 +127,24 @@ describe('upsertCachedUser — a declared clear empties the field', () => {
     ['present but empty (the measured oxy-api shape)', clearedResponse],
     ['an explicit empty displayName (the request shape)', clearedByEmptyString],
     ['no `name` key at all', { id: 'u1', username: 'alice' } as CacheableUser],
-  ])(
-    'drops a stale display name only when declared — incoming name %s',
-    (_label, incoming) => {
-      const guarded = makeClient();
-      seedFullEntry(guarded);
-      upsertCachedUser(guarded, incoming, '');
-      expect(readById(guarded, 'u1')?.name).toEqual({
-        displayName: 'Alice A',
-        first: 'Alice',
-      });
+  ])('drops a stale display name only when declared — incoming name %s', (_label, incoming) => {
+    const guarded = makeClient();
+    seedFullEntry(guarded);
+    upsertCachedUser(guarded, incoming, '');
+    expect(readById(guarded, 'u1')?.name).toEqual({
+      displayName: 'Alice A',
+      first: 'Alice',
+    });
 
-      const cleared = makeClient();
-      seedFullEntry(cleared);
-      upsertCachedUser(cleared, incoming, '', {
-        cleared: ['name.displayName'],
-      });
-      // `first` is not what was cleared and must survive — a clear is per-field,
-      // not "drop the whole `name` object".
-      expect(readById(cleared, 'u1')?.name).toEqual({ first: 'Alice' });
-    },
-  );
+    const cleared = makeClient();
+    seedFullEntry(cleared);
+    upsertCachedUser(cleared, incoming, '', {
+      cleared: ['name.displayName'],
+    });
+    // `first` is not what was cleared and must survive — a clear is per-field,
+    // not "drop the whole `name` object".
+    expect(readById(cleared, 'u1')?.name).toEqual({ first: 'Alice' });
+  });
 
   it('never lets the "Unknown user" sentinel survive a declared display-name clear', () => {
     // The ghost-author sentinel is not a real value, so it must not block the

@@ -3,7 +3,8 @@ import { OxyServices } from '../../OxyServices';
 
 /** An unsigned JWT carrying just a `userId` claim, far from expiry. */
 export function signedInToken(userId: string): string {
-  const encode = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: object): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId, exp: Math.floor(Date.now() / 1000) + 3600 })}.`;
 }
 

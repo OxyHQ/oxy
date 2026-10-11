@@ -39,7 +39,11 @@ import type {
 import { OxyServices } from '../../OxyServices';
 import { canonicalize, signMessage } from '@oxy.so/protocol';
 import { SignatureService } from '../../crypto/signatureService';
-import { parseAttestPayload, parseIdPayload, verifyPublicCardAttestation } from '../../civic/payloads';
+import {
+  parseAttestPayload,
+  parseIdPayload,
+  verifyPublicCardAttestation,
+} from '../../civic/payloads';
 
 /** Route `invalidateCache` into per-key / per-prefix mocks (one pair per client). */
 const cacheSpyMap = new WeakMap<OxyServices, { keys: jest.Mock; prefixes: jest.Mock }>();
@@ -47,11 +51,13 @@ function cacheSpies(client: OxyServices): { keys: jest.Mock; prefixes: jest.Mock
   let spies = cacheSpyMap.get(client);
   if (!spies) {
     const created = { keys: jest.fn(), prefixes: jest.fn() };
-    jest.spyOn(client.http, 'invalidateCache').mockImplementation(({ keys = [], prefixes = [] }) => {
-      for (const key of keys) created.keys(key);
-      for (const prefix of prefixes) created.prefixes(prefix);
-      return 0;
-    });
+    jest
+      .spyOn(client.http, 'invalidateCache')
+      .mockImplementation(({ keys = [], prefixes = [] }) => {
+        for (const key of keys) created.keys(key);
+        for (const prefix of prefixes) created.prefixes(prefix);
+        return 0;
+      });
     cacheSpyMap.set(client, created);
     spies = created;
   }
@@ -72,7 +78,9 @@ const baseCard: PublicCard = {
 };
 
 /** Sign `canonicalize(card)` with a fresh keypair and return the sealed attestation. */
-async function signCard(card: PublicCard): Promise<{ attestation: ExportAttestation; publicKey: string }> {
+async function signCard(
+  card: PublicCard,
+): Promise<{ attestation: ExportAttestation; publicKey: string }> {
   const keyPair = generateSecp256k1KeyPair();
   const privateKey = keyPair.privateKey;
   const publicKey = keyPair.publicKey;
@@ -285,7 +293,9 @@ describe('oxy.civic', () => {
 
     it('throws when no user is authenticated', async () => {
       jest.spyOn(oxy.session, 'userId', 'get').mockReturnValue(null);
-      await expect(oxy.civic.buildAttestQrPayload({ context: 'x' })).rejects.toThrow(/No authenticated user/);
+      await expect(oxy.civic.buildAttestQrPayload({ context: 'x' })).rejects.toThrow(
+        /No authenticated user/,
+      );
     });
   });
 
@@ -304,7 +314,9 @@ describe('oxy.civic', () => {
     });
 
     it('defaults context to "" when ctx is omitted', () => {
-      expect(parseAttestPayload('oxycommons://attest?subject=did:web:oxy.so:u:7&nonce=n&exp=123')).toEqual({
+      expect(
+        parseAttestPayload('oxycommons://attest?subject=did:web:oxy.so:u:7&nonce=n&exp=123'),
+      ).toEqual({
         subjectDid: 'did:web:oxy.so:u:7',
         context: '',
         nonce: 'n',
@@ -403,7 +415,13 @@ describe('oxy.civic', () => {
         .mockResolvedValue({} as SignedRecordEnvelope);
       makeRequestSpy
         .mockResolvedValueOnce({ headRecordId: null, seq: -1, recordCount: 0 })
-        .mockResolvedValueOnce({ accepted: true, recordId: 'r', subjectUserId: 's', attestorUserId: 'user-123', points: 25 });
+        .mockResolvedValueOnce({
+          accepted: true,
+          recordId: 'r',
+          subjectUserId: 's',
+          attestorUserId: 'user-123',
+          points: 25,
+        });
 
       await oxy.civic.attest({
         subjectDid: 'did:web:oxy.so:u:s',
@@ -487,7 +505,12 @@ describe('oxy.civic', () => {
         .mockResolvedValue(signedEnvelope);
       makeRequestSpy
         .mockResolvedValueOnce({ headRecordId: 'rec-0', seq: 0, recordCount: 1 })
-        .mockResolvedValueOnce({ recorded: true, requestId: 'req-1', verdict: 'valid', status: 'quorum_met' });
+        .mockResolvedValueOnce({
+          recorded: true,
+          requestId: 'req-1',
+          verdict: 'valid',
+          status: 'quorum_met',
+        });
 
       const result = await oxy.civic.validation.vote('req-1', 'hash-1', 'valid');
 
@@ -504,7 +527,12 @@ describe('oxy.civic', () => {
         signedEnvelope,
         expect.objectContaining({ cache: false }),
       );
-      expect(result).toEqual({ recorded: true, requestId: 'req-1', verdict: 'valid', status: 'quorum_met' });
+      expect(result).toEqual({
+        recorded: true,
+        requestId: 'req-1',
+        verdict: 'valid',
+        status: 'quorum_met',
+      });
     });
 
     it('throws when no user is authenticated (before any network)', async () => {
@@ -952,7 +980,11 @@ describe('oxy.civic', () => {
         .mockRejectedValueOnce(new Error('self_credential'));
 
       await expect(
-        oxy.civic.credentials.issue({ holderDid: 'did:web:oxy.so:u:holder-1', types: ['X'], claims: {} }),
+        oxy.civic.credentials.issue({
+          holderDid: 'did:web:oxy.so:u:holder-1',
+          types: ['X'],
+          claims: {},
+        }),
       ).rejects.toThrow();
       expect(sweepSpy).not.toHaveBeenCalled();
     });
@@ -961,7 +993,11 @@ describe('oxy.civic', () => {
       jest.spyOn(oxy.session, 'userId', 'get').mockReturnValue(null);
       jest.spyOn(SignatureService, 'generateChallenge').mockResolvedValue('rk');
       await expect(
-        oxy.civic.credentials.issue({ holderDid: 'did:web:oxy.so:u:holder-1', types: ['X'], claims: {} }),
+        oxy.civic.credentials.issue({
+          holderDid: 'did:web:oxy.so:u:holder-1',
+          types: ['X'],
+          claims: {},
+        }),
       ).rejects.toThrow(/No authenticated user/);
       expect(makeRequestSpy).not.toHaveBeenCalled();
     });

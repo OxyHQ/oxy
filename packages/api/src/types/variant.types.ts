@@ -1,6 +1,6 @@
 /**
  * Variant Service Types
- * 
+ *
  * Centralized type definitions for file variant operations.
  */
 
@@ -10,4 +10,3 @@ export interface VariantConfig {
   quality?: number;
   format?: 'webp' | 'jpeg' | 'png';
 }
-

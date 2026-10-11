@@ -11,7 +11,7 @@
  * CLI, the console hook) validates its INPUT against the same definitions, so
  * producer and consumers cannot drift.
  *
- * Domain model (mirrors the Mongoose models in `@oxy.so/api`):
+ * Domain model (mirrors the update tables in `@oxy.so/api`):
  *  - A `channel` (e.g. `production`, `preview`, `pr-123`) is a named release
  *    track for one application.
  *  - An `update` is one published bundle for a single `(channel, runtimeVersion,
@@ -184,9 +184,7 @@ export const createUpdateRequestSchema = z.object({
    * `expoClient` (the public expo config) so `Constants.expoConfig` resolves
    * after an OTA update; MAY carry other third-party config.
    */
-  extra: z
-    .object({ expoClient: z.record(z.string(), z.unknown()) })
-    .catchall(z.unknown()),
+  extra: z.object({ expoClient: z.record(z.string(), z.unknown()) }).catchall(z.unknown()),
   /** String→string metadata dict; filtered client-side via manifest filters. */
   metadata: z.record(z.string(), z.string()).optional(),
   /** Initial rollout percentage (default 100 — full rollout). */

@@ -136,7 +136,7 @@ router.get(
   readLimiter,
   asyncHandler(async (_req: Request, res: Response) => {
     sendSuccess(res, await listCategories());
-  })
+  }),
 );
 
 /** GET /store/apps — published listings, newest first, optionally one shelf. */
@@ -152,7 +152,7 @@ router.get(
     };
     const { items, total } = await listPublishedListings({ categorySlug: category, limit, offset });
     sendPaginated(res, items, total, limit, offset);
-  })
+  }),
 );
 
 /** GET /store/apps/:slug — one page, or 404 if it is not published. */
@@ -166,7 +166,7 @@ router.get(
     // exists is not something an unauthenticated caller gets to learn.
     if (!listing) throw new NotFoundError('App not found');
     sendSuccess(res, listing);
-  })
+  }),
 );
 
 /** GET /store/apps/:slug/reviews — visible reviews, with the publisher's reply. */
@@ -183,7 +183,7 @@ router.get(
     const result = await listReviews({ slug: req.params.slug, limit, offset, sort });
     if (!result) throw new NotFoundError('App not found');
     sendPaginated(res, result.items, result.total, limit, offset);
-  })
+  }),
 );
 
 // ============================================================================
@@ -204,7 +204,7 @@ router.get(
   validate({ params: storeSlugParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await getOwnReview({ slug: req.params.slug, userId: requireUserId(req) }));
-  })
+  }),
 );
 
 /**
@@ -220,7 +220,11 @@ router.put(
   writeLimiter,
   validate({ params: storeSlugParams, body: storeReviewBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { rating, title, body } = req.body as { rating: number; title?: string | null; body?: string | null };
+    const { rating, title, body } = req.body as {
+      rating: number;
+      title?: string | null;
+      body?: string | null;
+    };
     const review = await upsertReview({
       slug: req.params.slug,
       userId: requireUserId(req),
@@ -229,7 +233,7 @@ router.put(
       body,
     });
     sendSuccess(res, review);
-  })
+  }),
 );
 
 /** DELETE /store/apps/:slug/review — withdraw the caller's own review. */
@@ -241,7 +245,7 @@ router.delete(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await deleteOwnReview({ slug: req.params.slug, userId: requireUserId(req) });
     res.status(204).end();
-  })
+  }),
 );
 
 /**
@@ -263,7 +267,7 @@ router.put(
       body: (req.body as { body: string }).body,
     });
     sendSuccess(res, reply);
-  })
+  }),
 );
 
 /** DELETE /store/reviews/:reviewId/reply — withdraw it. Same gate. */
@@ -275,7 +279,7 @@ router.delete(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     await deleteReply({ reviewId: req.params.reviewId, authorUserId: requireUserId(req) });
     res.status(204).end();
-  })
+  }),
 );
 
 // ============================================================================
@@ -299,7 +303,7 @@ router.get(
     const { limit, offset } = req.query as unknown as { limit: number; offset: number };
     const { items, total } = await listListingsAwaitingReview({ limit, offset });
     sendPaginated(res, items, total, limit, offset);
-  })
+  }),
 );
 
 /** POST /store/moderation/listings/:applicationId/approve — publish it. */
@@ -311,7 +315,7 @@ router.post(
   validate({ params: storeModerationParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await approveListing(req.params.applicationId));
-  })
+  }),
 );
 
 /** POST /store/moderation/listings/:applicationId/reject — send it back. */
@@ -323,7 +327,7 @@ router.post(
   validate({ params: storeModerationParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await rejectListing(req.params.applicationId));
-  })
+  }),
 );
 
 /**
@@ -350,7 +354,7 @@ router.post(
       order?: number;
     };
     sendSuccess(res, await createCategory(body), 201);
-  })
+  }),
 );
 
 /** PATCH /store/moderation/categories/:slug — rename, re-word, or reorder it. */
@@ -363,7 +367,7 @@ router.patch(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const patch = req.body as { label?: string; description?: string | null; order?: number };
     sendSuccess(res, await updateCategory(req.params.slug, patch));
-  })
+  }),
 );
 
 /**
@@ -380,7 +384,7 @@ router.delete(
   validate({ params: storeCategoryParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     sendSuccess(res, await deleteCategory(req.params.slug));
-  })
+  }),
 );
 
 export default router;

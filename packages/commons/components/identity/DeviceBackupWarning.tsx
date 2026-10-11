@@ -34,7 +34,12 @@ export function DeviceBackupWarning({ variant }: DeviceBackupWarningProps) {
   const visible = variant === 'prompt' ? showPrompt : showBanner;
 
   const go = useCallback(
-    (href: '/(tabs)/(settings)/recovery-phrase' | '/(tabs)/(settings)/create-backup' | '/(tabs)/(settings)/rotate-key') => {
+    (
+      href:
+        | '/(tabs)/(settings)/recovery-phrase'
+        | '/(tabs)/(settings)/create-backup'
+        | '/(tabs)/(settings)/rotate-key',
+    ) => {
       if (variant === 'prompt') void markPrompted();
       router.push(href);
     },
@@ -51,15 +56,27 @@ export function DeviceBackupWarning({ variant }: DeviceBackupWarningProps) {
       <View style={styles.actions}>
         {hasPhrase ? (
           <>
-            <Button appearance="solid" tone="accent" onPress={() => go('/(tabs)/(settings)/recovery-phrase')}>
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={() => go('/(tabs)/(settings)/recovery-phrase')}
+            >
               {t('deviceBackupWarning.revealPhrase')}
             </Button>
-            <Button appearance="outline" tone="neutral" onPress={() => go('/(tabs)/(settings)/create-backup')}>
+            <Button
+              appearance="outline"
+              tone="neutral"
+              onPress={() => go('/(tabs)/(settings)/create-backup')}
+            >
               {t('deviceBackupWarning.encryptedBackup')}
             </Button>
           </>
         ) : (
-          <Button appearance="solid" tone="accent" onPress={() => go('/(tabs)/(settings)/rotate-key')}>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={() => go('/(tabs)/(settings)/rotate-key')}
+          >
             {t('deviceBackupWarning.rotate')}
           </Button>
         )}

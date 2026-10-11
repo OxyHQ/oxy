@@ -26,10 +26,15 @@ export function useI18n() {
   const oxy = useOptionalOxy();
   const currentLanguage = oxy?.currentLanguage ?? FALLBACK_LOCALE;
   // Core's non-English dictionaries load on demand; re-translate when one lands.
-  const localesVersion = useSyncExternalStore(subscribeLocales, getLocalesVersion, getLocalesVersion);
+  const localesVersion = useSyncExternalStore(
+    subscribeLocales,
+    getLocalesVersion,
+    getLocalesVersion,
+  );
   // biome-ignore lint/correctness/useExhaustiveDependencies: `localesVersion` is the re-translate signal — a new `t` makes consumers re-render once a dictionary lands.
   const t = useMemo(() => {
-    return (key: string, vars?: Record<string, string | number>) => translate(currentLanguage, key, vars);
+    return (key: string, vars?: Record<string, string | number>) =>
+      translate(currentLanguage, key, vars);
   }, [currentLanguage, localesVersion]);
   return { t, locale: currentLanguage };
 }

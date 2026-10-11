@@ -48,7 +48,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     if (currentUserId.length > 0) {
       req.user = { _id: currentUserId, id: currentUserId, isStaff: currentUserIsStaff };
@@ -99,7 +99,7 @@ interface JsonResponse {
 function request(
   method: 'GET' | 'POST' | 'PUT',
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -134,7 +134,7 @@ function request(
           }
           resolve({ status: res.statusCode ?? 0, body: parsed, raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -266,11 +266,15 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
  * handler it was written for; the cases that are ABOUT the capability pass `[]`.
  */
 async function seedStaffUser(
-  staffCapabilities: readonly StaffCapability[] = ['inference:catalogue:publish']
+  staffCapabilities: readonly StaffCapability[] = ['inference:catalogue:publish'],
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
-    .values({ username: `adm-${suffix()}`, isStaff: true, staffCapabilities: [...staffCapabilities] })
+    .values({
+      username: `adm-${suffix()}`,
+      isStaff: true,
+      staffCapabilities: [...staffCapabilities],
+    })
     .returning({ id: users.id });
   return row.id;
 }
@@ -388,7 +392,7 @@ async function authorCompleteScorecard(fixture: DeploymentFixture): Promise<void
   const response = await request(
     'PUT',
     `${ADMIN}/kaana-deployments/${fixture.internalRouteId}/routing-scorecard`,
-    completeScorecard(fixture)
+    completeScorecard(fixture),
   );
   expect(response.status).toBe(200);
 }
@@ -427,7 +431,7 @@ afterAll(async () => {
     process.env.INFERENCE_CATALOGUE_AUDIENCE = ORIGINAL_CATALOGUE_AUDIENCE;
   }
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -449,43 +453,50 @@ describe('every route on this mount is staff-gated', () => {
     // another suite's rows. Request counts per application are customer data, so
     // this surface needs the same gate as the rest of the mount.
     ['GET', `${ADMIN}/metrics?from=2020-01-01&to=2020-01-02`, undefined],
-    ['POST', `${ADMIN}/deployments/DEPLOYMENT/legal-review`, { status: 'approved', evidenceRef: 'x' }],
-    ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
     [
-      'PUT',
-      `${ADMIN}/kaana-deployments/KAANA_DEPLOYMENT/routing-scorecard`,
-      undefined,
+      'POST',
+      `${ADMIN}/deployments/DEPLOYMENT/legal-review`,
+      { status: 'approved', evidenceRef: 'x' },
     ],
-  ] as const)('refuses %s %s to a non-staff user, and serves it to staff', async (method, template, body) => {
-    const fixture = await insertPendingDeployment();
-    const path = template
-      .replace('KAANA_DEPLOYMENT', fixture.internalRouteId)
-      .replace('DEPLOYMENT', fixture.deploymentId);
-    const requestBody = path.includes('/routing-scorecard') ? completeScorecard(fixture) : body;
+    ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
+    ['PUT', `${ADMIN}/kaana-deployments/KAANA_DEPLOYMENT/routing-scorecard`, undefined],
+  ] as const)(
+    'refuses %s %s to a non-staff user, and serves it to staff',
+    async (method, template, body) => {
+      const fixture = await insertPendingDeployment();
+      const path = template
+        .replace('KAANA_DEPLOYMENT', fixture.internalRouteId)
+        .replace('DEPLOYMENT', fixture.deploymentId);
+      const requestBody = path.includes('/routing-scorecard') ? completeScorecard(fixture) : body;
 
-    currentUserIsStaff = false;
-    const refused = await request(method, path, requestBody);
-    expect(refused.status).toBe(403);
-    // The guard's OWN body. A 403 from anywhere else — or a 404 from an
-    // unmounted route — fails this, which is what stops the test passing for
-    // the wrong reason.
-    expect(refused.body).toEqual(STAFF_REFUSAL);
+      currentUserIsStaff = false;
+      const refused = await request(method, path, requestBody);
+      expect(refused.status).toBe(403);
+      // The guard's OWN body. A 403 from anywhere else — or a 404 from an
+      // unmounted route — fails this, which is what stops the test passing for
+      // the wrong reason.
+      expect(refused.body).toEqual(STAFF_REFUSAL);
 
-    // CONTROL: the identical request from a staff user is answered. `approve`
-    // needs its legal review first, so it is prepared here rather than being
-    // allowed to 409 and read as "the gate let nothing through".
-    currentUserIsStaff = true;
-    if (path.endsWith('/approve')) {
-      const review = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`, {
-        status: 'approved',
-        evidenceRef: `contract-register/${suffix()}`,
-      });
-      expect(review.status).toBe(200);
-      await authorCompleteScorecard(fixture);
-    }
-    const allowed = await request(method, path, requestBody);
-    expect(allowed.status).toBe(200);
-  });
+      // CONTROL: the identical request from a staff user is answered. `approve`
+      // needs its legal review first, so it is prepared here rather than being
+      // allowed to 409 and read as "the gate let nothing through".
+      currentUserIsStaff = true;
+      if (path.endsWith('/approve')) {
+        const review = await request(
+          'POST',
+          `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+          {
+            status: 'approved',
+            evidenceRef: `contract-register/${suffix()}`,
+          },
+        );
+        expect(review.status).toBe(200);
+        await authorCompleteScorecard(fixture);
+      }
+      const allowed = await request(method, path, requestBody);
+      expect(allowed.status).toBe(200);
+    },
+  );
 
   it('refuses a caller with no authenticated user at all', async () => {
     const fixture = await insertPendingDeployment();
@@ -530,7 +541,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` },
     );
     expect(refused.status).toBe(403);
     expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
@@ -544,7 +555,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const allowed = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` },
     );
     expect(allowed.status).toBe(200);
     expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('approved');
@@ -557,7 +568,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const review = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` },
     );
     expect(review.status).toBe(200);
     await authorCompleteScorecard(fixture);
@@ -566,7 +577,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
-      {}
+      {},
     );
     expect(refused.status).toBe(403);
     expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
@@ -576,7 +587,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const allowed = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
-      {}
+      {},
     );
     expect(allowed.status).toBe(200);
     expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('approved');
@@ -603,7 +614,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` },
     );
     expect(refused.status).toBe(403);
     expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
@@ -627,7 +638,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` },
     );
     expect(refused.status).toBe(403);
     expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('not_started');
@@ -659,7 +670,7 @@ describe('the BYOK platform-fee pointer endpoint is exact and staff-authorized',
     const withoutCapability = await request('PUT', feePath(fixture.deploymentId), body);
     expect(withoutCapability.status).toBe(403);
     expect(withoutCapability.body.message).toEqual(
-      expect.stringContaining('requires the inference:catalogue:publish staff capability')
+      expect.stringContaining('requires the inference:catalogue:publish staff capability'),
     );
     expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
   });
@@ -688,7 +699,7 @@ describe('the BYOK platform-fee pointer endpoint is exact and staff-authorized',
       },
     });
     expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBe(
-      fixture.priceVersionId
+      fixture.priceVersionId,
     );
     const [priceAfter] = await getDb()
       .select()
@@ -755,7 +766,7 @@ describe('the BYOK platform-fee pointer endpoint is exact and staff-authorized',
 
       expect(response.status).toBe(409);
       expect((await readDeployment(fixture.deploymentId)).platformFeePriceVersionId).toBeNull();
-    }
+    },
   );
 
   it('rejects whitespace and unknown fields instead of normalizing an opaque id', async () => {
@@ -822,7 +833,7 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const response = await request(
       'PUT',
       scorecardPath(wrongId(fixture)),
-      completeScorecard(fixture)
+      completeScorecard(fixture),
     );
 
     expect(response.status).toBe(404);
@@ -838,7 +849,7 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const response = await request(
       'PUT',
       scorecardPath(`%20${fixture.internalRouteId}%20`),
-      completeScorecard(fixture)
+      completeScorecard(fixture),
     );
 
     expect(response.status).toBe(400);
@@ -901,7 +912,7 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const response = await request(
       'PUT',
       scorecardPath(fixture.internalRouteId),
-      buildBody(fixture)
+      buildBody(fixture),
     );
 
     expect(response.status).toBe(400);
@@ -914,19 +925,19 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
 
     const wrongPrice = completeScorecard(fixture);
     wrongPrice.price.priceVersionId = other.priceVersionId;
-    expect(
-      (await request('PUT', scorecardPath(fixture.internalRouteId), wrongPrice)).status
-    ).toBe(409);
+    expect((await request('PUT', scorecardPath(fixture.internalRouteId), wrongPrice)).status).toBe(
+      409,
+    );
 
     const future = completeScorecard(fixture);
-    future.latency.measurementWindowEnd = new Date(
-      Date.now() + 60 * 60 * 1000
-    ).toISOString();
+    future.latency.measurementWindowEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     expect((await request('PUT', scorecardPath(fixture.internalRouteId), future)).status).toBe(409);
 
     const expired = completeScorecard(fixture);
     expired.balanced.validUntil = new Date(Date.now() - 1000).toISOString();
-    expect((await request('PUT', scorecardPath(fixture.internalRouteId), expired)).status).toBe(409);
+    expect((await request('PUT', scorecardPath(fixture.internalRouteId), expired)).status).toBe(
+      409,
+    );
     expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
   });
 
@@ -944,7 +955,7 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const response = await request(
       'PUT',
       scorecardPath(fixture.internalRouteId),
-      completeScorecard(fixture)
+      completeScorecard(fixture),
     );
     expect(response.status).toBe(409);
     expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
@@ -958,11 +969,11 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const refused = await request(
       'PUT',
       scorecardPath(fixture.internalRouteId),
-      completeScorecard(fixture)
+      completeScorecard(fixture),
     );
     expect(refused.status).toBe(403);
     expect(refused.body.message).toEqual(
-      expect.stringContaining('requires the inference:catalogue:publish staff capability')
+      expect.stringContaining('requires the inference:catalogue:publish staff capability'),
     );
     expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
 
@@ -970,7 +981,7 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
     const allowed = await request(
       'PUT',
       scorecardPath(fixture.internalRouteId),
-      completeScorecard(fixture)
+      completeScorecard(fixture),
     );
     expect(allowed.status).toBe(200);
     expect(await readRoutingScorecard(fixture.internalRouteId)).toMatchObject({
@@ -1044,7 +1055,7 @@ describe('the action is a path segment from a closed set, never a body field', (
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/frobnicate`,
-      {}
+      {},
     );
     // A closed `z.enum` on the PATH: the router matches the shape, and the
     // validator refuses the verb. Whether that is 400 or 404 is not the claim —
@@ -1058,7 +1069,7 @@ describe('the action is a path segment from a closed set, never a body field', (
     const accepted = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/suspend`,
-      {}
+      {},
     );
     expect(accepted.status).toBe(200);
     expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('suspended');
@@ -1104,7 +1115,7 @@ describe('an approval cites a review, and both name the staff member who made th
       evidenceRef: `contract-register/${suffix()}`,
     });
     expect(
-      (await request('POST', `${ADMIN}/deployments/${unmapped.deploymentId}/approve`, {})).status
+      (await request('POST', `${ADMIN}/deployments/${unmapped.deploymentId}/approve`, {})).status,
     ).toBe(409);
 
     const missing = await insertPendingDeployment();
@@ -1113,7 +1124,7 @@ describe('an approval cites a review, and both name the staff member who made th
       evidenceRef: `contract-register/${suffix()}`,
     });
     expect(
-      (await request('POST', `${ADMIN}/deployments/${missing.deploymentId}/approve`, {})).status
+      (await request('POST', `${ADMIN}/deployments/${missing.deploymentId}/approve`, {})).status,
     ).toBe(409);
 
     const incomplete = await insertPendingDeployment();
@@ -1124,16 +1135,16 @@ describe('an approval cites a review, and both name the staff member who made th
         await request(
           'PUT',
           `${ADMIN}/kaana-deployments/${incomplete.internalRouteId}/routing-scorecard`,
-          body
+          body,
         )
-      ).status
+      ).status,
     ).toBe(200);
     await request('POST', `${ADMIN}/deployments/${incomplete.deploymentId}/legal-review`, {
       status: 'approved',
       evidenceRef: `contract-register/${suffix()}`,
     });
     expect(
-      (await request('POST', `${ADMIN}/deployments/${incomplete.deploymentId}/approve`, {})).status
+      (await request('POST', `${ADMIN}/deployments/${incomplete.deploymentId}/approve`, {})).status,
     ).toBe(409);
   });
 
@@ -1153,16 +1164,14 @@ describe('an approval cites a review, and both name the staff member who made th
     const review = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved', evidenceRef }
+      { status: 'approved', evidenceRef },
     );
     expect(review.status).toBe(200);
     await authorCompleteScorecard(fixture);
 
-    const approved = await request(
-      'POST',
-      `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
-      { note: 'resale terms confirmed' }
-    );
+    const approved = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/approve`, {
+      note: 'resale terms confirmed',
+    });
     expect(approved.status).toBe(200);
 
     const row = await readDeployment(fixture.deploymentId);
@@ -1180,11 +1189,11 @@ describe('an approval cites a review, and both name the staff member who made th
     const refused = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'approved' }
+      { status: 'approved' },
     );
     expect(refused.status).toBe(409);
     expect(refused.body.message).toEqual(
-      expect.stringContaining('must cite its evidence reference')
+      expect.stringContaining('must cite its evidence reference'),
     );
     expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('not_started');
 
@@ -1193,7 +1202,7 @@ describe('an approval cites a review, and both name the staff member who made th
     const rejected = await request(
       'POST',
       `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
-      { status: 'rejected' }
+      { status: 'rejected' },
     );
     expect(rejected.status).toBe(200);
     expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('rejected');
@@ -1223,7 +1232,11 @@ describe('a retired route stays retired', () => {
   it('refuses every further action on it, having accepted the first', async () => {
     const fixture = await insertPendingDeployment();
 
-    const retired = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/retire`, {});
+    const retired = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/retire`,
+      {},
+    );
     expect(retired.status).toBe(200);
     expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('retired');
 
@@ -1231,10 +1244,12 @@ describe('a retired route stays retired', () => {
       const refused = await request(
         'POST',
         `${ADMIN}/deployments/${fixture.deploymentId}/${action}`,
-        {}
+        {},
       );
       expect(refused.status).toBe(409);
-      expect(refused.body.message).toEqual(expect.stringContaining('A retired route stays retired'));
+      expect(refused.body.message).toEqual(
+        expect.stringContaining('A retired route stays retired'),
+      );
     }
     // Nothing moved across four attempts.
     expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('retired');

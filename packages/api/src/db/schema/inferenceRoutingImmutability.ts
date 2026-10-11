@@ -113,7 +113,7 @@ $$;`;
 
 /** `CREATE TRIGGER` for one append-only table. */
 export function inferenceRoutingRecordImmutabilityTriggerDdl(
-  table: ImmutableRoutingRecordTable
+  table: ImmutableRoutingRecordTable,
 ): string {
   return `CREATE TRIGGER ${table}_immutable
 BEFORE UPDATE ON ${table}

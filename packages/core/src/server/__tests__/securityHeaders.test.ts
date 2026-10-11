@@ -32,7 +32,9 @@ function renderPolicy(options: Parameters<typeof createOxySecurityHeaders>[0]): 
 
 /** The CSP value parsed back out of a Cloudflare Pages `_headers` block. */
 function cspOf(block: string): string {
-  const line = block.split('\n').find((entry) => entry.trim().startsWith('Content-Security-Policy:'));
+  const line = block
+    .split('\n')
+    .find((entry) => entry.trim().startsWith('Content-Security-Policy:'));
   if (line === undefined) throw new Error('no Content-Security-Policy line in _headers block');
   return line.trim().slice('Content-Security-Policy:'.length).trim();
 }
@@ -130,12 +132,12 @@ describe('@oxy.so/core/server buildOxyCspDirectives', () => {
   });
 
   it('rejects sources that would terminate the directive or the policy', () => {
-    expect(() => buildOxyCspDirectives({ scriptSrc: ["https://a.example.com; script-src 'unsafe-inline'"] })).toThrow(
-      /script-src/,
-    );
-    expect(() => buildOxyCspDirectives({ connectSrc: ['https://a.example.com,https://b.example.com'] })).toThrow(
-      /connect-src/,
-    );
+    expect(() =>
+      buildOxyCspDirectives({ scriptSrc: ["https://a.example.com; script-src 'unsafe-inline'"] }),
+    ).toThrow(/script-src/);
+    expect(() =>
+      buildOxyCspDirectives({ connectSrc: ['https://a.example.com,https://b.example.com'] }),
+    ).toThrow(/connect-src/);
     expect(() => buildOxyCspDirectives({ imgSrc: [''] })).toThrow(/img-src/);
   });
 
@@ -200,9 +202,12 @@ function expoExportHtml(body = EXPO_HYDRATE_SCRIPT): string {
 
 describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 0024 D1)', () => {
   it('removes the Cloudflare Insights beacon from script-src and connect-src, and nothing else', () => {
-    const csp = (block: string) => block.split('\n').find((line) => line.includes('Content-Security-Policy')) ?? '';
+    const csp = (block: string) =>
+      block.split('\n').find((line) => line.includes('Content-Security-Policy')) ?? '';
     const normal = csp(buildOxyPagesHeaders({ csp: { connectSrc: ['https://example.test'] } }));
-    const sensitive = csp(buildOxyPagesHeaders({ csp: { connectSrc: ['https://example.test'] }, sensitive: true }));
+    const sensitive = csp(
+      buildOxyPagesHeaders({ csp: { connectSrc: ['https://example.test'] }, sensitive: true }),
+    );
 
     expect(normal).toContain('static.cloudflareinsights.com');
     expect(sensitive).not.toContain('cloudflareinsights.com');
@@ -226,7 +231,9 @@ describe('@oxy.so/core/server buildOxyPagesHeaders on a sensitive origin (ADR 00
     expect(sensitive).toContain("base-uri 'none'");
     expect(sensitive).toContain("form-action 'none'");
     expect(sensitive).toContain('Referrer-Policy: no-referrer');
-    expect(sensitive).toContain('Permissions-Policy: publickey-credentials-get=(), publickey-credentials-create=()');
+    expect(sensitive).toContain(
+      'Permissions-Policy: publickey-credentials-get=(), publickey-credentials-create=()',
+    );
     expect(sensitive).toContain('Cross-Origin-Resource-Policy: same-origin');
     // The third-party OAuth popup reports back to its opener: COOP would sever it.
     expect(sensitive).not.toContain('Cross-Origin-Opener-Policy');
@@ -266,7 +273,7 @@ describe('@oxy.so/core/server extractInlineScripts', () => {
 });
 
 describe('@oxy.so/core/server buildOxyPagesHeaders inline-script hashes', () => {
-  it('allows the built HTML\'s inline script by hash', () => {
+  it("allows the built HTML's inline script by hash", () => {
     const block = buildOxyPagesHeaders({ html: [expoExportHtml()] });
     expect(cspSourcesFor(cspOf(block), 'script-src')).toEqual([
       "'self'",

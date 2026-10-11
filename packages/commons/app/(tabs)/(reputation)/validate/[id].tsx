@@ -60,7 +60,9 @@ export default function ValidationVoteScreen() {
           description={t('civic.validate.vote.done.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.done')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -76,7 +78,9 @@ export default function ValidationVoteScreen() {
           description={t(`civic.validate.error.${errorCode ?? 'generic'}`)}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.close')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -108,7 +112,9 @@ export default function ValidationVoteScreen() {
           description={t('civic.validate.vote.gone.body')}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.close')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -165,13 +171,47 @@ export default function ValidationVoteScreen() {
         )}
 
         <View className="flex-row gap-space-12">
-          <Button appearance="solid" tone="success" size="lg" icon={Icons.check} onPress={() => vote('valid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.valid')}</Button>
-          <Button appearance="solid" tone="danger" size="lg" icon={Icons.close} onPress={() => vote('invalid')} disabled={busy} style={[fullWidthControl, styles.verdictBtn]}>{t('civic.validate.vote.invalid')}</Button>
+          <Button
+            appearance="solid"
+            tone="success"
+            size="lg"
+            icon={Icons.check}
+            onPress={() => vote('valid')}
+            disabled={busy}
+            style={[fullWidthControl, styles.verdictBtn]}
+          >
+            {t('civic.validate.vote.valid')}
+          </Button>
+          <Button
+            appearance="solid"
+            tone="danger"
+            size="lg"
+            icon={Icons.close}
+            onPress={() => vote('invalid')}
+            disabled={busy}
+            style={[fullWidthControl, styles.verdictBtn]}
+          >
+            {t('civic.validate.vote.invalid')}
+          </Button>
         </View>
 
-        <Button appearance="outline" tone="accent" size="lg" onPress={() => vote('abstain')} disabled={busy} style={fullWidthControl}>{t('civic.validate.vote.abstain')}</Button>
+        <Button
+          appearance="outline"
+          tone="accent"
+          size="lg"
+          onPress={() => vote('abstain')}
+          disabled={busy}
+          style={fullWidthControl}
+        >
+          {t('civic.validate.vote.abstain')}
+        </Button>
 
-        <TouchableOpacity className="py-space-12 items-center" onPress={deny} disabled={busy} accessibilityRole="button">
+        <TouchableOpacity
+          className="py-space-12 items-center"
+          onPress={deny}
+          disabled={busy}
+          accessibilityRole="button"
+        >
           <Text style={[styles.recuseText, { color: colors.textSecondary }]}>
             {t('civic.validate.vote.recuse')}
           </Text>
@@ -188,7 +228,11 @@ export default function ValidationVoteScreen() {
 
   return (
     <Screen gap={20}>
-      <StackHeader title={t('civic.validate.vote.title')} onBack={handleClose} backAccessibilityLabel={t('common.back')} />
+      <StackHeader
+        title={t('civic.validate.vote.title')}
+        onBack={handleClose}
+        backAccessibilityLabel={t('common.back')}
+      />
       <SessionGate>{renderBody()}</SessionGate>
     </Screen>
   );

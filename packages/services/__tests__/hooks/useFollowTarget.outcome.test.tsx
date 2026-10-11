@@ -16,7 +16,12 @@ import { useFollowTarget } from '../../src/ui/hooks/useFollowTarget';
 import { useFollowTargetStore } from '../../src/ui/stores/followTargetStore';
 
 const oxyServices = {
-  follows: { targetStatus: jest.fn(), followTarget: jest.fn(), unfollowTarget: jest.fn(), setApplicationMode: jest.fn() },
+  follows: {
+    targetStatus: jest.fn(),
+    followTarget: jest.fn(),
+    unfollowTarget: jest.fn(),
+    setApplicationMode: jest.fn(),
+  },
 };
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
@@ -136,7 +141,7 @@ describe('useFollowTarget reports whether the server accepted', () => {
           applicationMode: 'inherit',
           effectiveState: 'following',
         },
-      })
+      }),
     );
 
     await act(async () => {

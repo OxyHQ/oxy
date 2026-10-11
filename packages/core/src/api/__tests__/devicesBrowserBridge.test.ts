@@ -28,8 +28,16 @@ describe('OxyServices — browser bridge', () => {
 
   it('registers, asks for a join code and joins without a bearer', async () => {
     makeRequest.mockResolvedValueOnce({ deviceId: 'dev-1', deviceSecret: 'auth-secret' });
-    expect(await oxy.devices.registerBrowser()).toEqual({ deviceId: 'dev-1', deviceSecret: 'auth-secret' });
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/session/device/register', {}, BRIDGE_OPTIONS);
+    expect(await oxy.devices.registerBrowser()).toEqual({
+      deviceId: 'dev-1',
+      deviceSecret: 'auth-secret',
+    });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/session/device/register',
+      {},
+      BRIDGE_OPTIONS,
+    );
 
     const joinCodeRequest = {
       deviceId: 'dev-1',
@@ -40,19 +48,42 @@ describe('OxyServices — browser bridge', () => {
       codeChallengeMethod: 'S256' as const,
     };
     makeRequest.mockResolvedValueOnce({ code: 'code-1', expiresIn: 60 });
-    expect(await oxy.devices.requestJoinCode(joinCodeRequest)).toEqual({ code: 'code-1', expiresIn: 60 });
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/session/device/join-code', joinCodeRequest, BRIDGE_OPTIONS);
+    expect(await oxy.devices.requestJoinCode(joinCodeRequest)).toEqual({
+      code: 'code-1',
+      expiresIn: 60,
+    });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/session/device/join-code',
+      joinCodeRequest,
+      BRIDGE_OPTIONS,
+    );
 
-    const joinRequest = { code: 'code-1', codeVerifier: 'v'.repeat(43), clientId: 'oxy_dk_1', redirectUri: 'https://mention.earth' };
+    const joinRequest = {
+      code: 'code-1',
+      codeVerifier: 'v'.repeat(43),
+      clientId: 'oxy_dk_1',
+      redirectUri: 'https://mention.earth',
+    };
     makeRequest.mockResolvedValueOnce({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
-    expect(await oxy.devices.joinBrowser(joinRequest)).toEqual({ deviceId: 'dev-1', deviceSecret: 'app-secret' });
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/session/device/join', joinRequest, BRIDGE_OPTIONS);
+    expect(await oxy.devices.joinBrowser(joinRequest)).toEqual({
+      deviceId: 'dev-1',
+      deviceSecret: 'app-secret',
+    });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/session/device/join',
+      joinRequest,
+      BRIDGE_OPTIONS,
+    );
   });
 
   it('refuses a malformed bridge response and surfaces a rejected secret', async () => {
     makeRequest.mockResolvedValueOnce({ deviceId: 'dev-1' });
     await expect(oxy.devices.registerBrowser()).rejects.toThrow('unexpected response shape');
-    makeRequest.mockRejectedValueOnce(Object.assign(new Error('invalid_device_secret'), { status: 401 }));
+    makeRequest.mockRejectedValueOnce(
+      Object.assign(new Error('invalid_device_secret'), { status: 401 }),
+    );
     await expect(
       oxy.devices.requestJoinCode({
         deviceId: 'dev-1',
@@ -73,7 +104,10 @@ describe('OxyServices — browser bridge', () => {
     });
 
     it('attaches the held credential to a claim, a password sign-in and a sign-up', async () => {
-      const dispose = oxy.session.setDeviceCredentialProvider(async () => ({ deviceId: 'dev-1', deviceSecret: 'app-secret' }));
+      const dispose = oxy.session.setDeviceCredentialProvider(async () => ({
+        deviceId: 'dev-1',
+        deviceSecret: 'app-secret',
+      }));
       const device = { deviceId: 'dev-1', deviceSecret: 'app-secret' };
 
       makeRequest.mockResolvedValueOnce(LOGIN);
@@ -82,11 +116,21 @@ describe('OxyServices — browser bridge', () => {
 
       makeRequest.mockResolvedValueOnce(LOGIN);
       await oxy.auth.password.signIn({ identifier: 'alice', password: 'pw', deviceName: 'Chrome' });
-      expect(makeRequest.mock.calls[1][2]).toEqual({ identifier: 'alice', password: 'pw', deviceName: 'Chrome', device });
+      expect(makeRequest.mock.calls[1][2]).toEqual({
+        identifier: 'alice',
+        password: 'pw',
+        deviceName: 'Chrome',
+        device,
+      });
 
       makeRequest.mockResolvedValueOnce(LOGIN);
       await oxy.auth.signUp({ username: 'alice', email: 'a@b.c', emailTicket: 't' });
-      expect(makeRequest.mock.calls[2][2]).toEqual({ username: 'alice', email: 'a@b.c', emailTicket: 't', device });
+      expect(makeRequest.mock.calls[2][2]).toEqual({
+        username: 'alice',
+        email: 'a@b.c',
+        emailTicket: 't',
+        device,
+      });
 
       dispose();
       makeRequest.mockResolvedValueOnce(LOGIN);
@@ -95,7 +139,10 @@ describe('OxyServices — browser bridge', () => {
     });
 
     it('an explicit null opts out, and a failing provider is no proof', async () => {
-      oxy.session.setDeviceCredentialProvider(() => ({ deviceId: 'dev-1', deviceSecret: 'app-secret' }));
+      oxy.session.setDeviceCredentialProvider(() => ({
+        deviceId: 'dev-1',
+        deviceSecret: 'app-secret',
+      }));
       makeRequest.mockResolvedValueOnce(LOGIN);
       await oxy.auth.claimSession('st-1', { plantTokens: false, device: null });
       expect(makeRequest.mock.calls[0][2]).toEqual({ sessionToken: 'st-1' });

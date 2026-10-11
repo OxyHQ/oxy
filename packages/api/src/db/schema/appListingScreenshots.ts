@@ -66,5 +66,5 @@ export const appListingScreenshots = pgTable(
     index('app_listing_screenshots_listing_id_position_idx').on(t.listingId, t.position),
     /** What a file delete needs in order to check this table without a scan. */
     index('app_listing_screenshots_file_id_idx').on(t.fileId),
-  ]
+  ],
 );

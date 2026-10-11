@@ -12,12 +12,11 @@
  * `conduct`, `reporting`, `reviewing` and `contextualInfluence` each have a
  * fully known, closed shape, so they are real columns with the block as a name
  * prefix — the same treatment `users` gives its privacy and notification blocks.
- * `jsonb` is for genuinely shape-less data; "it was an object in Mongo" is not a
- * reason (`CONVENTIONS.md`, "Arrays and objects").
+ * `jsonb` is for genuinely shape-less data; "it is an object on the wire" is not
+ * a reason (`CONVENTIONS.md`, "Arrays and objects").
  *
- * Each subdocument defaulted to `() => ({})`, which Mongoose expands to the
- * per-field defaults. Those defaults now live on the columns, so a row created
- * with only `user_id` lands in exactly the state Mongoose produced — including
+ * The per-field defaults live on the columns, so a row created with only
+ * `user_id` lands in the full default state — including
  * `reporting_reliability` and `reviewing_global_reliability` at the NEUTRAL 0.5
  * rather than at 0, which is a real distinction (no history, not a terrible
  * record).
@@ -347,18 +346,21 @@ export const reputationBalances = pgTable(
     // anyone under consequence, and Trust & Safety reads it directly.
     index('reputation_balances_conduct_standing_idx').on(t.conductStanding),
 
-    check('reputation_balances_trust_tier_check', sql`${t.trustTier} in (${sql.raw(inList(TRUST_TIERS))})`),
+    check(
+      'reputation_balances_trust_tier_check',
+      sql`${t.trustTier} in (${sql.raw(inList(TRUST_TIERS))})`,
+    ),
     check(
       'reputation_balances_personhood_status_check',
-      sql`${t.personhoodStatus} in (${sql.raw(inList(PERSONHOOD_STATUSES))})`
+      sql`${t.personhoodStatus} in (${sql.raw(inList(PERSONHOOD_STATUSES))})`,
     ),
     check(
       'reputation_balances_contribution_tier_check',
-      sql`${t.contributionTier} in (${sql.raw(inList(CONTRIBUTION_TIERS))})`
+      sql`${t.contributionTier} in (${sql.raw(inList(CONTRIBUTION_TIERS))})`,
     ),
     check(
       'reputation_balances_conduct_standing_check',
-      sql`${t.conductStanding} in (${sql.raw(inList(CONDUCT_STANDINGS))})`
+      sql`${t.conductStanding} in (${sql.raw(inList(CONDUCT_STANDINGS))})`,
     ),
     // Counts and the penalty total are magnitudes, never signed.
     check('reputation_balances_positive_check', sql`${t.positive} >= 0`),
@@ -367,16 +369,25 @@ export const reputationBalances = pgTable(
     // Contribution counts only what was BUILT — `recalculateBalance` adds a
     // transaction to it exclusively when its points are positive.
     check('reputation_balances_contribution_points_check', sql`${t.contributionPoints} >= 0`),
-    check('reputation_balances_reliability_counts_check', sql`${t.reliabilityAccurateReports} >= 0 and ${t.reliabilityRejectedReports} >= 0`),
-    check('reputation_balances_reporting_counts_check', sql`${t.reportingConfirmed} >= 0 and ${t.reportingRejected} >= 0 and ${t.reportingMalicious} >= 0`),
-    check('reputation_balances_conduct_check', sql`${t.conductActiveRisk} >= 0 and ${t.conductActiveStrikes} >= 0`),
+    check(
+      'reputation_balances_reliability_counts_check',
+      sql`${t.reliabilityAccurateReports} >= 0 and ${t.reliabilityRejectedReports} >= 0`,
+    ),
+    check(
+      'reputation_balances_reporting_counts_check',
+      sql`${t.reportingConfirmed} >= 0 and ${t.reportingRejected} >= 0 and ${t.reportingMalicious} >= 0`,
+    ),
+    check(
+      'reputation_balances_conduct_check',
+      sql`${t.conductActiveRisk} >= 0 and ${t.conductActiveStrikes} >= 0`,
+    ),
     // The 0..1 scores. Every default sits inside the range, so this rejects only
     // a genuinely impossible value — a probability of 1.4 is not a data point.
     check(
       'reputation_balances_scores_check',
-      sql`${t.reliabilityReportAccuracyScore} between 0 and 1 and ${t.reliabilityAbuseScore} between 0 and 1 and ${t.personhoodScore} between 0 and 1 and ${t.reportingReliability} between 0 and 1 and ${t.reportingConfidence} between 0 and 1 and ${t.reviewingGlobalReliability} between 0 and 1`
+      sql`${t.reliabilityReportAccuracyScore} between 0 and 1 and ${t.reliabilityAbuseScore} between 0 and 1 and ${t.personhoodScore} between 0 and 1 and ${t.reportingReliability} between 0 and 1 and ${t.reportingConfidence} between 0 and 1 and ${t.reviewingGlobalReliability} between 0 and 1`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -416,9 +427,9 @@ export const reputationReviewingReliability = pgTable(
     }),
     check(
       'reputation_reviewing_reliability_scope_check',
-      sql`${t.scope} in (${sql.raw(inList(REVIEWING_RELIABILITY_SCOPES))})`
+      sql`${t.scope} in (${sql.raw(inList(REVIEWING_RELIABILITY_SCOPES))})`,
     ),
     check('reputation_reviewing_reliability_value_check', sql`${t.reliability} between 0 and 1`),
     check('reputation_reviewing_reliability_key_check', sql`length(${t.key}) > 0`),
-  ]
+  ],
 );

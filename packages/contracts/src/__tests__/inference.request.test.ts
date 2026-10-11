@@ -5,30 +5,30 @@ import {
   inferenceMessageSchema,
   inferenceRequestSchema,
   safeParseContract,
-} from "../index";
+} from '../index';
 
 const attribution = {
   principal: {
-    billing: { accountId: "acc_1" },
-    applicationId: "app_1",
-    credentialId: "cred_1",
-    environment: "production" as const,
-    inferenceScopes: ["inference:invoke"],
+    billing: { accountId: 'acc_1' },
+    applicationId: 'app_1',
+    credentialId: 'cred_1',
+    environment: 'production' as const,
+    inferenceScopes: ['inference:invoke'],
   },
-  requestId: "req_1",
+  requestId: 'req_1',
 };
 
 const request = {
   schemaVersion: 2 as const,
   attribution,
-  target: { kind: "model" as const, modelReference: "openai/gpt-5" },
-  modality: "text" as const,
+  target: { kind: 'model' as const, modelReference: 'openai/gpt-5' },
+  modality: 'text' as const,
   input: {
-    format: "messages" as const,
+    format: 'messages' as const,
     messages: [
       {
-        role: "user" as const,
-        content: [{ type: "text" as const, text: "hello" }],
+        role: 'user' as const,
+        content: [{ type: 'text' as const, text: 'hello' }],
       },
     ],
   },
@@ -36,70 +36,69 @@ const request = {
   sampling: {},
   tools: [],
   client: {
-    apiFormat: "chat_completions" as const,
-    endpoint: "/v1/chat/completions",
-    receivedAt: "2026-08-15T09:41:00.000Z",
+    apiFormat: 'chat_completions' as const,
+    endpoint: '/v1/chat/completions',
+    receivedAt: '2026-08-15T09:41:00.000Z',
   },
-  routingPolicy: { routingPolicyId: "rp_1", policyVersion: 3 },
+  routingPolicy: { routingPolicyId: 'rp_1', policyVersion: 3 },
 };
 
-describe("inferenceRequestSchema", () => {
-  it("parses a minimal normalized request", () => {
+describe('inferenceRequestSchema', () => {
+  it('parses a minimal normalized request', () => {
     expect(inferenceRequestSchema.safeParse(request).success).toBe(true);
   });
 
   it('distinguishes "serve this model" from "choose one for me"', () => {
     const concrete = inferenceRequestSchema.parse(request);
-    expect(concrete.target.kind).toBe("model");
+    expect(concrete.target.kind).toBe('model');
 
     const profile = inferenceRequestSchema.parse({
       ...request,
-      target: { kind: "routing_profile_id", routingProfileId: "rpf_auto" },
+      target: { kind: 'routing_profile_id', routingProfileId: 'rpf_auto' },
     });
-    expect(profile.target.kind).toBe("routing_profile_id");
+    expect(profile.target.kind).toBe('routing_profile_id');
 
     // Neither arm accepts the other's field, so intent cannot be lost in transit.
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        target: { kind: "model", routingProfileId: "rpf_auto" },
+        target: { kind: 'model', routingProfileId: 'rpf_auto' },
       }).success,
     ).toBe(false);
   });
 
-  it("rejects a target that is neither a model nor a profile", () => {
+  it('rejects a target that is neither a model nor a profile', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        target: { kind: "whatever_is_cheapest" },
+        target: { kind: 'whatever_is_cheapest' },
       }).success,
     ).toBe(false);
   });
 
-  it("requires the exact routing policy revision the request was served under", () => {
+  it('requires the exact routing policy revision the request was served under', () => {
     const { routingPolicy, ...withoutPolicy } = request;
     expect(routingPolicy.policyVersion).toBe(3);
     expect(inferenceRequestSchema.safeParse(withoutPolicy).success).toBe(false);
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        routingPolicy: { routingPolicyId: "rp_1", policyVersion: 0 },
+        routingPolicy: { routingPolicyId: 'rp_1', policyVersion: 0 },
       }).success,
     ).toBe(false);
   });
 
-  it("rejects a tool choice with nothing to choose from", () => {
-    expect(
-      inferenceRequestSchema.safeParse({ ...request, toolChoice: "auto" })
-        .success,
-    ).toBe(false);
+  it('rejects a tool choice with nothing to choose from', () => {
+    expect(inferenceRequestSchema.safeParse({ ...request, toolChoice: 'auto' }).success).toBe(
+      false,
+    );
   });
 
-  it("rejects duplicate tool names in one request", () => {
+  it('rejects duplicate tool names in one request', () => {
     const tool = {
-      type: "function",
-      name: "lookup",
-      parameters: { type: "object" },
+      type: 'function',
+      name: 'lookup',
+      parameters: { type: 'object' },
     };
     expect(
       inferenceRequestSchema.safeParse({
@@ -110,41 +109,39 @@ describe("inferenceRequestSchema", () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        tools: [tool, { ...tool, name: "lookup_other" }],
-        toolChoice: { type: "function", name: "lookup" },
+        tools: [tool, { ...tool, name: 'lookup_other' }],
+        toolChoice: { type: 'function', name: 'lookup' },
       }).success,
     ).toBe(true);
   });
 
-  it("rejects a fractional or negative output-token ceiling", () => {
-    expect(
-      inferenceRequestSchema.safeParse({ ...request, maxOutputTokens: 1.5 })
-        .success,
-    ).toBe(false);
-    expect(
-      inferenceRequestSchema.safeParse({ ...request, maxOutputTokens: 0 })
-        .success,
-    ).toBe(false);
+  it('rejects a fractional or negative output-token ceiling', () => {
+    expect(inferenceRequestSchema.safeParse({ ...request, maxOutputTokens: 1.5 }).success).toBe(
+      false,
+    );
+    expect(inferenceRequestSchema.safeParse({ ...request, maxOutputTokens: 0 }).success).toBe(
+      false,
+    );
   });
 });
 
-describe("clientRequestMetadataSchema", () => {
-  it("records which public dialect the customer called", () => {
-    expect(
-      safeParseContract(clientRequestMetadataSchema, request.client)?.apiFormat,
-    ).toBe("chat_completions");
+describe('clientRequestMetadataSchema', () => {
+  it('records which public dialect the customer called', () => {
+    expect(safeParseContract(clientRequestMetadataSchema, request.client)?.apiFormat).toBe(
+      'chat_completions',
+    );
   });
 
-  it("refuses to carry a client IP, country or user agent", () => {
+  it('refuses to carry a client IP, country or user agent', () => {
     // Owner-mandated privacy invariant: no user IP is ever persisted, raw,
     // hashed or geo-derived. `.strict()` is what makes that unbypassable here
     // rather than a rule somebody has to remember when adding a field.
     for (const forbidden of [
-      { ip: "203.0.113.7" },
-      { ipAddress: "203.0.113.7" },
-      { country: "ES" },
-      { userAgent: "curl/8.5.0" },
-      { forwardedFor: "203.0.113.7" },
+      { ip: '203.0.113.7' },
+      { ipAddress: '203.0.113.7' },
+      { country: 'ES' },
+      { userAgent: 'curl/8.5.0' },
+      { forwardedFor: '203.0.113.7' },
     ]) {
       expect(
         clientRequestMetadataSchema.safeParse({
@@ -156,159 +153,147 @@ describe("clientRequestMetadataSchema", () => {
   });
 });
 
-describe("inferenceMessageSchema", () => {
+describe('inferenceMessageSchema', () => {
   const userMessage = {
-    role: "user" as const,
-    content: [{ type: "text" as const, text: "hi" }],
+    role: 'user' as const,
+    content: [{ type: 'text' as const, text: 'hi' }],
   };
 
-  it("parses each role with content parts", () => {
-    for (const role of ["system", "developer", "user", "assistant"] as const) {
-      expect(
-        inferenceMessageSchema.safeParse({ ...userMessage, role }).success,
-      ).toBe(true);
+  it('parses each role with content parts', () => {
+    for (const role of ['system', 'developer', 'user', 'assistant'] as const) {
+      expect(inferenceMessageSchema.safeParse({ ...userMessage, role }).success).toBe(true);
     }
   });
 
-  it("requires a tool message to name the call it answers", () => {
-    expect(
-      inferenceMessageSchema.safeParse({ ...userMessage, role: "tool" })
-        .success,
-    ).toBe(false);
+  it('requires a tool message to name the call it answers', () => {
+    expect(inferenceMessageSchema.safeParse({ ...userMessage, role: 'tool' }).success).toBe(false);
     expect(
       inferenceMessageSchema.safeParse({
         ...userMessage,
-        role: "tool",
-        toolCallId: "call_1",
+        role: 'tool',
+        toolCallId: 'call_1',
       }).success,
     ).toBe(true);
   });
 
-  it("refuses role-specific fields on the wrong role", () => {
-    expect(
-      inferenceMessageSchema.safeParse({ ...userMessage, toolCallId: "call_1" })
-        .success,
-    ).toBe(false);
+  it('refuses role-specific fields on the wrong role', () => {
+    expect(inferenceMessageSchema.safeParse({ ...userMessage, toolCallId: 'call_1' }).success).toBe(
+      false,
+    );
     expect(
       inferenceMessageSchema.safeParse({
         ...userMessage,
-        toolCalls: [{ id: "call_1", name: "lookup", arguments: "{}" }],
+        toolCalls: [{ id: 'call_1', name: 'lookup', arguments: '{}' }],
       }).success,
     ).toBe(false);
     expect(
       inferenceMessageSchema.safeParse({
         ...userMessage,
-        role: "assistant",
-        toolCalls: [{ id: "call_1", name: "lookup", arguments: "{}" }],
+        role: 'assistant',
+        toolCalls: [{ id: 'call_1', name: 'lookup', arguments: '{}' }],
       }).success,
     ).toBe(true);
   });
 
-  it("keeps tool-call arguments as text a model may have malformed", () => {
+  it('keeps tool-call arguments as text a model may have malformed', () => {
     const parsed = inferenceMessageSchema.parse({
       ...userMessage,
-      role: "assistant",
-      toolCalls: [{ id: "call_1", name: "lookup", arguments: '{"id":' }],
+      role: 'assistant',
+      toolCalls: [{ id: 'call_1', name: 'lookup', arguments: '{"id":' }],
     });
     expect(parsed.toolCalls?.[0].arguments).toBe('{"id":');
   });
 });
 
-describe("inferenceInputSchema", () => {
-  it("keeps a batch of strings distinct from a one-message conversation", () => {
-    expect(
-      inferenceInputSchema.parse({ format: "text_batch", texts: ["a", "b"] }),
-    ).toEqual({
-      format: "text_batch",
-      texts: ["a", "b"],
+describe('inferenceInputSchema', () => {
+  it('keeps a batch of strings distinct from a one-message conversation', () => {
+    expect(inferenceInputSchema.parse({ format: 'text_batch', texts: ['a', 'b'] })).toEqual({
+      format: 'text_batch',
+      texts: ['a', 'b'],
     });
-    expect(
-      inferenceInputSchema.safeParse({ format: "text_batch", texts: [] })
-        .success,
-    ).toBe(false);
-    expect(
-      inferenceInputSchema.safeParse({ format: "messages", messages: [] })
-        .success,
-    ).toBe(false);
+    expect(inferenceInputSchema.safeParse({ format: 'text_batch', texts: [] }).success).toBe(false);
+    expect(inferenceInputSchema.safeParse({ format: 'messages', messages: [] }).success).toBe(
+      false,
+    );
   });
 
-  it("carries a refusal as its own part, never as answer text", () => {
+  it('carries a refusal as its own part, never as answer text', () => {
     const parsed = inferenceInputSchema.parse({
-      format: "messages",
+      format: 'messages',
       messages: [
         {
-          role: "user",
-          content: [{ type: "text", text: "do the forbidden thing" }],
+          role: 'user',
+          content: [{ type: 'text', text: 'do the forbidden thing' }],
         },
         {
-          role: "assistant",
-          content: [{ type: "refusal", text: "I cannot help with that." }],
+          role: 'assistant',
+          content: [{ type: 'refusal', text: 'I cannot help with that.' }],
         },
       ],
     });
 
     // A distinct `type`, so no renderer can present the decline as the answer.
-    expect(parsed.format).toBe("messages");
-    if (parsed.format === "messages") {
-      expect(parsed.messages[1].content[0].type).toBe("refusal");
+    expect(parsed.format).toBe('messages');
+    if (parsed.format === 'messages') {
+      expect(parsed.messages[1].content[0].type).toBe('refusal');
     }
   });
 
-  it("has no member for reasoning, so private working cannot ride as content", () => {
+  it('has no member for reasoning, so private working cannot ride as content', () => {
     // The asymmetry with `refusal` above: OpenAI has its own field for a refusal
     // in both of its shapes and none at all for reasoning, and a `text` part
     // would render the model's private working as its answer.
     expect(
       inferenceMessageSchema.safeParse({
-        role: "assistant",
-        content: [{ type: "reasoning", text: "first I should check whether…" }],
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'first I should check whether…' }],
       }).success,
     ).toBe(false);
   });
 
-  it("lets only an assistant message carry a refusal", () => {
-    for (const role of ["user", "system", "developer"]) {
+  it('lets only an assistant message carry a refusal', () => {
+    for (const role of ['user', 'system', 'developer']) {
       expect(
         inferenceMessageSchema.safeParse({
           role,
-          content: [{ type: "refusal", text: "I cannot help with that." }],
+          content: [{ type: 'refusal', text: 'I cannot help with that.' }],
         }).success,
       ).toBe(false);
     }
 
     expect(
       inferenceMessageSchema.safeParse({
-        role: "assistant",
-        content: [{ type: "refusal", text: "I cannot help with that." }],
+        role: 'assistant',
+        content: [{ type: 'refusal', text: 'I cannot help with that.' }],
       }).success,
     ).toBe(true);
   });
 
-  it("parses multimodal content parts from either source", () => {
+  it('parses multimodal content parts from either source', () => {
     const parsed = inferenceInputSchema.parse({
-      format: "messages",
+      format: 'messages',
       messages: [
         {
-          role: "user",
+          role: 'user',
           content: [
-            { type: "text", text: "what is this" },
+            { type: 'text', text: 'what is this' },
             {
-              type: "image",
-              source: { kind: "url", url: "https://example.test/a.png" },
+              type: 'image',
+              source: { kind: 'url', url: 'https://example.test/a.png' },
             },
             {
-              type: "audio",
+              type: 'audio',
               source: {
-                kind: "inline",
-                mediaType: "audio/wav",
-                data: "UklGRg==",
+                kind: 'inline',
+                mediaType: 'audio/wav',
+                data: 'UklGRg==',
               },
             },
           ],
         },
       ],
     });
-    expect(parsed.format).toBe("messages");
+    expect(parsed.format).toBe('messages');
   });
 });
 
@@ -317,32 +302,32 @@ describe("inferenceInputSchema", () => {
 /* -------------------------------------------------------------------------- */
 
 const primaryRoute = {
-  substitution: "same_model" as const,
-  deploymentId: "dep_openai_usw2_gpt5",
-  modelReference: "openai/gpt-5@2026-06-01",
-  provider: "openai",
-  regions: ["us-west-2"],
+  substitution: 'same_model' as const,
+  deploymentId: 'dep_openai_usw2_gpt5',
+  modelReference: 'openai/gpt-5@2026-06-01',
+  provider: 'openai',
+  regions: ['us-west-2'],
 };
 
 const sameModelFailover = {
-  substitution: "same_model" as const,
-  deploymentId: "dep_azure_use1_gpt5",
-  modelReference: "openai/gpt-5@2026-06-01",
-  provider: "azure",
-  regions: ["us-east-1"],
+  substitution: 'same_model' as const,
+  deploymentId: 'dep_azure_use1_gpt5',
+  modelReference: 'openai/gpt-5@2026-06-01',
+  provider: 'azure',
+  regions: ['us-east-1'],
 };
 
 const crossModelSubstitute = {
-  substitution: "cross_model" as const,
-  deploymentId: "dep_anthropic_usw2_opus5",
-  modelReference: "anthropic/claude-opus-5@2026-05-01",
-  provider: "anthropic",
-  regions: ["us-west-2"],
+  substitution: 'cross_model' as const,
+  deploymentId: 'dep_anthropic_usw2_opus5',
+  modelReference: 'anthropic/claude-opus-5@2026-05-01',
+  provider: 'anthropic',
+  regions: ['us-west-2'],
   authorizedByPolicy: true as const,
 };
 
-describe("authorizedRouteSchema", () => {
-  it("carries what a route needs to be EXECUTED and nothing to re-derive policy from", () => {
+describe('authorizedRouteSchema', () => {
+  it('carries what a route needs to be EXECUTED and nothing to re-derive policy from', () => {
     const parsed = authorizedRouteSchema.parse(primaryRoute);
     expect(parsed).toEqual(primaryRoute);
 
@@ -350,43 +335,35 @@ describe("authorizedRouteSchema", () => {
     // arms are strict, so a producer that attaches one fails here rather than
     // shipping a value the data plane could rank on.
     for (const smuggled of [
-      { maxPricePerRequest: { amount: "5.000000000000", currency: "USD" } },
-      { priceVersionId: "pv_2026_08" },
+      { maxPricePerRequest: { amount: '5.000000000000', currency: 'USD' } },
+      { priceVersionId: 'pv_2026_08' },
       { retainsPayloads: false },
-      { licenseId: "LicenseRef-Provider-Commercial" },
-      { availabilityScope: "public_payg" },
-      { upstreamWholesaleCostAmount: "0.500000000000" },
+      { licenseId: 'LicenseRef-Provider-Commercial' },
+      { availabilityScope: 'public_payg' },
+      { upstreamWholesaleCostAmount: '0.500000000000' },
     ]) {
-      expect(
-        authorizedRouteSchema.safeParse({ ...primaryRoute, ...smuggled })
-          .success,
-      ).toBe(false);
+      expect(authorizedRouteSchema.safeParse({ ...primaryRoute, ...smuggled }).success).toBe(false);
     }
   });
 
-  it("pins an immutable revision, because the entry names the weights to serve", () => {
+  it('pins an immutable revision, because the entry names the weights to serve', () => {
     expect(
       authorizedRouteSchema.safeParse({
         ...primaryRoute,
-        modelReference: "openai/gpt-5",
+        modelReference: 'openai/gpt-5',
       }).success,
     ).toBe(false);
   });
 
-  it("cannot express a cross-model route without authorizing it", () => {
-    expect(authorizedRouteSchema.safeParse(crossModelSubstitute).success).toBe(
-      true,
-    );
+  it('cannot express a cross-model route without authorizing it', () => {
+    expect(authorizedRouteSchema.safeParse(crossModelSubstitute).success).toBe(true);
 
     // `authorizedByPolicy` is a literal `true`. Neither omitting it nor setting
     // it to false produces a parseable cross-model entry, so an unauthorized
     // substitution is not a thing this contract can say.
-    const { authorizedByPolicy, ...withoutAuthorization } =
-      crossModelSubstitute;
+    const { authorizedByPolicy, ...withoutAuthorization } = crossModelSubstitute;
     expect(authorizedByPolicy).toBe(true);
-    expect(authorizedRouteSchema.safeParse(withoutAuthorization).success).toBe(
-      false,
-    );
+    expect(authorizedRouteSchema.safeParse(withoutAuthorization).success).toBe(false);
     expect(
       authorizedRouteSchema.safeParse({
         ...crossModelSubstitute,
@@ -404,7 +381,7 @@ describe("authorizedRouteSchema", () => {
     ).toBe(false);
   });
 
-  it("preserves an empty unattested region set without inventing a location", () => {
+  it('preserves an empty unattested region set without inventing a location', () => {
     const parsed = authorizedRouteSchema.parse({
       ...primaryRoute,
       regions: [],
@@ -413,8 +390,8 @@ describe("authorizedRouteSchema", () => {
   });
 });
 
-describe("inferenceRequestSchema authorizedRoutes", () => {
-  it("accepts a request with no list at all, meaning no failover is authorized", () => {
+describe('inferenceRequestSchema authorizedRoutes', () => {
+  it('accepts a request with no list at all, meaning no failover is authorized', () => {
     const parsed = inferenceRequestSchema.parse(request);
     expect(parsed.authorizedRoutes).toBeUndefined();
   });
@@ -422,29 +399,26 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
   it('refuses an EMPTY list rather than reading it as "no failover"', () => {
     // `[]` would be "permission granted, destination unnamed". Absence is how
     // "no failover" is said; an empty grant is not a state this shape has.
-    expect(
-      inferenceRequestSchema.safeParse({ ...request, authorizedRoutes: [] })
-        .success,
-    ).toBe(false);
+    expect(inferenceRequestSchema.safeParse({ ...request, authorizedRoutes: [] }).success).toBe(
+      false,
+    );
   });
 
-  it("parses the primary, a same-model failover and an authorized substitute in order", () => {
+  it('parses the primary, a same-model failover and an authorized substitute in order', () => {
     const parsed = inferenceRequestSchema.parse({
       ...request,
       authorizedRoutes: [primaryRoute, sameModelFailover, crossModelSubstitute],
     });
 
     // Order IS preference: the data plane fails over by taking the next entry.
-    expect(parsed.authorizedRoutes?.map((route) => route.deploymentId)).toEqual(
-      [
-        "dep_openai_usw2_gpt5",
-        "dep_azure_use1_gpt5",
-        "dep_anthropic_usw2_opus5",
-      ],
-    );
+    expect(parsed.authorizedRoutes?.map((route) => route.deploymentId)).toEqual([
+      'dep_openai_usw2_gpt5',
+      'dep_azure_use1_gpt5',
+      'dep_anthropic_usw2_opus5',
+    ]);
   });
 
-  it("accepts an authorized primary whose location is unattested", () => {
+  it('accepts an authorized primary whose location is unattested', () => {
     const parsed = inferenceRequestSchema.parse({
       ...request,
       authorizedRoutes: [{ ...primaryRoute, regions: [] }],
@@ -452,31 +426,31 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     expect(parsed.authorizedRoutes?.[0].regions).toEqual([]);
   });
 
-  it("refuses a list whose first entry claims to be a substitution", () => {
+  it('refuses a list whose first entry claims to be a substitution', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        target: { kind: "model", modelReference: "anthropic/claude-opus-5" },
+        target: { kind: 'model', modelReference: 'anthropic/claude-opus-5' },
         authorizedRoutes: [crossModelSubstitute, primaryRoute],
       }).success,
     ).toBe(false);
   });
 
-  it("refuses a primary that does not serve the model the request named", () => {
+  it('refuses a primary that does not serve the model the request named', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
         authorizedRoutes: [
           {
             ...primaryRoute,
-            modelReference: "anthropic/claude-opus-5@2026-05-01",
+            modelReference: 'anthropic/claude-opus-5@2026-05-01',
           },
         ],
       }).success,
     ).toBe(false);
   });
 
-  it("refuses a different model line labelled as same-model failover", () => {
+  it('refuses a different model line labelled as same-model failover', () => {
     // The load-bearing negative: a substitution wearing the label that needs no
     // authorization is the one way an unauthorized switch could have travelled.
     const { authorizedByPolicy, ...substituteFields } = crossModelSubstitute;
@@ -485,15 +459,12 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        authorizedRoutes: [
-          primaryRoute,
-          { ...substituteFields, substitution: "same_model" },
-        ],
+        authorizedRoutes: [primaryRoute, { ...substituteFields, substitution: 'same_model' }],
       }).success,
     ).toBe(false);
   });
 
-  it("refuses the same model line labelled as a cross-model substitute", () => {
+  it('refuses the same model line labelled as a cross-model substitute', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
@@ -501,7 +472,7 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
           primaryRoute,
           {
             ...sameModelFailover,
-            substitution: "cross_model",
+            substitution: 'cross_model',
             authorizedByPolicy: true,
           },
         ],
@@ -509,12 +480,12 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     ).toBe(false);
   });
 
-  it("authorizes no substitute at all for a request that pinned a revision", () => {
+  it('authorizes no substitute at all for a request that pinned a revision', () => {
     const pinned = {
       ...request,
       target: {
-        kind: "model" as const,
-        modelReference: "openai/gpt-5@2026-06-01",
+        kind: 'model' as const,
+        modelReference: 'openai/gpt-5@2026-06-01',
       },
     };
 
@@ -536,14 +507,12 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...pinned,
-        authorizedRoutes: [
-          { ...primaryRoute, modelReference: "openai/gpt-5@2026-04-11" },
-        ],
+        authorizedRoutes: [{ ...primaryRoute, modelReference: 'openai/gpt-5@2026-04-11' }],
       }).success,
     ).toBe(false);
   });
 
-  it("refuses a list that would fail over to the deployment it just left", () => {
+  it('refuses a list that would fail over to the deployment it just left', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
@@ -555,34 +524,37 @@ describe("inferenceRequestSchema authorizedRoutes", () => {
     ).toBe(false);
   });
 
-  it("lets a routing-profile target authorize routes across model lines", () => {
+  it('lets a routing-profile target authorize routes across model lines', () => {
     // The customer named no model, so nothing here is a substitution FOR
     // anything they asked for — but the destinations still have to be named and
     // authorized, one entry each.
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        target: { kind: "routing_profile_id", routingProfileId: "rpf_auto" },
+        target: { kind: 'routing_profile_id', routingProfileId: 'rpf_auto' },
         authorizedRoutes: [primaryRoute, crossModelSubstitute],
       }).success,
     ).toBe(true);
   });
 
-  it("rejects the retired routing-profile slug arm at the signed boundary", () => {
+  it('rejects the retired routing-profile slug arm at the signed boundary', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        target: { kind: "routing_profile", routingProfile: "auto" },
+        target: { kind: 'routing_profile', routingProfile: 'auto' },
       }).success,
     ).toBe(false);
   });
 });
 
-
 describe('speech request parameters', () => {
-  const speech = { ...request, modality: 'audio', input: { format: 'text', text: 'Hola 👋' },
+  const speech = {
+    ...request,
+    modality: 'audio',
+    input: { format: 'text', text: 'Hola 👋' },
     client: { ...request.client, apiFormat: 'audio_speech', endpoint: '/v1/audio/speech' },
-    speech: { voice: 'female', responseFormat: 'mp3', speed: 1.15 } };
+    speech: { voice: 'female', responseFormat: 'mp3', speed: 1.15 },
+  };
   it('preserves speech parameters and accepts the additive field being absent', () => {
     expect(inferenceRequestSchema.parse(speech).speech).toEqual(speech.speech);
     const { speech: parameters, ...legacy } = speech;
@@ -590,8 +562,11 @@ describe('speech request parameters', () => {
     expect(inferenceRequestSchema.safeParse(legacy).success).toBe(true);
   });
   it.each([
-    { modality: 'text' }, { stream: true }, { input: request.input },
-    { client: request.client }, { speech: { ...speech.speech, speed: 0 } },
+    { modality: 'text' },
+    { stream: true },
+    { input: request.input },
+    { client: request.client },
+    { speech: { ...speech.speech, speed: 0 } },
     { speech: { ...speech.speech, responseFormat: 'json' } },
     { speech: { ...speech.speech, voice: '' } },
   ])('rejects contradictory speech envelopes: %p', (patch) => {
@@ -599,30 +574,29 @@ describe('speech request parameters', () => {
   });
 });
 
-describe("reasoning effort on the envelope", () => {
-  it("carries an optional provider-neutral effort", () => {
+describe('reasoning effort on the envelope', () => {
+  it('carries an optional provider-neutral effort', () => {
     const parsed = inferenceRequestSchema.parse({
       ...request,
-      reasoning: { effort: "high" },
+      reasoning: { effort: 'high' },
     });
-    expect(parsed.reasoning).toEqual({ effort: "high" });
+    expect(parsed.reasoning).toEqual({ effort: 'high' });
     expect(inferenceRequestSchema.parse(request).reasoning).toBeUndefined();
   });
 
-  it("refuses an effort outside the closed vocabulary", () => {
-    for (const effort of ["minimal", "max", "HIGH", ""]) {
-      expect(
-        inferenceRequestSchema.safeParse({ ...request, reasoning: { effort } })
-          .success,
-      ).toBe(false);
+  it('refuses an effort outside the closed vocabulary', () => {
+    for (const effort of ['minimal', 'max', 'HIGH', '']) {
+      expect(inferenceRequestSchema.safeParse({ ...request, reasoning: { effort } }).success).toBe(
+        false,
+      );
     }
   });
 
-  it("refuses a provider-specific knob beside the effort (strict leaf)", () => {
+  it('refuses a provider-specific knob beside the effort (strict leaf)', () => {
     expect(
       inferenceRequestSchema.safeParse({
         ...request,
-        reasoning: { effort: "low", budget_tokens: 1024 },
+        reasoning: { effort: 'low', budget_tokens: 1024 },
       }).success,
     ).toBe(false);
   });

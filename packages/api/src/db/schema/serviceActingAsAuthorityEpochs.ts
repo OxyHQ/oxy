@@ -13,8 +13,12 @@ import { users } from './users';
 export const serviceActingAsAuthorityEpochs = pgTable(
   'service_acting_as_authority_epochs',
   {
-    userId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-    applicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    applicationId: text()
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
     /** Bigint stays exact; transport serializes decimal text rather than a JS number. */
     epoch: bigint({ mode: 'bigint' }).notNull().default(sql`0`),
     updatedAt: updatedAt(),

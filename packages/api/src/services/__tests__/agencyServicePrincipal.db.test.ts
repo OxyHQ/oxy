@@ -26,24 +26,30 @@ afterAll(async () => {
 
 async function principalFixture() {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-  const [application] = await getDb().insert(applications).values({
-    name: `Agency coordinator ${randomUUID()}`,
-    ownerAccountId: owner.id,
-    status: 'active',
-    isInternal: true,
-    scopes: ['capabilities:read', 'capability-tickets:issue'],
-    capabilities: ['agency:coordinate'],
-  }).returning({ id: applications.id });
-  const [credential] = await getDb().insert(applicationCredentials).values({
-    applicationId: application.id,
-    name: 'Agency test credential',
-    publicKey: `oxy_dk_${randomUUID()}`,
-    secretHash: 'test-only-secret-hash',
-    type: 'service',
-    environment: 'production',
-    scopes: ['capabilities:read', 'capability-tickets:issue'],
-    status: 'active',
-  }).returning({ id: applicationCredentials.id });
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: `Agency coordinator ${randomUUID()}`,
+      ownerAccountId: owner.id,
+      status: 'active',
+      isInternal: true,
+      scopes: ['capabilities:read', 'capability-tickets:issue'],
+      capabilities: ['agency:coordinate'],
+    })
+    .returning({ id: applications.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: 'Agency test credential',
+      publicKey: `oxy_dk_${randomUUID()}`,
+      secretHash: 'test-only-secret-hash',
+      type: 'service',
+      environment: 'production',
+      scopes: ['capabilities:read', 'capability-tickets:issue'],
+      status: 'active',
+    })
+    .returning({ id: applicationCredentials.id });
   const token: ServiceTokenPayload = {
     type: 'service',
     appId: application.id,
@@ -59,7 +65,9 @@ async function principalFixture() {
 describe('live agency service principal', () => {
   it('intersects token, credential and current application scopes', async () => {
     const fixture = await principalFixture();
-    await getDb().update(applications).set({ scopes: ['capabilities:read'] })
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['capabilities:read'] })
       .where(eq(applications.id, fixture.application.id));
 
     const principal = await resolveLiveAgencyServicePrincipal(fixture.token);
@@ -70,7 +78,9 @@ describe('live agency service principal', () => {
 
   it('rejects a credential revoked after its service JWT was minted', async () => {
     const fixture = await principalFixture();
-    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
       .where(eq(applicationCredentials.id, fixture.credential.id));
 
     await expect(resolveLiveAgencyServicePrincipal(fixture.token)).resolves.toBeNull();
@@ -78,7 +88,9 @@ describe('live agency service principal', () => {
 
   it('rejects an application whose platform trust is removed after mint', async () => {
     const fixture = await principalFixture();
-    await getDb().update(applications).set({ isInternal: false, type: 'third_party' })
+    await getDb()
+      .update(applications)
+      .set({ isInternal: false, type: 'third_party' })
       .where(eq(applications.id, fixture.application.id));
 
     await expect(resolveLiveAgencyServicePrincipal(fixture.token)).resolves.toBeNull();
@@ -98,24 +110,33 @@ describe('live agency workload principal', () => {
   async function workloadFixture(
     overrides: { bindingScopes?: string[]; expiresAt?: Date; attribute?: boolean } = {},
   ) {
-    const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-    const [application] = await getDb().insert(applications).values({
-      name: `Attested product ${randomUUID()}`,
-      ownerAccountId: owner.id,
-      status: 'active',
-      isInternal: true,
-      scopes: ['inference:invoke', 'acting-as:offline', 'user:read'],
-      capabilities: [],
-    }).returning({ id: applications.id });
+    const [owner] = await getDb()
+      .insert(users)
+      .values({ color: 'teal' })
+      .returning({ id: users.id });
+    const [application] = await getDb()
+      .insert(applications)
+      .values({
+        name: `Attested product ${randomUUID()}`,
+        ownerAccountId: owner.id,
+        status: 'active',
+        isInternal: true,
+        scopes: ['inference:invoke', 'acting-as:offline', 'user:read'],
+        capabilities: [],
+      })
+      .returning({ id: applications.id });
     const subject = ROLE();
-    const [binding] = await getDb().insert(applicationWorkloadIdentities).values({
-      applicationId: application.id,
-      provider: 'aws-iam',
-      subject,
-      description: 'test binding',
-      scopes: overrides.bindingScopes ?? ['inference:invoke', 'acting-as:offline'],
-      ...(overrides.expiresAt ? { expiresAt: overrides.expiresAt } : {}),
-    }).returning({ id: applicationWorkloadIdentities.id });
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: application.id,
+        provider: 'aws-iam',
+        subject,
+        description: 'test binding',
+        scopes: overrides.bindingScopes ?? ['inference:invoke', 'acting-as:offline'],
+        ...(overrides.expiresAt ? { expiresAt: overrides.expiresAt } : {}),
+      })
+      .returning({ id: applicationWorkloadIdentities.id });
     /**
      * The materialised attribution row, unless the case is about its absence.
      *
@@ -137,7 +158,11 @@ describe('live agency workload principal', () => {
 
   it('resolves the binding, and reports the handle a token minted from it carries', async () => {
     const fixture = await workloadFixture();
-    const principal = await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject);
+    const principal = await resolveLiveAgencyWorkload(
+      fixture.application.id,
+      'aws-iam',
+      fixture.subject,
+    );
     expect(principal?.applicationId).toBe(fixture.application.id);
     expect(principal?.handle).toBe(workloadAttestationHandle(fixture.subject));
     expect(principal?.scopes).toEqual(['inference:invoke', 'acting-as:offline']);
@@ -146,56 +171,90 @@ describe('live agency workload principal', () => {
   /** The application is the ceiling for a binding, as it is for a credential. */
   it('intersects the binding with the application, so a scope staff removed is gone at once', async () => {
     const fixture = await workloadFixture();
-    await getDb().update(applications).set({ scopes: ['inference:invoke'] })
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['inference:invoke'] })
       .where(eq(applications.id, fixture.application.id));
-    const principal = await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject);
+    const principal = await resolveLiveAgencyWorkload(
+      fixture.application.id,
+      'aws-iam',
+      fixture.subject,
+    );
     expect(principal?.scopes).toEqual(['inference:invoke']);
   });
 
   /** Empty is "names none" — the application's NON-privileged grants, as the mint does. */
-  it('gives a scopeless binding the application\'s non-privileged grants only', async () => {
+  it("gives a scopeless binding the application's non-privileged grants only", async () => {
     const fixture = await workloadFixture({ bindingScopes: [] });
-    const principal = await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject);
+    const principal = await resolveLiveAgencyWorkload(
+      fixture.application.id,
+      'aws-iam',
+      fixture.subject,
+    );
     expect(principal?.scopes).toEqual(['inference:invoke', 'user:read']);
     expect(principal?.scopes).not.toContain('acting-as:offline');
   });
 
   it('rejects a binding that was deleted — how a compromised workload is cut off', async () => {
     const fixture = await workloadFixture();
-    await getDb().delete(applicationWorkloadIdentities)
+    await getDb()
+      .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.applicationId, fixture.application.id));
-    await expect(resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject),
+    ).resolves.toBeNull();
   });
 
   it('rejects a binding whose expiry has passed', async () => {
     const fixture = await workloadFixture({ expiresAt: new Date(Date.now() + 60_000) });
-    await expect(resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)).resolves.not.toBeNull();
-    await expect(resolveLiveAgencyWorkload(
-      fixture.application.id, 'aws-iam', fixture.subject, new Date(Date.now() + 120_000),
-    )).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject),
+    ).resolves.not.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(
+        fixture.application.id,
+        'aws-iam',
+        fixture.subject,
+        new Date(Date.now() + 120_000),
+      ),
+    ).resolves.toBeNull();
   });
 
   it('rejects a binding read against an application it does not belong to', async () => {
     const mine = await workloadFixture();
     const theirs = await workloadFixture();
-    await expect(resolveLiveAgencyWorkload(theirs.application.id, 'aws-iam', mine.subject)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(theirs.application.id, 'aws-iam', mine.subject),
+    ).resolves.toBeNull();
   });
 
   it('rejects an inactive application, a demoted one, and a suspended owner', async () => {
     const inactive = await workloadFixture();
-    await getDb().update(applications).set({ status: 'suspended' })
+    await getDb()
+      .update(applications)
+      .set({ status: 'suspended' })
       .where(eq(applications.id, inactive.application.id));
-    await expect(resolveLiveAgencyWorkload(inactive.application.id, 'aws-iam', inactive.subject)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(inactive.application.id, 'aws-iam', inactive.subject),
+    ).resolves.toBeNull();
 
     const demoted = await workloadFixture();
-    await getDb().update(applications).set({ isInternal: false, type: 'third_party' })
+    await getDb()
+      .update(applications)
+      .set({ isInternal: false, type: 'third_party' })
       .where(eq(applications.id, demoted.application.id));
-    await expect(resolveLiveAgencyWorkload(demoted.application.id, 'aws-iam', demoted.subject)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(demoted.application.id, 'aws-iam', demoted.subject),
+    ).resolves.toBeNull();
 
     const archived = await workloadFixture();
-    await getDb().update(users).set({ accountStatus: 'archived' })
+    await getDb()
+      .update(users)
+      .set({ accountStatus: 'archived' })
       .where(eq(users.id, archived.owner.id));
-    await expect(resolveLiveAgencyWorkload(archived.application.id, 'aws-iam', archived.subject)).resolves.toBeNull();
+    await expect(
+      resolveLiveAgencyWorkload(archived.application.id, 'aws-iam', archived.subject),
+    ).resolves.toBeNull();
   });
 });
 
@@ -230,39 +289,51 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
   async function bothFixture(
     overrides: { bindingScopes?: string[]; capabilities?: string[] } = {},
   ) {
-    const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-    const [application] = await getDb().insert(applications).values({
-      name: `Attested and credentialed ${randomUUID()}`,
-      ownerAccountId: owner.id,
-      status: 'active',
-      isInternal: true,
-      scopes: ['inference:invoke', 'acting-as:offline', 'user:read'],
-      capabilities: overrides.capabilities ?? [],
-    }).returning({ id: applications.id, capabilities: applications.capabilities });
+    const [owner] = await getDb()
+      .insert(users)
+      .values({ color: 'teal' })
+      .returning({ id: users.id });
+    const [application] = await getDb()
+      .insert(applications)
+      .values({
+        name: `Attested and credentialed ${randomUUID()}`,
+        ownerAccountId: owner.id,
+        status: 'active',
+        isInternal: true,
+        scopes: ['inference:invoke', 'acting-as:offline', 'user:read'],
+        capabilities: overrides.capabilities ?? [],
+      })
+      .returning({ id: applications.id, capabilities: applications.capabilities });
     const subject = ROLE();
-    const [binding] = await getDb().insert(applicationWorkloadIdentities).values({
-      applicationId: application.id,
-      provider: 'aws-iam',
-      subject,
-      description: 'handle test binding',
-      scopes: overrides.bindingScopes ?? ['inference:invoke'],
-    }).returning({ id: applicationWorkloadIdentities.id });
+    const [binding] = await getDb()
+      .insert(applicationWorkloadIdentities)
+      .values({
+        applicationId: application.id,
+        provider: 'aws-iam',
+        subject,
+        description: 'handle test binding',
+        scopes: overrides.bindingScopes ?? ['inference:invoke'],
+      })
+      .returning({ id: applicationWorkloadIdentities.id });
     // The binding's own attribution row, as both writers produce it.
     await ensureWorkloadAttributionIdentity({
       bindingId: binding.id,
       applicationId: application.id,
       subject,
     });
-    const [credential] = await getDb().insert(applicationCredentials).values({
-      applicationId: application.id,
-      name: 'Beside the binding',
-      publicKey: `oxy_dk_${randomUUID()}`,
-      secretHash: 'test-only-secret-hash',
-      type: 'service',
-      environment: 'production',
-      scopes: ['inference:invoke', 'acting-as:offline'],
-      status: 'active',
-    }).returning({ id: applicationCredentials.id });
+    const [credential] = await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId: application.id,
+        name: 'Beside the binding',
+        publicKey: `oxy_dk_${randomUUID()}`,
+        secretHash: 'test-only-secret-hash',
+        type: 'service',
+        environment: 'production',
+        scopes: ['inference:invoke', 'acting-as:offline'],
+        status: 'active',
+      })
+      .returning({ id: applicationCredentials.id });
 
     const handle = workloadAttestationHandle(subject);
     const attestedToken: ServiceTokenPayload = {
@@ -291,7 +362,16 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       // compares against.
       environment: 'production',
     };
-    return { owner, application, subject, handle, binding, credential, attestedToken, credentialToken };
+    return {
+      owner,
+      application,
+      subject,
+      handle,
+      binding,
+      credential,
+      attestedToken,
+      credentialToken,
+    };
   }
 
   /**
@@ -345,9 +425,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
 
   it('ends an attested token the moment its binding is deleted, with the credential untouched', async () => {
     const fixture = await bothFixture();
-    await expect(
-      resolveLiveAgencyServicePrincipal(fixture.attestedToken)
-    ).resolves.not.toBeNull();
+    await expect(resolveLiveAgencyServicePrincipal(fixture.attestedToken)).resolves.not.toBeNull();
 
     // Deleting the binding is how a compromised workload is cut off. The token
     // itself is unexpired throughout.
@@ -358,7 +436,7 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     await expect(resolveLiveAgencyServicePrincipal(fixture.attestedToken)).resolves.toBeNull();
     // One identity's liveness never covers for the other's, in either direction.
     await expect(
-      resolveLiveAgencyServicePrincipal(fixture.credentialToken)
+      resolveLiveAgencyServicePrincipal(fixture.credentialToken),
     ).resolves.not.toBeNull();
   });
 
@@ -372,10 +450,10 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       resolveLiveAgencyServicePrincipal({
         ...fixture.attestedToken,
         ownerAccountId: stranger.owner.id,
-      })
+      }),
     ).resolves.toBeNull();
     await expect(
-      resolveLiveAgencyServicePrincipal({ ...fixture.attestedToken, environment: 'staging' })
+      resolveLiveAgencyServicePrincipal({ ...fixture.attestedToken, environment: 'staging' }),
     ).resolves.toBeNull();
   });
 
@@ -411,9 +489,9 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     // Stated as an equality rather than as two assertions, so the two ways in
     // cannot come to different answers about one row without this going red.
     await expect(
-      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.handle)
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.handle),
     ).resolves.toEqual(
-      await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)
+      await resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject),
     );
   });
 
@@ -433,10 +511,10 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
       .where(eq(applicationCredentials.id, fixture.handle));
 
     await expect(
-      resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject)
+      resolveLiveAgencyWorkload(fixture.application.id, 'aws-iam', fixture.subject),
     ).resolves.not.toBeNull();
     await expect(
-      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.handle)
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.handle),
     ).resolves.toBeNull();
   });
 
@@ -446,15 +524,15 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
     // credential space are disjoint, and this is the direction that matters:
     // the binding lookup must never answer for a credential.
     await expect(
-      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.credential.id)
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, fixture.credential.id),
     ).resolves.toBeNull();
     await expect(
-      resolveLiveAgencyWorkloadByHandle(fixture.application.id, workloadAttestationHandle(ROLE()))
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, workloadAttestationHandle(ROLE())),
     ).resolves.toBeNull();
     // Another application's REAL, live handle, presented under this one's name.
     const theirs = await bothFixture();
     await expect(
-      resolveLiveAgencyWorkloadByHandle(fixture.application.id, theirs.handle)
+      resolveLiveAgencyWorkloadByHandle(fixture.application.id, theirs.handle),
     ).resolves.toBeNull();
   });
 
@@ -492,58 +570,72 @@ describe('a binding addressed by its handle, and the service-token hop', () => {
   it('does not let either row cover for the other, in either direction', async () => {
     // A dead binding with a LIVE credential beside it.
     const attestedSide = await bothFixture();
-    await getDb().delete(applicationWorkloadIdentities)
+    await getDb()
+      .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.id, attestedSide.binding.id));
-    await expect(resolveServiceTokenPrincipal(attestedSide.attestedToken))
-      .resolves.toEqual({ status: 'unknown-workload' });
+    await expect(resolveServiceTokenPrincipal(attestedSide.attestedToken)).resolves.toEqual({
+      status: 'unknown-workload',
+    });
     // The control: the credential token on the same application still works, so
     // the refusal above is the binding and not the fixture.
-    await expect(resolveServiceTokenPrincipal(attestedSide.credentialToken))
-      .resolves.toMatchObject({ status: 'resolved' });
+    await expect(resolveServiceTokenPrincipal(attestedSide.credentialToken)).resolves.toMatchObject(
+      { status: 'resolved' },
+    );
 
     // A revoked credential with a LIVE binding beside it.
     const credentialSide = await bothFixture();
-    await getDb().update(applicationCredentials).set({ status: 'revoked' })
+    await getDb()
+      .update(applicationCredentials)
+      .set({ status: 'revoked' })
       .where(eq(applicationCredentials.id, credentialSide.credential.id));
-    await expect(resolveServiceTokenPrincipal(credentialSide.credentialToken))
-      .resolves.toEqual({ status: 'unusable-credential' });
-    await expect(resolveServiceTokenPrincipal(credentialSide.attestedToken))
-      .resolves.toMatchObject({ status: 'resolved' });
+    await expect(resolveServiceTokenPrincipal(credentialSide.credentialToken)).resolves.toEqual({
+      status: 'unusable-credential',
+    });
+    await expect(resolveServiceTokenPrincipal(credentialSide.attestedToken)).resolves.toMatchObject(
+      { status: 'resolved' },
+    );
   });
 
   it('refuses an attested token whose application was suspended or demoted', async () => {
     const suspended = await bothFixture();
-    await getDb().update(applications).set({ status: 'suspended' })
+    await getDb()
+      .update(applications)
+      .set({ status: 'suspended' })
       .where(eq(applications.id, suspended.application.id));
-    await expect(resolveServiceTokenPrincipal(suspended.attestedToken))
-      .resolves.toEqual({ status: 'unknown-workload' });
+    await expect(resolveServiceTokenPrincipal(suspended.attestedToken)).resolves.toEqual({
+      status: 'unknown-workload',
+    });
     // The credential path reports the same fact under its own name. Both are
     // refusals; neither is told apart on the wire by any consumer.
-    await expect(resolveServiceTokenPrincipal(suspended.credentialToken))
-      .resolves.toEqual({ status: 'inactive-application' });
+    await expect(resolveServiceTokenPrincipal(suspended.credentialToken)).resolves.toEqual({
+      status: 'inactive-application',
+    });
 
     const demoted = await bothFixture();
-    await getDb().update(applications).set({ isInternal: false, type: 'third_party' })
+    await getDb()
+      .update(applications)
+      .set({ isInternal: false, type: 'third_party' })
       .where(eq(applications.id, demoted.application.id));
     // An attested caller loses the lane when its application is no longer
     // trusted first-party — the gate the MINT applies, so a live ceiling that
     // admitted it would admit more than a fresh mint would.
-    await expect(resolveServiceTokenPrincipal(demoted.attestedToken))
-      .resolves.toEqual({ status: 'unknown-workload' });
+    await expect(resolveServiceTokenPrincipal(demoted.attestedToken)).resolves.toEqual({
+      status: 'unknown-workload',
+    });
   });
 
   it('refuses an attested token naming an application that has no binding at all', async () => {
     const fixture = await bothFixture();
     const stranger = await bothFixture();
     await expect(
-      resolveServiceTokenPrincipal({ ...fixture.attestedToken, appId: stranger.application.id })
+      resolveServiceTokenPrincipal({ ...fixture.attestedToken, appId: stranger.application.id }),
     ).resolves.toEqual({ status: 'unknown-workload' });
   });
 
   it('reports an unknown credential id as its own refusal, unchanged', async () => {
     const fixture = await bothFixture();
     await expect(
-      resolveServiceTokenPrincipal({ ...fixture.credentialToken, credentialId: randomUUID() })
+      resolveServiceTokenPrincipal({ ...fixture.credentialToken, credentialId: randomUUID() }),
     ).resolves.toEqual({ status: 'unknown-credential' });
   });
 });

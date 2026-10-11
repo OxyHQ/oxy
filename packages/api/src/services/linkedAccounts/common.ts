@@ -2,7 +2,11 @@
  * Shared vocabulary of the linked-accounts providers.
  */
 
-import type { LinkedAccountCallbackError, LinkedAccountNetwork, LinkedAccountStartErrorReason } from '@oxy.so/contracts';
+import type {
+  LinkedAccountCallbackError,
+  LinkedAccountNetwork,
+  LinkedAccountStartErrorReason,
+} from '@oxy.so/contracts';
 
 /** The public origin of this API — the host of every callback and client-metadata URL. */
 export function oxyApiOrigin(): string {

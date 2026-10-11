@@ -104,7 +104,9 @@ describe('credentialIssueErrorCode', () => {
   });
 
   it('falls back to generic for an unmodelled reason or transport error', () => {
-    expect(credentialIssueErrorCode(new Error('Credential rejected: not_self_issued'))).toBe('generic');
+    expect(credentialIssueErrorCode(new Error('Credential rejected: not_self_issued'))).toBe(
+      'generic',
+    );
     expect(credentialIssueErrorCode(new Error('Network request failed'))).toBe('generic');
     expect(credentialIssueErrorCode(null)).toBe('generic');
   });

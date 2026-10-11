@@ -49,13 +49,13 @@ async function insertUser(values: Partial<typeof users.$inferInsert> = {}): Prom
  * A stored asset owned by `ownerUserId`, read back so the record under test is
  * the row shape the service sees in production rather than a literal.
  */
-async function insertFile(
-  values: Partial<typeof files.$inferInsert> = {}
-): Promise<FileRecord> {
+async function insertFile(values: Partial<typeof files.$inferInsert> = {}): Promise<FileRecord> {
   const [row] = await getDb()
     .insert(files)
     .values({
-      sha256: `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.padEnd(64, '0').slice(0, 64),
+      sha256: `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`
+        .padEnd(64, '0')
+        .slice(0, 64),
       size: 1024,
       mime: 'image/png',
       ext: 'png',
@@ -193,7 +193,7 @@ describe('the rest of the ladder still holds', () => {
     });
   });
 
-  it('refuses a private-account owner\'s private asset to a non-follower', async () => {
+  it("refuses a private-account owner's private asset to a non-follower", async () => {
     const ownerId = await insertUser({ privacyIsPrivateAccount: true });
     const viewerId = await insertUser();
     const file = await insertFile({ ownerUserId: ownerId, visibility: 'private' });
@@ -237,11 +237,9 @@ describe('the rest of the ladder still holds', () => {
   });
 
   it('denies a followers-only entity whose author does not exist', async () => {
-    // The deleted `ObjectId.isValid(authorId)` gate rejected a caller-supplied
-    // author id by SHAPE, to keep it from reaching Mongo as a query operator. A
-    // bound `text` parameter cannot be an operator, and an id naming no account
-    // matches no follow edge — the same denial, from the data rather than from a
-    // format check.
+    // No format check on the caller-supplied author id: a bound `text`
+    // parameter cannot be a query operator, and an id naming no account matches
+    // no follow edge — the denial comes from the data.
     const viewerId = await insertUser();
     const file = await insertFile({ ownerUserId: await insertUser() });
 
@@ -249,7 +247,7 @@ describe('the rest of the ladder still holds', () => {
       await service.checkMediaAccess(file, viewerId, {
         postVisibility: 'followers',
         authorId: '{"$ne": null}',
-      })
+      }),
     ).toEqual({ allowed: false, reason: 'entity_access_denied' });
   });
 

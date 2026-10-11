@@ -107,14 +107,11 @@ export function useAvatarPicker({
   const removeAvatar = useCallback(async () => {
     try {
       await updateProfileWithAvatar({ avatar: '' }, oxyServices, activeSessionId, queryClient);
-      toast.success(
-        translate(currentLanguage ?? undefined, 'editProfile.toasts.avatarRemoved'),
-      );
+      toast.success(translate(currentLanguage ?? undefined, 'editProfile.toasts.avatarRemoved'));
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : undefined;
       toast.error(
-        message ||
-          translate(currentLanguage ?? undefined, 'editProfile.toasts.updateAvatarFailed'),
+        message || translate(currentLanguage ?? undefined, 'editProfile.toasts.updateAvatarFailed'),
       );
     }
   }, [activeSessionId, currentLanguage, oxyServices, queryClient]);

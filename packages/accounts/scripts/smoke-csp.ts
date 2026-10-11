@@ -92,5 +92,7 @@ record(
   '',
 );
 
-process.stdout.write(failed ? '\nAccounts CSP smoke gate FAILED\n' : '\nAccounts CSP smoke gate OK\n');
+process.stdout.write(
+  failed ? '\nAccounts CSP smoke gate FAILED\n' : '\nAccounts CSP smoke gate OK\n',
+);
 process.exit(failed ? 1 : 0);

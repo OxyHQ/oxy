@@ -93,14 +93,14 @@ export const billingInvoices = pgTable(
       t.accountId,
       t.currency,
       t.periodStart,
-      t.periodEnd
+      t.periodEnd,
     ),
     index('billing_invoices_account_id_period_start_idx').on(t.accountId, t.periodStart.desc()),
     index('billing_invoices_status_idx').on(t.status),
 
     check(
       'billing_invoices_status_check',
-      sql`${t.status} in (${sql.raw(inList(BILLING_INVOICE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(BILLING_INVOICE_STATUSES))})`,
     ),
     check('billing_invoices_currency_check', currencyCodeCheck(t.currency)),
     check('billing_invoices_period_check', sql`${t.periodEnd} > ${t.periodStart}`),
@@ -111,25 +111,25 @@ export const billingInvoices = pgTable(
     // and fails at APPLY time, far from its cause.
     check(
       'billing_invoices_minor_unit_exponent_check',
-      sql`${t.minorUnitExponent} >= 0 and ${t.minorUnitExponent} <= ${sql.raw(String(MAX_MINOR_UNIT_EXPONENT))}`
+      sql`${t.minorUnitExponent} >= 0 and ${t.minorUnitExponent} <= ${sql.raw(String(MAX_MINOR_UNIT_EXPONENT))}`,
     ),
     // Rounding moves the total by strictly less than one minor unit. A larger
     // gap is an aggregation bug, and it is the shape a silently dropped receipt
     // takes.
     check(
       'billing_invoices_rounding_bound_check',
-      sql`abs(${t.totalAmount} - ${t.subtotalAmount}) < power(10::numeric, -${t.minorUnitExponent})`
+      sql`abs(${t.totalAmount} - ${t.subtotalAmount}) < power(10::numeric, -${t.minorUnitExponent})`,
     ),
     // An issued invoice records when. A paid one records both.
     check(
       'billing_invoices_issued_at_check',
-      sql`${t.status} in ('draft', 'void') or ${t.issuedAt} is not null`
+      sql`${t.status} in ('draft', 'void') or ${t.issuedAt} is not null`,
     ),
     check(
       'billing_invoices_paid_at_check',
-      sql`(${t.status} = 'paid') = (${t.paidAt} is not null)`
+      sql`(${t.status} = 'paid') = (${t.paidAt} is not null)`,
     ),
-  ]
+  ],
 );
 
 export const billingInvoiceReceipts = pgTable(
@@ -152,5 +152,5 @@ export const billingInvoiceReceipts = pgTable(
   (t) => [
     // The invoice's own line items.
     index('billing_invoice_receipts_invoice_id_idx').on(t.invoiceId),
-  ]
+  ],
 );

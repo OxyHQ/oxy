@@ -90,7 +90,10 @@ describe('authRequestCodeFromPush', () => {
     ['undefined', undefined],
     ['a string', 'oxycommons://approve?code=abc123'],
     ['a number', 7],
-    ['an array', [{ type: COMMONS_AUTH_REQUEST_PUSH_TYPE, approvalUrl: 'oxycommons://approve?code=x' }]],
+    [
+      'an array',
+      [{ type: COMMONS_AUTH_REQUEST_PUSH_TYPE, approvalUrl: 'oxycommons://approve?code=x' }],
+    ],
   ])('drops a payload that is %s', (_label, payload) => {
     expect(authRequestCodeFromPush(payload)).toBeNull();
   });

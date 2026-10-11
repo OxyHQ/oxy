@@ -155,8 +155,7 @@ const USAGE_TOP_ENDPOINTS = 10;
  * The credential columns a client may ever see — every column except
  * `secretHash` and `tokenHash`.
  *
- * Mongoose expressed this as `.select('-secretHash')`; drizzle enumerates
- * columns explicitly and has no exclusion form, so the selection is named once
+ * Drizzle enumerates columns explicitly and has no exclusion form, so the selection is named once
  * here and reused by the list read AND by every `returning()`. A credential
  * object in this module therefore never carries either hash in the first place,
  * which is a stronger guarantee than remembering to drop it in the serializer:
@@ -333,7 +332,7 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
 function authorizeRequestedScopes(
   req: AuthRequest,
   requestedScopes: ApplicationScope[],
-  previousScopes: readonly string[]
+  previousScopes: readonly string[],
 ): ApplicationScope[] {
   const deduped = Array.from(new Set(requestedScopes));
 
@@ -345,7 +344,7 @@ function authorizeRequestedScopes(
   const requested = new Set<string>(deduped);
 
   const newlyAddedPrivileged = deduped.filter(
-    (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope)
+    (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope),
   );
 
   if (newlyAddedPrivileged.length > 0) {
@@ -354,7 +353,7 @@ function authorizeRequestedScopes(
       scopes: newlyAddedPrivileged,
     });
     throw new ForbiddenError(
-      `Granting the scope(s) [${newlyAddedPrivileged.join(', ')}] requires Oxy platform staff privileges`
+      `Granting the scope(s) [${newlyAddedPrivileged.join(', ')}] requires Oxy platform staff privileges`,
     );
   }
 
@@ -362,13 +361,16 @@ function authorizeRequestedScopes(
   // revoking a privileged scope is a staff-only mutation, so an omission is
   // treated as "leave it untouched" rather than a silent revoke.
   const preservedPrivileged = Array.from(previouslyGranted).filter(
-    (scope): scope is ApplicationScope => isPrivilegedScope(scope) && !requested.has(scope)
+    (scope): scope is ApplicationScope => isPrivilegedScope(scope) && !requested.has(scope),
   );
   if (preservedPrivileged.length > 0) {
-    logger.warn('Preserving already-granted privileged application scope omitted by non-staff actor', {
-      userId: requireUserId(req),
-      scopes: preservedPrivileged,
-    });
+    logger.warn(
+      'Preserving already-granted privileged application scope omitted by non-staff actor',
+      {
+        userId: requireUserId(req),
+        scopes: preservedPrivileged,
+      },
+    );
   }
 
   return [...deduped, ...preservedPrivileged];
@@ -390,9 +392,9 @@ interface SerializedCallerMembership {
  * dropped field fails `tsc` here rather than silently changing the response.
  *
  * Every optional field is `?: T` and is fed `?? undefined` from its nullable
- * column: Mongo omitted an unset field entirely, and `JSON.stringify` drops an
+ * column: the wire omits an unset field entirely, and `JSON.stringify` drops an
  * `undefined` property but emits an explicit `null`. Mapping the column's NULL
- * back to `undefined` is what keeps the response byte-identical.
+ * to `undefined` is what keeps the key absent.
  */
 interface SerializedApplication {
   _id: string;
@@ -441,7 +443,7 @@ interface SerializedCredential {
 /** Serialise an application for client responses (no webhook secret). */
 function serializeApplication(
   app: ApplicationRow,
-  callerMembership?: SerializedCallerMembership | null
+  callerMembership?: SerializedCallerMembership | null,
 ): SerializedApplication {
   return {
     _id: app.id,
@@ -485,7 +487,7 @@ function serializeCredential(credential: SelectedCredentialRow): SerializedCrede
     // identifier its consumers key on is a worse outcome than a 500, and a silent
     // placeholder would put a row the Console cannot act on into its list.
     throw new Error(
-      `application_credentials.${credential.id} has no public identifier; it is not a credential`
+      `application_credentials.${credential.id} has no public identifier; it is not a credential`,
     );
   }
   return {
@@ -545,18 +547,17 @@ interface UsageStats {
  * `sum()` over an integer column yields `bigint`, which postgres.js hands back
  * as a STRING; every integer total is therefore cast in SQL rather than
  * converted in TypeScript. `avg` and the credit sum are already
- * double-precision. `count(*) filter (where …)` replaces Mongo's
- * `$sum: {$cond: […]}`.
+ * double-precision. Conditional counts use `count(*) filter (where …)`.
  */
 async function getUsageStats(applicationId: string, startDate: Date): Promise<UsageStats> {
   const db = getDb();
   const window = and(
     eq(apiKeyUsageEvents.applicationId, applicationId),
-    gte(apiKeyUsageEvents.createdAt, startDate)
+    gte(apiKeyUsageEvents.createdAt, startDate),
   );
 
-  // Mongo's `$dateToString` formats in UTC; `to_char` over a `timestamptz`
-  // formats in the SESSION time zone, so the day key is pinned to UTC here or
+  // Day keys are UTC; `to_char` over a `timestamptz` formats in the SESSION
+  // time zone, so the day key is pinned to UTC here or
   // the buckets silently shift with the server's `TimeZone`.
   const dayKey = sql<string>`to_char(${apiKeyUsageEvents.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
   const tokenTotal = sql<number>`coalesce(sum(${apiKeyUsageEvents.tokensUsed}), 0)::int`;
@@ -593,7 +594,9 @@ async function getUsageStats(applicationId: string, startDate: Date): Promise<Us
 }
 
 /** Build the `callerMembership` projection from resolved access. */
-function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCallerMembership | null {
+function callerMembershipFromAccess(
+  access: AppAccess | undefined,
+): SerializedCallerMembership | null {
   if (!access) return null;
   return {
     role: access.role,
@@ -630,15 +633,13 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   const accountAccess = await accountService.resolveEffectiveAccess(
     operatorId,
     application.ownerAccountId,
-    req.sessionId
+    req.sessionId,
   );
   if (!accountAccess) {
     throw new ForbiddenError('You do not have access to this application');
   }
 
-  const permissions = new Set<ApplicationPermission>(
-    appPermissionsForAccountAccess(accountAccess)
-  );
+  const permissions = new Set<ApplicationPermission>(appPermissionsForAccountAccess(accountAccess));
 
   const access: AppAccess = { application, role: accountAccess.role, permissions };
   req.application = application;
@@ -688,7 +689,11 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter, req.sessionId);
+      const access = await accountService.resolveEffectiveAccess(
+        operatorId,
+        ownerAccountIdFilter,
+        req.sessionId,
+      );
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
@@ -722,10 +727,7 @@ router.get(
       .select()
       .from(applications)
       .where(
-        and(
-          inArray(applications.ownerAccountId, accountIds),
-          ne(applications.status, 'deleted')
-        )
+        and(inArray(applications.ownerAccountId, accountIds), ne(applications.status, 'deleted')),
       )
       // `id` breaks createdAt ties so the list has one stable order.
       .orderBy(desc(applications.createdAt), desc(applications.id));
@@ -744,7 +746,7 @@ router.get(
         return serializeApplication(app, callerMembership);
       }),
     });
-  })
+  }),
 );
 
 /**
@@ -771,14 +773,18 @@ router.post(
       termsUrl?: string;
       icon?: string;
       redirectUris?: string[];
-      scopes?: typeof APPLICATION_SCOPES[number][];
+      scopes?: (typeof APPLICATION_SCOPES)[number][];
     };
 
     // Acting as an organization and naming no owner means "this organization",
     // which is what switching into it is for.
     const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId, req.sessionId);
+    const access = await accountService.resolveEffectiveAccess(
+      operatorId,
+      ownerAccountId,
+      req.sessionId,
+    );
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }
@@ -828,7 +834,7 @@ router.post(
     res.status(201).json({
       application: serializeApplication(application, callerMembership),
     });
-  })
+  }),
 );
 
 /**
@@ -846,7 +852,7 @@ router.get(
     res.json({
       application: serializeApplication(application, callerMembershipFromAccess(req.access)),
     });
-  })
+  }),
 );
 
 /**
@@ -871,7 +877,7 @@ router.patch(
       termsUrl?: string;
       icon?: string;
       redirectUris?: string[];
-      scopes?: typeof APPLICATION_SCOPES[number][];
+      scopes?: (typeof APPLICATION_SCOPES)[number][];
       webhookUrl?: string;
       devWebhookUrl?: string | null;
       status?: 'active' | 'suspended' | 'pending_review';
@@ -924,8 +930,7 @@ router.patch(
       if (body.capabilities !== undefined) updates.capabilities = body.capabilities;
     }
 
-    // An empty patch writes nothing at all — matching Mongoose's `save()` on a
-    // document with no modified paths, which also left `updatedAt` untouched.
+    // An empty patch writes nothing at all, so `updated_at` stays untouched.
     let application = stored;
     if (Object.keys(updates).length > 0) {
       const [updated] = await getDb()
@@ -953,7 +958,7 @@ router.patch(
     res.json({
       application: serializeApplication(application, callerMembershipFromAccess(req.access)),
     });
-  })
+  }),
 );
 
 /**
@@ -990,13 +995,13 @@ router.delete(
         .where(
           and(
             eq(inferenceProviderConnections.applicationId, locked.id),
-            ne(inferenceProviderConnections.custodyState, 'revoked')
-          )
+            ne(inferenceProviderConnections.custodyState, 'revoked'),
+          ),
         )
         .limit(1);
       if (outstandingCustody) {
         throw new ConflictError(
-          'Revoke every application-scoped provider connection and wait for Kaana custody acknowledgement before deleting this application'
+          'Revoke every application-scoped provider connection and wait for Kaana custody acknowledgement before deleting this application',
         );
       }
 
@@ -1020,7 +1025,7 @@ router.delete(
     });
 
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -1047,13 +1052,11 @@ router.get(
       // no secret, nothing can present them, and the tab's actions — rotate,
       // revoke, read the audit trail — do not apply to one. An attested identity
       // is managed through its binding (`scripts/bind-workload-identity.ts`).
-      .where(
-        and(eq(applicationCredentials.applicationId, application.id), excludeWorkloadRows())
-      )
+      .where(and(eq(applicationCredentials.applicationId, application.id), excludeWorkloadRows()))
       .orderBy(desc(applicationCredentials.createdAt));
 
     res.json({ credentials: credentials.map(serializeCredential) });
-  })
+  }),
 );
 
 /**
@@ -1144,7 +1147,7 @@ router.post(
     const ungrantable = requestedScopes.filter((scope) => !grantableScopes.has(scope));
     if (ungrantable.length > 0) {
       throw new BadRequestError(
-        `Credential scope(s) [${ungrantable.join(', ')}] are not granted to this application`
+        `Credential scope(s) [${ungrantable.join(', ')}] are not granted to this application`,
       );
     }
 
@@ -1166,7 +1169,7 @@ router.post(
       const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
       if (privileged.length > 0) {
         throw new ForbiddenError(
-          `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`
+          `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`,
         );
       }
     }
@@ -1231,7 +1234,7 @@ router.post(
       // is no read path that can produce it again.
       ...(machineToken ? { token: machineToken.token } : {}),
     });
-  })
+  }),
 );
 
 /**
@@ -1286,8 +1289,8 @@ router.post(
               // its attestation handle, and a rotation issues a fresh uuid. The
               // exclusion makes that a 404 rather than a CHECK violation at the end
               // of the transaction.
-              excludeWorkloadRows()
-            )
+              excludeWorkloadRows(),
+            ),
           )
           .limit(1);
         if (!previous) {
@@ -1300,7 +1303,7 @@ router.post(
         const isMachineCredential = previous.type === 'machine';
         if (graceSeconds !== undefined && !isMachineCredential) {
           throw new BadRequestError(
-            'graceSeconds is only supported when rotating a machine credential'
+            'graceSeconds is only supported when rotating a machine credential',
           );
         }
 
@@ -1341,7 +1344,7 @@ router.post(
                 // survives — it is the audit hop `rotated_from_credential_id`
                 // points back at — but `isCredentialUsable` refuses `revoked`
                 // unconditionally.
-                { status: 'revoked' }
+                { status: 'revoked' },
           )
           .where(eq(applicationCredentials.id, previous.id));
 
@@ -1363,7 +1366,11 @@ router.post(
           eventType: 'created',
           actorUserId,
           environment: minted.environment,
-          metadata: { type: minted.type, scopes: minted.scopes, rotatedFromCredentialId: previous.id },
+          metadata: {
+            type: minted.type,
+            scopes: minted.scopes,
+            rotatedFromCredentialId: previous.id,
+          },
         });
 
         return {
@@ -1372,7 +1379,7 @@ router.post(
           machineToken: token,
           graceExpiresAt: grace,
         };
-      }
+      },
     );
 
     logger.info('Application credential rotated', {
@@ -1392,7 +1399,7 @@ router.post(
       // revoked and there is no deadline to report.
       graceExpiresAt,
     });
-  })
+  }),
 );
 
 /**
@@ -1411,7 +1418,8 @@ router.delete(
     const actorUserId = requireUserId(req);
 
     const credential = await revokeApplicationCredential(application.id, req.params.credId, {
-      kind: 'customer', userId: actorUserId,
+      kind: 'customer',
+      userId: actorUserId,
     });
 
     logger.info('Application credential revoked', {
@@ -1421,7 +1429,7 @@ router.delete(
     });
 
     res.json({ success: true });
-  })
+  }),
 );
 
 /**
@@ -1476,8 +1484,8 @@ router.get(
           // Nothing writes credential lifecycle events for a workload row, so the
           // honest answer to a request for its trail is the same 404 the list
           // gives: it is not a credential this surface manages.
-          excludeWorkloadRows()
-        )
+          excludeWorkloadRows(),
+        ),
       )
       .limit(1);
     if (!credential) {
@@ -1486,7 +1494,7 @@ router.get(
 
     const events = await listCredentialAuditTrail(credential.id, limit);
     res.json({ data: events, count: events.length });
-  })
+  }),
 );
 
 // ============================================================================
@@ -1509,7 +1517,7 @@ router.get(
 
     const period = (req.query.period as string) || '7d';
     res.json(await getUsageStats(application.id, getStartDate(period)));
-  })
+  }),
 );
 
 // ============================================================================
@@ -1532,7 +1540,7 @@ router.get(
   requireAppPermission('app:read'),
   asyncHandler(async (req: AppContextRequest, res) => {
     res.json(await getListingForApplication(requireApplication(req).id));
-  })
+  }),
 );
 
 /**
@@ -1553,7 +1561,7 @@ router.put(
       supportEmail?: string | null;
     };
     res.json(await upsertListing({ applicationId: requireApplication(req).id, ...body }));
-  })
+  }),
 );
 
 /** Hand the page to the store for review. */
@@ -1563,7 +1571,7 @@ router.post(
   requireAppPermission('app:update'),
   asyncHandler(async (req: AppContextRequest, res) => {
     res.json(await submitListing(requireApplication(req).id));
-  })
+  }),
 );
 
 /** Take it down, or withdraw it from the queue. Back to a draft, never deleted. */
@@ -1573,7 +1581,7 @@ router.post(
   requireAppPermission('app:update'),
   asyncHandler(async (req: AppContextRequest, res) => {
     res.json(await unpublishListing(requireApplication(req).id));
-  })
+  }),
 );
 
 /** Every picture on the listing, in the author's order. */
@@ -1583,7 +1591,7 @@ router.get(
   requireAppPermission('app:read'),
   asyncHandler(async (req: AppContextRequest, res) => {
     res.json(await listScreenshots(requireApplication(req).id));
-  })
+  }),
 );
 
 /**
@@ -1607,9 +1615,9 @@ router.post(
         applicationId: requireApplication(req).id,
         callerUserId: requireUserId(req),
         ...body,
-      })
+      }),
     );
-  })
+  }),
 );
 
 /**
@@ -1624,8 +1632,10 @@ router.put(
   requireAppPermission('app:update'),
   asyncHandler(async (req: AppContextRequest, res) => {
     const { screenshotIds } = req.body as { screenshotIds: string[] };
-    res.json(await reorderScreenshots({ applicationId: requireApplication(req).id, screenshotIds }));
-  })
+    res.json(
+      await reorderScreenshots({ applicationId: requireApplication(req).id, screenshotIds }),
+    );
+  }),
 );
 
 /** Edit a picture's caption or the frame it was taken in. */
@@ -1640,9 +1650,9 @@ router.patch(
         applicationId: requireApplication(req).id,
         screenshotId: req.params.screenshotId,
         ...body,
-      })
+      }),
     );
-  })
+  }),
 );
 
 /** Remove a picture. The file itself stays — it may be in use elsewhere. */
@@ -1656,7 +1666,7 @@ router.delete(
       screenshotId: req.params.screenshotId,
     });
     res.status(204).end();
-  })
+  }),
 );
 
 export default router;

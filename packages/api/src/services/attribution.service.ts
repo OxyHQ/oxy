@@ -73,10 +73,7 @@
 
 import { and, eq, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import {
-  applicationCredentials,
-  excludeWorkloadRows,
-} from '../db/schema/applicationCredentials';
+import { applicationCredentials, excludeWorkloadRows } from '../db/schema/applicationCredentials';
 import type {
   ApplicationCredentialEnvironment,
   ApplicationCredentialStatus,
@@ -141,7 +138,7 @@ export type ApplicationOwnerResolution =
 
 /** Resolve an application's owning account. */
 export async function resolveApplicationOwnerAccount(
-  applicationId: string
+  applicationId: string,
 ): Promise<ApplicationOwnerResolution> {
   if (!applicationId) {
     return { status: 'unknown-application', applicationId };
@@ -231,7 +228,7 @@ export type CredentialAttributionResolution =
  * even by accident.
  */
 export async function resolveCredentialAttribution(
-  clientId: string
+  clientId: string,
 ): Promise<CredentialAttributionResolution> {
   if (!clientId) {
     return { status: 'unknown-credential', clientId };
@@ -254,7 +251,7 @@ export async function resolveCredentialAttribution(
  * handle to report, and a public identifier is never secret.
  */
 export async function resolveCredentialAttributionById(
-  credentialId: string
+  credentialId: string,
 ): Promise<CredentialAttributionResolution> {
   if (!credentialId) {
     return { status: 'unknown-credential', clientId: credentialId };
@@ -269,7 +266,7 @@ export async function resolveCredentialAttributionById(
    */
   return loadCredentialAttribution(
     and(eq(applicationCredentials.id, credentialId), excludeWorkloadRows()),
-    credentialId
+    credentialId,
   );
 }
 
@@ -283,7 +280,7 @@ export async function resolveCredentialAttributionById(
  */
 async function loadCredentialAttribution(
   where: SQL | undefined,
-  reportedId: string
+  reportedId: string,
 ): Promise<CredentialAttributionResolution> {
   const [row] = await getDb()
     .select({
@@ -468,7 +465,7 @@ export type ServiceTokenPrincipalResolution =
  * filter and not an authority.
  */
 export async function resolveServiceTokenPrincipal(
-  payload: ServiceTokenPayload
+  payload: ServiceTokenPayload,
 ): Promise<ServiceTokenPrincipalResolution> {
   if (isWorkloadAttestationHandle(payload.credentialId)) {
     const binding = await resolveLiveAgencyWorkloadByHandle(payload.appId, payload.credentialId);
@@ -510,7 +507,7 @@ export async function resolveServiceTokenPrincipal(
       environment: attribution.attribution.credentialEnvironment,
       scopes: intersectScopes(
         attribution.attribution.credentialScopes,
-        attribution.attribution.applicationScopes
+        attribution.attribution.applicationScopes,
       ),
     },
   };
@@ -562,7 +559,7 @@ export type CallerAccountAccessResolution =
 export async function resolveCallerAccountAccess(
   userId: string,
   accountId: string,
-  sessionId?: string
+  sessionId?: string,
 ): Promise<CallerAccountAccessResolution> {
   if (!userId || !accountId) {
     return { status: 'no-access', accountId };
@@ -616,7 +613,7 @@ export type CallerApplicationAccessResolution =
 export async function resolveCallerApplicationAccess(
   userId: string,
   applicationId: string,
-  options: { includeDeleted?: boolean; sessionId?: string } = {}
+  options: { includeDeleted?: boolean; sessionId?: string } = {},
 ): Promise<CallerApplicationAccessResolution> {
   const resolved = await resolveApplicationOwnerAccount(applicationId);
   if (resolved.status === 'unknown-application') {
@@ -628,7 +625,11 @@ export async function resolveCallerApplicationAccess(
     return { status: 'unknown-application', applicationId };
   }
 
-  const accountAccess = await resolveCallerAccountAccess(userId, application.ownerAccountId, options.sessionId);
+  const accountAccess = await resolveCallerAccountAccess(
+    userId,
+    application.ownerAccountId,
+    options.sessionId,
+  );
   if (accountAccess.status === 'no-access') {
     return {
       status: 'no-access',
@@ -708,7 +709,7 @@ export type BillingProfileResolution =
  * platform today.
  */
 export async function resolveAccountBillingProfile(
-  accountId: string
+  accountId: string,
 ): Promise<BillingProfileResolution> {
   if (!accountId) {
     return { status: 'unknown-account', accountId };
@@ -756,7 +757,7 @@ export async function resolveAccountBillingProfile(
  * principal responsible for what it already spent.
  */
 export async function resolveApplicationBillingProfile(
-  applicationId: string
+  applicationId: string,
 ): Promise<
   | { status: 'resolved'; application: ApplicationOwnerAccount; profile: AccountBillingProfile }
   | { status: 'unknown-application'; applicationId: string }
@@ -798,7 +799,7 @@ export async function resolveApplicationBillingProfile(
  */
 export async function callerMayReadApplicationBalance(
   userId: string,
-  applicationId: string
+  applicationId: string,
 ): Promise<boolean> {
   const resolved = await resolveCallerApplicationAccess(userId, applicationId, {
     includeDeleted: true,

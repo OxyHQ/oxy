@@ -61,7 +61,7 @@ export interface SqlExecutor {
  */
 export async function executeRows<TRow extends Record<string, unknown>>(
   executor: SqlExecutor,
-  query: SQL
+  query: SQL,
 ): Promise<TRow[]> {
   return (await executor.execute(query)) as TRow[];
 }
@@ -115,7 +115,7 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
  * likely to get wrong.
  */
 export function createDatabase<TSchema extends Record<string, unknown>>(
-  options: CreateDatabaseOptions<TSchema>
+  options: CreateDatabaseOptions<TSchema>,
 ): { db: OxyDatabase<TSchema>; client: postgres.Sql } {
   const client = postgres(options.databaseUrl, options.client);
   return {

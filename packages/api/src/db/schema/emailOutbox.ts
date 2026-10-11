@@ -38,7 +38,9 @@ export const emailOutbox = pgTable(
   'email_outbox',
   {
     id: generatedId(),
-    userId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    userId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     messageRowId: text().references(() => messages.id, { onDelete: 'set null' }),
     messageId: text().notNull(),
     idempotencyKey: text(),
@@ -56,8 +58,13 @@ export const emailOutbox = pgTable(
   (t) => [
     index('email_outbox_due_idx').on(t.status, t.nextAttemptAt, t.createdAt),
     index('email_outbox_user_created_idx').on(t.userId, t.createdAt.desc()),
-    uniqueIndex('email_outbox_user_idempotency_key').on(t.userId, t.idempotencyKey).where(sql`${t.idempotencyKey} is not null`),
-    check('email_outbox_status_check', sql`${t.status} in (${sql.raw(EMAIL_OUTBOX_STATUSES.map((value) => `'${value}'`).join(', '))})`),
+    uniqueIndex('email_outbox_user_idempotency_key')
+      .on(t.userId, t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} is not null`),
+    check(
+      'email_outbox_status_check',
+      sql`${t.status} in (${sql.raw(EMAIL_OUTBOX_STATUSES.map((value) => `'${value}'`).join(', '))})`,
+    ),
     check('email_outbox_attempts_check', sql`${t.attempts} >= 0`),
   ],
 );

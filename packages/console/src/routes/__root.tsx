@@ -28,7 +28,7 @@ const queryClient = new QueryClient({
 const TanStackRouterDevtools = lazy(() =>
   import('@tanstack/react-router-devtools').then((mod) => ({
     default: mod.TanStackRouterDevtools,
-  }))
+  })),
 );
 
 export const Route = createRootRoute({
@@ -45,7 +45,12 @@ function RootComponent() {
     <LocaleProvider>
       <BloomThemeProvider mode="system" colorPreset="oxy">
         <ConnectionStatusToasts />
-        <OxyProvider baseURL={config.oxyUrl} clientId={config.clientId} authRedirectUri={config.authRedirectUri} queryClient={queryClient}>
+        <OxyProvider
+          baseURL={config.oxyUrl}
+          clientId={config.clientId}
+          authRedirectUri={config.authRedirectUri}
+          queryClient={queryClient}
+        >
           <AccountProvider>
             <TooltipProvider delayDuration={300}>
               <Outlet />

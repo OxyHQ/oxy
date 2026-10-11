@@ -75,7 +75,8 @@ async function readBounded(stream: AsyncIterable<unknown> & { destroy(): void })
 const safeWhatwgFetch: typeof fetch = async (input, init) => {
   const request = new Request(input, init);
   const method = request.method.toUpperCase();
-  const body = method === 'GET' || method === 'HEAD' ? undefined : Buffer.from(await request.arrayBuffer());
+  const body =
+    method === 'GET' || method === 'HEAD' ? undefined : Buffer.from(await request.arrayBuffer());
   const headers = headersToRecord(request.headers);
   if (!Object.keys(headers).some((key) => key.toLowerCase() === 'user-agent')) {
     headers['User-Agent'] = USER_AGENT;
@@ -86,7 +87,10 @@ const safeWhatwgFetch: typeof fetch = async (input, init) => {
   const abort = () => controller.abort(request.signal.reason);
   if (request.signal.aborted) abort();
   else request.signal.addEventListener('abort', abort, { once: true });
-  const timeout = setTimeout(() => controller.abort(new Error('linked-account request timed out')), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(new Error('linked-account request timed out')),
+    REQUEST_TIMEOUT_MS,
+  );
 
   let result: Awaited<ReturnType<typeof safeFetch>>;
   let payload: Buffer;

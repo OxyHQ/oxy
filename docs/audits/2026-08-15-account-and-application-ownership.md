@@ -94,7 +94,7 @@ the epic flagged.
 
 The stronger finding is that the column's value is moot: **no file in
 `packages/api/src` outside `__tests__` inserts into this table.** Measured by
-grepping the SQL table name, the drizzle symbol and the Mongoose-era model name
+grepping the SQL table name, the drizzle symbol and the legacy model name
 together (`api_key_usage_events|apiKeyUsageEvents|ApiKeyUsage`), which is not a
 blind zero — the same pattern returns the readers listed below, and
 `insert(apiKeyUsageEvents)` outside `__tests__` returns nothing. The only

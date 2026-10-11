@@ -143,7 +143,8 @@ export const sha256DigestSchema = z
   .regex(/^sha256:[a-f0-9]{64}$/, 'digest must be sha256:<64 lowercase hex>');
 
 /** Standard base64 in whole, padded 4-character groups. */
-export const PADDED_BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+export const PADDED_BASE64_PATTERN =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 /* -------------------------------------------------------------------------- */
 /*  Catalogue references                                                      */
@@ -175,10 +176,7 @@ export const modelSlugSchema = z
 export const modelIdSchema = z
   .string()
   .max(129)
-  .regex(
-    new RegExp(`^${SLUG_PATTERN}/${SLUG_PATTERN}$`),
-    'model id must be <publisher>/<model>',
-  );
+  .regex(new RegExp(`^${SLUG_PATTERN}/${SLUG_PATTERN}$`), 'model id must be <publisher>/<model>');
 
 /** An immutable revision label, unique within its model, e.g. `2026-05-01`. */
 export const modelRevisionLabelSchema = z

@@ -89,13 +89,13 @@ export const billingStripeEvents = pgTable(
     index('billing_stripe_events_object_idx').on(t.stripeObjectId, t.stripeCreatedAt),
     check(
       'billing_stripe_events_outcome_check',
-      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(BILLING_STRIPE_EVENT_OUTCOMES))})`
+      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(BILLING_STRIPE_EVENT_OUTCOMES))})`,
     ),
     // A processed event says what happened; an unprocessed one has no outcome yet.
     check(
       'billing_stripe_events_processed_check',
-      sql`(${t.processedAt} is null) = (${t.outcome} is null)`
+      sql`(${t.processedAt} is null) = (${t.outcome} is null)`,
     ),
     check('billing_stripe_events_attempts_check', sql`${t.attempts} >= 1`),
-  ]
+  ],
 );

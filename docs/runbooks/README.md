@@ -79,5 +79,7 @@ the tokens signed under the retired key cannot be re-signed.
   `packages/api/src/config/kaanaDataPlane.ts`,
   `packages/api/src/services/httpKaanaClient.ts`.
 - Service tokens: [ADR 0012](../adr/0012-service-token-signing-key-model.md).
-- Platform secret delivery: `.github/workflows/deploy-aws.yml` and
-  `scripts/check-deploy-secrets-sync.mjs`.
+- Platform secret delivery: runtime secrets live ONLY in SSM `/oxy/oxy-api/*`,
+  set by their owner (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`);
+  `.github/workflows/deploy-aws.yml` writes none, which
+  `scripts/check-deploy-secrets-sync.mjs` enforces.

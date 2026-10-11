@@ -244,7 +244,10 @@ function narrowSocialReceive(value: unknown): CommonsSocialReceiveSignature | nu
 }
 
 /** Run one native call; a rejection or an unexpected shape is `null`. */
-async function ask<T>(call: () => Promise<unknown>, narrow: (value: unknown) => T | null): Promise<T | null> {
+async function ask<T>(
+  call: () => Promise<unknown>,
+  narrow: (value: unknown) => T | null,
+): Promise<T | null> {
   try {
     return narrow(await call());
   } catch {
@@ -271,7 +274,11 @@ export function loadCommonsIdentityBridge(): Promise<CommonsIdentityBridge | nul
       return {
         describe: () => ask(() => m.describe(), narrowDescription),
         proveIdentity: (challenge: string) => ask(() => m.proveIdentity(challenge), narrowProof),
-        deriveScopedSeed: (info: string) => ask(() => m.deriveScopedSeed(info), (v) => hexField(v, 64)),
+        deriveScopedSeed: (info: string) =>
+          ask(
+            () => m.deriveScopedSeed(info),
+            (v) => hexField(v, 64),
+          ),
         signSocialReceive: (index: number, digest: string) =>
           ask(() => m.signSocialReceive(index, digest), narrowSocialReceive),
       } satisfies CommonsIdentityBridge;

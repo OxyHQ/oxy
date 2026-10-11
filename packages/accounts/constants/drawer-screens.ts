@@ -61,7 +61,11 @@ export const DRAWER_SCREENS: readonly DrawerScreenConfig[] = [
   { name: 'family', labelKey: 'drawer.thirdParty', titleKey: 'drawer.thirdParty' },
   { name: 'payments', labelKey: 'drawer.payments', titleKey: 'drawer.payments' },
   { name: 'storage', labelKey: 'drawer.storage', titleKey: 'drawer.storage' },
-  { name: 'managed-accounts', labelKey: 'drawer.yourIdentities', titleKey: 'drawer.yourIdentities' },
+  {
+    name: 'managed-accounts',
+    labelKey: 'drawer.yourIdentities',
+    titleKey: 'drawer.yourIdentities',
+  },
   { name: 'sessions', hidden: true },
   { name: 'search', hidden: true },
   { name: 'authorize', hidden: true, titleKey: 'drawer.authorize' },

@@ -61,7 +61,7 @@ const CLUSTER_TABLES = [
   securityActivities,
 ];
 
-/** Tables of this batch that had a Mongo TTL index, and what it replaced. */
+/** Tables of this batch whose rows expire, and their retention in seconds. */
 const EXPECTED_SWEEP_RETENTIONS: ReadonlyArray<readonly [string, number]> = [
   ['sessions', 0],
   ['domain_verifications', 0],
@@ -153,7 +153,7 @@ async function session(userId: string, overrides: Record<string, unknown> = {}):
 
 /** A minimal valid `auth_sessions` row — a device sign-in request. */
 async function deviceSignInRequest(
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): Promise<{ id: string }> {
   const [row] = await getDb()
     .insert(authSessions)
@@ -201,8 +201,8 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
 
   it("shows why `''` would be worse than the problem it looks like a fix for", async () => {
     // The claim the two assertions above rest on, demonstrated rather than
-    // asserted: an empty string is a VALUE, so a `default: ''` port of Mongo's
-    // `default: undefined` would make every code-less request collide with
+    // asserted: an empty string is a VALUE, so a `default: ''` in place of an
+    // absent value would make every code-less request collide with
     // every other one — converting a non-problem into a live outage.
     await getDb().delete(authSessions).where(eq(authSessions.authorizeCode, ''));
     await deviceSignInRequest({ authorizeCode: '' });
@@ -233,9 +233,9 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
 
     const [row] = await getDb().select().from(authSessions).where(eq(authSessions.id, id));
 
-    // The Mongoose sub-schema exists so this path stays `undefined` instead of
-    // materialising an empty object that reads as truthy. Four separate NULLs
-    // are the port of that, and `{}` has no representation here at all.
+    // This path must stay absent instead of materialising an empty object that
+    // reads as truthy. Four separate NULLs express that, and `{}` has no
+    // representation here at all.
     expect(row.purpose).toBe('device_sign_in');
     expect(row.oauthRedirectUri).toBeNull();
     expect(row.oauthCodeChallenge).toBeNull();
@@ -269,7 +269,7 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
         oauthCodeChallenge: 'challenge',
         oauthCodeChallengeMethod: 'S256',
         // `oauthScopes` deliberately omitted — the binding is not whole.
-      })
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -284,7 +284,7 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
         oauthCodeChallenge: 'challenge',
         oauthCodeChallengeMethod: 'S256',
         oauthScopes: ['read'],
-      })
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -299,29 +299,29 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
   });
 
   it('refuses a delegated subject without a binding to delegate within', async () => {
-    const error = await rejection(
-      deviceSignInRequest({ oauthSubjectAccountId: await owner() })
-    );
+    const error = await rejection(deviceSignInRequest({ oauthSubjectAccountId: await owner() }));
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorText(error)).toContain('auth_sessions_oauth_subject_requires_binding_check');
   });
 
   it('keeps `requester_label` a label, not a fingerprint', async () => {
-    // Mongoose's `maxlength: 64` is a fail-closed guard: a writer that tried to
+    // The 64-character limit is a fail-closed guard: a writer that tried to
     // persist a whole User-Agent here must fail rather than quietly widen this
     // column into a device fingerprint.
     const error = await rejection(
       deviceSignInRequest({
         requesterLabel:
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      })
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorText(error)).toContain('auth_sessions_requester_label_length_check');
 
-    await expect(deviceSignInRequest({ requesterLabel: 'Chrome on Windows' })).resolves.toBeDefined();
+    await expect(
+      deviceSignInRequest({ requesterLabel: 'Chrome on Windows' }),
+    ).resolves.toBeDefined();
   });
 });
 
@@ -334,10 +334,17 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .values({ deviceId: `d-${randomUUID()}` })
       .returning({ id: deviceSessions.id });
 
-    await getDb().insert(deviceSessionAccounts).values([
-      { deviceSessionId: device.id, accountId, sessionId: `sid-${randomUUID()}`, authuser: 0 },
-      { deviceSessionId: device.id, accountId: otherId, sessionId: `sid-${randomUUID()}`, authuser: 1 },
-    ]);
+    await getDb()
+      .insert(deviceSessionAccounts)
+      .values([
+        { deviceSessionId: device.id, accountId, sessionId: `sid-${randomUUID()}`, authuser: 0 },
+        {
+          deviceSessionId: device.id,
+          accountId: otherId,
+          sessionId: `sid-${randomUUID()}`,
+          authuser: 1,
+        },
+      ]);
 
     await getDb().delete(users).where(eq(users.id, accountId));
 
@@ -364,13 +371,15 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .values({ deviceId: `d-${randomUUID()}` })
       .returning({ id: deviceSessions.id });
 
-    await getDb().insert(deviceSessionAccounts).values({
-      deviceSessionId: device.id,
-      accountId: managedId,
-      sessionId: `sid-${randomUUID()}`,
-      authuser: 0,
-      operatedByUserId: operatorId,
-    });
+    await getDb()
+      .insert(deviceSessionAccounts)
+      .values({
+        deviceSessionId: device.id,
+        accountId: managedId,
+        sessionId: `sid-${randomUUID()}`,
+        authuser: 0,
+        operatedByUserId: operatorId,
+      });
 
     await getDb().delete(users).where(eq(users.id, operatorId));
 
@@ -388,12 +397,14 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .insert(deviceSessions)
       .values({ deviceId: `d-${randomUUID()}` })
       .returning({ id: deviceSessions.id });
-    await getDb().insert(deviceSessionAccounts).values({
-      deviceSessionId: device.id,
-      accountId: await owner(),
-      sessionId: `sid-${randomUUID()}`,
-      authuser: 0,
-    });
+    await getDb()
+      .insert(deviceSessionAccounts)
+      .values({
+        deviceSessionId: device.id,
+        accountId: await owner(),
+        sessionId: `sid-${randomUUID()}`,
+        authuser: 0,
+      });
 
     await getDb().delete(deviceSessions).where(eq(deviceSessions.id, device.id));
 
@@ -406,12 +417,14 @@ describe('device_session_accounts — the child table that keeps two user FKs re
 
   it('refuses an entry for a device or an account that does not exist', async () => {
     const missingDevice = await rejection(
-      getDb().insert(deviceSessionAccounts).values({
-        deviceSessionId: `ghost-${randomUUID()}`,
-        accountId: await owner(),
-        sessionId: `sid-${randomUUID()}`,
-        authuser: 0,
-      })
+      getDb()
+        .insert(deviceSessionAccounts)
+        .values({
+          deviceSessionId: `ghost-${randomUUID()}`,
+          accountId: await owner(),
+          sessionId: `sid-${randomUUID()}`,
+          authuser: 0,
+        }),
     );
     expect(pgErrorCode(missingDevice)).toBe(FOREIGN_KEY_VIOLATION);
 
@@ -420,12 +433,14 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .values({ deviceId: `d-${randomUUID()}` })
       .returning({ id: deviceSessions.id });
     const missingAccount = await rejection(
-      getDb().insert(deviceSessionAccounts).values({
-        deviceSessionId: device.id,
-        accountId: `ghost-${randomUUID()}`,
-        sessionId: `sid-${randomUUID()}`,
-        authuser: 0,
-      })
+      getDb()
+        .insert(deviceSessionAccounts)
+        .values({
+          deviceSessionId: device.id,
+          accountId: `ghost-${randomUUID()}`,
+          sessionId: `sid-${randomUUID()}`,
+          authuser: 0,
+        }),
     );
     expect(pgErrorCode(missingAccount)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -436,25 +451,29 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .insert(deviceSessions)
       .values({ deviceId: `d-${randomUUID()}` })
       .returning({ id: deviceSessions.id });
-    await getDb().insert(deviceSessionAccounts).values({
-      deviceSessionId: device.id,
-      accountId,
-      sessionId: `sid-${randomUUID()}`,
-      authuser: 0,
-    });
-
-    const error = await rejection(
-      getDb().insert(deviceSessionAccounts).values({
+    await getDb()
+      .insert(deviceSessionAccounts)
+      .values({
         deviceSessionId: device.id,
         accountId,
         sessionId: `sid-${randomUUID()}`,
-        authuser: 1,
-      })
+        authuser: 0,
+      });
+
+    const error = await rejection(
+      getDb()
+        .insert(deviceSessionAccounts)
+        .values({
+          deviceSessionId: device.id,
+          accountId,
+          sessionId: `sid-${randomUUID()}`,
+          authuser: 1,
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorText(error)).toContain(
-      'device_session_accounts_device_session_id_account_id_key'
+      'device_session_accounts_device_session_id_account_id_key',
     );
   });
 
@@ -465,12 +484,14 @@ describe('device_session_accounts — the child table that keeps two user FKs re
       .returning({ id: deviceSessions.id });
 
     const error = await rejection(
-      getDb().insert(deviceSessionAccounts).values({
-        deviceSessionId: device.id,
-        accountId: await owner(),
-        sessionId: `sid-${randomUUID()}`,
-        authuser: -1,
-      })
+      getDb()
+        .insert(deviceSessionAccounts)
+        .values({
+          deviceSessionId: device.id,
+          accountId: await owner(),
+          sessionId: `sid-${randomUUID()}`,
+          authuser: -1,
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -585,8 +606,8 @@ describe('sessions', () => {
     `);
     const byName = new Map(rows.map((row) => [row.column_name, row.data_type]));
 
-    // `deviceInfo.fingerprint` carried its own Mongo index, which a jsonb blob
-    // could not serve without a hand-written expression index per path.
+    // `deviceInfo.fingerprint` needs its own index, which a jsonb blob could
+    // not serve without a hand-written expression index per path.
     expect(byName.get('device_fingerprint')).toBe('text');
     expect(byName.get('last_active_at')).toBe('timestamp with time zone');
     expect(byName.get('device_type')).toBe('text');
@@ -615,15 +636,15 @@ describe('protected columns — the credentials this batch adds', () => {
     // `publicColumns` resolves the registry by `getTableName`, so a registry key
     // written in camelCase would silently withhold nothing at all.
     expect(Object.keys(PROTECTED_COLUMNS_BY_TABLE)).toEqual(
-      expect.arrayContaining([getTableName(sessions), getTableName(authSessions)])
+      expect.arrayContaining([getTableName(sessions), getTableName(authSessions)]),
     );
   });
 });
 
-describe('expiry registry — every Mongo TTL index in this batch', () => {
-  it('registers each one with the retention its TTL declared', () => {
+describe('expiry registry — every expiring table in this batch', () => {
+  it('registers each one with its declared retention', () => {
     const registered = new Map(
-      EXPIRY_SWEEP_TARGETS.map((target) => [getTableName(target.table), target.retentionSeconds])
+      EXPIRY_SWEEP_TARGETS.map((target) => [getTableName(target.table), target.retentionSeconds]),
     );
 
     for (const [table, retentionSeconds] of EXPECTED_SWEEP_RETENTIONS) {
@@ -660,31 +681,33 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
     // The 5-minute pad is the point: without it a replay of a recently-expired
     // code answers "no such code" instead of "already used".
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (candidate) => getTableName(candidate.table) === 'auth_codes'
+      (candidate) => getTableName(candidate.table) === 'auth_codes',
     );
     if (!target) throw new Error('auth_codes is not registered for sweeping');
 
     const userId = await owner();
     const justExpired = `hash-${randomUUID()}`;
     const longExpired = `hash-${randomUUID()}`;
-    await getDb().insert(authCodes).values([
-      {
-        codeHash: justExpired,
-        userId,
-        applicationId: await application(),
-        redirectUri: 'https://rp.example/cb',
-        usedAt: new Date(),
-        expiresAt: new Date(Date.now() - 60_000),
-      },
-      {
-        codeHash: longExpired,
-        userId,
-        applicationId: await application(),
-        redirectUri: 'https://rp.example/cb',
-        usedAt: new Date(),
-        expiresAt: new Date(Date.now() - 600_000),
-      },
-    ]);
+    await getDb()
+      .insert(authCodes)
+      .values([
+        {
+          codeHash: justExpired,
+          userId,
+          applicationId: await application(),
+          redirectUri: 'https://rp.example/cb',
+          usedAt: new Date(),
+          expiresAt: new Date(Date.now() - 60_000),
+        },
+        {
+          codeHash: longExpired,
+          userId,
+          applicationId: await application(),
+          redirectUri: 'https://rp.example/cb',
+          usedAt: new Date(),
+          expiresAt: new Date(Date.now() - 600_000),
+        },
+      ]);
 
     await sweepExpiredRows(getDb(), target);
 
@@ -698,7 +721,7 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
 
   it('sweeps a session strictly past its own deadline', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (candidate) => getTableName(candidate.table) === 'sessions'
+      (candidate) => getTableName(candidate.table) === 'sessions',
     );
     if (!target) throw new Error('sessions is not registered for sweeping');
 
@@ -717,7 +740,7 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
 
   it('measures the security-activity retention from the EVENT, not the row write', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (candidate) => getTableName(candidate.table) === 'security_activities'
+      (candidate) => getTableName(candidate.table) === 'security_activities',
     );
     if (!target) throw new Error('security_activities is not registered for sweeping');
     // The registry must point at `occurred_at`; pointing it at `created_at`
@@ -726,20 +749,26 @@ describe('expiry registry — every Mongo TTL index in this batch', () => {
 
     const userId = await owner();
     const second = 1_000;
-    await getDb().insert(securityActivities).values([
-      {
-        userId,
-        eventType: 'sign_in',
-        eventDescription: 'stale',
-        occurredAt: new Date(Date.now() - (SECURITY_ACTIVITY_RETENTION_SECONDS + 86_400) * second),
-      },
-      {
-        userId,
-        eventType: 'sign_in',
-        eventDescription: 'fresh',
-        occurredAt: new Date(Date.now() - (SECURITY_ACTIVITY_RETENTION_SECONDS - 86_400) * second),
-      },
-    ]);
+    await getDb()
+      .insert(securityActivities)
+      .values([
+        {
+          userId,
+          eventType: 'sign_in',
+          eventDescription: 'stale',
+          occurredAt: new Date(
+            Date.now() - (SECURITY_ACTIVITY_RETENTION_SECONDS + 86_400) * second,
+          ),
+        },
+        {
+          userId,
+          eventType: 'sign_in',
+          eventDescription: 'fresh',
+          occurredAt: new Date(
+            Date.now() - (SECURITY_ACTIVITY_RETENTION_SECONDS - 86_400) * second,
+          ),
+        },
+      ]);
 
     await sweepExpiredRows(getDb(), target);
 
@@ -761,7 +790,7 @@ describe('security_activities', () => {
       select table_name, column_name from information_schema.columns
       where table_schema = 'public' and table_name in ${sql`(${sql.join(
         tables.map((name) => sql`${name}`),
-        sql`, `
+        sql`, `,
       )})`}
     `);
 
@@ -774,7 +803,7 @@ describe('security_activities', () => {
     expect(
       rows
         .filter((row) => forbidden.test(row.column_name))
-        .map((row) => `${row.table_name}.${row.column_name}`)
+        .map((row) => `${row.table_name}.${row.column_name}`),
     ).toEqual([]);
   });
 
@@ -783,7 +812,7 @@ describe('security_activities', () => {
       getDb().execute(sql`
         insert into security_activities (id, user_id, event_type, event_description)
         values (${randomUUID()}, ${await owner()}, 'password_bruteforced', 'x')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -792,18 +821,23 @@ describe('security_activities', () => {
 
   it('keeps metadata as queryable jsonb defaulting to {}', async () => {
     const userId = await owner();
-    await getDb().insert(securityActivities).values([
-      { userId, eventType: 'backup_created', eventDescription: 'plain' },
-      {
-        userId,
-        eventType: 'device_added',
-        eventDescription: 'detailed',
-        metadata: { deviceName: 'Pixel', nested: { count: 2 } },
-      },
-    ]);
+    await getDb()
+      .insert(securityActivities)
+      .values([
+        { userId, eventType: 'backup_created', eventDescription: 'plain' },
+        {
+          userId,
+          eventType: 'device_added',
+          eventDescription: 'detailed',
+          metadata: { deviceName: 'Pixel', nested: { count: 2 } },
+        },
+      ]);
 
     const rows = await getDb()
-      .select({ description: securityActivities.eventDescription, metadata: securityActivities.metadata })
+      .select({
+        description: securityActivities.eventDescription,
+        metadata: securityActivities.metadata,
+      })
       .from(securityActivities)
       .where(eq(securityActivities.userId, userId));
     const plain = rows.find((row) => row.description === 'plain');
@@ -820,17 +854,19 @@ describe('identity_backups — two timestamps that are not the same thing', () =
     // exact envelope that was uploaded, and a `timestamptz` would re-render it.
     const clientCreatedAt = '2026-03-04T05:06:07.008Z';
     const userId = await owner();
-    await getDb().insert(identityBackups).values({
-      userId,
-      lookupIdHash: `lookup-${randomUUID()}`,
-      publicKeyHint: '02ab',
-      ciphertext: 'deadbeef',
-      nonce: 'cafe',
-      algorithm: 'xchacha20poly1305',
-      kdfInfo: 'oxy-identity-backup-v1',
-      version: 1,
-      clientCreatedAt,
-    });
+    await getDb()
+      .insert(identityBackups)
+      .values({
+        userId,
+        lookupIdHash: `lookup-${randomUUID()}`,
+        publicKeyHint: '02ab',
+        ciphertext: 'deadbeef',
+        nonce: 'cafe',
+        algorithm: 'xchacha20poly1305',
+        kdfInfo: 'oxy-identity-backup-v1',
+        version: 1,
+        clientCreatedAt,
+      });
 
     const [row] = await getDb()
       .select()
@@ -843,8 +879,8 @@ describe('identity_backups — two timestamps that are not the same thing', () =
   });
 
   it('has no created_at — the absence is deliberate, not an omission', async () => {
-    // Mongoose declared `createdAt: false` because the client's value held the
-    // name. A `DEFAULT now()` column would stamp every backfilled row with the
+    // The client's own value already holds the `createdAt` name, so there is no
+    // server-stamped creation time. A `DEFAULT now()` column would stamp every backfilled row with the
     // migration date, asserting a falsehood about every backup that exists.
     const rows = await getDb().execute<{ column_name: string }>(sql`
       select column_name from information_schema.columns
@@ -869,10 +905,14 @@ describe('identity_backups — two timestamps that are not the same thing', () =
       version: 1,
       clientCreatedAt: new Date().toISOString(),
     };
-    await getDb().insert(identityBackups).values({ ...values, lookupIdHash: `l-${randomUUID()}` });
+    await getDb()
+      .insert(identityBackups)
+      .values({ ...values, lookupIdHash: `l-${randomUUID()}` });
 
     const error = await rejection(
-      getDb().insert(identityBackups).values({ ...values, lookupIdHash: `l-${randomUUID()}` })
+      getDb()
+        .insert(identityBackups)
+        .values({ ...values, lookupIdHash: `l-${randomUUID()}` }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -886,19 +926,23 @@ describe('identity_bindings — history survives a rebind', () => {
     const localPrincipalId = `principal-${randomUUID()}`;
     const base = { applicationId, localPrincipalId, bindingType: 'session_proof' as const };
 
-    await getDb().insert(identityBindings).values([
-      { ...base, userId: await owner(), status: 'revoked', revokedAt: new Date() },
-      { ...base, userId: await owner(), status: 'revoked', revokedAt: new Date() },
-      { ...base, userId: await owner() },
-    ]);
+    await getDb()
+      .insert(identityBindings)
+      .values([
+        { ...base, userId: await owner(), status: 'revoked', revokedAt: new Date() },
+        { ...base, userId: await owner(), status: 'revoked', revokedAt: new Date() },
+        { ...base, userId: await owner() },
+      ]);
 
     const error = await rejection(
-      getDb().insert(identityBindings).values({ ...base, userId: await owner() })
+      getDb()
+        .insert(identityBindings)
+        .values({ ...base, userId: await owner() }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorText(error)).toContain(
-      'identity_bindings_application_id_local_principal_id_active_key'
+      'identity_bindings_application_id_local_principal_id_active_key',
     );
   });
 
@@ -913,12 +957,16 @@ describe('identity_bindings — history survives a rebind', () => {
     // Revoked with no timestamp: the engine's "is not revoked" check reads
     // `status`, so the reverse shape below would keep producing effects.
     const noTimestamp = await rejection(
-      getDb().insert(identityBindings).values({ ...base, status: 'revoked' })
+      getDb()
+        .insert(identityBindings)
+        .values({ ...base, status: 'revoked' }),
     );
     expect(pgErrorText(noTimestamp)).toContain('identity_bindings_revoked_at_check');
 
     const activeButRevoked = await rejection(
-      getDb().insert(identityBindings).values({ ...base, revokedAt: new Date() })
+      getDb()
+        .insert(identityBindings)
+        .values({ ...base, revokedAt: new Date() }),
     );
     expect(pgErrorText(activeButRevoked)).toContain('identity_bindings_revoked_at_check');
   });
@@ -933,16 +981,18 @@ describe('domain_verifications — one live challenge per (user, domain)', () =>
       .values({ userId, domain, token: 'a', expiresAt: new Date(Date.now() + 86_400_000) });
 
     const error = await rejection(
-      getDb().insert(domainVerifications).values({
-        userId,
-        domain: domain.toUpperCase(),
-        token: 'b',
-        expiresAt: new Date(Date.now() + 86_400_000),
-      })
+      getDb()
+        .insert(domainVerifications)
+        .values({
+          userId,
+          domain: domain.toUpperCase(),
+          token: 'b',
+          expiresAt: new Date(Date.now() + 86_400_000),
+        }),
     );
 
     // Two live tokens for one domain is exactly what the model promises cannot
-    // happen, and Mongoose's `lowercase: true` setter has no Postgres analogue.
+    // happen, and an application-side lower-casing setter has no Postgres analogue.
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorText(error)).toContain('domain_verifications_user_id_lower_domain_key');
   });
@@ -965,25 +1015,28 @@ describe('domain_verifications — one live challenge per (user, domain)', () =>
 describe('civic_nonces — single-use, unforgeably', () => {
   it('refuses a replayed civic nonce', async () => {
     const nonceHash = `nonce-${randomUUID()}`;
-    await getDb().insert(civicNonces).values({
-      nonceHash,
-      purpose: 'real_life_attestation',
-      subjectUserId: await owner(),
-      expiresAt: new Date(Date.now() + 600_000),
-    });
-
-    const error = await rejection(
-      getDb().insert(civicNonces).values({
+    await getDb()
+      .insert(civicNonces)
+      .values({
         nonceHash,
         purpose: 'real_life_attestation',
+        subjectUserId: await owner(),
         expiresAt: new Date(Date.now() + 600_000),
-      })
+      });
+
+    const error = await rejection(
+      getDb()
+        .insert(civicNonces)
+        .values({
+          nonceHash,
+          purpose: 'real_life_attestation',
+          expiresAt: new Date(Date.now() + 600_000),
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorText(error)).toContain('civic_nonces_nonce_hash_key');
   });
-
 });
 
 describe('auth_codes', () => {
@@ -996,20 +1049,24 @@ describe('auth_codes', () => {
     };
 
     const challengeOnly = await rejection(
-      getDb().insert(authCodes).values({
-        ...base,
-        codeHash: `h-${randomUUID()}`,
-        codeChallenge: 'abc',
-      })
+      getDb()
+        .insert(authCodes)
+        .values({
+          ...base,
+          codeHash: `h-${randomUUID()}`,
+          codeChallenge: 'abc',
+        }),
     );
     expect(pgErrorText(challengeOnly)).toContain('auth_codes_pkce_pair_check');
 
     const methodOnly = await rejection(
-      getDb().insert(authCodes).values({
-        ...base,
-        codeHash: `h-${randomUUID()}`,
-        codeChallengeMethod: 'S256',
-      })
+      getDb()
+        .insert(authCodes)
+        .values({
+          ...base,
+          codeHash: `h-${randomUUID()}`,
+          codeChallengeMethod: 'S256',
+        }),
     );
     expect(pgErrorText(methodOnly)).toContain('auth_codes_pkce_pair_check');
   });
@@ -1017,13 +1074,15 @@ describe('auth_codes', () => {
   it('defaults scopes to an empty array, which is a value and not an absence', async () => {
     const userId = await owner();
     const codeHash = `h-${randomUUID()}`;
-    await getDb().insert(authCodes).values({
-      codeHash,
-      userId,
-      applicationId: await application(),
-      redirectUri: 'https://rp.example/cb',
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    await getDb()
+      .insert(authCodes)
+      .values({
+        codeHash,
+        userId,
+        applicationId: await application(),
+        redirectUri: 'https://rp.example/cb',
+        expiresAt: new Date(Date.now() + 60_000),
+      });
 
     const [row] = await getDb().select().from(authCodes).where(eq(authCodes.codeHash, codeHash));
     expect(row.scopes).toEqual([]);

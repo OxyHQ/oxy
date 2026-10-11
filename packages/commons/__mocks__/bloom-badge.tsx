@@ -27,12 +27,7 @@ export function Badge({
   [key: string]: unknown;
 }): React.ReactElement | null {
   if (invisible) return children ? React.createElement(React.Fragment, null, children) : null;
-  return React.createElement(
-    'span',
-    { 'data-testid': testID },
-    children,
-    dot ? null : content,
-  );
+  return React.createElement('span', { 'data-testid': testID }, children, dot ? null : content);
 }
 
 export default Badge;

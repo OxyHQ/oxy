@@ -21,7 +21,7 @@ export const useUserProfile = (sessionId: string | null, options?: { enabled?: b
       }
       return await oxyServices.users.bySession(sessionId);
     },
-    enabled: (options?.enabled !== false) && !!sessionId,
+    enabled: options?.enabled !== false && !!sessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
   });
@@ -40,7 +40,7 @@ export const useUserProfiles = (sessionIds: string[], options?: { enabled?: bool
         const results = await oxyServices.users.bySessions([sessionId]);
         return results[0]?.user || null;
       },
-      enabled: (options?.enabled !== false) && !!sessionId,
+      enabled: options?.enabled !== false && !!sessionId,
       staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000,
     })),
@@ -78,7 +78,7 @@ export const useCurrentUser = (options?: { enabled?: boolean }) => {
     queryFn: async () => {
       return await oxyServices.users.me();
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!activeSessionId,
+    enabled: options?.enabled !== false && isAuthenticated && !!activeSessionId,
     staleTime: 1 * 60 * 1000, // 1 minute for current user
     gcTime: 30 * 60 * 1000,
   });
@@ -177,7 +177,7 @@ export const useUserById = (userId: string | null, options?: { enabled?: boolean
       }
       return await oxyServices.users.get(userId);
     },
-    enabled: (options?.enabled !== false) && !!userId,
+    enabled: options?.enabled !== false && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -211,7 +211,7 @@ export const useUserByUsername = (username: string | null, options?: { enabled?:
       const normalizedUsername = username.trim().toLowerCase();
       return await oxyServices.users.byUsername(normalizedUsername);
     },
-    enabled: (options?.enabled !== false) && !!username,
+    enabled: options?.enabled !== false && !!username,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     // Enforce the `upsertCachedUser` stale-seed contract from THIS hook rather
@@ -247,7 +247,7 @@ export const useUsersBySessions = (sessionIds: string[], options?: { enabled?: b
       }
       return await oxyServices.users.bySessions(sessionIds);
     },
-    enabled: (options?.enabled !== false) && sessionIds.length > 0,
+    enabled: options?.enabled !== false && sessionIds.length > 0,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -264,13 +264,11 @@ export const useConnectedApps = (options?: { enabled?: boolean }) => {
   return useQuery<ConnectedApp[]>({
     queryKey: queryKeys.connectedApps.list(),
     queryFn: async () => {
-      return authenticatedApiCall<ConnectedApp[]>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.apps.connected.list()
+      return authenticatedApiCall<ConnectedApp[]>(oxyServices, activeSessionId, () =>
+        oxyServices.apps.connected.list(),
       );
     },
-    enabled: (options?.enabled !== false) && isAuthenticated,
+    enabled: options?.enabled !== false && isAuthenticated,
     staleTime: 30 * 1000, // 30 seconds — short, drives a management UI
     gcTime: 5 * 60 * 1000,
   });
@@ -293,15 +291,12 @@ export const usePrivacySettings = (userId?: string, options?: { enabled?: boolea
         throw new Error('User ID is required');
       }
 
-      return authenticatedApiCall(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.privacy.settings(targetUserId)
+      return authenticatedApiCall(oxyServices, activeSessionId, () =>
+        oxyServices.privacy.settings(targetUserId),
       );
     },
-    enabled: (options?.enabled !== false) && !!targetUserId,
+    enabled: options?.enabled !== false && !!targetUserId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 };
-

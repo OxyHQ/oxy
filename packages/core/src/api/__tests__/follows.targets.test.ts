@@ -79,10 +79,7 @@ describe('OxyServices.followGraph', () => {
 
     it('reads status per target', async () => {
       await oxy.follows.targetStatus('target-1');
-      expect(makeRequest.mock.calls[0].slice(0, 2)).toEqual([
-        'GET',
-        '/v2/follows/target-1/status',
-      ]);
+      expect(makeRequest.mock.calls[0].slice(0, 2)).toEqual(['GET', '/v2/follows/target-1/status']);
     });
 
     it('restores inheritance with no query string when the app means itself', async () => {

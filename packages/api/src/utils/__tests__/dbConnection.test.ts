@@ -6,9 +6,8 @@
  *
  * `GET /health` is the ALB target-group check. A 503 drains the task out of the
  * load balancer, so the probe's meaning must be exactly "the database is
- * unusable" — nothing wider, nothing narrower. The Mongo version read
- * `mongoose.connection.readyState === 1`, a DRIVER-SIDE FLAG, which is why it
- * could report a healthy database while the server was refusing work.
+ * unusable" — nothing wider, nothing narrower. A DRIVER-SIDE FLAG could
+ * report a healthy database while the server was refusing work.
  *
  * The two functions below are therefore held apart deliberately, because the
  * distinction is the whole fix:
@@ -225,8 +224,8 @@ describe('waitForDatabaseConnection — the startup gate', () => {
     url.pathname = '/oxy_does_not_exist';
     process.env.DATABASE_URL = url.toString();
 
-    // `postgres.js` makes ONE connection attempt where the Mongo driver retried
-    // internally, so without the retry loop a task that starts beside a
+    // `postgres.js` makes ONE connection attempt and does not retry internally,
+    // so without the retry loop a task that starts beside a
     // database still finishing a failover would crash-loop. The error names the
     // attempt count, which is what says the loop really ran.
     await expect(waitForDatabaseConnection(2_500)).rejects.toThrow(/[2-9]\d* attempt\(s\)/);

@@ -31,13 +31,23 @@ export class AppDataApi {
 
   /** The value under `(namespace, key)`, or `null` when nothing is stored. */
   async get<T = unknown>(namespace: string, key: string): Promise<T | null> {
-    const res = await this.ctx.request<{ value: T | null }>('GET', this.path(namespace, key), undefined, { cache: false });
+    const res = await this.ctx.request<{ value: T | null }>(
+      'GET',
+      this.path(namespace, key),
+      undefined,
+      { cache: false },
+    );
     return res?.value ?? null;
   }
 
   /** Store `value` under `(namespace, key)`; returns what the server stored. */
   async set<T = unknown>(namespace: string, key: string, value: T): Promise<T> {
-    const res = await this.ctx.request<{ value: T | null }>('PUT', this.path(namespace, key), { value }, { cache: false });
+    const res = await this.ctx.request<{ value: T | null }>(
+      'PUT',
+      this.path(namespace, key),
+      { value },
+      { cache: false },
+    );
     return (res?.value ?? value) as T;
   }
 

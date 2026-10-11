@@ -4,8 +4,7 @@
  * ## The guarantee this file exists for
  *
  * **The card must land in FOUR COLUMNS, and a dot path would land nowhere.**
- * The Mongo write was `$set: { card: { type, data, confidence, extractedAt } }`;
- * `messages` spells that as `card_type` / `card_data` / `card_confidence` /
+ * `messages` spells the card as `card_type` / `card_data` / `card_confidence` /
  * `card_extracted_at`. Drizzle keys `set()` by column PROPERTY and silently
  * ignores a key naming no column, so the transliteration `set({ card: {…} })` —
  * or any `'card.type'` spelling — writes NOTHING, throws NOTHING, and logs
@@ -14,8 +13,8 @@
  *
  * The second guarantee is the projection. `messages.text` is PROTECTED
  * (`schema/protectedColumns.ts`) and the extractor needs it, so it is named
- * explicitly; `html` was in the Mongo projection, was read by NOTHING, and is
- * another protected body — it is no longer fetched at all. `attachments` became
+ * explicitly; `html` is read by NOTHING and is another protected body, so it is
+ * not fetched at all. `attachments` became
  * a child table and only its emptiness was ever used, so the projection asks an
  * `EXISTS` rather than loading rows.
  *
@@ -96,7 +95,7 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertMessage(
-  options: { userId?: string; text?: string | null; subject?: string; date?: Date } = {}
+  options: { userId?: string; text?: string | null; subject?: string; date?: Date } = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(messages)
@@ -107,7 +106,8 @@ async function insertMessage(
       fromName: 'Airline',
       fromAddress: 'noreply@airline.example',
       subject: options.subject ?? 'Your flight is confirmed',
-      text: options.text === undefined ? 'Booking reference ABC123, departing 10:00.' : options.text,
+      text:
+        options.text === undefined ? 'Booking reference ABC123, departing 10:00.' : options.text,
       size: 512,
       date: options.date ?? new Date('2026-03-04T05:06:07.000Z'),
     })
@@ -191,7 +191,7 @@ describe('storing an extracted card', () => {
           confidence: 0.93,
         },
         highlights: [],
-      })
+      }),
     );
 
     const before = Date.now();
@@ -215,7 +215,7 @@ describe('storing an extracted card', () => {
           { type: 'confirmation', value: 'ABC123', label: 'Booking ref' },
           { type: 'date', value: '2026-03-04', label: 'Departs' },
         ],
-      })
+      }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -237,7 +237,7 @@ describe('storing an extracted card', () => {
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'bill', data: { biller: 'X' }, confidence: 0.4 }, highlights: [] })
+      aiReply({ card: { type: 'bill', data: { biller: 'X' }, confidence: 0.4 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -251,7 +251,7 @@ describe('storing an extracted card', () => {
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'invitation', data: {}, confidence: 0.99 }, highlights: [] })
+      aiReply({ card: { type: 'invitation', data: {}, confidence: 0.99 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -271,13 +271,13 @@ describe('storing an extracted card', () => {
     expect(stored.highlights).toEqual([]);
   });
 
-  it('leaves another account\'s message untouched', async () => {
+  it("leaves another account's message untouched", async () => {
     // The lookup is scoped by `(id, user_id)`, so from the stranger's side the
     // message does not exist — no upstream call, no write.
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'trip', data: {}, confidence: 0.99 }, highlights: [] })
+      aiReply({ card: { type: 'trip', data: {}, confidence: 0.99 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(STRANGER_ID, messageId);
@@ -302,8 +302,8 @@ describe('what the extractor is given', () => {
   });
 
   it('reports the message date as an ISO-8601 instant', async () => {
-    // `timestamptz` + `mode: 'date'` hands back a `Date`, so the Mongo-era
-    // `instanceof Date ? … : String(…)` branch is gone. If the read ever came
+    // `timestamptz` + `mode: 'date'` hands back a `Date`, so no
+    // `instanceof Date ? … : String(…)` branch is needed. If the read ever came
     // back through `db.execute`, this would be the raw
     // `2026-03-04 05:06:07+00` string instead.
     const messageId = await insertMessage({ date: new Date('2026-03-04T05:06:07.000Z') });

@@ -54,7 +54,9 @@ jest.mock('socket.io-client', () => {
         for (const h of list) h(...args);
         return true;
       },
-      connect() { return socket; },
+      connect() {
+        return socket;
+      },
       disconnect: jest.fn(() => socket),
     };
     sockets.push(socket);

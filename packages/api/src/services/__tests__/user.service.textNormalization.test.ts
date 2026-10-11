@@ -1,9 +1,8 @@
 /**
  * Profile text normalization, asserted on the STORED row.
  *
- * The suite this replaces asserted `expect(set).toHaveBeenCalledWith('name',
- * {...})` against a mocked Mongoose document. That is a claim about an argument,
- * not about the database: normalization that happened and was then discarded by
+ * Asserting on a mocked write's argument is a claim about an argument, not
+ * about the database: normalization that happened and was then discarded by
  * the write path — or applied to the wrong column — passed it identically. The
  * reported bug this whole area exists for was a value rendered with
  * `white-space: pre-wrap` INTACT, which is a property of what is stored.
@@ -91,7 +90,7 @@ describe('display name', () => {
     const id = await makeUser({ nameFirst: 'Ada' });
 
     await expect(
-      userService.updateUserProfile(id, { name: { first: 'Ada 3000 🚀' } })
+      userService.updateUserProfile(id, { name: { first: 'Ada 3000 🚀' } }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     expect((await storedRow(id)).nameFirst).toBe('Ada');
@@ -215,8 +214,8 @@ describe('location child rows', () => {
   });
 
   it('writes the coordinate pair into its NAMED columns, unswapped', async () => {
-    // The original Mongo defect was a coordinate-ordering mistake, and the fix
-    // has two halves: named columns at the write path (this test) and a
+    // The defect guarded here is a coordinate-ordering mistake, and the fix has
+    // two halves: named columns at the write path (this test) and a
     // GENERATED point so the spatial value cannot disagree with them (the
     // assertion below). Barcelona is 41.4°N, 2.2°E; a transposed pair is a
     // PLAUSIBLE point off the coast of Somalia, so asserting "a row came back"
@@ -224,9 +223,7 @@ describe('location child rows', () => {
     const id = await makeUser();
 
     await userService.updateUserProfile(id, {
-      locations: [
-        { id: 'loc-1', name: 'Barcelona', coordinates: { lat: 41.3874, lon: 2.1686 } },
-      ],
+      locations: [{ id: 'loc-1', name: 'Barcelona', coordinates: { lat: 41.3874, lon: 2.1686 } }],
     });
 
     const [row] = await getDb()
@@ -273,17 +270,18 @@ describe('username policy', () => {
   it('rejects interior whitespace with a 400', async () => {
     const id = await makeUser();
 
-    await expect(
-      userService.updateUserProfile(id, { username: 'al ice' })
-    ).rejects.toMatchObject({ statusCode: 400, message: USERNAME_INVALID_MESSAGE });
+    await expect(userService.updateUserProfile(id, { username: 'al ice' })).rejects.toMatchObject({
+      statusCode: 400,
+      message: USERNAME_INVALID_MESSAGE,
+    });
   });
 
   it('rejects punctuation with a 400', async () => {
     const id = await makeUser();
 
-    await expect(
-      userService.updateUserProfile(id, { username: 'al.ice' })
-    ).rejects.toBeInstanceOf(BadRequestError);
+    await expect(userService.updateUserProfile(id, { username: 'al.ice' })).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
   });
 
   it('stores a clean username change trimmed', async () => {
@@ -315,7 +313,7 @@ describe('username policy', () => {
     const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(id, { username: taken.toUpperCase() })
+      userService.updateUserProfile(id, { username: taken.toUpperCase() }),
     ).rejects.toThrow('Username already exists');
   });
 });

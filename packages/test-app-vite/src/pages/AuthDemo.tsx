@@ -1,9 +1,9 @@
-import { useAuth } from "@oxy.so/services"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuth } from '@oxy.so/services';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function AuthDemo() {
   const {
@@ -16,7 +16,7 @@ export function AuthDemo() {
     signIn,
     signOut,
     oxyServices,
-  } = useAuth()
+  } = useAuth();
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -32,8 +32,15 @@ export function AuthDemo() {
           ) : isAuthenticated && user ? (
             <div className="flex items-center gap-4">
               <Avatar className="size-12">
-                <AvatarImage src={user.avatar && oxyServices ? oxyServices.assets.publicUrl(user.avatar, 'thumb') : undefined} alt={user.username} />
-                <AvatarFallback>{(user.username || "U")[0].toUpperCase()}</AvatarFallback>
+                <AvatarImage
+                  src={
+                    user.avatar && oxyServices
+                      ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
+                      : undefined
+                  }
+                  alt={user.username}
+                />
+                <AvatarFallback>{(user.username || 'U')[0].toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <p className="font-medium">{user.username || user.email}</p>
@@ -47,9 +54,7 @@ export function AuthDemo() {
               <Badge variant="secondary">Unauthenticated</Badge>
             </div>
           )}
-          {error && (
-            <p className="mt-2 text-sm text-destructive">{String(error)}</p>
-          )}
+          {error && <p className="mt-2 text-sm text-destructive">{String(error)}</p>}
         </CardContent>
       </Card>
 
@@ -89,9 +94,15 @@ export function AuthDemo() {
             <TabsContent value="state">
               <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
                 {JSON.stringify(
-                  { isAuthenticated, isLoading, isReady, canUsePrivateApi, error: error ? String(error) : null },
+                  {
+                    isAuthenticated,
+                    isLoading,
+                    isReady,
+                    canUsePrivateApi,
+                    error: error ? String(error) : null,
+                  },
                   null,
-                  2
+                  2,
                 )}
               </pre>
             </TabsContent>
@@ -111,7 +122,7 @@ export function AuthDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useAuth } from '@oxy.so/services';
+            {`import { useAuth } from '@oxy.so/services';
 
 function MyComponent() {
   const { user, isAuthenticated, signIn, signOut } = useAuth();
@@ -126,5 +137,5 @@ function MyComponent() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -7,7 +7,11 @@ interface IconProps {
 }
 
 export default function createIconSet(glyphMap: Record<string, number>) {
-  const Icon = ({ name, accessibilityLabel, 'aria-hidden': ariaHidden }: IconProps): React.ReactElement =>
+  const Icon = ({
+    name,
+    accessibilityLabel,
+    'aria-hidden': ariaHidden,
+  }: IconProps): React.ReactElement =>
     React.createElement('span', {
       'data-icon': name,
       'aria-label': accessibilityLabel,

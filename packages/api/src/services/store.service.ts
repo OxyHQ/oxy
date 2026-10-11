@@ -72,7 +72,9 @@ export interface StoreListingDetail extends StoreListingSummary {
  * turns a 24-item page into 25 round trips. `inArray` over the same index the
  * reviews list uses answers all of them at once.
  */
-async function ratingsFor(applicationIds: string[]): Promise<Map<string, { average: number | null; count: number }>> {
+async function ratingsFor(
+  applicationIds: string[],
+): Promise<Map<string, { average: number | null; count: number }>> {
   if (applicationIds.length === 0) return new Map();
 
   const rows = await getDb()
@@ -90,8 +92,11 @@ async function ratingsFor(applicationIds: string[]): Promise<Map<string, { avera
       row.applicationId,
       // `avg` comes back as a numeric string; rounding here rather than in the
       // client keeps every surface showing the same 4.6.
-      { average: row.average === null ? null : Math.round(Number(row.average) * 10) / 10, count: Number(row.total) },
-    ])
+      {
+        average: row.average === null ? null : Math.round(Number(row.average) * 10) / 10,
+        count: Number(row.total),
+      },
+    ]),
   );
 }
 
@@ -216,7 +221,9 @@ export async function getPublishedListing(slug: string): Promise<StoreListingDet
     publishedAt: row.publishedAt,
     category: row.categorySlug ? { slug: row.categorySlug, label: row.categoryLabel! } : null,
     rating: ratings.get(row.applicationId) ?? { average: null, count: 0 },
-    ratingBreakdown: Object.fromEntries(breakdown.map((entry) => [entry.rating, Number(entry.total)])),
+    ratingBreakdown: Object.fromEntries(
+      breakdown.map((entry) => [entry.rating, Number(entry.total)]),
+    ),
     screenshots,
   };
 }
@@ -265,7 +272,10 @@ export async function listReviews(options: {
 
   if (!listing) return null;
 
-  const where = and(eq(appReviews.applicationId, listing.applicationId), eq(appReviews.status, 'visible'));
+  const where = and(
+    eq(appReviews.applicationId, listing.applicationId),
+    eq(appReviews.status, 'visible'),
+  );
   const order =
     options.sort === 'rating'
       ? [desc(appReviews.rating), desc(appReviews.createdAt), asc(appReviews.id)]
@@ -302,15 +312,23 @@ export async function listReviews(options: {
             createdAt: appReviewReplies.createdAt,
           })
           .from(appReviewReplies)
-          .where(inArray(appReviewReplies.reviewId, rows.map((row) => row.id))),
+          .where(
+            inArray(
+              appReviewReplies.reviewId,
+              rows.map((row) => row.id),
+            ),
+          ),
         db
           .select({ userId: appGrants.userId })
           .from(appGrants)
           .where(
             and(
               eq(appGrants.applicationId, listing.applicationId),
-              inArray(appGrants.userId, rows.map((row) => row.authorId))
-            )
+              inArray(
+                appGrants.userId,
+                rows.map((row) => row.authorId),
+              ),
+            ),
           ),
       ])
     : [[], []];
@@ -599,7 +617,7 @@ export interface PublisherListing {
 /** Read one listing back with its category resolved, by application. */
 async function publisherListings(
   where: SQL | undefined,
-  order?: { limit: number; offset: number }
+  order?: { limit: number; offset: number },
 ): Promise<PublisherListing[]> {
   const query = getDb()
     .select({
@@ -638,7 +656,7 @@ async function publisherListingFor(applicationId: string): Promise<PublisherList
 
 /** The listing for an application, in whatever state, or null if it has none. */
 export async function getListingForApplication(
-  applicationId: string
+  applicationId: string,
 ): Promise<PublisherListing | null> {
   return publisherListingFor(applicationId);
 }
@@ -953,8 +971,8 @@ export async function updateScreenshot(options: {
     .where(
       and(
         eq(appListingScreenshots.id, options.screenshotId),
-        eq(appListingScreenshots.listingId, listingId)
-      )
+        eq(appListingScreenshots.listingId, listingId),
+      ),
     )
     .returning(SCREENSHOT_COLUMNS);
 
@@ -974,8 +992,8 @@ export async function deleteScreenshot(options: {
     .where(
       and(
         eq(appListingScreenshots.id, options.screenshotId),
-        eq(appListingScreenshots.listingId, listingId)
-      )
+        eq(appListingScreenshots.listingId, listingId),
+      ),
     )
     .returning({ id: appListingScreenshots.id });
 
@@ -1077,13 +1095,15 @@ export async function createCategory(input: WriteCategoryInput): Promise<StoreCa
  */
 export async function updateCategory(
   slug: string,
-  patch: { label?: string; description?: string | null; order?: number }
+  patch: { label?: string; description?: string | null; order?: number },
 ): Promise<StoreCategoryRow> {
   const [row] = await getDb()
     .update(appCategories)
     .set({
       ...(patch.label === undefined ? {} : { label: patch.label }),
-      ...(patch.description === undefined ? {} : { description: patch.description?.trim() || null }),
+      ...(patch.description === undefined
+        ? {}
+        : { description: patch.description?.trim() || null }),
       ...(patch.order === undefined ? {} : { order: patch.order }),
       updatedAt: new Date(),
     })

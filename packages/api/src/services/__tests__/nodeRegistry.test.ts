@@ -1,12 +1,9 @@
 /**
  * The node registry (F5a user nodes), against a REAL Postgres.
  *
- * The suite this replaces mocked `models/UserNode` and asserted on the ARGUMENTS
- * handed to `findOneAndUpdate` — `update.$set` — so it described a Mongoose call
- * shape rather than a stored row, and every one of those assertions would still
- * have passed against a service that wrote nothing. The model is not imported by
- * the service any more, so those mocks are also inert. What survives is the set
- * of guarantees, each now checked against rows written in the same test:
+ * An assertion on the ARGUMENTS of a write describes a call shape rather than
+ * a stored row, and would still pass against a service that wrote nothing. So
+ * each guarantee is checked against rows written in the same test:
  *
  *  - **A registration is an UPSERT, and re-registering is idempotent.** One row
  *    per account, `id` and `created_at` never move, and the projected fields are
@@ -15,14 +12,14 @@
  *    Oxy DB alone; a node that is down or has never been probed still resolves,
  *    which is what keeps a DID document readable.
  *  - **An absent optional is OMITTED, never `null`.** Drizzle returns `null`
- *    where a lean Mongoose document returned `undefined`, and `GET /nodes/me`
+ *    for an empty column, and `GET /nodes/me`
  *    serializes these fields straight onto the wire — a `null` there is a wire
  *    format change for every consumer. Asserted as an exact JSON body.
  *  - **`managed` and `controller` cannot disagree.** The schema CHECK makes the
  *    contradiction unrepresentable and the option carries ONE operator field.
- *  - **The liveness sweep takes never-probed nodes FIRST.** Mongo sorts a
- *    missing date ahead of every date; Postgres sorts NULLs LAST by default, so
- *    without the explicit `nulls first` a newly registered node is starved
+ *  - **The liveness sweep takes never-probed nodes FIRST.** Postgres sorts
+ *    NULLs LAST by default on an ascending sort, so without the explicit
+ *    `nulls first` a newly registered node is starved
  *    forever — a silent, unbounded regression.
  *
  * Only `safeFetch` is mocked: it is the network, and the point of the probe is
@@ -45,10 +42,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { userNodes } from '../../db/schema/userNodes';
 import { users } from '../../db/schema/users';
 import userCache from '../../utils/userCache';
-import {
-  NODE_LIVENESS_SWEEP_BATCH,
-  NODE_WELL_KNOWN_PATH,
-} from '../../utils/nodes.constants';
+import { NODE_LIVENESS_SWEEP_BATCH, NODE_WELL_KNOWN_PATH } from '../../utils/nodes.constants';
 import {
   getUserNode,
   materializeNodeFromRecord,
@@ -102,7 +96,10 @@ async function storedNode(userId: string) {
 
 /** Every `user_nodes` row for an account, so "exactly one" is assertable. */
 async function storedNodeCount(userId: string): Promise<number> {
-  const rows = await getDb().select({ id: userNodes.id }).from(userNodes).where(eq(userNodes.userId, userId));
+  const rows = await getDb()
+    .select({ id: userNodes.id })
+    .from(userNodes)
+    .where(eq(userNodes.userId, userId));
   return rows.length;
 }
 
@@ -117,7 +114,11 @@ function nodeRecord(overrides: Record<string, unknown> = {}): Record<string, unk
  * observing it means waiting for its write rather than awaiting a promise the
  * service never hands back. Fails loudly on timeout instead of passing vacuously.
  */
-async function waitFor<T>(read: () => Promise<T>, done: (value: T) => boolean, what: string): Promise<T> {
+async function waitFor<T>(
+  read: () => Promise<T>,
+  done: (value: T) => boolean,
+  what: string,
+): Promise<T> {
   const deadline = Date.now() + 3_000;
   for (;;) {
     const value = await read();
@@ -170,11 +171,14 @@ describe('materializeNodeFromRecord', () => {
   it('upserts one row from a verified node record and invalidates the user cache', async () => {
     const userId = await account();
 
-    const node = await materializeNodeFromRecord(userId, nodeRecord({
-      endpoint: 'https://node.example.com/', // trailing slash normalised away
-      mode: 'push',
-      nodeDid: 'did:web:node.example.com',
-    }));
+    const node = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({
+        endpoint: 'https://node.example.com/', // trailing slash normalised away
+        mode: 'push',
+        nodeDid: 'did:web:node.example.com',
+      }),
+    );
 
     expect(node).not.toBeNull();
     const row = await storedNode(userId);
@@ -224,15 +228,21 @@ describe('materializeNodeFromRecord', () => {
     // The `$setOnInsert` guarantee: the upsert must stay idempotent, so the
     // insert-only columns really are insert-only.
     const userId = await account();
-    const first = await materializeNodeFromRecord(userId, nodeRecord({ nodeDid: 'did:web:first.example' }));
+    const first = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({ nodeDid: 'did:web:first.example' }),
+    );
     await settleProbe(userId);
     const before = await storedNode(userId);
 
     const probesBefore = probesSoFar();
-    const second = await materializeNodeFromRecord(userId, nodeRecord({
-      endpoint: 'https://moved.example.com',
-      mode: 'push',
-    }));
+    const second = await materializeNodeFromRecord(
+      userId,
+      nodeRecord({
+        endpoint: 'https://moved.example.com',
+        mode: 'push',
+      }),
+    );
     await settleProbe(userId, probesBefore);
     const after = await storedNode(userId);
 
@@ -286,7 +296,10 @@ describe('materializeNodeFromRecord', () => {
 
   it.each([
     ['a non-HTTPS endpoint', nodeRecord({ endpoint: 'http://node.example.com' })],
-    ['an endpoint carrying credentials', nodeRecord({ endpoint: 'https://user:pw@node.example.com' })],
+    [
+      'an endpoint carrying credentials',
+      nodeRecord({ endpoint: 'https://user:pw@node.example.com' }),
+    ],
     ['an unparseable endpoint', nodeRecord({ endpoint: 'not a url' })],
     ['a missing nodePublicKey', { endpoint: 'https://node.example.com' }],
     ['a non-hex nodePublicKey', nodeRecord({ nodePublicKey: 'not-hex' })],
@@ -305,15 +318,21 @@ describe('materializeNodeFromRecord', () => {
 
 describe('an absent optional is OMITTED, never null — the /nodes/me wire contract', () => {
   it('returns no key at all for every unset column', async () => {
-    // Drizzle hands back `null` where a lean Mongoose document handed back
-    // `undefined`. `JSON.stringify` drops an undefined property and EMITS a null,
-    // so serializing the row as-is would put `"nodeDid": null` on a wire that has
-    // never carried one.
+    // Drizzle hands back `null` for an empty column. `JSON.stringify` drops an
+    // undefined property and EMITS a null, so serializing the row as-is would
+    // put `"nodeDid": null` on a wire that has never carried one.
     const userId = await account();
     const node = await materializeNodeFromRecord(userId, nodeRecord());
     if (!node) throw new Error('expected the node to materialize');
 
-    for (const key of ['nodeDid', 'lastSeenAt', 'lastProbeAt', 'lastError', 'cursor', 'lastSyncedAt']) {
+    for (const key of [
+      'nodeDid',
+      'lastSeenAt',
+      'lastProbeAt',
+      'lastError',
+      'cursor',
+      'lastSyncedAt',
+    ]) {
       expect(key in node).toBe(false);
     }
 
@@ -338,7 +357,11 @@ describe('an absent optional is OMITTED, never null — the /nodes/me wire contr
     await settleProbe(userId);
     await getDb()
       .update(userNodes)
-      .set({ cursor: 7, lastSyncedAt: new Date('2026-01-01T00:00:00.000Z'), lastError: 'chain_gap' })
+      .set({
+        cursor: 7,
+        lastSyncedAt: new Date('2026-01-01T00:00:00.000Z'),
+        lastError: 'chain_gap',
+      })
       .where(eq(userNodes.userId, userId));
 
     const node = await getUserNode(userId);
@@ -387,7 +410,12 @@ describe('probeLiveness', () => {
     const userId = await registered();
     await getDb()
       .update(userNodes)
-      .set({ status: 'unreachable', lastError: 'ECONNREFUSED', lastSeenAt: null, lastProbeAt: null })
+      .set({
+        status: 'unreachable',
+        lastError: 'ECONNREFUSED',
+        lastSeenAt: null,
+        lastProbeAt: null,
+      })
       .where(eq(userNodes.userId, userId));
 
     await probeLiveness(userId);
@@ -434,7 +462,12 @@ describe('probeLiveness', () => {
   it('destroys the response body — liveness reads the status line only', async () => {
     const userId = await registered();
     const destroy = jest.fn();
-    mockSafeFetch.mockResolvedValue({ status: 200, response: { destroy }, headers: {}, finalUrl: '' });
+    mockSafeFetch.mockResolvedValue({
+      status: 200,
+      response: { destroy },
+      headers: {},
+      finalUrl: '',
+    });
 
     await probeLiveness(userId);
 
@@ -462,8 +495,8 @@ describe('probeLiveness', () => {
 
 describe('sweepNodeLiveness', () => {
   it('probes a NEVER-probed node before a recently-probed one', async () => {
-    // Mongo sorts a missing `lastProbeAt` ahead of every date on an ascending
-    // sort; Postgres puts NULLs LAST unless told otherwise. Without `nulls
+    // Postgres puts a NULL `lastProbeAt` LAST on an ascending sort unless told
+    // otherwise. Without `nulls
     // first`, a freshly registered node is never picked up by the sweep at all.
     const staleEndpoint = `https://stale-${Date.now()}.example.com`;
     const freshEndpoint = `https://fresh-${Date.now()}.example.com`;
@@ -571,7 +604,10 @@ describe('removeNode', () => {
     const userId = await account();
     await materializeNodeFromRecord(userId, nodeRecord());
     await settleProbe(userId);
-    await getDb().update(userNodes).set({ lastError: 'chain_gap' }).where(eq(userNodes.userId, userId));
+    await getDb()
+      .update(userNodes)
+      .set({ lastError: 'chain_gap' })
+      .where(eq(userNodes.userId, userId));
     jest.clearAllMocks();
 
     await expect(removeNode(userId)).resolves.toBe(true);

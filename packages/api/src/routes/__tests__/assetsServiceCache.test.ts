@@ -138,7 +138,7 @@ async function requestRaw(
   method: string,
   path: string,
   headers: Record<string, string>,
-  payload?: Buffer
+  payload?: Buffer,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
@@ -146,7 +146,9 @@ async function requestRaw(
       { method, host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
@@ -155,7 +157,7 @@ async function requestRaw(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload) req.write(payload);
@@ -178,14 +180,12 @@ const USER_MEDIA_UPLOAD_PATH_API_PREFIXED = '/api/assets/service/user-media';
 function isCacheUploadRequest(req: express.Request): boolean {
   return (
     req.method === 'POST' &&
-    (
-      req.path === CACHE_UPLOAD_PATH ||
+    (req.path === CACHE_UPLOAD_PATH ||
       req.path === CACHE_UPLOAD_PATH_API_PREFIXED ||
       req.path === FEDERATION_UPLOAD_PATH ||
       req.path === FEDERATION_UPLOAD_PATH_API_PREFIXED ||
       req.path === USER_MEDIA_UPLOAD_PATH ||
-      req.path === USER_MEDIA_UPLOAD_PATH_API_PREFIXED
-    )
+      req.path === USER_MEDIA_UPLOAD_PATH_API_PREFIXED)
   );
 }
 
@@ -197,7 +197,9 @@ beforeAll((done) => {
   const jsonParser = express.json({ limit: '1mb' });
   const urlencodedParser = express.urlencoded({ extended: true, limit: '1mb' });
   app.use((req, res, next) => (isCacheUploadRequest(req) ? next() : jsonParser(req, res, next)));
-  app.use((req, res, next) => (isCacheUploadRequest(req) ? next() : urlencodedParser(req, res, next)));
+  app.use((req, res, next) =>
+    isCacheUploadRequest(req) ? next() : urlencodedParser(req, res, next),
+  );
   app.use('/assets', assetsRouter);
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
@@ -238,7 +240,7 @@ beforeEach(() => {
         scopes: ['files:write', 'federation:write'],
       };
       next();
-    }
+    },
   );
   mockGetFilesByIds.mockResolvedValue([]);
   mockFindActiveFilesBySha256.mockResolvedValue([]);
@@ -249,10 +251,10 @@ beforeEach(() => {
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: '64b0000000000000000000aa', id: '64b0000000000000000000aa' };
       next();
-    }
+    },
   );
-  mockOptionalAuthMiddleware.mockImplementation(
-    (_req: unknown, _res: unknown, next: () => void) => next()
+  mockOptionalAuthMiddleware.mockImplementation((_req: unknown, _res: unknown, next: () => void) =>
+    next(),
   );
 });
 
@@ -265,7 +267,7 @@ describe('POST /assets/service/cache', () => {
       'POST',
       '/assets/service/cache',
       { 'content-type': 'image/png', 'content-length': '4' },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(200);
@@ -286,7 +288,7 @@ describe('POST /assets/service/cache', () => {
           scopes: ['federation:write'],
         };
         next();
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -294,7 +296,7 @@ describe('POST /assets/service/cache', () => {
       'POST',
       '/assets/service/cache',
       { 'content-type': 'image/png', 'content-length': '4' },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -307,7 +309,7 @@ describe('POST /assets/service/cache', () => {
       'POST',
       '/assets/service/cache',
       { 'content-type': 'application/pdf', 'content-length': '4' },
-      Buffer.from('%PDF')
+      Buffer.from('%PDF'),
     );
 
     expect(res.status).toBe(415);
@@ -320,7 +322,7 @@ describe('POST /assets/service/cache', () => {
       'POST',
       '/assets/service/cache',
       { 'content-type': 'image/svg+xml', 'content-length': '14' },
-      Buffer.from('<svg></svg>...')
+      Buffer.from('<svg></svg>...'),
     );
 
     expect(res.status).toBe(415);
@@ -345,7 +347,7 @@ describe('POST /assets/service/cache', () => {
       'POST',
       '/assets/service/cache',
       { 'content-type': 'video/mp4', 'content-length': String(LARGE_BODY_BYTES) },
-      payload
+      payload,
     );
 
     expect(res.status).toBe(200);
@@ -380,7 +382,7 @@ describe('POST /assets/service/federation', () => {
         'x-original-name': 'photo.jpg',
         'x-media-metadata': JSON.stringify({ remoteHost: 'example.social' }),
       },
-      Buffer.from('JPEG')
+      Buffer.from('JPEG'),
     );
 
     expect(res.status).toBe(200);
@@ -396,7 +398,7 @@ describe('POST /assets/service/federation', () => {
       expect.objectContaining({
         remoteHost: 'example.social',
         serviceAppName: 'mention',
-      })
+      }),
     );
   });
 
@@ -410,7 +412,7 @@ describe('POST /assets/service/federation', () => {
           scopes: [],
         };
         next();
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -418,7 +420,7 @@ describe('POST /assets/service/federation', () => {
       'POST',
       '/assets/service/federation',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': FEDERATED_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -431,7 +433,7 @@ describe('POST /assets/service/federation', () => {
       'POST',
       '/assets/service/federation',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': UNKNOWN_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -459,7 +461,7 @@ describe('POST /assets/service/user-media', () => {
         'x-owner-user-id': LOCAL_OWNER_ID,
         'x-original-name': 'photo.jpg',
       },
-      Buffer.from('JPEG')
+      Buffer.from('JPEG'),
     );
 
     expect(res.status).toBe(200);
@@ -474,7 +476,7 @@ describe('POST /assets/service/user-media', () => {
       'POST',
       '/assets/service/user-media',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': UNKNOWN_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -491,7 +493,7 @@ describe('POST /assets/service/user-media', () => {
           scopes: ['files:write'],
         };
         next();
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -499,7 +501,7 @@ describe('POST /assets/service/user-media', () => {
       'POST',
       '/assets/service/user-media',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -516,7 +518,7 @@ describe('POST /assets/service/user-media', () => {
           scopes: ['federation:write'],
         };
         next();
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -524,7 +526,7 @@ describe('POST /assets/service/user-media', () => {
       'POST',
       '/assets/service/user-media',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -542,7 +544,7 @@ describe('POST /assets/service/user-media', () => {
           scopes: ['files:user-media:write'],
         };
         next();
-      }
+      },
     );
     mockUploadUserMediaStream.mockResolvedValueOnce({
       id: USER_FILE_ID,
@@ -557,7 +559,7 @@ describe('POST /assets/service/user-media', () => {
       'POST',
       '/assets/service/user-media',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(200);
@@ -576,7 +578,7 @@ describe('POST /assets/service/user-media', () => {
           scopes: ['files:write'],
         };
         next();
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -584,7 +586,7 @@ describe('POST /assets/service/user-media', () => {
       'POST',
       '/assets/service/user-media',
       { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
-      Buffer.from('PNG!')
+      Buffer.from('PNG!'),
     );
 
     expect(res.status).toBe(403);
@@ -601,7 +603,7 @@ describe('POST /assets/service/user-media', () => {
         'content-length': '14',
         'x-owner-user-id': LOCAL_OWNER_ID,
       },
-      Buffer.from('<svg></svg>...')
+      Buffer.from('<svg></svg>...'),
     );
 
     expect(res.status).toBe(415);
@@ -627,7 +629,7 @@ describe('POST /assets/service/user-media', () => {
         'content-length': String(LARGE_BODY_BYTES),
         'x-owner-user-id': LOCAL_OWNER_ID,
       },
-      payload
+      payload,
     );
 
     expect(res.status).toBe(200);
@@ -641,12 +643,7 @@ describe('DELETE /assets/service/cache/:id', () => {
   it('lets a service token delete a cache-namespace asset', async () => {
     mockDeleteCachedMedia.mockResolvedValueOnce({ deleted: true, outOfScope: false });
 
-    const res = await requestRaw(
-      server,
-      'DELETE',
-      `/assets/service/cache/${CACHE_FILE_ID}`,
-      {}
-    );
+    const res = await requestRaw(server, 'DELETE', `/assets/service/cache/${CACHE_FILE_ID}`, {});
 
     expect(res.status).toBe(200);
     expect(mockDeleteCachedMedia).toHaveBeenCalledWith(CACHE_FILE_ID);
@@ -663,15 +660,10 @@ describe('DELETE /assets/service/cache/:id', () => {
           scopes: ['files:write'],
         };
         next();
-      }
+      },
     );
 
-    const res = await requestRaw(
-      server,
-      'DELETE',
-      `/assets/service/cache/${CACHE_FILE_ID}`,
-      {}
-    );
+    const res = await requestRaw(server, 'DELETE', `/assets/service/cache/${CACHE_FILE_ID}`, {});
 
     expect(res.status).toBe(403);
     expect(mockDeleteCachedMedia).not.toHaveBeenCalled();
@@ -680,12 +672,7 @@ describe('DELETE /assets/service/cache/:id', () => {
   it('refuses to delete a normal user-owned asset (out of scope) with 403', async () => {
     mockDeleteCachedMedia.mockResolvedValueOnce({ deleted: false, outOfScope: true });
 
-    const res = await requestRaw(
-      server,
-      'DELETE',
-      `/assets/service/cache/${USER_FILE_ID}`,
-      {}
-    );
+    const res = await requestRaw(server, 'DELETE', `/assets/service/cache/${USER_FILE_ID}`, {});
 
     expect(res.status).toBe(403);
     // Crucially the user-facing deleteFile path is never reached.
@@ -695,12 +682,7 @@ describe('DELETE /assets/service/cache/:id', () => {
   it('returns 404 when the cache asset does not exist', async () => {
     mockDeleteCachedMedia.mockResolvedValueOnce({ deleted: false, outOfScope: false });
 
-    const res = await requestRaw(
-      server,
-      'DELETE',
-      `/assets/service/cache/${CACHE_FILE_ID}`,
-      {}
-    );
+    const res = await requestRaw(server, 'DELETE', `/assets/service/cache/${CACHE_FILE_ID}`, {});
 
     expect(res.status).toBe(404);
   });
@@ -714,7 +696,7 @@ describe('POST /assets/service/by-ids', () => {
       'POST',
       '/assets/service/by-ids',
       { 'content-type': 'application/json', 'content-length': String(payload.length) },
-      payload
+      payload,
     );
   }
 
@@ -730,7 +712,7 @@ describe('POST /assets/service/by-ids', () => {
           scopes: ['files:read', 'files:write', 'federation:write'],
         };
         next();
-      }
+      },
     );
   }
 
@@ -745,27 +727,55 @@ describe('POST /assets/service/by-ids', () => {
    * video per play. `hlsReadyAt` is the answer to that question and nothing more:
    * one timestamp, never the variant list, which stays storage-private.
    */
-  it('names the owner only to Oxy\'s own (internal-tier) applications', async () => {
+  it("names the owner only to Oxy's own (internal-tier) applications", async () => {
     const rows = [
-      { id: CACHE_FILE_ID, sha256: 'a'.repeat(64), mime: 'image/png', size: 1, status: 'active', ownerUserId: 'owner-1' },
-      { id: USER_FILE_ID, sha256: 'b'.repeat(64), mime: 'image/png', size: 1, status: 'active', ownerUserId: null },
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'a'.repeat(64),
+        mime: 'image/png',
+        size: 1,
+        status: 'active',
+        ownerUserId: 'owner-1',
+      },
+      {
+        id: USER_FILE_ID,
+        sha256: 'b'.repeat(64),
+        mime: 'image/png',
+        size: 1,
+        status: 'active',
+        ownerUserId: null,
+      },
     ];
     mockServiceAuthMiddleware.mockImplementationOnce(
       (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
-        req.serviceApp = { type: 'service', appId: 'mention-app', appName: 'mention', tier: 'internal', scopes: ['files:read'] };
+        req.serviceApp = {
+          type: 'service',
+          appId: 'mention-app',
+          appName: 'mention',
+          tier: 'internal',
+          scopes: ['files:read'],
+        };
         next();
-      }
+      },
     );
     mockGetFilesByIds.mockResolvedValueOnce(rows);
     const internal = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
     expect(internal.status).toBe(200);
-    expect(internal.body.data.map((dto: { ownerUserId?: string | null }) => dto.ownerUserId)).toEqual(['owner-1', null]);
+    expect(
+      internal.body.data.map((dto: { ownerUserId?: string | null }) => dto.ownerUserId),
+    ).toEqual(['owner-1', null]);
 
     mockServiceAuthMiddleware.mockImplementationOnce(
       (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
-        req.serviceApp = { type: 'service', appId: 'third-party', appName: 'x', tier: 'external', scopes: ['files:read'] };
+        req.serviceApp = {
+          type: 'service',
+          appId: 'third-party',
+          appName: 'x',
+          tier: 'external',
+          scopes: ['files:read'],
+        };
         next();
-      }
+      },
     );
     mockGetFilesByIds.mockResolvedValueOnce(rows);
     const external = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
@@ -821,8 +831,22 @@ describe('POST /assets/service/by-ids', () => {
   it('omits hlsReadyAt for a video with no ladder at all, and for an image', async () => {
     grantFilesReadOnce();
     mockGetFilesByIds.mockResolvedValueOnce([
-      { id: CACHE_FILE_ID, sha256: 'e'.repeat(64), mime: 'video/mp4', size: 1, status: 'active', variants: [{ type: 'poster', key: 'p', readyAt: new Date() }] },
-      { id: USER_FILE_ID, sha256: 'f'.repeat(64), mime: 'image/png', size: 1, status: 'active', variants: [{ type: 'thumb', key: 't', readyAt: new Date() }] },
+      {
+        id: CACHE_FILE_ID,
+        sha256: 'e'.repeat(64),
+        mime: 'video/mp4',
+        size: 1,
+        status: 'active',
+        variants: [{ type: 'poster', key: 'p', readyAt: new Date() }],
+      },
+      {
+        id: USER_FILE_ID,
+        sha256: 'f'.repeat(64),
+        mime: 'image/png',
+        size: 1,
+        status: 'active',
+        variants: [{ type: 'thumb', key: 't', readyAt: new Date() }],
+      },
     ]);
 
     const res = await postByIds([CACHE_FILE_ID, USER_FILE_ID]);
@@ -844,7 +868,13 @@ describe('POST /assets/service/by-ids', () => {
         mime: 'video/mp4',
         size: 1,
         status: 'active',
-        variants: [{ type: 'hls_master', key: 'public/variants/2026/09/aa/secret/hls_master.m3u8', readyAt: new Date() }],
+        variants: [
+          {
+            type: 'hls_master',
+            key: 'public/variants/2026/09/aa/secret/hls_master.m3u8',
+            readyAt: new Date(),
+          },
+        ],
       },
     ]);
 
@@ -863,7 +893,10 @@ describe('POST /assets/service/by-ids', () => {
         mime: 'image/png',
         size: 1234,
         status: 'active',
-        metadata: { image: { width: 800, height: 600 }, media: { width: 800, height: 600, orientation: 'landscape', aspectRatio: 800 / 600 } },
+        metadata: {
+          image: { width: 800, height: 600 },
+          media: { width: 800, height: 600, orientation: 'landscape', aspectRatio: 800 / 600 },
+        },
         variants: [{ type: 'thumb', key: 'k', width: 256, height: 192 }],
         // Fields below must NOT leak into the response.
         storageKey: 'public/content/2026/06/aa/secret.png',
@@ -903,7 +936,17 @@ describe('POST /assets/service/by-ids', () => {
     });
     // Metadata-only contract: no bytes/url/owner/links/storageKey; variants not exposed.
     expect(Object.keys(data[0]).sort()).toEqual(
-      ['aspectRatio', 'height', 'id', 'mime', 'orientation', 'sha256', 'size', 'status', 'width'].sort(),
+      [
+        'aspectRatio',
+        'height',
+        'id',
+        'mime',
+        'orientation',
+        'sha256',
+        'size',
+        'status',
+        'width',
+      ].sort(),
     );
   });
 
@@ -938,7 +981,7 @@ describe('POST /assets/service/by-ids', () => {
           scopes: ['files:write', 'federation:write'],
         };
         next();
-      }
+      },
     );
 
     const res = await postByIds([CACHE_FILE_ID]);
@@ -955,7 +998,10 @@ describe('POST /assets/service/by-ids', () => {
   });
 
   it('rejects more than 100 ids with 400', async () => {
-    const ids = Array.from({ length: 101 }, (_v, i) => `64c00000000000000000${String(i).padStart(4, '0')}`);
+    const ids = Array.from(
+      { length: 101 },
+      (_v, i) => `64c00000000000000000${String(i).padStart(4, '0')}`,
+    );
 
     const res = await postByIds(ids);
 
@@ -970,14 +1016,17 @@ describe('POST /assets/service/by-sha256', () => {
   const SHA_UNKNOWN = 'c'.repeat(64);
   const CDN_URL = `https://cloud.oxy.so/content/2026/06/aa/${'a'.repeat(8)}.png`;
 
-  function postBySha(sha256s: string[], extra: Record<string, unknown> = {}): Promise<JsonResponse> {
+  function postBySha(
+    sha256s: string[],
+    extra: Record<string, unknown> = {},
+  ): Promise<JsonResponse> {
     const payload = Buffer.from(JSON.stringify({ sha256s, ...extra }));
     return requestRaw(
       server,
       'POST',
       '/assets/service/by-sha256',
       { 'content-type': 'application/json', 'content-length': String(payload.length) },
-      payload
+      payload,
     );
   }
 
@@ -993,7 +1042,7 @@ describe('POST /assets/service/by-sha256', () => {
           scopes: ['files:read', 'files:write', 'federation:write'],
         };
         next();
-      }
+      },
     );
   }
 
@@ -1024,7 +1073,7 @@ describe('POST /assets/service/by-sha256', () => {
     mockFindActiveFilesBySha256.mockResolvedValueOnce([publicFile, privateFile]);
     // Public asset → CDN-reachable url; private asset → null (omit url).
     mockGetPublicCdnUrl.mockImplementation(async (file: { visibility?: string }) =>
-      file.visibility === 'public' ? CDN_URL : null
+      file.visibility === 'public' ? CDN_URL : null,
     );
 
     const res = await postBySha([SHA_PUBLIC, SHA_PRIVATE]);
@@ -1033,7 +1082,9 @@ describe('POST /assets/service/by-sha256', () => {
     expect(mockServiceAuthMiddleware).toHaveBeenCalledTimes(1);
     expect(mockAuthMiddleware).not.toHaveBeenCalled();
     // Legacy, unscoped: no owner is passed through.
-    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC, SHA_PRIVATE], { ownerUserId: undefined });
+    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC, SHA_PRIVATE], {
+      ownerUserId: undefined,
+    });
 
     const data = res.body.data as AssetMetadataBySha[];
     expect(Array.isArray(data)).toBe(true);
@@ -1058,18 +1109,26 @@ describe('POST /assets/service/by-sha256', () => {
     });
     expect(bySha[SHA_PRIVATE].url).toBeUndefined();
     // Metadata-only contract: no owner/links/variants/storageKey leak.
-    expect(Object.keys(bySha[SHA_PUBLIC]).sort()).toEqual(['id', 'mime', 'sha256', 'size', 'status', 'url']);
+    expect(Object.keys(bySha[SHA_PUBLIC]).sort()).toEqual([
+      'id',
+      'mime',
+      'sha256',
+      'size',
+      'status',
+      'url',
+    ]);
   });
 
-
-  it('passes ownerUserId through, so each hash resolves to THAT account\'s own row', async () => {
+  it("passes ownerUserId through, so each hash resolves to THAT account's own row", async () => {
     grantFilesReadOnce();
     mockFindActiveFilesBySha256.mockResolvedValueOnce([]);
 
     const res = await postBySha([SHA_PUBLIC], { ownerUserId: 'owner-42' });
 
     expect(res.status).toBe(200);
-    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC], { ownerUserId: 'owner-42' });
+    expect(mockFindActiveFilesBySha256).toHaveBeenCalledWith([SHA_PUBLIC], {
+      ownerUserId: 'owner-42',
+    });
   });
   it('does not 500 the batch when one hash CDN resolution throws', async () => {
     grantFilesReadOnce();
@@ -1113,7 +1172,7 @@ describe('POST /assets/service/by-sha256', () => {
         mime: 'image/jpeg',
         size: 5678,
         status: 'active',
-      })
+      }),
     );
   });
 
@@ -1155,9 +1214,7 @@ describe('POST /assets/service/by-sha256', () => {
   });
 
   it('rejects more than 100 hashes with 400', async () => {
-    const shas = Array.from({ length: 101 }, (_v, i) =>
-      i.toString(16).padStart(64, '0')
-    );
+    const shas = Array.from({ length: 101 }, (_v, i) => i.toString(16).padStart(64, '0'));
 
     const res = await postBySha(shas);
 
@@ -1182,7 +1239,7 @@ describe('existing session-only routes are unchanged', () => {
     mockAuthMiddleware.mockImplementationOnce(
       (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
         res.status(401).json({ error: 'Authentication required' });
-      }
+      },
     );
 
     const res = await requestRaw(
@@ -1190,7 +1247,7 @@ describe('existing session-only routes are unchanged', () => {
       'POST',
       '/assets/upload',
       { 'content-type': 'application/json', 'content-length': '2' },
-      Buffer.from('{}')
+      Buffer.from('{}'),
     );
 
     expect(res.status).toBe(401);
@@ -1202,15 +1259,10 @@ describe('existing session-only routes are unchanged', () => {
     mockAuthMiddleware.mockImplementationOnce(
       (_req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }) => {
         res.status(401).json({ error: 'Authentication required' });
-      }
+      },
     );
 
-    const res = await requestRaw(
-      server,
-      'DELETE',
-      `/assets/${USER_FILE_ID}`,
-      {}
-    );
+    const res = await requestRaw(server, 'DELETE', `/assets/${USER_FILE_ID}`, {});
 
     expect(res.status).toBe(401);
     expect(mockAuthMiddleware).toHaveBeenCalledTimes(1);

@@ -70,7 +70,11 @@ export class WorkloadIdentityError extends Error {
 export async function issueWorkloadChallenge(): Promise<{ nonce: string; expiresIn: number }> {
   const redis = getRedisClient();
   if (!redis) {
-    throw new WorkloadIdentityError(503, 'no_challenge_store', 'Workload identity is unavailable here.');
+    throw new WorkloadIdentityError(
+      503,
+      'no_challenge_store',
+      'Workload identity is unavailable here.',
+    );
   }
   const nonce = crypto.randomBytes(32).toString('base64url');
   await redis.set(`${CHALLENGE_PREFIX}${nonce}`, '1', 'EX', CHALLENGE_TTL_SECONDS);
@@ -124,7 +128,11 @@ export async function exchangeWorkloadAttestation(input: {
       reason: 'unknown_challenge',
       nonceLength: typeof input.nonce === 'string' ? input.nonce.length : 0,
     });
-    throw new WorkloadIdentityError(401, 'unknown_challenge', 'That challenge is unknown or already used.');
+    throw new WorkloadIdentityError(
+      401,
+      'unknown_challenge',
+      'That challenge is unknown or already used.',
+    );
   }
 
   let attested;
@@ -132,7 +140,10 @@ export async function exchangeWorkloadAttestation(input: {
     attested = await verifyWorkloadAttestation(input.provider, input.attestation, input.nonce);
   } catch (error: unknown) {
     if (error instanceof AttestationError) {
-      logger.warn('[WorkloadIdentity] attestation refused', { provider: input.provider, reason: error.reason });
+      logger.warn('[WorkloadIdentity] attestation refused', {
+        provider: input.provider,
+        reason: error.reason,
+      });
       throw new WorkloadIdentityError(401, error.reason, 'The attestation could not be verified.');
     }
     throw error;
@@ -172,8 +183,14 @@ export async function exchangeWorkloadAttestation(input: {
   if (!binding) {
     // The subject is NOT logged: it names a role in our own infrastructure, and
     // an unbound subject is exactly the case where the caller is not ours.
-    logger.warn('[WorkloadIdentity] attested workload has no binding', { provider: attested.provider });
-    throw new WorkloadIdentityError(403, 'unbound_workload', 'That workload is not bound to an application.');
+    logger.warn('[WorkloadIdentity] attested workload has no binding', {
+      provider: attested.provider,
+    });
+    throw new WorkloadIdentityError(
+      403,
+      'unbound_workload',
+      'That workload is not bound to an application.',
+    );
   }
 
   if (binding.status !== 'active') {
@@ -189,7 +206,11 @@ export async function exchangeWorkloadAttestation(input: {
    * cannot mint here.
    */
   if (!isTrustedApplication(binding)) {
-    throw new WorkloadIdentityError(403, 'untrusted_application', 'Service tokens are only available to trusted applications.');
+    throw new WorkloadIdentityError(
+      403,
+      'untrusted_application',
+      'Service tokens are only available to trusted applications.',
+    );
   }
 
   /**

@@ -194,7 +194,10 @@ function BillingOverviewPage() {
               </p>
             ) : (
               <dl className="grid gap-x-12 gap-y-3 sm:grid-cols-2 max-w-2xl">
-                <ProfileRow label="Paid by" value={payer === undefined ? 'This account' : accountLabel(payer)} />
+                <ProfileRow
+                  label="Paid by"
+                  value={payer === undefined ? 'This account' : accountLabel(payer)}
+                />
                 <ProfileRow
                   label="Mode"
                   value={state.profile.billingMode === 'prepaid' ? 'Prepaid' : 'Invoiced'}
@@ -250,7 +253,9 @@ function BillingOverviewPage() {
           <div className="px-6 py-6 border-b border-border">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">Payment methods and invoices</p>
+                <p className="text-sm font-semibold text-foreground">
+                  Payment methods and invoices
+                </p>
                 <p className="mt-0.5 text-sm text-muted-foreground max-w-xl">
                   Cards and receipts are maintained in the payment provider's portal. A top-up is
                   credited when the provider confirms the charge, never when the checkout opens.

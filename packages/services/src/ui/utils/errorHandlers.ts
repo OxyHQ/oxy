@@ -91,7 +91,10 @@ export const isTimeoutOrNetworkError = (error: unknown): boolean => {
   }
 
   const message = extractErrorMessage(error, '').toLowerCase();
-  const errorCode = isObject(error) && 'code' in (error as object) ? (error as Record<string, unknown>).code : undefined;
+  const errorCode =
+    isObject(error) && 'code' in (error as object)
+      ? (error as Record<string, unknown>).code
+      : undefined;
 
   // Check for timeout/cancelled messages
   if (
@@ -172,16 +175,10 @@ export const extractErrorMessage = (
  */
 export const handleAuthError = (
   error: unknown,
-  {
-    defaultMessage,
-    code,
-    status,
-    onError,
-    setAuthError,
-    logger,
-  }: HandleAuthErrorOptions,
+  { defaultMessage, code, status, onError, setAuthError, logger }: HandleAuthErrorOptions,
 ): string => {
-  const resolvedStatus = status ?? getResponseStatus(error) ?? (isInvalidSessionError(error) ? 401 : 500);
+  const resolvedStatus =
+    status ?? getResponseStatus(error) ?? (isInvalidSessionError(error) ? 401 : 500);
   const message = extractErrorMessage(error, defaultMessage);
 
   if (logger) {
@@ -198,5 +195,3 @@ export const handleAuthError = (
 
   return message;
 };
-
-

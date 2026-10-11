@@ -21,17 +21,13 @@
  *        - every code-binding failure collapses to ONE `invalid_grant` body, so
  *          the endpoint cannot be used as an oracle for which check failed.
  *
- * What is real here and what is mocked follows what the port actually changed:
- * the CLIENT resolution (credential row, usability, constant-time secret check),
+ * What is real here and what is mocked: the CLIENT resolution (credential row, usability, constant-time secret check),
  * the user read and the `applications.last_used_at` write all run against
- * Postgres; `exchangeAuthCode` (`auth_codes` is a separate port),
- * `session.service` and `deviceLogin.service` are mocked collaborators. The
- * previous version mocked `models/ApplicationCredential` and `models/Application`
- * and therefore never exercised the secret comparison against a stored hash.
+ * Postgres; `exchangeAuthCode`, `session.service` and `deviceLogin.service` are
+ * mocked collaborators. The secret comparison runs against a stored hash.
  *
- * ORDERING PROOFS. The Mongo version asserted "rejected before any lookup" by
- * watching an `ApplicationCredential.findOne` mock. There is no such mock here,
- * so those cases claim an UNREGISTERED client id instead: reaching the lookup
+ * ORDERING PROOFS. "Rejected before any lookup" is not observed through a
+ * mock; those cases claim an UNREGISTERED client id instead: reaching the lookup
  * would answer `invalid_client`, so an `invalid_request` verdict is only
  * reachable when the request-shape check ran first. That is an observable of
  * the wire rather than of a collaborator, and it fails if the order is swapped.
@@ -345,9 +341,7 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
   });
 
   it('reports the granted scope as a space-delimited string', async () => {
-    mockExchangeAuthCode.mockResolvedValueOnce(
-      grant({ scopes: ['profile:read', 'email:read'] }),
-    );
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ scopes: ['profile:read', 'email:read'] }));
 
     const res = await requestForm(pkceParams());
 
@@ -401,8 +395,9 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     const { clientId } = await client({}, OFFICIAL_APP);
     const org = await subject({ kind: 'organization' });
     const operator = await subject();
-    await getDb().insert(accountMembers).values({ accountId: org, memberUserId: operator,
-      role: 'admin', status: 'active' });
+    await getDb()
+      .insert(accountMembers)
+      .values({ accountId: org, memberUserId: operator, role: 'admin', status: 'active' });
     mockExchangeAuthCode.mockResolvedValueOnce(
       grant({ userId: org, deviceId: '  dev-shared  ', operatedByUserId: operator }),
     );

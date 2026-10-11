@@ -12,6 +12,10 @@ declare module 'expo-secure-store' {
   export const AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: number;
 
   export function getItemAsync(key: string, options?: SecureStoreOptions): Promise<string | null>;
-  export function setItemAsync(key: string, value: string, options?: SecureStoreOptions): Promise<void>;
+  export function setItemAsync(
+    key: string,
+    value: string,
+    options?: SecureStoreOptions,
+  ): Promise<void>;
   export function deleteItemAsync(key: string, options?: SecureStoreOptions): Promise<void>;
 }

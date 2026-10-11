@@ -19,7 +19,9 @@ interface OxyOverrides {
 }
 
 /** A real device-secret mint single-flight matching HttpService's. */
-function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) => Promise<DeviceSecretMintOutcome> {
+function makeMintSingleFlight(): (
+  mint: () => Promise<DeviceSecretMintOutcome>,
+) => Promise<DeviceSecretMintOutcome> {
   let inFlight: Promise<DeviceSecretMintOutcome> | null = null;
   return (mint) => {
     if (!inFlight) {
@@ -41,8 +43,8 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
       // Default: no persisted secret in these fixtures, so the mint step skips
       // before ever calling this. Tests that exercise the mint pass an override.
       mintToken:
-        overrides.mintFromDeviceSecret
-        ?? (async () => {
+        overrides.mintFromDeviceSecret ??
+        (async () => {
           throw new Error('mintToken not stubbed');
         }),
     },
@@ -104,7 +106,11 @@ describe('runSessionColdBoot — warm-token-plant', () => {
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: WEB, onSession });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'warm-token-plant', session: expect.any(Object) });
+    expect(outcome).toEqual({
+      kind: 'session',
+      via: 'warm-token-plant',
+      session: expect.any(Object),
+    });
     expect(setTokens).toHaveBeenCalledWith('warm-access');
     // The warm plant won before the mint lane — no network round-trip on first paint.
     expect(mintFromDeviceSecret).not.toHaveBeenCalled();
@@ -119,7 +125,10 @@ describe('runSessionColdBoot — warm-token-plant', () => {
     );
     // Used AS-IS: the step never mints, rotates, or persists.
     expect(saveSpy).not.toHaveBeenCalled();
-    expect(await store.load()).toMatchObject({ deviceSecret: 'ds-secret-orig', accessToken: 'warm-access' });
+    expect(await store.load()).toMatchObject({
+      deviceSecret: 'ds-secret-orig',
+      accessToken: 'warm-access',
+    });
   });
 
   it('plants on native too (the step runs on both platforms)', async () => {
@@ -204,12 +213,20 @@ describe('runSessionColdBoot — device-secret-mint', () => {
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: WEB, onSession });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'device-secret-mint', session: expect.any(Object) });
+    expect(outcome).toEqual({
+      kind: 'session',
+      via: 'device-secret-mint',
+      session: expect.any(Object),
+    });
     expect(mintFromDeviceSecret).toHaveBeenCalledWith('dev-mint', 'ds-secret-orig');
     expect(setTokens).toHaveBeenCalledWith('access-minted');
     // Session identity comes from the mint's authoritative active account.
     expect(onSession).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'sess-mint', userId: 'user-mint', via: 'device-secret-mint' }),
+      expect.objectContaining({
+        sessionId: 'sess-mint',
+        userId: 'user-mint',
+        via: 'device-secret-mint',
+      }),
     );
     // Rotation-in-use anti-loss: the store held the NEXT secret before the plant.
     const lastSaveOrder = Math.max(...saveSpy.mock.invocationCallOrder);
@@ -346,7 +363,11 @@ describe('runSessionColdBoot — device-secret-mint', () => {
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'commons-proof-signin', session: expect.any(Object) });
+    expect(outcome).toEqual({
+      kind: 'session',
+      via: 'commons-proof-signin',
+      session: expect.any(Object),
+    });
     expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     // The mint lane still dropped the stale secret before falling through.
     expect((await store.load())?.deviceSecret).toBeUndefined();
@@ -372,10 +393,18 @@ describe('runSessionColdBoot — commons-proof-signin (native)', () => {
 
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE, onSession });
 
-    expect(outcome).toEqual({ kind: 'session', via: 'commons-proof-signin', session: expect.any(Object) });
+    expect(outcome).toEqual({
+      kind: 'session',
+      via: 'commons-proof-signin',
+      session: expect.any(Object),
+    });
     expect(signInWithCommonsIdentity).toHaveBeenCalledTimes(1);
     expect(onSession).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: 'sess-shared', userId: 'user-shared', via: 'commons-proof-signin' }),
+      expect.objectContaining({
+        sessionId: 'sess-shared',
+        userId: 'user-shared',
+        via: 'commons-proof-signin',
+      }),
     );
   });
 
@@ -434,7 +463,13 @@ describe('runSessionColdBoot — commons-proof-signin (native)', () => {
     const onSignedOut = jest.fn();
     const onStepError = jest.fn();
 
-    const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE, onSignedOut, onStepError });
+    const outcome = await runSessionColdBoot({
+      oxy,
+      store,
+      platform: NATIVE,
+      onSignedOut,
+      onStepError,
+    });
 
     expect(outcome).toEqual({ kind: 'unauthenticated' });
     expect(onStepError).toHaveBeenCalledWith('commons-proof-signin', expect.any(Error));
@@ -538,7 +573,10 @@ describe('runSessionColdBoot — offline gating (isOffline)', () => {
     const outcome = await runSessionColdBoot({ oxy, store, platform: NATIVE });
 
     expect(outcome).toMatchObject({ kind: 'session', via: 'commons-proof-signin' });
-    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false, requestOptions: { retry: false } });
+    expect(signInWithCommonsIdentity).toHaveBeenCalledWith({
+      plantTokens: false,
+      requestOptions: { retry: false },
+    });
   });
 });
 

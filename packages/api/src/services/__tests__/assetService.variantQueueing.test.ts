@@ -57,10 +57,7 @@ import {
 /** A real PNG magic prefix + random suffix, so the content guard accepts it and
  *  no two cases collide on the table-wide live-sha256 constraint. */
 const png = () =>
-  Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    randomBytes(16),
-  ]);
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(16)]);
 
 function buildAssetService(): AssetService {
   const fakeS3 = {

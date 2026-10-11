@@ -4,27 +4,23 @@
  * unknown, revoked / out of its rotation grace, or its application is not
  * active.
  *
- * ## What the port changes, and why it is not cosmetic
+ * ## Why it is one join over `text` ids
  *
- * The Mongoose version was two round trips —
- * `ApplicationCredential.findOne({publicKey})` then
- * `Application.findById(credential.applicationId)` — and the second one CAST its
- * argument. `findById` throws a `CastError` on anything that is not 24-char hex,
- * so for an application whose id is the **uuid v7 every row minted after the
- * Postgres cutover carries** (`@oxy.so/db`'s `generatedId()`) this
- * function did not return null: it THREW, out of a helper whose whole contract
- * is "null when it does not resolve". `POST /notifications/push-token` answers
- * that with a 500 instead of its documented 400, and `emailPushDelivery` loses
- * the whole inbox push for that identity.
+ * An application id is either a legacy 24-hex id or the **uuid v7 every newer
+ * row carries** (`@oxy.so/db`'s `generatedId()`). A lookup that cast its
+ * argument to the 24-hex shape would THROW for a uuid instead of returning null,
+ * out of a helper whose whole contract is "null when it does not resolve" —
+ * `POST /notifications/push-token` would answer with a 500 instead of its
+ * documented 400, and `emailPushDelivery` would lose the whole inbox push for
+ * that identity.
  *
  * Here both halves are ONE join against `text` ids, so a value that names no
  * application is a value that matches no row — the documented null — in either
  * id shape. `application_credentials.public_key` is UNIQUE, so the join can
  * produce at most one row.
  *
- * The return type is the application id as a **string**, not a
- * `mongoose.Types.ObjectId`: there is no ObjectId left to construct, and the
- * value has to survive being a uuid.
+ * The return type is the application id as a **string**: the value has to
+ * survive being a uuid.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -33,9 +29,7 @@ import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
 import { isCredentialUsable } from './credentialUsability';
 
-export async function resolveApplicationIdFromClientId(
-  clientId: string,
-): Promise<string | null> {
+export async function resolveApplicationIdFromClientId(clientId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({
       applicationId: applications.id,
@@ -44,12 +38,7 @@ export async function resolveApplicationIdFromClientId(
     })
     .from(applicationCredentials)
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
-    .where(
-      and(
-        eq(applicationCredentials.publicKey, clientId),
-        eq(applications.status, 'active'),
-      ),
-    )
+    .where(and(eq(applicationCredentials.publicKey, clientId), eq(applications.status, 'active')))
     .limit(1);
 
   // The rotation-grace predicate stays in application code rather than becoming

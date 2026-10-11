@@ -71,7 +71,7 @@ const MAX_PAGE = 100;
 async function requireCapability(
   req: AuthRequest,
   res: Response,
-  scopes: readonly string[]
+  scopes: readonly string[],
 ): Promise<FollowCapability | null> {
   const userId = req.user?.id;
   const sessionId = req.sessionId;
@@ -86,7 +86,7 @@ async function requireCapability(
         ? 'This session was not created through an application authorization'
         : result.reason === 'application_inactive'
           ? 'This application is not active'
-          : 'This application has not been granted access to your follows'
+          : 'This application has not been granted access to your follows',
     );
   }
 
@@ -148,7 +148,7 @@ router.put(
 
     const result = await followTarget({ capability, target, expiresAt });
     sendSuccess(res, result);
-  })
+  }),
 );
 
 /**
@@ -167,7 +167,7 @@ router.get(
 
     const target = await loadTarget(req.params.targetId);
     sendSuccess(res, await getFollowStatus({ capability, targetId: target.id }));
-  })
+  }),
 );
 
 /**
@@ -185,9 +185,9 @@ router.delete(
 
     sendSuccess(
       res,
-      await unfollowEverywhere({ capability, relationshipId: req.params.relationshipId })
+      await unfollowEverywhere({ capability, relationshipId: req.params.relationshipId }),
     );
-  })
+  }),
 );
 
 /**
@@ -208,11 +208,7 @@ router.put(
 
     const targetApplicationId =
       typeof body.applicationId === 'string' ? body.applicationId : undefined;
-    const capability = await requireCapability(
-      req,
-      res,
-      targetApplicationId ? MANAGE : CONTEXT
-    );
+    const capability = await requireCapability(req, res, targetApplicationId ? MANAGE : CONTEXT);
     if (!capability) return;
 
     const result = await setApplicationMode({
@@ -224,7 +220,7 @@ router.put(
 
     if (!result.ok) throw new NotFoundError('Relationship not found');
     sendSuccess(res, result);
-  })
+  }),
 );
 
 /**
@@ -247,7 +243,7 @@ router.delete(
 
     if (!result.ok) throw new NotFoundError('Relationship not found');
     sendSuccess(res, result);
-  })
+  }),
 );
 
 export default router;
@@ -298,8 +294,8 @@ meFollowsRouter.get(
         followApplicationOverrides,
         and(
           eq(followApplicationOverrides.relationshipId, followRelationships.id),
-          eq(followApplicationOverrides.applicationId, capability.applicationId)
-        )
+          eq(followApplicationOverrides.applicationId, capability.applicationId),
+        ),
       )
       .where(
         and(
@@ -307,8 +303,8 @@ meFollowsRouter.get(
           ...(cursor && !Number.isNaN(cursor.getTime())
             ? [lt(followRelationships.createdAt, cursor)]
             : []),
-          ...(kind ? [eq(followTargets.kind, kind)] : [])
-        )
+          ...(kind ? [eq(followTargets.kind, kind)] : []),
+        ),
       )
       .orderBy(desc(followRelationships.createdAt))
       // One extra row answers "is there more" without a second count query.
@@ -338,5 +334,5 @@ meFollowsRouter.get(
       }),
       ...(hasMore ? { nextCursor: page[page.length - 1].createdAt.toISOString() } : {}),
     });
-  })
+  }),
 );

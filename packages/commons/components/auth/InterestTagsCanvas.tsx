@@ -22,11 +22,7 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import {
-  hitTestWoodenPill,
-  stepWoodenPills,
-  type WoodenPillBody,
-} from './woodenPillsPhysics';
+import { hitTestWoodenPill, stepWoodenPills, type WoodenPillBody } from './woodenPillsPhysics';
 import { INTEREST_TAGS } from '@/constants/interestTags';
 import {
   INTEREST_TAG_GLYPH_PATHS,
@@ -83,14 +79,12 @@ const WAKE_SHAKE_GRAVITY = 0.055;
 function playCollisionHaptic(firm: boolean) {
   if (Platform.OS === 'android') {
     void Haptics.performAndroidHapticsAsync(
-      firm
-        ? Haptics.AndroidHaptics.Segment_Tick
-        : Haptics.AndroidHaptics.Segment_Frequent_Tick
+      firm ? Haptics.AndroidHaptics.Segment_Tick : Haptics.AndroidHaptics.Segment_Frequent_Tick,
     );
     return;
   }
   void Haptics.impactAsync(
-    firm ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Soft
+    firm ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Soft,
   );
 }
 
@@ -163,7 +157,7 @@ export function InterestTagsCanvas({
         fontSize: LABEL_FONT_SIZE,
         fontWeight: 'bold',
       }),
-    []
+    [],
   );
 
   // One set of shared values per tag, created once. `INTEREST_TAGS` is a static
@@ -179,7 +173,7 @@ export function InterestTagsCanvas({
         angularVelocity: makeMutable(0),
         enteredViewport: makeMutable(0),
       })),
-    []
+    [],
   );
 
   // Widths depend on the measured label, and BOTH the bodies and the drawing need
@@ -188,10 +182,10 @@ export function InterestTagsCanvas({
     () =>
       font
         ? INTEREST_TAGS.map((tag) =>
-            Math.max(MIN_TAG_WIDTH, ICON_AREA + font.getTextWidth(tag.label) + H_PADDING)
+            Math.max(MIN_TAG_WIDTH, ICON_AREA + font.getTextWidth(tag.label) + H_PADDING),
           )
         : null,
-    [font]
+    [font],
   );
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -211,8 +205,7 @@ export function InterestTagsCanvas({
     for (let index = 0; index < motions.length; index += 1) {
       const width = tagWidths[index];
       const motion = motions[index];
-      motion.x.value =
-        Math.random() * (dimensions.width - width) + width / 2;
+      motion.x.value = Math.random() * (dimensions.width - width) + width / 2;
       motion.y.value = -TAG_HEIGHT - index * SPAWN_STAGGER;
       motion.angle.value = (Math.random() - 0.5) * 0.5;
       motion.vx.value = 0;
@@ -221,15 +214,7 @@ export function InterestTagsCanvas({
       motion.enteredViewport.value = 0;
     }
     worldReady.value = true;
-  }, [
-    dimensions,
-    floorInset,
-    motions,
-    quietTime,
-    tagWidths,
-    worldReady,
-    worldSleeping,
-  ]);
+  }, [dimensions, floorInset, motions, quietTime, tagWidths, worldReady, worldSleeping]);
 
   useFrameCallback((frame) => {
     'worklet';
@@ -257,19 +242,15 @@ export function InterestTagsCanvas({
 
       // Remove single-sample sensor spikes without adding perceptible latency.
       const sensorResponse = 1 - Math.exp(-frameMilliseconds / ACCELEROMETER_RESPONSE_MS);
-      filteredAccelerationX.value +=
-        (shakeX - filteredAccelerationX.value) * sensorResponse;
-      filteredAccelerationY.value +=
-        (shakeY - filteredAccelerationY.value) * sensorResponse;
+      filteredAccelerationX.value += (shakeX - filteredAccelerationX.value) * sensorResponse;
+      filteredAccelerationY.value += (shakeY - filteredAccelerationY.value) * sensorResponse;
 
       baseGravityX = gravity.x / EARTH_GRAVITY;
       // When the phone lies flat, real gravity points through the display and
       // has no screen-plane Y component. For this little on-screen box, that is
       // the neutral pose: retain only a gentle downward bias. As the phone tilts
       // upright, it naturally hands over to the full screen-plane gravity.
-      baseGravityY =
-        (-gravity.y + Math.abs(gravity.z) * FLAT_NEUTRAL_DOWN_GRAVITY) /
-        EARTH_GRAVITY;
+      baseGravityY = (-gravity.y + Math.abs(gravity.z) * FLAT_NEUTRAL_DOWN_GRAVITY) / EARTH_GRAVITY;
       apparentX = baseGravityX + filteredAccelerationX.value;
       apparentY = baseGravityY + filteredAccelerationY.value;
       normalGravity = Math.abs(gravity.z) / EARTH_GRAVITY;
@@ -286,23 +267,20 @@ export function InterestTagsCanvas({
 
     const inputDelta = Math.hypot(
       baseGravityX - previousGravityX.value,
-      baseGravityY - previousGravityY.value
+      baseGravityY - previousGravityY.value,
     );
-    const shakeMagnitude = Math.hypot(
-      filteredAccelerationX.value,
-      filteredAccelerationY.value
-    );
+    const shakeMagnitude = Math.hypot(filteredAccelerationX.value, filteredAccelerationY.value);
     previousGravityX.value = baseGravityX;
     previousGravityY.value = baseGravityY;
 
     if (worldSleeping.value) {
       const changeSinceSleep = Math.hypot(
         baseGravityX - sleepGravityX.value,
-        baseGravityY - sleepGravityY.value
+        baseGravityY - sleepGravityY.value,
       );
       const shakeChangeSinceSleep = Math.hypot(
         filteredAccelerationX.value - sleepAccelerationX.value,
-        filteredAccelerationY.value - sleepAccelerationY.value
+        filteredAccelerationY.value - sleepAccelerationY.value,
       );
       if (
         draggedIndex.value < 0 &&
@@ -353,15 +331,9 @@ export function InterestTagsCanvas({
     });
 
     hapticCooldown.value = Math.max(0, hapticCooldown.value - frameMilliseconds);
-    if (
-      maximumImpactSpeed >= HAPTIC_IMPACT_SPEED &&
-      hapticCooldown.value === 0
-    ) {
+    if (maximumImpactSpeed >= HAPTIC_IMPACT_SPEED && hapticCooldown.value === 0) {
       hapticCooldown.value = HAPTIC_COOLDOWN_MS;
-      scheduleOnRN(
-        playCollisionHaptic,
-        maximumImpactSpeed >= FIRM_HAPTIC_IMPACT_SPEED
-      );
+      scheduleOnRN(playCollisionHaptic, maximumImpactSpeed >= FIRM_HAPTIC_IMPACT_SPEED);
     }
 
     let maximumBodySpeed = 0;
@@ -384,7 +356,7 @@ export function InterestTagsCanvas({
       maximumBodySpeed = Math.max(
         maximumBodySpeed,
         Math.hypot(body.vx, body.vy),
-        Math.abs(body.angularVelocity) * body.radius
+        Math.abs(body.angularVelocity) * body.radius,
       );
       allBodiesSupported &&= body.enteredViewport && body.contacted;
       motion.x.value = body.x;
@@ -437,7 +409,7 @@ export function InterestTagsCanvas({
             motion.y.value,
             motion.angle.value,
             Math.max(0, (width - height) / 2),
-            height / 2
+            height / 2,
           )
         ) {
           return index;

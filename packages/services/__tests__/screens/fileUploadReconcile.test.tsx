@@ -40,7 +40,11 @@ import type { useUploadFile } from '../../src/ui/hooks/mutations/useAccountMutat
 const getDocumentAsync = jest.fn();
 jest.mock('../../src/ui/screens/fileManagement/shared', () => {
   const actual = jest.requireActual('../../src/ui/screens/fileManagement/shared');
-  return { __esModule: true, ...actual, loadDocumentPicker: () => Promise.resolve({ getDocumentAsync }) };
+  return {
+    __esModule: true,
+    ...actual,
+    loadDocumentPicker: () => Promise.resolve({ getDocumentAsync }),
+  };
 });
 
 // `useUserFilesInfinite` reads oxyServices from context; the upload hook does not.
@@ -60,7 +64,12 @@ const PICKED_URI = 'file:///picked-photo.png';
 type UploadMutation = ReturnType<typeof useUploadFile>;
 
 const makeClient = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY }, mutations: { retry: false } } });
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Number.POSITIVE_INFINITY },
+      mutations: { retry: false },
+    },
+  });
 
 const wrapper = (client: QueryClient) => {
   const Wrapper = ({ children }: { children: ReactNode }) =>
@@ -100,7 +109,8 @@ const seedCache = (client: QueryClient, files: FileMetadata[] = []) => {
 const cachedFiles = (client: QueryClient): FileMetadata[] =>
   (client.getQueryData(KEY) as UserFilesInfinite | undefined)?.pages.flatMap((p) => p.files) ?? [];
 
-const tempEntries = (client: QueryClient) => cachedFiles(client).filter((f) => f.id.startsWith('temp-'));
+const tempEntries = (client: QueryClient) =>
+  cachedFiles(client).filter((f) => f.id.startsWith('temp-'));
 
 const makeParams = (mutateAsync: jest.Mock) => ({
   targetUserId: OWNER,
@@ -278,7 +288,12 @@ describe('useFileUploadState optimistic lifecycle (query cache)', () => {
     seedCache(client);
 
     let resolveUpload: (value: unknown) => void = () => undefined;
-    const mutateAsync = jest.fn(() => new Promise((resolve) => { resolveUpload = resolve; }));
+    const mutateAsync = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveUpload = resolve;
+        }),
+    );
 
     const { result } = renderHook(() => useFileUploadState(makeParams(mutateAsync)), {
       wrapper: wrapper(client),

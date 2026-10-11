@@ -31,7 +31,10 @@ afterAll(async () => {
 
 async function fixture() {
   const db = getDb();
-  const [user] = await db.insert(users).values({ username: `purge${unique().slice(0, 10)}`, color: 'teal' }).returning();
+  const [user] = await db
+    .insert(users)
+    .values({ username: `purge${unique().slice(0, 10)}`, color: 'teal' })
+    .returning();
   const [mailbox] = await db
     .insert(mailboxes)
     .values({ userId: user.id, name: 'INBOX', path: 'INBOX', specialUse: '\\Inbox' })
@@ -52,7 +55,15 @@ async function fixture() {
   const file = async (name: string, mime: string, size: number) => {
     const [row] = await db
       .insert(files)
-      .values({ sha256: unique(), size, mime, ext: 'bin', storageKey: `assets/${unique()}`, originalName: name, ownerUserId: user.id })
+      .values({
+        sha256: unique(),
+        size,
+        mime,
+        ext: 'bin',
+        storageKey: `assets/${unique()}`,
+        originalName: name,
+        ownerUserId: user.id,
+      })
       .returning();
     return row;
   };
@@ -60,8 +71,22 @@ async function fixture() {
   const named = await file('email.amp.html', 'text/x-amp-html', 50);
 
   await db.insert(messageAttachments).values([
-    { messageId: message.id, ord: 0, fileId: amp.id, name: 'attachment', contentType: 'text/x-amp-html', size: 300 },
-    { messageId: message.id, ord: 1, fileId: named.id, name: 'email.amp.html', contentType: 'text/x-amp-html', size: 50 },
+    {
+      messageId: message.id,
+      ord: 0,
+      fileId: amp.id,
+      name: 'attachment',
+      contentType: 'text/x-amp-html',
+      size: 300,
+    },
+    {
+      messageId: message.id,
+      ord: 1,
+      fileId: named.id,
+      name: 'email.amp.html',
+      contentType: 'text/x-amp-html',
+      size: 50,
+    },
   ]);
   return { message, amp, named };
 }
@@ -73,7 +98,10 @@ describe('purgeAlternativeBodyAttachments', () => {
 
     expect(stats.matched).toBeGreaterThanOrEqual(1);
     expect(mockUnlinkFile).not.toHaveBeenCalled();
-    const rows = await getDb().select().from(messageAttachments).where(eq(messageAttachments.messageId, message.id));
+    const rows = await getDb()
+      .select()
+      .from(messageAttachments)
+      .where(eq(messageAttachments.messageId, message.id));
     expect(rows).toHaveLength(2);
   });
 
@@ -84,9 +112,15 @@ describe('purgeAlternativeBodyAttachments', () => {
     const stats = await purgeAlternativeBodyAttachments({ apply: true });
     expect(stats.errors).toBe(0);
 
-    const rows = await getDb().select().from(messageAttachments).where(eq(messageAttachments.messageId, message.id));
+    const rows = await getDb()
+      .select()
+      .from(messageAttachments)
+      .where(eq(messageAttachments.messageId, message.id));
     expect(rows.map((r) => r.name)).toEqual(['email.amp.html']);
-    const [after] = await getDb().select({ size: messages.size }).from(messages).where(eq(messages.id, message.id));
+    const [after] = await getDb()
+      .select({ size: messages.size })
+      .from(messages)
+      .where(eq(messages.id, message.id));
     expect(after.size).toBe(1050);
     expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, 'oxy-mail', 'message', message.id);
     expect(mockUnlinkFile).toHaveBeenCalledWith(amp.id, 'oxy-mail', 'message', message.messageId);

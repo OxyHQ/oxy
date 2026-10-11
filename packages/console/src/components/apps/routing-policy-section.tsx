@@ -179,8 +179,8 @@ export function RoutingPolicySection({ application, access }: RoutingPolicySecti
         <div>
           <h2 className="text-sm font-semibold text-foreground">Routing policy</h2>
           <p className="text-sm text-muted-foreground">
-            Which power levels, providers, regions, licences and prices this application will accept. Oxy's data
-            plane executes it; a request records the exact version it ran under.
+            Which power levels, providers, regions, licences and prices this application will
+            accept. Oxy's data plane executes it; a request records the exact version it ran under.
           </p>
         </div>
         {canWrite && (
@@ -308,8 +308,8 @@ function PolicyVersionHistory({ policyId }: { policyId: string }) {
       <div>
         <p className="text-sm font-semibold text-foreground">Version history</p>
         <p className="text-sm text-muted-foreground">
-          Editing appends a version and leaves the previous one untouched. Nothing here is edited
-          in place and nothing is deleted.
+          Editing appends a version and leaves the previous one untouched. Nothing here is edited in
+          place and nothing is deleted.
         </p>
       </div>
       <div className="divide-y divide-border rounded-lg border border-border">

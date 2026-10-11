@@ -92,12 +92,16 @@ export function ContactsSection({
       icon: 'account-group-outline',
       iconColor: colors.sidebarIconSharing,
       title: t('sharing.contacts.followers'),
-      subtitle: followerCount !== undefined && followerCount !== null
-        ? t('sharing.contacts.followersFollowing', { count: followerCount })
-        : t('sharing.contacts.followersDefault'),
+      subtitle:
+        followerCount !== undefined && followerCount !== null
+          ? t('sharing.contacts.followersFollowing', { count: followerCount })
+          : t('sharing.contacts.followersDefault'),
       onPress: () => {
         if (userId) {
-          showBottomSheet?.({ screen: 'FollowersList', props: { userId, initialCount: followerCount } });
+          showBottomSheet?.({
+            screen: 'FollowersList',
+            props: { userId, initialCount: followerCount },
+          });
         }
       },
       showChevron: true,
@@ -109,12 +113,16 @@ export function ContactsSection({
       icon: 'account-heart-outline',
       iconColor: colors.sidebarIconSharing,
       title: t('sharing.contacts.following'),
-      subtitle: followingCount !== undefined && followingCount !== null
-        ? t('sharing.contacts.followingCount', { count: followingCount })
-        : t('sharing.contacts.followingDefault'),
+      subtitle:
+        followingCount !== undefined && followingCount !== null
+          ? t('sharing.contacts.followingCount', { count: followingCount })
+          : t('sharing.contacts.followingDefault'),
       onPress: () => {
         if (userId) {
-          showBottomSheet?.({ screen: 'FollowingList', props: { userId, initialCount: followingCount } });
+          showBottomSheet?.({
+            screen: 'FollowingList',
+            props: { userId, initialCount: followingCount },
+          });
         }
       },
       showChevron: true,
@@ -132,7 +140,20 @@ export function ContactsSection({
     });
 
     return items;
-  }, [colors, followerCount, followingCount, router, onSyncContacts, isSyncingContacts, deviceContactsCount, contactMatches.length, contactsPermission, userId, showBottomSheet, t]);
+  }, [
+    colors,
+    followerCount,
+    followingCount,
+    router,
+    onSyncContacts,
+    isSyncingContacts,
+    deviceContactsCount,
+    contactMatches.length,
+    contactsPermission,
+    userId,
+    showBottomSheet,
+    t,
+  ]);
 
   return (
     <Section title={t('sharing.sections.contacts')}>

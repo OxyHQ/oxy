@@ -99,10 +99,7 @@ export function validateImageFile(file: File): ImageValidationResult {
  *
  * @throws when the upload fails or the response is missing a file id.
  */
-export async function uploadPublicImage(
-  oxyServices: OxyServices,
-  file: File
-): Promise<string> {
+export async function uploadPublicImage(oxyServices: OxyServices, file: File): Promise<string> {
   const fileId = await uploadPublicImageFileId(oxyServices, file);
   return stripSensitiveImageUrlQueryParams(oxyServices.assets.publicUrl(fileId));
 }
@@ -120,7 +117,7 @@ export async function uploadPublicImage(
  */
 export async function uploadPublicImageFileId(
   oxyServices: OxyServices,
-  file: File
+  file: File,
 ): Promise<string> {
   const response = await oxyServices.assets.upload(file, { visibility: PUBLIC_VISIBILITY });
   if (!isRawFileUploadResponse(response)) {

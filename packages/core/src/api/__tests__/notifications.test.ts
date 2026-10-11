@@ -34,7 +34,10 @@ describe('oxy.notifications reads', () => {
 
   function answer(body: unknown): void {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
     );
   }
 
@@ -51,7 +54,13 @@ describe('oxy.notifications reads', () => {
   });
 
   it('list returns the page the API sends, with the paging it asked for', async () => {
-    const page = { notifications: [SYSTEM_NOTIFICATION], unreadCount: 1, hasMore: false, page: 2, limit: 10 };
+    const page = {
+      notifications: [SYSTEM_NOTIFICATION],
+      unreadCount: 1,
+      hasMore: false,
+      page: 2,
+      limit: 10,
+    };
     answer({ data: page });
 
     await expect(oxy.notifications.list({ page: 2, limit: 10 })).resolves.toEqual(page);
@@ -87,8 +96,12 @@ describe('oxy.notifications writes and push tokens', () => {
   let oxy: OxyServices;
 
   beforeEach(() => {
-    fetchMock = jest.fn().mockImplementation(async () =>
-      new Response(JSON.stringify({ data: {} }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    fetchMock = jest.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ data: {} }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     oxy = new OxyServices({ baseURL: 'http://api.test.invalid' });
@@ -101,21 +114,34 @@ describe('oxy.notifications writes and push tokens', () => {
 
   const call = (i = 0): { url: string; method?: string; body?: unknown } => {
     const [url, init] = fetchMock.mock.calls[i] as [string, RequestInit];
-    return { url: String(url), method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined };
+    return {
+      url: String(url),
+      method: init?.method,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    };
   };
 
   it('markAllRead PUTs /notifications/read-all', async () => {
     await oxy.notifications.markAllRead();
-    expect(call()).toMatchObject({ url: 'http://api.test.invalid/notifications/read-all', method: 'PUT' });
+    expect(call()).toMatchObject({
+      url: 'http://api.test.invalid/notifications/read-all',
+      method: 'PUT',
+    });
   });
 
   it('delete encodes the id', async () => {
     await oxy.notifications.delete('a/b');
-    expect(call()).toMatchObject({ url: 'http://api.test.invalid/notifications/a%2Fb', method: 'DELETE' });
+    expect(call()).toMatchObject({
+      url: 'http://api.test.invalid/notifications/a%2Fb',
+      method: 'DELETE',
+    });
   });
 
   it('registerPushToken sends the Expo token and omits absent optionals', async () => {
-    await oxy.notifications.registerPushToken({ expoPushToken: 'ExponentPushToken[abc]', platform: 'ios' });
+    await oxy.notifications.registerPushToken({
+      expoPushToken: 'ExponentPushToken[abc]',
+      platform: 'ios',
+    });
     expect(call()).toEqual({
       url: 'http://api.test.invalid/notifications/push-token',
       method: 'POST',

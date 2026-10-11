@@ -10,22 +10,22 @@ import { ErrorFallback } from '@/components/error-fallback';
  * web build and no web sign-in, because the key vault never leaves the device.
  */
 export default function AuthLayout() {
-    return (
-        <AuthFlowProvider>
-            <Stack
-                screenOptions={{
-                    headerShown: false,
-                }}
-            >
-                <Stack.Screen name="index" />
-                <Stack.Screen name="welcome" />
-                <Stack.Screen name="create-identity" />
-                <Stack.Screen name="import-identity" />
-                <Stack.Screen name="link-account" />
-                <Stack.Screen name="recover-identity" />
-            </Stack>
-        </AuthFlowProvider>
-    );
+  return (
+    <AuthFlowProvider>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="welcome" />
+        <Stack.Screen name="create-identity" />
+        <Stack.Screen name="import-identity" />
+        <Stack.Screen name="link-account" />
+        <Stack.Screen name="recover-identity" />
+      </Stack>
+    </AuthFlowProvider>
+  );
 }
 
 /**
@@ -34,6 +34,5 @@ export default function AuthLayout() {
  * leave the user stuck on a white screen.
  */
 export function ErrorBoundary(props: { error: Error; retry: () => void }) {
-    return <ErrorFallback {...props} />;
+  return <ErrorFallback {...props} />;
 }
-

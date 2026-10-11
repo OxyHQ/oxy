@@ -32,7 +32,13 @@ export const MESSAGE_CARD_TYPES = ['trip', 'purchase', 'event', 'bill', 'package
 export type MessageCardType = (typeof MESSAGE_CARD_TYPES)[number];
 
 /** What a mail-rule condition looks at. */
-export const EMAIL_FILTER_CONDITION_FIELDS = ['from', 'to', 'subject', 'has-attachment', 'size'] as const;
+export const EMAIL_FILTER_CONDITION_FIELDS = [
+  'from',
+  'to',
+  'subject',
+  'has-attachment',
+  'size',
+] as const;
 export type EmailFilterConditionField = (typeof EMAIL_FILTER_CONDITION_FIELDS)[number];
 
 /** How a mail-rule condition compares. */
@@ -60,7 +66,13 @@ export const EMAIL_FILTER_ACTION_TYPES = [
 export type EmailFilterActionType = (typeof EMAIL_FILTER_ACTION_TYPES)[number];
 
 /** Lifecycle of a durable outbound delivery. */
-export const EMAIL_OUTBOX_STATUSES = ['pending', 'processing', 'sent', 'failed', 'cancelled'] as const;
+export const EMAIL_OUTBOX_STATUSES = [
+  'pending',
+  'processing',
+  'sent',
+  'failed',
+  'cancelled',
+] as const;
 export type EmailOutboxStatus = (typeof EMAIL_OUTBOX_STATUSES)[number];
 
 // ─── Messages ───────────────────────────────────────────────────────
@@ -208,7 +220,10 @@ export const emailSystemLabelSchema = z.object({
 });
 export type EmailSystemLabelWire = z.infer<typeof emailSystemLabelSchema>;
 
-export const emailLabelSchema = z.discriminatedUnion('system', [emailUserLabelSchema, emailSystemLabelSchema]);
+export const emailLabelSchema = z.discriminatedUnion('system', [
+  emailUserLabelSchema,
+  emailSystemLabelSchema,
+]);
 export type EmailLabelWire = z.infer<typeof emailLabelSchema>;
 
 // ─── Rules, bundles, contacts, outbox ───────────────────────────────

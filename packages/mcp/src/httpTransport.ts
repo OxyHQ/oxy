@@ -61,17 +61,14 @@ type CatalogMcpTokenIntrospection =
       introspectionEndpoint?: string;
     };
 
-export type CatalogMcpHttpServiceOptions = CatalogMcpHttpServiceBaseOptions
-  & CatalogMcpTokenIntrospection;
+export type CatalogMcpHttpServiceOptions = CatalogMcpHttpServiceBaseOptions &
+  CatalogMcpTokenIntrospection;
 
 export interface CatalogMcpHttpService {
   readonly mcpPath: '/mcp';
   readonly protectedResourceMetadataPath: string;
   handleMcp(request: IncomingMessage, response: ServerResponse): Promise<void>;
-  handleProtectedResourceMetadata(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): void;
+  handleProtectedResourceMetadata(request: IncomingMessage, response: ServerResponse): void;
 }
 
 export class BodyTooLargeError extends Error {}
@@ -114,11 +111,13 @@ export function sendJsonRpcError(
 ): void {
   setJsonHeaders(response);
   response.statusCode = status;
-  response.end(JSON.stringify({
-    jsonrpc: '2.0',
-    error: { code, message },
-    id: null,
-  }));
+  response.end(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      error: { code, message },
+      id: null,
+    }),
+  );
 }
 
 export function singleHeader(value: string | string[] | undefined): string | undefined {
@@ -251,21 +250,29 @@ export function createCatalogMcpHttpService(
   if (!Number.isInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 10 * 1024 * 1024) {
     throw new Error('MCP maximum body size must be between 1 byte and 10 MiB');
   }
-  if (!Number.isInteger(maxTokenTtlSeconds) || maxTokenTtlSeconds < 1 || maxTokenTtlSeconds > 3600) {
+  if (
+    !Number.isInteger(maxTokenTtlSeconds) ||
+    maxTokenTtlSeconds < 1 ||
+    maxTokenTtlSeconds > 3600
+  ) {
     throw new Error('MCP maximum token TTL must be between 1 and 3600 seconds');
   }
 
   const protectedResourceMetadataPath = metadataPath(resource);
   const resourceHost = new URL(resource).host.toLowerCase();
-  const protectedResourceMetadataUrl = new URL(
-    protectedResourceMetadataPath,
-    resource,
-  ).href;
-  const requiredScopes = [...new Set(options.catalog.tools
-    .filter((tool) => tool.exposure.includes('mcp'))
-    .flatMap((tool) => tool.requiredCapabilities))].sort();
+  const protectedResourceMetadataUrl = new URL(protectedResourceMetadataPath, resource).href;
+  const requiredScopes = [
+    ...new Set(
+      options.catalog.tools
+        .filter((tool) => tool.exposure.includes('mcp'))
+        .flatMap((tool) => tool.requiredCapabilities),
+    ),
+  ].sort();
 
-  const authenticate = async (request: McpHttpRequest, response: ServerResponse): Promise<boolean> => {
+  const authenticate = async (
+    request: McpHttpRequest,
+    response: ServerResponse,
+  ): Promise<boolean> => {
     const token = extractBearerToken(request.headers);
     if (!token) {
       response.setHeader(
@@ -281,8 +288,8 @@ export function createCatalogMcpHttpService(
       claims = options.introspectToken
         ? await options.introspectToken(token)
         : await introspectOxyMcpAccessToken(token, {
-            endpoint: options.introspectionEndpoint
-              ?? `${authorizationServer}/auth/mcp/oauth/introspect`,
+            endpoint:
+              options.introspectionEndpoint ?? `${authorizationServer}/auth/mcp/oauth/introspect`,
             getServiceToken: options.getServiceToken,
             invalidateServiceToken: options.invalidateServiceToken,
             fetch: options.fetch,
@@ -321,10 +328,7 @@ export function createCatalogMcpHttpService(
     }
   };
 
-  const handleMcp = async (
-    incoming: IncomingMessage,
-    response: ServerResponse,
-  ): Promise<void> => {
+  const handleMcp = async (incoming: IncomingMessage, response: ServerResponse): Promise<void> => {
     const request = incoming as McpHttpRequest;
     if (!requireResourceHost(request, response, resourceHost)) {
       request.resume();
@@ -339,7 +343,7 @@ export function createCatalogMcpHttpService(
       response.end();
       return;
     }
-    if (!await authenticate(request, response)) {
+    if (!(await authenticate(request, response))) {
       request.resume();
       return;
     }
@@ -398,10 +402,7 @@ export function createCatalogMcpHttpService(
     mcpPath: '/mcp' as const,
     protectedResourceMetadataPath,
     handleMcp,
-    handleProtectedResourceMetadata(
-      request: IncomingMessage,
-      response: ServerResponse,
-    ): void {
+    handleProtectedResourceMetadata(request: IncomingMessage, response: ServerResponse): void {
       if (!requireResourceHost(request, response, resourceHost)) {
         request.resume();
         return;
@@ -418,11 +419,15 @@ export function createCatalogMcpHttpService(
         return;
       }
       setJsonHeaders(response, 'public, max-age=300, must-revalidate');
-      response.end(JSON.stringify(buildProtectedResourceMetadata({
-        resource,
-        authorizationServer,
-        scopes: requiredScopes,
-      })));
+      response.end(
+        JSON.stringify(
+          buildProtectedResourceMetadata({
+            resource,
+            authorizationServer,
+            scopes: requiredScopes,
+          }),
+        ),
+      );
     },
   });
 }

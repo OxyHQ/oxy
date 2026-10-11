@@ -23,7 +23,11 @@
  */
 
 import { verifySignature } from '@oxy.so/protocol';
-import { OWNER_ACTION_BLOB_PIN, OWNER_AUTH_MAX_AGE_MS, type OwnerAuth } from '@oxy.so/protocol/node';
+import {
+  OWNER_ACTION_BLOB_PIN,
+  OWNER_AUTH_MAX_AGE_MS,
+  type OwnerAuth,
+} from '@oxy.so/protocol/node';
 import { verifySecret } from '@oxy.so/core/server';
 
 /** True iff `publicKey` is the node's configured owner key (case-insensitive, constant-time). */

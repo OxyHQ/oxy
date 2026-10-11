@@ -5,20 +5,26 @@ const path = require('node:path');
 const test = require('node:test');
 // An image proof may supply the exact physical native entry after byte inventory.
 // Default host checks retain the ordinary API package-resolution context.
-const expoEntry = process.argv[3] ? require.resolve(path.resolve(process.argv[3])) : require.resolve('@expo/code-signing-certificates', {
-  paths: [path.resolve(process.argv[2] || 'packages/api')],
-});
+const expoEntry = process.argv[3]
+  ? require.resolve(path.resolve(process.argv[3]))
+  : require.resolve('@expo/code-signing-certificates', {
+      paths: [path.resolve(process.argv[2] || 'packages/api')],
+    });
 const expo = require(expoEntry);
 const pair = expo.generateKeyPair();
 const other = expo.generateKeyPair();
 const pem = expo.convertKeyPairToPEM(pair);
 const now = Date.now();
 const certOptions = {
-  keyPair: pair, commonName: 'Independent synthetic Expo review',
-  validityNotBefore: new Date(now - 60_000), validityNotAfter: new Date(now + 86_400_000),
+  keyPair: pair,
+  commonName: 'Independent synthetic Expo review',
+  validityNotBefore: new Date(now - 60_000),
+  validityNotAfter: new Date(now + 86_400_000),
 };
 const certificate = expo.convertCertificatePEMToCertificate(
-  expo.convertCertificateToCertificatePEM(expo.generateSelfSignedCodeSigningCertificate(certOptions)),
+  expo.convertCertificateToCertificatePEM(
+    expo.generateSelfSignedCodeSigningCertificate(certOptions),
+  ),
 );
 const message = Buffer.from('{"runtimeVersion":"synthetic-review","id":"fixture"}');
 const signature = expo.signBufferRSASHA256AndVerify(pair.privateKey, certificate, message);
@@ -36,7 +42,8 @@ test('key-pair PEM round trip preserves both moduli', () => {
 });
 test('public-key PEM round trip preserves exponent and modulus', () => {
   const restored = expo.convertPublicKeyPEMToPublicKey(pem.publicKeyPEM);
-  assert(restored.n.equals(pair.publicKey.n)); assert(restored.e.equals(pair.publicKey.e));
+  assert(restored.n.equals(pair.publicKey.n));
+  assert(restored.e.equals(pair.publicKey.e));
 });
 test('private-key PEM round trip preserves private exponent', () => {
   assert(expo.convertPrivateKeyPEMToPrivateKey(pem.privateKeyPEM).d.equals(pair.privateKey.d));
@@ -52,21 +59,43 @@ test('Expo manifest signature verifies with independent Node/OpenSSL SHA256', ()
   assert(crypto.verify('RSA-SHA256', message, pem.publicKeyPEM, Buffer.from(signature, 'base64')));
 });
 test('altered manifest bytes fail independent Node/OpenSSL verification', () => {
-  assert.equal(crypto.verify('RSA-SHA256', Buffer.concat([message, Buffer.from('!')]),
-    pem.publicKeyPEM, Buffer.from(signature, 'base64')), false);
+  assert.equal(
+    crypto.verify(
+      'RSA-SHA256',
+      Buffer.concat([message, Buffer.from('!')]),
+      pem.publicKeyPEM,
+      Buffer.from(signature, 'base64'),
+    ),
+    false,
+  );
 });
 test('private key from another pair is rejected by Expo signing verification', () => {
-  assert.throws(() => expo.signBufferRSASHA256AndVerify(other.privateKey, certificate, message),
-    Error);
+  assert.throws(
+    () => expo.signBufferRSASHA256AndVerify(other.privateKey, certificate, message),
+    Error,
+  );
 });
 test('reversed certificate validity interval is rejected', () => {
-  assert.throws(() => expo.generateSelfSignedCodeSigningCertificate({ ...certOptions,
-    validityNotBefore: new Date(now + 60_000), validityNotAfter: new Date(now) }), /must be later/);
+  assert.throws(
+    () =>
+      expo.generateSelfSignedCodeSigningCertificate({
+        ...certOptions,
+        validityNotBefore: new Date(now + 60_000),
+        validityNotAfter: new Date(now),
+      }),
+    /must be later/,
+  );
 });
 test('expired certificate is rejected by Expo validation', () => {
-  const expired = expo.convertCertificatePEMToCertificate(expo.convertCertificateToCertificatePEM(
-    expo.generateSelfSignedCodeSigningCertificate({ ...certOptions,
-      validityNotBefore: new Date(now - 86_400_000), validityNotAfter: new Date(now - 60_000) })));
+  const expired = expo.convertCertificatePEMToCertificate(
+    expo.convertCertificateToCertificatePEM(
+      expo.generateSelfSignedCodeSigningCertificate({
+        ...certOptions,
+        validityNotBefore: new Date(now - 86_400_000),
+        validityNotAfter: new Date(now - 60_000),
+      }),
+    ),
+  );
   assert.throws(() => expo.validateSelfSignedCertificate(expired, pair), /validity expired/);
 });
 test('CSR PEM round trip verifies its signature and requested identity', () => {
@@ -75,16 +104,31 @@ test('CSR PEM round trip verifies its signature and requested identity', () => {
   assert.equal(restored.subject.getField('CN').value, 'Independent synthetic development CSR');
 });
 test('development certificate verifies its issuer and contains requested project scope', () => {
-  const dev = expo.generateDevelopmentCertificateFromCSR(pair.privateKey, certificate, csr,
-    '00000000-0000-4000-8000-000000000001', '@synthetic/review');
+  const dev = expo.generateDevelopmentCertificateFromCSR(
+    pair.privateKey,
+    certificate,
+    csr,
+    '00000000-0000-4000-8000-000000000001',
+    '@synthetic/review',
+  );
   assert.equal(certificate.verify(dev), true);
   assert(dev.publicKey.n.equals(other.publicKey.n));
-  assert.equal(dev.getExtension({ id: expo.expoProjectInformationOID }).value,
-    '00000000-0000-4000-8000-000000000001,@synthetic/review');
+  assert.equal(
+    dev.getExtension({ id: expo.expoProjectInformationOID }).value,
+    '00000000-0000-4000-8000-000000000001,@synthetic/review',
+  );
 });
 test('tampered CSR signature is rejected before development certificate issuance', () => {
   const altered = expo.convertCSRPEMToCSR(expo.convertCSRToCSRPEM(csr));
-  altered.signature = String.fromCharCode(altered.signature.charCodeAt(0) ^ 1) + altered.signature.slice(1);
-  assert.throws(() => expo.generateDevelopmentCertificateFromCSR(pair.privateKey, certificate,
-    altered, 'synthetic', 'synthetic'));
+  altered.signature =
+    String.fromCharCode(altered.signature.charCodeAt(0) ^ 1) + altered.signature.slice(1);
+  assert.throws(() =>
+    expo.generateDevelopmentCertificateFromCSR(
+      pair.privateKey,
+      certificate,
+      altered,
+      'synthetic',
+      'synthetic',
+    ),
+  );
 });

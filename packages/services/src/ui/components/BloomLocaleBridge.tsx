@@ -17,7 +17,7 @@ import { useOxy } from '../context/OxyContext';
  * Only where nothing above sets a locale does Oxy's language apply.
  */
 export const BloomLocaleBridge: FC<{ children: ReactNode }> = ({ children }) => {
-    const { currentLanguage } = useOxy();
-    const inherited = useBloomLocale();
-    return <LocaleProvider locale={inherited ?? currentLanguage}>{children}</LocaleProvider>;
+  const { currentLanguage } = useOxy();
+  const inherited = useBloomLocale();
+  return <LocaleProvider locale={inherited ?? currentLanguage}>{children}</LocaleProvider>;
 };

@@ -42,13 +42,19 @@ const SESSION_B = 'sess-b';
 let bearerAccountId = ACCOUNT_A;
 
 const makeServices = (): MockOxyServices => ({
-  users: { me: jest.fn(async (): Promise<User> => ({
-    id: bearerAccountId,
-    username: bearerAccountId,
-    name: { displayName: bearerAccountId },
-  } as User)), bySession: jest.fn(async (): Promise<User> => {
-    throw new Error('getUserBySession must not be called by useCurrentUser');
-  }) },
+  users: {
+    me: jest.fn(
+      async (): Promise<User> =>
+        ({
+          id: bearerAccountId,
+          username: bearerAccountId,
+          name: { displayName: bearerAccountId },
+        }) as User,
+    ),
+    bySession: jest.fn(async (): Promise<User> => {
+      throw new Error('getUserBySession must not be called by useCurrentUser');
+    }),
+  },
 });
 
 let mockState: MockOxyState = {

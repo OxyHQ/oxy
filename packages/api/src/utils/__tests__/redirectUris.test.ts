@@ -7,11 +7,12 @@ import {
 
 describe('unionRedirectUris', () => {
   it('preserves existing entries and appends new ones without duplicates', () => {
-    expect(unionRedirectUris(['https://a.example', 'https://b.example'], ['https://b.example', 'https://c.example'])).toEqual([
-      'https://a.example',
-      'https://b.example',
-      'https://c.example',
-    ]);
+    expect(
+      unionRedirectUris(
+        ['https://a.example', 'https://b.example'],
+        ['https://b.example', 'https://c.example'],
+      ),
+    ).toEqual(['https://a.example', 'https://b.example', 'https://c.example']);
   });
 
   it('treats null/undefined current as empty', () => {
@@ -30,21 +31,13 @@ describe('computeOfficialRedirectUriRepair', () => {
   });
 
   it('does not broaden an existing allowlist with the website origin', () => {
-    expect(
-      computeOfficialRedirectUriRepair(
-        ['https://fairco.in'],
-        'https://oxy.so',
-      ),
-    ).toBeNull();
+    expect(computeOfficialRedirectUriRepair(['https://fairco.in'], 'https://oxy.so')).toBeNull();
   });
 
   it('preserves path-specific callbacks instead of adding their bare origin', () => {
     expect(
       computeOfficialRedirectUriRepair(
-        [
-          'https://app.example.com/oauth/callback',
-          'https://staging.example.com/oauth/callback',
-        ],
+        ['https://app.example.com/oauth/callback', 'https://staging.example.com/oauth/callback'],
         'https://app.example.com',
       ),
     ).toBeNull();

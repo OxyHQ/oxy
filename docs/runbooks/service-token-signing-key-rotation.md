@@ -29,16 +29,15 @@ the `oxy-api` task. No other service holds a copy.
 |---|---|---|
 | `ACCESS_TOKEN_SECRET` | 15-minute user access tokens (HS256), socket auth, and — through an HMAC-derived key (`utils/mediaToken.ts`) — 15-minute private-media URL tokens | Tokens issued in the last 15 minutes are refused once. Clients re-mint; the server re-signs a session's stored access token through its refresh token. Private-media URLs handed out in the last 15 minutes stop loading until the client fetches new ones. Nobody is signed out. |
 | `REFRESH_TOKEN_SECRET` | The refresh token stored on each `sessions` row (HS256, 7-day sliding session). It is never handed to a client: `SessionService.getAccessToken` reads it from the row and passes it to `refreshTokens`, which checks the signature before the row lookup. MCP OAuth refresh tokens are opaque and hashed, and are **not** signed with this key. | **Every session fails its next re-mint** once its stored access token expires, because `refreshTokens` refuses the old signature and returns nothing. In practice this signs every user out. Do not rotate it without first adding a previous-key fallback to `validateRefreshToken` (kept for 7 days, one `SESSION_EXPIRES_IN`) — each successful refresh re-signs the row under the new key, so the fallback drains on its own. |
-| `FEDCM_TOKEN_SECRET` | Nothing. The FedCM and `/sso` surfaces that used it were deleted, and no code reads it. The task definition still binds it, and it is **not** in the deploy sync allowlist, so only SSM holds its value. | No effect. |
+| `FEDCM_TOKEN_SECRET` | Nothing. The FedCM and `/sso` surfaces that used it were deleted, and no code reads it. The task definition still binds it; only SSM holds its value. | No effect. |
 
-**Both GitHub and SSM must hold the new value** for `ACCESS_TOKEN_SECRET` and
-`REFRESH_TOKEN_SECRET`. The GitHub Actions secret is the source that every
-`deploy-aws.yml` run copies into SSM; SSM is what a task reads at launch. Change
-only SSM and the next deploy quietly restores the old key. Change only GitHub and
-nothing happens until a deploy runs, while any task ECS relaunches in between
-still gets the old value. Set both, then deploy straight away (`gh workflow run
-deploy-aws.yml -R OxyHQ/oxy --ref main`). Compare values by SHA-256 digest, never
-by printing them.
+**SSM is the only place the value lives** for `ACCESS_TOKEN_SECRET` and
+`REFRESH_TOKEN_SECRET`; a task reads it at launch. Since 2026-10-10 the deploy no
+longer copies GitHub repo secrets into SSM, so a GitHub secret of the same name
+(if one still exists) changes nothing. Write SSM, then relaunch straight away
+(`gh workflow run deploy-aws.yml -R OxyHQ/oxy --ref main`): any task ECS launches
+after the write gets the new value, and every task launched before keeps the old
+one. Compare values by SHA-256 digest, never by printing them.
 
 ## Exact SSM and task-definition bindings required
 
@@ -97,31 +96,25 @@ repository refuses elsewhere. **Do not build one for this.** Take the burst.
 Know this chain before rotating anything, because every step is a place a rotation
 silently does not take effect:
 
-1. The value lives as a **GitHub repository secret**.
-2. `.github/workflows/deploy-aws.yml` writes it to **SSM** with
-   `aws ssm put-parameter --type SecureString --overwrite`, at
-   `/oxy/oxy-api/<NAME>`. It never writes `/oxy/_shared/*`: those parameters
-   are owned by oxy-infra and rotated once, centrally
+1. The value lives ONLY in **SSM**, at `/oxy/oxy-api/<NAME>` (`SecureString`).
+   Its owner writes it with `aws ssm put-parameter --type SecureString
+   --overwrite` (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`). Nothing
+   copies it there from GitHub: until 2026-10-10 `deploy-aws.yml` did, and
+   `scripts/check-deploy-secrets-sync.mjs` now refuses any deploy step that
+   writes SSM or reads a repo secret. `/oxy/_shared/*` parameters are owned by
+   oxy-infra and rotated once, centrally
    (oxy-infra `docs/runbooks/45-shared-ssm-parameters.md`).
-3. **ECS injects it at TASK LAUNCH** from the task definition's `secrets` block.
+2. **ECS injects it at TASK LAUNCH** from the task definition's `secrets` block.
 
-Three consequences:
+Consequences:
 
-- A secret changed in GitHub reaches production only on the **next deploy**, and
-  only if the deploy's sync step runs.
-- The sync loop iterates a **hand-maintained allow-list** (`API_SECRETS` plus a
-  matching `SYNC_<NAME>` env entry). A name missing from either is written
-  nowhere, the deploy is green, and the failure surfaces later as
-  `ResourceInitializationError: unable to pull secrets`.
-  `scripts/check-deploy-secrets-sync.mjs` is the gate that catches that on a pull
-  request — `ACCESS_TOKEN_SECRET` and `REFRESH_TOKEN_SECRET` are both in
-  `API_SECRETS` today.
 - **A running task keeps the OLD value until it is replaced.** Rotation is not
   complete when SSM changes; it is complete when every task has been relaunched.
-- **Never set a GitHub secret to a placeholder**, not even briefly. The sync
-  overwrites SSM with whatever it finds, and a placeholder crash-loops the service
-  — the deploy workflow skips empty and `-` values as defence in depth, but a
-  plausible-looking placeholder is written.
+- A task ECS launches for any reason after the write (autoscaling, a health
+  replacement) already gets the NEW value, so a write is effectively live from
+  that moment, mixed with old tasks until the relaunch.
+- **Never write a placeholder to the parameter**, not even briefly. A task that
+  launches against it crash-loops the service.
 
 ## Procedure
 
@@ -131,47 +124,37 @@ Three consequences:
 openssl rand -base64 64
 ```
 
-2. **Set the GitHub repository secret** to the new value — through the GitHub UI
-   or `gh secret set ACCESS_TOKEN_SECRET`. Then **read it back**: a `gh` write can
-   exit 0 and change nothing. `gh secret list` shows the `updatedAt` timestamp,
-   which is the only readable evidence (the value never is). If the timestamp did
-   not move, the write did not happen.
-
-3. **Write the same value to SSM** from the same source, without echoing it:
+2. **Write the value to SSM**, without echoing it:
    `bash .github/scripts/put-secure-parameter.sh /oxy/oxy-api/ACCESS_TOKEN_SECRET overwrite < new.secret`.
-   Confirm the SSM digest equals the digest of what you set in GitHub. An SSM
-   write that is not mirrored in GitHub is reverted by the next deploy's sync, at
-   a time nobody is watching.
+   Then **read it back**: the parameter's `Version` and `LastModifiedDate` must
+   have moved, and its digest must equal the digest of `new.secret`.
 
-4. **Deploy immediately** (`gh workflow run deploy-aws.yml -R OxyHQ/oxy --ref main`)
-   so every task relaunches on the new value. Wait for any deploy already in
-   progress to finish first: runs are serialized, and one that started before
-   step 2 carries the old GitHub value into its sync.
+3. **Deploy immediately** (`gh workflow run deploy-aws.yml -R OxyHQ/oxy --ref main`)
+   so every task relaunches on the new value.
 
-5. **Service tokens are unaffected** by this rotation; only user access tokens
+4. **Service tokens are unaffected** by this rotation; only user access tokens
    re-mint.
 
 ## How to verify it took
 
 In order, because each step can pass while the next fails:
 
-1. **The GitHub secret changed** — `gh secret list` shows a new `updatedAt`.
-2. **SSM holds the new value.** Compare the parameter's `LastModifiedDate`
+1. **SSM holds the new value.** Compare the parameter's `LastModifiedDate`
    against your deploy; the value itself should be compared by digest, not
    printed. `oxy-infra`'s runbooks own the exact commands, and reading a
    SecureString requires the decrypt permission.
-3. **The RUNNING task is using it.** This is the step that is actually load-bearing
+2. **The RUNNING task is using it.** This is the step that is actually load-bearing
    and the one most often skipped: a green deploy proves a revision was registered,
    not that the service is running it. `register-task-definition` does not
    repoint a service, and a `desired_count` bump launches the revision the service
    is CONFIGURED with, never the newest. Confirm through ECS that the PRIMARY
    deployment has `rolloutState: COMPLETED` on the revision you expect — see
    `oxy-infra`.
-4. **Behaviourally:** a token minted BEFORE the cutover is now refused (401), and
+3. **Behaviourally:** a token minted BEFORE the cutover is now refused (401), and
    a freshly minted one is accepted. Both halves are needed. If the old token
    still works, the running tasks still hold the old secret; if the new one is
    refused too, the deployed value is not what you think it is.
-5. **The error rate returns to baseline within 15 minutes** — one access-token
+4. **The error rate returns to baseline within 15 minutes** — one access-token
    lifetime. A 401 rate that stays elevated past that is a client that is not
    re-minting, not the rotation settling.
 
@@ -203,13 +186,13 @@ it and reachable through the API:
 - A forged **service token** needs `SERVICE_TOKEN_PRIVATE_KEY`, not this secret.
   If THAT key is exposed, follow the emergency procedure in the last section.
 
-**A deploy is failing and the secret is already changed in GitHub.** The running
-tasks still hold the old value and the service is HEALTHY — the desync is not an
-outage. Do not force a task restart to "apply" the new secret while the deploy is
-broken: a task launching against a half-synced SSM set fails to start, and a
-deploy render carries forward every secret it is not told to replace, so a
-partially applied change can propagate further than intended. Fix the deploy, then
-rotate.
+**A deploy is failing and the secret is already changed in SSM.** The running
+tasks still hold the old value and the service is HEALTHY — the mix is not an
+outage, though any task ECS launches meanwhile gets the new value. Do not force
+a task restart to "apply" the new secret while the deploy is broken: a deploy
+render carries forward every secret it is not told to replace, so a partially
+applied change can propagate further than intended. Fix the deploy, then
+relaunch.
 
 **You do not know whether the running tasks hold the old or new value.** Do not
 guess from the deploy log. Mint a token and observe: a token minted now, verified

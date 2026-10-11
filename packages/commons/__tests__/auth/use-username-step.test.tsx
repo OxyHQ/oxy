@@ -26,7 +26,6 @@ jest.mock('@/contexts/auth-flow-context', () => ({
 }));
 jest.mock('@/lib/i18n', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
-// eslint-disable-next-line import/first
 import { useUsernameStep } from '@/hooks/auth/useUsernameStep';
 
 function httpError(status: number, message: string) {

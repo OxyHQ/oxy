@@ -8,13 +8,13 @@ import type { ActivityGroup as ActivityGroupData } from '@/hooks/activity/useAct
 import { ActivityEventRow } from './activity-event-row';
 
 interface ActivityGroupProps {
-    group: ActivityGroupData;
-    severityMode: 'light' | 'dark';
-    expandedId: string | null;
-    onToggle: (eventId: string) => void;
-    formatters: DayFormatters;
-    t: TranslateFn;
-    onPressIn?: () => void;
+  group: ActivityGroupData;
+  severityMode: 'light' | 'dark';
+  expandedId: string | null;
+  onToggle: (eventId: string) => void;
+  formatters: DayFormatters;
+  t: TranslateFn;
+  onPressIn?: () => void;
 }
 
 /**
@@ -23,34 +23,34 @@ interface ActivityGroupProps {
  * hook, tagging first/last for rounded-corner treatment.
  */
 export function ActivityGroup({
-    group,
-    severityMode,
-    expandedId,
-    onToggle,
-    formatters,
-    t,
-    onPressIn,
+  group,
+  severityMode,
+  expandedId,
+  onToggle,
+  formatters,
+  t,
+  onPressIn,
 }: ActivityGroupProps) {
-    return (
-        <Section title={group.title}>
-            <AccountCard>
-                <View>
-                    {group.activities.map((event, index) => (
-                        <ActivityEventRow
-                            key={event.id}
-                            event={event}
-                            severityMode={severityMode}
-                            isExpanded={expandedId === event.id}
-                            onToggle={onToggle}
-                            isFirst={index === 0}
-                            isLast={index === group.activities.length - 1}
-                            formatters={formatters}
-                            t={t}
-                            onPressIn={onPressIn}
-                        />
-                    ))}
-                </View>
-            </AccountCard>
-        </Section>
-    );
+  return (
+    <Section title={group.title}>
+      <AccountCard>
+        <View>
+          {group.activities.map((event, index) => (
+            <ActivityEventRow
+              key={event.id}
+              event={event}
+              severityMode={severityMode}
+              isExpanded={expandedId === event.id}
+              onToggle={onToggle}
+              isFirst={index === 0}
+              isLast={index === group.activities.length - 1}
+              formatters={formatters}
+              t={t}
+              onPressIn={onPressIn}
+            />
+          ))}
+        </View>
+      </AccountCard>
+    </Section>
+  );
 }

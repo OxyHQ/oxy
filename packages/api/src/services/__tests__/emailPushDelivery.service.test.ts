@@ -88,7 +88,9 @@ async function insertInstall(
 
 /** The tokens the push transport was handed, in the order it received them. */
 function pushedTokens(): string[] {
-  return (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? [];
+  return (
+    (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? []
+  );
 }
 
 const MAIL = {

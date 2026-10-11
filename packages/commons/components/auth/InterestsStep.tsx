@@ -125,7 +125,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 32, fontWeight: '800', lineHeight: 38, letterSpacing: -0.7 },
   subtitle: { fontSize: 15, lineHeight: 22, opacity: 0.6 },
   tagList: { flex: 1 },
-  tagListContent: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 24, paddingVertical: 16 },
+  tagListContent: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
   footer: { paddingHorizontal: 24, paddingTop: 16, gap: 12 },
   count: { fontSize: 13, textAlign: 'center', opacity: 0.6 },
 });

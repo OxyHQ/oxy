@@ -55,47 +55,49 @@ const operatorAmountSchema = z.object({
   amountPicos: z.string().regex(/^(?:0|[1-9][0-9]{0,29})$/),
 });
 
-export const providerCostAttemptEventSchema = z.object({
-  position: z.string().min(1).max(1024),
-  requestId: z.string().min(1).max(256),
-  attemptIndex: z.number().int().nonnegative(),
-  provider: z.string().min(1).max(128),
-  keyId: z.string().min(1).max(256),
-  // Historical operator rows may omit their classification as an empty
-  // string. Preserve that fact; ingestion does not grant key authority.
-  keyClass: z.string().max(64),
-  deploymentId: z.string().min(1).max(256),
-  modelReference: z.string().min(1).max(512),
-  cost: operatorAmountSchema.nullable(),
-  costSource: z.enum(['provider_reported', 'rate_card', 'unknown']),
-  rateCardVersionId: z.string().max(256).nullable(),
-  costComplete: z.boolean(),
-  served: z.boolean(),
-  occurredAt: z.string().datetime({ offset: true }),
-  // Null for an attempt Kaana recorded before attempts measured their units.
-  // A closed set: a unit this reader does not know refuses the page rather
-  // than being stored as an opaque document (see the table's header).
-  units: z
-    .array(z.object({ unit: usageUnitSchema, quantity: z.number().int().nonnegative() }))
-    .refine((units) => new Set(units.map((u) => u.unit)).size === units.length, {
-      message: 'a unit appears more than once',
-    })
-    .nullable(),
-  telemetry: z
-    .object({
-      startedAt: z.string().datetime({ offset: true }),
-      latencyMs: z.number().int().nonnegative(),
-      timeToFirstOutputMs: z.number().int().nonnegative().nullable(),
-      outcome: z.string().min(1).max(32),
-      failureCode: z.string().max(64).nullable(),
-    })
-    .nullable(),
-}).refine(
-  // An unknown cost carries no amount; a known one always does. Anything else
-  // is a feed this reader does not understand, and it refuses the page.
-  (event) => (event.costSource === 'unknown') === (event.cost === null),
-  { message: 'cost must be present exactly when costSource is known' }
-);
+export const providerCostAttemptEventSchema = z
+  .object({
+    position: z.string().min(1).max(1024),
+    requestId: z.string().min(1).max(256),
+    attemptIndex: z.number().int().nonnegative(),
+    provider: z.string().min(1).max(128),
+    keyId: z.string().min(1).max(256),
+    // Historical operator rows may omit their classification as an empty
+    // string. Preserve that fact; ingestion does not grant key authority.
+    keyClass: z.string().max(64),
+    deploymentId: z.string().min(1).max(256),
+    modelReference: z.string().min(1).max(512),
+    cost: operatorAmountSchema.nullable(),
+    costSource: z.enum(['provider_reported', 'rate_card', 'unknown']),
+    rateCardVersionId: z.string().max(256).nullable(),
+    costComplete: z.boolean(),
+    served: z.boolean(),
+    occurredAt: z.string().datetime({ offset: true }),
+    // Null for an attempt Kaana recorded before attempts measured their units.
+    // A closed set: a unit this reader does not know refuses the page rather
+    // than being stored as an opaque document (see the table's header).
+    units: z
+      .array(z.object({ unit: usageUnitSchema, quantity: z.number().int().nonnegative() }))
+      .refine((units) => new Set(units.map((u) => u.unit)).size === units.length, {
+        message: 'a unit appears more than once',
+      })
+      .nullable(),
+    telemetry: z
+      .object({
+        startedAt: z.string().datetime({ offset: true }),
+        latencyMs: z.number().int().nonnegative(),
+        timeToFirstOutputMs: z.number().int().nonnegative().nullable(),
+        outcome: z.string().min(1).max(32),
+        failureCode: z.string().max(64).nullable(),
+      })
+      .nullable(),
+  })
+  .refine(
+    // An unknown cost carries no amount; a known one always does. Anything else
+    // is a feed this reader does not understand, and it refuses the page.
+    (event) => (event.costSource === 'unknown') === (event.cost === null),
+    { message: 'cost must be present exactly when costSource is known' },
+  );
 
 export type ProviderCostAttemptEvent = z.infer<typeof providerCostAttemptEventSchema>;
 
@@ -179,7 +181,7 @@ export interface ProviderCostIngestion {
 
 /** Store a page of attempts, idempotently on `(request_id, attempt_index)`. */
 export async function ingestProviderCostAttempts(
-  events: readonly ProviderCostAttemptEvent[]
+  events: readonly ProviderCostAttemptEvent[],
 ): Promise<ProviderCostIngestion> {
   let inserted = 0;
   let duplicates = 0;
@@ -223,7 +225,7 @@ export async function ingestProviderCostAttempts(
       .from(inferenceProviderCostAttempts)
       .where(
         sql`${inferenceProviderCostAttempts.requestId} = ${event.requestId}
-          and ${inferenceProviderCostAttempts.attemptIndex} = ${event.attemptIndex}`
+          and ${inferenceProviderCostAttempts.attemptIndex} = ${event.attemptIndex}`,
       )
       .limit(1);
     if (existing?.factsDigest === digest) {
@@ -233,7 +235,7 @@ export async function ingestProviderCostAttempts(
       logger.error(
         'inference.provider_cost.replay_mismatch',
         new Error('a redelivered provider-cost attempt differs from the stored one'),
-        { requestId: event.requestId, attemptIndex: event.attemptIndex }
+        { requestId: event.requestId, attemptIndex: event.attemptIndex },
       );
     }
   }
@@ -248,7 +250,11 @@ export interface ProviderCostFeedReader {
   readPage(after: string | null, limit: number): Promise<ProviderCostFeedPage>;
 }
 
-export function providerTelemetrySigningInput(keyId: string, timestamp: number, body: Buffer): Buffer {
+export function providerTelemetrySigningInput(
+  keyId: string,
+  timestamp: number,
+  body: Buffer,
+): Buffer {
   const digest = createHash('sha256').update(body).digest('hex');
   return Buffer.from([SIGNATURE_DOMAIN, keyId, String(timestamp), digest].join('\n'), 'utf8');
 }
@@ -259,13 +265,13 @@ export class HttpKaanaProviderCostFeedReader implements ProviderCostFeedReader {
   async readPage(after: string | null, limit: number): Promise<ProviderCostFeedPage> {
     const body = Buffer.from(
       JSON.stringify({ schemaVersion: 1, ...(after === null ? {} : { after }), limit }),
-      'utf8'
+      'utf8',
     );
     const timestamp = Date.now();
     const signature = sign(
       null,
       providerTelemetrySigningInput(this.config.keyId, timestamp, body),
-      this.config.privateKey
+      this.config.privateKey,
     ).toString('base64');
     const response = await fetch(`${this.config.baseUrl}${ATTEMPT_FEED_PATH}`, {
       method: 'POST',
@@ -333,7 +339,7 @@ async function advanceCursor(from: string | null, to: string): Promise<boolean> 
     .set({ cursor: to, updatedAt: new Date() })
     .where(
       sql`${inferenceProviderCostFeedCursors.feed} = ${FEED_NAME}
-        and ${inferenceProviderCostFeedCursors.cursor} is not distinct from ${from}`
+        and ${inferenceProviderCostFeedCursors.cursor} is not distinct from ${from}`,
     )
     .returning({ feed: inferenceProviderCostFeedCursors.feed });
   return updated.length > 0;
@@ -342,7 +348,7 @@ async function advanceCursor(from: string | null, to: string): Promise<boolean> 
 /** Read and store pages until the feed is caught up, or the run's page budget is spent. */
 export async function syncProviderCostFeed(
   reader: ProviderCostFeedReader,
-  maxPages = MAX_PAGES_PER_RUN
+  maxPages = MAX_PAGES_PER_RUN,
 ): Promise<ProviderCostFeedSync> {
   let cursor = await readCursor();
   let pages = 0;
@@ -373,7 +379,9 @@ export async function syncProviderCostFeed(
 export function startProviderCostFeedSchedule(): { stop(): void } | undefined {
   const reader = createHttpKaanaProviderCostFeedReader();
   if (reader === undefined) {
-    logger.info('inference.provider_cost_feed.not_configured', { component: 'inference-provider-cost' });
+    logger.info('inference.provider_cost_feed.not_configured', {
+      component: 'inference-provider-cost',
+    });
     return undefined;
   }
   let running = false;
@@ -389,8 +397,8 @@ export function startProviderCostFeedSchedule(): { stop(): void } | undefined {
       .catch((error: unknown) =>
         logger.error(
           'inference.provider_cost_feed.failed',
-          error instanceof Error ? error : new Error(String(error))
-        )
+          error instanceof Error ? error : new Error(String(error)),
+        ),
       )
       .finally(() => {
         running = false;

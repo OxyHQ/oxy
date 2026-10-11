@@ -143,19 +143,21 @@ export const saveDraftSchema = z.object({
   expectedRevision: z.number().int().min(1).optional(),
 });
 
-const savedSearchFiltersSchema = z.object({
-  q: z.string().max(500).optional(),
-  from: z.string().max(128).optional(),
-  to: z.string().max(128).optional(),
-  subject: z.string().max(128).optional(),
-  hasAttachment: z.boolean().optional(),
-  dateAfter: z.string().max(40).optional(),
-  dateBefore: z.string().max(40).optional(),
-  mailbox: z.string().max(255).optional(),
-  starred: z.boolean().optional(),
-  unread: z.boolean().optional(),
-  label: z.string().max(255).optional(),
-}).strict();
+const savedSearchFiltersSchema = z
+  .object({
+    q: z.string().max(500).optional(),
+    from: z.string().max(128).optional(),
+    to: z.string().max(128).optional(),
+    subject: z.string().max(128).optional(),
+    hasAttachment: z.boolean().optional(),
+    dateAfter: z.string().max(40).optional(),
+    dateBefore: z.string().max(40).optional(),
+    mailbox: z.string().max(255).optional(),
+    starred: z.boolean().optional(),
+    unread: z.boolean().optional(),
+    label: z.string().max(255).optional(),
+  })
+  .strict();
 
 export const createSavedSearchSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -245,7 +247,10 @@ const optionalInstant = z
   .trim()
   .nullable()
   .optional()
-  .refine((value) => value == null || value === '' || !Number.isNaN(Date.parse(value)), 'Must be a valid date')
+  .refine(
+    (value) => value == null || value === '' || !Number.isNaN(Date.parse(value)),
+    'Must be a valid date',
+  )
   .transform((value) => (value ? new Date(value) : undefined));
 
 export const updateEmailSettingsSchema = z.object({
@@ -326,7 +331,15 @@ export const updateContactSchema = z.object({
 
 const filterConditionSchema = z.object({
   field: z.enum(['from', 'to', 'subject', 'has-attachment', 'size']),
-  operator: z.enum(['contains', 'equals', 'not-contains', 'starts-with', 'ends-with', 'greater-than', 'less-than']),
+  operator: z.enum([
+    'contains',
+    'equals',
+    'not-contains',
+    'starts-with',
+    'ends-with',
+    'greater-than',
+    'less-than',
+  ]),
   value: z.string().min(1),
 });
 

@@ -44,22 +44,24 @@ export function buildInboxMessageEvents(input: InboxMessageEventInput): Normaliz
     resourceType: 'mailbox',
     resourceId: input.mailboxId,
   } as const;
-  const events: NormalizedAppEvent[] = [{
-    eventId: `${input.messageId}:new_email`,
-    appId: 'inbox',
-    accountId: input.ownerAccountId,
-    resource,
-    type: 'new_email',
-    occurredAt: input.receivedAt.toISOString(),
-    data: {
-      messageId: input.messageId,
-      mailboxId: input.mailboxId,
-      from: input.senderAddress,
-      subject: input.subject,
-      snippet: input.snippet.slice(0, INBOX_EVENT_SNIPPET_MAX),
-      folder: input.folder,
+  const events: NormalizedAppEvent[] = [
+    {
+      eventId: `${input.messageId}:new_email`,
+      appId: 'inbox',
+      accountId: input.ownerAccountId,
+      resource,
+      type: 'new_email',
+      occurredAt: input.receivedAt.toISOString(),
+      data: {
+        messageId: input.messageId,
+        mailboxId: input.mailboxId,
+        from: input.senderAddress,
+        subject: input.subject,
+        snippet: input.snippet.slice(0, INBOX_EVENT_SNIPPET_MAX),
+        folder: input.folder,
+      },
     },
-  }];
+  ];
   const reason = input.folder === 'spam' ? null : likelyNeedsResponse(input);
   if (reason) {
     events.push({

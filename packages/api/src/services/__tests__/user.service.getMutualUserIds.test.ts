@@ -29,7 +29,7 @@ const uniqueId = () => randomUUID().replace(/-/g, '');
 
 async function makeUsers(
   count: number,
-  overrides: Partial<typeof users.$inferInsert> = {}
+  overrides: Partial<typeof users.$inferInsert> = {},
 ): Promise<string[]> {
   const ids = Array.from({ length: count }, () => uniqueId());
   await getDb()
@@ -42,7 +42,7 @@ async function makeUsers(
 async function seedGraph(
   viewer: string,
   mutualIds: string[],
-  oneWayIds: string[] = []
+  oneWayIds: string[] = [],
 ): Promise<void> {
   const edges = [
     ...mutualIds.flatMap((id) => [
@@ -161,10 +161,10 @@ describe('ordering and bounds', () => {
     await seedGraph(viewer, mutuals);
 
     expect((await userService.getMutualUserIds(viewer, { limit: 0 })).sort()).toEqual(
-      [...mutuals].sort()
+      [...mutuals].sort(),
     );
     expect((await userService.getMutualUserIds(viewer, { limit: -5 })).sort()).toEqual(
-      [...mutuals].sort()
+      [...mutuals].sort(),
     );
   });
 });

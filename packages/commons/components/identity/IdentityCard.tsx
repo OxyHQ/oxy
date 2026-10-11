@@ -1,6 +1,6 @@
 /**
  * Reusable Identity Card Component
- * 
+ *
  * A flippable ID card component that displays user identity information.
  * Wraps the OxyID (Ticket) component with FrontSide and BackSide.
  */
@@ -58,16 +58,9 @@ export function IdentityCard({
         />
       }
       backSide={
-        <BackSide
-          publicKey={publicKey}
-          displayName={displayName}
-          accountCreated={accountCreated}
-        />
+        <BackSide publicKey={publicKey} displayName={displayName} accountCreated={accountCreated} />
       }
-      qrSide={
-        qrPayload ? <IdQrBack payload={qrPayload} caption={qrCaption ?? ''} /> : undefined
-      }
+      qrSide={qrPayload ? <IdQrBack payload={qrPayload} caption={qrCaption ?? ''} /> : undefined}
     />
   );
 }
-

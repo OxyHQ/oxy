@@ -19,11 +19,7 @@ function fakePopup(): OAuthPopupHandle {
  * `MessageEvent` constructor refuses a non-`Window` `source`, so the event is
  * assembled the way the browser hands it to the listener instead.
  */
-function makeMessageEvent(init: {
-  data: unknown;
-  origin: string;
-  source: unknown;
-}): MessageEvent {
+function makeMessageEvent(init: { data: unknown; origin: string; source: unknown }): MessageEvent {
   const event = new Event('message');
   Object.assign(event, init);
   return event as MessageEvent;
@@ -82,9 +78,15 @@ describe('parseOAuthPopupMessage', () => {
     ['an array', [{ type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'c', state: STATE }]],
     ['an unknown type', { type: 'oxy:oauth:token', code: 'c', state: STATE }],
     ['a code message with no code', { type: OXY_OAUTH_CODE_MESSAGE_TYPE, state: STATE }],
-    ['a code message with an empty code', { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: '', state: STATE }],
+    [
+      'a code message with an empty code',
+      { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: '', state: STATE },
+    ],
     ['a code message with no state', { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'c' }],
-    ['a code message with a non-string code', { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 1, state: STATE }],
+    [
+      'a code message with a non-string code',
+      { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 1, state: STATE },
+    ],
     ['an error message with no error', { type: OXY_OAUTH_ERROR_MESSAGE_TYPE, state: STATE }],
   ])('rejects %s', (_label, data) => {
     expect(parseOAuthPopupMessage(data)).toBeNull();

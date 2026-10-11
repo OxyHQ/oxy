@@ -21,15 +21,14 @@
  *  - **The snapshot never crosses the wire**: it would hand an unauthenticated
  *    caller an enumeration of every subject on the platform.
  *
- * ## What the Postgres port changed, and why each change is not cosmetic
+ * ## Storage decisions, and why each is not cosmetic
  *
- * **The snapshot is a CHILD TABLE, so it is no longer dragged along by every
- * read.** In Mongo it was an embedded array, so `findOne` materialized up to
- * `MAX_CHECKPOINT_SUBJECTS` entries even when the caller only wanted the DTO —
- * and `toDto` then threw them away. `GET /transparency/checkpoints` did that
- * once per page entry. Here the checkpoint body plus its signatures and anchors
- * is one read, and the snapshot is loaded ONLY by the two paths that commit to
- * or prove against it. Nothing about the served bytes changes.
+ * **The snapshot is a CHILD TABLE, so it is not dragged along by every read.**
+ * Loading up to `MAX_CHECKPOINT_SUBJECTS` entries when the caller only wants the
+ * DTO — once per page entry on `GET /transparency/checkpoints` — would be pure
+ * waste. The checkpoint body plus its signatures and anchors is one read, and
+ * the snapshot is loaded ONLY by the two paths that commit to or prove against
+ * it.
  *
  * **`period_end` and `anchored_at` are `timestamptz`, not epoch milliseconds.**
  * `period_end` is part of the SIGNED body, so the conversion is confined to this
@@ -38,9 +37,9 @@
  * whole-millisecond value round-trips through microsecond-resolution
  * `timestamptz` exactly — asserted by a sign-store-read-verify test, not argued.
  *
- * **The concurrent-writer collision is a named unique violation.** Mongo's
- * `code === 11000` said only "some unique index fired"; `isUniqueViolation(err,
- * 'transparency_checkpoints_index_unique')` says WHICH, so a future index on
+ * **The concurrent-writer collision is a named unique violation.**
+ * `isUniqueViolation(err, 'transparency_checkpoints_index_unique')` says WHICH
+ * index fired, not merely that one did, so a future index on
  * this table cannot silently start being read as "another task won this index".
  */
 
@@ -75,10 +74,8 @@ import { logger } from '../utils/logger';
 /**
  * Ceiling on subjects per checkpoint.
  *
- * Inherited from Mongo, where the committed snapshot lived inside the checkpoint
- * document and had to stay an order of magnitude under the 16MB document limit.
- * Postgres has no such ceiling — the snapshot is its own table — but the bound
- * is KEPT deliberately: it also bounds how much work one `getInclusionProof`
+ * The snapshot is its own table, so storage imposes no ceiling, but the bound
+ * is KEPT deliberately: it bounds how much work one `getInclusionProof`
  * cache miss does (the whole snapshot is re-hashed to rebuild the tree), and
  * that cost is real regardless of storage engine. Crossing it is a hard failure
  * rather than a silent truncation: a checkpoint whose proofs cannot be served is
@@ -327,9 +324,7 @@ export async function buildCheckpoint(periodEnd: number): Promise<TransparencyCh
 
   try {
     // One transaction: a checkpoint whose snapshot half failed would serve
-    // proofs against a root it cannot reproduce. Mongo could not express this at
-    // all — the embedded array made it a single document write by accident
-    // rather than by design.
+    // proofs against a root it cannot reproduce.
     await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(transparencyCheckpoints)

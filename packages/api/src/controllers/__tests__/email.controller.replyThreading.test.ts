@@ -46,7 +46,10 @@ let user: { id: string; username: string };
 beforeAll(async () => {
   await connectPostgres();
   const username = `replier${unique().slice(0, 10)}`;
-  const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
   user = { id: row.id, username };
 });
 
@@ -78,7 +81,10 @@ const base = { to: [{ address: 'support@example.com' }], subject: 'Re: Case', te
 
 describe('reply threading', () => {
   it('derives References from the parent and marks the parent answered', async () => {
-    const parent = await received({ references: ['<root@example.com>', '<mid@example.com>'], inReplyTo: '<mid@example.com>' });
+    const parent = await received({
+      references: ['<root@example.com>', '<mid@example.com>'],
+      inReplyTo: '<mid@example.com>',
+    });
 
     await sendMessageForUser(user.id, { ...base, inReplyTo: parent.messageId });
 
@@ -88,7 +94,10 @@ describe('reply threading', () => {
         references: ['<root@example.com>', '<mid@example.com>', parent.messageId],
       }),
     );
-    const [row] = await getDb().select({ answered: messages.answered }).from(messages).where(eq(messages.id, parent.id));
+    const [row] = await getDb()
+      .select({ answered: messages.answered })
+      .from(messages)
+      .where(eq(messages.id, parent.id));
     expect(row.answered).toBe(true);
   });
 
@@ -99,9 +108,16 @@ describe('reply threading', () => {
   });
 
   it('passes an unknown parent through as given', async () => {
-    await sendMessageForUser(user.id, { ...base, inReplyTo: '<elsewhere@example.com>', references: ['<elsewhere@example.com>'] });
+    await sendMessageForUser(user.id, {
+      ...base,
+      inReplyTo: '<elsewhere@example.com>',
+      references: ['<elsewhere@example.com>'],
+    });
     expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ inReplyTo: '<elsewhere@example.com>', references: ['<elsewhere@example.com>'] }),
+      expect.objectContaining({
+        inReplyTo: '<elsewhere@example.com>',
+        references: ['<elsewhere@example.com>'],
+      }),
     );
   });
 
@@ -110,12 +126,19 @@ describe('reply threading', () => {
     ['a bracketed row id', { inReplyTo: '<01a0821a-7395-7e43-bdb4-fa5166ea32d1>' }],
     ['a row id in References', { references: ['01a0821a-7395-7e43-bdb4-fa5166ea32d1'] }],
   ])('refuses %s before anything is sent', async (_label, threading) => {
-    await expect(sendMessageForUser(user.id, { ...base, ...threading })).rejects.toBeInstanceOf(BadRequestError);
+    await expect(sendMessageForUser(user.id, { ...base, ...threading })).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
     expect(mockSend).not.toHaveBeenCalled();
   });
 
   it('is refused at the REST edge too', () => {
-    expect(sendMessageSchema.safeParse({ ...base, inReplyTo: '01a0821a-7395-7e43-bdb4-fa5166ea32d1' }).success).toBe(false);
-    expect(sendMessageSchema.safeParse({ ...base, inReplyTo: '<a@example.com>' }).success).toBe(true);
+    expect(
+      sendMessageSchema.safeParse({ ...base, inReplyTo: '01a0821a-7395-7e43-bdb4-fa5166ea32d1' })
+        .success,
+    ).toBe(false);
+    expect(sendMessageSchema.safeParse({ ...base, inReplyTo: '<a@example.com>' }).success).toBe(
+      true,
+    );
   });
 });

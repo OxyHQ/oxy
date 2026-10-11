@@ -27,10 +27,7 @@ import {
   type ValidationRequestRow,
   type ValidationRequestView,
 } from './validator.service';
-import {
-  recomputePersonhood,
-  slashVouchersForFakeSubject,
-} from './personhood.service';
+import { recomputePersonhood, slashVouchersForFakeSubject } from './personhood.service';
 import { reputationService } from '../reputation.service';
 import { buildUserDid } from '../did.service';
 import { VALIDATION_CORRECT_ACTION } from '../../utils/reputation.constants';
@@ -80,9 +77,9 @@ export async function sweepPersonhoodAudits(): Promise<number> {
     Math.max(1, Math.ceil(total * PERSONHOOD_AUDIT_SAMPLE_RATE)),
   );
 
-  // Mongo's `$sample` becomes `order by random() limit N`. Both are a full pass
-  // over the matching set; the sample is small and the sweep runs on an
-  // unref'd interval, so the cost is the same order it always was.
+  // `order by random() limit N` is a full pass over the matching set; the
+  // sample is small and the sweep runs on an unref'd interval, so that cost is
+  // acceptable.
   const sampled = await getDb()
     .select({ userId: personhoodStatuses.userId })
     .from(personhoodStatuses)

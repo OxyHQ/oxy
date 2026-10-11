@@ -27,7 +27,7 @@ export default function HomeScreen() {
     currentLanguage,
     currentLanguageName,
     currentNativeLanguageName,
-    currentLanguageMetadata
+    currentLanguageMetadata,
   } = useOxy();
   const displayName = useMemo(() => {
     if (!user) return 'Unknown user';
@@ -51,13 +51,16 @@ export default function HomeScreen() {
     showBottomSheet('ManageAccount');
   }, [showBottomSheet]);
 
-  const handleOpenScreen = useCallback((screen: RouteName) => {
-    if (!showBottomSheet) {
-      Alert.alert('Unavailable', 'Bottom sheet is not available right now.');
-      return;
-    }
-    showBottomSheet(screen);
-  }, [showBottomSheet]);
+  const handleOpenScreen = useCallback(
+    (screen: RouteName) => {
+      if (!showBottomSheet) {
+        Alert.alert('Unavailable', 'Bottom sheet is not available right now.');
+        return;
+      }
+      showBottomSheet(screen);
+    },
+    [showBottomSheet],
+  );
 
   const handleOpenPaymentGateway = useCallback(() => {
     if (!showBottomSheet) {
@@ -110,15 +113,12 @@ export default function HomeScreen() {
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: headerBgLight, dark: headerBgDark }}
-      headerImage={
-        <LogoIcon
-          height={171}
-          style={styles.oxyLogo}
-          useThemeColors={true}
-        />
-      }>
+      headerImage={<LogoIcon height={171} style={styles.oxyLogo} useThemeColors={true} />}
+    >
       <ThemedView style={styles.content}>
-        <ThemedText type="title" style={styles.title}>Oxy Services Playground</ThemedText>
+        <ThemedText type="title" style={styles.title}>
+          Oxy Services Playground
+        </ThemedText>
         <ThemedText>
           Use the button below to launch the full Oxy sign-in flow directly inside this test app.
         </ThemedText>
@@ -141,7 +141,8 @@ export default function HomeScreen() {
           )}
           {currentLanguageMetadata?.region && (
             <ThemedText type="default">
-              Region: <ThemedText type="defaultSemiBold">{currentLanguageMetadata.region}</ThemedText>
+              Region:{' '}
+              <ThemedText type="defaultSemiBold">{currentLanguageMetadata.region}</ThemedText>
             </ThemedText>
           )}
           <Pressable

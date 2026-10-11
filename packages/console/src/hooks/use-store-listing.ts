@@ -154,7 +154,8 @@ export function useAddScreenshot(appId: string) {
   const invalidate = useInvalidateScreenshots(appId);
 
   return useMutation({
-    mutationFn: (input: AddScreenshotInput) => oxyServices.store.listing.screenshots.add(appId, input),
+    mutationFn: (input: AddScreenshotInput) =>
+      oxyServices.store.listing.screenshots.add(appId, input),
     onSuccess: invalidate,
   });
 }
@@ -206,7 +207,7 @@ export function useReorderScreenshots(appId: string) {
 export function moveScreenshot(
   screenshots: Array<StoreScreenshot>,
   index: number,
-  direction: -1 | 1
+  direction: -1 | 1,
 ): Array<string> {
   const target = index + direction;
   if (target < 0 || target >= screenshots.length) {

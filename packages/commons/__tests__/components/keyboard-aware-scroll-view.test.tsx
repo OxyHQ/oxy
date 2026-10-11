@@ -40,9 +40,13 @@ describe('KeyboardAwareScrollViewWrapper', () => {
     captured.length = 0;
   });
 
-  it('adds the top safe-area inset to the caller\'s own top padding', () => {
+  it("adds the top safe-area inset to the caller's own top padding", () => {
     render(
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={{ paddingTop: 24 }}>
+      <KeyboardAwareScrollViewWrapper
+        reserveTabBarFootprint
+        reserveTopInset
+        contentContainerStyle={{ paddingTop: 24 }}
+      >
         {null}
       </KeyboardAwareScrollViewWrapper>,
     );

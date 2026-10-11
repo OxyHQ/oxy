@@ -27,40 +27,43 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const toggleExpanded = useCallback((id: string) => {
-    setExpanded(prev => (prev === id ? null : id));
+    setExpanded((prev) => (prev === id ? null : id));
   }, []);
 
-  const items = useMemo<GroupedItem[]>(() => [
-    {
-      id: 'card',
-      icon: 'credit-card-outline',
-      iconColor: colors.sidebarIconPayments,
-      title: t('payments.methods.card'),
-      subtitle: subscription?.paymentMethod
-        ? t('payments.methods.cardWithMethod', { method: subscription.paymentMethod })
-        : t('payments.methods.cardEmpty'),
-      onPress: () => toggleExpanded('card'),
-      showChevron: true,
-    },
-    {
-      id: 'peable-method',
-      icon: 'wallet-outline',
-      iconColor: colors.sidebarIconPayments,
-      title: t('payments.methods.peable'),
-      subtitle: t('payments.methods.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
-      onPress: () => toggleExpanded('peable-method'),
-      showChevron: true,
-    },
-    {
-      id: 'faircoin-method',
-      icon: 'qrcode-scan',
-      iconColor: colors.brandFairCoinScan,
-      title: t('payments.methods.fairwallet'),
-      subtitle: t('payments.methods.fairwalletSubtitle'),
-      onPress: () => toggleExpanded('faircoin-method'),
-      showChevron: true,
-    },
-  ], [subscription, colors, balance, toggleExpanded, t]);
+  const items = useMemo<GroupedItem[]>(
+    () => [
+      {
+        id: 'card',
+        icon: 'credit-card-outline',
+        iconColor: colors.sidebarIconPayments,
+        title: t('payments.methods.card'),
+        subtitle: subscription?.paymentMethod
+          ? t('payments.methods.cardWithMethod', { method: subscription.paymentMethod })
+          : t('payments.methods.cardEmpty'),
+        onPress: () => toggleExpanded('card'),
+        showChevron: true,
+      },
+      {
+        id: 'peable-method',
+        icon: 'wallet-outline',
+        iconColor: colors.sidebarIconPayments,
+        title: t('payments.methods.peable'),
+        subtitle: t('payments.methods.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
+        onPress: () => toggleExpanded('peable-method'),
+        showChevron: true,
+      },
+      {
+        id: 'faircoin-method',
+        icon: 'qrcode-scan',
+        iconColor: colors.brandFairCoinScan,
+        title: t('payments.methods.fairwallet'),
+        subtitle: t('payments.methods.fairwalletSubtitle'),
+        onPress: () => toggleExpanded('faircoin-method'),
+        showChevron: true,
+      },
+    ],
+    [subscription, colors, balance, toggleExpanded, t],
+  );
 
   return (
     <Section title={t('payments.sections.paymentMethods')}>
@@ -68,10 +71,17 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
         <GroupedSection items={items} />
       </AccountCard>
       {expanded && (
-        <View style={[styles.expandedDetails, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          style={[
+            styles.expandedDetails,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
           {expanded === 'card' && (
             <>
-              <Text style={[styles.expandedTitle, { color: colors.text }]}>{t('payments.methods.card')}</Text>
+              <Text style={[styles.expandedTitle, { color: colors.text }]}>
+                {t('payments.methods.card')}
+              </Text>
               <Text style={[styles.expandedBody, { color: colors.textSecondary }]}>
                 {t('payments.expanded.cardBody')}
               </Text>
@@ -79,7 +89,9 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
           )}
           {expanded === 'peable-method' && (
             <>
-              <Text style={[styles.expandedTitle, { color: colors.text }]}>{t('payments.expanded.peableTitle')}</Text>
+              <Text style={[styles.expandedTitle, { color: colors.text }]}>
+                {t('payments.expanded.peableTitle')}
+              </Text>
               <Text style={[styles.expandedBody, { color: colors.textSecondary }]}>
                 {t('payments.expanded.peableBody')}
               </Text>
@@ -87,7 +99,9 @@ export function PaymentMethodsSection({ subscription, balance }: PaymentMethodsS
           )}
           {expanded === 'faircoin-method' && (
             <>
-              <Text style={[styles.expandedTitle, { color: colors.text }]}>{t('payments.methods.fairwallet')}</Text>
+              <Text style={[styles.expandedTitle, { color: colors.text }]}>
+                {t('payments.methods.fairwallet')}
+              </Text>
               <Text style={[styles.expandedBody, { color: colors.textSecondary }]}>
                 {t('payments.expanded.fairwalletBody')}
               </Text>

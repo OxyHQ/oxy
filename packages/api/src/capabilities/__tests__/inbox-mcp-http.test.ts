@@ -14,17 +14,17 @@ jest.mock('../../services/mcpOAuth.service', () => ({
 // service is built from THAT view (with MCP's retry-key argument), not the
 // canonical catalog it derives from.
 jest.mock('../inbox.handlers', () => ({
-  INBOX_MCP_CATALOG: { ...jest.requireActual('../inbox.catalog').INBOX_CAPABILITY_CATALOG, version: 'mcp-view' },
+  INBOX_MCP_CATALOG: {
+    ...jest.requireActual('../inbox.catalog').INBOX_CAPABILITY_CATALOG,
+    version: 'mcp-view',
+  },
   INBOX_MCP_HANDLERS: {},
 }));
 jest.mock('../../utils/logger', () => ({
   logger: { error: (...args: unknown[]) => mockLoggerError(...args) },
 }));
 
-import {
-  createInboxMcpHttpService,
-  parseInboxMcpAllowedOrigins,
-} from '../inbox-mcp-http';
+import { createInboxMcpHttpService, parseInboxMcpAllowedOrigins } from '../inbox-mcp-http';
 
 describe('Inbox MCP HTTP service', () => {
   beforeEach(() => {
@@ -53,13 +53,9 @@ describe('Inbox MCP HTTP service', () => {
   });
 
   it('keeps the trusted defaults and normalizes configured origins', () => {
-    expect(parseInboxMcpAllowedOrigins(
-      ' https://example.com,https://chatgpt.com,,https://example.com ',
-    )).toEqual([
-      'https://chatgpt.com',
-      'https://claude.ai',
-      'https://example.com',
-    ]);
+    expect(
+      parseInboxMcpAllowedOrigins(' https://example.com,https://chatgpt.com,,https://example.com '),
+    ).toEqual(['https://chatgpt.com', 'https://claude.ai', 'https://example.com']);
   });
 
   it('adapts the canonical catalog and binds introspection to its registered app', async () => {
@@ -72,11 +68,7 @@ describe('Inbox MCP HTTP service', () => {
     expect(options).toMatchObject({
       catalog: expect.objectContaining({ appId: 'inbox', version: 'mcp-view' }),
       authorizationServer: 'https://api.example.test',
-      allowedOrigins: [
-        'https://chatgpt.com',
-        'https://claude.ai',
-        'https://client.example.test',
-      ],
+      allowedOrigins: ['https://chatgpt.com', 'https://claude.ai', 'https://client.example.test'],
       serverName: 'inbox-mcp',
     });
 
@@ -94,9 +86,14 @@ describe('Inbox MCP HTTP service', () => {
       'access-token',
       'application-1',
     );
-    expect(await options.authorize({}, {
-      principal: { accountId: 'account-1', activeAccountId: 'account-2' },
-    })).toEqual({
+    expect(
+      await options.authorize(
+        {},
+        {
+          principal: { accountId: 'account-1', activeAccountId: 'account-2' },
+        },
+      ),
+    ).toEqual({
       allowed: true,
       effectiveAccountId: 'account-2',
     });
@@ -118,9 +115,6 @@ describe('Inbox MCP HTTP service', () => {
       account_id: 'account-1',
     });
     expect(mockResolveMcpResource).toHaveBeenCalledTimes(2);
-    expect(mockIntrospectMcpAccessToken).toHaveBeenCalledWith(
-      'second-token',
-      'application-2',
-    );
+    expect(mockIntrospectMcpAccessToken).toHaveBeenCalledWith('second-token', 'application-2');
   });
 });

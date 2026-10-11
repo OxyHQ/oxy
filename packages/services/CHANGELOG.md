@@ -1,5 +1,15 @@
 # Changelog
 
+## [11.2.0-oxy-one.3] - 2026-10-10
+
+### Changed
+
+- Admits `@oxy.so/bloom` up to 7.31.x, so an app on Bloom 7.31.0 (whose
+  `video-view` makes web video play inline on iPhone Safari) shares one Bloom
+  runtime with this package instead of nesting a second copy under it. Also
+  carries the Bloom 7.21–7.30 peer lines admitted since 11.2.0-oxy-one.2. No
+  runtime source changes.
+
 ## [11.2.0-oxy-one.2] - 2026-10-10
 
 ### Fixed

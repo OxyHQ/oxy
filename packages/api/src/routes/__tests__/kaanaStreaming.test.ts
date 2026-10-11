@@ -120,9 +120,7 @@ jest.setTimeout(60_000);
 
 const EDGE_KEY_ID = 'oxy-edge-test';
 const edgeKeyPair = generateKeyPairSync('ed25519');
-const EDGE_PRIVATE_PEM = edgeKeyPair.privateKey
-  .export({ format: 'pem', type: 'pkcs8' })
-  .toString();
+const EDGE_PRIVATE_PEM = edgeKeyPair.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
 /** The stub holds ONLY this. It cannot construct an envelope it would accept. */
 const EDGE_PUBLIC_KEY: KeyObject = edgeKeyPair.publicKey;
 
@@ -215,7 +213,7 @@ function verifyEdgeSignature(headers: http.IncomingHttpHeaders, body: Buffer): b
     null,
     kaanaSigningInput(EDGE_KEY_ID, timestamp, body),
     EDGE_PUBLIC_KEY,
-    signature
+    signature,
   );
 }
 
@@ -253,7 +251,7 @@ async function startKaanaStub(): Promise<KaanaStub> {
             message: 'the request is not a signed Oxy edge envelope',
             retryable: false,
             requestId: `req_kaana_${randomUUID()}`,
-          })
+          }),
         );
         return;
       }
@@ -368,7 +366,7 @@ interface EdgeHarness {
     path: string,
     body: unknown,
     headers?: Record<string, string>,
-    onFrame?: (frame: Frame, request: http.ClientRequest) => void
+    onFrame?: (frame: Frame, request: http.ClientRequest) => void,
   ) => Promise<StreamedResponse>;
 }
 
@@ -381,7 +379,7 @@ interface EdgeHarness {
  */
 async function withEdge(
   script: KaanaScript,
-  run: (harness: EdgeHarness) => Promise<void>
+  run: (harness: EdgeHarness) => Promise<void>,
 ): Promise<void> {
   const stub = await startKaanaStub();
   stub.script = script;
@@ -410,10 +408,7 @@ async function withEdge(
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
-  app.use(
-    '/v1',
-    createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient })
-  );
+  app.use('/v1', createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient }));
 
   const server = await new Promise<http.Server>((resolve) => {
     const created = app.listen(0, '127.0.0.1', () => resolve(created));
@@ -459,9 +454,7 @@ function clientFor(port: number): EdgeHarness['request'] {
           method,
           headers: {
             'Content-Type': 'application/json',
-            ...(payload === undefined
-              ? {}
-              : { 'Content-Length': Buffer.byteLength(payload) }),
+            ...(payload === undefined ? {} : { 'Content-Length': Buffer.byteLength(payload) }),
             ...(headers ?? {}),
           },
         },
@@ -514,9 +507,15 @@ function clientFor(port: number): EdgeHarness['request'] {
           });
           res.on('close', () => {
             if (!destroyed) return;
-            resolve({ status: res.statusCode ?? 0, headers: res.headers, frames, body: text, bytes: Buffer.concat(binary) });
+            resolve({
+              status: res.statusCode ?? 0,
+              headers: res.headers,
+              frames,
+              body: text,
+              bytes: Buffer.concat(binary),
+            });
           });
-        }
+        },
       );
 
       request.on('error', (error) => {
@@ -627,7 +626,13 @@ async function makeFixture(speech = false): Promise<Fixture> {
 
   const [revisionRow] = await db
     .insert(inferenceModelRevisions)
-    .values({ modelId: model.id, revision: REVISION, releasedAt: new Date(), isCurrent: true, ...(speech ? { provenanceMarking: 'none', contentFilteringDefault: 'none' } : {}) })
+    .values({
+      modelId: model.id,
+      revision: REVISION,
+      releasedAt: new Date(),
+      isCurrent: true,
+      ...(speech ? { provenanceMarking: 'none', contentFilteringDefault: 'none' } : {}),
+    })
     .returning({ id: inferenceModelRevisions.id });
 
   await db.insert(inferenceProviders).values({
@@ -651,7 +656,16 @@ async function makeFixture(speech = false): Promise<Fixture> {
     .returning({ id: priceVersions.id });
 
   await db.insert(priceVersionUnitPrices).values([
-    ...(speech ? [{ priceVersionId: priceVersion.id, unit: 'characters' as const, amount: '15.000000000000', per: 1_000_000 }] : []),
+    ...(speech
+      ? [
+          {
+            priceVersionId: priceVersion.id,
+            unit: 'characters' as const,
+            amount: '15.000000000000',
+            per: 1_000_000,
+          },
+        ]
+      : []),
     {
       priceVersionId: priceVersion.id,
       unit: 'requests',
@@ -781,7 +795,7 @@ async function waitForReceipt(accountId: string, timeoutMs = 10_000): Promise<Re
     if (rows.length > 0) return rows;
     if (Date.now() > deadline) {
       throw new Error(
-        `no receipt was written for ${accountId} within ${timeoutMs}ms — the hold was never settled`
+        `no receipt was written for ${accountId} within ${timeoutMs}ms — the hold was never settled`,
       );
     }
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -796,7 +810,9 @@ async function waitForReceipt(accountId: string, timeoutMs = 10_000): Promise<Re
 function emitter(context: ScriptContext, provider: string) {
   const requestId = context.envelope.attribution.requestId;
   const generationId = `gen-${randomUUID()}`;
-  const servedRoute = context.envelope.authorizedRoutes.find((route) => route.provider === provider);
+  const servedRoute = context.envelope.authorizedRoutes.find(
+    (route) => route.provider === provider,
+  );
   if (servedRoute === undefined) {
     throw new Error('stream fixture selected a route outside the exact authorization list');
   }
@@ -815,7 +831,8 @@ function emitter(context: ScriptContext, provider: string) {
   return {
     generationId,
     resolvedModelReference,
-    audio: (data: string, mediaType = 'audio/mpeg') => event({ type: 'audio', outputIndex: 0, mediaType, data }),
+    audio: (data: string, mediaType = 'audio/mpeg') =>
+      event({ type: 'audio', outputIndex: 0, mediaType, data }),
     start: () =>
       event({
         type: 'start',
@@ -824,8 +841,7 @@ function emitter(context: ScriptContext, provider: string) {
         servingProvider: provider,
         startedAt: new Date().toISOString(),
       }),
-    delta: (text: string) =>
-      event({ type: 'delta', outputIndex: 0, channel: 'output_text', text }),
+    delta: (text: string) => event({ type: 'delta', outputIndex: 0, channel: 'output_text', text }),
     reasoning: (text: string) =>
       event({ type: 'delta', outputIndex: 0, channel: 'reasoning', text }),
     toolCall: (id: string, name: string, argumentsDelta: string, complete: boolean) =>
@@ -867,7 +883,7 @@ function emitter(context: ScriptContext, provider: string) {
         readonly schemaVersion?: number;
         readonly requestId?: string;
         readonly deploymentId?: string;
-      } = {}
+      } = {},
     ) => {
       const now = new Date().toISOString();
       context.frame('usage_report', {
@@ -914,7 +930,7 @@ function servesCompletely(provider: string): KaanaScript {
 /** A well-formed request against a fixture's own model. */
 const responsesBody = (
   fixture: Fixture,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): Record<string, unknown> => ({
   model: fixture.modelReference,
   input: 'Say hello.',
@@ -924,7 +940,7 @@ const responsesBody = (
 
 const chatBody = (
   fixture: Fixture,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): Record<string, unknown> => ({
   model: fixture.modelReference,
   messages: [{ role: 'user', content: 'Say hello.' }],
@@ -967,7 +983,7 @@ const ORIGINAL_ENVIRONMENT = Object.fromEntries(
     KAANA_BASE_URL_VARIABLE,
     KAANA_SIGNING_KEY_ID_VARIABLE,
     KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
-  ].map((key) => [key, process.env[key]])
+  ].map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -1000,7 +1016,7 @@ describe('the signed envelope', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
 
@@ -1029,7 +1045,7 @@ describe('the signed envelope', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
 
@@ -1037,9 +1053,7 @@ describe('the signed envelope', () => {
       // edge would have failed above. This is the other half: the bytes it signed
       // are the bytes that parse to the envelope the edge meant to send.
       const envelope = JSON.parse(stub.bodies[0].toString('utf8')) as InferenceRequest;
-      expect(envelope.attribution.requestId).toBe(
-        response.headers['x-oxy-request-id']
-      );
+      expect(envelope.attribution.requestId).toBe(response.headers['x-oxy-request-id']);
       expect(stub.bodies[0]).toEqual(Buffer.from(JSON.stringify(envelope), 'utf8'));
     });
   });
@@ -1052,7 +1066,7 @@ describe('the signed envelope', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(served.status).toBe(200);
       expect(stub.rejected).toBe(0);
@@ -1061,19 +1075,13 @@ describe('the signed envelope', () => {
       // verified nothing, this would be a 200 and every assertion in this
       // describe block would be measuring nothing.
       const original = stub.bodies[0];
-      const tampered = Buffer.from(
-        original.toString('utf8').replace('Say hello.', 'Say goodbye')
-      );
+      const tampered = Buffer.from(original.toString('utf8').replace('Say hello.', 'Say goodbye'));
       expect(tampered).not.toEqual(original);
 
       const replay = await postToStub(stub, tampered, {
         [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
-        [KAANA_TIMESTAMP_HEADER]: String(
-          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
-        ),
-        [KAANA_SIGNATURE_HEADER]: String(
-          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
-        ),
+        [KAANA_TIMESTAMP_HEADER]: String(stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]),
+        [KAANA_SIGNATURE_HEADER]: String(stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]),
       });
 
       expect(replay.status).toBe(401);
@@ -1083,12 +1091,8 @@ describe('the signed envelope', () => {
       // above is about the bytes and not about replaying a request at all.
       const honest = await postToStub(stub, original, {
         [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
-        [KAANA_TIMESTAMP_HEADER]: String(
-          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
-        ),
-        [KAANA_SIGNATURE_HEADER]: String(
-          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
-        ),
+        [KAANA_TIMESTAMP_HEADER]: String(stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]),
+        [KAANA_SIGNATURE_HEADER]: String(stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]),
       });
       expect(honest.status).toBe(200);
     });
@@ -1127,7 +1131,7 @@ describe('the signed envelope', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture, { model: fixture.modelReference }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       // A stream with no frames at all is a truncated stream, not an auth failure;
@@ -1145,7 +1149,7 @@ describe('the signed envelope', () => {
 function postToStub(
   stub: KaanaStub,
   body: Buffer,
-  headers: Record<string, string>
+  headers: Record<string, string>,
 ): Promise<{ status: number }> {
   const url = new URL(`${stub.baseUrl}${KAANA_INFERENCE_PATH}`);
   return new Promise((resolve, reject) => {
@@ -1160,7 +1164,7 @@ function postToStub(
       (res) => {
         res.resume();
         res.on('end', () => resolve({ status: res.statusCode ?? 0 }));
-      }
+      },
     );
     request.on('error', reject);
     request.write(body);
@@ -1178,12 +1182,10 @@ describe('a non-streaming request through the real client', () => {
     const before = await balanceOf(fixture.accountId);
 
     await withEdge(servesCompletely(fixture.provider), async ({ stub, request }) => {
-      const response = await request(
-        'POST',
-        '/v1/responses',
-        responsesBody(fixture),
-        { ...bearer(fixture.token), 'X-Oxy-User-Id': 'end-user-7' }
-      );
+      const response = await request('POST', '/v1/responses', responsesBody(fixture), {
+        ...bearer(fixture.token),
+        'X-Oxy-User-Id': 'end-user-7',
+      });
 
       expect(response.status).toBe(200);
       const body = JSON.parse(response.body) as Record<string, unknown>;
@@ -1256,7 +1258,7 @@ describe('a non-streaming request through the real client', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(chat.status).toBe(200);
         const body = JSON.parse(chat.body) as Record<string, unknown>;
@@ -1275,13 +1277,13 @@ describe('a non-streaming request through the real client', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(responses.status).toBe(200);
         const native = JSON.parse(responses.body) as Record<string, unknown>;
         expect(native.finishReason).toBe('length');
         expect(native.output).toEqual([{ role: 'assistant', content: [] }]);
-      }
+      },
     );
   });
 
@@ -1294,7 +1296,7 @@ describe('a non-streaming request through the real client', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
       const body = JSON.parse(response.body) as Record<string, unknown>;
@@ -1348,7 +1350,7 @@ describe('a non-streaming request through the real client', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         // The data plane's own code, at the status the edge maps it to.
@@ -1357,7 +1359,7 @@ describe('a non-streaming request through the real client', () => {
         expect(body.code).toBe('provider_overloaded');
         // The request id is preserved end to end: header, body, and the ledger.
         expect(body.requestId).toBe(response.headers['x-oxy-request-id']);
-      }
+      },
     );
 
     // Settled from the report that DID arrive rather than refunded whole.
@@ -1388,14 +1390,14 @@ describe('a non-streaming request through the real client', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(502);
         expect(JSON.parse(response.body)).toMatchObject({
           code: 'provider_error',
           retryable: true,
         });
-      }
+      },
     );
 
     // EXACTLY the in-stream units, not zero and not the ceiling.
@@ -1405,7 +1407,7 @@ describe('a non-streaming request through the real client', () => {
     expect(receipts[0].outputTokens).toBe(7);
     expect(Number(receipts[0].billedAmount)).toBeCloseTo(
       100 * INPUT_PRICE_PER_TOKEN + 7 * OUTPUT_PRICE_PER_TOKEN,
-      9
+      9,
     );
     expect(Number((await balanceOf(fixture.accountId)).reserved)).toBe(0);
   });
@@ -1427,11 +1429,11 @@ describe('a non-streaming request through the real client', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(500);
         expect(JSON.parse(response.body)).toMatchObject({ code: 'internal_error' });
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1491,7 +1493,7 @@ describe('POST /v1/responses with stream: true', () => {
           bearer(fixture.token),
           (frame) => {
             if (frame.name === 'delta') observedFirstDelta.resolve(1);
-          }
+          },
         );
 
         expect(response.status).toBe(200);
@@ -1522,10 +1524,10 @@ describe('POST /v1/responses with stream: true', () => {
         // Each frame is the contract shape a non-streaming caller would have got
         // inside the response, with its own monotonic sequence.
         const sequences = response.frames.map(
-          (frame) => (JSON.parse(frame.data) as { sequence: number }).sequence
+          (frame) => (JSON.parse(frame.data) as { sequence: number }).sequence,
         );
         expect(sequences).toEqual([0, 1, 2, 3, 4]);
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1542,7 +1544,7 @@ describe('POST /v1/responses with stream: true', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture, { stream: true }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
       expect(stub.received[0].stream).toBe(true);
@@ -1567,13 +1569,13 @@ describe('POST /v1/responses with stream: true', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         // Frames were already delivered, so an invalid terminal metering record
         // cannot retract the 200. It can and must prevent a charge.
         expect(response.status).toBe(200);
         expect(response.frames.some((frame) => frame.name === 'usage')).toBe(true);
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1605,12 +1607,12 @@ describe('POST /v1/responses with stream: true', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         expect(response.frames.some((frame) => frame.name === 'usage')).toBe(true);
         expect(response.frames.some((frame) => frame.name === 'error')).toBe(true);
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1653,7 +1655,7 @@ describe('POST /v1/responses with stream: true', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1664,7 +1666,7 @@ describe('POST /v1/responses with stream: true', () => {
           reason: 'provider_overloaded',
           detail: { scope: 'deployment', toProvider: fixture.provider },
         });
-      }
+      },
     );
   });
 
@@ -1684,7 +1686,7 @@ describe('POST /v1/responses with stream: true', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         // 200 was already sent with the first frame, so the failure can only
@@ -1697,7 +1699,7 @@ describe('POST /v1/responses with stream: true', () => {
           type: 'error',
           error: { code: 'provider_timeout', requestId: response.headers['x-oxy-request-id'] },
         });
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1713,7 +1715,7 @@ describe('POST /v1/responses with stream: true', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture, { stream: true, model: 'nobody/nothing' }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       // Not an SSE error frame: nothing had been written, so the customer gets
@@ -1753,7 +1755,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1775,7 +1777,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
         expect(response.body).not.toContain('thinking about it');
 
         const finished = chunks.flatMap(
-          (chunk) => (chunk.choices as { finish_reason?: string | null }[]) ?? []
+          (chunk) => (chunk.choices as { finish_reason?: string | null }[]) ?? [],
         );
         expect(finished.some((choice) => choice.finish_reason === 'stop')).toBe(true);
 
@@ -1786,7 +1788,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
           choices: [],
           usage: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300 },
         });
-      }
+      },
     );
 
     const receipts = await receiptsOf(fixture.accountId);
@@ -1811,16 +1813,14 @@ describe('POST /v1/chat/completions with stream: true', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
         expect(response.frames[response.frames.length - 1].data).toBe('[DONE]');
         expect(response.body).not.toContain('greeting in Spanish');
         const chunks = chunksOf(response);
-        const withChoices = chunks.filter(
-          (chunk) => (chunk.choices as unknown[]).length > 0
-        );
+        const withChoices = chunks.filter((chunk) => (chunk.choices as unknown[]).length > 0);
         // The role chunk opens choice 0 and the last chunk with a choice closes
         // it: a stock client sees one choice that finished on `length`.
         expect(withChoices[0]).toMatchObject({
@@ -1829,7 +1829,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
         expect(withChoices[withChoices.length - 1]).toMatchObject({
           choices: [{ index: 0, delta: {}, finish_reason: 'length' }],
         });
-      }
+      },
     );
   });
 
@@ -1851,12 +1851,12 @@ describe('POST /v1/chat/completions with stream: true', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
         const switchChunk = chunksOf(response).find(
-          (chunk) => chunk.oxy_route_switch !== undefined
+          (chunk) => chunk.oxy_route_switch !== undefined,
         );
         // Chunk-shaped, so a stock parser reads it as a chunk with no choices and
         // ignores the extension — while an Oxy-aware client reads the switch.
@@ -1865,7 +1865,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
           choices: [],
           oxy_route_switch: { reason: 'provider_overloaded' },
         });
-      }
+      },
     );
   });
 
@@ -1887,7 +1887,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1896,7 +1896,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
             (chunk) =>
               (chunk.choices as {
                 delta?: { tool_calls?: { index: number; function?: { arguments?: string } }[] };
-              }[]) ?? []
+              }[]) ?? [],
           )
           .flatMap((choice) => choice.delta?.tool_calls ?? []);
 
@@ -1905,9 +1905,9 @@ describe('POST /v1/chat/completions with stream: true', () => {
         // client concatenate them into one set of arguments.
         expect(toolDeltas.every((call) => call.index === 0)).toBe(true);
         expect(toolDeltas.map((call) => call.function?.arguments ?? '').join('')).toBe(
-          '{"q":"oxy"}'
+          '{"q":"oxy"}',
         );
-      }
+      },
     );
   });
 
@@ -1927,7 +1927,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1938,7 +1938,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
         expect(errorFrame).toMatchObject({
           error: { code: 'provider_error', type: 'api_error' },
         });
-      }
+      },
     );
   });
 });
@@ -1990,7 +1990,7 @@ describe('a client that disconnects mid-stream', () => {
             // holding the usage event proves the edge already recorded its units.
             // Cancelling on the delta would race the frame the settlement needs.
             if (frame.name === 'usage') clientRequest.destroy();
-          }
+          },
         );
 
         expect(response.frames.some((frame) => frame.name === 'delta')).toBe(true);
@@ -2000,7 +2000,7 @@ describe('a client that disconnects mid-stream', () => {
         // upstream generating.
         expect(await abortSeen.promise).toBe(true);
         expect(stub.aborted).toBeGreaterThan(0);
-      }
+      },
     );
 
     // Settled AFTER the client was gone, which is the only reason this has to be
@@ -2012,7 +2012,7 @@ describe('a client that disconnects mid-stream', () => {
     expect(receipts[0].outputTokens).toBe(7);
     expect(Number(receipts[0].billedAmount)).toBeCloseTo(
       100 * INPUT_PRICE_PER_TOKEN + 7 * OUTPUT_PRICE_PER_TOKEN,
-      9
+      9,
     );
 
     // Exactly one hold, settled — not still held, and not settled twice.
@@ -2027,7 +2027,7 @@ describe('a client that disconnects mid-stream', () => {
     expect(Number(after.reserved)).toBe(0);
     expect(Number(before.purchased) - Number(after.purchased)).toBeCloseTo(
       100 * INPUT_PRICE_PER_TOKEN + 7 * OUTPUT_PRICE_PER_TOKEN,
-      9
+      9,
     );
   });
 });
@@ -2039,7 +2039,7 @@ describe('a client that disconnects mid-stream', () => {
 describe('an unconfigured deployment', () => {
   /** The edge with NO client, which is what every deployment has today. */
   async function withUnconfiguredEdge(
-    run: (request: EdgeHarness['request']) => Promise<void>
+    run: (request: EdgeHarness['request']) => Promise<void>,
   ): Promise<void> {
     const app = express();
     app.use(express.json({ limit: '1mb' }));
@@ -2069,7 +2069,7 @@ describe('an unconfigured deployment', () => {
         'POST',
         '/v1/responses',
         responsesBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(503);
       expect(JSON.parse(response.body)).toMatchObject({
@@ -2092,7 +2092,7 @@ describe('an unconfigured deployment', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture, { stream: true }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(503);
       expect(JSON.parse(response.body)).toMatchObject({
@@ -2139,7 +2139,7 @@ describe('the streaming path’s logs', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true, input: promptMarker }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(served.status).toBe(200);
         expect(served.body).toContain(outputMarker);
@@ -2150,10 +2150,10 @@ describe('the streaming path’s logs', () => {
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true, model: 'nobody/nothing', input: promptMarker }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(refused.status).toBe(404);
-      }
+      },
     );
 
     const calls = [
@@ -2241,7 +2241,7 @@ describe('a streaming request is refused by the privacy review gate, before the 
           'POST',
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(403);
@@ -2264,7 +2264,7 @@ describe('a streaming request is refused by the privacy review gate, before the 
           'POST',
           '/v1/chat/completions',
           chatBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(403);
@@ -2286,7 +2286,7 @@ describe('a streaming request is refused by the privacy review gate, before the 
         'POST',
         '/v1/responses',
         responsesBody(fixture, { stream: true }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       expect(response.status).toBe(200);
@@ -2296,47 +2296,76 @@ describe('a streaming request is refused by the privacy review gate, before the 
   });
 });
 
-
 describe('speech through the signed edge and ledger', () => {
   it('preserves speech metadata, reassembles padded binary chunks and settles characters exactly', async () => {
     const fixture = await makeFixture(true);
     const chunks = [Buffer.from([73, 68, 51, 255]), Buffer.from([0, 128, 1, 4, 255])];
     const units: UsageQuantity[] = [{ unit: 'characters', quantity: 7 }];
-    await withEdge(async (context) => {
-      expect(context.envelope.modality).toBe('audio');
-      expect(context.envelope.maxOutputTokens).toBeUndefined();
-      expect(context.envelope.speech).toEqual({ voice: 'female', responseFormat: 'mp3', speed: 1.15 });
-      expect(context.envelope.input).toEqual({ format: 'text', text: 'Hola 👋' });
-      const emit = emitter(context, fixture.provider);
-      emit.start();
-      for (const chunk of chunks) emit.audio(chunk.toString('base64'));
-      emit.usage(units); emit.done(); emit.report(units, 'completed');
-    }, async ({ request }) => {
-      const response = await request('POST', '/v1/audio/speech', {
-        model: fixture.modelReference, input: 'Hola 👋', voice: 'female', speed: 1.15,
-      }, bearer(fixture.token));
-      expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
-      expect(response.bytes).toEqual(Buffer.concat(chunks));
-    });
+    await withEdge(
+      async (context) => {
+        expect(context.envelope.modality).toBe('audio');
+        expect(context.envelope.maxOutputTokens).toBeUndefined();
+        expect(context.envelope.speech).toEqual({
+          voice: 'female',
+          responseFormat: 'mp3',
+          speed: 1.15,
+        });
+        expect(context.envelope.input).toEqual({ format: 'text', text: 'Hola 👋' });
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        for (const chunk of chunks) emit.audio(chunk.toString('base64'));
+        emit.usage(units);
+        emit.done();
+        emit.report(units, 'completed');
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/audio/speech',
+          {
+            model: fixture.modelReference,
+            input: 'Hola 👋',
+            voice: 'female',
+            speed: 1.15,
+          },
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
+        expect(response.bytes).toEqual(Buffer.concat(chunks));
+      },
+    );
     const receipts = await receiptsOf(fixture.accountId);
     expect(receipts).toHaveLength(1);
     expect(receipts[0].outcome).toBe('completed');
-    expect(Number(receipts[0].billedAmount)).toBeCloseTo(7 * 15 / 1_000_000, 9);
+    expect(Number(receipts[0].billedAmount)).toBeCloseTo((7 * 15) / 1_000_000, 9);
   });
   it('refuses a stream that changes audio encoding instead of returning corrupt bytes', async () => {
     const fixture = await makeFixture(true);
-    await withEdge(async (context) => {
-      const emit = emitter(context, fixture.provider); emit.start();
-      emit.audio('SUQz'); emit.audio('SUQz', 'audio/wav');
-      emit.done(); emit.report([{ unit: 'characters', quantity: 4 }], 'completed');
-    }, async ({ request }) => {
-      const response = await request('POST', '/v1/audio/speech', {
-        model: fixture.modelReference, input: 'Hola', voice: 'female',
-      }, bearer(fixture.token));
-      expect(response.status).toBeGreaterThanOrEqual(500);
-      expect(response.headers['content-type']).toMatch(/json/);
-    });
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        emit.audio('SUQz');
+        emit.audio('SUQz', 'audio/wav');
+        emit.done();
+        emit.report([{ unit: 'characters', quantity: 4 }], 'completed');
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/audio/speech',
+          {
+            model: fixture.modelReference,
+            input: 'Hola',
+            voice: 'female',
+          },
+          bearer(fixture.token),
+        );
+        expect(response.status).toBeGreaterThanOrEqual(500);
+        expect(response.headers['content-type']).toMatch(/json/);
+      },
+    );
     const receipts = await receiptsOf(fixture.accountId);
     expect(receipts).toHaveLength(1);
     expect(Number(receipts[0].billedAmount)).toBe(0);
@@ -2396,9 +2425,9 @@ describe('the reviewed speech catalogue through the signed edge and ledger', () 
         effectiveFrom: new Date(provider.priceEffectiveFrom!),
       })
       .returning({ id: priceVersions.id });
-    await db.insert(priceVersionUnitPrices).values(
-      provider.unitPrices.map((unitPrice) => ({ priceVersionId: price.id, ...unitPrice }))
-    );
+    await db
+      .insert(priceVersionUnitPrices)
+      .values(provider.unitPrices.map((unitPrice) => ({ priceVersionId: price.id, ...unitPrice })));
     await db.insert(inferenceDeployments).values({
       modelRevisionId: revision.id,
       providerSlug: provider.slug,
@@ -2492,31 +2521,45 @@ describe('the reviewed speech catalogue through the signed edge and ledger', () 
 
   it('resolves the exact speech profile to the one xAI route and settles characters at $15 per million', async () => {
     const { accountId, token } = fixture!;
-    await withEdge(async (context) => {
-      expect(context.envelope.target).toEqual({
-        kind: 'routing_profile_id',
-        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
-      });
-      expect(context.envelope.modality).toBe('audio');
-      expect(context.envelope.speech).toEqual({ voice: 'male', responseFormat: 'mp3' });
-      expect(
-        context.envelope.authorizedRoutes.map((route) => [route.deploymentId, route.provider, route.modelReference])
-      ).toEqual([[provider.deploymentId, 'xai', catalogue.modelReference]]);
-      const emit = emitter(context, 'xai');
-      emit.start();
-      emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
-      const units: UsageQuantity[] = [{ unit: 'characters', quantity: 7 }];
-      emit.usage(units); emit.done(); emit.report(units, 'completed');
-    }, async ({ request }) => {
-      const response = await request('POST', '/v1/audio/speech', {
-        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
-        input: 'Hola 👋',
-        voice: 'male',
-        response_format: 'mp3',
-      }, bearer(token));
-      expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
-    });
+    await withEdge(
+      async (context) => {
+        expect(context.envelope.target).toEqual({
+          kind: 'routing_profile_id',
+          routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+        });
+        expect(context.envelope.modality).toBe('audio');
+        expect(context.envelope.speech).toEqual({ voice: 'male', responseFormat: 'mp3' });
+        expect(
+          context.envelope.authorizedRoutes.map((route) => [
+            route.deploymentId,
+            route.provider,
+            route.modelReference,
+          ]),
+        ).toEqual([[provider.deploymentId, 'xai', catalogue.modelReference]]);
+        const emit = emitter(context, 'xai');
+        emit.start();
+        emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
+        const units: UsageQuantity[] = [{ unit: 'characters', quantity: 7 }];
+        emit.usage(units);
+        emit.done();
+        emit.report(units, 'completed');
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/audio/speech',
+          {
+            routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+            input: 'Hola 👋',
+            voice: 'male',
+            response_format: 'mp3',
+          },
+          bearer(token),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers['content-type']).toMatch(/^audio\/mpeg/);
+      },
+    );
     const receipts = await waitForReceipt(accountId);
     expect(receipts).toHaveLength(1);
     expect(receipts[0].outcome).toBe('completed');
@@ -2525,31 +2568,46 @@ describe('the reviewed speech catalogue through the signed edge and ledger', () 
 
   it('admits the 15,000 characters Kaana serves and refuses one more before the data plane', async () => {
     const { token } = fixture!;
-    await withEdge(async (context) => {
-      const emit = emitter(context, 'xai');
-      emit.start();
-      emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
-      const units: UsageQuantity[] = [{ unit: 'characters', quantity: 15_000 }];
-      emit.usage(units); emit.done(); emit.report(units, 'completed');
-    }, async ({ request, stub }) => {
-      const admitted = await request('POST', '/v1/audio/speech', {
-        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
-        input: 'a'.repeat(15_000),
-        voice: 'female',
-        response_format: 'mp3',
-      }, bearer(token));
-      expect(admitted.status).toBe(200);
-      const forwarded = stub.received.length;
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, 'xai');
+        emit.start();
+        emit.audio(Buffer.from([73, 68, 51, 4]).toString('base64'));
+        const units: UsageQuantity[] = [{ unit: 'characters', quantity: 15_000 }];
+        emit.usage(units);
+        emit.done();
+        emit.report(units, 'completed');
+      },
+      async ({ request, stub }) => {
+        const admitted = await request(
+          'POST',
+          '/v1/audio/speech',
+          {
+            routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+            input: 'a'.repeat(15_000),
+            voice: 'female',
+            response_format: 'mp3',
+          },
+          bearer(token),
+        );
+        expect(admitted.status).toBe(200);
+        const forwarded = stub.received.length;
 
-      const refused = await request('POST', '/v1/audio/speech', {
-        routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
-        input: 'a'.repeat(15_001),
-        voice: 'female',
-        response_format: 'mp3',
-      }, bearer(token));
-      expect(refused.status).toBe(400);
-      expect(JSON.parse(refused.body)).toMatchObject({ code: 'context_length_exceeded' });
-      expect(stub.received).toHaveLength(forwarded);
-    });
+        const refused = await request(
+          'POST',
+          '/v1/audio/speech',
+          {
+            routingProfileId: KAANA_SPEECH_ROUTING_PROFILE_ID,
+            input: 'a'.repeat(15_001),
+            voice: 'female',
+            response_format: 'mp3',
+          },
+          bearer(token),
+        );
+        expect(refused.status).toBe(400);
+        expect(JSON.parse(refused.body)).toMatchObject({ code: 'context_length_exceeded' });
+        expect(stub.received).toHaveLength(forwarded);
+      },
+    );
   });
 });

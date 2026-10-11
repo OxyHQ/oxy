@@ -9,10 +9,12 @@ const mockFinalizeEffect = jest.fn();
 jest.mock('../inbox.tools', () => {
   const { INBOX_CAPABILITY_CATALOG } = jest.requireActual('../inbox.catalog');
   return {
-    INBOX_TOOLS: Object.fromEntries(INBOX_CAPABILITY_CATALOG.tools.map((tool: { name: string }) => [
-      tool.name,
-      (input: unknown, context: unknown) => mockToolRun(tool.name, input, context),
-    ])),
+    INBOX_TOOLS: Object.fromEntries(
+      INBOX_CAPABILITY_CATALOG.tools.map((tool: { name: string }) => [
+        tool.name,
+        (input: unknown, context: unknown) => mockToolRun(tool.name, input, context),
+      ]),
+    ),
   };
 });
 jest.mock('../../services/capabilityRuntimeStore.service', () => ({
@@ -77,53 +79,71 @@ describe('Inbox MCP adapter', () => {
 
   it('binds a read to the OAuth-selected member account with no mailbox scope', async () => {
     mockToolRun.mockResolvedValue({ data: { id: 'email-2' } });
-    await expect(INBOX_MCP_HANDLERS.readEmail?.({ emailId: 'email-2' }, context('readEmail', 'account-2')))
-      .resolves.toEqual({ structuredContent: { data: { id: 'email-2' } } });
-    expect(mockToolRun).toHaveBeenCalledWith('readEmail', { emailId: 'email-2' }, { accountId: 'account-2' });
+    await expect(
+      INBOX_MCP_HANDLERS.readEmail?.({ emailId: 'email-2' }, context('readEmail', 'account-2')),
+    ).resolves.toEqual({ structuredContent: { data: { id: 'email-2' } } });
+    expect(mockToolRun).toHaveBeenCalledWith(
+      'readEmail',
+      { emailId: 'email-2' },
+      { accountId: 'account-2' },
+    );
     expect(mockReserveEffect).not.toHaveBeenCalled();
   });
 
   it('reserves the key, strips it from the tool input and passes it as context', async () => {
-    await expect(INBOX_MCP_HANDLERS.sendEmail?.(
-      { to: [{ address: 'person@example.com' }], text: 'Hi', idempotencyKey: 'client-key-1' },
-      context('sendEmail'),
-    )).resolves.toEqual({ structuredContent: { data: { ok: true } } });
+    await expect(
+      INBOX_MCP_HANDLERS.sendEmail?.(
+        { to: [{ address: 'person@example.com' }], text: 'Hi', idempotencyKey: 'client-key-1' },
+        context('sendEmail'),
+      ),
+    ).resolves.toEqual({ structuredContent: { data: { ok: true } } });
 
-    expect(mockReserveEffect).toHaveBeenCalledWith(expect.objectContaining({
-      effectiveAccountId: 'account-1',
-      appSlug: 'inbox',
-      tool: 'sendEmail',
-      authorizationId: 'mcp:client-1',
-      keyHash: expect.stringMatching(/^[0-9a-f]{64}$/),
-    }));
+    expect(mockReserveEffect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effectiveAccountId: 'account-1',
+        appSlug: 'inbox',
+        tool: 'sendEmail',
+        authorizationId: 'mcp:client-1',
+        keyHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      }),
+    );
     expect(mockToolRun).toHaveBeenCalledWith(
       'sendEmail',
       { to: [{ address: 'person@example.com' }], text: 'Hi' },
       { accountId: 'account-1', idempotencyKey: 'client-key-1' },
     );
-    expect(mockFinalizeEffect).toHaveBeenCalledWith(expect.objectContaining({ tool: 'sendEmail', statusCode: 200 }));
+    expect(mockFinalizeEffect).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'sendEmail', statusCode: 200 }),
+    );
   });
 
   it('refuses an effect without a key, and a reused key before executing', async () => {
-    await expect(INBOX_MCP_HANDLERS.trashEmail?.({ emailId: 'email-1' }, context('trashEmail')))
-      .rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      INBOX_MCP_HANDLERS.trashEmail?.({ emailId: 'email-1' }, context('trashEmail')),
+    ).rejects.toMatchObject({ statusCode: 400 });
 
     mockReserveEffect.mockResolvedValue(false);
-    await expect(INBOX_MCP_HANDLERS.moveEmail?.(
-      { emailId: 'email-1', mailbox: 'archive', idempotencyKey: 'used' },
-      context('moveEmail'),
-    )).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      INBOX_MCP_HANDLERS.moveEmail?.(
+        { emailId: 'email-1', mailbox: 'archive', idempotencyKey: 'used' },
+        context('moveEmail'),
+      ),
+    ).rejects.toMatchObject({ statusCode: 409 });
     expect(mockToolRun).not.toHaveBeenCalled();
     expect(mockFinalizeEffect).not.toHaveBeenCalled();
   });
 
   it('records a failed effect with its status before rethrowing', async () => {
     mockToolRun.mockRejectedValueOnce(Object.assign(new Error('gone'), { statusCode: 404 }));
-    await expect(INBOX_MCP_HANDLERS.archiveEmail?.(
-      { emailId: 'email-1', idempotencyKey: 'k' },
-      context('archiveEmail'),
-    )).rejects.toThrow('gone');
+    await expect(
+      INBOX_MCP_HANDLERS.archiveEmail?.(
+        { emailId: 'email-1', idempotencyKey: 'k' },
+        context('archiveEmail'),
+      ),
+    ).rejects.toThrow('gone');
     // A plain Error carries no ApiError status, so it settles as a 500.
-    expect(mockFinalizeEffect).toHaveBeenCalledWith(expect.objectContaining({ tool: 'archiveEmail', statusCode: 500 }));
+    expect(mockFinalizeEffect).toHaveBeenCalledWith(
+      expect.objectContaining({ tool: 'archiveEmail', statusCode: 500 }),
+    );
   });
 });

@@ -38,7 +38,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: actingUserId, id: actingUserId };
     next();
@@ -118,7 +118,7 @@ function get(path: string): Promise<JsonResponse> {
             body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();

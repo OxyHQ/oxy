@@ -5,8 +5,8 @@
  * on: the ordinal that keeps an update's asset list byte-stable, the generated
  * S3 key that cannot disagree with its content address, the `RESTRICT` that
  * stops referenced bytes from being deleted, the `extra.expoClient` CHECK that
- * replaces a bypassable Mongoose validator, and the child table that replaced an
- * array Mongo addressed by inner field.
+ * no write path can bypass, and the rollback child table keyed by
+ * (channel, runtime, platform).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -19,11 +19,7 @@ import {
 import { applications } from '../applications';
 import { appUpdateAssets } from '../appUpdateAssets';
 import { APP_UPDATE_STATUSES, appUpdates } from '../appUpdates';
-import {
-  UPDATE_ASSET_KEY_PREFIX,
-  UPDATE_ASSET_STATUSES,
-  updateAssets,
-} from '../updateAssets';
+import { UPDATE_ASSET_KEY_PREFIX, UPDATE_ASSET_STATUSES, updateAssets } from '../updateAssets';
 import { updateChannelRollbacks } from '../updateChannelRollbacks';
 import { UPDATE_PLATFORMS, updateChannels } from '../updateChannels';
 import { users } from '../users';
@@ -71,10 +67,7 @@ function sha256Hex(): string {
 
 /** A real `applications` row with its own owning account. */
 async function application(): Promise<string> {
-  const [owner] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const [row] = await getDb()
     .insert(applications)
     .values({ name: `OTA ${randomUUID()}`, ownerAccountId: owner.id })
@@ -83,7 +76,10 @@ async function application(): Promise<string> {
 }
 
 /** A real `update_channels` row. */
-async function channel(applicationId: string, name = `production-${randomUUID()}`): Promise<string> {
+async function channel(
+  applicationId: string,
+  name = `production-${randomUUID()}`,
+): Promise<string> {
   const [row] = await getDb()
     .insert(updateChannels)
     .values({ applicationId, name })
@@ -106,7 +102,7 @@ async function uploadedAsset(sha256 = sha256Hex()): Promise<string> {
 async function publishedUpdate(
   applicationId: string,
   channelId: string,
-  launchAssetSha256: string
+  launchAssetSha256: string,
 ): Promise<{ id: string; updateId: string }> {
   const [row] = await getDb()
     .insert(appUpdates)
@@ -127,14 +123,9 @@ async function publishedUpdate(
 describe('update_assets — the generated S3 key', () => {
   it('derives the key from the content address', async () => {
     const sha256 = sha256Hex();
-    await getDb()
-      .insert(updateAssets)
-      .values({ sha256, contentType: 'image/png', size: 42 });
+    await getDb().insert(updateAssets).values({ sha256, contentType: 'image/png', size: 42 });
 
-    const [row] = await getDb()
-      .select()
-      .from(updateAssets)
-      .where(eq(updateAssets.sha256, sha256));
+    const [row] = await getDb().select().from(updateAssets).where(eq(updateAssets.sha256, sha256));
 
     // Byte-for-byte what the publish and manifest services compute.
     expect(row.s3Key).toBe(updateAssetS3Key(sha256));
@@ -145,12 +136,12 @@ describe('update_assets — the generated S3 key', () => {
 
   it('refuses to let any write path supply its own key', async () => {
     // A generated column is not writable at all — which is the whole point over
-    // a Mongoose hook, since a backfill or a `psql` session bypasses a hook.
+    // an application-side hook, since a backfill or a `psql` session bypasses a hook.
     const error = await rejection(
       getDb().execute(sql`
         insert into update_assets (id, sha256, s3_key, content_type, size)
         values (${randomUUID()}, ${sha256Hex()}, 'public/elsewhere/evil', 'image/png', 1)
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(GENERATED_ALWAYS);
   });
@@ -159,7 +150,7 @@ describe('update_assets — the generated S3 key', () => {
     const error = await rejection(
       getDb()
         .insert(updateAssets)
-        .values({ sha256: sha256Hex().toUpperCase(), contentType: 'image/png', size: 1 })
+        .values({ sha256: sha256Hex().toUpperCase(), contentType: 'image/png', size: 1 }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -188,13 +179,13 @@ describe('app_updates — the manifest', () => {
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
 
     // expo-updates PARSES the manifest id as a UUID. The row's own id is a uuid
     // v7 per CONVENTIONS.md; these are deliberately two different columns.
     expect(update.updateId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(update.id).not.toBe(update.updateId);
   });
@@ -217,7 +208,7 @@ describe('app_updates — the manifest', () => {
           launchAssetKey: 'bundle',
           launchAssetContentType: 'application/javascript',
           extra: { expoClient: {} },
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -239,19 +230,25 @@ describe('app_updates — the manifest', () => {
     // Absent: the client's `Constants.expoConfig` would not resolve after the
     // update, so this manifest breaks every device it reaches.
     const missing = await rejection(
-      getDb().insert(appUpdates).values({ ...base, extra: { runtimeVersion: '1.0.0' } })
+      getDb()
+        .insert(appUpdates)
+        .values({ ...base, extra: { runtimeVersion: '1.0.0' } }),
     );
     expect(pgErrorCode(missing)).toBe(CHECK_VIOLATION);
 
-    // Present but null — the case the Mongoose validator singled out.
+    // Present but null — the case an application-side check would miss.
     const nulled = await rejection(
-      getDb().insert(appUpdates).values({ ...base, extra: { expoClient: null } })
+      getDb()
+        .insert(appUpdates)
+        .values({ ...base, extra: { expoClient: null } }),
     );
     expect(pgErrorCode(nulled)).toBe(CHECK_VIOLATION);
 
     // Present but a scalar.
     const scalar = await rejection(
-      getDb().insert(appUpdates).values({ ...base, extra: { expoClient: 'commons' } })
+      getDb()
+        .insert(appUpdates)
+        .values({ ...base, extra: { expoClient: 'commons' } }),
     );
     expect(pgErrorCode(scalar)).toBe(CHECK_VIOLATION);
   });
@@ -261,7 +258,7 @@ describe('app_updates — the manifest', () => {
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
     const [row] = await getDb()
       .select({ metadata: appUpdates.metadata, rolloutPercent: appUpdates.rolloutPercent })
@@ -274,7 +271,7 @@ describe('app_updates — the manifest', () => {
     const error = await rejection(
       getDb().execute(sql`
         update app_updates set metadata = '[]'::jsonb where id = ${update.id}
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -284,11 +281,11 @@ describe('app_updates — the manifest', () => {
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
 
     const error = await rejection(
-      getDb().update(appUpdates).set({ rolloutPercent: 101 }).where(eq(appUpdates.id, update.id))
+      getDb().update(appUpdates).set({ rolloutPercent: 101 }).where(eq(appUpdates.id, update.id)),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -310,7 +307,7 @@ describe('app_updates — the manifest', () => {
           launchAssetKey: 'bundle',
           launchAssetContentType: 'application/javascript',
           extra: { expoClient: {} },
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -321,7 +318,7 @@ describe('app_updates — the manifest', () => {
     const source = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      launchAssetSha256
+      launchAssetSha256,
     );
 
     const [promoted] = await getDb()
@@ -356,7 +353,7 @@ describe('app_updates — the manifest', () => {
           launchAssetContentType: 'application/javascript',
           extra: { expoClient: {} },
           promotedFromUpdateId: randomUUID(),
-        })
+        }),
     );
     expect(pgErrorCode(dangling)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -368,18 +365,20 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
 
     const shas = [await uploadedAsset(), await uploadedAsset(), await uploadedAsset()];
     // Inserted out of order on purpose: without an explicit ordinal the read
     // below would be free to return them in insertion or physical order, and a
     // reordered `assets` array changes the SIGNED manifest bytes.
-    await getDb().insert(appUpdateAssets).values([
-      { appUpdateId: update.id, ordinal: 2, sha256: shas[2], key: 'c', contentType: 'image/png' },
-      { appUpdateId: update.id, ordinal: 0, sha256: shas[0], key: 'a', contentType: 'image/png' },
-      { appUpdateId: update.id, ordinal: 1, sha256: shas[1], key: 'b', contentType: 'image/png' },
-    ]);
+    await getDb()
+      .insert(appUpdateAssets)
+      .values([
+        { appUpdateId: update.id, ordinal: 2, sha256: shas[2], key: 'c', contentType: 'image/png' },
+        { appUpdateId: update.id, ordinal: 0, sha256: shas[0], key: 'a', contentType: 'image/png' },
+        { appUpdateId: update.id, ordinal: 1, sha256: shas[1], key: 'b', contentType: 'image/png' },
+      ]);
 
     const rows = await getDb()
       .select({ ordinal: appUpdateAssets.ordinal, key: appUpdateAssets.key })
@@ -396,25 +395,29 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
 
-    await getDb().insert(appUpdateAssets).values({
-      appUpdateId: update.id,
-      ordinal: 0,
-      sha256: await uploadedAsset(),
-      key: 'a',
-      contentType: 'image/png',
-    });
-
-    const error = await rejection(
-      getDb().insert(appUpdateAssets).values({
+    await getDb()
+      .insert(appUpdateAssets)
+      .values({
         appUpdateId: update.id,
         ordinal: 0,
         sha256: await uploadedAsset(),
-        key: 'b',
+        key: 'a',
         contentType: 'image/png',
-      })
+      });
+
+    const error = await rejection(
+      getDb()
+        .insert(appUpdateAssets)
+        .values({
+          appUpdateId: update.id,
+          ordinal: 0,
+          sha256: await uploadedAsset(),
+          key: 'b',
+          contentType: 'image/png',
+        }),
     );
     // The composite primary key IS the position guarantee.
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -425,17 +428,19 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
 
     const error = await rejection(
-      getDb().insert(appUpdateAssets).values({
-        appUpdateId: update.id,
-        ordinal: -1,
-        sha256: await uploadedAsset(),
-        key: 'a',
-        contentType: 'image/png',
-      })
+      getDb()
+        .insert(appUpdateAssets)
+        .values({
+          appUpdateId: update.id,
+          ordinal: -1,
+          sha256: await uploadedAsset(),
+          key: 'a',
+          contentType: 'image/png',
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -445,7 +450,7 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
     const sha256 = await uploadedAsset();
     await getDb().insert(appUpdateAssets).values({
@@ -457,9 +462,9 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     });
 
     // A device may fetch any historical update's assets at any time, so the
-    // object must never disappear. `RESTRICT` says so; Mongo said nothing.
+    // object must never disappear. `RESTRICT` says so.
     const error = await rejection(
-      getDb().delete(updateAssets).where(eq(updateAssets.sha256, sha256))
+      getDb().delete(updateAssets).where(eq(updateAssets.sha256, sha256)),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -469,15 +474,17 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     const update = await publishedUpdate(
       applicationId,
       await channel(applicationId),
-      await uploadedAsset()
+      await uploadedAsset(),
     );
-    await getDb().insert(appUpdateAssets).values({
-      appUpdateId: update.id,
-      ordinal: 0,
-      sha256: await uploadedAsset(),
-      key: 'a',
-      contentType: 'image/png',
-    });
+    await getDb()
+      .insert(appUpdateAssets)
+      .values({
+        appUpdateId: update.id,
+        ordinal: 0,
+        sha256: await uploadedAsset(),
+        key: 'a',
+        contentType: 'image/png',
+      });
 
     await getDb().delete(appUpdates).where(eq(appUpdates.id, update.id));
 
@@ -490,20 +497,19 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
   });
 });
 
-describe('update_channel_rollbacks — the array Mongo addressed by inner field', () => {
+describe('update_channel_rollbacks — one row per rollback directive', () => {
   it('holds at most one active directive per (channel, runtime, platform)', async () => {
     const channelId = await channel(await application());
     await getDb()
       .insert(updateChannelRollbacks)
       .values({ channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime: new Date() });
 
-    // Mongo's `$pull` + `$push` is a two-statement upsert with a crash window
-    // between them, and two concurrent rollbacks could leave two entries for the
-    // same tuple. The composite primary key makes that unrepresentable.
+    // A pull-then-push upsert has a crash window between its two statements,
+    // and two concurrent rollbacks could leave two entries for the same tuple. The composite primary key makes that unrepresentable.
     const error = await rejection(
       getDb()
         .insert(updateChannelRollbacks)
-        .values({ channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime: new Date() })
+        .values({ channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime: new Date() }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -539,11 +545,13 @@ describe('update_channel_rollbacks — the array Mongo addressed by inner field'
   it('scopes a directive to one runtime and platform', async () => {
     const channelId = await channel(await application());
     const commitTime = new Date();
-    await getDb().insert(updateChannelRollbacks).values([
-      { channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime },
-      { channelId, runtimeVersion: '1.0.0', platform: 'android', commitTime },
-      { channelId, runtimeVersion: '2.0.0', platform: 'ios', commitTime },
-    ]);
+    await getDb()
+      .insert(updateChannelRollbacks)
+      .values([
+        { channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime },
+        { channelId, runtimeVersion: '1.0.0', platform: 'android', commitTime },
+        { channelId, runtimeVersion: '2.0.0', platform: 'ios', commitTime },
+      ]);
 
     // The manifest endpoint's lookup, as a real indexed predicate rather than a
     // scan of an embedded array.
@@ -553,7 +561,7 @@ describe('update_channel_rollbacks — the array Mongo addressed by inner field'
       .where(
         sql`${updateChannelRollbacks.channelId} = ${channelId}
           and ${updateChannelRollbacks.runtimeVersion} = '2.0.0'
-          and ${updateChannelRollbacks.platform} = 'ios'`
+          and ${updateChannelRollbacks.platform} = 'ios'`,
       );
 
     expect(found).toHaveLength(1);
@@ -565,7 +573,7 @@ describe('update_channel_rollbacks — the array Mongo addressed by inner field'
       getDb().execute(sql`
         insert into update_channel_rollbacks (channel_id, runtime_version, platform, commit_time)
         values (${channelId}, '1.0.0', 'web', now())
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -593,14 +601,14 @@ describe('update_channels', () => {
     const name = `production-${randomUUID()}`;
     await getDb().insert(updateChannels).values({ applicationId, name });
 
-    const error = await rejection(
-      getDb().insert(updateChannels).values({ applicationId, name })
-    );
+    const error = await rejection(getDb().insert(updateChannels).values({ applicationId, name }));
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     // The same name under a different application is a different channel.
     await expect(
-      getDb().insert(updateChannels).values({ applicationId: await application(), name })
+      getDb()
+        .insert(updateChannels)
+        .values({ applicationId: await application(), name }),
     ).resolves.toBeDefined();
   });
 });

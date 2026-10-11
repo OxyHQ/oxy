@@ -9,7 +9,10 @@ export type OxyProductEvent =
   | 'oxy_account_switched';
 
 export interface ProductAnalytics {
-  capture(event: OxyProductEvent, properties?: Readonly<Record<string, boolean | number | string>>): void;
+  capture(
+    event: OxyProductEvent,
+    properties?: Readonly<Record<string, boolean | number | string>>,
+  ): void;
   identify(distinctId: string): void;
   reset(): void;
 }
@@ -107,8 +110,5 @@ export function recordAuthStateChange(
   }
 
   identify(analytics, current.userId);
-  capture(
-    analytics,
-    previous.userId ? 'oxy_account_switched' : 'oxy_session_started',
-  );
+  capture(analytics, previous.userId ? 'oxy_account_switched' : 'oxy_session_started');
 }

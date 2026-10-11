@@ -103,7 +103,12 @@ export class UsersApi {
         try {
           const users = service
             ? await service.request<User[]>('POST', '/users/by-ids', { ids: chunk })
-            : await this.ctx.request<User[]>('POST', '/users/by-ids', { ids: chunk }, { cache: false });
+            : await this.ctx.request<User[]>(
+                'POST',
+                '/users/by-ids',
+                { ids: chunk },
+                { cache: false },
+              );
           return Array.isArray(users) ? users.map((user) => normalizeUserIdentity(user)) : [];
         } catch (error: unknown) {
           logger.warn('users.getMany: chunk failed, continuing with remaining chunks', {
@@ -121,27 +126,40 @@ export class UsersApi {
   }
 
   /** The signed-in user. Cached 1 minute. */
-  async me(options?: {cache?: boolean}): Promise<User> {
-    const user = await this.ctx.request<User>('GET', '/users/me', undefined, { cache: options?.cache ?? true, cacheTTL: ME_TTL });
+  async me(options?: { cache?: boolean }): Promise<User> {
+    const user = await this.ctx.request<User>('GET', '/users/me', undefined, {
+      cache: options?.cache ?? true,
+      cacheTTL: ME_TTL,
+    });
     return normalizeUserIdentity(user);
   }
 
   /** A profile by username. Cached 5 minutes; `{ cache: false }` as in `get`. */
   async byUsername(username: string, options?: { cache?: boolean }): Promise<User> {
-    const user = await this.ctx.request<User>('GET', `/profiles/username/${encodeURIComponent(username)}`, undefined, {
-      cache: options?.cache ?? true,
-      cacheTTL: PROFILE_TTL,
-    });
+    const user = await this.ctx.request<User>(
+      'GET',
+      `/profiles/username/${encodeURIComponent(username)}`,
+      undefined,
+      {
+        cache: options?.cache ?? true,
+        cacheTTL: PROFILE_TTL,
+      },
+    );
     return normalizeUserIdentity(user);
   }
 
   /** The user owning a public key. Public (pre-session): sends no bearer. */
   async byPublicKey(publicKey: string): Promise<User> {
-    const user = await this.ctx.request<User>('GET', `/auth/user/${encodeURIComponent(publicKey)}`, undefined, {
-      cache: true,
-      cacheTTL: SESSION_USER_TTL,
-      skipAuth: true,
-    });
+    const user = await this.ctx.request<User>(
+      'GET',
+      `/auth/user/${encodeURIComponent(publicKey)}`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SESSION_USER_TTL,
+        skipAuth: true,
+      },
+    );
     return normalizeUserIdentity(user);
   }
 
@@ -205,22 +223,32 @@ export class UsersApi {
    */
   async resolveHandle(handle: string): Promise<User | null> {
     try {
-      const result = await this.ctx.request<User | null>('GET', '/profiles/resolve', { handle }, {
-        cache: true,
-        cacheTTL: PROFILE_TTL,
-      });
+      const result = await this.ctx.request<User | null>(
+        'GET',
+        '/profiles/resolve',
+        { handle },
+        {
+          cache: true,
+          cacheTTL: PROFILE_TTL,
+        },
+      );
       return normalizeUserIdentityOrNull(result);
     } catch (error: unknown) {
       // A 404 (absent) and an upstream failure both return null; the log keeps
       // them distinguishable without turning expected misses into noise.
       const status = extractErrorStatus(error);
-      logger.debug(status === 404 ? 'users.resolveHandle: handle not found' : 'users.resolveHandle: discovery failed', {
-        method: 'users.resolveHandle',
-        handle,
-        status,
-        notFound: status === 404,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.debug(
+        status === 404
+          ? 'users.resolveHandle: handle not found'
+          : 'users.resolveHandle: discovery failed',
+        {
+          method: 'users.resolveHandle',
+          handle,
+          status,
+          notFound: status === 404,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return null;
     }
   }
@@ -236,11 +264,19 @@ export class UsersApi {
 
   /** Profiles similar to `userId`, by co-follower overlap. Cached 5 minutes. */
   async similar(userId: string, limitOrPagination?: number | PaginationParams): Promise<User[]> {
-    const pagination = typeof limitOrPagination === 'number' ? { limit: limitOrPagination } : limitOrPagination ?? {};
-    const users = await this.ctx.request<User[]>('GET', `/profiles/${userId}/similar`, buildQueryParams(pagination), {
-      cache: true,
-      cacheTTL: PROFILE_TTL,
-    });
+    const pagination =
+      typeof limitOrPagination === 'number'
+        ? { limit: limitOrPagination }
+        : (limitOrPagination ?? {});
+    const users = await this.ctx.request<User[]>(
+      'GET',
+      `/profiles/${userId}/similar`,
+      buildQueryParams(pagination),
+      {
+        cache: true,
+        cacheTTL: PROFILE_TTL,
+      },
+    );
     return users.map((user) => normalizeUserIdentity(user));
   }
 
@@ -266,7 +302,12 @@ export class UsersApi {
     try {
       if (scored && options) {
         const body = recommendationRequestSchema.parse(options);
-        return await this.ctx.request<RecommendationItem[]>('POST', '/profiles/recommendations', body, { cache: true });
+        return await this.ctx.request<RecommendationItem[]>(
+          'POST',
+          '/profiles/recommendations',
+          body,
+          { cache: true },
+        );
       }
       const params: Record<string, string> = {};
       if (options?.excludeTypes?.length) params.excludeTypes = options.excludeTypes.join(',');
@@ -306,7 +347,9 @@ export class UsersApi {
   async updateMe(updates: UserProfileUpdate): Promise<User> {
     let result: User;
     try {
-      result = normalizeUserIdentity(await this.ctx.request<User>('PUT', '/users/me', updates, { cache: false }));
+      result = normalizeUserIdentity(
+        await this.ctx.request<User>('PUT', '/users/me', updates, { cache: false }),
+      );
     } catch (error) {
       if (extractErrorStatus(error) === 401 && !this.ctx.oxy.session.isAuthenticated) {
         throw new Error('AUTH_REQUIRED_OFFLINE_SESSION: Session needs to be synced to get a token');
@@ -325,8 +368,16 @@ export class UsersApi {
   }
 
   /** Ask for the verified badge. */
-  async requestVerification(reason: string, evidence?: string): Promise<{ message: string; requestId: string }> {
-    return this.ctx.request('POST', '/users/verify/request', { reason, evidence }, { cache: false });
+  async requestVerification(
+    reason: string,
+    evidence?: string,
+  ): Promise<{ message: string; requestId: string }> {
+    return this.ctx.request(
+      'POST',
+      '/users/verify/request',
+      { reason, evidence },
+      { cache: false },
+    );
   }
 
   /**
@@ -335,7 +386,12 @@ export class UsersApi {
    */
   async deleteMe(confirmText: string, proof: DeleteAccountProof): Promise<{ message: string }> {
     if ('reauth' in proof) {
-      return this.ctx.request('DELETE', '/users/me', { confirmText, reauth: proof.reauth }, { cache: false });
+      return this.ctx.request(
+        'DELETE',
+        '/users/me',
+        { confirmText, reauth: proof.reauth },
+        { cache: false },
+      );
     }
 
     // Loaded on demand: only a Commons account deleting from its own device
@@ -343,14 +399,21 @@ export class UsersApi {
     const { KeyManager, SignatureService } = await import('../crypto/internal');
     const publicKey = await KeyManager.getPublicKey();
     if (!publicKey) {
-      throw new Error('No identity found on this device. Account deletion requires the device that holds your identity key.');
+      throw new Error(
+        'No identity found on this device. Account deletion requires the device that holds your identity key.',
+      );
     }
     const timestamp = Date.now();
     const signature = await SignatureService.sign(`delete:${publicKey}:${timestamp}`);
     return this.ctx.request(
       'DELETE',
       '/users/me',
-      { signature, timestamp, confirmText, ...(proof.totpCode ? { totpCode: proof.totpCode } : {}) },
+      {
+        signature,
+        timestamp,
+        confirmText,
+        ...(proof.totpCode ? { totpCode: proof.totpCode } : {}),
+      },
       { cache: false },
     );
   }

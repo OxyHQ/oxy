@@ -13,7 +13,10 @@ import type { AddressInfo } from 'net';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (_req: unknown, res: { status: (code: number) => { json: (body: unknown) => void } }) => {
+  authMiddleware: (
+    _req: unknown,
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+  ) => {
     res.status(401).json({ error: 'Authentication required' });
   },
   serviceAuthMiddleware: jest.fn(),
@@ -49,7 +52,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -63,7 +68,10 @@ async function mint(body: { deviceId: string; deviceSecret: string }, clientIp: 
     body: JSON.stringify(body),
   });
   const text = await response.text();
-  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, unknown> };
+  return {
+    status: response.status,
+    body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
+  };
 }
 
 describe('the device-token mint lockout', () => {
@@ -73,7 +81,9 @@ describe('the device-token mint lockout', () => {
     const browser = '198.51.100.20';
 
     const guesses = await Promise.all(
-      Array.from({ length: 40 }, () => mint({ deviceId: device.deviceId, deviceSecret: 'guessed-secret' }, stranger)),
+      Array.from({ length: 40 }, () =>
+        mint({ deviceId: device.deviceId, deviceSecret: 'guessed-secret' }, stranger),
+      ),
     );
     // Reserved atomically: at most 20 guesses are ever checked from one requester.
     expect(guesses.filter((guess) => guess.status === 401).length).toBeLessThanOrEqual(20);
@@ -90,7 +100,12 @@ describe('the device-token mint lockout', () => {
     const device = await deviceSessionService.registerDevice();
     for (let ip = 0; ip < 10; ip += 1) {
       await Promise.all(
-        Array.from({ length: 20 }, () => mint({ deviceId: device.deviceId, deviceSecret: 'guessed-secret' }, `203.0.113.${ip + 1}`)),
+        Array.from({ length: 20 }, () =>
+          mint(
+            { deviceId: device.deviceId, deviceSecret: 'guessed-secret' },
+            `203.0.113.${ip + 1}`,
+          ),
+        ),
       );
     }
     const own = await mint(device, '198.51.100.20');

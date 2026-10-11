@@ -62,8 +62,12 @@ describe('redirectSystemPath — card deep link', () => {
   it('sends a link QR scanned with the system camera to the link confirmation (ADR 0029 D3)', () => {
     const linkId = 'ab'.repeat(16);
     const challenge = 'cd'.repeat(32);
-    expect(redirect(`/link?id=${linkId}&c=${challenge}`)).toBe(`/link-account/confirm?id=${linkId}&c=${challenge}`);
-    expect(redirect(`oxycommons://link?id=${linkId}&c=${challenge}`)).toBe(`/link-account/confirm?id=${linkId}&c=${challenge}`);
+    expect(redirect(`/link?id=${linkId}&c=${challenge}`)).toBe(
+      `/link-account/confirm?id=${linkId}&c=${challenge}`,
+    );
+    expect(redirect(`oxycommons://link?id=${linkId}&c=${challenge}`)).toBe(
+      `/link-account/confirm?id=${linkId}&c=${challenge}`,
+    );
     // Anything that is not a whole link payload passes through.
     expect(redirect('/link?id=nope')).toBe('/link?id=nope');
   });

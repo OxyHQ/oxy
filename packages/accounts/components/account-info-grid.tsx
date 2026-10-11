@@ -27,7 +27,10 @@ export function AccountInfoGrid({ cards, onPressIn }: AccountInfoGridProps) {
       {cards.map((card) => (
         <TouchableOpacity
           key={card.id}
-          style={[styles.accountInfoCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[
+            styles.accountInfoCard,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
           onPressIn={onPressIn}
           onPress={card.onPress}
           activeOpacity={card.onPress ? 0.7 : 1}
@@ -37,11 +40,17 @@ export function AccountInfoGrid({ cards, onPressIn }: AccountInfoGridProps) {
           accessibilityState={{ disabled: !card.onPress }}
         >
           <View style={[styles.accountInfoIcon, { backgroundColor: card.iconColor }]}>
-            <MaterialCommunityIcons name={card.icon} size={20} color={darkenColor(card.iconColor)} />
+            <MaterialCommunityIcons
+              name={card.icon}
+              size={20}
+              color={darkenColor(card.iconColor)}
+            />
           </View>
           <View style={styles.spacer} />
           <View style={styles.textContainer}>
-            <Text style={[styles.accountInfoTitle, { color: colors.textSecondary }]}>{card.title}</Text>
+            <Text style={[styles.accountInfoTitle, { color: colors.textSecondary }]}>
+              {card.title}
+            </Text>
             <Text style={[styles.accountInfoValue, { color: colors.text }]}>{card.value}</Text>
           </View>
         </TouchableOpacity>
@@ -87,4 +96,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   } as const,
 });
-

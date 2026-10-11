@@ -26,7 +26,11 @@ export const UNIQUE_VIOLATION = '23505';
  * compiles against the `es6` lib, where `Error.cause` is not declared.
  */
 export function pgField(error: unknown, field: string): string | undefined {
-  for (let current: unknown = error; current instanceof Error; current = Reflect.get(current, 'cause')) {
+  for (
+    let current: unknown = error;
+    current instanceof Error;
+    current = Reflect.get(current, 'cause')
+  ) {
     const value: unknown = Reflect.get(current, field);
     if (typeof value === 'string') return value;
   }

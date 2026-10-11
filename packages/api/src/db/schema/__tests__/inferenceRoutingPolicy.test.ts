@@ -174,7 +174,7 @@ async function insertCatalogueModel(): Promise<CatalogueFixture> {
 
 async function insertPolicy(
   accountId: string,
-  overrides: Partial<typeof inferenceRoutingPolicies.$inferInsert> = {}
+  overrides: Partial<typeof inferenceRoutingPolicies.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(inferenceRoutingPolicies)
@@ -215,7 +215,7 @@ function versionDefaults(routingPolicyId: string, createdByUserId: string) {
 async function insertVersion(
   routingPolicyId: string,
   createdByUserId: string,
-  overrides: Partial<typeof inferenceRoutingPolicyVersions.$inferInsert> = {}
+  overrides: Partial<typeof inferenceRoutingPolicyVersions.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(inferenceRoutingPolicyVersions)
@@ -264,21 +264,21 @@ describe('routing policy vocabularies agree with the contract', () => {
       expect(routingPolicySchema.safeParse(policyWith({ optimiseFor: value })).success).toBe(true);
     }
     expect(routingPolicySchema.safeParse(policyWith({ optimiseFor: 'quality' })).success).toBe(
-      false
+      false,
     );
   });
 
   it('accepts every BYOK and capacity preference the columns admit', () => {
     for (const value of ROUTING_POLICY_PREFERENCES) {
       expect(routingPolicySchema.safeParse(policyWith({ byokPreference: value })).success).toBe(
-        true
+        true,
       );
       expect(routingPolicySchema.safeParse(policyWith({ dedicatedCapacity: value })).success).toBe(
-        true
+        true,
       );
     }
     expect(routingPolicySchema.safeParse(policyWith({ byokPreference: 'always' })).success).toBe(
-      false
+      false,
     );
   });
 
@@ -297,7 +297,7 @@ describe('routing policy vocabularies agree with the contract', () => {
     ['OpenAI/gpt-5', false],
   ])('the model-id CHECK and modelIdSchema agree on %s', async (candidate, accepted) => {
     const [row] = await getDb().execute<{ matches: boolean }>(
-      sql`select (${candidate} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}) as matches`
+      sql`select (${candidate} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}) as matches`,
     );
     expect(row.matches).toBe(accepted);
     expect(modelIdSchema.safeParse(candidate).success).toBe(accepted);
@@ -324,7 +324,7 @@ describe('a contradictory policy version cannot be stored', () => {
         version: 100,
         providerAllowlist: ['bedrock'],
         providerDenylist: ['bedrock'],
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -335,12 +335,12 @@ describe('a contradictory policy version cannot be stored', () => {
         version: 101,
         providerAllowlist: ['bedrock'],
         providerDenylist: ['openai'],
-      })
+      }),
     ).resolves.toEqual(expect.any(String));
     // The empty case is the vacuity floor for the overlap CHECK: `&&` is FALSE
     // when either side is empty, so "no allowlist" must still insert.
     await expect(insertVersion(policyId, accountId, { version: 102 })).resolves.toEqual(
-      expect.any(String)
+      expect.any(String),
     );
   });
 
@@ -350,7 +350,7 @@ describe('a contradictory policy version cannot be stored', () => {
         version: 110,
         allowedRegions: ['eu-central-1'],
         deniedRegions: ['eu-central-1'],
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -361,7 +361,7 @@ describe('a contradictory policy version cannot be stored', () => {
         version: 120,
         fallbackDisabled: true,
         sameModelDeploymentFallback: true,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -372,16 +372,16 @@ describe('a contradictory policy version cannot be stored', () => {
         version: 130,
         oxyHostedOnly: true,
         byokPreference: 'require',
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
 
     // Positive control: either half alone is a perfectly ordinary policy.
     await expect(
-      insertVersion(policyId, accountId, { version: 131, oxyHostedOnly: true })
+      insertVersion(policyId, accountId, { version: 131, oxyHostedOnly: true }),
     ).resolves.toEqual(expect.any(String));
     await expect(
-      insertVersion(policyId, accountId, { version: 132, byokPreference: 'require' })
+      insertVersion(policyId, accountId, { version: 132, byokPreference: 'require' }),
     ).resolves.toEqual(expect.any(String));
   });
 
@@ -390,7 +390,7 @@ describe('a contradictory policy version cannot be stored', () => {
       insertVersion(policyId, accountId, {
         version: 140,
         maxPricePerRequestAmount: '1.000000000000',
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -420,7 +420,7 @@ describe('a default target names exactly one thing, or nothing', () => {
 
   it('admits no target at all — every request names its own model', async () => {
     await expect(insertVersion(policyId, accountId, { version: 200 })).resolves.toEqual(
-      expect.any(String)
+      expect.any(String),
     );
   });
 
@@ -430,27 +430,27 @@ describe('a default target names exactly one thing, or nothing', () => {
         version: 201,
         defaultTargetKind: 'model',
         defaultModelId: catalogue.modelRowId,
-      })
+      }),
     ).resolves.toEqual(expect.any(String));
     await expect(
       insertVersion(policyId, accountId, {
         version: 202,
         defaultTargetKind: 'model',
         defaultModelRevisionId: catalogue.revisionRowId,
-      })
+      }),
     ).resolves.toEqual(expect.any(String));
     await expect(
       insertVersion(policyId, accountId, {
         version: 203,
         defaultTargetKind: 'routing_profile',
         defaultRoutingProfileId: profileId,
-      })
+      }),
     ).resolves.toEqual(expect.any(String));
   });
 
   it('refuses a kind that names nothing', async () => {
     const error = await rejection(
-      insertVersion(policyId, accountId, { version: 210, defaultTargetKind: 'model' })
+      insertVersion(policyId, accountId, { version: 210, defaultTargetKind: 'model' }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -462,7 +462,7 @@ describe('a default target names exactly one thing, or nothing', () => {
         defaultTargetKind: 'model',
         defaultModelId: catalogue.modelRowId,
         defaultModelRevisionId: catalogue.revisionRowId,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -484,7 +484,7 @@ describe('a default target names exactly one thing, or nothing', () => {
     // The same version number in all three cases: none of them may insert, so a
     // collision here would itself be a failure worth seeing.
     const error = await rejection(
-      insertVersion(policyId, accountId, { version: 212, ...target() })
+      insertVersion(policyId, accountId, { version: 212, ...target() }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -557,7 +557,7 @@ describe('cross-model fallback is a set of authorisations, never a flag', () => 
         versionId: enabledVersion,
         modelId: catalogue.modelRowId,
         position: 0,
-      })
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -569,7 +569,7 @@ describe('cross-model fallback is a set of authorisations, never a flag', () => 
         versionId: disabledVersion,
         modelId: catalogue.modelRowId,
         position: 0,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -581,7 +581,7 @@ describe('cross-model fallback is a set of authorisations, never a flag', () => 
         fallbackDisabled: true,
         modelId: catalogue.modelRowId,
         position: 9,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -593,14 +593,14 @@ describe('cross-model fallback is a set of authorisations, never a flag', () => 
         modelId: catalogue.modelRowId,
         modelRevisionId: catalogue.revisionRowId,
         position: 1,
-      })
+      }),
     );
     expect(pgErrorCode(both)).toBe(CHECK_VIOLATION);
 
     const neither = await rejection(
       getDb()
         .insert(inferenceRoutingPolicyFallbacks)
-        .values({ versionId: enabledVersion, position: 2 })
+        .values({ versionId: enabledVersion, position: 2 }),
     );
     expect(pgErrorCode(neither)).toBe(CHECK_VIOLATION);
   });
@@ -611,7 +611,7 @@ describe('cross-model fallback is a set of authorisations, never a flag', () => 
         versionId: enabledVersion,
         modelId: catalogue.modelRowId,
         position: 3,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -678,7 +678,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         requestedModelId: catalogue.modelReference,
         toModelReference: otherCatalogue.modelReference,
         authorizationId,
-      })
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -688,7 +688,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         scope: 'model',
         requestedModelId: catalogue.modelReference,
         toModelReference: otherCatalogue.modelReference,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -701,7 +701,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         requestedModelId: catalogue.modelReference,
         toModelReference: otherCatalogue.modelReference,
         authorizationId,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -719,7 +719,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         requestedModelId: `${catalogue.modelReference}@${catalogue.revisionLabel}`,
         toModelReference: otherCatalogue.modelReference,
         authorizationId,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -731,7 +731,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         requestedModelId: catalogue.modelReference,
         toModelReference: catalogue.modelReference,
         authorizationId,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -761,7 +761,7 @@ describe('a policy version is immutable once written', () => {
 
   it('installed the trigger it claims to have installed', async () => {
     const rows = await getDb().execute<{ tgname: string }>(
-      sql`select tgname from pg_trigger where not tgisinternal`
+      sql`select tgname from pg_trigger where not tgisinternal`,
     );
     const names = rows.map((row) => row.tgname);
     expect(names).toContain(ROUTING_POLICY_VERSION_IMMUTABILITY_TRIGGER_NAME);
@@ -796,8 +796,8 @@ describe('a policy version is immutable once written', () => {
       getDb().execute(
         sql`update inference_routing_policy_versions
             set ${sql.raw(`"${column}"`)} = ${value}
-            where id = ${versionId}`
-      )
+            where id = ${versionId}`,
+      ),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     // The trigger's own words, and the column it named. Nothing but this
@@ -811,7 +811,7 @@ describe('a policy version is immutable once written', () => {
       getDb()
         .update(inferenceRoutingPolicyVersions)
         .set({ isCurrent: true })
-        .where(eq(inferenceRoutingPolicyVersions.id, versionId))
+        .where(eq(inferenceRoutingPolicyVersions.id, versionId)),
     ).resolves.toBeDefined();
   });
 
@@ -840,7 +840,7 @@ describe('a policy version is immutable once written', () => {
       getDb()
         .update(inferenceRoutingPolicyPriceCaps)
         .set({ amount: '9.000000000000' })
-        .where(eq(inferenceRoutingPolicyPriceCaps.versionId, recordVersion))
+        .where(eq(inferenceRoutingPolicyPriceCaps.versionId, recordVersion)),
     );
     expect(pgErrorCode(capError)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(capError)).toContain('append-only');
@@ -853,7 +853,7 @@ describe('a policy version is immutable once written', () => {
       getDb()
         .update(inferenceRoutingPolicyFallbacks)
         .set({ position: 7 })
-        .where(eq(inferenceRoutingPolicyFallbacks.id, authorization.id))
+        .where(eq(inferenceRoutingPolicyFallbacks.id, authorization.id)),
     );
     expect(pgErrorCode(authorizationError)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(authorizationError)).toContain('append-only');
@@ -879,7 +879,7 @@ describe('a policy version is immutable once written', () => {
       getDb()
         .update(inferenceRouteSwitchEvents)
         .set({ toProvider: 'somewhere-else' })
-        .where(eq(inferenceRouteSwitchEvents.id, notice.id))
+        .where(eq(inferenceRouteSwitchEvents.id, notice.id)),
     );
     expect(pgErrorCode(noticeError)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(noticeError)).toContain('append-only');
@@ -938,14 +938,14 @@ describe('a policy version a charge names cannot be removed', () => {
     const error = await rejection(
       getDb()
         .delete(inferenceRoutingPolicyVersions)
-        .where(eq(inferenceRoutingPolicyVersions.id, versionId))
+        .where(eq(inferenceRoutingPolicyVersions.id, versionId)),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
 
     // ...and deleting the POLICY is refused too, because the cascade into its
     // versions runs into the same restriction.
     const cascade = await rejection(
-      getDb().delete(inferenceRoutingPolicies).where(eq(inferenceRoutingPolicies.id, policyId))
+      getDb().delete(inferenceRoutingPolicies).where(eq(inferenceRoutingPolicies.id, policyId)),
     );
     expect(pgErrorCode(cascade)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -973,7 +973,7 @@ describe('one active policy per scope', () => {
     await insertPolicy(accountId, { scopeKind: 'application', applicationId });
 
     const error = await rejection(
-      insertPolicy(accountId, { scopeKind: 'application', applicationId })
+      insertPolicy(accountId, { scopeKind: 'application', applicationId }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -985,7 +985,9 @@ describe('one active policy per scope', () => {
     const missing = await rejection(insertPolicy(accountId, { scopeKind: 'application' }));
     expect(pgErrorCode(missing)).toBe(CHECK_VIOLATION);
 
-    const spurious = await rejection(insertPolicy(accountId, { scopeKind: 'account', applicationId }));
+    const spurious = await rejection(
+      insertPolicy(accountId, { scopeKind: 'account', applicationId }),
+    );
     expect(pgErrorCode(spurious)).toBe(CHECK_VIOLATION);
   });
 });

@@ -39,7 +39,15 @@ const TIFF_BE = [0x4d, 0x4d, 0x00, 0x2a];
 
 /** ISO-BMFF brands that denote an image (`ftyp` box at byte 4). */
 const IMAGE_FTYP_BRANDS = new Set([
-  'avif', 'avis', 'heic', 'heix', 'heif', 'hevc', 'hevx', 'mif1', 'msf1',
+  'avif',
+  'avis',
+  'heic',
+  'heix',
+  'heif',
+  'hevc',
+  'hevx',
+  'mif1',
+  'msf1',
 ]);
 
 function isIsoBmffImage(buf: Buffer): boolean {
@@ -54,7 +62,11 @@ function isSvgContent(buf: Buffer): boolean {
   // existing allow-lists — this only rejects garbage declared as SVG.)
   let start = 0;
   if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) start = 3;
-  const head = buf.subarray(start, start + 256).toString('utf8').trimStart().toLowerCase();
+  const head = buf
+    .subarray(start, start + 256)
+    .toString('utf8')
+    .trimStart()
+    .toLowerCase();
   return head.startsWith('<?xml') || head.startsWith('<svg') || head.startsWith('<!doctype svg');
 }
 
@@ -74,23 +86,33 @@ export function isDeclaredImageContentValid(buffer: Buffer, mime: string): boole
   if (m === 'image/svg+xml') return isSvgContent(buffer);
 
   const knownImageSubtype =
-    m === 'image/jpeg' || m === 'image/jpg' || m === 'image/pjpeg' ||
-    m === 'image/png' || m === 'image/apng' ||
-    m === 'image/gif' || m === 'image/bmp' || m === 'image/x-ms-bmp' ||
+    m === 'image/jpeg' ||
+    m === 'image/jpg' ||
+    m === 'image/pjpeg' ||
+    m === 'image/png' ||
+    m === 'image/apng' ||
+    m === 'image/gif' ||
+    m === 'image/bmp' ||
+    m === 'image/x-ms-bmp' ||
     m === 'image/webp' ||
-    m === 'image/avif' || m === 'image/heic' || m === 'image/heif' ||
-    m === 'image/x-icon' || m === 'image/vnd.microsoft.icon' ||
+    m === 'image/avif' ||
+    m === 'image/heic' ||
+    m === 'image/heif' ||
+    m === 'image/x-icon' ||
+    m === 'image/vnd.microsoft.icon' ||
     m === 'image/tiff';
 
   const matchesAnyImageSignature =
     matchesAt(buffer, JPEG) ||
     matchesAt(buffer, PNG) ||
-    matchesAt(buffer, GIF87) || matchesAt(buffer, GIF89) ||
+    matchesAt(buffer, GIF87) ||
+    matchesAt(buffer, GIF89) ||
     matchesAt(buffer, BMP) ||
     (matchesAt(buffer, RIFF) && matchesAt(buffer, WEBP, 8)) ||
     isIsoBmffImage(buffer) ||
     matchesAt(buffer, ICO) ||
-    matchesAt(buffer, TIFF_LE) || matchesAt(buffer, TIFF_BE);
+    matchesAt(buffer, TIFF_LE) ||
+    matchesAt(buffer, TIFF_BE);
 
   if (matchesAnyImageSignature) return true;
 

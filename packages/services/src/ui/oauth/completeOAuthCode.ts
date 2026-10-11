@@ -68,12 +68,15 @@ export async function completeOAuthCode(
   }
 
   try {
-    const result = await input.oxyServices.auth.oauth.exchangeCode({
-      code: input.code,
-      clientId: input.clientId,
-      redirectUri: input.redirectUri,
-      codeVerifier: input.handshake.codeVerifier,
-    }, { plantTokens: false });
+    const result = await input.oxyServices.auth.oauth.exchangeCode(
+      {
+        code: input.code,
+        clientId: input.clientId,
+        redirectUri: input.redirectUri,
+        codeVerifier: input.handshake.codeVerifier,
+      },
+      { plantTokens: false },
+    );
     runCleanup();
     await input.commitSession({
       sessionId: result.sessionId,

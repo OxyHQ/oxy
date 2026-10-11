@@ -76,7 +76,7 @@ async function chainRecord(
   type: 'validation_verdict' | 'personhood_vouch',
   collection: string,
   rkey: string,
-  record: Record<string, unknown>
+  record: Record<string, unknown>,
 ): Promise<{ recordId: string; envelope: ReturnType<typeof signRecordEnvelope> }> {
   const head = await getHead(author.id);
   const envelope = signRecordEnvelope(
@@ -94,7 +94,7 @@ async function chainRecord(
       publicKey: author.publicKey,
       alg: 'ES256K-DER-SHA256',
     },
-    author.privateKey
+    author.privateKey,
   );
   const stored = await verifyAndStoreRecord(envelope, author.id);
   if (!stored.ok) {
@@ -122,7 +122,7 @@ async function peerValidatedTransaction(subjectUserId: string): Promise<string> 
 async function resolvedRequest(
   subjectUserId: string,
   resolvedTxnId: string,
-  votes: Array<{ juror: Signer; verdict: 'valid' | 'invalid' | 'abstain' }>
+  votes: Array<{ juror: Signer; verdict: 'valid' | 'invalid' | 'abstain' }>,
 ): Promise<string> {
   const [request] = await getDb()
     .insert(validationRequests)
@@ -148,7 +148,7 @@ async function resolvedRequest(
       'validation_verdict',
       'app.oxy.validation',
       request.id,
-      { requestId: request.id, verdict: vote.verdict }
+      { requestId: request.id, verdict: vote.verdict },
     );
     await getDb().insert(validationVotes).values({
       requestId: request.id,
@@ -163,13 +163,17 @@ async function resolvedRequest(
 }
 
 /** A real, active personhood vouch by `voucher` for `subjectUserId`. */
-async function vouch(voucher: Signer, subjectUserId: string, status: 'active' | 'withdrawn'): Promise<string> {
+async function vouch(
+  voucher: Signer,
+  subjectUserId: string,
+  status: 'active' | 'withdrawn',
+): Promise<string> {
   const { recordId } = await chainRecord(
     voucher,
     'personhood_vouch',
     'app.oxy.personhood',
     subjectUserId,
-    { about: buildUserDid(subjectUserId), stake: 10 }
+    { about: buildUserDid(subjectUserId), stake: 10 },
   );
   const [row] = await getDb()
     .insert(personhoodVouches)
@@ -192,8 +196,8 @@ async function ledger(userId: string, actionType: string): Promise<Array<{ point
     .where(
       and(
         eq(reputationTransactions.userId, userId),
-        eq(reputationTransactions.actionType, actionType)
-      )
+        eq(reputationTransactions.actionType, actionType),
+      ),
     );
 }
 
@@ -279,7 +283,7 @@ describe('a reversed peer_validated slashes the jurors who endorsed it', () => {
         id: orphanTxnId,
         actionType: PEER_VALIDATED_ACTION,
         userId: subject,
-      })
+      }),
     ).toBe(0);
     expect(await ledger(juror.id, VALIDATION_INCORRECT_ACTION)).toEqual([]);
   });
@@ -317,7 +321,7 @@ describe('a reversed real_life_attested slashes the counterparty', () => {
         actionType: 'real_life_attested',
         userId: subject,
         createdByUserId: null,
-      })
+      }),
     ).toBe(0);
     expect(await ledger(subject, VALIDATION_INCORRECT_ACTION)).toEqual([]);
   });
@@ -361,7 +365,7 @@ describe('a reversed personhood_vouched cascades to every active voucher', () =>
         [activeAId, 'slashed'],
         [activeBId, 'slashed'],
         [withdrawnId, 'withdrawn'],
-      ])
+      ]),
     );
   });
 });
@@ -382,7 +386,7 @@ describe('a reversal that is not civic slashes nobody', () => {
         id: txnId,
         actionType: 'endorsement_received',
         userId: subject,
-      })
+      }),
     ).toBe(0);
     expect(await ledger(juror.id, VALIDATION_INCORRECT_ACTION)).toEqual([]);
     expect(await ledger(voucher.id, VOUCH_SLASHED_ACTION)).toEqual([]);

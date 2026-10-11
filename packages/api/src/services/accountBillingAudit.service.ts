@@ -374,7 +374,7 @@ export async function listAccountBillingAudit(
   accountId: string,
   options: { readonly limit: number; readonly cursor?: string | null } = {
     limit: BILLING_AUDIT_DEFAULT_LIMIT,
-  }
+  },
 ): Promise<BillingAuditPage> {
   const limit = Math.min(Math.max(options.limit, 1), BILLING_AUDIT_MAX_LIMIT);
   const cursor =

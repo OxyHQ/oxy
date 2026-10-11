@@ -12,9 +12,7 @@ const LOG_COMPONENT = 'UserCacheInvalidationSubscriber';
  *
  * Uses a dedicated `duplicate()` — the main client must stay publish-capable.
  */
-export function startUserCacheInvalidationSubscriber(
-  redis: Redis,
-): { stop: () => Promise<void> } {
+export function startUserCacheInvalidationSubscriber(redis: Redis): { stop: () => Promise<void> } {
   const subscriber = redis.duplicate();
 
   subscriber.on('message', (channel, raw) => {

@@ -65,7 +65,10 @@ import { moderationPolicies } from '../db/schema/moderationPolicies';
 import { moderationPolicySeverityRules } from '../db/schema/moderationPolicySeverityRules';
 import { moderationPolicyStandingThresholds } from '../db/schema/moderationPolicyStandingThresholds';
 import { reputationTransactions } from '../db/schema/reputationTransactions';
-import reputationService, { type ReputationTransactionHandle, type ReputationTransactionRow } from './reputation.service';
+import reputationService, {
+  type ReputationTransactionHandle,
+  type ReputationTransactionRow,
+} from './reputation.service';
 import { attestModerationEffect } from './civic/attestation.service';
 import { resolveBindingProof } from './identityBinding.service';
 import {
@@ -91,8 +94,7 @@ export type ConductStandingThreshold = typeof moderationPolicyStandingThresholds
 /**
  * A published policy version with its two child tables loaded.
  *
- * The Mongo document embedded `severityRules[]` and `standingThresholds[]`; both
- * are real tables now, so a reader that needs the whole version asks for this
+ * `severityRules[]` and `standingThresholds[]` are child tables, so a reader that needs the whole version asks for this
  * rather than re-joining at each call site. A version is IMMUTABLE once
  * published, so loading it whole is a read of frozen data.
  */
@@ -179,7 +181,6 @@ export interface ReverseResult {
   idempotent: boolean;
 }
 
-
 /**
  * Severity ordering, used only to pick the PRIMARY finding. Kept here rather
  * than in the policy document because it is the definition of the words, not a
@@ -199,10 +200,7 @@ const SEVERITY_RANK: Readonly<Record<ModerationSeverity, number>> = {
  * and Oxy Trust is not touched. That is not a limitation, it is the boundary
  * between "this community's rules" and "conduct against the network".
  */
-const GLOBAL_FINDING_SCOPES: ReadonlySet<string> = new Set([
-  'oxy_network',
-  'identity_integrity',
-]);
+const GLOBAL_FINDING_SCOPES: ReadonlySet<string> = new Set(['oxy_network', 'identity_integrity']);
 
 /**
  * Decision statuses that may produce an effect at all.
@@ -229,10 +227,7 @@ function effectTypeForAttribution(finding: ModerationFinding): ModerationEffectT
 }
 
 /** Ledger action key for an effect type and severity. */
-function actionTypeFor(
-  effectType: ModerationEffectType,
-  severity: ModerationSeverity
-): string {
+function actionTypeFor(effectType: ModerationEffectType, severity: ModerationSeverity): string {
   switch (effectType) {
     case 'report_abuse_penalty':
       return REPORT_ABUSE_CONFIRMED_ACTION;
@@ -256,7 +251,7 @@ export function buildIdempotencyKey(
   incidentId: string,
   decisionRevision: number,
   principalId: string,
-  effectType: ModerationEffectType
+  effectType: ModerationEffectType,
 ): string {
   return `moderation:${incidentId}:${decisionRevision}:${principalId}:${effectType}`;
 }
@@ -271,9 +266,9 @@ function scale(base: number, multiplier: number): number {
  *
  * WHY THIS EXISTS RATHER THAN TRUSTING THE CALLER: every method on this service
  * is exported, and a queue worker, a reconciliation script or a future caller is
- * under no obligation to have passed a body through the route's schema. A Mongo
- * filter handed `{ $ne: null }` where it expects an id matches EVERY document —
- * for `findOne({ eventId })` that turns the transport idempotency check into
+ * under no obligation to have passed a body through the route's schema. A
+ * filter handed an operator object such as `{ $ne: null }` where it expects an
+ * id could match EVERY row — for an `eventId` lookup that turns the transport idempotency check into
  * "some effect exists", and for a reversal it would reverse an unrelated one. So
  * the coercion lives where the query lives, not three layers up.
  *
@@ -365,7 +360,7 @@ class ModerationReputationService {
    */
   async applyModerationDecision(
     event: ModerationDecisionEvent,
-    context: ModerationEventContext
+    context: ModerationEventContext,
   ): Promise<ApplyResult> {
     // (1) The emitter's authority is established by the route's scope check. A
     // context with no credential identity means the route was bypassed, which is
@@ -403,9 +398,7 @@ class ModerationReputationService {
     // precisely what versioning exists to prevent.
     const policy = await loadPolicy(ids.oxyConductVersion);
     if (!policy) {
-      throw new BadRequestError(
-        `Unknown Oxy conduct policy version: ${ids.oxyConductVersion}`
-      );
+      throw new BadRequestError(`Unknown Oxy conduct policy version: ${ids.oxyConductVersion}`);
     }
 
     // (3b) A provisional decision produces an effect only where the policy says
@@ -421,8 +414,7 @@ class ModerationReputationService {
     const reportedApplicationId = ids.reportedApplicationId;
     const [trust] = await getDb()
       .select({
-        globalReputationEffectsAllowed:
-          applicationModerationTrust.globalReputationEffectsAllowed,
+        globalReputationEffectsAllowed: applicationModerationTrust.globalReputationEffectsAllowed,
       })
       .from(applicationModerationTrust)
       .where(eq(applicationModerationTrust.applicationId, reportedApplicationId))
@@ -458,7 +450,7 @@ class ModerationReputationService {
       ids.incidentId,
       ids.decisionRevision,
       principalObjectId,
-      effectType
+      effectType,
     );
 
     // (7) One effect per incident, principal, axis and revision. The pre-check
@@ -478,11 +470,11 @@ class ModerationReputationService {
       principalObjectId,
       primary.family,
       ids.incidentId,
-      policy
+      policy,
     );
     const multiFindingMultiplier = Math.min(
       1 + policy.multiFindingSecondaryShare * (effectiveCount - 1),
-      policy.multiFindingCap
+      policy.multiFindingCap,
     );
     const combined = repetitionMultiplier * multiFindingMultiplier;
 
@@ -537,7 +529,7 @@ class ModerationReputationService {
    */
   async finalizeModerationDecision(
     decisionId: string,
-    decisionRevision: number
+    decisionRevision: number,
   ): Promise<ModerationEffectRow[]> {
     // Coerced for the same reason `readEventIdentifiers` exists: this method is
     // exported, and a filter handed an operator object here would report on
@@ -573,7 +565,7 @@ class ModerationReputationService {
     decisionId: string,
     decisionRevision: number,
     reason: string,
-    emitterCredentialId: string
+    emitterCredentialId: string,
   ): Promise<ReverseResult> {
     // Coerced before it reaches the filter: reversing on an operator object
     // would compensate an unrelated decision's consequence, which is the worst
@@ -581,7 +573,7 @@ class ModerationReputationService {
     const effects = await this.findEffectsByDecisionForCredential(
       decisionId,
       decisionRevision,
-      emitterCredentialId
+      emitterCredentialId,
     );
     if (effects.length === 0) {
       throw new NotFoundError('No moderation effect exists for that decision revision');
@@ -593,7 +585,7 @@ class ModerationReputationService {
     }
 
     const { effects: reversedEffects, originals } = await getDb().transaction((tx) =>
-      this.reverseEffectsInTransaction(pending, reason, tx)
+      this.reverseEffectsInTransaction(pending, reason, tx),
     );
     for (const original of originals) await reputationService.afterReversal(original);
 
@@ -690,14 +682,16 @@ class ModerationReputationService {
         .returning({ id: moderationPolicies.id });
 
       if (params.severityRules.length > 0) {
-        await tx.insert(moderationPolicySeverityRules).values(
-          params.severityRules.map((rule) => ({ policyId: policy.id, ...rule }))
-        );
+        await tx
+          .insert(moderationPolicySeverityRules)
+          .values(params.severityRules.map((rule) => ({ policyId: policy.id, ...rule })));
       }
       if (params.standingThresholds.length > 0) {
-        await tx.insert(moderationPolicyStandingThresholds).values(
-          params.standingThresholds.map((threshold) => ({ policyId: policy.id, ...threshold }))
-        );
+        await tx
+          .insert(moderationPolicyStandingThresholds)
+          .values(
+            params.standingThresholds.map((threshold) => ({ policyId: policy.id, ...threshold })),
+          );
       }
     });
 
@@ -721,7 +715,7 @@ class ModerationReputationService {
    */
   private selectEffectiveFindings(
     findings: readonly ModerationFinding[],
-    policy: ModerationPolicyView
+    policy: ModerationPolicyView,
   ):
     | {
         ok: true;
@@ -739,7 +733,7 @@ class ModerationReputationService {
     const recognised = globalScoped.filter(
       (finding) =>
         families.has(finding.family) &&
-        policy.severityRules.some((rule) => rule.severity === finding.severity)
+        policy.severityRules.some((rule) => rule.severity === finding.severity),
     );
     if (recognised.length === 0) {
       return { ok: false, reason: 'finding_not_in_policy' };
@@ -748,12 +742,12 @@ class ModerationReputationService {
     // The primary is the most severe recognised finding. Ties keep the emitter's
     // order, so the same event always derives the same effect.
     //
-    // `family` is re-read as a primitive: it reaches a Mongo filter in the
+    // `family` is re-read as a primitive: it reaches a filter in the
     // repetition lookup, and the same reasoning as `readEventIdentifiers`
     // applies — a filter handed an operator object there would count every prior
     // strike as similar and escalate the penalty.
     const worst = recognised.reduce((current, finding) =>
-      SEVERITY_RANK[finding.severity] > SEVERITY_RANK[current.severity] ? finding : current
+      SEVERITY_RANK[finding.severity] > SEVERITY_RANK[current.severity] ? finding : current,
     );
     const primary: ModerationFinding = { ...worst, family: String(worst.family) };
     const rule = policy.severityRules.find((entry) => entry.severity === primary.severity);
@@ -777,7 +771,7 @@ class ModerationReputationService {
     principalId: string,
     family: string,
     incidentId: string,
-    policy: ModerationPolicyView
+    policy: ModerationPolicyView,
   ): Promise<number> {
     const multipliers = policy.repetitionMultipliers;
     if (multipliers.length === 0) {
@@ -794,8 +788,8 @@ class ModerationReputationService {
           eq(conductStrikes.family, String(family)),
           ne(conductStrikes.status, 'reversed'),
           ne(conductStrikes.incidentId, String(incidentId)),
-          gte(conductStrikes.createdAt, since)
-        )
+          gte(conductStrikes.createdAt, since),
+        ),
       );
 
     const distinctIncidents = new Set(priors.map((strike) => strike.incidentId));
@@ -847,9 +841,8 @@ class ModerationReputationService {
       bindingId,
     } = params;
 
-    // ONE real transaction, no fallback. The Mongo version re-ran the three
-    // writes SESSION-LESS whenever the deployment had no replica set, which is
-    // precisely the case where a half-applied consequence — points deducted, no
+    // ONE real transaction, no fallback. Running the three writes outside a
+    // transaction is precisely the case where a half-applied consequence — points deducted, no
     // strike, no effect record — could survive an interruption and be invisible
     // to every one of the three idempotency guards.
     //
@@ -865,13 +858,13 @@ class ModerationReputationService {
           and(
             eq(moderationEffects.incidentId, ids.incidentId),
             eq(moderationEffects.status, 'applied'),
-            lt(moderationEffects.decisionRevision, ids.decisionRevision)
-          )
+            lt(moderationEffects.decisionRevision, ids.decisionRevision),
+          ),
         );
       const reversal = await this.reverseEffectsInTransaction(
         superseded,
         `Superseded by revision ${ids.decisionRevision}`,
-        tx
+        tx,
       );
       return { effect: written, originals: reversal.originals };
     });
@@ -918,7 +911,7 @@ class ModerationReputationService {
   /** The three writes themselves, inside the caller's transaction. */
   private async writeEffectInTransaction(
     params: Parameters<ModerationReputationService['writeEffect']>[0],
-    tx: ReputationTransactionHandle
+    tx: ReputationTransactionHandle,
   ): Promise<ModerationEffectRow> {
     const {
       ids,
@@ -1048,7 +1041,7 @@ class ModerationReputationService {
       principalId: string;
       effectType: ModerationEffectType;
       decisionRevision: number;
-    }
+    },
   ): Promise<ModerationEffectRow | null> {
     // Either of the two unique indexes may have fired, and which one does not
     // matter: the stored effect is the answer either way. Named rather than a
@@ -1092,8 +1085,8 @@ class ModerationReputationService {
           eq(moderationEffects.incidentId, String(key.incidentId)),
           eq(moderationEffects.principalId, key.principalId),
           eq(moderationEffects.effectType, key.effectType),
-          eq(moderationEffects.decisionRevision, Number(key.decisionRevision))
-        )
+          eq(moderationEffects.decisionRevision, Number(key.decisionRevision)),
+        ),
       )
       .limit(1);
     return effect ?? null;
@@ -1102,7 +1095,7 @@ class ModerationReputationService {
   /** Every effect a decision revision produced. */
   private async findEffectsByDecision(
     decisionId: string,
-    decisionRevision: number
+    decisionRevision: number,
   ): Promise<ModerationEffectRow[]> {
     // Coerced for the same reason `readEventIdentifiers` exists: these methods
     // are exported, and a filter handed an operator object would report on
@@ -1113,8 +1106,8 @@ class ModerationReputationService {
       .where(
         and(
           eq(moderationEffects.decisionId, String(decisionId)),
-          eq(moderationEffects.decisionRevision, toDecisionRevision(decisionRevision))
-        )
+          eq(moderationEffects.decisionRevision, toDecisionRevision(decisionRevision)),
+        ),
       );
   }
 
@@ -1122,7 +1115,7 @@ class ModerationReputationService {
   private async findEffectsByDecisionForCredential(
     decisionId: string,
     decisionRevision: number,
-    emitterCredentialId: string
+    emitterCredentialId: string,
   ): Promise<ModerationEffectRow[]> {
     return getDb()
       .select()
@@ -1131,8 +1124,8 @@ class ModerationReputationService {
         and(
           eq(moderationEffects.decisionId, String(decisionId)),
           eq(moderationEffects.decisionRevision, toDecisionRevision(decisionRevision)),
-          eq(moderationEffects.credentialId, String(emitterCredentialId))
-        )
+          eq(moderationEffects.credentialId, String(emitterCredentialId)),
+        ),
       );
   }
 
@@ -1145,7 +1138,7 @@ class ModerationReputationService {
   private async reverseEffectsInTransaction(
     effects: readonly ModerationEffectRow[],
     reason: string,
-    tx: ReputationTransactionHandle
+    tx: ReputationTransactionHandle,
   ): Promise<{ effects: ModerationEffectRow[]; originals: ReputationTransactionRow[] }> {
     const reversed: ModerationEffectRow[] = [];
     const originals: ReputationTransactionRow[] = [];
@@ -1162,7 +1155,7 @@ class ModerationReputationService {
       const { original, reversal } = await reputationService.reverseTransaction(
         effect.transactionId,
         { reason: `Moderation decision reversed: ${reason}` },
-        tx
+        tx,
       );
       originals.push(original);
 

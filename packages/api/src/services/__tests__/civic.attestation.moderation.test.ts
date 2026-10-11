@@ -19,7 +19,7 @@
  *     mocked — and the signature is verified independently, the same way a
  *     third-party verifier would. If the scheme were broken, these fail.
  *
- * What is still NOT proven here: that a real Mongo-backed chain accepts the
+ * What is still NOT proven here: that a real stored chain accepts the
  * record. `verifyAndStoreRecord` is mocked, so its own validation is out of
  * scope — that belongs to `repoLog.test.ts` / `oxyRecordStore.test.ts`.
  */

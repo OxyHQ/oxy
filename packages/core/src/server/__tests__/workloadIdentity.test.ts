@@ -1,6 +1,10 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { canAttestWorkloadIdentity, requestWorkloadServiceToken } from '../workloadIdentity';
+import {
+  attestWorkloadIdentity,
+  canAttestWorkloadIdentity,
+  requestWorkloadServiceToken,
+} from '../workloadIdentity';
 
 /**
  * The client half of ADR 0026, and the two properties that decide whether it
@@ -30,7 +34,9 @@ function harness(overrides: { tokenStatus?: number } = {}) {
     const url = String(input);
     calls.push({ url, init });
     if (url.endsWith('/auth/service-token/workload/challenge')) {
-      return new Response(JSON.stringify({ data: { nonce: 'nonce-from-oxy', expiresIn: 60 } }), { status: 200 });
+      return new Response(JSON.stringify({ data: { nonce: 'nonce-from-oxy', expiresIn: 60 } }), {
+        status: 200,
+      });
     }
     if (url.includes('169.254.170.2')) {
       return new Response(JSON.stringify(CREDENTIALS), { status: 200 });
@@ -63,14 +69,21 @@ describe('workload identity client', () => {
   });
 
   it('knows whether this process can attest at all', () => {
-    expect(canAttestWorkloadIdentity({ AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/x' } as NodeJS.ProcessEnv)).toBe(true);
+    expect(
+      canAttestWorkloadIdentity({
+        AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/x',
+      } as NodeJS.ProcessEnv),
+    ).toBe(true);
     expect(canAttestWorkloadIdentity({} as NodeJS.ProcessEnv)).toBe(false);
   });
 
   it('answers the challenge with a signature that covers the nonce', async () => {
     const { calls, fetchImpl } = harness();
 
-    const granted = await requestWorkloadServiceToken({ baseUrl: 'https://api.oxy.so/', fetch: fetchImpl });
+    const granted = await requestWorkloadServiceToken({
+      baseUrl: 'https://api.oxy.so/',
+      fetch: fetchImpl,
+    });
 
     expect(granted).toEqual({ token: 'service-token', expiresIn: 3600, appName: 'Mention' });
 
@@ -115,6 +128,30 @@ describe('workload identity client', () => {
     await expect(
       requestWorkloadServiceToken({ baseUrl: 'https://api.oxy.so', fetch: fetchImpl }),
     ).rejects.toThrow(/refused the workload attestation \(403\)/);
+  });
+
+  it('signs a caller-chosen nonce with the same signer and sends it nowhere', async () => {
+    const { calls, fetchImpl } = harness();
+
+    const proof = await attestWorkloadIdentity({ nonce: 'nonce-from-self', fetch: fetchImpl });
+
+    expect(proof.provider).toBe('aws-iam');
+    expect(proof.attestation.headers['x-oxy-attestation-nonce']).toBe('nonce-from-self');
+    expect(proof.attestation.headers.host).toBe('sts.amazonaws.com');
+    expect(proof.attestation.headers.authorization).toMatch(
+      /SignedHeaders=[^,]*x-oxy-attestation-nonce[^,]*, Signature=[0-9a-f]{64}$/,
+    );
+    // Only the container credentials endpoint: no Oxy challenge, no STS call.
+    expect(calls.map((call) => call.url)).toEqual(['http://169.254.170.2/v2/credentials/abc']);
+  });
+
+  it('refuses to sign without a nonce', async () => {
+    const { calls, fetchImpl } = harness();
+
+    await expect(attestWorkloadIdentity({ nonce: '', fetch: fetchImpl })).rejects.toThrow(
+      /needs a nonce/,
+    );
+    expect(calls).toEqual([]);
   });
 
   it('throws when the process has no identity to prove', async () => {

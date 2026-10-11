@@ -19,8 +19,14 @@ export async function signInAgentAccount(options: {
   const publicKey = normalizeSecp256k1PublicKey(signer.publicKey.trim());
   const claims = await client.auth.agent.requestChallenge(publicKey);
   const timestamp = Date.now();
-  if (claims.action !== 'agent_signin' || claims.accountId !== accountId || claims.actorId !== accountId
-    || normalizeSecp256k1PublicKey(claims.publicKey) !== publicKey || !claims.authMethodId || claims.expiresAt <= timestamp) {
+  if (
+    claims.action !== 'agent_signin' ||
+    claims.accountId !== accountId ||
+    claims.actorId !== accountId ||
+    normalizeSecp256k1PublicKey(claims.publicKey) !== publicKey ||
+    !claims.authMethodId ||
+    claims.expiresAt <= timestamp
+  ) {
     throw new Error('Agent challenge does not match this account and signer');
   }
   const signature = await signer.signMessage(buildAgentProofMessage(claims, timestamp));

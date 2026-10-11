@@ -71,7 +71,7 @@ function closestPointsOnSegments(
   bStartX: number,
   bStartY: number,
   bEndX: number,
-  bEndY: number
+  bEndY: number,
 ) {
   'worklet';
   const aX = aEndX - aStartX;
@@ -106,12 +106,8 @@ function closestPointsOnSegments(
       // points. Picking one arbitrary endpoint creates a fake torque and makes
       // a settled stack tremble. Use the middle of their projected overlap.
       if (Math.abs(denominator) <= parallelTolerance) {
-        const bStartOnA =
-          ((bStartX - aStartX) * aX + (bStartY - aStartY) * aY) /
-          aLengthSquared;
-        const bEndOnA =
-          ((bEndX - aStartX) * aX + (bEndY - aStartY) * aY) /
-          aLengthSquared;
+        const bStartOnA = ((bStartX - aStartX) * aX + (bStartY - aStartY) * aY) / aLengthSquared;
+        const bEndOnA = ((bEndX - aStartX) * aX + (bEndY - aStartY) * aY) / aLengthSquared;
         const overlapStart = Math.max(0, Math.min(bStartOnA, bEndOnA));
         const overlapEnd = Math.min(1, Math.max(bStartOnA, bEndOnA));
         if (overlapStart <= overlapEnd) {
@@ -119,10 +115,9 @@ function closestPointsOnSegments(
           const pointOnAX = aStartX + aX * aT;
           const pointOnAY = aStartY + aY * aT;
           bT = clamp(
-            ((pointOnAX - bStartX) * bX + (pointOnAY - bStartY) * bY) /
-              bLengthSquared,
+            ((pointOnAX - bStartX) * bX + (pointOnAY - bStartY) * bY) / bLengthSquared,
             0,
-            1
+            1,
           );
           return {
             aX: pointOnAX,
@@ -134,11 +129,7 @@ function closestPointsOnSegments(
       }
 
       if (Math.abs(denominator) > parallelTolerance) {
-        aT = clamp(
-          (axesDot * bProjection - aProjection * bLengthSquared) / denominator,
-          0,
-          1
-        );
+        aT = clamp((axesDot * bProjection - aProjection * bLengthSquared) / denominator, 0, 1);
       }
       bT = (axesDot * aT + bProjection) / bLengthSquared;
       if (bT < 0) {
@@ -159,20 +150,12 @@ function closestPointsOnSegments(
   };
 }
 
-function resolvePillPair(
-  a: WoodenPillBody,
-  b: WoodenPillBody,
-  gravityX: number,
-  gravityY: number
-) {
+function resolvePillPair(a: WoodenPillBody, b: WoodenPillBody, gravityX: number, gravityY: number) {
   'worklet';
   const centreDeltaX = b.x - a.x;
   const centreDeltaY = b.y - a.y;
   const broadRadius = a.halfSegment + a.radius + b.halfSegment + b.radius;
-  if (
-    centreDeltaX * centreDeltaX + centreDeltaY * centreDeltaY >=
-    broadRadius * broadRadius
-  ) {
+  if (centreDeltaX * centreDeltaX + centreDeltaY * centreDeltaY >= broadRadius * broadRadius) {
     return 0;
   }
   const closest = closestPointsOnSegments(
@@ -183,7 +166,7 @@ function resolvePillPair(
     b.x - b.axisX * b.halfSegment,
     b.y - b.axisY * b.halfSegment,
     b.x + b.axisX * b.halfSegment,
-    b.y + b.axisY * b.halfSegment
+    b.y + b.axisY * b.halfSegment,
   );
 
   let normalX = closest.bX - closest.aX;
@@ -210,9 +193,7 @@ function resolvePillPair(
 
   const gravityMagnitude = Math.hypot(gravityX, gravityY);
   const supportAlignment =
-    gravityMagnitude > 0.001
-      ? (gravityX * normalX + gravityY * normalY) / gravityMagnitude
-      : 0;
+    gravityMagnitude > 0.001 ? (gravityX * normalX + gravityY * normalY) / gravityMagnitude : 0;
   const bRestsOnA = supportAlignment < -0.55;
   const aRestsOnB = supportAlignment > 0.55;
   const correctionInvMassA = bRestsOnA ? 0 : a.invMass;
@@ -220,8 +201,7 @@ function resolvePillPair(
   const correctionInverseMassSum = correctionInvMassA + correctionInvMassB;
   const penetration = radiusSum - distance;
   const correction =
-    (Math.max(0, penetration - POSITION_SLOP) * POSITION_CORRECTION) /
-    correctionInverseMassSum;
+    (Math.max(0, penetration - POSITION_SLOP) * POSITION_CORRECTION) / correctionInverseMassSum;
   a.x -= normalX * correction * correctionInvMassA;
   a.y -= normalY * correction * correctionInvMassA;
   b.x += normalX * correction * correctionInvMassB;
@@ -245,8 +225,7 @@ function resolvePillPair(
   const impactSpeed = -velocityAlongNormal;
   // During low-energy stacked contact, propagate support from the lower body
   // upward instead of feeding a compression wave back into the pile.
-  const useStableSupport =
-    impactSpeed < RESTITUTION_MIN_IMPACT_SPEED && (aRestsOnB || bRestsOnA);
+  const useStableSupport = impactSpeed < RESTITUTION_MIN_IMPACT_SPEED && (aRestsOnB || bRestsOnA);
   const impulseInvMassA = useStableSupport && bRestsOnA ? 0 : a.invMass;
   const impulseInvMassB = useStableSupport && aRestsOnB ? 0 : b.invMass;
   const impulseInvInertiaA = useStableSupport && bRestsOnA ? 0 : a.invInertia;
@@ -259,19 +238,16 @@ function resolvePillPair(
     impulseInverseMassSum +
     aNormalArm * aNormalArm * impulseInvInertiaA +
     bNormalArm * bNormalArm * impulseInvInertiaB;
-  const restitution =
-    impactSpeed >= RESTITUTION_MIN_IMPACT_SPEED ? BODY_RESTITUTION : 0;
+  const restitution = impactSpeed >= RESTITUTION_MIN_IMPACT_SPEED ? BODY_RESTITUTION : 0;
   const normalImpulse = (-(1 + restitution) * velocityAlongNormal) / normalDenominator;
   const impulseX = normalX * normalImpulse;
   const impulseY = normalY * normalImpulse;
   a.vx -= impulseX * impulseInvMassA;
   a.vy -= impulseY * impulseInvMassA;
-  a.angularVelocity -=
-    cross(aContactX, aContactY, impulseX, impulseY) * impulseInvInertiaA;
+  a.angularVelocity -= cross(aContactX, aContactY, impulseX, impulseY) * impulseInvInertiaA;
   b.vx += impulseX * impulseInvMassB;
   b.vy += impulseY * impulseInvMassB;
-  b.angularVelocity +=
-    cross(bContactX, bContactY, impulseX, impulseY) * impulseInvInertiaB;
+  b.angularVelocity += cross(bContactX, bContactY, impulseX, impulseY) * impulseInvInertiaB;
 
   let tangentX = relativeX - velocityAlongNormal * normalX;
   let tangentY = relativeY - velocityAlongNormal * normalY;
@@ -289,27 +265,20 @@ function resolvePillPair(
   const tangentImpulse = clamp(
     -tangentVelocity / tangentDenominator,
     -normalImpulse * BODY_FRICTION,
-    normalImpulse * BODY_FRICTION
+    normalImpulse * BODY_FRICTION,
   );
   const frictionX = tangentX * tangentImpulse;
   const frictionY = tangentY * tangentImpulse;
   a.vx -= frictionX * impulseInvMassA;
   a.vy -= frictionY * impulseInvMassA;
-  a.angularVelocity -=
-    cross(aContactX, aContactY, frictionX, frictionY) * impulseInvInertiaA;
+  a.angularVelocity -= cross(aContactX, aContactY, frictionX, frictionY) * impulseInvInertiaA;
   b.vx += frictionX * impulseInvMassB;
   b.vy += frictionY * impulseInvMassB;
-  b.angularVelocity +=
-    cross(bContactX, bContactY, frictionX, frictionY) * impulseInvInertiaB;
+  b.angularVelocity += cross(bContactX, bContactY, frictionX, frictionY) * impulseInvInertiaB;
   return impactSpeed;
 }
 
-function resolveWall(
-  body: WoodenPillBody,
-  normalX: number,
-  normalY: number,
-  penetration: number
-) {
+function resolveWall(body: WoodenPillBody, normalX: number, normalY: number, penetration: number) {
   'worklet';
   if (penetration <= 0) return 0;
   body.contacted = true;
@@ -321,12 +290,9 @@ function resolveWall(
   const axisTowardWall = body.axisX * towardWallX + body.axisY * towardWallY;
   // At a nearly parallel wall the capsule's straight side is the contact
   // patch. Resolve through its centre instead of alternating endpoints.
-  const endpointSign =
-    Math.abs(axisTowardWall) < 0.025 ? 0 : axisTowardWall > 0 ? 1 : -1;
-  const contactX =
-    body.axisX * body.halfSegment * endpointSign + towardWallX * body.radius;
-  const contactY =
-    body.axisY * body.halfSegment * endpointSign + towardWallY * body.radius;
+  const endpointSign = Math.abs(axisTowardWall) < 0.025 ? 0 : axisTowardWall > 0 ? 1 : -1;
+  const contactX = body.axisX * body.halfSegment * endpointSign + towardWallX * body.radius;
+  const contactY = body.axisY * body.halfSegment * endpointSign + towardWallY * body.radius;
   const contactVelocityX = body.vx - body.angularVelocity * contactY;
   const contactVelocityY = body.vy + body.angularVelocity * contactX;
   const velocityAlongNormal = contactVelocityX * normalX + contactVelocityY * normalY;
@@ -336,8 +302,7 @@ function resolveWall(
 
   const normalArm = cross(contactX, contactY, normalX, normalY);
   const normalDenominator = body.invMass + normalArm * normalArm * body.invInertia;
-  const restitution =
-    impactSpeed >= RESTITUTION_MIN_IMPACT_SPEED ? WALL_RESTITUTION : 0;
+  const restitution = impactSpeed >= RESTITUTION_MIN_IMPACT_SPEED ? WALL_RESTITUTION : 0;
   const normalImpulse = (-(1 + restitution) * velocityAlongNormal) / normalDenominator;
   const impulseX = normalX * normalImpulse;
   const impulseY = normalY * normalImpulse;
@@ -353,7 +318,7 @@ function resolveWall(
   const tangentImpulse = clamp(
     -tangentVelocity / tangentDenominator,
     -normalImpulse * WALL_FRICTION,
-    normalImpulse * WALL_FRICTION
+    normalImpulse * WALL_FRICTION,
   );
   const frictionX = tangentX * tangentImpulse;
   const frictionY = tangentY * tangentImpulse;
@@ -388,18 +353,14 @@ function applyRollingResistance(body: WoodenPillBody, normalGravity: number, dt:
   const speed = Math.hypot(body.vx, body.vy);
   if (speed < 0.001) return;
   const deceleration =
-    BASE_ROLLING_DECELERATION +
-    PLANE_ROLLING_DECELERATION * clamp(Math.abs(normalGravity), 0, 1.5);
+    BASE_ROLLING_DECELERATION + PLANE_ROLLING_DECELERATION * clamp(Math.abs(normalGravity), 0, 1.5);
   const nextSpeed = Math.max(0, speed - deceleration * dt);
   const scale = nextSpeed / speed;
   body.vx *= scale;
   body.vy *= scale;
 }
 
-export function stepWoodenPills(
-  bodies: WoodenPillBody[],
-  options: WoodenPillsStepOptions
-) {
+export function stepWoodenPills(bodies: WoodenPillBody[], options: WoodenPillsStepOptions) {
   'worklet';
   let maximumImpactSpeed = 0;
   const frameSeconds = clamp(options.dt, 0, MAX_FRAME_SECONDS);
@@ -416,10 +377,8 @@ export function stepWoodenPills(
       if (index === options.draggedIndex) {
         const cos = Math.cos(body.angle);
         const sin = Math.sin(body.angle);
-        const targetX =
-          options.dragX - (options.dragLocalX * cos - options.dragLocalY * sin);
-        const targetY =
-          options.dragY - (options.dragLocalX * sin + options.dragLocalY * cos);
+        const targetX = options.dragX - (options.dragLocalX * cos - options.dragLocalY * sin);
+        const targetY = options.dragY - (options.dragLocalX * sin + options.dragLocalY * cos);
         accelerationX += (targetX - body.x) * DRAG_STIFFNESS - body.vx * DRAG_DAMPING;
         accelerationY += (targetY - body.y) * DRAG_STIFFNESS - body.vy * DRAG_DAMPING;
         body.angularVelocity = 0;
@@ -439,11 +398,7 @@ export function stepWoodenPills(
         body.vx *= speedScale;
         body.vy *= speedScale;
       }
-      body.angularVelocity = clamp(
-        body.angularVelocity,
-        -MAX_ANGULAR_SPEED,
-        MAX_ANGULAR_SPEED
-      );
+      body.angularVelocity = clamp(body.angularVelocity, -MAX_ANGULAR_SPEED, MAX_ANGULAR_SPEED);
       body.x += body.vx * dt;
       body.y += body.vy * dt;
       body.angle += body.angularVelocity * dt;
@@ -455,19 +410,14 @@ export function stepWoodenPills(
       for (const body of bodies) {
         maximumImpactSpeed = Math.max(
           maximumImpactSpeed,
-          resolveWorldBounds(body, options.width, options.height)
+          resolveWorldBounds(body, options.width, options.height),
         );
       }
       for (let first = 0; first < bodies.length - 1; first += 1) {
         for (let second = first + 1; second < bodies.length; second += 1) {
           maximumImpactSpeed = Math.max(
             maximumImpactSpeed,
-            resolvePillPair(
-              bodies[first],
-              bodies[second],
-              options.gravityX,
-              options.gravityY
-            )
+            resolvePillPair(bodies[first], bodies[second], options.gravityX, options.gravityY),
           );
         }
       }
@@ -484,7 +434,7 @@ export function hitTestWoodenPill(
   bodyY: number,
   angle: number,
   halfSegment: number,
-  radius: number
+  radius: number,
 ) {
   'worklet';
   const dx = x - bodyX;

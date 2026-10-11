@@ -78,22 +78,24 @@ export const authSessionOAuthContextSchema = z.object({
   subjectAccountId: z.string().trim().min(1).max(64).optional(),
 });
 
-export const authSessionCreateSchema = z.object({
-  sessionToken: z.string().trim().min(1),
-  clientId: z.string().trim().min(1).optional(),
-  applicationId: z.string().trim().min(1).optional(),
-  expiresAt: z.union([z.string(), z.number()]).optional(),
-  oauth: authSessionOAuthContextSchema.optional(),
-}).refine(
-  (data) => Boolean(data.clientId) || Boolean(data.applicationId),
-  { message: 'Either clientId or applicationId is required' }
-).refine(
-  // The redirect URI is matched against the OAuth client's registered
-  // allowlist, so an OAuth-bound session must be identified by its client_id —
-  // an `applicationId`-only reference has no credential to bind to.
-  (data) => !data.oauth || Boolean(data.clientId),
-  { message: 'clientId is required for an OAuth-bound session' }
-);
+export const authSessionCreateSchema = z
+  .object({
+    sessionToken: z.string().trim().min(1),
+    clientId: z.string().trim().min(1).optional(),
+    applicationId: z.string().trim().min(1).optional(),
+    expiresAt: z.union([z.string(), z.number()]).optional(),
+    oauth: authSessionOAuthContextSchema.optional(),
+  })
+  .refine((data) => Boolean(data.clientId) || Boolean(data.applicationId), {
+    message: 'Either clientId or applicationId is required',
+  })
+  .refine(
+    // The redirect URI is matched against the OAuth client's registered
+    // allowlist, so an OAuth-bound session must be identified by its client_id —
+    // an `applicationId`-only reference has no credential to bind to.
+    (data) => !data.oauth || Boolean(data.clientId),
+    { message: 'clientId is required for an OAuth-bound session' },
+  );
 
 // :sessionToken path param — the SECRET credential held only by the originating
 // client. Shared by GET /auth/session/status, POST /auth/session/authorize,

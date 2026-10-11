@@ -36,12 +36,15 @@ describe('completeOAuthCode', () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(exchange).toHaveBeenCalledWith({
-      code: 'code-1',
-      clientId: 'oxy_dk_test',
-      redirectUri: REDIRECT_URI,
-      codeVerifier: HANDSHAKE.codeVerifier,
-    }, { plantTokens: false });
+    expect(exchange).toHaveBeenCalledWith(
+      {
+        code: 'code-1',
+        clientId: 'oxy_dk_test',
+        redirectUri: REDIRECT_URI,
+        codeVerifier: HANDSHAKE.codeVerifier,
+      },
+      { plantTokens: false },
+    );
     expect(committed).toEqual([
       {
         sessionId: 'sess-1',

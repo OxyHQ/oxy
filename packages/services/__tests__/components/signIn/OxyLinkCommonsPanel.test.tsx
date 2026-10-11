@@ -32,7 +32,10 @@ const oxyServices = {
     },
   },
   auth: {
-    requestReauthCode: jest.fn(async (_action: string) => ({ verificationId: 'r-1', expiresAt: 1_900_000_000_000 })),
+    requestReauthCode: jest.fn(async (_action: string) => ({
+      verificationId: 'r-1',
+      expiresAt: 1_900_000_000_000,
+    })),
   },
 };
 let user: { id: string; username: string; publicKey?: string } = { id: 'user-1', username: 'ada' };
@@ -56,17 +59,22 @@ jest.mock('../../../src/ui/hooks/useI18n', () => {
 
 jest.mock('react-native-qrcode-svg', () => ({
   __esModule: true,
-  default: ({ value }: { value: string }) => require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
+  default: ({ value }: { value: string }) =>
+    require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
 }));
 
 let totpEnabled = false;
 jest.mock('../../../src/ui/hooks/queries/useAuthMethods', () => ({
   __esModule: true,
-  useSignInMethods: () => ({ data: { hasEmail: true, hasPassword: false, totpEnabled, backupCodesRemaining: 0 } }),
+  useSignInMethods: () => ({
+    data: { hasEmail: true, hasPassword: false, totpEnabled, backupCodesRemaining: 0 },
+  }),
 }));
 
-// eslint-disable-next-line import/first
-import { IDENTITY_LINK_POLL_MS, OxyLinkCommonsPanel } from '../../../src/ui/components/signIn/OxyLinkCommonsPanel';
+import {
+  IDENTITY_LINK_POLL_MS,
+  OxyLinkCommonsPanel,
+} from '../../../src/ui/components/signIn/OxyLinkCommonsPanel';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -110,7 +118,9 @@ describe('linking Commons from the account settings', () => {
     });
 
     const code = deriveIdentityLinkCode(LINK.linkId, KEY);
-    expect((await screen.findByTestId('link-commons-code')).textContent).toBe(`${code.slice(0, 3)} ${code.slice(3)}`);
+    expect((await screen.findByTestId('link-commons-code')).textContent).toBe(
+      `${code.slice(0, 3)} ${code.slice(3)}`,
+    );
 
     fireEvent.click(screen.getByTestId('link-commons-confirm'));
     fireEvent.click(await screen.findByTestId('reauth-send-code'));

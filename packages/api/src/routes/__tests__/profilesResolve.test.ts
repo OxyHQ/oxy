@@ -8,10 +8,8 @@
  * resolved by our WebFinger, so a local miss there would surface as a false
  * "Profile not found".
  *
- * The previous version asserted that a Mongoose `findOne` had been handed a
- * particular object; the route builds no such object any more, and a
- * query-shape assertion could not distinguish a working local-first path from a
- * broken one. This exercises the real query over real rows instead.
+ * A query-shape assertion could not distinguish a working local-first path
+ * from a broken one, so this exercises the real query over real rows.
  *
  * `resolveAndUpsert` (a network call) and the auth middleware are the only
  * mocks. `isFediverseHandle` and the serializer are REAL.
@@ -23,7 +21,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
-
 let currentViewerId: string | undefined;
 
 const mockResolveAndUpsert = jest.fn();
@@ -32,11 +29,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/optionalAuth', () => ({
-  optionalUserOrServiceAuth: (
-    req: { user?: { _id: string } },
-    _res: unknown,
-    next: () => void,
-  ) => {
+  optionalUserOrServiceAuth: (req: { user?: { _id: string } }, _res: unknown, next: () => void) => {
     if (currentViewerId) req.user = { _id: currentViewerId };
     next();
   },
@@ -290,7 +283,9 @@ describe('GET /profiles/resolve — viewer relationship', () => {
   it('reports followsYou on the local branch from a real follow edge', async () => {
     const handle = remoteHandle('bridged');
     const target = await account({ username: handle });
-    const viewer = await account({ username: `viewer${randomUUID().replace(/-/g, '').slice(0, 12)}` });
+    const viewer = await account({
+      username: `viewer${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    });
     await getDb().insert(userFollows).values({ followerId: target, followedId: viewer });
     currentViewerId = viewer;
 
@@ -325,7 +320,9 @@ describe('GET /profiles/resolve — viewer relationship', () => {
   it('computes relationship on the discovery branch for a freshly-upserted actor', async () => {
     const handle = remoteHandle('newlyseen');
     const id = await account({ username: null, nameFirst: 'Newly' });
-    const viewer = await account({ username: `viewer${randomUUID().replace(/-/g, '').slice(0, 12)}` });
+    const viewer = await account({
+      username: `viewer${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    });
     mockResolveAndUpsert.mockResolvedValue({ _id: id });
     currentViewerId = viewer;
 

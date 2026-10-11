@@ -22,7 +22,9 @@ import {
   type AssetUrlBatchResolver,
 } from '../../src/ui/hooks/useResolvedFileUrls';
 
-const makeFile = (over: Partial<FileMetadata> & Pick<FileMetadata, 'id' | 'contentType'>): FileMetadata => ({
+const makeFile = (
+  over: Partial<FileMetadata> & Pick<FileMetadata, 'id' | 'contentType'>,
+): FileMetadata => ({
   filename: 'file',
   length: 1,
   chunkSize: 0,
@@ -131,7 +133,9 @@ describe('useResolvedFileUrls', () => {
       { fileId: 'pubImg', variant: 'thumb' },
       { fileId: 'vid', variant: 'poster' },
     ]);
-    expect((requests as Array<{ fileId: string }>).some((r) => r.fileId.startsWith('temp-'))).toBe(false);
+    expect((requests as Array<{ fileId: string }>).some((r) => r.fileId.startsWith('temp-'))).toBe(
+      false,
+    );
     // Token TTL is passed so the URL carries a valid scoped media token.
     expect(options).toEqual({ expiresIn: 600 });
 

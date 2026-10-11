@@ -26,9 +26,7 @@ describe('canonicalize', () => {
         z: { y: 1, x: 2 },
         a: { c: 3, b: { e: 5, d: 4 } },
       };
-      expect(canonicalize(value)).toBe(
-        '{"a":{"b":{"d":4,"e":5},"c":3},"z":{"x":2,"y":1}}',
-      );
+      expect(canonicalize(value)).toBe('{"a":{"b":{"d":4,"e":5},"c":3},"z":{"x":2,"y":1}}');
     });
 
     it('is order-insensitive across deep nesting', () => {
@@ -91,9 +89,7 @@ describe('canonicalize', () => {
     it('respects toJSON (Date and its ISO string canonicalize identically)', () => {
       const date = new Date('2026-06-26T00:00:00.000Z');
       expect(canonicalize(date)).toBe(JSON.stringify(date.toISOString()));
-      expect(canonicalize({ at: date })).toBe(
-        canonicalize({ at: '2026-06-26T00:00:00.000Z' }),
-      );
+      expect(canonicalize({ at: date })).toBe(canonicalize({ at: '2026-06-26T00:00:00.000Z' }));
     });
   });
 

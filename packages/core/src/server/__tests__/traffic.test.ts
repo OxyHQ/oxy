@@ -34,7 +34,7 @@ function recordingFetch(sent: RequestInit[]) {
 }
 
 function authorizations(sent: RequestInit[]): string[] {
-  return sent.map(init => (init.headers as Record<string, string>).Authorization);
+  return sent.map((init) => (init.headers as Record<string, string>).Authorization);
 }
 
 /**
@@ -61,9 +61,13 @@ it('publishes independently of viewers and waits for registration before removin
   const originalFetch = globalThis.fetch;
   const bodies: Array<Record<string, unknown> | unknown[]> = [];
   let releaseRegistration!: () => void;
-  const registration = new Promise<void>(resolve => { releaseRegistration = resolve; });
+  const registration = new Promise<void>((resolve) => {
+    releaseRegistration = resolve;
+  });
   let registered!: () => void;
-  const registrationStarted = new Promise<void>(resolve => { registered = resolve; });
+  const registrationStarted = new Promise<void>((resolve) => {
+    registered = resolve;
+  });
   globalThis.fetch = jest.fn(async (_input, init) => {
     const body = JSON.parse(String(init?.body));
     bodies.push(body);
@@ -73,16 +77,39 @@ it('publishes independently of viewers and waits for registration before removin
     }
     return new Response(null, { status: 204 });
   }) as unknown as typeof fetch;
-  const traffic = createEcosystemTraffic({ service: 'mention', region: 'us-west-2', credential: async () => 'test-service-token', ready: () => true });
+  const traffic = createEcosystemTraffic({
+    service: 'mention',
+    region: 'us-west-2',
+    credential: async () => 'test-service-token',
+    ready: () => true,
+  });
   try {
     await registrationStarted;
-    traffic.record({ scope: 'internal', direction: 'outbound', activityType: 'communication', sourceRegion: 'us-west-2', targetRegion: 'us-west-2', targetService: 'oxy-api' });
+    traffic.record({
+      scope: 'internal',
+      direction: 'outbound',
+      activityType: 'communication',
+      sourceRegion: 'us-west-2',
+      targetRegion: 'us-west-2',
+      targetService: 'oxy-api',
+    });
     const stopped = traffic.stop();
-    expect(bodies.some(body => !Array.isArray(body) && body.removed === true)).toBe(false);
+    expect(bodies.some((body) => !Array.isArray(body) && body.removed === true)).toBe(false);
     releaseRegistration();
     await stopped;
-    expect(bodies[bodies.length - 1]).toMatchObject({ removed: true, service: 'mention', status: 'online' });
-    expect(bodies.find(Array.isArray)).toEqual([expect.objectContaining({ service: 'mention', scope: 'internal', direction: 'outbound', requests: 1 })]);
+    expect(bodies[bodies.length - 1]).toMatchObject({
+      removed: true,
+      service: 'mention',
+      status: 'online',
+    });
+    expect(bodies.find(Array.isArray)).toEqual([
+      expect.objectContaining({
+        service: 'mention',
+        scope: 'internal',
+        direction: 'outbound',
+        requests: 1,
+      }),
+    ]);
   } finally {
     releaseRegistration();
     await traffic.stop();
@@ -97,7 +124,9 @@ it('rejects a partial activity credential instead of mixing it with service cred
     Reflect.deleteProperty(process.env, 'OXY_ACTIVITY_API_SECRET');
     process.env.OXY_SERVICE_API_KEY = 'service-key';
     process.env.OXY_SERVICE_API_SECRET = 'service-secret';
-    expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow('complete OXY_ACTIVITY');
+    expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow(
+      'complete OXY_ACTIVITY',
+    );
   } finally {
     process.env = previous;
   }
@@ -142,7 +171,11 @@ describe('ecosystem activity credentials', () => {
     const sent: RequestInit[] = [];
     globalThis.fetch = recordingFetch(sent);
 
-    const traffic = createEcosystemTraffic({ service: 'mention', region: 'us-west-2', credential: async () => 'explicit-token' });
+    const traffic = createEcosystemTraffic({
+      service: 'mention',
+      region: 'us-west-2',
+      credential: async () => 'explicit-token',
+    });
     await traffic.stop();
 
     expect(authorizations(sent)).not.toContain('Bearer token-from-workload');
@@ -156,7 +189,7 @@ describe('ecosystem activity credentials', () => {
     // A laptop or a CI box: the container credentials endpoint is not going to
     // appear later, so saying so at boot beats failing on the first heartbeat.
     expect(() => createEcosystemTraffic({ service: 'homiio', region: 'us-west-2' })).toThrow(
-      /needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity/
+      /needs one of: an OXY_ACTIVITY_API_KEY and OXY_ACTIVITY_API_SECRET pair, an OXY_SERVICE_API_KEY and OXY_SERVICE_API_SECRET pair, or a workload identity/,
     );
   });
 

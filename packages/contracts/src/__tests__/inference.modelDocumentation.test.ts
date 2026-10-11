@@ -240,9 +240,7 @@ describe('modelReleaseIngestionRequestSchema', () => {
       commercialUseAllowed: true,
       requiresAttribution: false,
     },
-    artifacts: [
-      { path: 'model.safetensors', digest: `sha256:${'b'.repeat(64)}`, sizeBytes: 1024 },
-    ],
+    artifacts: [{ path: 'model.safetensors', digest: `sha256:${'b'.repeat(64)}`, sizeBytes: 1024 }],
     signatures: [
       {
         algorithm: 'ed25519' as const,
@@ -339,9 +337,9 @@ describe('modelReleaseIngestionResultSchema', () => {
   });
 
   it('refuses a release with no artifact or no signature', () => {
-    expect(modelReleaseIngestionResultSchema.safeParse({ ...RESULT, artifactCount: 0 }).success).toBe(
-      false,
-    );
+    expect(
+      modelReleaseIngestionResultSchema.safeParse({ ...RESULT, artifactCount: 0 }).success,
+    ).toBe(false);
     expect(
       modelReleaseIngestionResultSchema.safeParse({ ...RESULT, signatureCount: 0 }).success,
     ).toBe(false);

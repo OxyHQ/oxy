@@ -1,11 +1,10 @@
 /**
  * Proof-of-personhood (civic / Fase 3), against a REAL Postgres.
  *
- * The suite this replaces mocked eleven Mongoose models the service no longer
- * imports, so every gate it "checked" was checked against a `jest.fn()` and
- * every stake, award and score it "asserted" was read back out of a mock's
- * argument list. Personhood is the one civic surface where that is worst,
- * because its whole design is a claim about ARITHMETIC over stored rows:
+ * Mocked models would check every gate against a `jest.fn()` and read every
+ * stake, award and score back out of a mock's argument list. Personhood is the
+ * one civic surface where that is worst, because its whole design is a claim
+ * about ARITHMETIC over stored rows:
  *
  *  - **No single evidence class reaches θ.** `evidence = 0.50·vouch +
  *    0.35·realLife + 0.15·biometric`, θ = 0.60 — so a saturated vouch signal
@@ -20,9 +19,9 @@
  *    award, or after the chain append, is a much worse bug than one that is not
  *    refused at all.
  *  - **`personhood_vouches.record_id` is a real foreign key onto
- *    `signed_records.record_id` now.** A v1 (unchained) envelope stores no
- *    content address, which is exactly why the store policy refuses one for this
- *    type; under Mongo it produced a dangling reference in silence.
+ *    `signed_records.record_id`.** A v1 (unchained) envelope stores no content
+ *    address, which is exactly why the store policy refuses one for this type;
+ *    accepting it would leave a dangling reference in silence.
  *  - **The verified mirror is guarded.** `recomputePersonhood` only writes
  *    `users.verified`, recalculates the balance and invalidates the cache when
  *    the verdict actually CHANGES. The observable for "the recompute did not
@@ -173,7 +172,10 @@ async function chainRows(userId: string) {
 /** The ledger rows one account has. */
 async function ledgerRows(userId: string) {
   return getDb()
-    .select({ actionType: reputationTransactions.actionType, points: reputationTransactions.points })
+    .select({
+      actionType: reputationTransactions.actionType,
+      points: reputationTransactions.points,
+    })
     .from(reputationTransactions)
     .where(eq(reputationTransactions.userId, userId));
 }
@@ -212,7 +214,7 @@ async function isUserVerified(userId: string): Promise<boolean> {
  */
 async function seedActiveVouch(
   subjectUserId: string,
-  tier?: typeof reputationBalances.$inferInsert['trustTier'],
+  tier?: (typeof reputationBalances.$inferInsert)['trustTier'],
 ): Promise<string> {
   const voucher = await makeSigner();
   if (tier) {
@@ -235,16 +237,18 @@ async function seedActiveVouch(
 /** An active session binding `userId` to `deviceId`. */
 async function seedSession(userId: string, deviceId: string): Promise<void> {
   const token = uniqueId();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 86_400_000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
 }
 
 beforeAll(async () => {
@@ -722,10 +726,7 @@ describe('recomputePersonhood — the evidence formula over stored rows', () => 
 
     expect(status.sybilPenalty).toBeGreaterThan(0);
     expect(status.breakdownSybilPenalty).toBe(status.sybilPenalty);
-    expect(status.score).toBeCloseTo(
-      status.breakdownEvidence * (1 - status.sybilPenalty),
-      10,
-    );
+    expect(status.score).toBeCloseTo(status.breakdownEvidence * (1 - status.sybilPenalty), 10);
     expect(status.score).toBeLessThan(status.breakdownEvidence);
   });
 

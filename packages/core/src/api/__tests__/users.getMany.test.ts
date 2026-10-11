@@ -38,7 +38,10 @@ describe('users.getMany — dual-mode auth', () => {
 
   /** Install a fake service lane, as `OxyServer` does. */
   const installLane = (available: boolean): void => {
-    const lane: ServiceLane = { available, request: makeServiceRequestSpy as ServiceLane['request'] };
+    const lane: ServiceLane = {
+      available,
+      request: makeServiceRequestSpy as ServiceLane['request'],
+    };
     (oxy as unknown as { context: OxyContext }).context.service = lane;
   };
 
@@ -133,7 +136,12 @@ describe('users.getMany — dual-mode auth', () => {
       await oxy.users.getMany(['a']);
 
       expect(makeServiceRequestSpy).not.toHaveBeenCalled();
-      expect(makeRequestSpy).toHaveBeenCalledWith('POST', '/users/by-ids', { ids: ['a'] }, { cache: false });
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'POST',
+        '/users/by-ids',
+        { ids: ['a'] },
+        { cache: false },
+      );
     });
   });
 
@@ -141,11 +149,8 @@ describe('users.getMany — dual-mode auth', () => {
     it('chunks at 100 ids per request on the user path and flattens results', async () => {
       const ids = Array.from({ length: 250 }, (_, i) => `id-${i}`);
       makeRequestSpy.mockImplementation(
-        async (
-          _method: string,
-          _url: string,
-          data?: { ids: string[] },
-        ): Promise<User[]> => (data?.ids ?? []).map((id) => makeRawUser(id)),
+        async (_method: string, _url: string, data?: { ids: string[] }): Promise<User[]> =>
+          (data?.ids ?? []).map((id) => makeRawUser(id)),
       );
 
       const result = await oxy.users.getMany(ids);

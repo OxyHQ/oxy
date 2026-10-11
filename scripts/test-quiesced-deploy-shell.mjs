@@ -1,60 +1,53 @@
-import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import {
-	mkdirSync,
-	mkdtempSync,
-	readFileSync,
-	rmSync,
-	writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { shapeHash } from "../.github/scripts/guard-quiesced-deploy.mjs";
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { shapeHash } from '../.github/scripts/guard-quiesced-deploy.mjs';
 
-const root = resolve(import.meta.dirname, "..");
-const scratch = mkdtempSync(join(tmpdir(), "quiesced-shell-"));
-const old =
-	"arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692";
-const next = old.replace(":692", ":693");
-const task = `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/${"a".repeat(32)}`;
+const root = resolve(import.meta.dirname, '..');
+const scratch = mkdtempSync(join(tmpdir(), 'quiesced-shell-'));
+const old = 'arn:aws:ecs:us-west-2:237343248947:task-definition/oxy-oxy-api:692';
+const next = old.replace(':692', ':693');
+const task = `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/${'a'.repeat(32)}`;
 const target =
-	"arn:aws:elasticloadbalancing:us-west-2:237343248947:targetgroup/oxy-api/0123456789abcdef";
-const previousImage = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${"1".repeat(64)}`;
-const finalImage = previousImage.replace("1".repeat(64), "2".repeat(64));
+  'arn:aws:elasticloadbalancing:us-west-2:237343248947:targetgroup/oxy-api/0123456789abcdef';
+const previousImage = `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/oxy-api@sha256:${'1'.repeat(64)}`;
+const finalImage = previousImage.replace('1'.repeat(64), '2'.repeat(64));
 const definition = {
-	taskDefinitionArn: old,
-	family: "oxy-oxy-api",
-	containerDefinitions: [
-		{
-			name: "oxy-api",
-			image: previousImage,
-			environment: [{ name: "PUBLIC_CONFIG", value: "unchanged" }],
-			secrets: [],
-		},
-	],
+  taskDefinitionArn: old,
+  family: 'oxy-oxy-api',
+  containerDefinitions: [
+    {
+      name: 'oxy-api',
+      image: previousImage,
+      environment: [{ name: 'PUBLIC_CONFIG', value: 'unchanged' }],
+      secrets: [],
+    },
+  ],
 };
 const plan = {
-	schemaVersion: 1,
-	region: "us-west-2",
-	cluster: "oxy-cluster",
-	service: "oxy-api",
-	container: "oxy-api",
-	previousTaskDefinition: old,
-	previousImage,
-	previousShapeSha256: shapeHash(definition),
-	finalImage,
-	sourceSha: "c".repeat(40),
-	restoreCount: 2,
-	previousTasks: [task],
-	targetGroups: [target],
-	scaler: null,
+  schemaVersion: 1,
+  region: 'us-west-2',
+  cluster: 'oxy-cluster',
+  service: 'oxy-api',
+  container: 'oxy-api',
+  previousTaskDefinition: old,
+  previousImage,
+  previousShapeSha256: shapeHash(definition),
+  finalImage,
+  sourceSha: 'c'.repeat(40),
+  restoreCount: 2,
+  previousTasks: [task],
+  targetGroups: [target],
+  scaler: null,
 };
-const binary = join(scratch, "bin");
+const binary = join(scratch, 'bin');
 mkdirSync(binary);
 writeFileSync(
-	join(binary, "aws"),
-	`#!/usr/bin/env node
+  join(binary, 'aws'),
+  `#!/usr/bin/env node
 const fs=require('node:fs');
 const args=process.argv.slice(2), dir=process.env.FIXTURE_DIR;
 const value=flag=>args.includes(flag)?args[args.indexOf(flag)+1]:undefined;
@@ -112,12 +105,12 @@ case 'ecs update-service':{
 default:process.stderr.write('Unexpected fixture request');process.exit(3);
 }
 `,
-	{ mode: 0o755 },
+  { mode: 0o755 },
 );
-const guard = join(scratch, "head.sh");
+const guard = join(scratch, 'head.sh');
 writeFileSync(
-	guard,
-	`#!/usr/bin/env bash
+  guard,
+  `#!/usr/bin/env bash
 node - <<'JS'
 const fs=require('node:fs'),dir=process.env.FIXTURE_DIR;
 const p=dir+'/head-count',n=fs.existsSync(p)?Number(fs.readFileSync(p)):0;fs.writeFileSync(p,String(n+1));
@@ -130,222 +123,190 @@ if(n+1===3){
 }
 JS
 `,
-	{ mode: 0o755 },
+  { mode: 0o755 },
 );
 let count = 0;
 function run(
-	name,
-	{
-		maintenance = true,
-		failure = false,
-		drift = false,
-		omittedStopping = false,
-		badRestoreAck = false,
-		finalMainFail = false,
-		finalDrift = false,
-		shutdownUnconfirmed = false,
-		staleSteady = false,
-		eventualSteady = false,
-	} = {},
+  name,
+  {
+    maintenance = true,
+    failure = false,
+    drift = false,
+    omittedStopping = false,
+    badRestoreAck = false,
+    finalMainFail = false,
+    finalDrift = false,
+    shutdownUnconfirmed = false,
+    staleSteady = false,
+    eventualSteady = false,
+  } = {},
 ) {
-	const dir = join(scratch, name);
-	mkdirSync(dir);
-	const bytes = JSON.stringify(plan);
-	writeFileSync(join(dir, "plan.json"), bytes);
-	writeFileSync(join(dir, "definition.json"), JSON.stringify(definition));
-	writeFileSync(
-		join(dir, "state.json"),
-		JSON.stringify({ td: drift ? next : old, count: 0, started: false }),
-	);
-	writeFileSync(join(dir, "events.jsonl"), "");
-	const worker = join(dir, "worker.sh");
-	writeFileSync(
-		worker,
-		`#!/usr/bin/env bash\necho '{"op":"worker"}' >> '${dir}/events.jsonl'\n`,
-	);
-	const env = {
-		PATH: `${binary}:${process.env.PATH}`,
-		TMPDIR: scratch,
-		AWS_REGION: "us-west-2",
-		CLUSTER: "oxy-cluster",
-		APP: "oxy-api",
-		IMAGE_URI: finalImage,
-		FIXTURE_DIR: dir,
-		FIXTURE_FAIL: String(failure),
-		FIXTURE_OLD_STOPPING: String(omittedStopping),
-		FIXTURE_BAD_RESTORE_ACK: String(badRestoreAck),
-		FIXTURE_FINAL_MAIN_FAIL: String(finalMainFail),
-		FIXTURE_FINAL_DRIFT: String(finalDrift),
-		FIXTURE_SHUTDOWN_UNCONFIRMED: String(shutdownUnconfirmed),
-		FIXTURE_STALE_STEADY: String(staleSteady),
-		FIXTURE_EVENTUAL_STEADY: String(eventualSteady),
-		MAX_WAIT_SECS: "2",
-		POLL_INTERVAL: "1",
-		RUN_MIGRATIONS: "true",
-		PRE_ROLLOUT_SCRIPT: worker,
-		DEPLOY_HEAD_GUARD_SCRIPT: guard,
-		POST_DEPLOY_SMOKE_SCRIPT: worker,
-	};
-	if (maintenance)
-		Object.assign(env, {
-			DEPLOY_SHA: plan.sourceSha,
-			QUIESCED_DEPLOY_PLAN_PATH: join(dir, "plan.json"),
-			QUIESCED_DEPLOY_PLAN_SHA256: createHash("sha256")
-				.update(bytes)
-				.digest("hex"),
-		});
-	const result = spawnSync("bash", [".github/scripts/deploy-ecs-image.sh"], {
-		cwd: root,
-		env,
-		encoding: "utf8",
-		timeout: 30000,
-	});
-	const events = readFileSync(join(dir, "events.jsonl"), "utf8")
-		.trim()
-		.split("\n")
-		.filter(Boolean)
-		.map(JSON.parse);
-	const final = JSON.parse(readFileSync(join(dir, "state.json")));
-	return { result, events, final };
+  const dir = join(scratch, name);
+  mkdirSync(dir);
+  const bytes = JSON.stringify(plan);
+  writeFileSync(join(dir, 'plan.json'), bytes);
+  writeFileSync(join(dir, 'definition.json'), JSON.stringify(definition));
+  writeFileSync(
+    join(dir, 'state.json'),
+    JSON.stringify({ td: drift ? next : old, count: 0, started: false }),
+  );
+  writeFileSync(join(dir, 'events.jsonl'), '');
+  const worker = join(dir, 'worker.sh');
+  writeFileSync(worker, `#!/usr/bin/env bash\necho '{"op":"worker"}' >> '${dir}/events.jsonl'\n`);
+  const env = {
+    PATH: `${binary}:${process.env.PATH}`,
+    TMPDIR: scratch,
+    AWS_REGION: 'us-west-2',
+    CLUSTER: 'oxy-cluster',
+    APP: 'oxy-api',
+    IMAGE_URI: finalImage,
+    FIXTURE_DIR: dir,
+    FIXTURE_FAIL: String(failure),
+    FIXTURE_OLD_STOPPING: String(omittedStopping),
+    FIXTURE_BAD_RESTORE_ACK: String(badRestoreAck),
+    FIXTURE_FINAL_MAIN_FAIL: String(finalMainFail),
+    FIXTURE_FINAL_DRIFT: String(finalDrift),
+    FIXTURE_SHUTDOWN_UNCONFIRMED: String(shutdownUnconfirmed),
+    FIXTURE_STALE_STEADY: String(staleSteady),
+    FIXTURE_EVENTUAL_STEADY: String(eventualSteady),
+    MAX_WAIT_SECS: '2',
+    POLL_INTERVAL: '1',
+    RUN_MIGRATIONS: 'true',
+    PRE_ROLLOUT_SCRIPT: worker,
+    DEPLOY_HEAD_GUARD_SCRIPT: guard,
+    POST_DEPLOY_SMOKE_SCRIPT: worker,
+  };
+  if (maintenance)
+    Object.assign(env, {
+      DEPLOY_SHA: plan.sourceSha,
+      QUIESCED_DEPLOY_PLAN_PATH: join(dir, 'plan.json'),
+      QUIESCED_DEPLOY_PLAN_SHA256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  const result = spawnSync('bash', ['.github/scripts/deploy-ecs-image.sh'], {
+    cwd: root,
+    env,
+    encoding: 'utf8',
+    timeout: 30000,
+  });
+  const events = readFileSync(join(dir, 'events.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map(JSON.parse);
+  const final = JSON.parse(readFileSync(join(dir, 'state.json')));
+  return { result, events, final };
 }
 try {
-	const good = run("good");
-	assert.equal(good.result.status, 0, good.result.stdout + good.result.stderr);
-	count++;
-	assert.deepEqual(
-		good.events.map((x) => x.op),
-		["register", "migration", "worker", "update", "update", "worker"],
-	);
-	count++;
-	assert.equal(good.events.at(-3).td, next);
-	assert.equal(good.events.at(-3).count, 0);
-	assert.equal(good.events.at(-2).td, null);
-	assert.equal(good.events.at(-2).count, 2);
-	assert.equal(good.events.at(-3).autoRollback, false);
-	count++;
-	const failure = run("failure", { failure: true });
-	assert.notEqual(failure.result.status, 0);
-	count++;
-	assert.equal(failure.final.count, 0);
-	assert.equal(failure.final.td, next);
-	count++;
-	assert.ok(
-		failure.result.stdout.includes("old bootstrap was not restored"),
-		failure.result.stdout + failure.result.stderr,
-	);
-	count++;
-	assert.ok(
-		failure.events.filter((x) => x.op === "update").every((x) => x.td !== old),
-	);
-	count++;
-	const omitted = run("omitted-old-stopping", { omittedStopping: true });
-	assert.notEqual(omitted.result.status, 0);
-	assert.deepEqual(omitted.events, []);
-	assert.equal(omitted.final.count, 0);
-	count++;
-	const badAck = run("bad-restore-ack", { badRestoreAck: true });
-	assert.notEqual(badAck.result.status, 0);
-	assert.equal(badAck.final.count, 0);
-	assert.equal(badAck.final.td, next);
-	assert.ok(
-		badAck.events.some((event) => event.op === "update" && event.count === 2),
-	);
-	assert.equal(badAck.events.at(-1).count, 0);
-	count++;
-	const normal = run("normal0", { maintenance: false });
-	assert.notEqual(normal.result.status, 0);
-	assert.deepEqual(normal.events, []);
-	count++;
-	const drift = run("drift", { drift: true });
-	assert.notEqual(drift.result.status, 0);
-	assert.deepEqual(drift.events, []);
-	count++;
+  const good = run('good');
+  assert.equal(good.result.status, 0, good.result.stdout + good.result.stderr);
+  count++;
+  assert.deepEqual(
+    good.events.map((x) => x.op),
+    ['register', 'migration', 'worker', 'update', 'update', 'worker'],
+  );
+  count++;
+  assert.equal(good.events.at(-3).td, next);
+  assert.equal(good.events.at(-3).count, 0);
+  assert.equal(good.events.at(-2).td, null);
+  assert.equal(good.events.at(-2).count, 2);
+  assert.equal(good.events.at(-3).autoRollback, false);
+  count++;
+  const failure = run('failure', { failure: true });
+  assert.notEqual(failure.result.status, 0);
+  count++;
+  assert.equal(failure.final.count, 0);
+  assert.equal(failure.final.td, next);
+  count++;
+  assert.ok(
+    failure.result.stdout.includes('old bootstrap was not restored'),
+    failure.result.stdout + failure.result.stderr,
+  );
+  count++;
+  assert.ok(failure.events.filter((x) => x.op === 'update').every((x) => x.td !== old));
+  count++;
+  const omitted = run('omitted-old-stopping', { omittedStopping: true });
+  assert.notEqual(omitted.result.status, 0);
+  assert.deepEqual(omitted.events, []);
+  assert.equal(omitted.final.count, 0);
+  count++;
+  const badAck = run('bad-restore-ack', { badRestoreAck: true });
+  assert.notEqual(badAck.result.status, 0);
+  assert.equal(badAck.final.count, 0);
+  assert.equal(badAck.final.td, next);
+  assert.ok(badAck.events.some((event) => event.op === 'update' && event.count === 2));
+  assert.equal(badAck.events.at(-1).count, 0);
+  count++;
+  const normal = run('normal0', { maintenance: false });
+  assert.notEqual(normal.result.status, 0);
+  assert.deepEqual(normal.events, []);
+  count++;
+  const drift = run('drift', { drift: true });
+  assert.notEqual(drift.result.status, 0);
+  assert.deepEqual(drift.events, []);
+  count++;
 
-	const errors = [];
-	const check = (name, fn) => {
-		try {
-			fn();
-			console.log(`Final interleaving ${name}: PASS`);
-		} catch (error) {
-			errors.push(`${name}: ${error.stack}`);
-		}
-	};
-	for (const [name, options] of [
-		["final-main-rejection", { finalMainFail: true }],
-		["final-retired-drift", { finalDrift: true }],
-		["shutdown-unconfirmed", { finalDrift: true, shutdownUnconfirmed: true }],
-	]) {
-		check(name, () => {
-			const actual = run(name, options);
-			assert.notEqual(
-				actual.result.status,
-				0,
-				actual.result.stdout + actual.result.stderr,
-			);
-			assert.equal(
-				actual.final.count,
-				0,
-				actual.result.stdout + actual.result.stderr,
-			);
-			assert.equal(actual.final.td, next);
-			assert.equal(
-				actual.events.filter((x) => x.op === "update").length,
-				2,
-				actual.result.stdout + actual.result.stderr,
-			);
-			assert.equal(actual.events.at(-1).op, "update");
-			assert.equal(actual.events.at(-1).count, 0);
-			assert.ok(
-				actual.events
-					.filter((x) => x.op === "update")
-					.every((x) => x.td !== old && x.count === 0),
-			);
-			assert.equal(actual.events.filter((x) => x.op === "worker").length, 1);
-			if (options.shutdownUnconfirmed)
-				assert.ok(
-					actual.result.stdout.includes("shutdown is not confirmed"),
-					actual.result.stdout + actual.result.stderr,
-				);
-			count++;
-		});
-	}
-	check("stale-steady", () => {
-		const stale = run("stale-steady", { staleSteady: true });
-		assert.notEqual(
-			stale.result.status,
-			0,
-			stale.result.stdout + stale.result.stderr,
-		);
-		assert.equal(stale.final.count, 0);
-		assert.equal(stale.events.filter((x) => x.op === "worker").length, 1);
-		assert.ok(!stale.result.stdout.includes("healthy steady state"));
-		count++;
-	});
-	check("eventual-steady", () => {
-		const eventual = run("eventual-steady", { eventualSteady: true });
-		assert.equal(
-			eventual.result.status,
-			0,
-			eventual.result.stdout + eventual.result.stderr,
-		);
-		const post = eventual.events.map((x) => x.op).lastIndexOf("worker");
-		assert.ok(
-			eventual.events
-				.slice(0, post)
-				.some(
-					(x) =>
-						x.op === "observation" &&
-						x.read >= 6 &&
-						x.rolloutState === "COMPLETED",
-				),
-		);
-		assert.equal(eventual.final.count, 2);
-		count++;
-	});
-	assert.deepEqual(errors, []);
-	console.log(
-		`Quiesced canonical shell: ${count} checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).`,
-	);
+  const errors = [];
+  const check = (name, fn) => {
+    try {
+      fn();
+      console.log(`Final interleaving ${name}: PASS`);
+    } catch (error) {
+      errors.push(`${name}: ${error.stack}`);
+    }
+  };
+  for (const [name, options] of [
+    ['final-main-rejection', { finalMainFail: true }],
+    ['final-retired-drift', { finalDrift: true }],
+    ['shutdown-unconfirmed', { finalDrift: true, shutdownUnconfirmed: true }],
+  ]) {
+    check(name, () => {
+      const actual = run(name, options);
+      assert.notEqual(actual.result.status, 0, actual.result.stdout + actual.result.stderr);
+      assert.equal(actual.final.count, 0, actual.result.stdout + actual.result.stderr);
+      assert.equal(actual.final.td, next);
+      assert.equal(
+        actual.events.filter((x) => x.op === 'update').length,
+        2,
+        actual.result.stdout + actual.result.stderr,
+      );
+      assert.equal(actual.events.at(-1).op, 'update');
+      assert.equal(actual.events.at(-1).count, 0);
+      assert.ok(
+        actual.events.filter((x) => x.op === 'update').every((x) => x.td !== old && x.count === 0),
+      );
+      assert.equal(actual.events.filter((x) => x.op === 'worker').length, 1);
+      if (options.shutdownUnconfirmed)
+        assert.ok(
+          actual.result.stdout.includes('shutdown is not confirmed'),
+          actual.result.stdout + actual.result.stderr,
+        );
+      count++;
+    });
+  }
+  check('stale-steady', () => {
+    const stale = run('stale-steady', { staleSteady: true });
+    assert.notEqual(stale.result.status, 0, stale.result.stdout + stale.result.stderr);
+    assert.equal(stale.final.count, 0);
+    assert.equal(stale.events.filter((x) => x.op === 'worker').length, 1);
+    assert.ok(!stale.result.stdout.includes('healthy steady state'));
+    count++;
+  });
+  check('eventual-steady', () => {
+    const eventual = run('eventual-steady', { eventualSteady: true });
+    assert.equal(eventual.result.status, 0, eventual.result.stdout + eventual.result.stderr);
+    const post = eventual.events.map((x) => x.op).lastIndexOf('worker');
+    assert.ok(
+      eventual.events
+        .slice(0, post)
+        .some((x) => x.op === 'observation' && x.read >= 6 && x.rolloutState === 'COMPLETED'),
+    );
+    assert.equal(eventual.final.count, 2);
+    count++;
+  });
+  assert.deepEqual(errors, []);
+  console.log(
+    `Quiesced canonical shell: ${count} checks PASS (mock AWS CLI; real shell, migration/worker/update ordering, failure stopped).`,
+  );
 } finally {
-	rmSync(scratch, { recursive: true });
+  rmSync(scratch, { recursive: true });
 }

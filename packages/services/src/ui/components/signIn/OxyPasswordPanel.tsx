@@ -41,7 +41,10 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
   if (keyed) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('signInSecurity.password.title')} description={t('linkCommons.already')} />
+        <OxyAuthScreenHeader
+          title={t('signInSecurity.password.title')}
+          description={t('linkCommons.already')}
+        />
       </OxyAuthScreen>
     );
   }
@@ -51,7 +54,11 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
 
   return (
     <ReauthStep
-      title={hasPassword ? t('signInSecurity.password.changeTitle') : t('signInSecurity.password.setTitle')}
+      title={
+        hasPassword
+          ? t('signInSecurity.password.changeTitle')
+          : t('signInSecurity.password.setTitle')
+      }
       description={t('signInSecurity.password.description', { min: PASSWORD_MIN_LENGTH })}
       action="change_password"
       allowPassword={hasPassword}
@@ -64,7 +71,11 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
         return password === repeat ? null : t('signInSecurity.password.mismatch');
       }}
       onSubmit={async (reauth) => {
-        await oxyServices.auth.password.set({ newPassword: password, reauth, revokeOtherSessions: signOutOthers });
+        await oxyServices.auth.password.set({
+          newPassword: password,
+          reauth,
+          revokeOtherSessions: signOutOthers,
+        });
         void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
         toast.success(t('signInSecurity.password.saved'));
         onDone?.();
@@ -95,7 +106,11 @@ export const OxyPasswordPanel: React.FC<OxyPasswordPanelProps> = ({ onDone, onCa
       {/* The field names the switch ("Sign out everywhere else, switch, off")
           and, on web, its label toggles it. One row: label, then the switch. */}
       <Field label={t('signInSecurity.password.signOutOthers')} style={styles.row}>
-        <Switch checked={signOutOthers} onCheckedChange={setSignOutOthers} testID="password-sign-out-others" />
+        <Switch
+          checked={signOutOthers}
+          onCheckedChange={setSignOutOthers}
+          testID="password-sign-out-others"
+        />
       </Field>
     </ReauthStep>
   );

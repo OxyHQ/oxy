@@ -9,12 +9,21 @@ import {
   inboxThreadSummaryResponseSchema,
   type InboxComposeRequest,
   type InboxDailyBriefRequest,
+  type InboxDailyBriefResponse,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { emailService, type MessageDto } from '../services/email.service';
-import { getInboxDailyBriefCounts } from '../services/inboxDailyBrief.service';
+import {
+  briefFromModel,
+  briefLanguage,
+  dailyBriefSystemPrompt,
+  dailyBriefUserPrompt,
+  emptyBrief,
+  getInboxDailyBriefDigest,
+} from '../services/inboxDailyBrief.service';
+import { allocateRequestId } from '../services/inferenceEdge.service';
 import {
   executeInboxPointInference,
   inboxCompletionText,
@@ -22,25 +31,18 @@ import {
   type InboxPointInferenceInput,
 } from '../services/inboxInference.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { NotFoundError } from '../utils/error';
+import { containsAccountSecret } from '../utils/inboxAccountSecrets';
+import { ApiError, NotFoundError } from '../utils/error';
 import { inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 
 const router = Router();
 const JSON_FORMAT = { type: 'json_object' as const };
 const MAX_THREAD_MESSAGES = 30;
 const MAX_THREAD_BODY_CHARS = 800;
-const SMART_REPLY_SENSITIVE_WORDS = [
-  'password', 'passcode', 'one-time code', 'one time code', 'otp', '2fa', 'mfa',
-  'verification code', 'security code', 'reset', 'verify your', 'confirm your account',
+// Smart Reply also stays out of money matters, where a canned reply is a risk.
+const SMART_REPLY_FINANCIAL_WORDS = [
   'banking', 'transaction', 'invoice', 'payment', 'credit card', 'ssn', 'social security',
 ] as const;
-const SMART_REPLY_SENSITIVE_PATTERNS = [
-  /\b\d{3}-\d{2}-\d{4}\b/,
-  /\b(?:\d[ -]*?){13,19}\b/,
-  /\b(?:code|pin|otp)\s*[:#-]?\s*\d{4,8}\b/i,
-] as const;
-const SIX_DIGIT_CODE_PATTERN = /\b\d{6}\b/;
-const SECURITY_WORD_PATTERN = /\b(?:code|pin|otp|verify|verification)\b/i;
 
 const inboxAiLimiter = rateLimit({
   prefix: 'rl:email:ai:',
@@ -165,27 +167,41 @@ router.post('/compose', validate({ body: inboxComposeRequestSchema }), asyncHand
 
 router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), asyncHandler(async (request: AuthRequest, response) => {
   const body = request.body as InboxDailyBriefRequest;
-  const counts = await getInboxDailyBriefCounts(
+  const digest = await getInboxDailyBriefDigest(
     userId(request),
     new Date(body.startAt),
     new Date(body.endAt),
   );
-  const input: InboxPointInferenceInput = {
+  const empty = emptyBrief(digest);
+  if (empty) {
+    response.json({ schemaVersion: 1, requestId: allocateRequestId(), ...empty } satisfies InboxDailyBriefResponse);
+    return;
+  }
+  const completion = await executeInboxPointInference({
     userId: userId(request),
     feature: 'daily_brief',
     messages: messages(
-      'Write a warm, efficient daily inbox brief in 2-4 sentences and second person. Use only the supplied aggregate counts; never imply access to senders, subjects, bodies, deadlines or action items.',
-      `Aggregate counts: ${JSON.stringify(counts)}`,
+      dailyBriefSystemPrompt(briefLanguage(body.locale)),
+      dailyBriefUserPrompt(digest, new Date()),
     ),
-    maxOutputTokens: 300,
-    temperature: 0.7,
+    maxOutputTokens: 1_200,
+    temperature: 0.3,
+    responseFormat: JSON_FORMAT,
     signal: signalFor(response),
-  };
-  if (body.stream === true) {
-    await streamText(response, input);
-    return;
+  });
+  const brief = briefFromModel(inboxCompletionText(completion), digest);
+  if (!brief) {
+    throw new ApiError(502, 'Inbox AI did not return a usable brief.', 'INBOX_BRIEF_INVALID', {
+      requestId: completion.requestId,
+      retryable: true,
+    });
   }
-  response.json(textResponse(await executeInboxPointInference(input)));
+  response.json({
+    schemaVersion: 1,
+    requestId: completion.requestId,
+    ...(completion.generationId === undefined ? {} : { generationId: completion.generationId }),
+    ...brief,
+  } satisfies InboxDailyBriefResponse);
 }));
 
 router.post('/natural-search', validate({ body: inboxNaturalSearchRequestSchema }), asyncHandler(async (request: AuthRequest, response) => {
@@ -244,19 +260,12 @@ function messagePrompt(message: MessageDto, bodyLimit: number): string {
   return `From: ${message.from.name || message.from.address}\nSubject: ${message.subject || '(no subject)'}\n\n${plainText(message).slice(0, bodyLimit)}`;
 }
 
-function hasSixDigitCodeBeforeSecurityWord(content: string): boolean {
-  const code = SIX_DIGIT_CODE_PATTERN.exec(content);
-  if (!code) return false;
-  return SECURITY_WORD_PATTERN.test(content.slice(code.index + code[0].length));
-}
-
 function shouldSkipSmartReplies(message: MessageDto): boolean {
   const sender = message.from.address.toLowerCase();
   const content = `${message.subject} ${plainText(message)}`.toLowerCase();
   if (['noreply', 'no-reply', 'donotreply', 'newsletter', 'marketing', 'promo'].some((word) => sender.includes(word))) return true;
-  return SMART_REPLY_SENSITIVE_WORDS.some((word) => content.includes(word))
-    || SMART_REPLY_SENSITIVE_PATTERNS.some((pattern) => pattern.test(content))
-    || hasSixDigitCodeBeforeSecurityWord(content);
+  return containsAccountSecret(content)
+    || SMART_REPLY_FINANCIAL_WORDS.some((word) => content.includes(word));
 }
 
 function parseModelJson<T>(schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }, raw: string): T | null {

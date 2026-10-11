@@ -95,7 +95,7 @@ export interface RequiredExtension {
  */
 export async function ensureExtensions(
   databaseUrl: string,
-  extensions: readonly RequiredExtension[]
+  extensions: readonly RequiredExtension[],
 ): Promise<void> {
   if (extensions.length === 0) return;
 
@@ -103,7 +103,7 @@ export async function ensureExtensions(
     if (!EXTENSION_NAME.test(extension.name)) {
       throw new Error(
         `Refusing to create extension "${extension.name}": an extension name \
-must match /^[a-z][a-z0-9_]*$/.`
+must match /^[a-z][a-z0-9_]*$/.`,
       );
     }
   }
@@ -122,7 +122,7 @@ Locally and in CI this means the image the database runs from must ship it \
 (for example, postgis/postgis in place of a bare postgres image, for \
 PostGIS). On a managed database, a role with sufficient privilege must run \
 \`CREATE EXTENSION\` once; after that this step is a no-op for the \
-migration role.`
+migration role.`,
         );
       }
     }

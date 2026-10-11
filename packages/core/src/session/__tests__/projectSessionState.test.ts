@@ -40,7 +40,10 @@ describe('projections — unpinned (unchanged behaviour)', () => {
   it('resolves the device active account', () => {
     expect(activeSessionIdOf(STATE)).toBe('sess-other');
     expect(activeUserOf(STATE, USERS)?.id).toBe(OTHER);
-    expect(deviceStateToClientSessions(STATE, USERS).map((s) => s.isCurrent)).toEqual([false, true]);
+    expect(deviceStateToClientSessions(STATE, USERS).map((s) => s.isCurrent)).toEqual([
+      false,
+      true,
+    ]);
   });
 
   it('returns null for a null state or no active account', () => {

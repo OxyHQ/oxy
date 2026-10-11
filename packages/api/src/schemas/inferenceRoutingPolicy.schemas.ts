@@ -119,9 +119,7 @@ const rowIdSchema = z.string().min(1).max(64);
 
 export const routingPolicyParams = z.object({ policyId: rowIdSchema }).strict();
 export const routingPolicyAccountParams = z.object({ accountId: rowIdSchema }).strict();
-export const routingPolicyApplicationParams = z
-  .object({ applicationId: rowIdSchema })
-  .strict();
+export const routingPolicyApplicationParams = z.object({ applicationId: rowIdSchema }).strict();
 
 /**
  * A specific version, for the audit read. `policyVersion` is a positive integer

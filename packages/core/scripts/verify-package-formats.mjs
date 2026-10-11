@@ -48,16 +48,19 @@ try {
   // Checking resolution as well as the return value catches runtime guards
   // that still drag node:crypto into a mobile/browser graph.
   const clientRunner = new URL('../dist/esm/.verify-workload-identity.mjs', import.meta.url);
-  await writeFile(clientRunner, [
-    "import assert from 'node:assert/strict';",
-    "const [expected] = process.argv.slice(2);",
-    "assert.match(import.meta.resolve('#workload-identity'), new RegExp(`/dist/esm/server/${expected}$`));",
-    "if (expected === 'workloadIdentity.client.js') {",
-    "  const { canAttestWorkloadIdentity, requestWorkloadServiceToken } = await import('#workload-identity');",
-    "  assert.equal(canAttestWorkloadIdentity(), false);",
-    "  await assert.rejects(requestWorkloadServiceToken({ baseUrl: 'https://example.test' }), /only available on a Node host/);",
-    "}",
-  ].join('\n'));
+  await writeFile(
+    clientRunner,
+    [
+      "import assert from 'node:assert/strict';",
+      'const [expected] = process.argv.slice(2);',
+      "assert.match(import.meta.resolve('#workload-identity'), new RegExp(`/dist/esm/server/${expected}$`));",
+      "if (expected === 'workloadIdentity.client.js') {",
+      "  const { canAttestWorkloadIdentity, requestWorkloadServiceToken } = await import('#workload-identity');",
+      '  assert.equal(canAttestWorkloadIdentity(), false);',
+      "  await assert.rejects(requestWorkloadServiceToken({ baseUrl: 'https://example.test' }), /only available on a Node host/);",
+      '}',
+    ].join('\n'),
+  );
   try {
     const cases = [
       [['--conditions=react-native'], 'workloadIdentity.client.js'],
@@ -65,7 +68,9 @@ try {
       [[], 'workloadIdentity.js'],
     ];
     for (const [flags, expected] of cases) {
-      const probe = spawnSync(process.execPath, [...flags, fileURLToPath(clientRunner), expected], { encoding: 'utf8' });
+      const probe = spawnSync(process.execPath, [...flags, fileURLToPath(clientRunner), expected], {
+        encoding: 'utf8',
+      });
       assert.equal(probe.status, 0, probe.stderr || probe.stdout);
     }
   } finally {
@@ -73,10 +78,13 @@ try {
   }
   // The CommonJS half resolves the same specifier against dist/cjs's scope.
   const requireRunner = new URL('../dist/cjs/.verify-workload-identity.cjs', import.meta.url);
-  await writeFile(requireRunner, [
-    "const assert = require('node:assert/strict');",
-    "assert.match(require.resolve('#workload-identity'), /[\\/]dist[\\/]cjs[\\/]server[\\/]workloadIdentity\\.js$/);",
-  ].join('\n'));
+  await writeFile(
+    requireRunner,
+    [
+      "const assert = require('node:assert/strict');",
+      "assert.match(require.resolve('#workload-identity'), /[\\/]dist[\\/]cjs[\\/]server[\\/]workloadIdentity\\.js$/);",
+    ].join('\n'),
+  );
   try {
     const probe = spawnSync(process.execPath, [fileURLToPath(requireRunner)], { encoding: 'utf8' });
     assert.equal(probe.status, 0, probe.stderr || probe.stdout);

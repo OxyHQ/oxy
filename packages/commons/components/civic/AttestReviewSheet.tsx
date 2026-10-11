@@ -89,7 +89,7 @@ export function AttestReviewSheet({
     if (status === 'done' && result) {
       return (
         <View style={styles.stateBlock}>
-          <Icons.verified size='3xl' fill={colors.success} />
+          <Icons.verified size="3xl" fill={colors.success} />
           <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.done.title')}
           </Text>
@@ -103,7 +103,7 @@ export function AttestReviewSheet({
     if (status === 'error') {
       return (
         <View style={styles.stateBlock}>
-          <Icons.alert size='3xl' fill={colors.error} />
+          <Icons.alert size="3xl" fill={colors.error} />
           <Text style={[styles.stateTitle, { color: colors.text }]}>
             {t('civic.attest.confirm.error.title')}
           </Text>
@@ -185,7 +185,6 @@ export function AttestReviewSheet({
         <Text style={[styles.caution, { color: colors.textSecondary }]}>
           {t('civic.attest.review.caution')}
         </Text>
-
       </View>
     );
   };
@@ -198,11 +197,7 @@ export function AttestReviewSheet({
   } else if (status === 'reviewing' && card) {
     actions = [
       {
-        label: t(
-          confirming
-            ? 'civic.attest.review.submitting'
-            : 'civic.attest.review.confirm',
-        ),
+        label: t(confirming ? 'civic.attest.review.submitting' : 'civic.attest.review.confirm'),
         onPress: onConfirm,
         shouldCloseOnPress: false,
         disabled: confirming,

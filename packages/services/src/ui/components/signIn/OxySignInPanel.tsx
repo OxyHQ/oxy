@@ -125,7 +125,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const theme = useTheme();
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const { accountDialogController: controller, openAccountDialog, oxyServices, handleWebSession } = useOxy();
+  const {
+    accountDialogController: controller,
+    openAccountDialog,
+    oxyServices,
+    handleWebSession,
+  } = useOxy();
   const snapshot = useAccountDialogSnapshot(controller);
   const { principals, activeContext } = useDeviceSwitcher();
 
@@ -170,7 +175,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   // The countdown after a 429: one tick a second until the person may retry.
   useEffect(() => {
     if (rateLimitSeconds <= 0) return;
-    const timer = setTimeout(() => setRateLimitSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    const timer = setTimeout(
+      () => setRateLimitSeconds((seconds) => Math.max(0, seconds - 1)),
+      1000,
+    );
     return () => clearTimeout(timer);
   }, [rateLimitSeconds]);
 
@@ -185,7 +193,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   // the dialog opened over it) finishes the page's sign-in too. Only one that
   // STARTED here: a completion already on the controller is somebody else's.
   const [mountedAttempt] = useState(snapshot.signIn.attempt);
-  const completedHere = snapshot.signIn.phase === 'completed' && snapshot.signIn.attempt !== mountedAttempt;
+  const completedHere =
+    snapshot.signIn.phase === 'completed' && snapshot.signIn.attempt !== mountedAttempt;
   useEffect(() => {
     if (host === 'page' && completedHere) onSignedIn();
   }, [host, completedHere, onSignedIn]);
@@ -244,8 +253,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setNotice(null);
     setPending(true);
-    oxyServices
-      .auth.email.start(name)
+    oxyServices.auth.email
+      .start(name)
       .then((started) => {
         if (started.retryLater) {
           setError(t('signin.checkEmail.retryLater'));
@@ -256,7 +265,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         // A resend keeps the field as the person set it; a new request starts at 6 digits.
         if (step.name === 'check-email') setNotice(t('signin.checkEmail.resent'));
         else setLongCode(false);
-        setStep({ name: 'check-email', identifier: name, requestId: started.requestId, requestSecret: started.requestSecret });
+        setStep({
+          name: 'check-email',
+          identifier: name,
+          requestId: started.requestId,
+          requestSecret: started.requestSecret,
+        });
       })
       .catch(fail)
       .finally(() => setPending(false));
@@ -281,8 +295,12 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     setError(null);
     setNotice(null);
     setPending(true);
-    oxyServices
-      .auth.email.confirm({ requestId: request.requestId, requestSecret: request.requestSecret, code: typed.trim() })
+    oxyServices.auth.email
+      .confirm({
+        requestId: request.requestId,
+        requestSecret: request.requestSecret,
+        code: typed.trim(),
+      })
       .then((result) => finish(result, request.identifier))
       .catch((reason: unknown) => {
         setCode('');
@@ -300,8 +318,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     const name = step.identifier;
     setError(null);
     setPending(true);
-    oxyServices
-      .auth.password.signIn({ identifier: name, password })
+    oxyServices.auth.password
+      .signIn({ identifier: name, password })
       .then((result) => finish(result, name))
       .catch(fail)
       .finally(() => setPending(false));
@@ -317,8 +335,8 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
     const challenge = step;
     setError(null);
     setPending(true);
-    oxyServices
-      .auth.completeSecondFactor({ challengeId: challenge.challengeId, code: value })
+    oxyServices.auth
+      .completeSecondFactor({ challengeId: challenge.challengeId, code: value })
       .then((session) => finish(session, challenge.identifier))
       .catch((reason: unknown) => {
         setSecondFactorCode('');
@@ -388,7 +406,9 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   // a signed-in app: the rows are the accounts it would add.
   const pickerAllowed = host === 'dialog' ? !snapshot.hasSession : activeContext !== null;
   const selectContext = async (context: SwitcherContextRow) => {
-    const outcome = await controller?.chooseContext(context.contextId).catch(() => 'failed' as const);
+    const outcome = await controller
+      ?.chooseContext(context.contextId)
+      .catch(() => 'failed' as const);
     switch (outcome) {
       case 'switched':
         // Every account-scoped query now describes somebody else.
@@ -480,7 +500,11 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
             testID="signin-code"
           />
           <SubtleLink
-            label={longCode ? t('signin.checkEmail.codeDigitsOnly') : t('signin.checkEmail.codeHasLetters')}
+            label={
+              longCode
+                ? t('signin.checkEmail.codeDigitsOnly')
+                : t('signin.checkEmail.codeHasLetters')
+            }
             onPress={() => {
               setLongCode(!longCode);
               setCode('');
@@ -530,7 +554,10 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       const request = step;
       form = (
         <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
-          <OxyAuthScreenHeader title={t('signin.password.title')} description={request.identifier} />
+          <OxyAuthScreenHeader
+            title={t('signin.password.title')}
+            description={request.identifier}
+          />
           <AccountFlowField
             label={t('signin.password.label')}
             value={password}
@@ -576,11 +603,17 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
           <OxyAuthScreenHeader
             title={t('signin.secondFactor.title')}
-            description={useBackupCode ? t('signin.secondFactor.backupDescription') : t('signin.secondFactor.description')}
+            description={
+              useBackupCode
+                ? t('signin.secondFactor.backupDescription')
+                : t('signin.secondFactor.description')
+            }
           />
           <AccountFlowCodeField
             key={useBackupCode ? 'backup' : 'totp'}
-            label={useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')}
+            label={
+              useBackupCode ? t('signin.secondFactor.backupLabel') : t('signin.secondFactor.label')
+            }
             value={secondFactorCode}
             onChange={(value) => {
               setSecondFactorCode(value);
@@ -604,7 +637,11 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           />
           <View style={styles.links}>
             <SubtleLink
-              label={useBackupCode ? t('signin.secondFactor.useAuthenticator') : t('signin.secondFactor.useBackup')}
+              label={
+                useBackupCode
+                  ? t('signin.secondFactor.useAuthenticator')
+                  : t('signin.secondFactor.useBackup')
+              }
               onPress={() => {
                 setUseBackupCode(!useBackupCode);
                 setSecondFactorCode('');
@@ -633,7 +670,14 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           : t('signin.subtitle');
 
       const continueWithOxyButton = (
-        <Button appearance="outline" tone="neutral" size="lg" fullWidth onPress={continueWithOxy} testID="continue-with-oxy">
+        <Button
+          appearance="outline"
+          tone="neutral"
+          size="lg"
+          fullWidth
+          onPress={continueWithOxy}
+          testID="continue-with-oxy"
+        >
           {t('accountSwitcher.continueWithOxy')}
         </Button>
       );
@@ -660,8 +704,17 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
           ) : null}
           {methods.commons === 'get-commons' ? (
             <View style={styles.stack}>
-              <Text style={[styles.note, { color: theme.colors.textSecondary }]}>{t('accountSwitcher.commonsNotInstalled')}</Text>
-              <Button appearance="outline" tone="neutral" size="lg" fullWidth onPress={getCommons} testID="get-commons-button">
+              <Text style={[styles.note, { color: theme.colors.textSecondary }]}>
+                {t('accountSwitcher.commonsNotInstalled')}
+              </Text>
+              <Button
+                appearance="outline"
+                tone="neutral"
+                size="lg"
+                fullWidth
+                onPress={getCommons}
+                testID="get-commons-button"
+              >
                 {t('accountSwitcher.getCommons')}
               </Button>
               {divider}

@@ -23,9 +23,8 @@
  * user id, so it does not yield a user↔user edge without a privacy-sensitive
  * email join — left out of the v1 exclusion set.
  *
- * The Mongo `Follow` model carried a `followType` discriminator because one
- * collection held user AND topic follows; `user_follows` is user-follows only,
- * so the discriminator has no counterpart and its filter does not travel.
+ * `user_follows` holds user-to-user follows only, so no follow-type filter is
+ * needed.
  */
 
 import { and, eq, inArray } from 'drizzle-orm';
@@ -37,9 +36,7 @@ import { userFollows } from '../../db/schema/userFollows';
 /** Why two users were judged related (for audit + a machine-readable reason). */
 export type ExclusionReason = 'self' | 'graph_neighbor' | 'shared_device';
 
-export type ExclusionResult =
-  | { excluded: false }
-  | { excluded: true; reason: ExclusionReason };
+export type ExclusionResult = { excluded: false } | { excluded: true; reason: ExclusionReason };
 
 /**
  * The set of a user's DIRECT graph neighbours (as id strings): everyone they
@@ -124,7 +121,7 @@ export async function sessionDeviceIds(userId: string): Promise<Set<string>> {
  * The active-session device ids of SEVERAL accounts, in one round trip.
  *
  * The sybil clustering asks this for a subject plus every one of their vouchers,
- * which under the Mongo shape was one query per account. `device_id` is
+ * so it is one query rather than one per account. `device_id` is
  * `NOT NULL` on `sessions`, so a row always contributes an id.
  */
 export async function sessionDeviceIdsFor(userIds: string[]): Promise<Map<string, Set<string>>> {

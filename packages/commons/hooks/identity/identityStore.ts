@@ -195,49 +195,54 @@ const defaultState: IdentityState = {
  * is driven explicitly by the caller via {@link persistIdentitySyncState};
  * the acknowledgement flag persists from {@link IdentityStore.setRecoveryPhraseAcknowledged}.
  */
-export const useIdentityStore = create<IdentityStore>((set: (state: Partial<IdentityState>) => void, get: () => IdentityStore) => ({
-  ...defaultState,
+export const useIdentityStore = create<IdentityStore>(
+  (set: (state: Partial<IdentityState>) => void, get: () => IdentityStore) => ({
+    ...defaultState,
 
-  setSynced: (synced: boolean) => {
-    set({ isSynced: synced });
-    // Note: Persistence is handled via persistIdentitySyncState in the caller
-  },
+    setSynced: (synced: boolean) => {
+      set({ isSynced: synced });
+      // Note: Persistence is handled via persistIdentitySyncState in the caller
+    },
 
-  setSyncing: (syncing: boolean) => {
-    set({ isSyncing: syncing });
-  },
+    setSyncing: (syncing: boolean) => {
+      set({ isSyncing: syncing });
+    },
 
-  setRecoveryPhraseAcknowledged: (acknowledged: boolean) => {
-    set({ recoveryPhraseAcknowledged: acknowledged });
-    // Fire-and-forget persistence. Errors are logged but never block
-    // the UI — losing this flag is safe (it just means we re-nag the
-    // user on the next launch).
-    void persistRecoveryPhraseAcknowledged(acknowledged).catch((error) => {
-      console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
-    });
-  },
-
-  hydrate: async () => {
-    try {
-      const [synced, ack] = await Promise.all([
-        storage.getItem(IDENTITY_SYNC_STORAGE_KEY),
-        storage.getItem(RECOVERY_PHRASE_ACK_STORAGE_KEY),
-      ]);
-      // Only consider synced / acknowledged if explicitly stored as 'true'.
-      set({
-        isSynced: synced === STORED_TRUE,
-        recoveryPhraseAcknowledged: ack === STORED_TRUE,
+    setRecoveryPhraseAcknowledged: (acknowledged: boolean) => {
+      set({ recoveryPhraseAcknowledged: acknowledged });
+      // Fire-and-forget persistence. Errors are logged but never block
+      // the UI — losing this flag is safe (it just means we re-nag the
+      // user on the next launch).
+      void persistRecoveryPhraseAcknowledged(acknowledged).catch((error) => {
+        console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
       });
-    } catch (error) {
-      console.error('[IdentityStore] Failed to hydrate identity state from storage', error);
-      set({ isSynced: defaultState.isSynced, recoveryPhraseAcknowledged: defaultState.recoveryPhraseAcknowledged });
-    }
-  },
+    },
 
-  reset: () => {
-    set(defaultState);
-  },
-}));
+    hydrate: async () => {
+      try {
+        const [synced, ack] = await Promise.all([
+          storage.getItem(IDENTITY_SYNC_STORAGE_KEY),
+          storage.getItem(RECOVERY_PHRASE_ACK_STORAGE_KEY),
+        ]);
+        // Only consider synced / acknowledged if explicitly stored as 'true'.
+        set({
+          isSynced: synced === STORED_TRUE,
+          recoveryPhraseAcknowledged: ack === STORED_TRUE,
+        });
+      } catch (error) {
+        console.error('[IdentityStore] Failed to hydrate identity state from storage', error);
+        set({
+          isSynced: defaultState.isSynced,
+          recoveryPhraseAcknowledged: defaultState.recoveryPhraseAcknowledged,
+        });
+      }
+    },
+
+    reset: () => {
+      set(defaultState);
+    },
+  }),
+);
 
 /**
  * Persist sync state to platform storage.
@@ -255,7 +260,10 @@ export const persistIdentitySyncState = async (isSynced: boolean): Promise<void>
  */
 export const persistRecoveryPhraseAcknowledged = async (acknowledged: boolean): Promise<void> => {
   try {
-    await storage.setItem(RECOVERY_PHRASE_ACK_STORAGE_KEY, acknowledged ? STORED_TRUE : STORED_FALSE);
+    await storage.setItem(
+      RECOVERY_PHRASE_ACK_STORAGE_KEY,
+      acknowledged ? STORED_TRUE : STORED_FALSE,
+    );
   } catch (error) {
     console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
   }

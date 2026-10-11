@@ -103,9 +103,7 @@ export type OAuthPopupOutcome =
 export type OAuthCompletionFailure = 'state-mismatch' | 'exchange-failed';
 
 /** Result of the ONE completion path both transports run. */
-export type OAuthCompletionResult =
-  | { ok: true }
-  | { ok: false; reason: OAuthCompletionFailure };
+export type OAuthCompletionResult = { ok: true } | { ok: false; reason: OAuthCompletionFailure };
 
 /** Why the transport fell back to a full-page redirect. */
 export type WebOAuthRedirectReason =

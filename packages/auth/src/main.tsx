@@ -1,39 +1,39 @@
-import { useEffect } from "react"
-import ReactDOM from "react-dom/client"
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import { BloomThemeProvider } from "@oxy.so/bloom/theme"
-import { ConnectionStatusToasts } from "@oxy.so/bloom/connection-status"
-import { OxyProvider } from "@oxy.so/services"
-import { getBloomThemeCSS } from "@/lib/bloom-css"
-import { getApiBaseUrl } from "@/lib/oxy-api-client"
-import { OXY_CLIENT_ID } from "@/lib/oxy-client"
-import { DocumentLanguage } from "@/lib/i18n/document-language"
-import { AuthLayout } from "@/src/pages/layout"
-import { LoginPage } from "@/src/pages/login"
-import { AuthorizePage } from "@/src/pages/authorize"
-import { McpLinkPage } from "@/src/pages/mcp-link"
-import { DevicePage } from "@/src/pages/device"
-import { EmailSignInPage } from "@/src/pages/email-signin"
-import "@/app/globals.css"
+import { useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
+import { OxyProvider } from '@oxy.so/services';
+import { getBloomThemeCSS } from '@/lib/bloom-css';
+import { getApiBaseUrl } from '@/lib/oxy-api-client';
+import { OXY_CLIENT_ID } from '@/lib/oxy-client';
+import { DocumentLanguage } from '@/lib/i18n/document-language';
+import { AuthLayout } from '@/src/pages/layout';
+import { LoginPage } from '@/src/pages/login';
+import { AuthorizePage } from '@/src/pages/authorize';
+import { McpLinkPage } from '@/src/pages/mcp-link';
+import { DevicePage } from '@/src/pages/device';
+import { EmailSignInPage } from '@/src/pages/email-signin';
+import '@/app/globals.css';
 
 function ExternalRedirect({ url }: { url: string }) {
-    useEffect(() => {
-        window.location.replace(url)
-    }, [url])
-    return null
+  useEffect(() => {
+    window.location.replace(url);
+  }, [url]);
+  return null;
 }
 
 // Inject the Bloom theme's CSS vars before first paint (FOUC prevention);
 // `BloomThemeProvider` owns the theme once React mounts.
-const styleEl = document.createElement("style")
-styleEl.textContent = getBloomThemeCSS()
-document.head.appendChild(styleEl)
+const styleEl = document.createElement('style');
+styleEl.textContent = getBloomThemeCSS();
+document.head.appendChild(styleEl);
 
 function App() {
-    return (
-        <BloomThemeProvider mode="system" colorPreset="oxy">
-                <ConnectionStatusToasts />
-                {/* The IdP is a device-first origin like every other Oxy app: it
+  return (
+    <BloomThemeProvider mode="system" colorPreset="oxy">
+      <ConnectionStatusToasts />
+      {/* The IdP is a device-first origin like every other Oxy app: it
                     runs the normal SDK cold boot (restore this origin's device
                     session from its own persisted `{deviceId, deviceSecret}`),
                     enumerates the device directory through `useDeviceSwitcher`, and
@@ -41,65 +41,71 @@ function App() {
                     stays a shell OAuth/authorize/consent surface — NOT a Relying
                     Party. The former `coldBoot={false}` IdP exception existed for
                     the SSO bounce the zero-cookie cutover deleted. */}
-                <OxyProvider
-                    baseURL={getApiBaseUrl()}
-                    clientId={OXY_CLIENT_ID}
-                    // The IdP is its own bridge origin, including loopback/dev
-                    // hosts. It must not open a different default IdP domain.
-                    authorizeBaseUrl={`${window.location.origin}/authorize`}
-                    // No product analytics on the origin where people sign in,
-                    // consent and recover (ADR 0024 D1): nothing third-party runs
-                    // here, and the edge's analytics beacon is blocked by this
-                    // origin's CSP (`oxy.pages-headers.json` → `sensitive`).
-                >
-                    <DocumentLanguage />
-                    <BrowserRouter>
-                        <Routes>
-                            {/* Auth flow routes */}
-                            <Route element={<AuthLayout />}>
-                                <Route path="/login" element={<LoginPage />} />
-                                <Route path="/authorize" element={<AuthorizePage />} />
-                                <Route path="/auth/login" element={<LoginPage />} />
-                                <Route path="/auth/authorize" element={<AuthorizePage />} />
-                                {/* Adding another account to an existing MCP
+      <OxyProvider
+        baseURL={getApiBaseUrl()}
+        clientId={OXY_CLIENT_ID}
+        // The IdP is its own bridge origin, including loopback/dev
+        // hosts. It must not open a different default IdP domain.
+        authorizeBaseUrl={`${window.location.origin}/authorize`}
+        // No product analytics on the origin where people sign in,
+        // consent and recover (ADR 0024 D1): nothing third-party runs
+        // here, and the edge's analytics beacon is blocked by this
+        // origin's CSP (`oxy.pages-headers.json` → `sensitive`).
+      >
+        <DocumentLanguage />
+        <BrowserRouter>
+          <Routes>
+            {/* Auth flow routes */}
+            <Route element={<AuthLayout />}>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/authorize" element={<AuthorizePage />} />
+              <Route path="/auth/login" element={<LoginPage />} />
+              <Route path="/auth/authorize" element={<AuthorizePage />} />
+              {/* Adding another account to an existing MCP
                                     connection. Not an OAuth request: there is no
                                     relying party and no redirect — the person
                                     approves here and returns to their assistant. */}
-                                <Route path="/mcp/link" element={<McpLinkPage />} />
-                                <Route path="/auth/mcp/link" element={<McpLinkPage />} />
-                                {/* Approving a device sign-in (e.g. `codea login`) from a
+              <Route path="/mcp/link" element={<McpLinkPage />} />
+              <Route path="/auth/mcp/link" element={<McpLinkPage />} />
+              {/* Approving a device sign-in (e.g. `codea login`) from a
                                     code the device shows. Also not an OAuth request:
                                     the approval lands server-side and the device,
                                     which kept the secret, finishes by polling. */}
-                                <Route path="/device" element={<DevicePage />} />
-                                <Route path="/auth/device" element={<DevicePage />} />
-                                {/* Where the sign-in email's link lands: it approves the
+              <Route path="/device" element={<DevicePage />} />
+              <Route path="/auth/device" element={<DevicePage />} />
+              {/* Where the sign-in email's link lands: it approves the
                                     request in the browser that asked, and the app's
                                     own screen then signs in. */}
-                                <Route path="/email-signin" element={<EmailSignInPage />} />
-                            </Route>
+              <Route path="/email-signin" element={<EmailSignInPage />} />
+            </Route>
 
-                            {/* Account management lives on accounts.oxy.so — the IdP no longer
+            {/* Account management lives on accounts.oxy.so — the IdP no longer
                                 owns account settings. Permanent redirects to the sole owner. */}
-                            <Route path="/settings" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
-                            <Route path="/settings/sessions" element={<ExternalRedirect url="https://accounts.oxy.so/sessions" />} />
+            <Route
+              path="/settings"
+              element={<ExternalRedirect url="https://accounts.oxy.so/security" />}
+            />
+            <Route
+              path="/settings/sessions"
+              element={<ExternalRedirect url="https://accounts.oxy.so/sessions" />}
+            />
 
-                            <Route path="/" element={<ExternalRedirect url="https://oxy.so" />} />
-                            <Route path="*" element={<Navigate to="/login" replace />} />
-                        </Routes>
-                    </BrowserRouter>
-                </OxyProvider>
-        </BloomThemeProvider>
-    )
+            <Route path="/" element={<ExternalRedirect url="https://oxy.so" />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </OxyProvider>
+    </BloomThemeProvider>
+  );
 }
 
-const rootEl = document.getElementById("root")
+const rootEl = document.getElementById('root');
 if (rootEl) {
-    // NOTE: Do NOT wrap <App /> in <React.StrictMode>. On web, react-native-web's
-    // Modal (used by Bloom's BottomSheet / bottom-placement Dialog, i.e. the
-    // "Sign in with Oxy" sheet) mounts its ModalPortal host during render and
-    // removes it in an effect cleanup; StrictMode's dev double-invoke never
-    // re-attaches it, so bottom sheets never paint. accounts (Expo) renders
-    // without StrictMode for the same reason.
-    ReactDOM.createRoot(rootEl).render(<App />)
+  // NOTE: Do NOT wrap <App /> in <React.StrictMode>. On web, react-native-web's
+  // Modal (used by Bloom's BottomSheet / bottom-placement Dialog, i.e. the
+  // "Sign in with Oxy" sheet) mounts its ModalPortal host during render and
+  // removes it in an effect cleanup; StrictMode's dev double-invoke never
+  // re-attaches it, so bottom sheets never paint. accounts (Expo) renders
+  // without StrictMode for the same reason.
+  ReactDOM.createRoot(rootEl).render(<App />);
 }

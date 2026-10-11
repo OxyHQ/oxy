@@ -1,6 +1,14 @@
-import { TTLCache, registerCacheForCleanup, unregisterCacheFromCleanup, stopAllCleanupIntervals } from '../cache';
+import {
+  TTLCache,
+  registerCacheForCleanup,
+  unregisterCacheFromCleanup,
+  stopAllCleanupIntervals,
+} from '../cache';
 
-afterEach(() => { stopAllCleanupIntervals(); jest.useRealTimers(); });
+afterEach(() => {
+  stopAllCleanupIntervals();
+  jest.useRealTimers();
+});
 
 test('empty registration is inert and first data starts one shared cleanup timer', () => {
   jest.useFakeTimers();

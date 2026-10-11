@@ -33,7 +33,11 @@ const mockInvalidate = jest.fn();
 let mockApplicationId: string | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown; oxyToken?: { applicationId?: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: unknown; oxyToken?: { applicationId?: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: currentUserId };
     if (mockApplicationId) req.oxyToken = { applicationId: mockApplicationId };
     next();
@@ -65,7 +69,11 @@ import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
 import { mintIdentityProofChallenge } from '../../services/identityProof.service';
 import { signIdentityProof } from '@oxy.so/core/crypto';
-import { IDENTITY_ERROR_CODES, IDENTITY_PROOF_AUDIENCE, type IdentityProofAction } from '@oxy.so/contracts';
+import {
+  IDENTITY_ERROR_CODES,
+  IDENTITY_PROOF_AUDIENCE,
+  type IdentityProofAction,
+} from '@oxy.so/contracts';
 import { errorHandler } from '../../middleware/errorHandler';
 
 interface JsonResponse {
@@ -73,7 +81,12 @@ interface JsonResponse {
   body: Record<string, unknown>;
 }
 
-async function request(server: http.Server, method: string, path: string, payload?: unknown): Promise<JsonResponse> {
+async function request(
+  server: http.Server,
+  method: string,
+  path: string,
+  payload?: unknown,
+): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? undefined : JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -83,13 +96,16 @@ async function request(server: http.Server, method: string, path: string, payloa
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: body !== undefined
-          ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
-          : {},
+        headers:
+          body !== undefined
+            ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+            : {},
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           let parsed: Record<string, unknown> = {};
           try {
@@ -195,12 +211,18 @@ interface KeyIdentity {
 
 /** A root as Commons holds it: a secp256k1 key, its public half canonical (lowercase, uncompressed). */
 function keyIdentity(privateKey?: string): KeyIdentity {
-  const pair = privateKey ? { privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) } : generateSecp256k1KeyPair();
+  const pair = privateKey
+    ? { privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) }
+    : generateSecp256k1KeyPair();
   return { privateKey: pair.privateKey, publicKey: pair.publicKey.toLowerCase() };
 }
 
 /** A v2 root proof for `action` on the current account, spending a freshly minted challenge. */
-async function rootProof(identity: KeyIdentity, action: IdentityProofAction, overrides: { payloadDigest?: string | null; subject?: string } = {}) {
+async function rootProof(
+  identity: KeyIdentity,
+  action: IdentityProofAction,
+  overrides: { payloadDigest?: string | null; subject?: string } = {},
+) {
   const minted = await mintIdentityProofChallenge(currentUserId, action);
   return signIdentityProof(identity, {
     action,
@@ -229,16 +251,25 @@ describe('first link only (ADR 0024 D8)', () => {
     });
 
     expect(res.status).toBe(401);
-    const [row] = await getDb().select({ email: users.email, publicKey: users.publicKey }).from(users).where(eq(users.id, currentUserId));
+    const [row] = await getDb()
+      .select({ email: users.email, publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, currentUserId));
     expect(row).toEqual({ email, publicKey: null });
   });
 
   it('refuses a keyless account’s first link carried by a bearer and a new key alone', async () => {
     const identity = keyIdentity();
-    const bearerOnly = await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: identity.publicKey, proof: await rootProof(identity, 'link_identity') });
+    const bearerOnly = await request(server, 'POST', '/auth/link', {
+      type: 'identity',
+      publicKey: identity.publicKey,
+      proof: await rootProof(identity, 'link_identity'),
+    });
     expect(bearerOnly.status).toBe(401);
 
-    expect((bearerOnly.body as { error?: string }).error).toBe(IDENTITY_ERROR_CODES.freshFactorRequired);
+    expect((bearerOnly.body as { error?: string }).error).toBe(
+      IDENTITY_ERROR_CODES.freshFactorRequired,
+    );
     expect((await storedUser(currentUserId)).publicKey).toBeNull();
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
@@ -262,22 +293,46 @@ describe('first link only (ADR 0024 D8)', () => {
 
   it('heals a missing identity method row for the SAME root, with a root proof, without adding a second', async () => {
     const identity = keyIdentity();
-    await getDb().update(users).set({ publicKey: identity.publicKey }).where(eq(users.id, currentUserId));
-    const body = async () => ({ type: 'identity', publicKey: identity.publicKey.toUpperCase(), proof: await rootProof(identity, 'link_identity') });
+    await getDb()
+      .update(users)
+      .set({ publicKey: identity.publicKey })
+      .where(eq(users.id, currentUserId));
+    const body = async () => ({
+      type: 'identity',
+      publicKey: identity.publicKey.toUpperCase(),
+      proof: await rootProof(identity, 'link_identity'),
+    });
 
     expect((await request(server, 'POST', '/auth/link', await body())).status).toBe(200);
     expect((await request(server, 'POST', '/auth/link', await body())).status).toBe(200);
-    const identityRows = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
+    const identityRows = (await storedAuthMethods(currentUserId)).filter(
+      (m) => m.type === 'identity',
+    );
     expect(identityRows).toHaveLength(1);
     expect(identityRows[0].methodPublicKey).toBe(identity.publicKey);
   });
 
   it('refuses a timestamp signature in place of a root proof, even for the same root', async () => {
     const keyPair = generateSecp256k1KeyPair();
-    await getDb().update(users).set({ publicKey: keyPair.publicKey.toLowerCase() }).where(eq(users.id, currentUserId));
+    await getDb()
+      .update(users)
+      .set({ publicKey: keyPair.publicKey.toLowerCase() })
+      .where(eq(users.id, currentUserId));
     const timestamp = Date.now();
-    const signature = SignatureService.signMessage(JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }), keyPair.privateKey);
-    expect((await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: keyPair.publicKey, signature, timestamp })).status).toBe(400);
+    const signature = SignatureService.signMessage(
+      JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }),
+      keyPair.privateKey,
+    );
+    expect(
+      (
+        await request(server, 'POST', '/auth/link', {
+          type: 'identity',
+          publicKey: keyPair.publicKey,
+          signature,
+          timestamp,
+        })
+      ).status,
+    ).toBe(400);
   });
 
   it('rejects a key already linked to ANOTHER account (409, no write)', async () => {
@@ -310,7 +365,9 @@ describe('a root is never unlinked (ADR 0024 D8)', () => {
     expect(res.status).toBe(404);
     expect((await storedUser(currentUserId)).publicKey).toBe(publicKey);
     expect((await storedAuthMethods(currentUserId)).some((m) => m.type === 'identity')).toBe(true);
-    expect((await storedDidDocument(currentUserId)).controller).toEqual([buildUserDid(currentUserId)]);
+    expect((await storedDidDocument(currentUserId)).controller).toEqual([
+      buildUserDid(currentUserId),
+    ]);
   });
 });
 
@@ -319,11 +376,23 @@ describe("a third-party application's token", () => {
     await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
     const [app] = await getDb()
       .insert(applications)
-      .values({ name: 'Third party', type: 'third_party', ownerAccountId: currentUserId, createdByUserId: currentUserId })
+      .values({
+        name: 'Third party',
+        type: 'third_party',
+        ownerAccountId: currentUserId,
+        createdByUserId: currentUserId,
+      })
       .returning({ id: applications.id });
     mockApplicationId = app.id;
     try {
-      expect((await request(server, 'POST', '/auth/link', { type: 'identity', publicKey: '04'.padEnd(130, 'a') })).status).toBe(403);
+      expect(
+        (
+          await request(server, 'POST', '/auth/link', {
+            type: 'identity',
+            publicKey: '04'.padEnd(130, 'a'),
+          })
+        ).status,
+      ).toBe(403);
       expect((await request(server, 'GET', '/auth/methods')).status).toBe(200);
     } finally {
       mockApplicationId = undefined;

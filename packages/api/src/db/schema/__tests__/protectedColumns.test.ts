@@ -1,12 +1,12 @@
 /**
  * The `select: false` replacement, held in place.
  *
- * `protectedColumns.ts` restores what Mongoose's `select: false` gave for free.
+ * `protectedColumns.ts` keeps sensitive columns out of every implicit read.
  * Its type-level half already fails `tsc` — `publicColumns(users).phone` does
  * not exist as a property — so what remains to check here is everything the type
  * system cannot see:
  *
- *   1. the registry still lists exactly the columns Mongoose protected,
+ *   1. the registry still lists exactly the protected columns,
  *   2. the runtime filter removes exactly those and nothing else,
  *   3. nobody has written a read that returns every column IMPLICITLY, which is
  *      the one way to leak a protected column without ever mentioning it.
@@ -31,7 +31,7 @@ import {
   INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS,
   PROTECTED_COLUMNS,
   PROTECTED_COLUMNS_BY_TABLE,
-  USERS_POST_MONGO_PROTECTED_COLUMNS,
+  USERS_ADDED_PROTECTED_COLUMNS,
 } from '../protectedColumns';
 import { users } from '../users';
 
@@ -41,10 +41,10 @@ import { users } from '../users';
  *
  * Deriving them from the registry would make this assertion tautological —
  * deleting an entry would delete the expectation with it. This list is the
- * independent statement of what the Mongo schema protected, so removing a
+ * independent statement of the base protected set, so removing a
  * column from the registry fails here and names it.
  */
-const MONGOOSE_SELECT_FALSE_USER_COLUMNS = [
+const BASE_PROTECTED_USER_COLUMNS = [
   'phone',
   'hashedEmail',
   'hashedPhone',
@@ -55,16 +55,16 @@ const MONGOOSE_SELECT_FALSE_USER_COLUMNS = [
 ] as const;
 
 /**
- * The full expectation for `users`: the Mongoose-derived set PLUS the columns
- * added directly in Postgres for their own stated reason (see
- * `USERS_POST_MONGO_PROTECTED_COLUMNS`'s own comment). Kept as a UNION of two
+ * The full expectation for `users`: the base set PLUS the columns
+ * added later for their own stated reason (see
+ * `USERS_ADDED_PROTECTED_COLUMNS`'s own comment). Kept as a UNION of two
  * independently-written lists rather than one combined list, so an accidental
  * addition to either source array still has an independent list to be caught
  * against.
  */
 const EXPECTED_USERS_PROTECTED_COLUMNS = [
-  ...MONGOOSE_SELECT_FALSE_USER_COLUMNS,
-  ...USERS_POST_MONGO_PROTECTED_COLUMNS,
+  ...BASE_PROTECTED_USER_COLUMNS,
+  ...USERS_ADDED_PROTECTED_COLUMNS,
 ] as const;
 
 /** `packages/api/src`. */
@@ -96,16 +96,14 @@ function sourceFiles(directory: string): string[] {
 const protectedTableNames = Object.keys(PROTECTED_COLUMNS_BY_TABLE);
 
 describe('protected columns — the registry', () => {
-  it('protects exactly the columns Mongoose marked `select: false`, plus the deliberate post-Mongo additions', () => {
-    expect([...PROTECTED_COLUMNS_BY_TABLE.users]).toEqual([
-      ...EXPECTED_USERS_PROTECTED_COLUMNS,
-    ]);
+  it('protects exactly the base protected columns, plus the deliberate additions', () => {
+    expect([...PROTECTED_COLUMNS_BY_TABLE.users]).toEqual([...EXPECTED_USERS_PROTECTED_COLUMNS]);
   });
 
   it('agrees with the reasoned list, in both directions', () => {
-    const reasoned = PROTECTED_COLUMNS.filter(
-      (entry) => getTableName(entry.table) === 'users'
-    ).map((entry) => entry.column.name);
+    const reasoned = PROTECTED_COLUMNS.filter((entry) => getTableName(entry.table) === 'users').map(
+      (entry) => entry.column.name,
+    );
 
     // `column.name` IS the TypeScript property name here — the trap in
     // `casing.ts` is about using it as a SQL name, which this is not.
@@ -113,9 +111,9 @@ describe('protected columns — the registry', () => {
   });
 
   it('states a reason for every protected column', () => {
-    const unexplained = PROTECTED_COLUMNS.filter(
-      (entry) => entry.reason.trim() === ''
-    ).map((entry) => `${getTableName(entry.table)}.${entry.column.name}`);
+    const unexplained = PROTECTED_COLUMNS.filter((entry) => entry.reason.trim() === '').map(
+      (entry) => `${getTableName(entry.table)}.${entry.column.name}`,
+    );
 
     expect(unexplained).toEqual([]);
     expect(PROTECTED_COLUMNS.length).toBeGreaterThan(0);
@@ -123,7 +121,7 @@ describe('protected columns — the registry', () => {
 
   it('carries no entry for a column that no longer exists', () => {
     const stale = PROTECTED_COLUMNS.filter(
-      (entry) => !(entry.column.name in getTableColumns(entry.table))
+      (entry) => !(entry.column.name in getTableColumns(entry.table)),
     ).map((entry) => `${getTableName(entry.table)}.${entry.column.name}`);
 
     expect(stale).toEqual([]);
@@ -134,16 +132,13 @@ describe('protected columns — the registry', () => {
     ['inference_deployment_routing_score_events', inferenceDeploymentRoutingScoreEvents],
   ] as const)('protects every column of the internal table %s', (tableName, table) => {
     expect([...PROTECTED_COLUMNS_BY_TABLE[tableName]].sort()).toEqual(
-      Object.keys(getTableColumns(table)).sort()
+      Object.keys(getTableColumns(table)).sort(),
     );
   });
 
   it.each([
     ['inference_deployment_routing_scores', INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS],
-    [
-      'inference_deployment_routing_score_events',
-      INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
-    ],
+    ['inference_deployment_routing_score_events', INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS],
   ] as const)('keeps funding evidence internal on %s', (_tableName, protectedColumns) => {
     expect(protectedColumns).toEqual(
       expect.arrayContaining([
@@ -154,7 +149,7 @@ describe('protected columns — the registry', () => {
         'fundingRemainingUnit',
         'fundingObservedAt',
         'fundingValidUntil',
-      ])
+      ]),
     );
   });
 });
@@ -173,9 +168,12 @@ describe('protected columns — sign-in secrets', () => {
   } as const;
 
   it.each(Object.entries(SIGN_IN_SECRETS))('protects %s', (tableName, columns) => {
-    const registered = PROTECTED_COLUMNS_BY_TABLE[tableName as keyof typeof PROTECTED_COLUMNS_BY_TABLE];
+    const registered =
+      PROTECTED_COLUMNS_BY_TABLE[tableName as keyof typeof PROTECTED_COLUMNS_BY_TABLE];
     expect([...registered].sort()).toEqual([...columns].sort());
-    const reasoned = PROTECTED_COLUMNS.filter((entry) => getTableName(entry.table) === tableName).map((entry) => entry.column.name);
+    const reasoned = PROTECTED_COLUMNS.filter(
+      (entry) => getTableName(entry.table) === tableName,
+    ).map((entry) => entry.column.name);
     expect(reasoned.sort()).toEqual([...columns].sort());
   });
 });
@@ -200,7 +198,7 @@ describe('protected columns — publicColumns()', () => {
     const missing = all.filter(
       (name) =>
         !selectable.has(name) &&
-        !(EXPECTED_USERS_PROTECTED_COLUMNS as readonly string[]).includes(name)
+        !(EXPECTED_USERS_PROTECTED_COLUMNS as readonly string[]).includes(name),
     );
 
     expect(missing).toEqual([]);
@@ -212,7 +210,7 @@ describe('protected columns — publicColumns()', () => {
 
   it('returns every column of a table that protects none', () => {
     expect(Object.keys(publicColumns(blocks, PROTECTED_COLUMNS_BY_TABLE)).sort()).toEqual(
-      Object.keys(getTableColumns(blocks)).sort()
+      Object.keys(getTableColumns(blocks)).sort(),
     );
   });
 });

@@ -10,9 +10,9 @@
  * emitted TYPE, not just the value — `"25.5" == 25.5` is true in JS, so a value
  * comparison alone would pass against the bug.
  *
- * **An absent optional must stay OMITTED.** Mongoose returned `undefined` for an
- * unset `description`/`itemId`/`itemType`/`completedAt` and `JSON.stringify`
- * dropped the key; drizzle returns `null`, which `JSON.stringify` EMITS. Every
+ * **An absent optional must stay OMITTED.** For an unset
+ * `description`/`itemId`/`itemType`/`completedAt` drizzle returns `null`, which
+ * `JSON.stringify` EMITS. Every
  * field of that contract is `?:`, so a `null` is a wire change. The body is
  * asserted whole, key set included.
  *
@@ -28,7 +28,11 @@ import type { AddressInfo } from 'net';
 let currentUserId = '';
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { id: string; _id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { id: string; _id: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { id: currentUserId, _id: currentUserId };
     next();
   },
@@ -61,9 +65,12 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertTransaction(
-  values: Omit<typeof transactions.$inferInsert, 'userId'> & { userId: string }
+  values: Omit<typeof transactions.$inferInsert, 'userId'> & { userId: string },
 ): Promise<string> {
-  const [row] = await getDb().insert(transactions).values(values).returning({ id: transactions.id });
+  const [row] = await getDb()
+    .insert(transactions)
+    .values(values)
+    .returning({ id: transactions.id });
   return row.id;
 }
 
@@ -186,9 +193,14 @@ describe('GET /payments/user', () => {
     expect(types).toEqual(['deposit', 'purchase']);
   });
 
-  it('returns ONLY the caller\'s rows', async () => {
+  it("returns ONLY the caller's rows", async () => {
     const stranger = await insertUser();
-    await insertTransaction({ userId: stranger, type: 'purchase', amount: '9', status: 'completed' });
+    await insertTransaction({
+      userId: stranger,
+      type: 'purchase',
+      amount: '9',
+      status: 'completed',
+    });
     await insertTransaction({
       userId: currentUserId,
       type: 'purchase',
@@ -232,7 +244,10 @@ describe('GET /payments/user', () => {
     });
 
     const res = await fetchPayments();
-    expect((res.body.data as { id: string }[]).map((payment) => payment.id)).toEqual([newer, older]);
+    expect((res.body.data as { id: string }[]).map((payment) => payment.id)).toEqual([
+      newer,
+      older,
+    ]);
   });
 
   it('returns an empty list for an account with no payments', async () => {

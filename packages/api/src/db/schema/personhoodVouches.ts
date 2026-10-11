@@ -10,9 +10,9 @@
  *
  * `UNIQUE (voucher_user_id, subject_user_id) WHERE status = 'active'` — exactly
  * one LIVE vouch per pair, while every withdrawn or slashed row stays as
- * history. This is NOT the Mongo-null workaround the other partial indexes in
- * this batch collapsed into a plain `UNIQUE`: the predicate is a real value
- * filter, and dropping it would make re-vouching after a withdrawal impossible.
+ * history. This is NOT a null-exemption that a plain `UNIQUE` would already
+ * give: the predicate is a real value filter, and dropping it would make
+ * re-vouching after a withdrawal impossible.
  *
  * It is a CONCURRENCY backstop, not the whole rule. Service code additionally
  * refuses any HISTORICAL vouch for the same pair before issuing a new signed
@@ -53,9 +53,9 @@ export const personhoodVouches = pgTable(
      * projection would be keeping an unverifiable claim.
      *
      * **Call-site consequence:** `personhood.service.ts:327` writes
-     * `stored.record.recordId ?? ''`, and `''` is not a content address. Under
-     * Mongo it produced a silently dangling reference; here it fails the
-     * constraint loudly, which is what the port must fix rather than work around.
+     * `stored.record.recordId ?? ''`, and `''` is not a content address: it
+     * fails the constraint loudly, which is what the call site must fix rather
+     * than work around.
      */
     recordId: text()
       .notNull()
@@ -75,12 +75,12 @@ export const personhoodVouches = pgTable(
 
     check(
       'personhood_vouches_status_check',
-      sql`${t.status} in (${sql.raw(inList(PERSONHOOD_VOUCH_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(PERSONHOOD_VOUCH_STATUSES))})`,
     ),
     check('personhood_vouches_stake_check', sql`${t.stakeAmount} >= 0`),
     // Vouching for yourself is not evidence. `submitVouch` already answers
     // `self_vouch`, and `graphExclusion` excludes `self`; the CHECK makes it
     // unrepresentable rather than dependent on both staying in place.
     check('personhood_vouches_not_self_check', sql`${t.voucherUserId} <> ${t.subjectUserId}`),
-  ]
+  ],
 );

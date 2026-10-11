@@ -52,7 +52,9 @@ export interface PublicChainPage {
 
 /** Encode a keyset position as an opaque string. */
 export function encodeChainCursor(cursor: AuthorRecordCursor): string {
-  return Buffer.from(`${cursor.createdAt.toISOString()}|${cursor.id}`, 'utf8').toString('base64url');
+  return Buffer.from(`${cursor.createdAt.toISOString()}|${cursor.id}`, 'utf8').toString(
+    'base64url',
+  );
 }
 
 /**

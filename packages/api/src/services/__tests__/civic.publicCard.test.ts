@@ -1,10 +1,7 @@
 /**
  * The public Oxy ID card (civic / Fase 1), against a REAL Postgres.
  *
- * The suite this replaces mocked `User`, `ReputationBalance` and
- * `PersonhoodStatus` as Mongoose models the service no longer imports, so every
- * "assertion" was really a statement about the mock's `.select().lean()` chain.
- * The card is now assembled from FOUR tables — `users`, `reputation_balances`,
+ * The card is assembled from FOUR tables — `users`, `reputation_balances`,
  * `personhood_statuses` and the `user_verified_domains` child table — and the
  * three composition rules that can silently break are exactly the ones a mock
  * cannot vouch for:
@@ -65,7 +62,10 @@ async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Pro
   return id;
 }
 
-async function seedBalance(userId: string, trustTier: typeof reputationBalances.$inferInsert['trustTier']) {
+async function seedBalance(
+  userId: string,
+  trustTier: (typeof reputationBalances.$inferInsert)['trustTier'],
+) {
   await getDb().insert(reputationBalances).values({ userId, trustTier });
 }
 
@@ -158,7 +158,12 @@ describe('the card is assembled from the stored rows', () => {
     // an absent one canonicalize differently, so a scanner rebuilding the card
     // from the wire would derive different bytes and the offline check would
     // fail for a reason nothing reports.
-    const userId = await makeUser({ username: null, avatar: null, nameFirst: 'Solo', nameLast: null });
+    const userId = await makeUser({
+      username: null,
+      avatar: null,
+      nameFirst: 'Solo',
+      nameLast: null,
+    });
     const signed = await buildSignedPublicCard(userId);
     if (!signed) throw new Error('expected a card');
 

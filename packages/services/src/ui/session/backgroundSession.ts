@@ -122,9 +122,10 @@ function loadNativeModule(): OxyBackgroundSessionNativeModule | null {
       nativeModule = null;
       return nativeModule;
     }
-    const native = requireOptionalNativeModule<Partial<OxyBackgroundSessionNativeModule>>(
-      'OxyBackgroundSession',
-    );
+    const native =
+      requireOptionalNativeModule<Partial<OxyBackgroundSessionNativeModule>>(
+        'OxyBackgroundSession',
+      );
     nativeModule =
       native &&
       typeof native.put === 'function' &&

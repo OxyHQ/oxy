@@ -15,7 +15,10 @@ function stub(responses) {
     calls.push({ url: String(url), init });
     const next = responses.shift();
     if (next === undefined) throw new Error('unexpected extra request');
-    return new Response(JSON.stringify(next.body), { status: next.status, headers: { 'Content-Type': 'application/json', ...next.headers } });
+    return new Response(JSON.stringify(next.body), {
+      status: next.status,
+      headers: { 'Content-Type': 'application/json', ...next.headers },
+    });
   };
   return { fetch, calls };
 }
@@ -27,20 +30,68 @@ async function check(contracts, inference, label) {
   const { request, answers, usage } = fixtures;
   assert.equal(contracts.INFERENCE_CONTRACT_VERSION, '3.5.0', `${label}: contract set`);
   assert.deepEqual(contracts.decisionRequestSchema.parse(request), request);
-  assert.equal(contracts.decisionRequestSchema.safeParse({ ...request, stream: true }).success, false);
-  const result = { schemaVersion: 1, requestId: 'req_smoke', model: request.model, data: answers, usage };
-  assert.equal(contracts.decisionResultSchema.safeParse(result).success, true, `${label}: result with output_tokens`);
+  assert.equal(
+    contracts.decisionRequestSchema.safeParse({ ...request, stream: true }).success,
+    false,
+  );
+  const result = {
+    schemaVersion: 1,
+    requestId: 'req_smoke',
+    model: request.model,
+    data: answers,
+    usage,
+  };
+  assert.equal(
+    contracts.decisionResultSchema.safeParse(result).success,
+    true,
+    `${label}: result with output_tokens`,
+  );
   assert.equal(contracts.decisionAnswersMatch(request, answers), true);
-  const error = { schemaVersion: 1, code: 'provider_credential_invalid', message: 'Synthetic.', retryable: false, requestId: 'req_smoke' };
-  assert.equal(contracts.decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: 'req_smoke', error }).success, true);
-  assert.equal(contracts.decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: 'req_smoke', error, usage }).success, false,
-    `${label}: failure usage cannot claim completion`);
-  assert.equal(contracts.decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: 'req_smoke', error,
-    usage: { ...usage, outcome: 'failed' } }).success, true);
+  const error = {
+    schemaVersion: 1,
+    code: 'provider_credential_invalid',
+    message: 'Synthetic.',
+    retryable: false,
+    requestId: 'req_smoke',
+  };
+  assert.equal(
+    contracts.decisionFailureSchema.safeParse({ schemaVersion: 1, requestId: 'req_smoke', error })
+      .success,
+    true,
+  );
+  assert.equal(
+    contracts.decisionFailureSchema.safeParse({
+      schemaVersion: 1,
+      requestId: 'req_smoke',
+      error,
+      usage,
+    }).success,
+    false,
+    `${label}: failure usage cannot claim completion`,
+  );
+  assert.equal(
+    contracts.decisionFailureSchema.safeParse({
+      schemaVersion: 1,
+      requestId: 'req_smoke',
+      error,
+      usage: { ...usage, outcome: 'failed' },
+    }).success,
+    true,
+  );
 
-  const success = { schemaVersion: 1, requestId: 'req_smoke', model: request.model, data: answers,
-    usage: [{ unit: 'requests', quantity: 1 }], routingPolicy: { routingPolicyId: 'rp_smoke', policyVersion: 1 } };
-  const ok = (body = success, requestId = 'req_smoke') => ({ status: 200, body, headers: { 'X-Oxy-Request-Id': requestId } });
+  const success = {
+    schemaVersion: 1,
+    requestId: 'req_smoke',
+    model: request.model,
+    data: answers,
+    usage: [{ unit: 'requests', quantity: 1 }],
+    routingPolicy: { routingPolicyId: 'rp_smoke', policyVersion: 1 },
+  };
+  const ok = (body = success, requestId = 'req_smoke') => ({
+    status: 200,
+    body,
+    headers: { 'X-Oxy-Request-Id': requestId },
+  });
 
   // The wire request: method, path, credential, content type, idempotency, body.
   const sent = stub([ok()]);
@@ -57,13 +108,34 @@ async function check(contracts, inference, label) {
   assert.deepEqual(JSON.parse(init.body), request);
 
   // Typed failures surface code, retryable and requestId; never a replay.
-  for (const [status, code] of [[409, 'idempotency_conflict'], [502, 'provider_credential_invalid']]) {
-    const failing = stub([{ status, body: { schemaVersion: 1, code, message: 'Synthetic refusal.', retryable: false, requestId: `req_${status}` },
-      headers: { 'X-Oxy-Request-Id': `req_${status}` } }]);
+  for (const [status, code] of [
+    [409, 'idempotency_conflict'],
+    [502, 'provider_credential_invalid'],
+  ]) {
+    const failing = stub([
+      {
+        status,
+        body: {
+          schemaVersion: 1,
+          code,
+          message: 'Synthetic refusal.',
+          retryable: false,
+          requestId: `req_${status}`,
+        },
+        headers: { 'X-Oxy-Request-Id': `req_${status}` },
+      },
+    ]);
     await assert.rejects(
-      new inference.OxyInferenceClient({ credential: CREDENTIAL, fetch: failing.fetch }).decide(request, { idempotencyKey: 'smoke-once' }),
-      (thrown) => thrown instanceof inference.OxyInferenceError && thrown.code === code && thrown.retryable === false &&
-        thrown.requestId === `req_${status}` && thrown.status === status,
+      new inference.OxyInferenceClient({ credential: CREDENTIAL, fetch: failing.fetch }).decide(
+        request,
+        { idempotencyKey: 'smoke-once' },
+      ),
+      (thrown) =>
+        thrown instanceof inference.OxyInferenceError &&
+        thrown.code === code &&
+        thrown.retryable === false &&
+        thrown.requestId === `req_${status}` &&
+        thrown.status === status,
       `${label}: typed ${status}`,
     );
     assert.equal(failing.calls.length, 1, `${label}: ${status} is not retried`);
@@ -77,8 +149,13 @@ async function check(contracts, inference, label) {
     ['answer id', ok({ ...success, data: [{ ...answers[2], id: 'YES' }, ...answers.slice(0, 2)] })],
   ]) {
     const mismatched = stub([response]);
-    await assert.rejects(new inference.OxyInferenceClient({ credential: CREDENTIAL, fetch: mismatched.fetch }).decide(request),
-      inference.OxyInferenceProtocolError, `${label}: ${name} mismatch`);
+    await assert.rejects(
+      new inference.OxyInferenceClient({ credential: CREDENTIAL, fetch: mismatched.fetch }).decide(
+        request,
+      ),
+      inference.OxyInferenceProtocolError,
+      `${label}: ${name} mismatch`,
+    );
   }
 }
 

@@ -43,7 +43,9 @@ export interface BuildEnvelopeOptions {
 }
 
 /** Build a fully-signed v2 envelope; verifies against `verifyNodeRecordEnvelope`. */
-export async function buildSignedEnvelope(options: BuildEnvelopeOptions): Promise<SignedRecordEnvelope> {
+export async function buildSignedEnvelope(
+  options: BuildEnvelopeOptions,
+): Promise<SignedRecordEnvelope> {
   const subject = options.subject ?? DEFAULT_SUBJECT;
   const fields = {
     version: 2 as const,

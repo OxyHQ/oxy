@@ -198,7 +198,6 @@ describe('updateAccount identity-cache invalidation (real cache)', () => {
     await oxy.users.byUsername(NEW_USERNAME);
     expect(fetchMock).toHaveBeenCalledTimes(++calls);
 
-
     fetchMock.mockResolvedValueOnce(jsonResponse({ id: ACCOUNT_ID, username: NEW_USERNAME }));
     await oxy.users.resolveHandle(`@${OLD_USERNAME}@test.invalid`);
     expect(fetchMock).toHaveBeenCalledTimes(++calls);
@@ -216,7 +215,6 @@ describe('updateAccount identity-cache invalidation (real cache)', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ accounts: [renamedNode] }));
     await oxy.accounts.list();
     expect(fetchMock).toHaveBeenCalledTimes(++calls);
-
   });
 
   it('leaves unrelated cached reads alone (it is a sweep, not a cache wipe)', async () => {
@@ -225,10 +223,9 @@ describe('updateAccount identity-cache invalidation (real cache)', () => {
     const afterWrite = fetchMock.mock.calls.length;
 
     // No queued response: a miss would call `fetch` and throw.
-    const cached = await oxy.http.get<{ count: number }>(
-      '/notifications/unread-count',
-      { cache: true },
-    );
+    const cached = await oxy.http.get<{ count: number }>('/notifications/unread-count', {
+      cache: true,
+    });
 
     expect(fetchMock).toHaveBeenCalledTimes(afterWrite);
     expect(cached.count).toBe(3);
@@ -244,9 +241,7 @@ describe('updateAccount identity-cache invalidation (real cache)', () => {
         headers: { 'content-type': 'application/json' },
       }),
     );
-    await expect(
-      oxy.accounts.update(ACCOUNT_ID, { avatar: 'file_new' }),
-    ).rejects.toThrow();
+    await expect(oxy.accounts.update(ACCOUNT_ID, { avatar: 'file_new' })).rejects.toThrow();
 
     // The failed PATCH is one call; every read below must still be a cache hit.
     await oxy.users.byUsername(OLD_USERNAME);
@@ -372,7 +367,9 @@ describe('updateProfile identity-cache invalidation (real cache)', () => {
     await oxy.users.updateMe({ avatar: 'new' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ ...selfNode, account: { ...selfNode.account, avatar: 'new' } }]));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([{ ...selfNode, account: { ...selfNode.account, avatar: 'new' } }]),
+    );
     await oxy.accounts.list();
     expect(fetchMock).toHaveBeenCalledTimes(4);
 

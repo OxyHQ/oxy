@@ -62,8 +62,14 @@ export const emailVerifications = pgTable(
     index('email_verifications_expires_at_idx').on(t.expiresAt),
     index('email_verifications_user_id_idx').on(t.userId),
     check('email_verifications_purpose_check', sql`${t.purpose} in ('signup', 'signin', 'reauth')`),
-    check('email_verifications_ticket_check', sql`${t.ticketHash} is null or ${t.confirmedAt} is not null`),
-    check('email_verifications_used_check', sql`${t.usedAt} is null or ${t.ticketHash} is not null`),
+    check(
+      'email_verifications_ticket_check',
+      sql`${t.ticketHash} is null or ${t.confirmedAt} is not null`,
+    ),
+    check(
+      'email_verifications_used_check',
+      sql`${t.usedAt} is null or ${t.ticketHash} is not null`,
+    ),
     check('email_verifications_attempts_check', sql`${t.attempts} >= 0`),
     check(
       'email_verifications_reauth_action_check',

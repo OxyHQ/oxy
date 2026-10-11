@@ -67,7 +67,11 @@ describe('classifyAutoPowerLevel', () => {
       estimatedInputTokens: AUTO_THRESHOLDS.highInputTokens + 1,
     });
     expect(decision.level).toBe('xhigh');
-    expect(decision.reasons).toEqual(['reasoning_effort_high->xhigh', 'tools->medium', 'large_input->high']);
+    expect(decision.reasons).toEqual([
+      'reasoning_effort_high->xhigh',
+      'tools->medium',
+      'large_input->high',
+    ]);
   });
 
   it('never chooses pro or ultra', () => {
@@ -174,7 +178,7 @@ describe('the seeded power-level presets', () => {
         reasoningEffort: effort,
         isProductPreset: true,
         optimiseFor: 'price',
-      }))
+      })),
     );
   });
 
@@ -197,7 +201,7 @@ describe('the seeded power-level presets', () => {
         optimiseFor: 'price',
         isProductPreset: false,
         powerLevel: 'instant',
-      })
+      }),
     ).rejects.toThrow();
     await expect(
       getDb().insert(inferenceRoutingProfiles).values({
@@ -206,7 +210,7 @@ describe('the seeded power-level presets', () => {
         optimiseFor: 'price',
         isProductPreset: true,
         powerLevel: 'instant',
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -220,7 +224,7 @@ describe('the seeded power-level presets', () => {
         evidenceSummary: 'x',
         reviewedAt: new Date(),
         reviewedBy: 'x',
-      })
+      }),
     ).rejects.toThrow();
   });
 
@@ -247,7 +251,7 @@ describe('the seeded power-level presets', () => {
       const instant = profiles.find((profile) => profile.slug === 'instant');
       expect(instant?.powerLevel).toBe('instant');
       expect(instant?.candidates.map((candidate) => candidate.modelReference).sort()).toEqual(
-        [instantA.modelId, instantB.modelId].sort()
+        [instantA.modelId, instantB.modelId].sort(),
       );
 
       // auto lists every level it may climb to, one priority per level.
@@ -256,10 +260,10 @@ describe('the seeded power-level presets', () => {
         expect.arrayContaining([
           { modelReference: instantA.modelId, priority: 0 },
           { modelReference: medium.modelId, priority: 1 },
-        ])
+        ]),
       );
       const everyCandidate = profiles.flatMap((profile) =>
-        profile.candidates.map((candidate) => candidate.modelReference)
+        profile.candidates.map((candidate) => candidate.modelReference),
       );
       expect(everyCandidate).not.toContain(unservable.modelId);
       expect(everyCandidate).not.toContain(unclassed.modelId);
@@ -287,7 +291,7 @@ describe('the seeded power-level presets', () => {
       const model = await insertCatalogueRoute({ tag: 'cls' });
       await setPowerClass(model.modelId, 'high');
       const entry = (await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).find(
-        (candidate) => candidate.modelId === model.modelId
+        (candidate) => candidate.modelId === model.modelId,
       );
       expect(entry?.powerClass).toBe('high');
       const rows = await getDb()

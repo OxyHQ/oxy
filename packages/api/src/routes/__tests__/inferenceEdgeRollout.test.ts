@@ -94,13 +94,13 @@ type Requester = (
   method: 'GET' | 'POST',
   path: string,
   body: unknown,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
 ) => Promise<RawResponse>;
 
 /** A server per test, so each can be given its own (or no) data plane. */
 async function withServer(
   kaanaClient: KaanaClient | undefined,
-  run: (request: Requester) => Promise<void>
+  run: (request: Requester) => Promise<void>,
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -123,9 +123,7 @@ async function withServer(
           method,
           headers: {
             'Content-Type': 'application/json',
-            ...(payload === undefined
-              ? {}
-              : { 'Content-Length': Buffer.byteLength(payload) }),
+            ...(payload === undefined ? {} : { 'Content-Length': Buffer.byteLength(payload) }),
             ...headers,
           },
         },
@@ -137,9 +135,9 @@ async function withServer(
               status: res.statusCode ?? 0,
               headers: res.headers,
               body: Buffer.concat(chunks).toString('utf8'),
-            })
+            }),
           );
-        }
+        },
       );
       req.on('error', reject);
       if (payload !== undefined) req.write(payload);
@@ -474,7 +472,7 @@ describe('an unconfigured deployment serves nobody', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       expect(response.status).toBe(403);
@@ -504,7 +502,7 @@ describe('an unconfigured deployment serves nobody', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
     });
@@ -518,7 +516,7 @@ describe('an unconfigured deployment serves nobody', () => {
         'GET',
         '/v1/generations/whatever',
         undefined,
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       // The Oxy dialect renders the flat typed error, not the OpenAI envelope.
       expect(response.status).toBe(403);
@@ -538,7 +536,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(internal),
-        bearer(internal.token)
+        bearer(internal.token),
       );
       expect(admitted.status).toBe(200);
 
@@ -546,7 +544,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(external),
-        bearer(external.token)
+        bearer(external.token),
       );
       expect(refused.status).toBe(403);
     });
@@ -564,7 +562,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(flagged),
-        bearer(flagged.token)
+        bearer(flagged.token),
       );
       expect(response.status).toBe(200);
     });
@@ -579,7 +577,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(firstParty),
-        bearer(firstParty.token)
+        bearer(firstParty.token),
       );
       expect(tooEarly.status).toBe(403);
 
@@ -588,7 +586,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(firstParty),
-        bearer(firstParty.token)
+        bearer(firstParty.token),
       );
       expect(admitted.status).toBe(200);
     });
@@ -606,7 +604,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(invited),
-        bearer(invited.token)
+        bearer(invited.token),
       );
       expect(admitted.status).toBe(200);
 
@@ -615,7 +613,7 @@ describe('each rollout stage admits the applications it names', () => {
           'POST',
           '/v1/chat/completions',
           chatBody(excluded),
-          bearer(excluded.token)
+          bearer(excluded.token),
         );
         expect(refused.status).toBe(403);
       }
@@ -641,7 +639,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(refused.status).toBe(403);
 
@@ -650,7 +648,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(stillRefused.status).toBe(403);
 
@@ -659,7 +657,7 @@ describe('each rollout stage admits the applications it names', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(admitted.status).toBe(200);
     });
@@ -685,7 +683,7 @@ describe('the machine-credential lane is a switch of its own', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(401);
     });
@@ -701,20 +699,18 @@ describe('the machine-credential lane is a switch of its own', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       // An AUTHENTICATION refusal, not an audience one: the caller never became
       // a principal, so there was nothing to admit.
       expect(response.status).toBe(401);
-      expect((json(response).error as Record<string, unknown>).code).toBe(
-        'authentication_failed'
-      );
+      expect((json(response).error as Record<string, unknown>).code).toBe('authentication_failed');
     });
 
     expect(mockedLogger.warn).toHaveBeenCalledWith(
       'inference.edge.unauthenticated',
-      expect.objectContaining({ reason: 'machine_lane_disabled' })
+      expect.objectContaining({ reason: 'machine_lane_disabled' }),
     );
   });
 
@@ -728,7 +724,7 @@ describe('the machine-credential lane is a switch of its own', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
     });
@@ -741,9 +737,7 @@ describe('the machine-credential lane is a switch of its own', () => {
 
 /** Pull the one shadow-metering log line out of the mocked logger. */
 function shadowLine(): Record<string, unknown> {
-  const calls = mockedLogger.info.mock.calls.filter(
-    (call) => call[0] === SHADOW_METERING_EVENT
-  );
+  const calls = mockedLogger.info.mock.calls.filter((call) => call[0] === SHADOW_METERING_EVENT);
   expect(calls).toHaveLength(1);
   return calls[0][1] as Record<string, unknown>;
 }
@@ -768,7 +762,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(200);
     });
@@ -815,7 +809,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(shadowFixture),
-        bearer(shadowFixture.token)
+        bearer(shadowFixture.token),
       );
       expect(response.status).toBe(200);
     });
@@ -832,7 +826,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(chargedFixture),
-        bearer(chargedFixture.token)
+        bearer(chargedFixture.token),
       );
       expect(response.status).toBe(200);
     });
@@ -849,12 +843,12 @@ describe('shadow metering measures without settling', () => {
     expect(Number(after.purchased)).toBeLessThan(Number(before.purchased));
     expect(Number(before.purchased) - Number(after.purchased)).toBeCloseTo(
       Number(wouldHaveBilled),
-      9
+      9,
     );
     expect(Number(wouldHaveBilled)).toBeGreaterThan(0);
     // No shadow line was written on the charged run: the two modes are exclusive.
     expect(
-      mockedLogger.info.mock.calls.filter((call) => call[0] === SHADOW_METERING_EVENT)
+      mockedLogger.info.mock.calls.filter((call) => call[0] === SHADOW_METERING_EVENT),
     ).toHaveLength(0);
   });
 
@@ -874,7 +868,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(served.status).toBe(200);
 
@@ -883,7 +877,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(refused.status).toBe(402);
       expect((json(refused).error as Record<string, unknown>).code).toBe('insufficient_balance');
@@ -899,7 +893,7 @@ describe('shadow metering measures without settling', () => {
         'POST',
         '/v1/chat/completions',
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(503);
     });

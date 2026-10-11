@@ -158,77 +158,81 @@ export const inferenceMeteredUsage = pgTable(
       t.applicationId,
       t.environment,
       t.status,
-      t.createdAt
+      t.createdAt,
     ),
     index('inference_metered_usage_settled_idx').on(t.settledAt),
     index('inference_metered_usage_parent_idx').on(t.parentRequestId),
-    check('inference_metered_usage_parent_check',
-      sql`${t.parentRequestId} is null or (${t.parentRequestId} <> ${t.requestId} and length(${t.parentRequestId}) > 0)`),
-    check('inference_metered_usage_final_authorization_check',
+    check(
+      'inference_metered_usage_parent_check',
+      sql`${t.parentRequestId} is null or (${t.parentRequestId} <> ${t.requestId} and length(${t.parentRequestId}) > 0)`,
+    ),
+    check(
+      'inference_metered_usage_final_authorization_check',
       sql`(${t.finalAuthorizedModelReference} is null and ${t.finalAuthorizedProvider} is null
         and ${t.finalAuthorizedDeploymentId} is null and ${t.finalAuthorizedCeilingAmount} is null
         and ${t.finalAuthorizedCeilingCurrency} is null) or
         (${t.finalAuthorizedModelReference} is not null and ${t.finalAuthorizedProvider} is not null
         and ${t.finalAuthorizedDeploymentId} is not null
         and (${t.finalAuthorizedCeilingAmount} is null) = (${t.finalAuthorizedCeilingCurrency} is null)
-        and (${t.finalAuthorizedCeilingCurrency} is null or ${currencyCodeCheck(t.finalAuthorizedCeilingCurrency)}))`),
+        and (${t.finalAuthorizedCeilingCurrency} is null or ${currencyCodeCheck(t.finalAuthorizedCeilingCurrency)}))`,
+    ),
 
     check(
       'inference_metered_usage_treatment_check',
-      sql`${t.economicTreatment} in (${sql.raw(inList(ECONOMIC_TREATMENT_VALUES))})`
+      sql`${t.economicTreatment} in (${sql.raw(inList(ECONOMIC_TREATMENT_VALUES))})`,
     ),
     check(
       'inference_metered_usage_status_check',
-      sql`${t.status} in (${sql.raw(inList(METERED_USAGE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(METERED_USAGE_STATUSES))})`,
     ),
     check(
       'inference_metered_usage_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check(
       'inference_metered_usage_outcome_check',
-      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`
+      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`,
     ),
     check(
       'inference_metered_usage_usage_source_check',
-      sql`${t.usageSource} is null or ${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`
+      sql`${t.usageSource} is null or ${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`,
     ),
     check(
       'inference_metered_usage_tariff_status_check',
-      sql`${t.tariffStatus} is null or ${t.tariffStatus} in (${sql.raw(inList(TARIFF_STATUSES))})`
+      sql`${t.tariffStatus} is null or ${t.tariffStatus} in (${sql.raw(inList(TARIFF_STATUSES))})`,
     ),
     // An internal relationship is named exactly when the row is internal.
     check(
       'inference_metered_usage_relationship_check',
-      sql`(${t.economicTreatment} = 'internal_metered') = (${t.economicRelationshipId} is not null)`
+      sql`(${t.economicTreatment} = 'internal_metered') = (${t.economicRelationshipId} is not null)`,
     ),
     // An internal request has no receipt, ever: it was never charged.
     check(
       'inference_metered_usage_internal_uncharged_check',
-      sql`${t.economicTreatment} <> 'internal_metered' or ${t.usageReceiptId} is null`
+      sql`${t.economicTreatment} <> 'internal_metered' or ${t.usageReceiptId} is null`,
     ),
     // Settled ⇔ outcome, source and settlement time are all present.
     check(
       'inference_metered_usage_settled_check',
-      sql`(${t.status} = 'settled') = (${t.outcome} is not null and ${t.usageSource} is not null and ${t.settledAt} is not null)`
+      sql`(${t.status} = 'settled') = (${t.outcome} is not null and ${t.usageSource} is not null and ${t.settledAt} is not null)`,
     ),
     // A quoted tariff has an amount and currency; an unpriced one has neither.
     check(
       'inference_metered_usage_tariff_check',
       sql`(${t.tariffStatus} = 'quoted') = (${t.tariffAmount} is not null and ${t.tariffCurrency} is not null)
-        and (${t.tariffStatus} is not null or (${t.tariffAmount} is null and ${t.tariffCurrency} is null))`
+        and (${t.tariffStatus} is not null or (${t.tariffAmount} is null and ${t.tariffCurrency} is null))`,
     ),
     check(
       'inference_metered_usage_tariff_currency_check',
-      sql`${t.tariffCurrency} is null or ${currencyCodeCheck(t.tariffCurrency)}`
+      sql`${t.tariffCurrency} is null or ${currencyCodeCheck(t.tariffCurrency)}`,
     ),
     check(
       'inference_metered_usage_ceiling_currency_check',
       sql`(${t.ceilingAmount} is null) = (${t.ceilingCurrency} is null)
-        and (${t.ceilingCurrency} is null or ${currencyCodeCheck(t.ceilingCurrency)})`
+        and (${t.ceilingCurrency} is null or ${currencyCodeCheck(t.ceilingCurrency)})`,
     ),
     usageUnitsNonNegativeCheck('inference_metered_usage_units_check', t),
-  ]
+  ],
 );
 
 export type InferenceMeteredUsageRow = typeof inferenceMeteredUsage.$inferSelect;

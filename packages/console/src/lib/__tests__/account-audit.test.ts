@@ -95,9 +95,7 @@ describe('accountAuditActorLabel', () => {
   it('does not call the platform a service credential', () => {
     expect(accountAuditActorLabel(PLATFORM_USE)).toBe('by the platform');
     expect(accountAuditActorLabel(SERVICE_USE)).toBe('by a service credential');
-    expect(accountAuditActorLabel(PLATFORM_USE)).not.toBe(
-      accountAuditActorLabel(SERVICE_USE)
-    );
+    expect(accountAuditActorLabel(PLATFORM_USE)).not.toBe(accountAuditActorLabel(SERVICE_USE));
   });
 
   /**
@@ -139,20 +137,18 @@ describe('accountAuditActorLabel', () => {
    * both of these backwards, while one reading `actor.kind` is unmoved.
    */
   it('reads the actor kind rather than the event type it correlates with', () => {
-    expect(
-      accountAuditActorLabel({ ...REFUSED_VALIDATION, actor: { kind: 'platform' } })
-    ).toBe('by the platform');
+    expect(accountAuditActorLabel({ ...REFUSED_VALIDATION, actor: { kind: 'platform' } })).toBe(
+      'by the platform',
+    );
     expect(accountAuditActorLabel({ ...PLATFORM_USE, actor: { kind: 'none' } })).toBe(
-      'a refused request'
+      'a refused request',
     );
   });
 });
 
 describe('accountAuditActorUserId', () => {
   it('shows an id for the one arm that has one', () => {
-    expect(accountAuditActorUserId(MEMBER_ROTATION)).toBe(
-      '01a01042-0000-7000-8000-000000000000'
-    );
+    expect(accountAuditActorUserId(MEMBER_ROTATION)).toBe('01a01042-0000-7000-8000-000000000000');
   });
 
   it('has no id to show for any of the other four', () => {
@@ -188,7 +184,7 @@ describe('accountAuditAccess', () => {
 
   it('permits a membership holding both', () => {
     expect(
-      accountAuditAccess(member(['account:read', 'credentials:read', 'inference:providers:read']))
+      accountAuditAccess(member(['account:read', 'credentials:read', 'inference:providers:read'])),
     ).toEqual({ kind: 'permitted' });
   });
 
@@ -255,10 +251,12 @@ describe('accountAuditAccess', () => {
    * the check is exact membership, not a prefix or a substring.
    */
   it('is not satisfied by a neighbouring permission', () => {
-    expect(accountAuditAccess(member(['credentials:create', 'inference:providers:write']))).toEqual({
-      kind: 'refused',
-      missing: ['credentials:read', 'inference:providers:read'],
-    });
+    expect(accountAuditAccess(member(['credentials:create', 'inference:providers:write']))).toEqual(
+      {
+        kind: 'refused',
+        missing: ['credentials:read', 'inference:providers:read'],
+      },
+    );
   });
 });
 
@@ -276,9 +274,9 @@ describe('accountAuditAccess', () => {
  * the same function run over the BILLING audit route must return `billing:read`
  * alone. A regex that matched the whole file, or nothing at all, fails that.
  */
-describe('the two permissions are the route\'s own', () => {
+describe("the two permissions are the route's own", () => {
   const ACCOUNTS_ROUTE = fileURLToPath(
-    new URL('../../../../api/src/routes/accounts.ts', import.meta.url)
+    new URL('../../../../api/src/routes/accounts.ts', import.meta.url),
   );
 
   /** Every `requireAccountPermission` between one route registration and the next. */
@@ -288,7 +286,7 @@ describe('the two permissions are the route\'s own', () => {
     const next = source.indexOf('router.', start);
     const registration = source.slice(start, next === -1 ? undefined : next);
     return [...registration.matchAll(/requireAccountPermission\('([^']+)'\)/g)].map(
-      (match) => match[1]
+      (match) => match[1],
     );
   }
 

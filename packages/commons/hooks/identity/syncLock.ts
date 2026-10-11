@@ -13,7 +13,7 @@ export interface SyncLockResult {
 /**
  * Acquire the global sync lock.
  * Throws if lock is already held.
- * 
+ *
  * @returns Lock result with abort signal and release function
  * @throws Error if sync is already in progress
  */
@@ -48,5 +48,10 @@ export const isSyncLockAborted = (error: unknown): boolean => {
   if (error instanceof Error) {
     return error.name === 'AbortError' || error.message.includes('aborted');
   }
-  return Boolean(error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError');
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'name' in error &&
+      (error as { name?: unknown }).name === 'AbortError',
+  );
 };

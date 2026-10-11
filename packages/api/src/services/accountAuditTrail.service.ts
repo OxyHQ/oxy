@@ -160,10 +160,9 @@ export const ACCOUNT_AUDIT_DEFAULT_LIMIT = 50;
  * was written.
  */
 export function encodeAccountAuditCursor(cursor: AuditCursor): string {
-  return Buffer.from(
-    `${cursor.createdAt}|${cursor.source}|${cursor.id}`,
-    'utf8'
-  ).toString('base64url');
+  return Buffer.from(`${cursor.createdAt}|${cursor.source}|${cursor.id}`, 'utf8').toString(
+    'base64url',
+  );
 }
 
 /**
@@ -253,7 +252,7 @@ export async function listAccountAuditTrail(
   accountId: string,
   options: { readonly limit: number; readonly cursor?: string | null } = {
     limit: ACCOUNT_AUDIT_DEFAULT_LIMIT,
-  }
+  },
 ): Promise<AccountAuditPage> {
   const limit = Math.min(Math.max(options.limit, 1), ACCOUNT_AUDIT_MAX_LIMIT);
   const cursor =

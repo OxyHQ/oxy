@@ -32,9 +32,10 @@ export function computeAspectRatio(width: number, height: number): number {
   return width / height;
 }
 
-function largestVariantDimensions(
-  variants: FileVariantRecord[]
-): { width?: number; height?: number } {
+function largestVariantDimensions(variants: FileVariantRecord[]): {
+  width?: number;
+  height?: number;
+} {
   let best: { width: number; height: number; area: number } | undefined;
   for (const variant of variants) {
     const width = positiveInt(variant.width);
@@ -54,7 +55,7 @@ function largestVariantDimensions(
  * Prefers persisted `metadata.media`, then type-specific subdocs, then variants.
  */
 export function resolveFileMediaMetadata(
-  file: Pick<FileRecord, 'metadata' | 'variants'>
+  file: Pick<FileRecord, 'metadata' | 'variants'>,
 ): ResolvedFileMediaMetadata {
   const root = file.metadata ?? {};
   const canonical = root.media as Partial<ResolvedFileMediaMetadata> | undefined;
@@ -91,9 +92,9 @@ export function resolveFileMediaMetadata(
     out.orientation = computeOrientation(width, height);
     out.aspectRatio = computeAspectRatio(width, height);
   } else if (
-    canonical?.orientation === 'portrait'
-    || canonical?.orientation === 'landscape'
-    || canonical?.orientation === 'square'
+    canonical?.orientation === 'portrait' ||
+    canonical?.orientation === 'landscape' ||
+    canonical?.orientation === 'square'
   ) {
     out.orientation = canonical.orientation;
   }

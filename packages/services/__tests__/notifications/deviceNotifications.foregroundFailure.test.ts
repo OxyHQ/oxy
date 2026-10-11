@@ -51,8 +51,8 @@ describe('installForegroundNotificationHandler when registration throws', () => 
     await expect(installForegroundNotificationHandler(() => 'show')).resolves.toBe(false);
 
     expect(mockNotifications.setNotificationHandler).toHaveBeenCalledTimes(1);
-    expect(entries.filter((entry) => entry.level === 'warn').map((entry) => entry.message)).toEqual([
-      'could not install the foreground notification handler',
-    ]);
+    expect(entries.filter((entry) => entry.level === 'warn').map((entry) => entry.message)).toEqual(
+      ['could not install the foreground notification handler'],
+    );
   });
 });

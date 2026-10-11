@@ -57,7 +57,11 @@ export class SignatureService {
         return nodeCrypto.randomBytes(32).toString('hex');
       } catch (error) {
         // Node crypto failed to load — log and fall through to Web Crypto API
-        logger.warn('[oxy.crypto] Node crypto unavailable, falling back to Web Crypto', { component: 'SignatureService' }, error);
+        logger.warn(
+          '[oxy.crypto] Node crypto unavailable, falling back to Web Crypto',
+          { component: 'SignatureService' },
+          error,
+        );
       }
     }
 
@@ -65,7 +69,7 @@ export class SignatureService {
     const bytes = new Uint8Array(32);
     globalThis.crypto.getRandomValues(bytes);
     return Array.from(bytes)
-      .map(b => b.toString(16).padStart(2, '0'))
+      .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
   }
 
@@ -115,7 +119,7 @@ export class SignatureService {
    */
   static async verifySignedMessage(
     signedMessage: SignedMessage,
-    maxAgeMs: number = 5 * 60 * 1000 // 5 minutes default
+    maxAgeMs: number = 5 * 60 * 1000, // 5 minutes default
   ): Promise<boolean> {
     const { message, signature, publicKey, timestamp } = signedMessage;
 
@@ -190,7 +194,7 @@ export class SignatureService {
   static async verifyChallengeResponse(
     originalChallenge: string,
     response: AuthChallenge,
-    maxAgeMs: number = 5 * 60 * 1000
+    maxAgeMs: number = 5 * 60 * 1000,
   ): Promise<boolean> {
     const { challenge: signature, publicKey, timestamp } = response;
 
@@ -209,7 +213,11 @@ export class SignatureService {
    * Used when registering a new identity with the server
    * Format matches server expectation: oxy:register:{publicKey}:{timestamp}
    */
-  static async createRegistrationSignature(): Promise<{ signature: string; publicKey: string; timestamp: number }> {
+  static async createRegistrationSignature(): Promise<{
+    signature: string;
+    publicKey: string;
+    timestamp: number;
+  }> {
     const publicKey = await KeyManager.getPublicKey();
     if (!publicKey) {
       throw new Error('No identity found. Please create or import an identity first.');
@@ -244,7 +252,7 @@ export class SignatureService {
 
     // Create canonical string representation
     const sortedKeys = Object.keys(data).sort();
-    const canonicalParts = sortedKeys.map(key => `${key}:${JSON.stringify(data[key])}`);
+    const canonicalParts = sortedKeys.map((key) => `${key}:${JSON.stringify(data[key])}`);
     const canonicalString = canonicalParts.join('|');
 
     const message = `request:${publicKey}:${timestamp}:${canonicalString}`;

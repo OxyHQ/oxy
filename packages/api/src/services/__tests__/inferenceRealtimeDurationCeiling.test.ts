@@ -73,8 +73,8 @@ describe('realtimeDurationCeiling', () => {
             maxInputAudioBytes: 480_000,
             maxOutputAudioBytes: 480_000,
           },
-        })
-      )
+        }),
+      ),
     ).toMatchObject({ audio_input_milliseconds: 60_000, audio_output_milliseconds: 60_000 });
   });
 
@@ -85,8 +85,8 @@ describe('realtimeDurationCeiling', () => {
       realtimeDurationCeiling(
         operation({
           audio: { inputFormat: 'pcm16_24khz', maxInputAudioBytes: 48, maxOutputAudioBytes: 4_800 },
-        })
-      )
+        }),
+      ),
     ).toEqual({
       audio_input_milliseconds: 1,
       audio_output_milliseconds: 600,
@@ -105,8 +105,8 @@ describe('realtimeDurationCeiling', () => {
             maxInputAudioBytes: 49,
             maxOutputAudioBytes: 1,
           },
-        })
-      )
+        }),
+      ),
     ).toMatchObject({ audio_input_milliseconds: 2, audio_output_milliseconds: 1 });
   });
 });
@@ -116,7 +116,11 @@ describe('routeCeilingPlans', () => {
 
   it('tries tokens-and-duration, then tokens, then duration, for a realtime session', () => {
     const plans = routeCeilingPlans(request(operation()), route, 10, 0);
-    expect(plans.map((plan) => plan.metering)).toEqual(['tokens_and_duration', 'tokens', 'duration']);
+    expect(plans.map((plan) => plan.metering)).toEqual([
+      'tokens_and_duration',
+      'tokens',
+      'duration',
+    ]);
     const [both, tokens, duration] = plans;
     expect(duration.scenarios).toEqual([
       {
@@ -148,7 +152,9 @@ describe('routeCeilingPlans', () => {
       ...request(operation()),
       operation: { kind: 'completion' },
     };
-    expect(routeCeilingPlans(completion, route, 10, 100).map((plan) => plan.metering)).toEqual(['tokens']);
+    expect(routeCeilingPlans(completion, route, 10, 100).map((plan) => plan.metering)).toEqual([
+      'tokens',
+    ]);
   });
 });
 
@@ -160,28 +166,50 @@ describe('realtimeTextItemBilled — what xAI bills as a text input', () => {
 
   it('counts a text message, a system message and a client function call', () => {
     expect(
-      realtimeTextItemBilled(item({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }))
+      realtimeTextItemBilled(
+        item({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }),
+      ),
     ).toBe(true);
     expect(
-      realtimeTextItemBilled(item({ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'be brief' }] }))
+      realtimeTextItemBilled(
+        item({
+          type: 'message',
+          role: 'system',
+          content: [{ type: 'input_text', text: 'be brief' }],
+        }),
+      ),
     ).toBe(true);
     expect(
-      realtimeTextItemBilled(item({ type: 'function_call', callId: 'x', name: 'f', arguments: '{}' }))
+      realtimeTextItemBilled(
+        item({ type: 'function_call', callId: 'x', name: 'f', arguments: '{}' }),
+      ),
     ).toBe(true);
   });
 
   it('does not count a function_call_output or an audio item carrying data', () => {
-    expect(realtimeTextItemBilled(item({ type: 'function_call_output', callId: 'x', output: '{}' }))).toBe(false);
+    expect(
+      realtimeTextItemBilled(item({ type: 'function_call_output', callId: 'x', output: '{}' })),
+    ).toBe(false);
     expect(
       realtimeTextItemBilled(
-        item({ type: 'message', role: 'user', content: [{ type: 'input_audio', format: 'pcm16_24khz', data: audio }] })
-      )
+        item({
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_audio', format: 'pcm16_24khz', data: audio }],
+        }),
+      ),
     ).toBe(false);
   });
 
   it('counts an audio part without data, and a mixed item (Kaana refuses it; counting can only over-hold)', () => {
     expect(
-      realtimeTextItemBilled(item({ type: 'message', role: 'user', content: [{ type: 'input_audio', format: 'pcm16_24khz' }] }))
+      realtimeTextItemBilled(
+        item({
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_audio', format: 'pcm16_24khz' }],
+        }),
+      ),
     ).toBe(true);
     expect(
       realtimeTextItemBilled(
@@ -192,8 +220,8 @@ describe('realtimeTextItemBilled — what xAI bills as a text input', () => {
             { type: 'input_audio', format: 'pcm16_24khz', data: audio },
             { type: 'input_text', text: 'and this' },
           ],
-        })
-      )
+        }),
+      ),
     ).toBe(true);
   });
 

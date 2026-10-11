@@ -66,7 +66,8 @@ function pathFor(name) {
   const file = join(bloomRoot, 'src', 'icons', 'remix', `${name}.tsx`);
   const source = readFileSync(file, 'utf8');
   const match = /path:\s*'([^']+)'/.exec(source);
-  if (!match) throw new Error(`No single-path SVG found in ${file}. Did Bloom change its icon template?`);
+  if (!match)
+    throw new Error(`No single-path SVG found in ${file}. Did Bloom change its icon template?`);
   return match[1];
 }
 

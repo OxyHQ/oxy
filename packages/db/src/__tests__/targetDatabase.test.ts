@@ -23,14 +23,14 @@ describe('readTargetDatabase', () => {
     // with `DB` unset expands to exactly this.
     expect(() => readTargetDatabase(['--target-database='])).toThrow(MissingMigrationTargetError);
     expect(() => readTargetDatabase(['--target-database=   '])).toThrow(
-      MissingMigrationTargetError
+      MissingMigrationTargetError,
     );
   });
 
   it('accepts a named target, so the refusals above are not unconditional', () => {
     expect(readTargetDatabase(['--target-database=my_app'])).toBe('my_app');
     expect(readTargetDatabase(['--other', '--target-database=my_app_audit_probe'])).toBe(
-      'my_app_audit_probe'
+      'my_app_audit_probe',
     );
   });
 

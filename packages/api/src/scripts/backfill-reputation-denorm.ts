@@ -175,10 +175,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  logger.error(
-    'Backfill failed',
-    error instanceof Error ? error : new Error(String(error)),
-    { component: 'backfill', method: 'main' },
-  );
+  logger.error('Backfill failed', error instanceof Error ? error : new Error(String(error)), {
+    component: 'backfill',
+    method: 'main',
+  });
   process.exit(1);
 });

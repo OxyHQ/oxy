@@ -1,19 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Linking,
-  Platform,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, Platform } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { alert } from '@oxy.so/bloom';
 import { useTranslation } from '@/lib/i18n';
-
 
 /**
  * QR Scanner Screen
@@ -30,51 +22,49 @@ export default function ScanQRScreen() {
   const [flashOn, setFlashOn] = useState(false);
 
   // Handle barcode scan
-  const handleBarCodeScanned = useCallback(({ data }: BarcodeScanningResult) => {
-    if (scanned) return;
-    setScanned(true);
+  const handleBarCodeScanned = useCallback(
+    ({ data }: BarcodeScanningResult) => {
+      if (scanned) return;
+      setScanned(true);
 
-    // Expected formats:
-    // 1. oxyauth://{sessionToken} (simple format from OxyAuthScreen QR)
-    // 2. oxyauth://authorize?token=xxx (with query params)
-    // 3. oxyaccounts://authorize?token=xxx (deep link format)
-    // 4. https://accounts.oxy.so/authorize?token=xxx (web URL)
-    let token: string | null = null;
+      // Expected formats:
+      // 1. oxyauth://{sessionToken} (simple format from OxyAuthScreen QR)
+      // 2. oxyauth://authorize?token=xxx (with query params)
+      // 3. oxyaccounts://authorize?token=xxx (deep link format)
+      // 4. https://accounts.oxy.so/authorize?token=xxx (web URL)
+      let token: string | null = null;
 
-    try {
-      // Simple format: oxyauth://{sessionToken}
-      if (data.startsWith('oxyauth://') && !data.includes('?')) {
-        // Extract token directly from the path
-        token = data.replace('oxyauth://', '').trim();
+      try {
+        // Simple format: oxyauth://{sessionToken}
+        if (data.startsWith('oxyauth://') && !data.includes('?')) {
+          // Extract token directly from the path
+          token = data.replace('oxyauth://', '').trim();
+        }
+        // URL format with query params
+        else if (data.startsWith('oxyauth://') || data.startsWith('oxyaccounts://')) {
+          const url = new URL(data);
+          token = url.searchParams.get('token');
+        }
+        // Web URL format
+        else if (data.includes('/authorize')) {
+          const url = new URL(data);
+          token = url.searchParams.get('token');
+        }
+      } catch {
+        // Invalid URL format, try extracting token directly
+        if (data.startsWith('oxyauth://')) {
+          token = data.replace('oxyauth://', '').split('?')[0].trim();
+        }
       }
-      // URL format with query params
-      else if (data.startsWith('oxyauth://') || data.startsWith('oxyaccounts://')) {
-        const url = new URL(data);
-        token = url.searchParams.get('token');
-      }
-      // Web URL format
-      else if (data.includes('/authorize')) {
-        const url = new URL(data);
-        token = url.searchParams.get('token');
-      }
-    } catch {
-      // Invalid URL format, try extracting token directly
-      if (data.startsWith('oxyauth://')) {
-        token = data.replace('oxyauth://', '').split('?')[0].trim();
-      }
-    }
 
-    if (token && token.length > 10) {
-      // Navigate to authorize screen with the token
-      router.push({
-        pathname: '/(tabs)/authorize',
-        params: { token },
-      });
-    } else {
-      alert(
-        t('scanQr.invalidTitle'),
-        t('scanQr.invalidBody'),
-        [
+      if (token && token.length > 10) {
+        // Navigate to authorize screen with the token
+        router.push({
+          pathname: '/(tabs)/authorize',
+          params: { token },
+        });
+      } else {
+        alert(t('scanQr.invalidTitle'), t('scanQr.invalidBody'), [
           {
             text: t('scanQr.scanAgain'),
             onPress: () => setScanned(false),
@@ -84,10 +74,11 @@ export default function ScanQRScreen() {
             onPress: () => router.back(),
             style: 'cancel',
           },
-        ]
-      );
-    }
-  }, [scanned, router, t]);
+        ]);
+      }
+    },
+    [scanned, router, t],
+  );
 
   // Toggle flash
   const toggleFlash = useCallback(() => {
@@ -129,9 +120,7 @@ export default function ScanQRScreen() {
           color={colors.textSecondary}
           style={styles.icon}
         />
-        <Text style={[styles.title, { color: colors.text }]}>
-          {t('scanQr.permissionTitle')}
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('scanQr.permissionTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('scanQr.permissionBody')}
         </Text>
@@ -149,9 +138,7 @@ export default function ScanQRScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('scanQr.a11y.openSettings')}
         >
-          <Text style={[styles.linkText, { color: colors.tint }]}>
-            {t('scanQr.openSettings')}
-          </Text>
+          <Text style={[styles.linkText, { color: colors.tint }]}>{t('scanQr.openSettings')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.linkButton]}
@@ -198,9 +185,7 @@ export default function ScanQRScreen() {
 
           {/* Bottom section */}
           <View style={[styles.overlaySection, styles.bottomSection]}>
-            <Text style={styles.instructionText}>
-              {t('scanQr.instructions')}
-            </Text>
+            <Text style={styles.instructionText}>{t('scanQr.instructions')}</Text>
 
             {/* Controls */}
             <View style={styles.controls}>
@@ -228,11 +213,7 @@ export default function ScanQRScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('scanQr.a11y.scanAgain')}
                 >
-                  <MaterialCommunityIcons
-                    name="refresh"
-                    size={28}
-                    color="#fff"
-                  />
+                  <MaterialCommunityIcons name="refresh" size={28} color="#fff" />
                   <Text style={styles.controlText}>{t('scanQr.scanAgain')}</Text>
                 </TouchableOpacity>
               )}
@@ -390,4 +371,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-

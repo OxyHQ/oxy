@@ -807,10 +807,18 @@ export class AccountDialogController {
       // unexpected — surface it, and keep whatever directory is already held so
       // an outage degrades rather than blanks the switcher.
       if (extractErrorStatus(error) === 401) {
-        logger.debug('[AccountDialogController] directory unauthorized (signed out)', { component: 'AccountDialogController' }, error);
+        logger.debug(
+          '[AccountDialogController] directory unauthorized (signed out)',
+          { component: 'AccountDialogController' },
+          error,
+        );
       } else {
         failure = errorMessage(error);
-        logger.warn('[AccountDialogController] directory refresh failed', { component: 'AccountDialogController' }, error);
+        logger.warn(
+          '[AccountDialogController] directory refresh failed',
+          { component: 'AccountDialogController' },
+          error,
+        );
       }
     }
     // Superseded by a newer refresh: that read owns `error` and `loading`, so an
@@ -1041,7 +1049,11 @@ export class AccountDialogController {
       if (!this.isCurrentAttempt(attempt)) return;
       // The identity mint failed — log and fall through to the QR handoff rather
       // than dead-ending the sign-in.
-      logger.warn('[AccountDialogController] signInWithCommonsIdentity failed', { component: 'AccountDialogController' }, error);
+      logger.warn(
+        '[AccountDialogController] signInWithCommonsIdentity failed',
+        { component: 'AccountDialogController' },
+        error,
+      );
     }
     await this.startDeviceFlowSession(attempt, { deliver: true });
   }
@@ -1127,7 +1139,10 @@ export class AccountDialogController {
   ): Promise<CommonsSignInHandle | null> {
     if (!this.isCurrentAttempt(attempt)) return null;
     if (!this.clientId) {
-      this.failSignIn('not-configured', 'This app is not configured for sign-in (missing clientId).');
+      this.failSignIn(
+        'not-configured',
+        'This app is not configured for sign-in (missing clientId).',
+      );
       return null;
     }
     this.setSignIn({ ...IDLE_SIGN_IN_FACTS, phase: 'starting' });
@@ -1235,7 +1250,10 @@ export class AccountDialogController {
    *    surfaced as an error: there is nothing the user did wrong and nothing for
    *    them to fix.
    */
-  private async deliverToKnownCommons(authorizeCode: string, commonsAvailable: boolean): Promise<number> {
+  private async deliverToKnownCommons(
+    authorizeCode: string,
+    commonsAvailable: boolean,
+  ): Promise<number> {
     // Route 1 (mobile with a verified local Commons link) reaches the identity
     // on this very device — pushing as well would notify a second surface for a
     // request the user is about to confirm here.
@@ -1397,12 +1415,16 @@ export class AccountDialogController {
         // recording it before the terminal branches means a poll that also
         // carries the approval still leaves an honest trail behind it.
         this.recordDeliveryProgress(status.pushSentAt, status.openedAt);
-        const purpose = status.purpose === 'oauth_authorization' ? 'oauth_authorization' : 'device_sign_in';
+        const purpose =
+          status.purpose === 'oauth_authorization' ? 'oauth_authorization' : 'device_sign_in';
         if (status.authorized && purpose === 'oauth_authorization') {
           // OAuth-bound sessions mint no sessionId on approval — they finalize
           // into an authorization code. The account dialog only starts device
           // sign-in today; stop rather than poll until expiry.
-          this.failSignIn('unsupported-flow', 'This sign-in flow cannot be completed here. Use the app\'s OAuth sign-in instead.');
+          this.failSignIn(
+            'unsupported-flow',
+            "This sign-in flow cannot be completed here. Use the app's OAuth sign-in instead.",
+          );
           return;
         }
         if (status.authorized && status.sessionId) {
@@ -1420,7 +1442,11 @@ export class AccountDialogController {
         }
       } catch (error) {
         // Transient poll error — the next tick retries. Logged, never thrown.
-        logger.debug('[AccountDialogController] poll error (will retry)', { component: 'AccountDialogController' }, error);
+        logger.debug(
+          '[AccountDialogController] poll error (will retry)',
+          { component: 'AccountDialogController' },
+          error,
+        );
       }
       if (this.signInToken === sessionToken) {
         this.scheduleNextPoll(sessionToken);
@@ -1445,7 +1471,11 @@ export class AccountDialogController {
     this.patchSignIn({ pushSentAt: nextPushSentAt, openedAt: nextOpenedAt });
   }
 
-  private async claimAndComplete(attempt: number, sessionId: string, sessionToken: string): Promise<void> {
+  private async claimAndComplete(
+    attempt: number,
+    sessionId: string,
+    sessionToken: string,
+  ): Promise<void> {
     this.patchSignIn({ phase: 'authorized' });
     let claimed: {
       accessToken: string;
@@ -1466,7 +1496,10 @@ export class AccountDialogController {
     }
     if (!this.isCurrentAttempt(attempt)) return;
     if (!claimed?.accessToken || !claimed.user) {
-      this.failSignIn('claim-failed', 'Authorization succeeded but the session could not be claimed. Please try again.');
+      this.failSignIn(
+        'claim-failed',
+        'Authorization succeeded but the session could not be claimed. Please try again.',
+      );
       return;
     }
     // `SessionLoginResponse.user` is the minimal session-carried shape; the claim
@@ -1541,7 +1574,7 @@ export class AccountDialogController {
       this.signInToken = null;
       this.clearPollTimer();
       this.closeAuthSessionSocket();
-        // Terminal SUCCESS, not idle: the surface gets one honest frame to show
+      // Terminal SUCCESS, not idle: the surface gets one honest frame to show
       // "Identity confirmed" before it closes. Cleared on the next view change.
       this.signIn = this.stampSignIn(COMPLETED_SIGN_IN_FACTS);
       this.view = 'accounts';
@@ -1617,7 +1650,11 @@ export class AccountDialogController {
       });
     } catch (error) {
       // Socket unavailable — the fallback poll still completes the flow.
-      logger.debug('[AccountDialogController] auth-session socket create failed (poll fallback)', { component: 'AccountDialogController' }, error);
+      logger.debug(
+        '[AccountDialogController] auth-session socket create failed (poll fallback)',
+        { component: 'AccountDialogController' },
+        error,
+      );
       return;
     }
     const join = (): void => {
@@ -1625,7 +1662,11 @@ export class AccountDialogController {
       try {
         socket.emit('join', sessionToken);
       } catch (error) {
-        logger.debug('[AccountDialogController] auth-session join failed', { component: 'AccountDialogController' }, error);
+        logger.debug(
+          '[AccountDialogController] auth-session join failed',
+          { component: 'AccountDialogController' },
+          error,
+        );
       }
     };
     socket.on('connect', join);
@@ -1648,7 +1689,11 @@ export class AccountDialogController {
       socket.off('connect');
       socket.disconnect();
     } catch (error) {
-      logger.debug('[AccountDialogController] auth-session socket close failed', { component: 'AccountDialogController' }, error);
+      logger.debug(
+        '[AccountDialogController] auth-session socket close failed',
+        { component: 'AccountDialogController' },
+        error,
+      );
     }
   }
 

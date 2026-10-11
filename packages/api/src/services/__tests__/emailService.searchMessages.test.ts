@@ -1,10 +1,9 @@
 /**
  * `searchMessages`, against a REAL Postgres.
  *
- * Mongo's `$text` + `{score: {$meta: 'textScore'}}` becomes a `tsvector` match
- * plus an EXPLICIT `ts_rank` weight vector. That explicitness is the point:
- * `ts_rank`'s default `{0.1, 0.2, 0.4, 1.0}` happens to be the 10:1 A-over-D
- * ratio Mongo declared as `weights: {subject: 10, text: 1}`, but a default is a
+ * Search is a `tsvector` match plus an EXPLICIT `ts_rank` weight vector. That
+ * explicitness is the point: `ts_rank`'s default `{0.1, 0.2, 0.4, 1.0}` happens
+ * to give the intended 10:1 subject-over-body ratio, but a default is a
  * thing that can change underneath a search — and a wrongly-ranked query
  * compiles, runs, and returns the same ROWS in a different ORDER, which no
  * membership assertion can see. So the ordering is asserted, not just the set.
@@ -19,8 +18,12 @@
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -109,7 +112,7 @@ afterAll(async () => {
 });
 
 describe('searchMessages — the weighted text index', () => {
-  it('ranks a subject hit above a body hit, as Mongo weighted it 10:1', async () => {
+  it('ranks a subject hit above a body hit, weighted 10:1', async () => {
     // The assertion that matters is the ORDER. Both rows match either way; a
     // weight vector of B or C — or `ts_rank`'s argument order transposed —
     // returns the same two rows the other way round and nothing else notices.
@@ -184,11 +187,15 @@ describe('searchMessages — structured filters', () => {
     const unread = await store(userId, mailboxId, { subject: 'status', seen: false });
     const read = await store(userId, mailboxId, { subject: 'status', seen: true });
 
-    await expect(emailService.searchMessages(userId, 'status', { seen: false })).resolves.toMatchObject({
+    await expect(
+      emailService.searchMessages(userId, 'status', { seen: false }),
+    ).resolves.toMatchObject({
       data: [expect.objectContaining({ id: unread })],
       total: 1,
     });
-    await expect(emailService.searchMessages(userId, 'status', { seen: true })).resolves.toMatchObject({
+    await expect(
+      emailService.searchMessages(userId, 'status', { seen: true }),
+    ).resolves.toMatchObject({
       data: [expect.objectContaining({ id: read })],
       total: 1,
     });
@@ -258,12 +265,12 @@ describe('searchMessages — structured filters', () => {
     await expect(
       emailService.searchMessages(userId, tag, { hasAttachment: true }),
     ).resolves.toMatchObject({ data: [expect.objectContaining({ id: withAttachment })] });
-    await expect(emailService.searchMessages(userId, tag, { starred: true })).resolves.toMatchObject(
-      { data: [expect.objectContaining({ id: starred })] },
-    );
-    await expect(emailService.searchMessages(userId, tag, { label: 'Work' })).resolves.toMatchObject(
-      { data: [expect.objectContaining({ id: labelled })] },
-    );
+    await expect(
+      emailService.searchMessages(userId, tag, { starred: true }),
+    ).resolves.toMatchObject({ data: [expect.objectContaining({ id: starred })] });
+    await expect(
+      emailService.searchMessages(userId, tag, { label: 'Work' }),
+    ).resolves.toMatchObject({ data: [expect.objectContaining({ id: labelled })] });
     await expect(
       emailService.searchMessages(userId, tag, { mailboxId: other }),
     ).resolves.toMatchObject({ data: [expect.objectContaining({ id: elsewhere })] });
@@ -309,5 +316,4 @@ describe('searchMessages — structured filters', () => {
     expect(first.data).toHaveLength(2);
     expect(new Set([...first.data, ...second.data].map((m) => m.id)).size).toBe(4);
   });
-
 });

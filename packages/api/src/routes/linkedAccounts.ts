@@ -32,18 +32,44 @@ import {
   type LinkedAccountNetwork,
   type StartLinkedAccountRequest,
 } from '@oxy.so/contracts';
-import { authMiddleware, serviceAuthMiddleware, type AuthRequest, type ServiceAuthRequest } from '../middleware/auth';
+import {
+  authMiddleware,
+  serviceAuthMiddleware,
+  type AuthRequest,
+  type ServiceAuthRequest,
+} from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 import type { ApplicationScope } from '../utils/applicationScopes';
-import { markChallengeVerified, readChallengeReturn, spendChallenge } from '../services/linkedAccounts/challenges';
-import { LinkedAccountCallbackFailure, LinkedAccountStartRefusal, type VerifiedExternalAccount } from '../services/linkedAccounts/common';
-import { completeMastodonLink, startMastodonLink } from '../services/linkedAccounts/mastodon.provider';
-import { atprotoClientMetadata, completeAtprotoLink, startAtprotoLink } from '../services/linkedAccounts/atproto.provider';
+import {
+  markChallengeVerified,
+  readChallengeReturn,
+  spendChallenge,
+} from '../services/linkedAccounts/challenges';
+import {
+  LinkedAccountCallbackFailure,
+  LinkedAccountStartRefusal,
+  type VerifiedExternalAccount,
+} from '../services/linkedAccounts/common';
+import {
+  completeMastodonLink,
+  startMastodonLink,
+} from '../services/linkedAccounts/mastodon.provider';
+import {
+  atprotoClientMetadata,
+  completeAtprotoLink,
+  startAtprotoLink,
+} from '../services/linkedAccounts/atproto.provider';
 import {
   LinkCodeInvalid,
   LinkCodeNotYours,
@@ -188,12 +214,18 @@ function renderInvalidState(res: Response): void {
 async function finish(
   res: Response,
   returnTo: string,
-  outcome: { challengeId: string; account: VerifiedExternalAccount } | { error: LinkedAccountCallbackError },
+  outcome:
+    | { challengeId: string; account: VerifiedExternalAccount }
+    | { error: LinkedAccountCallbackError },
 ): Promise<void> {
   const target =
     'error' in outcome
       ? withQueryParam(returnTo, 'link_error', outcome.error)
-      : withQueryParam(returnTo, 'link_code', await markChallengeVerified(outcome.challengeId, outcome.account));
+      : withQueryParam(
+          returnTo,
+          'link_code',
+          await markChallengeVerified(outcome.challengeId, outcome.account),
+        );
   res.set('Cache-Control', 'no-store').set('Referrer-Policy', 'no-referrer').redirect(303, target);
 }
 
@@ -216,7 +248,10 @@ router.get(
       }
       const result = await completeAtprotoLink(params);
       if ('failure' in result) {
-        logger.info('[LinkedAccounts] atproto callback refused', { code: result.failure.code, reason: result.failure.message });
+        logger.info('[LinkedAccounts] atproto callback refused', {
+          code: result.failure.code,
+          reason: result.failure.message,
+        });
         const origin = result.challengeId ? await readChallengeReturn(result.challengeId) : null;
         if (!origin) return renderInvalidState(res);
         return finish(res, origin.returnTo, { error: result.failure.code });
@@ -239,7 +274,11 @@ router.get(
       return finish(res, challenge.returnTo, { challengeId: challenge.id, account });
     } catch (error) {
       if (error instanceof LinkedAccountCallbackFailure) {
-        logger.info('[LinkedAccounts] Mastodon callback refused', { host: challenge.host, code: error.code, reason: error.message });
+        logger.info('[LinkedAccounts] Mastodon callback refused', {
+          host: challenge.host,
+          code: error.code,
+          reason: error.message,
+        });
         return finish(res, challenge.returnTo, { error: error.code });
       }
       throw error;
@@ -276,7 +315,10 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) throw new UnauthorizedError();
-    sendSuccess(res, linkedAccountListResponseSchema.parse({ linkedAccounts: await listLinkedAccounts(userId) }));
+    sendSuccess(
+      res,
+      linkedAccountListResponseSchema.parse({ linkedAccounts: await listLinkedAccounts(userId) }),
+    );
   }),
 );
 
@@ -288,7 +330,8 @@ router.delete(
     const userId = req.user?.id;
     if (!userId) throw new UnauthorizedError();
     const { id } = req.params as { id: string };
-    if (!(await revokeLinkedAccount(userId, id))) throw new NotFoundError('Linked account not found');
+    if (!(await revokeLinkedAccount(userId, id)))
+      throw new NotFoundError('Linked account not found');
     res.status(204).end();
   }),
 );

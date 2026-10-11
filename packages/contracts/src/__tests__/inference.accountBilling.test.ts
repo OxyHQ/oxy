@@ -59,14 +59,14 @@ describe('money is an exact decimal string', () => {
   });
 
   it('refuses an exponent form, which survives no cache key or log grep intact', () => {
-    expect(
-      billingInvoiceSchema.safeParse({ ...INVOICE, subtotalAmount: '3.7e0' }).success
-    ).toBe(false);
+    expect(billingInvoiceSchema.safeParse({ ...INVOICE, subtotalAmount: '3.7e0' }).success).toBe(
+      false,
+    );
   });
 
   it('refuses a negative amount, because direction is carried by the SHAPE', () => {
     expect(
-      billingInvoiceSchema.safeParse({ ...INVOICE, totalAmount: '-3.700000000000' }).success
+      billingInvoiceSchema.safeParse({ ...INVOICE, totalAmount: '-3.700000000000' }).success,
     ).toBe(false);
   });
 
@@ -91,7 +91,7 @@ describe('an enabled auto-recharge must be able to fire', () => {
         enabled: true,
         threshold: '10.000000000000',
         amount: '50.000000000000',
-      }).success
+      }).success,
     ).toBe(true);
   });
 
@@ -99,14 +99,14 @@ describe('an enabled auto-recharge must be able to fire', () => {
     // An IMPLICATION, not a biconditional: a customer may set the amounts before
     // switching it on, and refusing that would be a worse surface than the bug.
     expect(
-      autoRechargeSchema.safeParse({ enabled: false, threshold: '10.000000000000' }).success
+      autoRechargeSchema.safeParse({ enabled: false, threshold: '10.000000000000' }).success,
     ).toBe(true);
   });
 
   it('refuses an enabled recharge with no amount — a setting that reads as on and never fires', () => {
-    expect(autoRechargeSchema.safeParse({ enabled: true, threshold: '10.000000000000' }).success).toBe(
-      false
-    );
+    expect(
+      autoRechargeSchema.safeParse({ enabled: true, threshold: '10.000000000000' }).success,
+    ).toBe(false);
     expect(autoRechargeSchema.safeParse({ enabled: true }).success).toBe(false);
   });
 });
@@ -114,14 +114,14 @@ describe('an enabled auto-recharge must be able to fire', () => {
 describe('an allowance is a count and can never be an amount', () => {
   it('refuses a fractional allowance', () => {
     expect(planAllowanceSchema.safeParse({ key: 'api_credits_free', included: 10.5 }).success).toBe(
-      false
+      false,
     );
   });
 
   it('refuses an allowance expressed as money', () => {
     expect(
       planAllowanceSchema.safeParse({ key: 'api_credits_free', included: '10.000000000000' })
-        .success
+        .success,
     ).toBe(false);
   });
 
@@ -191,13 +191,13 @@ describe('a reconciliation finding carries the evidence that makes it actionable
         kind: 'missing_in_ledger',
         externalRef: 'pi_1',
         externalAmount: '50.000000000000',
-      }).success
+      }).success,
     ).toBe(true);
   });
 
   it('refuses a kind outside the closed set', () => {
     expect(
-      reconciliationDiscrepancySchema.safeParse({ ...BASE, kind: 'probably_fine' }).success
+      reconciliationDiscrepancySchema.safeParse({ ...BASE, kind: 'probably_fine' }).success,
     ).toBe(false);
   });
 });
@@ -205,7 +205,7 @@ describe('a reconciliation finding carries the evidence that makes it actionable
 describe('the profile and cost-centre shapes are strict', () => {
   it('refuses an unknown field on a billing profile', () => {
     expect(billingProfileSchema.safeParse({ ...PROFILE, stripeCustomerId: 'cus_1' }).success).toBe(
-      false
+      false,
     );
   });
 

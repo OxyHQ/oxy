@@ -154,7 +154,7 @@ describe('the blocking set is read from the catalogue', () => {
 async function seedProviderConnection(
   accountId: string,
   status: ProviderConnectionStatusValue,
-  custodyState: ProviderCredentialCustodyStateValue = 'ready'
+  custodyState: ProviderCredentialCustodyStateValue = 'ready',
 ): Promise<string> {
   const tag = randomUUID().replace(/-/g, '').slice(0, 10);
   const provider = `prv${tag}`;
@@ -211,7 +211,10 @@ describe('an account that has never transacted', () => {
 describe('a wallet', () => {
   async function withWallet(values: Partial<typeof wallets.$inferInsert> = {}) {
     const accountId = await seedAccount();
-    const [wallet] = await getDb().insert(wallets).values({ userId: accountId, ...values }).returning({ id: wallets.id });
+    const [wallet] = await getDb()
+      .insert(wallets)
+      .values({ userId: accountId, ...values })
+      .returning({ id: wallets.id });
     return { accountId, walletId: wallet.id };
   }
 
@@ -236,7 +239,10 @@ describe('a wallet', () => {
 
   it('that was ever updated is a hold, even back at zero', async () => {
     const { accountId, walletId } = await withWallet();
-    await getDb().update(wallets).set({ updatedAt: new Date(Date.now() + 1000) }).where(eq(wallets.id, walletId));
+    await getDb()
+      .update(wallets)
+      .set({ updatedAt: new Date(Date.now() + 1000) })
+      .where(eq(wallets.id, walletId));
     const holds = await describeAccountFinancialHolds(accountId);
     expect(holds.blocksHardDelete).toBe(true);
     expect(holds.disposableWalletIds).toEqual([]);
@@ -250,22 +256,45 @@ describe('a wallet', () => {
     await expect(
       getDb().transaction((tx) => deleteDisposableWallets(tx, accountId, disposableWalletIds)),
     ).rejects.toThrow(/changed during its deletion/);
-    expect(await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, walletId))).toHaveLength(1);
+    expect(
+      await getDb().select({ id: wallets.id }).from(wallets).where(eq(wallets.id, walletId)),
+    ).toHaveLength(1);
   });
 
-  it.each(['sender', 'recipient'] as const)('whose account is on any ledger row (as %s) is a hold', async (side) => {
-    const { accountId } = await withWallet();
-    const other = await seedAccount();
-    await getDb().insert(transactions).values(
-      side === 'sender'
-        ? { userId: accountId, recipientId: other, type: 'transfer', amount: '0', status: 'cancelled' }
-        : { userId: other, recipientId: accountId, type: 'transfer', amount: '0', status: 'pending' },
-    );
-    const holds = await describeAccountFinancialHolds(accountId);
-    expect(holds.blocksHardDelete).toBe(true);
-    expect(holds.disposableWalletIds).toEqual([]);
-    expect(holds.retainedRecords).toContainEqual({ table: 'wallets', column: 'user_id', rows: 1 });
-  });
+  it.each(['sender', 'recipient'] as const)(
+    'whose account is on any ledger row (as %s) is a hold',
+    async (side) => {
+      const { accountId } = await withWallet();
+      const other = await seedAccount();
+      await getDb()
+        .insert(transactions)
+        .values(
+          side === 'sender'
+            ? {
+                userId: accountId,
+                recipientId: other,
+                type: 'transfer',
+                amount: '0',
+                status: 'cancelled',
+              }
+            : {
+                userId: other,
+                recipientId: accountId,
+                type: 'transfer',
+                amount: '0',
+                status: 'pending',
+              },
+        );
+      const holds = await describeAccountFinancialHolds(accountId);
+      expect(holds.blocksHardDelete).toBe(true);
+      expect(holds.disposableWalletIds).toEqual([]);
+      expect(holds.retainedRecords).toContainEqual({
+        table: 'wallets',
+        column: 'user_id',
+        rows: 1,
+      });
+    },
+  );
 });
 
 /**
@@ -339,7 +368,7 @@ describe('a BYOK connection whose credential is still in the secret store', () =
     // thing as a financial record.
     expect(holds.blocksHardDelete).toBe(true);
     expect(holds.retainedRecords.map((record) => record.table)).toContain(
-      'inference_provider_connections'
+      'inference_provider_connections',
     );
   });
 
@@ -393,9 +422,7 @@ describe('an account with retained financial history', () => {
     const holds = await describeAccountFinancialHolds(fixture.accountId);
     expect(holds.blocksHardDelete).toBe(true);
 
-    const byTable = new Map(
-      holds.retainedRecords.map((record) => [record.table, record.rows])
-    );
+    const byTable = new Map(holds.retainedRecords.map((record) => [record.table, record.rows]));
     expect(byTable.get('usage_receipts')).toBe(1);
     expect(byTable.get('billing_profiles')).toBe(1);
     expect(byTable.get('account_balances')).toBe(1);

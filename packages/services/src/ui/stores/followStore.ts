@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { OxyServices, BulkFollowResult, BulkUnfollowResult, FollowMutationResult } from '@oxy.so/core';
+import type {
+  OxyServices,
+  BulkFollowResult,
+  BulkUnfollowResult,
+  FollowMutationResult,
+} from '@oxy.so/core';
 
 interface FollowState {
   // Tri-state follow map: a MISSING key means UNKNOWN (status not yet resolved),
@@ -27,7 +32,11 @@ interface FollowState {
   // requested within the same tick into ONE `getFollowStatuses` call. Ids that
   // are already known/seeded or already in flight are skipped.
   resolveFollowStatuses: (userIds: string[], oxyServices: OxyServices) => void;
-  toggleFollowUser: (userId: string, oxyServices: OxyServices, isCurrentlyFollowing: boolean) => Promise<boolean>;
+  toggleFollowUser: (
+    userId: string,
+    oxyServices: OxyServices,
+    isCurrentlyFollowing: boolean,
+  ) => Promise<boolean>;
   // Bulk follow — follows MANY users in one network call; never unfollows.
   followManyUsers: (userIds: string[], oxyServices: OxyServices) => Promise<BulkFollowResult>;
   // Bulk unfollow — unfollows MANY users in one network call; idempotent, never follows.
@@ -35,7 +44,12 @@ interface FollowState {
   // New methods for follower counts
   setFollowerCount: (userId: string, count: number) => void;
   setFollowingCount: (userId: string, count: number) => void;
-  updateCountsFromFollowAction: (targetUserId: string, action: 'follow' | 'unfollow', counts: { followers: number; following: number }, currentUserId?: string) => void;
+  updateCountsFromFollowAction: (
+    targetUserId: string,
+    action: 'follow' | 'unfollow',
+    counts: { followers: number; following: number },
+    currentUserId?: string,
+  ) => void;
   fetchUserCounts: (userId: string, oxyServices: OxyServices) => Promise<void>;
 }
 
@@ -84,27 +98,30 @@ export const useFollowStore = create<FollowState>((set, get) => ({
   followerCounts: {},
   followingCounts: {},
   loadingCounts: {},
-  setFollowingStatus: (userId: string, isFollowing: boolean) => set((state) => ({
-    followingUsers: { ...state.followingUsers, [userId]: isFollowing },
-    errors: { ...state.errors, [userId]: null },
-  })),
-  setFollowStatuses: (map: Record<string, boolean>) => set((state) => {
-    const followingUsers = { ...state.followingUsers };
-    let changed = false;
-    for (const [userId, isFollowing] of Object.entries(map)) {
-      // Seed only if absent — never overwrite a definite value the store already
-      // holds (e.g. one written optimistically). Idempotent and safe to call on
-      // every graph refresh.
-      if (!hasKey(followingUsers, userId)) {
-        followingUsers[userId] = isFollowing;
-        changed = true;
+  setFollowingStatus: (userId: string, isFollowing: boolean) =>
+    set((state) => ({
+      followingUsers: { ...state.followingUsers, [userId]: isFollowing },
+      errors: { ...state.errors, [userId]: null },
+    })),
+  setFollowStatuses: (map: Record<string, boolean>) =>
+    set((state) => {
+      const followingUsers = { ...state.followingUsers };
+      let changed = false;
+      for (const [userId, isFollowing] of Object.entries(map)) {
+        // Seed only if absent — never overwrite a definite value the store already
+        // holds (e.g. one written optimistically). Idempotent and safe to call on
+        // every graph refresh.
+        if (!hasKey(followingUsers, userId)) {
+          followingUsers[userId] = isFollowing;
+          changed = true;
+        }
       }
-    }
-    return changed ? { followingUsers } : {};
-  }),
-  clearFollowError: (userId: string) => set((state) => ({
-    errors: { ...state.errors, [userId]: null },
-  })),
+      return changed ? { followingUsers } : {};
+    }),
+  clearFollowError: (userId: string) =>
+    set((state) => ({
+      errors: { ...state.errors, [userId]: null },
+    })),
   resetFollowState: () => {
     resetFollowBatchState();
     set({
@@ -155,8 +172,8 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         return { fetchingUsers };
       });
 
-      void services
-        .follows.statuses(ids)
+      void services.follows
+        .statuses(ids)
         .then((statuses) => {
           if (generation !== batchGeneration) return;
           set((state) => {
@@ -175,7 +192,8 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         })
         .catch((error: unknown) => {
           if (generation !== batchGeneration) return;
-          const message = (error instanceof Error ? error.message : null) || 'Failed to fetch follow status';
+          const message =
+            (error instanceof Error ? error.message : null) || 'Failed to fetch follow status';
           set((state) => {
             const fetchingUsers = { ...state.fetchingUsers };
             const errors = { ...state.errors };
@@ -191,7 +209,11 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         });
     });
   },
-  toggleFollowUser: async (userId: string, oxyServices: OxyServices, isCurrentlyFollowing: boolean) => {
+  toggleFollowUser: async (
+    userId: string,
+    oxyServices: OxyServices,
+    isCurrentlyFollowing: boolean,
+  ) => {
     // Snapshot the prior value for rollback. `undefined` = was UNKNOWN.
     const priorState = get().followingUsers;
     const hadPrevious = hasKey(priorState, userId);
@@ -250,13 +272,20 @@ export const useFollowStore = create<FollowState>((set, get) => ({
         return {
           followingUsers,
           loadingUsers: { ...state.loadingUsers, [userId]: false },
-          errors: { ...state.errors, [userId]: (error instanceof Error ? error.message : null) || 'Failed to update follow status' },
+          errors: {
+            ...state.errors,
+            [userId]:
+              (error instanceof Error ? error.message : null) || 'Failed to update follow status',
+          },
         };
       });
       return false;
     }
   },
-  followManyUsers: async (userIds: string[], oxyServices: OxyServices): Promise<BulkFollowResult> => {
+  followManyUsers: async (
+    userIds: string[],
+    oxyServices: OxyServices,
+  ): Promise<BulkFollowResult> => {
     // Snapshot prior values for rollback (tri-state: undefined = unknown).
     const prior = get().followingUsers;
     const previous = new Map<string, boolean | undefined>();
@@ -305,7 +334,8 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
       return result;
     } catch (error: unknown) {
-      const message = (error instanceof Error ? error.message : null) || 'Failed to update follow status';
+      const message =
+        (error instanceof Error ? error.message : null) || 'Failed to update follow status';
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
         const followingUsers = { ...state.followingUsers };
@@ -326,7 +356,10 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       throw error;
     }
   },
-  unfollowManyUsers: async (userIds: string[], oxyServices: OxyServices): Promise<BulkUnfollowResult> => {
+  unfollowManyUsers: async (
+    userIds: string[],
+    oxyServices: OxyServices,
+  ): Promise<BulkUnfollowResult> => {
     // Snapshot prior values for rollback (tri-state: undefined = unknown).
     const prior = get().followingUsers;
     const previous = new Map<string, boolean | undefined>();
@@ -375,7 +408,8 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       });
       return result;
     } catch (error: unknown) {
-      const message = (error instanceof Error ? error.message : null) || 'Failed to update follow status';
+      const message =
+        (error instanceof Error ? error.message : null) || 'Failed to update follow status';
       // Whole batch failed — roll ALL targets back to their prior values.
       set((state) => {
         const followingUsers = { ...state.followingUsers };
@@ -396,13 +430,20 @@ export const useFollowStore = create<FollowState>((set, get) => ({
       throw error;
     }
   },
-  setFollowerCount: (userId: string, count: number) => set((state) => ({
-    followerCounts: { ...state.followerCounts, [userId]: count },
-  })),
-  setFollowingCount: (userId: string, count: number) => set((state) => ({
-    followingCounts: { ...state.followingCounts, [userId]: count },
-  })),
-  updateCountsFromFollowAction: (targetUserId: string, action: 'follow' | 'unfollow', counts: { followers: number; following: number }, currentUserId?: string) => {
+  setFollowerCount: (userId: string, count: number) =>
+    set((state) => ({
+      followerCounts: { ...state.followerCounts, [userId]: count },
+    })),
+  setFollowingCount: (userId: string, count: number) =>
+    set((state) => ({
+      followingCounts: { ...state.followingCounts, [userId]: count },
+    })),
+  updateCountsFromFollowAction: (
+    targetUserId: string,
+    action: 'follow' | 'unfollow',
+    counts: { followers: number; following: number },
+    currentUserId?: string,
+  ) => {
     set((state) => {
       const followerCounts = { ...state.followerCounts, [targetUserId]: counts.followers };
       if (currentUserId) {

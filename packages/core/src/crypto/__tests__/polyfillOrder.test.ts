@@ -56,7 +56,8 @@ function withReactNativeNobleAndNoHostCrypto(body: () => void): void {
       // expo-crypto, as the RN variant of `@oxy.so/protocol/random` reaches it.
       jest.doMock('@oxy.so/protocol/random', () => ({
         ...jest.requireActual('@oxy.so/protocol/random'),
-        getRandomBytesRN: (length: number) => new Uint8Array(require('node:crypto').randomBytes(length)),
+        getRandomBytesRN: (length: number) =>
+          new Uint8Array(require('node:crypto').randomBytes(length)),
       }));
       body();
     });

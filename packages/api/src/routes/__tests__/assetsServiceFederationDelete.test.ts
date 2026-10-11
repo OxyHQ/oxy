@@ -154,7 +154,10 @@ function actAs(appId: string, scopes: string[] = ['files:write', 'federation:wri
 }
 
 async function insertUser(type: 'federated' | 'local'): Promise<string> {
-  const [row] = await getDb().insert(users).values({ color: 'teal', type }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ color: 'teal', type })
+    .returning({ id: users.id });
   return row.id;
 }
 
@@ -192,7 +195,9 @@ async function insertFile(options: FixtureOptions) {
   if (variantKeys.length > 0) {
     await getDb()
       .insert(fileVariants)
-      .values(variantKeys.map((key, i) => ({ fileId: row.id, type: `v${i}`, key, readyAt: new Date() })));
+      .values(
+        variantKeys.map((key, i) => ({ fileId: row.id, type: `v${i}`, key, readyAt: new Date() })),
+      );
   }
   return { id: row.id, sha256, storageKey, variantDir, variantKeys };
 }
@@ -260,11 +265,15 @@ async function fixture(options: FixtureOptions) {
   return created;
 }
 
-const listing = (keys: string[]) => keys.map((key) => ({ key, size: 1, lastModified: new Date(), bucket: 'b' }));
+const listing = (keys: string[]) =>
+  keys.map((key) => ({ key, size: 1, lastModified: new Date(), bucket: 'b' }));
 
 describe('DELETE /assets/service/federation/:id — the uploading app deletes its federated media', () => {
   it('tombstones the row, records its storage in the same commit, and purges original, variants and HLS segments', async () => {
-    const file = await fixture({ ownerUserId: federatedOwner, variantTypes: ['poster.jpg', 'hls_720p.m3u8', 'hls_master.m3u8'] });
+    const file = await fixture({
+      ownerUserId: federatedOwner,
+      variantTypes: ['poster.jpg', 'hls_720p.m3u8', 'hls_master.m3u8'],
+    });
     const publicDir = `public/${file.variantDir}`;
     const dirObjects = [
       ...file.variantKeys,
@@ -288,18 +297,29 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
 
     // Owed in the ledger — the original and the WHOLE variant directory — and done.
     const ledger = await ledgerFor(file.sha256);
-    expect(ledger.map(({ kind, target }) => ({ kind, target })).sort((a, b) => a.kind.localeCompare(b.kind))).toEqual([
+    expect(
+      ledger
+        .map(({ kind, target }) => ({ kind, target }))
+        .sort((a, b) => a.kind.localeCompare(b.kind)),
+    ).toEqual([
       { kind: 'object', target: `files/${file.sha256}.mp4` },
       { kind: 'prefix', target: file.variantDir },
     ]);
-    expect(ledger.every((row) => row.reason === 'file.deleted' && row.outcome === 'deleted')).toBe(true);
+    expect(ledger.every((row) => row.reason === 'file.deleted' && row.outcome === 'deleted')).toBe(
+      true,
+    );
 
     const deletedKeys = mockS3.deleteFile.mock.calls.map(([k]) => k);
     expect(deletedKeys).toEqual(expect.arrayContaining([file.storageKey, ...dirObjects]));
 
     expect(logger.info).toHaveBeenCalledWith(
       'Audit: federated media delete',
-      expect.objectContaining({ event: 'federated_media_delete', appId: APP_ID, fileId: file.id, result: 'deleted' }),
+      expect.objectContaining({
+        event: 'federated_media_delete',
+        appId: APP_ID,
+        fileId: file.id,
+        result: 'deleted',
+      }),
     );
   });
 
@@ -315,7 +335,11 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
   it('a link the OWNER created does not block the delete', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
     await getDb().insert(fileLinks).values({
-      fileId: file.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: federatedOwner,
+      fileId: file.id,
+      app: 'mention',
+      entityType: 'post',
+      entityId: randomUUID(),
+      createdBy: federatedOwner,
     });
 
     const res = await call('DELETE', `/assets/service/federation/${file.id}`);
@@ -325,7 +349,9 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
 
   it('is idempotent: a second delete, an already-deleted row and an unknown id are 200 not_found and owe nothing', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
-    expect((await call('DELETE', `/assets/service/federation/${file.id}`)).body.data?.result).toBe('deleted');
+    expect((await call('DELETE', `/assets/service/federation/${file.id}`)).body.data?.result).toBe(
+      'deleted',
+    );
     mockS3.deleteFile.mockClear();
 
     const again = await call('DELETE', `/assets/service/federation/${file.id}`);
@@ -337,7 +363,10 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
     expect(deleted.body.data?.result).toBe('not_found');
     expect(await ledgerFor(tombstone.sha256)).toEqual([]);
 
-    const unknown = await call('DELETE', '/assets/service/federation/0190aaaa-0000-7000-8000-000000000000');
+    const unknown = await call(
+      'DELETE',
+      '/assets/service/federation/0190aaaa-0000-7000-8000-000000000000',
+    );
     expect(unknown.body.data?.result).toBe('not_found');
 
     expect(mockS3.deleteFile).not.toHaveBeenCalled();
@@ -391,7 +420,11 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
   it('keeps an asset a LOCAL user linked (dedup handed them the federated row)', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
     await getDb().insert(fileLinks).values({
-      fileId: file.id, app: 'mention', entityType: 'avatar', entityId: randomUUID(), createdBy: otherLocal,
+      fileId: file.id,
+      app: 'mention',
+      entityType: 'avatar',
+      entityId: randomUUID(),
+      createdBy: otherLocal,
     });
     await expectKept(file);
   });
@@ -415,7 +448,12 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
       })
       .returning({ id: messages.id });
     await getDb().insert(messageAttachments).values({
-      messageId: message!.id, ord: 0, fileId: file.id, name: 'x.mp4', contentType: 'video/mp4', size: 10,
+      messageId: message!.id,
+      ord: 0,
+      fileId: file.id,
+      name: 'x.mp4',
+      contentType: 'video/mp4',
+      size: 10,
     });
     await expectKept(file);
   });
@@ -432,9 +470,15 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
       .returning({ id: appCategories.id });
     const [listingRow] = await getDb()
       .insert(appListings)
-      .values({ applicationId: app!.id, slug: `listing-${randomUUID().slice(0, 8)}`, categoryId: category!.id })
+      .values({
+        applicationId: app!.id,
+        slug: `listing-${randomUUID().slice(0, 8)}`,
+        categoryId: category!.id,
+      })
       .returning({ id: appListings.id });
-    await getDb().insert(appListingScreenshots).values({ listingId: listingRow!.id, fileId: file.id });
+    await getDb()
+      .insert(appListingScreenshots)
+      .values({ listingId: listingRow!.id, fileId: file.id });
     await expectKept(file);
   });
 
@@ -444,7 +488,11 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
       metadata: { source: 'federation', serviceAppId: OTHER_APP_ID },
     });
     await getDb().insert(fileLinks).values({
-      fileId: file.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: otherLocal,
+      fileId: file.id,
+      app: 'mention',
+      entityType: 'post',
+      entityId: randomUUID(),
+      createdBy: otherLocal,
     });
 
     const res = await call('DELETE', `/assets/service/federation/${file.id}`);
@@ -460,7 +508,11 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     ],
     [
       'federated media uploaded by ANOTHER application',
-      () => fixture({ ownerUserId: federatedOwner, metadata: { source: 'federation', serviceAppId: OTHER_APP_ID } }),
+      () =>
+        fixture({
+          ownerUserId: federatedOwner,
+          metadata: { source: 'federation', serviceAppId: OTHER_APP_ID },
+        }),
     ],
     [
       'a federated-owned row with no uploader recorded',
@@ -468,7 +520,11 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     ],
     [
       'a federated-owned row the federation upload path did not write',
-      () => fixture({ ownerUserId: federatedOwner, metadata: { source: 'mention-service', serviceAppId: APP_ID } }),
+      () =>
+        fixture({
+          ownerUserId: federatedOwner,
+          metadata: { source: 'mention-service', serviceAppId: APP_ID },
+        }),
     ],
     [
       'a federated-owned row with no metadata at all',
@@ -489,21 +545,24 @@ describe('DELETE /assets/service/federation/:id — strict authorization (negati
     ],
   ];
 
-  it.each(refusals)('refuses %s: 403, row untouched, nothing owed, zero storage calls', async (_label, make) => {
-    const file = await make();
+  it.each(refusals)(
+    'refuses %s: 403, row untouched, nothing owed, zero storage calls',
+    async (_label, make) => {
+      const file = await make();
 
-    const res = await call('DELETE', `/assets/service/federation/${file.id}`);
+      const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
-    expect(res.status).toBe(403);
-    expect(await statusOf(file.id)).not.toBe('deleted');
-    expect(await ledgerFor(file.sha256)).toEqual([]);
-    expect(mockS3.deleteFile).not.toHaveBeenCalled();
-    expect(mockS3.listFiles).not.toHaveBeenCalled();
-    expect(logger.warn).toHaveBeenCalledWith(
-      'Audit: federated media delete refused',
-      expect.objectContaining({ fileId: file.id, result: 'forbidden', appId: APP_ID }),
-    );
-  });
+      expect(res.status).toBe(403);
+      expect(await statusOf(file.id)).not.toBe('deleted');
+      expect(await ledgerFor(file.sha256)).toEqual([]);
+      expect(mockS3.deleteFile).not.toHaveBeenCalled();
+      expect(mockS3.listFiles).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Audit: federated media delete refused',
+        expect.objectContaining({ fileId: file.id, result: 'forbidden', appId: APP_ID }),
+      );
+    },
+  );
 
   it.each([
     ['files:write missing', ['federation:write']],
@@ -539,7 +598,11 @@ describe('POST /assets/service/federation/delete — batch', () => {
     const mine = await fixture({ ownerUserId: federatedOwner });
     const held = await fixture({ ownerUserId: federatedOwner });
     await getDb().insert(fileLinks).values({
-      fileId: held.id, app: 'mention', entityType: 'post', entityId: randomUUID(), createdBy: otherLocal,
+      fileId: held.id,
+      app: 'mention',
+      entityType: 'post',
+      entityId: randomUUID(),
+      createdBy: otherLocal,
     });
     const local = await fixture({ ownerUserId: localOwner });
     const theirs = await fixture({

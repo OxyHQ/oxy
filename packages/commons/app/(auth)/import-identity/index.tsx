@@ -1,6 +1,10 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { RecoveryPhraseService, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import {
+  RecoveryPhraseService,
+  IdentityAlreadyExistsError,
+  IdentityUnavailableError,
+} from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { ImportPhraseStep } from '@/components/auth/ImportPhraseStep';
 import { extractAuthErrorMessage } from '@/utils/auth/errorUtils';
@@ -31,7 +35,9 @@ export default function ImportIdentityPhraseScreen() {
   const backgroundColor = colors.background;
   const textColor = colors.text;
 
-  const [phraseWords, setPhraseWords] = useState<string[]>(new Array(RECOVERY_PHRASE_LENGTH).fill(''));
+  const [phraseWords, setPhraseWords] = useState<string[]>(
+    new Array(RECOVERY_PHRASE_LENGTH).fill(''),
+  );
 
   useEffect(() => {
     void persistOnboardingFlow('import');
@@ -52,14 +58,17 @@ export default function ImportIdentityPhraseScreen() {
     router.push('/(auth)/link-account');
   }, [router, setAuthError]);
 
-  const handleWordChange = useCallback((index: number, word: string) => {
-    setPhraseWords(prev => {
-      const newWords = [...prev];
-      newWords[index] = word.toLowerCase().trim();
-      return newWords;
-    });
-    setAuthError(null);
-  }, [setAuthError]);
+  const handleWordChange = useCallback(
+    (index: number, word: string) => {
+      setPhraseWords((prev) => {
+        const newWords = [...prev];
+        newWords[index] = word.toLowerCase().trim();
+        return newWords;
+      });
+      setAuthError(null);
+    },
+    [setAuthError],
+  );
 
   const handlePaste = useCallback((text: string) => {
     const words = text.trim().toLowerCase().split(/\s+/);
@@ -123,7 +132,14 @@ export default function ImportIdentityPhraseScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [phraseWords, importIdentity, router, setAuthError, setRecoveryPhraseAcknowledgedPersisted, t]);
+  }, [
+    phraseWords,
+    importIdentity,
+    router,
+    setAuthError,
+    setRecoveryPhraseAcknowledgedPersisted,
+    t,
+  ]);
 
   return (
     <ImportPhraseStep
@@ -141,4 +157,3 @@ export default function ImportIdentityPhraseScreen() {
     />
   );
 }
-

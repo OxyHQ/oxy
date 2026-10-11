@@ -6,7 +6,8 @@
 import { OxyServices } from '../../OxyServices';
 
 function makeJwt(payload: Record<string, unknown>): string {
-  const b64url = (obj: Record<string, unknown>): string => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const b64url = (obj: Record<string, unknown>): string =>
+    Buffer.from(JSON.stringify(obj)).toString('base64url');
   const fullPayload = { exp: Math.floor(Date.now() / 1000) + 3600, ...payload };
   return `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(fullPayload)}.sig`;
 }
@@ -51,7 +52,10 @@ describe('linked accounts', () => {
 
   it('starts a link with POST /linked-accounts/:network/start and returns the authorize URL', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ authorizeUrl: 'https://mastodon.social/oauth/authorize?x=1', expiresAt: '2026-09-25T00:10:00.000Z' }),
+      jsonResponse({
+        authorizeUrl: 'https://mastodon.social/oauth/authorize?x=1',
+        expiresAt: '2026-09-25T00:10:00.000Z',
+      }),
     );
     const started = await oxy.linkedAccounts.start('activitypub', {
       instance: 'mastodon.social',
@@ -71,10 +75,14 @@ describe('linked accounts', () => {
 
   it('completes a link with POST /linked-accounts/complete and returns the link', async () => {
     fetchMock.mockImplementation(async (url) =>
-      String(url).endsWith('/linked-accounts/complete') ? jsonResponse({ linkedAccount: LINK }) : jsonResponse({ csrfToken: 't'.repeat(32) }),
+      String(url).endsWith('/linked-accounts/complete')
+        ? jsonResponse({ linkedAccount: LINK })
+        : jsonResponse({ csrfToken: 't'.repeat(32) }),
     );
     expect(await oxy.linkedAccounts.complete('one-time-code')).toEqual(LINK);
-    const completion = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/linked-accounts/complete'));
+    const completion = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith('/linked-accounts/complete'),
+    );
     expect(completion?.[1]?.method).toBe('POST');
     expect(JSON.parse(String(completion?.[1]?.body))).toEqual({ code: 'one-time-code' });
   });
@@ -90,7 +98,9 @@ describe('linked accounts', () => {
   it('revokes with DELETE /linked-accounts/:id', async () => {
     // A state-changing request may first fetch a CSRF token; answer anything.
     fetchMock.mockImplementation(async (_url, init) =>
-      init?.method === 'DELETE' ? new Response(null, { status: 204 }) : jsonResponse({ csrfToken: 't'.repeat(32) }),
+      init?.method === 'DELETE'
+        ? new Response(null, { status: 204 })
+        : jsonResponse({ csrfToken: 't'.repeat(32) }),
     );
     await oxy.linkedAccounts.revoke('link-1');
     const deletion = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE');

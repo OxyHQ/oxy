@@ -48,14 +48,17 @@ describe('solveRegistrationPow', () => {
 
     // The nonce solves its OWN message under the shared difficulty check...
     expect(
-      meetsRegistrationPowDifficulty(nodeDigestOf('bound-key', timestamp, nonce), REGISTRATION_POW_DIFFICULTY_BITS)
+      meetsRegistrationPowDifficulty(
+        nodeDigestOf('bound-key', timestamp, nonce),
+        REGISTRATION_POW_DIFFICULTY_BITS,
+      ),
     ).toBe(true);
     // ...but the message it was solved for is bound to that exact publicKey —
     // reusing the nonce string under an unrelated one hashes to something
     // unrelated, i.e. `registrationPowMessage` actually mixes `publicKey` in
     // rather than the digest depending on `nonce` alone.
     expect(registrationPowMessage('bound-key', timestamp, nonce)).not.toBe(
-      registrationPowMessage('a-different-key', timestamp, nonce)
+      registrationPowMessage('a-different-key', timestamp, nonce),
     );
   });
 });

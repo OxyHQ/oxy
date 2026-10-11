@@ -8,7 +8,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   interpolate,
-  Easing
+  Easing,
 } from 'react-native-reanimated';
 import hedgehogAnimation from '@/assets/lottie/Hedgehog.json';
 import { useTranslation } from '@/lib/i18n';
@@ -39,7 +39,15 @@ const PROGRESS_MESSAGE_KEYS = [
 /**
  * Creating step component showing progress during identity creation, sync, and sign-in
  */
-export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, isSigningIn, error, onRetry }: CreatingStepProps) {
+export function CreatingStep({
+  progress,
+  backgroundColor,
+  textColor,
+  isSyncing,
+  isSigningIn,
+  error,
+  onRetry,
+}: CreatingStepProps) {
   const { t } = useTranslation();
   // Determine message based on current state
   let currentMessage: string;
@@ -69,12 +77,7 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
   }, [progress, progressValue]);
 
   const progressBarStyle = useAnimatedStyle(() => {
-    const widthPercent = interpolate(
-      progressValue.value,
-      [0, 1],
-      [0, 100],
-      'clamp'
-    );
+    const widthPercent = interpolate(progressValue.value, [0, 1], [0, 100], 'clamp');
     return {
       width: `${widthPercent}%`,
     };
@@ -96,9 +99,7 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
           <Text style={[styles.creatingTitle, { color: textColor }]}>
             {t('auth.creating.errorTitle')}
           </Text>
-          <Text style={[styles.creatingSubtitle, { color: textColor, opacity: 0.7 }]}>
-            {error}
-          </Text>
+          <Text style={[styles.creatingSubtitle, { color: textColor, opacity: 0.7 }]}>{error}</Text>
           {onRetry ? (
             <Pressable
               onPress={onRetry}
@@ -116,21 +117,14 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
   return (
     <View style={[styles.container, { backgroundColor }]}>
       <View className="flex-1 justify-center items-center p-space-20">
-        <LottieView
-          source={hedgehogAnimation}
-          autoPlay
-          loop
-          style={styles.lottieAnimation}
-        />
+        <LottieView source={hedgehogAnimation} autoPlay loop style={styles.lottieAnimation} />
         <Animated.View
           key={progress}
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
           style={styles.progressMessageContainer}
         >
-          <Text style={[styles.creatingTitle, { color: textColor }]}>
-            {currentMessage}
-          </Text>
+          <Text style={[styles.creatingTitle, { color: textColor }]}>{currentMessage}</Text>
         </Animated.View>
         <Text style={[styles.creatingSubtitle, { color: textColor, opacity: 0.6 }]}>
           {subtitle}
@@ -142,18 +136,15 @@ export function CreatingStep({ progress, backgroundColor, textColor, isSyncing, 
             styles.progressBarContainer,
             progressBarContainerStyle,
             {
-              backgroundColor: backgroundColor === '#000000' || backgroundColor === 'rgba(0, 0, 0, 1)'
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'rgba(0, 0, 0, 0.1)'
-            }
+              backgroundColor:
+                backgroundColor === '#000000' || backgroundColor === 'rgba(0, 0, 0, 1)'
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'rgba(0, 0, 0, 0.1)',
+            },
           ]}
         >
           <Animated.View
-            style={[
-              styles.progressBar,
-              progressBarStyle,
-              { backgroundColor: textColor }
-            ]}
+            style={[styles.progressBar, progressBarStyle, { backgroundColor: textColor }]}
           />
         </Animated.View>
       </View>
@@ -213,4 +204,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

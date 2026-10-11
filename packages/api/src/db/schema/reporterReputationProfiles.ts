@@ -66,31 +66,31 @@ export const reporterReputationProfiles = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's `unique: true` on `userId`. It is also the only access path, so
+    // One profile per user. It is also the only access path, so
     // there is no second index: a btree serves the equality this leads with.
     unique('reporter_reputation_profiles_user_id_key').on(t.userId),
 
     check(
       'reporter_reputation_profiles_confirmed_by_family_object_check',
-      sql`jsonb_typeof(${t.confirmedByFamily}) = 'object'`
+      sql`jsonb_typeof(${t.confirmedByFamily}) = 'object'`,
     ),
     check(
       'reporter_reputation_profiles_rejected_by_family_object_check',
-      sql`jsonb_typeof(${t.rejectedByFamily}) = 'object'`
+      sql`jsonb_typeof(${t.rejectedByFamily}) = 'object'`,
     ),
     // Counts and probabilities have ranges, and a value outside one is a bug in
     // the estimator rather than a datum to store.
     check(
       'reporter_reputation_profiles_counts_check',
-      sql`${t.confirmed} >= 0 and ${t.rejected} >= 0 and ${t.duplicate} >= 0 and ${t.malicious} >= 0`
+      sql`${t.confirmed} >= 0 and ${t.rejected} >= 0 and ${t.duplicate} >= 0 and ${t.malicious} >= 0`,
     ),
     check(
       'reporter_reputation_profiles_reliability_check',
-      sql`${t.reliability} >= 0 and ${t.reliability} <= 1`
+      sql`${t.reliability} >= 0 and ${t.reliability} <= 1`,
     ),
     check(
       'reporter_reputation_profiles_confidence_check',
-      sql`${t.confidence} >= 0 and ${t.confidence} <= 1`
+      sql`${t.confidence} >= 0 and ${t.confidence} <= 1`,
     ),
-  ]
+  ],
 );

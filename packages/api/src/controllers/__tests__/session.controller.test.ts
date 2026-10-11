@@ -2,12 +2,8 @@
  * `SessionController` against a REAL Postgres.
  *
  * Every handler that touches storage is exercised end to end and then the ROW
- * IS READ BACK. The suites this replaces (`getUserByPublicKey.test.ts`, and the
- * storage half of `sessionAccess.controller.test.ts`) mocked the Mongoose
- * models and asserted on the CALL — `expect(findOne).toHaveBeenCalledWith(...)`,
- * `expect(select).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT)` — which
- * proves a query was BUILT, never that the right row came back or that the
- * response withheld what it must.
+ * IS READ BACK. Asserting on a mocked CALL proves a query was BUILT, never that
+ * the right row came back or that the response withheld what it must.
  *
  * MOCKED, because each is a collaborator with its own port rather than the
  * subject here: `session.service` (session minting / validation),
@@ -132,7 +128,13 @@ function asResponse(res: CapturedResponse): Response {
 }
 
 function request(over: Record<string, unknown>): Request {
-  return { params: {}, body: {}, headers: {}, header: () => undefined, ...over } as unknown as Request;
+  return {
+    params: {},
+    body: {},
+    headers: {},
+    header: () => undefined,
+    ...over,
+  } as unknown as Request;
 }
 
 function authRequest(userId: string, over: Record<string, unknown>): AuthRequest {
@@ -157,7 +159,7 @@ async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<s
 /** A live `sessions` row for `userId`. */
 async function session(
   userId: string,
-  over: Partial<typeof sessions.$inferInsert> = {}
+  over: Partial<typeof sessions.$inferInsert> = {},
 ): Promise<string> {
   const sessionId = `sess-${randomUUID()}`;
   await getDb()
@@ -236,7 +238,7 @@ type Tx = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
  */
 async function loseTheRaceTo<T>(
   competitor: (tx: Tx) => Promise<void>,
-  subject: () => Promise<T>
+  subject: () => Promise<T>,
 ): Promise<T> {
   let commit = (): void => {};
   const held = new Promise<void>((resolve) => {
@@ -285,7 +287,13 @@ beforeEach(() => {
 
 describe('register', () => {
   function registerBody(over: Record<string, unknown> = {}) {
-    return { publicKey: publicKey(), signature: 'sig', timestamp: Date.now(), username: username(), ...over };
+    return {
+      publicKey: publicKey(),
+      signature: 'sig',
+      timestamp: Date.now(),
+      username: username(),
+      ...over,
+    };
   }
 
   it.each([
@@ -314,7 +322,9 @@ describe('register', () => {
     await SessionController.register(request({ body }), asResponse(res));
 
     expect(res.statusCode).toBe(201);
-    const stored = await storedUser((await accountIdByPublicKey(body.publicKey as string)) as string);
+    const stored = await storedUser(
+      (await accountIdByPublicKey(body.publicKey as string)) as string,
+    );
     expect(stored.username).toBe(name);
   });
 
@@ -372,16 +382,19 @@ describe('register', () => {
     await SessionController.register(request({ body }), asResponse(res));
     const userId = (await accountIdByPublicKey(body.publicKey as string)) as string;
 
-    await getDb().update(users).set({ nameFirst: 'Ada', nameLast: 'Lovelace' }).where(eq(users.id, userId));
+    await getDb()
+      .update(users)
+      .set({ nameFirst: 'Ada', nameLast: 'Lovelace' })
+      .where(eq(users.id, userId));
 
     // Re-read through the public endpoint that serializes the same row.
     const lookup = captureRes();
     await SessionController.getUserByPublicKey(
       request({ params: { publicKey: body.publicKey } }),
-      asResponse(lookup)
+      asResponse(lookup),
     );
     expect((lookup.body as { name: { displayName?: string } }).name.displayName).toBe(
-      'Ada Lovelace'
+      'Ada Lovelace',
     );
   });
 
@@ -390,13 +403,13 @@ describe('register', () => {
     const name = username();
     await SessionController.register(
       request({ body: registerBody({ publicKey: key, username: name }) }),
-      asResponse(captureRes())
+      asResponse(captureRes()),
     );
 
     const dupIdentity = captureRes();
     await SessionController.register(
       request({ body: registerBody({ publicKey: key }) }),
-      asResponse(dupIdentity)
+      asResponse(dupIdentity),
     );
     expect(dupIdentity.statusCode).toBe(409);
     expect(dupIdentity.body).toEqual({ message: 'Identity already registered' });
@@ -404,7 +417,7 @@ describe('register', () => {
     const dupUsername = captureRes();
     await SessionController.register(
       request({ body: registerBody({ username: name }) }),
-      asResponse(dupUsername)
+      asResponse(dupUsername),
     );
     expect(dupUsername.statusCode).toBe(409);
     expect(dupUsername.body).toEqual({ message: 'Username already taken' });
@@ -414,18 +427,17 @@ describe('register', () => {
     const name = username();
     await SessionController.register(
       request({ body: registerBody({ username: name }) }),
-      asResponse(captureRes())
+      asResponse(captureRes()),
     );
 
     const res = captureRes();
     await SessionController.register(
       request({ body: registerBody({ username: name.toUpperCase() }) }),
-      asResponse(res)
+      asResponse(res),
     );
 
-    // Mongo indexed `username` case-SENSITIVELY, so `Nate` and `nate` could
-    // coexist while every lookup ran a case-insensitive regex. The unique index
-    // on `lower(btrim(username))` is what closes that.
+    // The unique index on `lower(btrim(username))` is what stops `Nate` and
+    // `nate` from coexisting.
     expect(res.statusCode).toBe(409);
     expect(res.body).toEqual({ message: 'Username already taken' });
   });
@@ -438,8 +450,14 @@ describe('register', () => {
     const second = captureRes();
 
     await Promise.all([
-      SessionController.register(request({ body: registerBody({ username: name }) }), asResponse(first)),
-      SessionController.register(request({ body: registerBody({ username: name }) }), asResponse(second)),
+      SessionController.register(
+        request({ body: registerBody({ username: name }) }),
+        asResponse(first),
+      ),
+      SessionController.register(
+        request({ body: registerBody({ username: name }) }),
+        asResponse(second),
+      ),
     ]);
 
     expect([first.statusCode, second.statusCode].sort()).toEqual([201, 409]);
@@ -462,11 +480,11 @@ describe('register', () => {
     await Promise.all([
       SessionController.register(
         request({ body: registerBody({ publicKey: key }) }),
-        asResponse(first)
+        asResponse(first),
       ),
       SessionController.register(
         request({ body: registerBody({ publicKey: key }) }),
-        asResponse(second)
+        asResponse(second),
       ),
     ]);
 
@@ -494,7 +512,10 @@ describe('requestChallenge', () => {
     await account({ publicKey: key });
     const res = captureRes();
 
-    await SessionController.requestChallenge(request({ body: { publicKey: key } }), asResponse(res));
+    await SessionController.requestChallenge(
+      request({ body: { publicKey: key } }),
+      asResponse(res),
+    );
 
     const issued = (res.body as { challenge: string }).challenge;
     const [row] = await getDb()
@@ -510,7 +531,10 @@ describe('requestChallenge', () => {
     const key = publicKey();
     const res = captureRes();
 
-    await SessionController.requestChallenge(request({ body: { publicKey: key } }), asResponse(res));
+    await SessionController.requestChallenge(
+      request({ body: { publicKey: key } }),
+      asResponse(res),
+    );
 
     expect(res.statusCode).toBe(404);
     const rows = await getDb()
@@ -568,7 +592,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.body).toMatchObject({
@@ -581,7 +605,7 @@ describe('verifyChallenge', () => {
     expect((await storedChallenge(challenge)).used).toBe(true);
     expect(mockEmitSessionUpdate).toHaveBeenCalledWith(
       userId,
-      expect.objectContaining({ type: 'session_created' })
+      expect.objectContaining({ type: 'session_created' }),
     );
   });
 
@@ -607,7 +631,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: { ...verifyBody(key, challenge), deviceId: 'someone-elses-device' } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     const options = mockCreateSession.mock.calls[0][2];
@@ -617,7 +641,7 @@ describe('verifyChallenge', () => {
     expect(mockCreateSession).toHaveBeenCalledWith(
       expect.any(String),
       expect.anything(),
-      expect.objectContaining({ deviceName: undefined, deviceFingerprint: undefined })
+      expect.objectContaining({ deviceName: undefined, deviceFingerprint: undefined }),
     );
     // The session still lands, on the id the server derived.
     expect(res.body).toMatchObject({ sessionId: 'sess-pin', deviceId: 'dev-derived' });
@@ -638,7 +662,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     // The user object is read through `publicColumns(users)`, so the columns the
@@ -658,7 +682,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -671,7 +695,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -685,7 +709,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -699,7 +723,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -707,9 +731,9 @@ describe('verifyChallenge', () => {
   });
 
   it('mints NOTHING when the challenge is burned between the read and its own burn', async () => {
-    // Single-use is what a challenge IS. Mongo burned it with a filter on `_id`
-    // alone — so a request that read the row before another burned it still
-    // minted a session. The burn's `used = false` filter is what closes that,
+    // Single-use is what a challenge IS. A burn filtered on the id alone would
+    // let a request that read the row before another burned it still mint a
+    // session. The burn's `used = false` filter is what closes that,
     // and this drives the interleave through a real row lock rather than hoping
     // two `Promise.all` calls land in the right order.
     const { key, challenge } = await signer();
@@ -730,8 +754,8 @@ describe('verifyChallenge', () => {
       () =>
         SessionController.verifyChallenge(
           request({ body: verifyBody(key, challenge) }),
-          asResponse(res)
-        )
+          asResponse(res),
+        ),
     );
 
     expect(res.statusCode).toBe(401);
@@ -752,7 +776,7 @@ describe('verifyChallenge', () => {
 
     await SessionController.verifyChallenge(
       request({ body: verifyBody(key, challenge) }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(404);
@@ -776,7 +800,7 @@ describe('logoutAllSessions', () => {
 
     await SessionController.logoutAllSessions(
       authRequest(userId, { params: { sessionId: current } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(mockEmitSessionUpdate).toHaveBeenCalledWith(userId, {
@@ -800,7 +824,7 @@ describe('logoutAllSessions', () => {
 
     await SessionController.logoutAllSessions(
       authRequest(userId, { params: { sessionId: current } }),
-      asResponse(captureRes())
+      asResponse(captureRes()),
     );
 
     expect(mockEmitSessionUpdate).not.toHaveBeenCalled();
@@ -816,7 +840,7 @@ describe('session-management routes prove the acting session (#1372)', () => {
   /** What `validateSessionById` answers for each live session id below. */
   function liveSessions(rows: Record<string, { userId: string; deviceId: string }>) {
     mockValidateSessionById.mockImplementation(async (id: string) =>
-      rows[id] ? { session: { sessionId: id, ...rows[id] } } : null
+      rows[id] ? { session: { sessionId: id, ...rows[id] } } : null,
     );
   }
 
@@ -832,8 +856,10 @@ describe('session-management routes prove the acting session (#1372)', () => {
     const res = captureRes();
 
     await SessionController.logoutSession(
-      authRequest(attacker, { params: { sessionId: attackerSession, targetSessionId: victimSession } }),
-      asResponse(res)
+      authRequest(attacker, {
+        params: { sessionId: attackerSession, targetSessionId: victimSession },
+      }),
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(404);
@@ -849,7 +875,7 @@ describe('session-management routes prove the acting session (#1372)', () => {
 
     await SessionController.logoutSession(
       authRequest(attacker, { params: { sessionId: victimSession } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -862,7 +888,10 @@ describe('session-management routes prove the acting session (#1372)', () => {
     liveSessions({ [live]: { userId: owner, deviceId: 'dev-o' } });
     const res = captureRes();
 
-    await SessionController.logoutSession(request({ params: { sessionId: live } }), asResponse(res));
+    await SessionController.logoutSession(
+      request({ params: { sessionId: live } }),
+      asResponse(res),
+    );
 
     expect(res.statusCode).toBe(401);
     expect(mockDeactivateSession).not.toHaveBeenCalled();
@@ -885,7 +914,7 @@ describe('session-management routes prove the acting session (#1372)', () => {
       const res = captureRes();
       await SessionController.logoutSession(
         authRequest(owner, { params: { sessionId: current, targetSessionId: target } }),
-        asResponse(res)
+        asResponse(res),
       );
       expect(res.statusCode).toBe(200);
       expect(mockDeactivateSession).toHaveBeenLastCalledWith(target);
@@ -904,8 +933,11 @@ describe('session-management routes prove the acting session (#1372)', () => {
     mockDeactivateSession.mockResolvedValue(true);
 
     await SessionController.logoutSession(
-      authRequest(owner, { params: { sessionId: current }, body: { targetSessionId: victimSession } }),
-      asResponse(captureRes())
+      authRequest(owner, {
+        params: { sessionId: current },
+        body: { targetSessionId: victimSession },
+      }),
+      asResponse(captureRes()),
     );
 
     expect(mockDeactivateSession).toHaveBeenCalledWith(current);
@@ -921,7 +953,7 @@ describe('session-management routes prove the acting session (#1372)', () => {
 
     await SessionController.logoutAllSessions(
       authRequest(attacker, { params: { sessionId: victimSession } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -941,7 +973,7 @@ describe('getUsersBySessions', () => {
 
     await SessionController.getUsersBySessions(
       request({ body: { sessionIds: [live, expired, inactive, unknown] } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     const body = res.body as { sessionId: string; user: { id: string } | null }[];
@@ -960,7 +992,7 @@ describe('getUsersBySessions', () => {
     const padding = Array.from({ length: 25 }, () => `sess-${randomUUID()}`);
     await SessionController.getUsersBySessions(
       request({ body: { sessionIds: [live, live, ...padding] } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     const body = res.body as { sessionId: string }[];
@@ -976,12 +1008,11 @@ describe('getUsersBySessions', () => {
 
     await SessionController.getUsersBySessions(
       request({ body: { sessionIds: [live] } }),
-      asResponse(res)
+      asResponse(res),
     );
 
-    // The join names its columns; the natural transliteration of Mongo's
-    // `.populate()` — `select().from(sessions)` then `.map(...)` — would have
-    // carried both live tokens into whatever the mapper forgot to drop.
+    // The join names its columns; `select().from(sessions)` then `.map(...)`
+    // would carry both live tokens into whatever the mapper forgot to drop.
     expect(JSON.stringify(res.body)).not.toContain(token);
   });
 });
@@ -991,12 +1022,14 @@ describe('updateDeviceName', () => {
     const userId = await account();
     const sessionId = await session(userId, { deviceName: 'Old' });
     const before = await storedSession(sessionId);
-    mockValidateSessionById.mockResolvedValueOnce({ session: { sessionId, userId, deviceId: 'dev' } });
+    mockValidateSessionById.mockResolvedValueOnce({
+      session: { sessionId, userId, deviceId: 'dev' },
+    });
     const res = captureRes();
 
     await SessionController.updateDeviceName(
       authRequest(userId, { params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     const after = await storedSession(sessionId);
@@ -1014,7 +1047,7 @@ describe('updateDeviceName', () => {
 
     await SessionController.updateDeviceName(
       authRequest(userId, { params: { sessionId }, body: { deviceName: 'Nate MacBook' } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -1039,16 +1072,14 @@ describe('getUserByPublicKey', () => {
 
     await SessionController.getUserByPublicKey(
       request({ params: { publicKey: key } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ username: name, bio: 'Analytical engines' });
 
-    // The Mongo projection was inclusion-only so that an unnamed field is
-    // dropped by the query rather than by a serializer remembering to. The
-    // explicit column list is the same guarantee, asserted on the REAL row
-    // rather than on the projection string having been passed.
+    // The explicit column list drops an unnamed field in the query rather than
+    // relying on a serializer remembering to — asserted on the REAL row.
     const serialized = JSON.stringify(res.body);
     expect(serialized).not.toContain(email);
     expect(serialized).not.toContain('+15551234567');
@@ -1063,7 +1094,7 @@ describe('getUserByPublicKey', () => {
 
     await SessionController.getUserByPublicKey(
       request({ params: { publicKey: key } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     // A PUBLIC, derived flag: forgetting to select the column would silently
@@ -1073,29 +1104,34 @@ describe('getUserByPublicKey', () => {
 
   it('joins the link previews back in the author-chosen order', async () => {
     const key = publicKey();
-    const userId = await account({ publicKey: key, links: ['https://b.example', 'https://a.example'] });
+    const userId = await account({
+      publicKey: key,
+      links: ['https://b.example', 'https://a.example'],
+    });
     // Inserted out of order on purpose: `position` is the author's order and is
     // visible on the profile, so an unordered read would silently reshuffle it.
-    await getDb().insert(userLinkMetadata).values([
-      { userId, position: 1, url: 'https://a.example', title: 'A', description: 'second' },
-      {
-        userId,
-        position: 0,
-        url: 'https://b.example',
-        title: 'B',
-        description: 'first',
-        image: 'file-1',
-      },
-    ]);
+    await getDb()
+      .insert(userLinkMetadata)
+      .values([
+        { userId, position: 1, url: 'https://a.example', title: 'A', description: 'second' },
+        {
+          userId,
+          position: 0,
+          url: 'https://b.example',
+          title: 'B',
+          description: 'first',
+          image: 'file-1',
+        },
+      ]);
     const res = captureRes();
 
     await SessionController.getUserByPublicKey(
       request({ params: { publicKey: key } }),
-      asResponse(res)
+      asResponse(res),
     );
 
-    // A preview with no image OMITS the key, exactly as the Mongo subdocument
-    // did — `image: null` would be a new value on the wire.
+    // A preview with no image OMITS the key — `image: null` would be a new
+    // value on the wire.
     expect((res.body as { linksMetadata: unknown[] }).linksMetadata).toEqual([
       { url: 'https://b.example', title: 'B', description: 'first', image: 'file-1' },
       { url: 'https://a.example', title: 'A', description: 'second' },
@@ -1107,7 +1143,7 @@ describe('getUserByPublicKey', () => {
 
     await SessionController.getUserByPublicKey(
       request({ params: { publicKey: publicKey() } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(404);
@@ -1123,7 +1159,7 @@ describe('session access control (C1 / H3)', () => {
     const res = captureRes();
     await SessionController.getUserBySession(
       { params: { sessionId: SESSION_ID }, headers: {} } as unknown as AuthRequest,
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(401);
@@ -1139,7 +1175,7 @@ describe('session access control (C1 / H3)', () => {
 
     await SessionController.getUserBySession(
       authRequest(ATTACKER, { params: { sessionId: SESSION_ID } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     // 403 would confirm the session exists; 404 leaks nothing.
@@ -1156,7 +1192,7 @@ describe('session access control (C1 / H3)', () => {
 
     await SessionController.getUserBySession(
       authRequest(OWNER, { params: { sessionId: SESSION_ID } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.body).toMatchObject({ id: OWNER, username: 'me' });
@@ -1170,7 +1206,7 @@ describe('session access control (C1 / H3)', () => {
 
     await SessionController.getUserSessions(
       authRequest(ATTACKER, { params: { sessionId: SESSION_ID } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.statusCode).toBe(404);
@@ -1195,14 +1231,26 @@ describe('session access control (C1 / H3)', () => {
 
     await SessionController.getUserSessions(
       authRequest(OWNER, { params: { sessionId: SESSION_ID } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.body).toEqual([
-      { sessionId: SESSION_ID, deviceId: 'dev-1', deviceName: 'iPhone', isActive: true, userId: OWNER },
+      {
+        sessionId: SESSION_ID,
+        deviceId: 'dev-1',
+        deviceName: 'iPhone',
+        isActive: true,
+        userId: OWNER,
+      },
       // A nameless device reports `undefined`, not the column's NULL — the wire
       // contract has no null there.
-      { sessionId: 'sess-2', deviceId: 'dev-2', deviceName: undefined, isActive: true, userId: OWNER },
+      {
+        sessionId: 'sess-2',
+        deviceId: 'dev-2',
+        deviceName: undefined,
+        isActive: true,
+        userId: OWNER,
+      },
     ]);
   });
 
@@ -1210,14 +1258,20 @@ describe('session access control (C1 / H3)', () => {
     const expiresAt = new Date('2026-08-01T00:00:00.000Z');
     const lastActiveAt = new Date('2026-07-01T00:00:00.000Z');
     mockValidateSessionById.mockResolvedValueOnce({
-      session: { userId: OWNER, sessionId: SESSION_ID, deviceId: 'dev-xyz', expiresAt, lastActiveAt },
+      session: {
+        userId: OWNER,
+        sessionId: SESSION_ID,
+        deviceId: 'dev-xyz',
+        expiresAt,
+        lastActiveAt,
+      },
       user: { id: OWNER, username: 'me' },
     });
     const res = captureRes();
 
     await SessionController.validateSession(
       request({ params: { sessionId: SESSION_ID } }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.body).toMatchObject({
@@ -1246,7 +1300,7 @@ describe('session access control (C1 / H3)', () => {
 
     await SessionController.validateSessionFromHeader(
       request({ params: { sessionId: SESSION_ID }, header: () => 'fp-other' }),
-      asResponse(res)
+      asResponse(res),
     );
 
     expect(res.body).toMatchObject({
@@ -1274,7 +1328,7 @@ describe('the sessions a handler reads are the live ones', () => {
 
     await SessionController.logoutAllSessions(
       authRequest(userId, { params: { sessionId: current } }),
-      asResponse(captureRes())
+      asResponse(captureRes()),
     );
 
     expect(mockEmitSessionUpdate).toHaveBeenCalledWith(userId, {

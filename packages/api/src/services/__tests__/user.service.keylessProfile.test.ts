@@ -8,11 +8,8 @@
  * (Mention `Post.oxyUserId`, follow edges, client follow-state maps) is keyed on
  * the stable account id, so a key-shaped `id` makes a user's posts vanish.
  *
- * The suite this replaces built its inputs by hand — `new Types.ObjectId()`,
- * a `toObject` stub returning `{ id }`, a fake document with `set`/`save` — so
- * it asserted that the serializer tolerates shapes the test itself invented.
- * Those shapes came from the Mongoose transform, which no longer exists. Here
- * the accounts are real rows and the views come from the production readers
+ * Hand-built inputs would only assert that the serializer tolerates shapes the
+ * test itself invented. Here the accounts are real rows and the views come from the production readers
  * (`getPublicUserById`, `getCurrentUser`, `updateUserProfile`), so what is
  * checked is that the REAL producers hand the serializer something it can
  * identify.
@@ -125,7 +122,7 @@ describe('the serializer refuses a source it cannot identify', () => {
     // Failing loudly is the contract: a DTO with `id: undefined` would be
     // accepted by every consumer and silently detach the row from the graph.
     expect(() => userService.formatUserResponse({ username: 'nobody' })).toThrow(
-      'User must have an _id'
+      'User must have an _id',
     );
   });
 });

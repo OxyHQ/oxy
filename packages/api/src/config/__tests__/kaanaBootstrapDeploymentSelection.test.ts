@@ -13,9 +13,14 @@ describe('Kaana bootstrap logical deployment selection', () => {
   });
 
   it('refuses a coexisting legacy and current row instead of choosing by row order', () => {
-    expect(() => requireSingleLogicalDeployment([
-      { id: 'route-legacy', availabilityScope: 'internal_alia' },
-      { id: 'route-current', availabilityScope: 'platform_internal' },
-    ], 'deployment-exact-01')).toThrow(/exactly one legacy\/current row after create; found 2/);
+    expect(() =>
+      requireSingleLogicalDeployment(
+        [
+          { id: 'route-legacy', availabilityScope: 'internal_alia' },
+          { id: 'route-current', availabilityScope: 'platform_internal' },
+        ],
+        'deployment-exact-01',
+      ),
+    ).toThrow(/exactly one legacy\/current row after create; found 2/);
   });
 });

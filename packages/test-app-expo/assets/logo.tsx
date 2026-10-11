@@ -13,36 +13,32 @@ interface LogoIconProps {
   useThemeColors?: boolean;
 }
 
-export const LogoIcon: React.FC<LogoIconProps> = ({ 
-  color, 
+export const LogoIcon: React.FC<LogoIconProps> = ({
+  color,
   height: heightProp,
   size, // For backwards compatibility
   style,
   secondaryColor,
-  useThemeColors = true
+  useThemeColors = true,
 }): ReactElement => {
   // Use height prop, or fall back to size (for backwards compatibility)
   const height = heightProp || size || 26;
   // Calculate width based on aspect ratio from SVG viewBox
   // viewBox: "0 0 294.84 174.42" -> aspect ratio ≈ 1.69 (wider than tall)
   const width = height * (294.84 / 174.42);
-  
+
   // Get theme colors if useThemeColors is true
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = Colors[isDark ? 'dark' : 'light'];
-  
+
   // Original SVG uses:
-  // cls-1 = #d169e5 (purple/pink) - for accent parts  
+  // cls-1 = #d169e5 (purple/pink) - for accent parts
   // cls-2 = #fefefe (almost white) - for main parts
   // Outer/main parts: white on light mode, black on dark mode
   // Accent: always uses theme primary color (consistent with light mode)
-  const primaryColor = color !== undefined 
-    ? color 
-    : (isDark ? '#000000' : '#fefefe');
-  const accentColor = secondaryColor !== undefined
-    ? secondaryColor
-    : (colors.tint || '#d169e5');
+  const primaryColor = color !== undefined ? color : isDark ? '#000000' : '#fefefe';
+  const accentColor = secondaryColor !== undefined ? secondaryColor : colors.tint || '#d169e5';
 
   return (
     <Svg viewBox="0 0 294.84 174.42" width={width} height={height} style={style}>
@@ -74,11 +70,3 @@ export const LogoIcon: React.FC<LogoIconProps> = ({
     </Svg>
   );
 };
-
-
-
-
-
-
-
-

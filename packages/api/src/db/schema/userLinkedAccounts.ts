@@ -111,7 +111,12 @@ export const userLinkedAccounts = pgTable(
 );
 
 /** Where a linking attempt stands. */
-export const LINKED_ACCOUNT_CHALLENGE_STATUS_VALUES = ['pending', 'verified', 'linked', 'refused'] as const;
+export const LINKED_ACCOUNT_CHALLENGE_STATUS_VALUES = [
+  'pending',
+  'verified',
+  'linked',
+  'refused',
+] as const;
 
 /**
  * `linked_account_oauth_challenges` — one linking attempt: who started it,

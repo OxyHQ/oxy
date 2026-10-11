@@ -32,7 +32,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
-
 const mockResolveAndUpsert = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
@@ -280,7 +279,10 @@ describe('GET /profiles/search — match surface', () => {
   it('finds a bridged account when the query is a pasted upstream profile URL', async () => {
     const marker = token();
     const bridged = await account({ username: `${marker}@x.com`, type: 'federated' });
-    await account({ username: `other${token()}`, description: `see https://x.com/${marker} for more` });
+    await account({
+      username: `other${token()}`,
+      description: `see https://x.com/${marker} for more`,
+    });
 
     expect(ids(await search(`https://x.com/${marker}?s=20&t=abc`))).toEqual([bridged]);
     expect(ids(await search(`https://twitter.com/${marker}`))).toEqual([bridged]);
@@ -534,14 +536,18 @@ describe('GET /profiles/search — wire shape', () => {
   });
 });
 
-
 describe('GET /profiles/search — canonical identity pagination', () => {
   it('counts one proven person before pagination and restores separate sources after revocation', async () => {
     const term = token();
-    const source = (network: string, other: string) => ({ canonicalAcct: `${term}@${network}`,
-      actorUri: `https://${network}/ap/users/${term}`, transportAcct: `${term}@${network}`,
-      protocol: 'activitypub', stableId: `${network}:${term}`, profile: { displayName: term },
-      evidenceLinks: [`https://${other}/${other === 'threads.net' ? '@' : ''}${term}`] });
+    const source = (network: string, other: string) => ({
+      canonicalAcct: `${term}@${network}`,
+      actorUri: `https://${network}/ap/users/${term}`,
+      transportAcct: `${term}@${network}`,
+      protocol: 'activitypub',
+      stableId: `${network}:${term}`,
+      profile: { displayName: term },
+      evidenceLinks: [`https://${other}/${other === 'threads.net' ? '@' : ''}${term}`],
+    });
     const instagram = source('instagram.com', 'threads.net');
     const first = await registerExternalIdentity(instagram);
     const linked = await registerExternalIdentity(source('threads.net', 'instagram.com'));
@@ -552,7 +558,10 @@ describe('GET /profiles/search — canonical identity pagination', () => {
     expect(ids(page2)).toEqual([linked.userId]);
     expect(page1.body.pagination?.total).toBe(2);
     expect(page2.body.pagination?.total).toBe(2);
-    await getDb().update(users).set({ reputationTier: 'restricted' }).where(eq(users.id, first.userId));
+    await getDb()
+      .update(users)
+      .set({ reputationTier: 'restricted' })
+      .where(eq(users.id, first.userId));
     expect(ids(await search(term))).toEqual([local]);
     await getDb().update(users).set({ reputationTier: 'new' }).where(eq(users.id, first.userId));
     await registerExternalIdentity({ ...instagram, evidenceLinks: [] });

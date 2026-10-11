@@ -106,7 +106,9 @@ describe('sending a draft', () => {
     const userId = await account();
     const draft = await emailService.saveDraft(userId, { ...base });
 
-    await expect(sendMessageForUser(userId, { ...base, draftId: draft.id })).rejects.toThrow('relay down');
+    await expect(sendMessageForUser(userId, { ...base, draftId: draft.id })).rejects.toThrow(
+      'relay down',
+    );
 
     expect(await exists(draft.id)).toBe(true);
   });
@@ -116,7 +118,9 @@ describe('sending a draft', () => {
     const draft = await emailService.saveDraft(userId, { ...base });
     await sendMessageForUser(userId, { ...base, draftId: draft.id });
 
-    await expect(sendMessageForUser(userId, { ...base, draftId: draft.id })).resolves.toMatchObject({ status: 202 });
+    await expect(sendMessageForUser(userId, { ...base, draftId: draft.id })).resolves.toMatchObject(
+      { status: 202 },
+    );
   });
 
   it('never removes another user`s draft', async () => {
@@ -130,7 +134,10 @@ describe('sending a draft', () => {
   });
 
   it('carries draftId through the REST schema', () => {
-    const parsed = sendMessageSchema.parse({ ...base, draftId: ' 01a0821a-7395-7e43-bdb4-fa5166ea32d1 ' });
+    const parsed = sendMessageSchema.parse({
+      ...base,
+      draftId: ' 01a0821a-7395-7e43-bdb4-fa5166ea32d1 ',
+    });
     expect(parsed.draftId).toBe('01a0821a-7395-7e43-bdb4-fa5166ea32d1');
   });
 });

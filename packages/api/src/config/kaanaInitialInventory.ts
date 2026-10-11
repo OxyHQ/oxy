@@ -23,7 +23,7 @@ export interface KaanaInventoryAbortDeadline {
 
 /** Keep the S3 request and streamed body read under one real wall-clock deadline. */
 export function createKaanaInventoryAbortDeadline(
-  timeoutMs = KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS
+  timeoutMs = KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS,
 ): KaanaInventoryAbortDeadline {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new Error('Kaana inventory fetch timeout must be a positive integer');
@@ -39,7 +39,7 @@ export function createKaanaInventoryAbortDeadline(
 /** Refuse oversized or truncated inventory objects while consuming the stream. */
 export async function readBoundedKaanaInventoryBody(
   body: AsyncIterable<Uint8Array>,
-  contentLength: unknown
+  contentLength: unknown,
 ): Promise<string> {
   if (
     typeof contentLength !== 'number' ||
@@ -50,7 +50,7 @@ export async function readBoundedKaanaInventoryBody(
   }
   if (contentLength > KAANA_INITIAL_INVENTORY_MAX_BYTES) {
     throw new Error(
-      `Kaana inventory ContentLength exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`
+      `Kaana inventory ContentLength exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`,
     );
   }
 
@@ -62,15 +62,13 @@ export async function readBoundedKaanaInventoryBody(
     }
     receivedBytes += chunk.byteLength;
     if (receivedBytes > KAANA_INITIAL_INVENTORY_MAX_BYTES) {
-      throw new Error(
-        `Kaana inventory body exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`
-      );
+      throw new Error(`Kaana inventory body exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`);
     }
     chunks.push(chunk);
   }
   if (receivedBytes !== contentLength) {
     throw new Error(
-      `Kaana inventory body length ${receivedBytes} does not match ContentLength ${contentLength}`
+      `Kaana inventory body length ${receivedBytes} does not match ContentLength ${contentLength}`,
     );
   }
 
@@ -85,7 +83,7 @@ export async function readBoundedKaanaInventoryBody(
 
 /** The production lane is role-only; local operators may use AWS_PROFILE. */
 export function assertKaanaInventoryCredentialSource(
-  env: Readonly<Record<string, string | undefined>>
+  env: Readonly<Record<string, string | undefined>>,
 ): void {
   if (
     env.AWS_ACCESS_KEY_ID !== undefined ||
@@ -93,7 +91,7 @@ export function assertKaanaInventoryCredentialSource(
     env.AWS_SESSION_TOKEN !== undefined
   ) {
     throw new Error(
-      'Static AWS credential env is refused; use the dedicated catalogue-bootstrap task role or a named local AWS profile'
+      'Static AWS credential env is refused; use the dedicated catalogue-bootstrap task role or a named local AWS profile',
     );
   }
 }
@@ -126,14 +124,14 @@ function unattestedRegions(value: unknown): boolean {
 export function validateKaanaInitialInventory(
   decoded: unknown,
   versionIdValue: unknown,
-  nowMs: number
+  nowMs: number,
 ): KaanaInitialInventoryAttestation {
   const versionId = exactString(versionIdValue, 'Kaana inventory S3 VersionId');
   const inventory = objectOf(decoded, 'Kaana inventory');
   const snapshotId = exactString(inventory.snapshotId, 'Kaana inventory.snapshotId');
   if (snapshotId !== KAANA_INITIAL_INVENTORY_SNAPSHOT_ID) {
     throw new Error(
-      `Kaana inventory snapshot ${snapshotId} was not the routing content reviewed for this bootstrap`
+      `Kaana inventory snapshot ${snapshotId} was not the routing content reviewed for this bootstrap`,
     );
   }
   const issuedAt = exactString(inventory.issuedAt, 'Kaana inventory.issuedAt');
@@ -150,10 +148,10 @@ export function validateKaanaInitialInventory(
   }
 
   const deployments = inventory.deployments.map((value, index) =>
-    objectOf(value, `Kaana inventory.deployments[${index}]`)
+    objectOf(value, `Kaana inventory.deployments[${index}]`),
   );
   const exactIds = deployments.map((deployment, index) =>
-    exactString(deployment.deploymentId, `Kaana inventory.deployments[${index}].deploymentId`)
+    exactString(deployment.deploymentId, `Kaana inventory.deployments[${index}].deploymentId`),
   );
   if (new Set(exactIds).size !== exactIds.length) {
     throw new Error(`Kaana inventory ${snapshotId} contains a deployment ID collision`);
@@ -163,15 +161,15 @@ export function validateKaanaInitialInventory(
     catalogue.providers.map((provider) => ({
       provider,
       modelReference: catalogue.modelReference,
-    }))
+    })),
   );
   for (const { provider: expected, modelReference } of reviewedRoutes) {
     const matches = deployments.filter(
-      (deployment) => deployment.deploymentId === expected.deploymentId
+      (deployment) => deployment.deploymentId === expected.deploymentId,
     );
     if (matches.length !== 1) {
       throw new Error(
-        `Kaana inventory ${snapshotId} must contain exact deployment ${expected.deploymentId} once; found ${matches.length}`
+        `Kaana inventory ${snapshotId} must contain exact deployment ${expected.deploymentId} once; found ${matches.length}`,
       );
     }
     const [deployment] = matches;
@@ -184,7 +182,7 @@ export function validateKaanaInitialInventory(
       !unattestedRegions(deployment.regions)
     ) {
       throw new Error(
-        `Kaana inventory ${snapshotId} does not attest the reviewed identity bound to ${expected.deploymentId}`
+        `Kaana inventory ${snapshotId} does not attest the reviewed identity bound to ${expected.deploymentId}`,
       );
     }
   }

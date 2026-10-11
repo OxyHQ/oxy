@@ -19,7 +19,11 @@ import type { AddressInfo } from 'net';
 let currentServiceApp: Record<string, unknown> | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  serviceAuthMiddleware: (req: { serviceApp?: Record<string, unknown> }, _res: unknown, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { serviceApp?: Record<string, unknown> },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.serviceApp = currentServiceApp;
     next();
   },
@@ -65,34 +69,36 @@ async function account(): Promise<string> {
 async function seed(userId: string, collection: string, seq: number, at: Date): Promise<string> {
   const subjectDid = buildUserDid(userId);
   const recordId = `${userId}-${collection}-${seq}`;
-  await getDb().insert(signedRecords).values({
-    subjectDid,
-    userId,
-    type: 'app_record',
-    envelope: {
-      version: 2,
+  await getDb()
+    .insert(signedRecords)
+    .values({
+      subjectDid,
+      userId,
       type: 'app_record',
-      subject: subjectDid,
-      issuer: subjectDid,
-      record: { marker: recordId },
-      issuedAt: at.getTime(),
+      envelope: {
+        version: 2,
+        type: 'app_record',
+        subject: subjectDid,
+        issuer: subjectDid,
+        record: { marker: recordId },
+        issuedAt: at.getTime(),
+        seq,
+        prev: null,
+        collection,
+        rkey: String(seq),
+        publicKey: 'pk',
+        alg: 'ES256K-DER-SHA256',
+        signature: 'unsigned-fixture',
+      },
+      publicKey: 'pk',
+      verified: true,
       seq,
       prev: null,
-      collection,
+      recordId,
+      nsid: collection,
       rkey: String(seq),
-      publicKey: 'pk',
-      alg: 'ES256K-DER-SHA256',
-      signature: 'unsigned-fixture',
-    },
-    publicKey: 'pk',
-    verified: true,
-    seq,
-    prev: null,
-    recordId,
-    nsid: collection,
-    rkey: String(seq),
-    createdAt: at,
-  });
+      createdAt: at,
+    });
   return recordId;
 }
 
@@ -198,8 +204,10 @@ describe('GET /chains/records', () => {
       `authors=${userId}&collections=app.mention.feed.post&since=${encodeURIComponent(cursor)}`,
     );
 
-    const seen = [...(first.body.records as Array<{ recordId: string }>), ...(second.body.records as Array<{ recordId: string }>)]
-      .map((r) => r.recordId);
+    const seen = [
+      ...(first.body.records as Array<{ recordId: string }>),
+      ...(second.body.records as Array<{ recordId: string }>),
+    ].map((r) => r.recordId);
     expect([...seen].sort()).toEqual(
       [`${userId}-app.mention.feed.post-0`, `${userId}-app.mention.feed.post-1`].sort(),
     );

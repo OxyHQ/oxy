@@ -128,18 +128,18 @@ async function seedPrincipal(input: {
 function serviceToken(principal: Principal): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: principal.appId,
-      appName: 'Test',
-      credentialId: principal.credentialId,
-      ownerAccountId: principal.ownerAccountId,
-      environment: 'production',
-      scopes: principal.scopes,
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: principal.appId,
+    appName: 'Test',
+    credentialId: principal.credentialId,
+    ownerAccountId: principal.ownerAccountId,
+    environment: 'production',
+    scopes: principal.scopes,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 function post(path: string, token: string | null, body: unknown): Promise<HttpResult> {
@@ -162,8 +162,12 @@ function post(path: string, token: string | null, body: unknown): Promise<HttpRe
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {}, raw }));
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {}, raw }),
+        );
       },
     );
     req.on('error', reject);
@@ -172,11 +176,24 @@ function post(path: string, token: string | null, body: unknown): Promise<HttpRe
 }
 
 function mint(principal: Principal, subjectToken: string, agentId: string = HOMIIO.aliaAgent.id) {
-  return post('/internal/native-agents/requester-assertions', serviceToken(principal), { agentId, subjectToken });
+  return post('/internal/native-agents/requester-assertions', serviceToken(principal), {
+    agentId,
+    subjectToken,
+  });
 }
 
-function introspect(principal: Principal, assertion: string, presenter = { applicationId: HOMIIO.applicationId, credentialId: HOMIIO.sindiServiceCredential.id }) {
-  return post('/internal/native-agents/requester-assertions/introspect', serviceToken(principal), { assertion, presenter });
+function introspect(
+  principal: Principal,
+  assertion: string,
+  presenter = {
+    applicationId: HOMIIO.applicationId,
+    credentialId: HOMIIO.sindiServiceCredential.id,
+  },
+) {
+  return post('/internal/native-agents/requester-assertions/introspect', serviceToken(principal), {
+    assertion,
+    presenter,
+  });
 }
 
 function request(): Request {
@@ -185,7 +202,9 @@ function request(): Request {
 
 async function signedInUser(): Promise<{ userId: string; sessionId: string; accessToken: string }> {
   const userId = await account();
-  const session = await sessionService.createSession(userId, request(), { deviceId: `dev-${randomUUID()}` });
+  const session = await sessionService.createSession(userId, request(), {
+    deviceId: `dev-${randomUUID()}`,
+  });
   return { userId, sessionId: session.sessionId, accessToken: session.accessToken };
 }
 
@@ -194,7 +213,9 @@ beforeAll(async () => {
   process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
   process.env.CAPABILITY_TICKET_SIGNING_KEY_ID = 'cap-route-test';
-  process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = SIGNING_KEY.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString();
+  process.env.CAPABILITY_TICKET_SIGNING_PRIVATE_KEY = SIGNING_KEY.privateKey
+    .export({ format: 'pem', type: 'pkcs8' })
+    .toString();
   // Canonical product IDs carry real authority. Never reuse or overwrite a
   // different suite's owner/scopes: this file owns a fully migrated database.
   ownDatabaseUrl = await createTestDatabase();
@@ -207,33 +228,45 @@ beforeAll(async () => {
     isOfficial: true,
     scopes: ['inference:invoke', 'acting-as:offline'],
   });
-  alia = await seedPrincipal({ appId: ALIA_RESOURCE_SERVER_APPLICATION_ID, type: 'internal', scopes: ['user:read'] });
+  alia = await seedPrincipal({
+    appId: ALIA_RESOURCE_SERVER_APPLICATION_ID,
+    type: 'internal',
+    scopes: ['user:read'],
+  });
   untrusted = await seedPrincipal({ type: 'third_party', scopes: ['inference:invoke'] });
-  otherOfficial = await seedPrincipal({ type: 'first_party', isOfficial: true, scopes: ['inference:invoke'] });
+  otherOfficial = await seedPrincipal({
+    type: 'first_party',
+    isOfficial: true,
+    scopes: ['inference:invoke'],
+  });
 
   // The binding row is the attested caller's authority: staff wrote it, it
   // names this one role and this one application, and it names its scopes.
-  await getDb().insert(applicationWorkloadIdentities).values({
-    applicationId: HOMIIO.applicationId,
-    provider: 'aws-iam',
-    subject: HOMIIO_ROLE,
-    description: 'Homiio ECS task role',
-    scopes: ['inference:invoke', 'acting-as:offline'],
-  });
+  await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId: HOMIIO.applicationId,
+      provider: 'aws-iam',
+      subject: HOMIIO_ROLE,
+      description: 'Homiio ECS task role',
+      scopes: ['inference:invoke', 'acting-as:offline'],
+    });
   attestedHomiio = { ...homiio, credentialId: HOMIIO_HANDLE };
 
   const app = express();
   app.use(express.json());
   app.use('/internal', internalRouter);
   app.use(errorHandler);
-  await new Promise<void>((resolve) => { server = app.listen(0, '127.0.0.1', resolve); });
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
 afterAll(async () => {
   try {
     if (server) {
       await new Promise<void>((resolve, reject) => {
-        server?.close((error) => error ? reject(error) : resolve());
+        server?.close((error) => (error ? reject(error) : resolve()));
       });
     }
   } finally {
@@ -260,7 +293,10 @@ describe('present-requester assertion routes', () => {
     const person = await signedInUser();
     const minted = await mint(homiio, person.accessToken);
     expect(minted.status).toBe(201);
-    expect(minted.body.data).toMatchObject({ requesterAccountId: person.userId, agentId: HOMIIO.aliaAgent.id });
+    expect(minted.body.data).toMatchObject({
+      requesterAccountId: person.userId,
+      agentId: HOMIIO.aliaAgent.id,
+    });
     expect(minted.raw).not.toContain(person.accessToken);
     expect(minted.raw).not.toContain(person.sessionId);
 
@@ -290,7 +326,10 @@ describe('present-requester assertion routes', () => {
     const person = await signedInUser();
     const minted = await mint(attestedHomiio, person.accessToken);
     expect(minted.status).toBe(201);
-    expect(minted.body.data).toMatchObject({ requesterAccountId: person.userId, agentId: HOMIIO.aliaAgent.id });
+    expect(minted.body.data).toMatchObject({
+      requesterAccountId: person.userId,
+      agentId: HOMIIO.aliaAgent.id,
+    });
 
     const assertion = String(minted.body.data?.assertion);
     const consumed = await introspect(alia, assertion, {
@@ -324,18 +363,21 @@ describe('present-requester assertion routes', () => {
    */
   it('refuses an attested caller whose binding was revoked', async () => {
     const person = await signedInUser();
-    await getDb().delete(applicationWorkloadIdentities)
+    await getDb()
+      .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.subject, HOMIIO_ROLE));
     try {
       expect((await mint(attestedHomiio, person.accessToken)).status).toBe(403);
     } finally {
-      await getDb().insert(applicationWorkloadIdentities).values({
-        applicationId: HOMIIO.applicationId,
-        provider: 'aws-iam',
-        subject: HOMIIO_ROLE,
-        description: 'Homiio ECS task role',
-        scopes: ['inference:invoke', 'acting-as:offline'],
-      });
+      await getDb()
+        .insert(applicationWorkloadIdentities)
+        .values({
+          applicationId: HOMIIO.applicationId,
+          provider: 'aws-iam',
+          subject: HOMIIO_ROLE,
+          description: 'Homiio ECS task role',
+          scopes: ['inference:invoke', 'acting-as:offline'],
+        });
     }
     expect((await mint(attestedHomiio, person.accessToken)).status).toBe(201);
   });
@@ -351,13 +393,19 @@ describe('present-requester assertion routes', () => {
 
   it('refuses a request with no service token', async () => {
     const person = await signedInUser();
-    const res = await post('/internal/native-agents/requester-assertions', null, { agentId: HOMIIO.aliaAgent.id, subjectToken: person.accessToken });
+    const res = await post('/internal/native-agents/requester-assertions', null, {
+      agentId: HOMIIO.aliaAgent.id,
+      subjectToken: person.accessToken,
+    });
     expect(res.status).toBe(401);
   });
 
-  it('refuses a person\'s own bearer in place of a service token', async () => {
+  it("refuses a person's own bearer in place of a service token", async () => {
     const person = await signedInUser();
-    const res = await post('/internal/native-agents/requester-assertions', person.accessToken, { agentId: HOMIIO.aliaAgent.id, subjectToken: person.accessToken });
+    const res = await post('/internal/native-agents/requester-assertions', person.accessToken, {
+      agentId: HOMIIO.aliaAgent.id,
+      subjectToken: person.accessToken,
+    });
     expect([401, 403]).toContain(res.status);
     expect(res.body.data).toBeUndefined();
   });
@@ -380,7 +428,10 @@ describe('present-requester assertion routes', () => {
 
   it('refuses a forged bearer, a service token as subject and the wrong agent with the same answer', async () => {
     const person = await signedInUser();
-    const forged = jwt.sign({ userId: person.userId, sessionId: person.sessionId }, 'not-the-secret');
+    const forged = jwt.sign(
+      { userId: person.userId, sessionId: person.sessionId },
+      'not-the-secret',
+    );
     for (const res of [
       await mint(homiio, forged),
       await mint(homiio, serviceToken(homiio)),
@@ -412,8 +463,14 @@ describe('present-requester assertion routes', () => {
     const assertion = String(minted.body.data?.assertion);
     expect((await introspect(homiio, assertion)).body.data).toEqual({ active: false });
     expect((await introspect(otherOfficial, assertion)).body.data).toEqual({ active: false });
-    expect((await introspect(alia, assertion, { applicationId: otherOfficial.appId, credentialId: otherOfficial.credentialId })).body.data)
-      .toEqual({ active: false });
+    expect(
+      (
+        await introspect(alia, assertion, {
+          applicationId: otherOfficial.appId,
+          credentialId: otherOfficial.credentialId,
+        })
+      ).body.data,
+    ).toEqual({ active: false });
     expect((await introspect(alia, assertion)).body.data).toMatchObject({ active: true });
   });
 

@@ -147,12 +147,17 @@ describe('every @oxy.so/bloom subpath this package imports exists', () => {
   // modules into Mention's common chunk just to draw login and overflow.
   it('imports icons through public glyph subpaths instead of the collection barrel', () => {
     const runtimeBarrels = (imported.get('./icons') ?? []).filter((file) => {
-      const source = ts.createSourceFile(file, fs.readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'), ts.ScriptTarget.Latest);
-      return source.statements.some((statement) =>
-        ts.isImportDeclaration(statement)
-        && !statement.importClause?.isTypeOnly
-        && ts.isStringLiteral(statement.moduleSpecifier)
-        && statement.moduleSpecifier.text === '@oxy.so/bloom/icons',
+      const source = ts.createSourceFile(
+        file,
+        fs.readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'),
+        ts.ScriptTarget.Latest,
+      );
+      return source.statements.some(
+        (statement) =>
+          ts.isImportDeclaration(statement) &&
+          !statement.importClause?.isTypeOnly &&
+          ts.isStringLiteral(statement.moduleSpecifier) &&
+          statement.moduleSpecifier.text === '@oxy.so/bloom/icons',
       );
     });
     expect(runtimeBarrels).toEqual([]);

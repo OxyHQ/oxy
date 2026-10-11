@@ -48,7 +48,11 @@ import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { closeRedis } from '../config/redis';
 import { users } from '../db/schema/users';
 import { describeAccountFinancialHolds } from '../services/accountFinancialHolds.service';
-import { assertAccountDeletable, deleteAccount, type AccountDeletionResult } from '../services/accountDeletion.service';
+import {
+  assertAccountDeletable,
+  deleteAccount,
+  type AccountDeletionResult,
+} from '../services/accountDeletion.service';
 import { logger } from '../utils/logger';
 
 export interface DeleteAccountsArgs {
@@ -106,7 +110,7 @@ export interface DeletionPlan {
 /** Resolve and check every identifier. Reads only. */
 export async function planAccountDeletions(
   identifiers: readonly string[],
-  { allowKey = false }: { allowKey?: boolean } = {}
+  { allowKey = false }: { allowKey?: boolean } = {},
 ): Promise<DeletionPlan> {
   const planned: PlannedDeletion[] = [];
   const refused: RefusedDeletion[] = [];
@@ -128,7 +132,10 @@ export async function planAccountDeletions(
       .limit(2);
 
     if (matches.length !== 1) {
-      refused.push({ identifier, reason: matches.length === 0 ? 'no such account' : 'names more than one account' });
+      refused.push({
+        identifier,
+        reason: matches.length === 0 ? 'no such account' : 'names more than one account',
+      });
       continue;
     }
     const [account] = matches;
@@ -136,7 +143,10 @@ export async function planAccountDeletions(
     seen.add(account.id);
 
     if (account.type !== 'local' || account.kind !== 'personal') {
-      refused.push({ identifier, reason: `not a local personal account (type=${account.type}, kind=${account.kind})` });
+      refused.push({
+        identifier,
+        reason: `not a local personal account (type=${account.type}, kind=${account.kind})`,
+      });
       continue;
     }
     if (account.accountStatus !== 'active') {
@@ -144,11 +154,18 @@ export async function planAccountDeletions(
       continue;
     }
     if (account.publicKey && !allowKey) {
-      refused.push({ identifier, reason: 'has a key: the owner can delete it with their key (--allow-key for a test identity)' });
+      refused.push({
+        identifier,
+        reason:
+          'has a key: the owner can delete it with their key (--allow-key for a test identity)',
+      });
       continue;
     }
     if (account.email?.trim()) {
-      refused.push({ identifier, reason: 'has an email: the owner can delete it with an email code' });
+      refused.push({
+        identifier,
+        reason: 'has an email: the owner can delete it with an email code',
+      });
       continue;
     }
 
@@ -189,7 +206,7 @@ export interface DeleteAccountsReport {
  */
 export async function recheckPlannedAccount(
   planned: PlannedDeletion,
-  { allowKey = false }: { allowKey?: boolean } = {}
+  { allowKey = false }: { allowKey?: boolean } = {},
 ): Promise<string | null> {
   return getDb().transaction(async (tx) => {
     const [row] = await tx
@@ -206,7 +223,8 @@ export async function recheckPlannedAccount(
       .for('update')
       .limit(1);
     if (!row) return 'no longer exists';
-    if (row.type !== 'local' || row.kind !== 'personal') return 'is no longer a local personal account';
+    if (row.type !== 'local' || row.kind !== 'personal')
+      return 'is no longer a local personal account';
     if (row.accountStatus !== 'active') return `is now ${row.accountStatus}`;
     if (row.publicKey && !allowKey) return 'has a key now';
     if (row.email?.trim()) return 'has an email now';
@@ -227,7 +245,10 @@ export async function runAccountDeletions(args: DeleteAccountsArgs): Promise<Del
   for (const account of plan.planned) {
     const changed = await recheckPlannedAccount(account, { allowKey: args.allowKey });
     if (changed) {
-      report.aborted = { identifier: account.identifier, reason: `changed since the plan: ${changed}` };
+      report.aborted = {
+        identifier: account.identifier,
+        reason: `changed since the plan: ${changed}`,
+      };
       return report;
     }
     const result = await deleteAccount(account.id, account.username);
@@ -246,7 +267,9 @@ async function main(): Promise<void> {
       process.stdout.write('Refused: nothing was deleted.\n');
       process.exitCode = 1;
     } else if (report.aborted) {
-      process.stdout.write(`Stopped: ${report.results.length} account(s) deleted before an account changed.\n`);
+      process.stdout.write(
+        `Stopped: ${report.results.length} account(s) deleted before an account changed.\n`,
+      );
       process.exitCode = 1;
     } else if (!args.confirm) {
       process.stdout.write('Dry run: nothing was deleted. Re-run with --confirm to delete.\n');
@@ -261,7 +284,10 @@ async function main(): Promise<void> {
 if (require.main === module) {
   main()
     .catch((error: unknown) => {
-      logger.error('[delete-accounts] failed', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        '[delete-accounts] failed',
+        error instanceof Error ? error : new Error(String(error)),
+      );
       process.exitCode = 1;
     })
     .finally(() => {

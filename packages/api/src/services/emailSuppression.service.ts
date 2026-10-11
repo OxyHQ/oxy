@@ -97,9 +97,8 @@ export async function recordSuppression(input: RecordSuppressionInput): Promise<
   const address = normalizeAddress(input.address);
   if (!address) return;
 
-  const expiresAt = input.reason === 'bounce_transient'
-    ? new Date(Date.now() + TRANSIENT_BOUNCE_TTL_MS)
-    : null;
+  const expiresAt =
+    input.reason === 'bounce_transient' ? new Date(Date.now() + TRANSIENT_BOUNCE_TTL_MS) : null;
 
   await getDb()
     .insert(emailSuppressions)

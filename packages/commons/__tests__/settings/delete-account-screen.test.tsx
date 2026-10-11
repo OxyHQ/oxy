@@ -26,12 +26,16 @@ jest.mock('react-native', () => {
     ...actual,
     View: (props: {
       testID?: string;
-      onLayout?: (event: { nativeEvent: { layout: { x: number; y: number; width: number; height: number } } }) => void;
+      onLayout?: (event: {
+        nativeEvent: { layout: { x: number; y: number; width: number; height: number } };
+      }) => void;
     }) => {
       const { onLayout, testID } = props;
       ReactModule.useEffect(() => {
         if (testID === 'delete-account-below-input') {
-          onLayout?.({ nativeEvent: { layout: { x: 0, y: 0, width: 320, height: BELOW_INPUT_HEIGHT } } });
+          onLayout?.({
+            nativeEvent: { layout: { x: 0, y: 0, width: 320, height: BELOW_INPUT_HEIGHT } },
+          });
         }
       }, [onLayout, testID]);
       return actual.View(props);
@@ -41,7 +45,8 @@ jest.mock('react-native', () => {
 
 jest.mock('@/components/ui', () => {
   const R = jest.requireActual<typeof import('react')>('react');
-  const Box = ({ children }: { children?: React.ReactNode }) => R.createElement('div', null, children);
+  const Box = ({ children }: { children?: React.ReactNode }) =>
+    R.createElement('div', null, children);
   return {
     ImportantBanner: Box,
     Section: Box,
@@ -63,14 +68,25 @@ jest.mock('@/components/ui', () => {
 
 jest.mock('@/constants/icons', () => ({ Icons: { closeCircle: () => null } }));
 jest.mock('@/hooks/useColors', () => ({
-  useColors: () => ({ background: '#fff', card: '#fff', border: '#ccc', error: '#f00', text: '#000', textSecondary: '#666' }),
+  useColors: () => ({
+    background: '#fff',
+    card: '#fff',
+    border: '#ccc',
+    error: '#f00',
+    text: '#000',
+    textSecondary: '#666',
+  }),
 }));
 jest.mock('@/lib/i18n', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn() }) }));
-jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
+jest.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+}));
 jest.mock('@oxy.so/bloom/surfaces', () => ({ alert: jest.fn() }));
 jest.mock('@oxy.so/bloom/toast', () => ({ toast: { error: jest.fn() } }));
-jest.mock('@oxy.so/core/crypto', () => ({ KeyManager: { hasIdentity: jest.fn(), deleteIdentity: jest.fn() } }));
+jest.mock('@oxy.so/core/crypto', () => ({
+  KeyManager: { hasIdentity: jest.fn(), deleteIdentity: jest.fn() },
+}));
 jest.mock('@/lib/account/delete-account-flow', () => ({ runAccountDeletion: jest.fn() }));
 jest.mock('@/lib/notifications/push-registration', () => ({ retireVaultPushToken: jest.fn() }));
 jest.mock('@/hooks/useOnboardingStatus', () => ({

@@ -7,8 +7,7 @@
  * countless open-redirect vulnerabilities, so the negative cases here are the
  * point of the suite.
  *
- * `oauthCode.service` is mocked — the code MINT is a separate, still-Mongo
- * collaborator; what this suite pins is which requests reach it at all, and with
+ * `oauthCode.service` is mocked — the code MINT is a separate collaborator; what this suite pins is which requests reach it at all, and with
  * what bindings. Applications and credentials are real rows, so credential
  * usability (`revoked`, rotation grace) is exercised rather than stubbed.
  */

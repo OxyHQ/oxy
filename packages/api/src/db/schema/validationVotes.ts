@@ -16,7 +16,15 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, doublePrecision, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  check,
+  doublePrecision,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { signedRecords } from './signedRecords';
@@ -69,13 +77,13 @@ export const validationVotes = pgTable(
     // The tally reads every vote of one request; the compound above leads with
     // `request_id`, so no second index is needed for it. This one serves the
     // OTHER direction — "which requests has this juror voted on" — which
-    // `getValidatorInbox` runs on every inbox load and Mongo could not serve.
+    // `getValidatorInbox` runs on every inbox load.
     index('validation_votes_validator_user_id_idx').on(t.validatorUserId),
 
     check(
       'validation_votes_verdict_check',
-      sql`${t.verdict} in (${sql.raw(inList(VALIDATION_VERDICTS))})`
+      sql`${t.verdict} in (${sql.raw(inList(VALIDATION_VERDICTS))})`,
     ),
     check('validation_votes_stake_weight_check', sql`${t.stakeWeight} >= 0`),
-  ]
+  ],
 );

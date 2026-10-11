@@ -10,10 +10,9 @@
  *
  * ## Why this file exists
  *
- * Mongoose ran that normalisation as a schema SETTER — the API's ONE sanctioned
- * setter, carved out precisely because there is no single write chokepoint:
- * several independent upload paths write this one leaf field. Postgres has no
- * setter, and it cannot be a generated column either: `normalizeInlineText`
+ * This field is the API's ONE sanctioned exception to "normalize in the write
+ * service", precisely because there is no single write chokepoint: several
+ * independent upload paths write this one leaf field. Postgres has no setter, and it cannot be a generated column either: `normalizeInlineText`
  * starts with `String.prototype.normalize('NFC')` and Postgres has no IMMUTABLE
  * Unicode normalisation function in core (`schema/files.ts`).
  *
@@ -41,7 +40,9 @@ import fileCache from '../../utils/fileCache';
 
 jest.mock('../variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) { /* no-op */ }
+    constructor(_s3: unknown) {
+      /* no-op */
+    }
     generateVariants = jest.fn(() => Promise.resolve());
   },
 }));
@@ -141,12 +142,15 @@ describe('every path that writes original_name normalises it', () => {
       'image/png',
     );
 
-    await service.completeUpload({
-      fileId: init.fileId,
-      originalName: MESSY_NAME,
-      size: content.length,
-      mime: 'image/png',
-    }, uploader);
+    await service.completeUpload(
+      {
+        fileId: init.fileId,
+        originalName: MESSY_NAME,
+        size: content.length,
+        mime: 'image/png',
+      },
+      uploader,
+    );
 
     expect(await storedName(init.fileId)).toBe(CLEAN_NAME);
   });

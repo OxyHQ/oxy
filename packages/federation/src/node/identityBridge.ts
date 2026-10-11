@@ -24,7 +24,11 @@ import type { NormalizedExternalActor } from '../index';
 export type ServiceRequestMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** The service-scoped request transport oxy-api calls go through (`{ data }`-unwrapped). */
-export type ServiceRequest = <T>(method: ServiceRequestMethod, path: string, body?: unknown) => Promise<T>;
+export type ServiceRequest = <T>(
+  method: ServiceRequestMethod,
+  path: string,
+  body?: unknown,
+) => Promise<T>;
 
 /** Minimal logging sink the identity bridge writes to. */
 export interface IdentityBridgeLogger {
@@ -183,15 +187,21 @@ export function createIdentityBridge(config: IdentityBridgeConfig): IdentityBrid
         const httpStatus = getErrorStatus(error);
         const reason = getErrorMessage(error);
         if (isPermanentClientError(httpStatus)) {
-          config.logger.warn(`[Federation] actor-gone report for ${id} rejected (HTTP ${httpStatus}, permanent)`, {
-            reason,
-          });
+          config.logger.warn(
+            `[Federation] actor-gone report for ${id} rejected (HTTP ${httpStatus}, permanent)`,
+            {
+              reason,
+            },
+          );
           return 'skipped';
         }
-        config.logger.warn(`[Federation] actor-gone report for ${id} failed transiently; leaving for retry`, {
-          status: httpStatus,
-          reason,
-        });
+        config.logger.warn(
+          `[Federation] actor-gone report for ${id} failed transiently; leaving for retry`,
+          {
+            status: httpStatus,
+            reason,
+          },
+        );
         return 'failed';
       }
     },
@@ -201,9 +211,13 @@ export function createIdentityBridge(config: IdentityBridgeConfig): IdentityBrid
       if (!id) return 'skipped';
 
       try {
-        const data = await config.makeServiceRequest<ActorDeleteResponse>('POST', ACTOR_DELETE_PATH, {
-          oxyUserId: id,
-        });
+        const data = await config.makeServiceRequest<ActorDeleteResponse>(
+          'POST',
+          ACTOR_DELETE_PATH,
+          {
+            oxyUserId: id,
+          },
+        );
         const deleted = data?.deleted === true;
         config.logger.info(
           `[Federation] oxy-api ${deleted ? 'hard-deleted' : 'found no'} identity for gone actor ${id}`,
@@ -214,15 +228,21 @@ export function createIdentityBridge(config: IdentityBridgeConfig): IdentityBrid
         const httpStatus = getErrorStatus(error);
         const reason = getErrorMessage(error);
         if (isPermanentClientError(httpStatus)) {
-          config.logger.warn(`[Federation] actor-delete for ${id} rejected (HTTP ${httpStatus}, permanent)`, {
-            reason,
-          });
+          config.logger.warn(
+            `[Federation] actor-delete for ${id} rejected (HTTP ${httpStatus}, permanent)`,
+            {
+              reason,
+            },
+          );
           return 'skipped';
         }
-        config.logger.warn(`[Federation] actor-delete for ${id} failed transiently; leaving for retry`, {
-          status: httpStatus,
-          reason,
-        });
+        config.logger.warn(
+          `[Federation] actor-delete for ${id} failed transiently; leaving for retry`,
+          {
+            status: httpStatus,
+            reason,
+          },
+        );
         return 'failed';
       }
     },

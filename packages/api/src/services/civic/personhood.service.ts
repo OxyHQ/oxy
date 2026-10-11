@@ -83,7 +83,14 @@ export type VouchRejectionReason =
   | RejectionReason;
 
 export type VouchResult =
-  | { ok: true; recordId: string; subjectUserId: string; voucherUserId: string; stakeAmount: number; points: number }
+  | {
+      ok: true;
+      recordId: string;
+      subjectUserId: string;
+      voucherUserId: string;
+      stakeAmount: number;
+      points: number;
+    }
   | { ok: false; reason: VouchRejectionReason };
 
 /** The recomputable personhood snapshot of one account. */
@@ -116,7 +123,9 @@ function exclusionReason(
 /* -------------------------------------------------------------------------- */
 
 /** Sum the active vouchers' tier weights for a subject (the vouch axis). */
-async function weightedVouchScore(subjectUserId: string): Promise<{ score: number; count: number }> {
+async function weightedVouchScore(
+  subjectUserId: string,
+): Promise<{ score: number; count: number }> {
   const vouches = await getDb()
     .select({ voucherUserId: personhoodVouches.voucherUserId })
     .from(personhoodVouches)
@@ -149,8 +158,8 @@ async function weightedVouchScore(subjectUserId: string): Promise<{ score: numbe
 /**
  * Whether the subject has at least one biometric-bound real-life attestation.
  *
- * Mongo's dotted `'metadata.biometricOk': true` becomes jsonb CONTAINMENT rather
- * than `metadata->>'biometricOk' = 'true'`: the text form also matches the
+ * `metadata.biometricOk = true` is tested by jsonb CONTAINMENT rather than
+ * `metadata->>'biometricOk' = 'true'`: the text form also matches the
  * STRING `"true"`, which is not the boolean the attestation writes, and `@>`
  * additionally leaves the door open to a GIN index if this ever needs one.
  */
@@ -445,7 +454,10 @@ export type WithdrawResult = { ok: true } | { ok: false; reason: 'not_found' };
  * and the historical vouch still prevents re-vouching the same pair to avoid
  * farming reputation through withdraw/re-vouch loops.
  */
-export async function withdrawVouch(voucherUserId: string, subjectUserId: string): Promise<WithdrawResult> {
+export async function withdrawVouch(
+  voucherUserId: string,
+  subjectUserId: string,
+): Promise<WithdrawResult> {
   const withdrawn = await getDb()
     .update(personhoodVouches)
     .set({ status: 'withdrawn' })
@@ -475,7 +487,10 @@ export async function withdrawVouch(voucherUserId: string, subjectUserId: string
  * recompute the (now un-vouched) subject. Returns the number of vouchers
  * slashed. Best-effort — individual failures are logged and skipped.
  */
-export async function slashVouchersForFakeSubject(subjectUserId: string, reason: string): Promise<number> {
+export async function slashVouchersForFakeSubject(
+  subjectUserId: string,
+  reason: string,
+): Promise<number> {
   const vouches = await getDb()
     .select({ id: personhoodVouches.id, voucherUserId: personhoodVouches.voucherUserId })
     .from(personhoodVouches)

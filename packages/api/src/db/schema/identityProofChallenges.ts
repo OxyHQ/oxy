@@ -37,6 +37,9 @@ export const identityProofChallenges = pgTable(
   (t) => [
     unique('identity_proof_challenges_challenge_hash_key').on(t.challengeHash),
     index('identity_proof_challenges_expires_at_idx').on(t.expiresAt),
-    check('identity_proof_challenges_challenge_hash_check', sql`${t.challengeHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'identity_proof_challenges_challenge_hash_check',
+      sql`${t.challengeHash} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 );

@@ -38,11 +38,11 @@ export function useManagedAccountGroups(accounts: AccountNode[]): UseManagedAcco
   }, [accounts]);
 
   const totalCount =
-    groups.organizations.length
-    + groups.projects.length
-    + groups.bots.length
-    + groups.channels.length
-    + groups.shared.length;
+    groups.organizations.length +
+    groups.projects.length +
+    groups.bots.length +
+    groups.channels.length +
+    groups.shared.length;
 
   return { groups, totalCount };
 }

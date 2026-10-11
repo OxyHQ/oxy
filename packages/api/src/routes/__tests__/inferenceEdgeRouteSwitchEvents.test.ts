@@ -73,11 +73,7 @@ import {
   resolveEffectiveRoutingPolicy,
   type RoutingPolicyControls,
 } from '../../services/inferenceRoutingPolicy.service';
-import type {
-  KaanaClient,
-  KaanaCompletion,
-  KaanaStreamFrame,
-} from '../../services/kaanaClient';
+import type { KaanaClient, KaanaCompletion, KaanaStreamFrame } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
@@ -107,12 +103,8 @@ function json(response: RawResponse): Record<string, unknown> {
 async function withServer(
   kaanaClient: KaanaClient,
   run: (
-    request: (
-      path: string,
-      body: unknown,
-      headers: Record<string, string>
-    ) => Promise<RawResponse>
-  ) => Promise<void>
+    request: (path: string, body: unknown, headers: Record<string, string>) => Promise<RawResponse>,
+  ) => Promise<void>,
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -125,7 +117,7 @@ async function withServer(
   const request = (
     path: string,
     body: unknown,
-    headers: Record<string, string>
+    headers: Record<string, string>,
   ): Promise<RawResponse> => {
     const { port } = server.address() as AddressInfo;
     const payload = JSON.stringify(body);
@@ -151,9 +143,9 @@ async function withServer(
               status: res.statusCode ?? 0,
               headers: res.headers,
               body: Buffer.concat(chunks).toString('utf8'),
-            })
+            }),
           );
-        }
+        },
       );
       req.on('error', reject);
       req.write(payload);
@@ -255,7 +247,7 @@ async function makeFixture(): Promise<Fixture> {
         retentionDays: 0,
         trainsOnCustomerData: false,
         zeroDataRetentionAvailable: true,
-      }))
+      })),
     )
     .onConflictDoNothing();
 
@@ -430,7 +422,7 @@ function policyControls(overrides: Partial<RoutingPolicyControls> = {}): Routing
  */
 async function givePolicy(
   fixture: Fixture,
-  overrides: Partial<RoutingPolicyControls> = {}
+  overrides: Partial<RoutingPolicyControls> = {},
 ): Promise<string> {
   const created = await createRoutingPolicy({
     target: {
@@ -462,7 +454,7 @@ const bearer = (token: string): Record<string, string> => ({
 
 const responsesBody = (
   fixture: Fixture,
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
 ): Record<string, unknown> => ({
   model: fixture.modelReference,
   input: 'Say hello.',
@@ -475,7 +467,7 @@ function deploymentSwitch(
   requestId: string,
   modelReference: string,
   toProvider: string,
-  sequence = 1
+  sequence = 1,
 ): InferenceStreamRouteSwitchEvent {
   return {
     schemaVersion: 1,
@@ -497,7 +489,7 @@ function modelSwitch(
     readonly toModelReference: string;
     readonly toProvider: string;
   },
-  sequence = 1
+  sequence = 1,
 ): InferenceStreamRouteSwitchEvent {
   return {
     schemaVersion: 1,
@@ -522,7 +514,7 @@ const SECOND_FAILOVER_PROVIDER = 'kaana-switch-second-failover';
 function foldedKaana(
   switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[],
   servingProvider = FAILOVER_PROVIDER,
-  followModelSwitch = true
+  followModelSwitch = true,
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
@@ -531,7 +523,7 @@ function foldedKaana(
       const requestedModelReference =
         envelope.target.kind === 'model'
           ? envelope.target.modelReference
-          : envelope.authorizedRoutes[0]?.modelReference ?? 'unknown/unknown';
+          : (envelope.authorizedRoutes[0]?.modelReference ?? 'unknown/unknown');
       const routeSwitchEvents = switches(envelope);
       const lastModelSwitch = followModelSwitch
         ? [...routeSwitchEvents].reverse().find((event) => event.detail.scope === 'model')
@@ -539,13 +531,13 @@ function foldedKaana(
       const modelReference =
         lastModelSwitch?.detail.scope === 'model'
           ? lastModelSwitch.detail.toModelReference
-          : envelope.authorizedRoutes.find(
+          : (envelope.authorizedRoutes.find(
               (route) =>
                 route.provider === servingProvider &&
-                route.modelReference.startsWith(requestedModelReference.split('@')[0])
-            )?.modelReference ?? requestedModelReference;
+                route.modelReference.startsWith(requestedModelReference.split('@')[0]),
+            )?.modelReference ?? requestedModelReference);
       const servedRoute = envelope.authorizedRoutes.find(
-        (route) => route.provider === servingProvider && route.modelReference === modelReference
+        (route) => route.provider === servingProvider && route.modelReference === modelReference,
       );
       if (servedRoute === undefined) {
         throw new Error('fixture selected a route outside the exact authorization list');
@@ -582,7 +574,7 @@ function foldedKaana(
 
 /** A streaming fake: a start, a delta, the switches, a usage event, a done, a report. */
 function streamingKaana(
-  switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[]
+  switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[],
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
@@ -595,7 +587,7 @@ function streamingKaana(
       const modelReference =
         envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
       const servedRoute = envelope.authorizedRoutes.find(
-        (route) => route.provider === FAILOVER_PROVIDER && route.modelReference === modelReference
+        (route) => route.provider === FAILOVER_PROVIDER && route.modelReference === modelReference,
       );
       if (servedRoute === undefined) {
         throw new Error('stream fixture selected a route outside the exact authorization list');
@@ -694,7 +686,7 @@ const ROLLOUT_ENVIRONMENT = {
 } as const;
 
 const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
-  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -750,10 +742,12 @@ describe('a routing-profile target', () => {
         isProductPreset: false,
       })
       .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
-    await getDb().insert(inferenceRoutingProfileCandidates).values([
-      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
-      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 1 },
-    ]);
+    await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values([
+        { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
+        { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 1 },
+      ]);
     await getDb()
       .update(inferenceDeploymentRoutingScores)
       .set({
@@ -768,13 +762,10 @@ describe('a routing-profile target', () => {
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      foldedKaana(
-        (envelope) => {
-          seen.push(envelope);
-          return [];
-        },
-        fixture.provider
-      ),
+      foldedKaana((envelope) => {
+        seen.push(envelope);
+        return [];
+      }, fixture.provider),
       async (request) => {
         const response = await request(
           '/v1/responses',
@@ -783,10 +774,10 @@ describe('a routing-profile target', () => {
             input: 'Say hello.',
             maxOutputTokens: 100,
           },
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     expect(seen).toHaveLength(1);
@@ -800,14 +791,14 @@ describe('a routing-profile target', () => {
       modelReference: fixture.otherPinnedModelReference,
     });
     expect(
-      seen[0].authorizedRoutes.slice(0, 3).every(
-        (route) => route.modelReference === fixture.otherPinnedModelReference
-      )
+      seen[0].authorizedRoutes
+        .slice(0, 3)
+        .every((route) => route.modelReference === fixture.otherPinnedModelReference),
     ).toBe(true);
     expect(
-      seen[0].authorizedRoutes.slice(3).every(
-        (route) => route.modelReference === fixture.pinnedModelReference
-      )
+      seen[0].authorizedRoutes
+        .slice(3)
+        .every((route) => route.modelReference === fixture.pinnedModelReference),
     ).toBe(true);
   });
 
@@ -824,10 +815,12 @@ describe('a routing-profile target', () => {
         isProductPreset: false,
       })
       .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
-    await getDb().insert(inferenceRoutingProfileCandidates).values([
-      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
-      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
-    ]);
+    await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values([
+        { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
+        { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
+      ]);
     await getDb()
       .update(inferenceDeploymentRoutingScores)
       .set({ balancedScore: 10_000 })
@@ -846,21 +839,18 @@ describe('a routing-profile target', () => {
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      foldedKaana(
-        (envelope) => {
-          seen.push(envelope);
-          return [];
-        },
-        fixture.provider
-      ),
+      foldedKaana((envelope) => {
+        seen.push(envelope);
+        return [];
+      }, fixture.provider),
       async (request) => {
         const response = await request(
           '/v1/responses',
           { routingProfile: profile.slug, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     expect(seen).toHaveLength(1);
@@ -889,20 +879,20 @@ describe('a same-model deployment failover', () => {
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
-          FAILOVER_PROVIDER
+          FAILOVER_PROVIDER,
         ),
       ]),
       async (request) => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         // The same request id the notice is keyed on, so a customer can join the
         // two without a second lookup.
         expect(json(response).requestId).toEqual(expect.any(String));
-      }
+      },
     );
 
     const rows = await switchesOf(fixture.applicationId);
@@ -940,21 +930,21 @@ describe('a same-model deployment failover', () => {
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
           FAILOVER_PROVIDER,
-          3
+          3,
         ),
       ]),
       async (request) => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture, { stream: true }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         expect(response.headers['content-type']).toContain('text/event-stream');
         // Forwarded in-band as well as persisted: the customer comparing two
         // answers needs it while they are reading, and afterwards.
         expect(response.body).toContain('event: route_switch');
-      }
+      },
     );
 
     const rows = await switchesOf(fixture.applicationId);
@@ -980,23 +970,23 @@ describe('a same-model deployment failover', () => {
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
           FAILOVER_PROVIDER,
-          2
+          2,
         ),
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
           FAILOVER_PROVIDER,
-          2
+          2,
         ),
       ]),
       async (request) => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const rows = await switchesOf(fixture.applicationId);
@@ -1016,23 +1006,23 @@ describe('a same-model deployment failover', () => {
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
           FAILOVER_PROVIDER,
-          1
+          1,
         ),
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
           'second-failover',
-          2
+          2,
         ),
       ]),
       async (request) => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const rows = await switchesOf(fixture.applicationId);
@@ -1073,10 +1063,10 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const rows = await switchesOf(fixture.applicationId);
@@ -1106,12 +1096,7 @@ describe('a cross-model substitution', () => {
     });
     await getDb()
       .delete(inferenceDeploymentRoutingScores)
-      .where(
-        eq(
-          inferenceDeploymentRoutingScores.deploymentId,
-          fixture.otherPrimaryDeploymentId
-        )
-      );
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.otherPrimaryDeploymentId));
 
     let kaanaCalls = 0;
     await withServer(
@@ -1123,14 +1108,14 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(503);
         expect(json(response)).toMatchObject({
           code: 'no_route_available',
           message: 'No route is currently available.',
         });
-      }
+      },
     );
 
     expect(kaanaCalls).toBe(0);
@@ -1156,12 +1141,7 @@ describe('a cross-model substitution', () => {
       .where(eq(inferenceModels.id, fixture.otherModelRowId));
     await getDb()
       .delete(inferenceDeploymentRoutingScores)
-      .where(
-        eq(
-          inferenceDeploymentRoutingScores.deploymentId,
-          fixture.otherPrimaryDeploymentId
-        )
-      );
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.otherPrimaryDeploymentId));
 
     let kaanaCalls = 0;
     await withServer(
@@ -1173,10 +1153,10 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture, { maxOutputTokens: 100 }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
     expect(kaanaCalls).toBe(1);
   });
@@ -1208,18 +1188,18 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture, { maxOutputTokens: undefined }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     expect(seen).toHaveLength(1);
     expect(seen[0].authorizedRoutes).toHaveLength(3);
     expect(
       seen[0].authorizedRoutes.every(
-        (route) => route.modelReference === fixture.pinnedModelReference
-      )
+        (route) => route.modelReference === fixture.pinnedModelReference,
+      ),
     ).toBe(true);
   });
 
@@ -1244,10 +1224,12 @@ describe('a cross-model substitution', () => {
         isProductPreset: false,
       })
       .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
-    await getDb().insert(inferenceRoutingProfileCandidates).values([
-      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
-      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 1 },
-    ]);
+    await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values([
+        { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
+        { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 1 },
+      ]);
 
     const seen: InferenceRequest[] = [];
     await withServer(
@@ -1259,18 +1241,18 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           { routingProfile: profile.slug, input: 'Say hello.' },
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     expect(seen).toHaveLength(1);
     expect(seen[0].authorizedRoutes).toHaveLength(3);
     expect(
       seen[0].authorizedRoutes.every(
-        (route) => route.modelReference === fixture.pinnedModelReference
-      )
+        (route) => route.modelReference === fixture.pinnedModelReference,
+      ),
     ).toBe(true);
   });
 
@@ -1291,7 +1273,7 @@ describe('a cross-model substitution', () => {
           }),
         ],
         fixture.provider,
-        false
+        false,
       ),
       async (request) => {
         // The request itself is unaffected — this is a notice, not an
@@ -1299,10 +1281,10 @@ describe('a cross-model substitution', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     await expect(switchesOf(fixture.applicationId)).resolves.toEqual([]);
@@ -1310,7 +1292,7 @@ describe('a cross-model substitution', () => {
     // Silence would be the wrong answer: an unauthorised substitution the writer
     // refused is exactly the thing an operator has to see.
     const refusals = mockedLogger.error.mock.calls.filter(
-      (call) => call[0] === 'inference.edge.route_switch_refused'
+      (call) => call[0] === 'inference.edge.route_switch_refused',
     );
     expect(refusals).toHaveLength(1);
     expect(refusals[0][2]).toMatchObject({ status: 'unauthorized-substitution' });
@@ -1335,14 +1317,14 @@ describe('an application with no versioned routing policy', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(503);
         expect(json(response)).toMatchObject({
           code: 'no_route_available',
           message: 'No route is currently available.',
         });
-      }
+      },
     );
 
     expect(calls).toBe(0);
@@ -1370,17 +1352,17 @@ describe('a switch reported for another request', () => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     await expect(switchesOf(fixture.applicationId)).resolves.toEqual([]);
     expect(
       mockedLogger.error.mock.calls.filter(
-        (call) => call[0] === 'inference.edge.route_switch_request_mismatch'
-      )
+        (call) => call[0] === 'inference.edge.route_switch_request_mismatch',
+      ),
     ).toHaveLength(1);
   });
 });
@@ -1448,7 +1430,7 @@ describe('a completion carrying no routeSwitchEvents field', () => {
       const response = await request(
         '/v1/responses',
         responsesBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       // 200, not 500. Before the guard this was a 500 with the hold already
       // settled — the failure mode that makes this worth a case of its own.
@@ -1460,8 +1442,8 @@ describe('a completion carrying no routeSwitchEvents field', () => {
     await expect(switchesOf(fixture.applicationId)).resolves.toEqual([]);
     expect(
       mockedLogger.error.mock.calls.filter((call) =>
-        String(call[0]).startsWith('inference.edge.route_switch')
-      )
+        String(call[0]).startsWith('inference.edge.route_switch'),
+      ),
     ).toEqual([]);
 
     // And the request was CHARGED, which is what makes the 200 above meaningful:

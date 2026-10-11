@@ -22,7 +22,9 @@ describe('isAuthorizedSnsTopic', () => {
 
   it('accepts only the exact configured topic ARN', () => {
     expect(isAuthorizedSnsTopic(configured, configured)).toBe(true);
-    expect(isAuthorizedSnsTopic('arn:aws:sns:us-east-1:999999999999:attacker-topic', configured)).toBe(false);
+    expect(
+      isAuthorizedSnsTopic('arn:aws:sns:us-east-1:999999999999:attacker-topic', configured),
+    ).toBe(false);
     expect(isAuthorizedSnsTopic(`${configured}-suffix`, configured)).toBe(false);
   });
 
@@ -34,7 +36,11 @@ describe('isAuthorizedSnsTopic', () => {
 
 describe('isAmazonSigningCertUrl', () => {
   it('accepts Amazon SNS signing hosts', () => {
-    expect(isAmazonSigningCertUrl('https://sns.us-west-2.amazonaws.com/SimpleNotificationService-abc.pem')).toBe(true);
+    expect(
+      isAmazonSigningCertUrl(
+        'https://sns.us-west-2.amazonaws.com/SimpleNotificationService-abc.pem',
+      ),
+    ).toBe(true);
     expect(isAmazonSigningCertUrl('https://sns.eu-west-1.amazonaws.com/x.pem')).toBe(true);
     expect(isAmazonSigningCertUrl('https://sns.cn-north-1.amazonaws.com.cn/x.pem')).toBe(true);
   });
@@ -43,8 +49,12 @@ describe('isAmazonSigningCertUrl', () => {
     // The whole attack: valid-looking payload, signature verifies — against the
     // attacker's key, because they chose where the key came from.
     expect(isAmazonSigningCertUrl('https://evil.example.com/cert.pem')).toBe(false);
-    expect(isAmazonSigningCertUrl('https://sns.us-west-2.amazonaws.com.evil.example.com/x.pem')).toBe(false);
-    expect(isAmazonSigningCertUrl('https://evil.example.com/sns.us-west-2.amazonaws.com/x.pem')).toBe(false);
+    expect(
+      isAmazonSigningCertUrl('https://sns.us-west-2.amazonaws.com.evil.example.com/x.pem'),
+    ).toBe(false);
+    expect(
+      isAmazonSigningCertUrl('https://evil.example.com/sns.us-west-2.amazonaws.com/x.pem'),
+    ).toBe(false);
     expect(isAmazonSigningCertUrl('https://amazonaws.com/x.pem')).toBe(false);
   });
 
@@ -82,14 +92,22 @@ describe('snsStringToSign', () => {
         Message: 'body',
         Timestamp: 'ts',
       }),
-    ).toBe('Message\nbody\nMessageId\nm1\nSubject\ns1\nTimestamp\nts\nTopicArn\nt1\nType\nNotification\n');
+    ).toBe(
+      'Message\nbody\nMessageId\nm1\nSubject\ns1\nTimestamp\nts\nTopicArn\nt1\nType\nNotification\n',
+    );
   });
 
   it('skips Subject when absent rather than signing an empty one', () => {
     // Amazon omits the field entirely; emitting `Subject\n\n` makes every
     // signature fail for a reason nothing reports.
     expect(
-      snsStringToSign({ Type: 'Notification', MessageId: 'm1', TopicArn: 't1', Message: 'b', Timestamp: 'ts' }),
+      snsStringToSign({
+        Type: 'Notification',
+        MessageId: 'm1',
+        TopicArn: 't1',
+        Message: 'b',
+        Timestamp: 'ts',
+      }),
     ).toBe('Message\nb\nMessageId\nm1\nTimestamp\nts\nTopicArn\nt1\nType\nNotification\n');
   });
 
@@ -105,8 +123,8 @@ describe('snsStringToSign', () => {
         SubscribeURL: 'https://sns.us-west-2.amazonaws.com/?x=1',
       }),
     ).toBe(
-      'Message\nb\nMessageId\nm1\nSubscribeURL\nhttps://sns.us-west-2.amazonaws.com/?x=1\n'
-      + 'Timestamp\nts\nToken\ntok\nTopicArn\nt1\nType\nSubscriptionConfirmation\n',
+      'Message\nb\nMessageId\nm1\nSubscribeURL\nhttps://sns.us-west-2.amazonaws.com/?x=1\n' +
+        'Timestamp\nts\nToken\ntok\nTopicArn\nt1\nType\nSubscriptionConfirmation\n',
     );
   });
 

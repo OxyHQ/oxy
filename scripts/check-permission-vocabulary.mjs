@@ -251,7 +251,9 @@ for (const lane of LANES) {
   const sourceSet = new Set(source.names);
   const consoleSet = new Set(consoleSide.names);
 
-  const duplicated = consoleSide.names.filter((name, index) => consoleSide.names.indexOf(name) !== index);
+  const duplicated = consoleSide.names.filter(
+    (name, index) => consoleSide.names.indexOf(name) !== index,
+  );
   if (duplicated.length > 0) {
     failures.push(
       `${lane.label} lane: \`${lane.consoleType}\` lists ${[...new Set(duplicated)].sort().join(', ')} ` +

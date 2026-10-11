@@ -100,5 +100,5 @@ export const devicePrincipals = pgTable(
     // `${0}` would bind a parameter and drizzle-kit would emit the placeholder
     // `$1` into the migration, which fails at APPLY time.
     check('device_principals_authuser_check', sql`${t.authuser} >= 0`),
-  ]
+  ],
 );

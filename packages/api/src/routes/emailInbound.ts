@@ -61,7 +61,11 @@ function constantTimeEquals(provided: string, expected: string): boolean {
   return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
-export function verifyEmailInboundWebhookSecret(req: Request, res: Response, next: NextFunction): void {
+export function verifyEmailInboundWebhookSecret(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
   if (!INBOUND_WEBHOOK_SECRET) {
     logger.error('EMAIL_INBOUND_WEBHOOK_SECRET is not configured');
     res.status(500).json({ error: 'Webhook not configured' });
@@ -107,9 +111,13 @@ router.post(
     if (!Buffer.isBuffer(rawMessage)) {
       // Loud, because the silent-failure mode this replaces is exactly the one
       // AGENTS.md warns about: inbound mail disappearing with a 400 nobody reads.
-      logger.error('Inbound webhook: body is not a Buffer — raw body parser did not run', undefined, {
-        bodyType: Array.isArray(rawMessage) ? 'array' : typeof rawMessage,
-      });
+      logger.error(
+        'Inbound webhook: body is not a Buffer — raw body parser did not run',
+        undefined,
+        {
+          bodyType: Array.isArray(rawMessage) ? 'array' : typeof rawMessage,
+        },
+      );
       return res.status(400).json({ error: 'Empty message body' });
     }
     if (rawMessage.length === 0) {
@@ -117,7 +125,7 @@ router.post(
     }
 
     // Extract envelope recipients from header (set by Cloudflare Worker)
-    const envelopeTo = (req.headers['x-envelope-to'] as string || '')
+    const envelopeTo = ((req.headers['x-envelope-to'] as string) || '')
       .split(',')
       .map((addr) => addr.trim().toLowerCase())
       .filter(Boolean);
@@ -127,7 +135,12 @@ router.post(
     }
 
     // Validate at least one recipient exists
-    const validRecipients: Array<{ address: string; username: string; userId: string; aliasTag?: string }> = [];
+    const validRecipients: Array<{
+      address: string;
+      username: string;
+      userId: string;
+      aliasTag?: string;
+    }> = [];
     for (const addr of envelopeTo) {
       const username = extractUsername(addr);
       if (!username) continue;
@@ -168,7 +181,7 @@ router.post(
     // Parse MIME — the one parser every ingest path shares.
     const mime = await parseInboundMime(rawMessage);
 
-    const envelopeFrom = (req.headers['x-envelope-from'] as string || '').toLowerCase();
+    const envelopeFrom = ((req.headers['x-envelope-from'] as string) || '').toLowerCase();
     const senderAddress = mime.from?.address || envelopeFrom;
 
     // Deliver to each valid recipient
@@ -206,9 +219,13 @@ router.post(
           subject: mime.subject,
         });
       } catch (err) {
-        logger.error('Inbound webhook: delivery failed', err instanceof Error ? err : new Error(String(err)), {
-          recipient: rcpt.address,
-        });
+        logger.error(
+          'Inbound webhook: delivery failed',
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            recipient: rcpt.address,
+          },
+        );
         results.push({ recipient: rcpt.address, status: 'failed' });
       }
     }
@@ -218,7 +235,7 @@ router.post(
       rejected: results.filter((r) => r.status === 'failed').length,
       results,
     });
-  })
+  }),
 );
 
 export default router;

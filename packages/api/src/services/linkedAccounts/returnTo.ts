@@ -27,7 +27,10 @@ export type ReturnToResolution =
   | { ok: true; clientApplicationId: string; returnTo: string }
   | { ok: false; reason: string };
 
-export async function resolveReturnTo(clientId: string, returnTo: string): Promise<ReturnToResolution> {
+export async function resolveReturnTo(
+  clientId: string,
+  returnTo: string,
+): Promise<ReturnToResolution> {
   const applicationId = await resolveApplicationIdFromClientId(clientId);
   if (!applicationId) return { ok: false, reason: 'Invalid client' };
   const [app] = await getDb()
@@ -40,7 +43,8 @@ export async function resolveReturnTo(clientId: string, returnTo: string): Promi
     .from(applications)
     .where(eq(applications.id, applicationId))
     .limit(1);
-  if (!app || !isTrustedApplication(app)) return { ok: false, reason: 'Linking accounts is only available to Oxy applications' };
+  if (!app || !isTrustedApplication(app))
+    return { ok: false, reason: 'Linking accounts is only available to Oxy applications' };
   if (!isAllowedRedirectUri({ redirectUris: app.redirectUris }, returnTo)) {
     return { ok: false, reason: 'returnTo is not a redirect URI registered for this client' };
   }

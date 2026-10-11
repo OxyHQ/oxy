@@ -203,11 +203,15 @@ export const useAuthOperations = ({
       // Fetch device sessions
       let allDeviceSessions: ClientSession[] = [];
       try {
-        allDeviceSessions = await fetchSessionsWithFallback(oxyServices, sessionResponse.sessionId, {
-          fallbackDeviceId: sessionResponse.deviceId,
-          fallbackUserId: fullUser.id,
-          logger,
-        });
+        allDeviceSessions = await fetchSessionsWithFallback(
+          oxyServices,
+          sessionResponse.sessionId,
+          {
+            fallbackDeviceId: sessionResponse.deviceId,
+            fallbackUserId: fullUser.id,
+            logger,
+          },
+        );
       } catch (error) {
         if (__DEV__ && logger) {
           logger('Failed to fetch device sessions after login', error);
@@ -237,7 +241,12 @@ export const useAuthOperations = ({
           { merge: false },
         );
         onAuthStateChange?.(fullUser);
-        if (deviceRegistrationCommitted && !identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(false) === false) logger?.('Failed to release explicit sign-out intent after sign-in');
+        if (
+          deviceRegistrationCommitted &&
+          !identityBinding &&
+          (await store.setAutomaticIdentitySignInSuppressed?.(false)) === false
+        )
+          logger?.('Failed to release explicit sign-out intent after sign-in');
         return fullUser;
       }
 
@@ -250,7 +259,12 @@ export const useAuthOperations = ({
       });
       await saveActiveSessionId(sessionResponse.sessionId);
       onAuthStateChange?.(fullUser);
-      if (deviceRegistrationCommitted && !identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(false) === false) logger?.('Failed to release explicit sign-out intent after sign-in');
+      if (
+        deviceRegistrationCommitted &&
+        !identityBinding &&
+        (await store.setAutomaticIdentitySignInSuppressed?.(false)) === false
+      )
+        logger?.('Failed to release explicit sign-out intent after sign-in');
       return fullUser;
     },
     [
@@ -316,8 +330,11 @@ export const useAuthOperations = ({
         });
         if (result.status === 'failed') {
           handleAuthError(result.error, {
-            defaultMessage: 'Logout failed', code: LOGOUT_ERROR_CODE, onError,
-            setAuthError: (message) => runtime.setError(message), logger,
+            defaultMessage: 'Logout failed',
+            code: LOGOUT_ERROR_CODE,
+            onError,
+            setAuthError: (message) => runtime.setError(message),
+            logger,
           });
         }
         return result;
@@ -350,7 +367,11 @@ export const useAuthOperations = ({
           // Genuine FULL sign-out (no sessions remain): clear the persisted
           // device credential so a reload's cold boot finds nothing to restore,
           // then tear down local state.
-          if (!identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(true) === false) throw new Error('Failed to persist explicit sign-out intent');
+          if (
+            !identityBinding &&
+            (await store.setAutomaticIdentitySignInSuppressed?.(true)) === false
+          )
+            throw new Error('Failed to persist explicit sign-out intent');
           await clearPersistedAuthSafe(store, logger);
           await clearSessionState();
         }
@@ -364,10 +385,14 @@ export const useAuthOperations = ({
         // "signed in" against a bearer the 401 lane has already cleared.
         if (isInvalid && sessionToLogout === activeSessionId) {
           // The active session is invalid → full sign-out; clear persisted state.
-          const intentPersisted = identityBinding ? true : await store.setAutomaticIdentitySignInSuppressed?.(true);
+          const intentPersisted = identityBinding
+            ? true
+            : await store.setAutomaticIdentitySignInSuppressed?.(true);
           await clearPersistedAuthSafe(store, logger);
           await clearSessionState();
-          return intentPersisted === false ? { status: 'failed', error: new Error('Failed to persist explicit sign-out intent') } : { status: 'signed-out' };
+          return intentPersisted === false
+            ? { status: 'failed', error: new Error('Failed to persist explicit sign-out intent') }
+            : { status: 'signed-out' };
         }
 
         if (sessionClient.getState()?.accounts.length === 0) {
@@ -428,7 +453,8 @@ export const useAuthOperations = ({
       // logoutAll is ALWAYS a full sign-out: clear the persisted device
       // credential so the next cold boot finds no session to restore, then tear
       // down local state.
-      if (!identityBinding && await store.setAutomaticIdentitySignInSuppressed?.(true) === false) throw new Error('Failed to persist explicit sign-out intent');
+      if (!identityBinding && (await store.setAutomaticIdentitySignInSuppressed?.(true)) === false)
+        throw new Error('Failed to persist explicit sign-out intent');
       await clearPersistedAuthSafe(store, logger);
       await clearSessionState();
     } catch (error) {
@@ -442,10 +468,13 @@ export const useAuthOperations = ({
         // `onTokensChanged(null)` by now, so rejecting here would contradict
         // the SDK's own authoritative 401 lane and hand the caller a failure
         // for work that is complete. Finish the local teardown and resolve.
-        const intentPersisted = identityBinding ? true : await store.setAutomaticIdentitySignInSuppressed?.(true);
+        const intentPersisted = identityBinding
+          ? true
+          : await store.setAutomaticIdentitySignInSuppressed?.(true);
         await clearPersistedAuthSafe(store, logger);
         await clearSessionState();
-        if (intentPersisted === false) throw new Error('Failed to persist explicit sign-out intent');
+        if (intentPersisted === false)
+          throw new Error('Failed to persist explicit sign-out intent');
         return;
       }
 
@@ -467,7 +496,16 @@ export const useAuthOperations = ({
       // would erase the server's reason from every caller's toast.
       throw error instanceof Error ? error : new Error(message);
     }
-  }, [clearSessionState, store, logger, onError, oxyServices, runtime, sessionClient, identityBinding]);
+  }, [
+    clearSessionState,
+    store,
+    logger,
+    onError,
+    oxyServices,
+    runtime,
+    sessionClient,
+    identityBinding,
+  ]);
 
   return {
     signIn,

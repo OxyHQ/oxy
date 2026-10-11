@@ -44,9 +44,8 @@ const certificate = generateSelfSignedCodeSigningCertificate({
   commonName: 'Oxy Updates Test',
 });
 const { privateKeyPEM } = convertKeyPairToPEM(keyPair);
-const publicKey = new crypto.X509Certificate(
-  convertCertificateToCertificatePEM(certificate)
-).publicKey;
+const publicKey = new crypto.X509Certificate(convertCertificateToCertificatePEM(certificate))
+  .publicKey;
 
 /** The instant every seeded update is created at, so manifests are comparable. */
 const PUBLISHED_AT = new Date('2026-07-01T00:00:00.000Z');
@@ -66,7 +65,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   process.env.UPDATES_CODE_SIGNING_PRIVATE_KEY = Buffer.from(privateKeyPEM, 'utf8').toString(
-    'base64'
+    'base64',
   );
   resetSigningKeyCache();
 });
@@ -148,7 +147,7 @@ interface SeedOptions {
 async function publish(
   applicationId: string,
   channelId: string,
-  options: SeedOptions = {}
+  options: SeedOptions = {},
 ): Promise<{ updateId: string; launchSha256: string; assetSha256s: string[] }> {
   const launchSha256 = await uploadedAsset();
   const [update] = await getDb()
@@ -176,16 +175,18 @@ async function publish(
   while (assetSha256s.length < keys.length) {
     assetSha256s.push(await uploadedAsset());
   }
-  await getDb().insert(appUpdateAssets).values(
-    keys.map((key, ordinal) => ({
-      appUpdateId: update.id,
-      ordinal,
-      sha256: assetSha256s[ordinal],
-      key,
-      contentType: 'image/png',
-      fileExtension: '.png',
-    }))
-  );
+  await getDb()
+    .insert(appUpdateAssets)
+    .values(
+      keys.map((key, ordinal) => ({
+        appUpdateId: update.id,
+        ordinal,
+        sha256: assetSha256s[ordinal],
+        key,
+        contentType: 'image/png',
+        fileExtension: '.png',
+      })),
+    );
 
   return { updateId: update.updateId, launchSha256, assetSha256s };
 }
@@ -193,7 +194,7 @@ async function publish(
 function baseRequest(
   applicationId: string,
   channel: string,
-  overrides: Partial<ManifestRequest> = {}
+  overrides: Partial<ManifestRequest> = {},
 ): ManifestRequest {
   return {
     applicationId,
@@ -239,13 +240,13 @@ describe('buildManifestResponse — golden manifest', () => {
     // Launch asset omits fileExtension even though one is stored; url points at
     // cloud.oxy.so.
     expect(manifest.launchAsset.url).toBe(
-      `https://cloud.oxy.so/updates/assets/${seeded.launchSha256}`
+      `https://cloud.oxy.so/updates/assets/${seeded.launchSha256}`,
     );
     expect(manifest.launchAsset.fileExtension).toBeUndefined();
     expect(manifest.launchAsset.contentType).toBe('application/javascript');
     // Regular asset keeps fileExtension and carries a base64url hash.
     expect(manifest.assets[0].url).toBe(
-      `https://cloud.oxy.so/updates/assets/${seeded.assetSha256s[0]}`
+      `https://cloud.oxy.so/updates/assets/${seeded.assetSha256s[0]}`,
     );
     expect(manifest.assets[0].fileExtension).toBe('.png');
     expect(manifest.assets[0].hash).toBe(
@@ -253,7 +254,7 @@ describe('buildManifestResponse — golden manifest', () => {
         .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
-        .replace(/=+$/, '')
+        .replace(/=+$/, ''),
     );
 
     // Extensions part is present and unsigned.
@@ -279,7 +280,7 @@ describe('buildManifestResponse — golden manifest', () => {
       'third',
     ]);
     expect(manifest.assets.map((asset: { url: string }) => asset.url)).toEqual(
-      seeded.assetSha256s.map((sha) => `https://cloud.oxy.so/updates/assets/${sha}`)
+      seeded.assetSha256s.map((sha) => `https://cloud.oxy.so/updates/assets/${sha}`),
     );
   });
 
@@ -288,7 +289,7 @@ describe('buildManifestResponse — golden manifest', () => {
     await publish(applicationId, channelId);
 
     const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { expectSignature: false })
+      baseRequest(applicationId, channel, { expectSignature: false }),
     );
     expect(partNamed(response, 'manifest')?.headers['expo-signature']).toBeUndefined();
   });
@@ -300,7 +301,7 @@ describe('buildManifestResponse — decision matrix', () => {
     const seeded = await publish(applicationId, channelId);
 
     const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { currentUpdateId: seeded.updateId })
+      baseRequest(applicationId, channel, { currentUpdateId: seeded.updateId }),
     );
     const directive = partNamed(response, 'directive');
     expect(directive).toBeDefined();
@@ -312,12 +313,14 @@ describe('buildManifestResponse — decision matrix', () => {
     const { applicationId, channelId, channel } = await track();
     // A head IS available: the directive must win anyway.
     await publish(applicationId, channelId);
-    await getDb().insert(updateChannelRollbacks).values({
-      channelId,
-      runtimeVersion: '1.0.0',
-      platform: 'ios',
-      commitTime: new Date('2026-06-01T00:00:00.000Z'),
-    });
+    await getDb()
+      .insert(updateChannelRollbacks)
+      .values({
+        channelId,
+        runtimeVersion: '1.0.0',
+        platform: 'ios',
+        commitTime: new Date('2026-06-01T00:00:00.000Z'),
+      });
 
     const response = await buildManifestResponse(baseRequest(applicationId, channel));
     const directive = partNamed(response, 'directive');
@@ -331,10 +334,12 @@ describe('buildManifestResponse — decision matrix', () => {
   test('a directive for another runtime or platform does not apply', async () => {
     const { applicationId, channelId, channel } = await track();
     const seeded = await publish(applicationId, channelId);
-    await getDb().insert(updateChannelRollbacks).values([
-      { channelId, runtimeVersion: '2.0.0', platform: 'ios', commitTime: new Date() },
-      { channelId, runtimeVersion: '1.0.0', platform: 'android', commitTime: new Date() },
-    ]);
+    await getDb()
+      .insert(updateChannelRollbacks)
+      .values([
+        { channelId, runtimeVersion: '2.0.0', platform: 'ios', commitTime: new Date() },
+        { channelId, runtimeVersion: '1.0.0', platform: 'android', commitTime: new Date() },
+      ]);
 
     const response = await buildManifestResponse(baseRequest(applicationId, channel));
     const manifest = JSON.parse((partNamed(response, 'manifest') as ParsedPart).body);
@@ -343,18 +348,20 @@ describe('buildManifestResponse — decision matrix', () => {
 
   test('rollback-to-embedded loop guard: client already on embedded → noUpdateAvailable', async () => {
     const { applicationId, channelId, channel } = await track();
-    await getDb().insert(updateChannelRollbacks).values({
-      channelId,
-      runtimeVersion: '1.0.0',
-      platform: 'ios',
-      commitTime: new Date('2026-06-01T00:00:00.000Z'),
-    });
+    await getDb()
+      .insert(updateChannelRollbacks)
+      .values({
+        channelId,
+        runtimeVersion: '1.0.0',
+        platform: 'ios',
+        commitTime: new Date('2026-06-01T00:00:00.000Z'),
+      });
 
     const response = await buildManifestResponse(
       baseRequest(applicationId, channel, {
         currentUpdateId: 'embedded-1',
         embeddedUpdateId: 'embedded-1',
-      })
+      }),
     );
     const directive = partNamed(response, 'directive');
     expect(JSON.parse((directive as ParsedPart).body)).toEqual({ type: 'noUpdateAvailable' });
@@ -371,7 +378,7 @@ describe('buildManifestResponse — decision matrix', () => {
     const { applicationId, channelId, channel } = await track();
     await publish(applicationId, channelId);
     const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { channelName: undefined })
+      baseRequest(applicationId, channel, { channelName: undefined }),
     );
     const directive = partNamed(response, 'directive');
     expect(JSON.parse((directive as ParsedPart).body)).toEqual({ type: 'noUpdateAvailable' });
@@ -409,7 +416,7 @@ describe('buildManifestResponse — decision matrix', () => {
     });
 
     const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { deviceKey: 'device-xyz' })
+      baseRequest(applicationId, channel, { deviceKey: 'device-xyz' }),
     );
     const manifest = JSON.parse((partNamed(response, 'manifest') as ParsedPart).body);
     expect(manifest.id).toBe(previous.updateId);
@@ -422,7 +429,7 @@ describe('buildManifestResponse — decision matrix', () => {
       baseRequest(applicationId, channel, {
         protocolVersion: 0,
         currentUpdateId: seeded.updateId,
-      })
+      }),
     );
     expect(response.status).toBe(204);
     expect(response.body).toBeUndefined();
@@ -432,7 +439,7 @@ describe('buildManifestResponse — decision matrix', () => {
     const { applicationId, channelId, channel } = await track();
     await publish(applicationId, channelId);
     const response = await buildManifestResponse(
-      baseRequest(applicationId, channel, { protocolVersion: 0 })
+      baseRequest(applicationId, channel, { protocolVersion: 0 }),
     );
     expect(response.status).toBe(200);
     expect(partNamed(response, 'manifest')).toBeDefined();
@@ -445,7 +452,7 @@ describe('buildManifestResponse — decision matrix', () => {
     resetSigningKeyCache();
 
     await expect(
-      buildManifestResponse(baseRequest(applicationId, channel, { expectSignature: true }))
+      buildManifestResponse(baseRequest(applicationId, channel, { expectSignature: true })),
     ).rejects.toThrow(/not configured/i);
   });
 });

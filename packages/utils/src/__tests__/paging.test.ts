@@ -6,12 +6,7 @@
  * the specification and the list of bugs it settles.
  */
 
-import {
-  offsetForPage,
-  resolvePageLimit,
-  resolvePageNumber,
-  resolvePageOffset,
-} from '../paging';
+import { offsetForPage, resolvePageLimit, resolvePageNumber, resolvePageOffset } from '../paging';
 
 const BOUNDS = { fallback: 20, max: 50 };
 
@@ -31,7 +26,19 @@ describe('resolvePageLimit', () => {
     // `NaN` when given one — so the idiomatic clamp looks like it bounds the
     // value and does not. It then reaches the query as `limit: NaN`, and any
     // `(page - 1) * limit` alongside it as `NaN` too.
-    for (const raw of ['abc', '', '   ', 'Infinity', '-Infinity', 'NaN', null, undefined, {}, [], true]) {
+    for (const raw of [
+      'abc',
+      '',
+      '   ',
+      'Infinity',
+      '-Infinity',
+      'NaN',
+      null,
+      undefined,
+      {},
+      [],
+      true,
+    ]) {
       const resolved = resolvePageLimit(raw, BOUNDS);
       expect(Number.isInteger(resolved)).toBe(true);
       expect(resolved).toBe(20);

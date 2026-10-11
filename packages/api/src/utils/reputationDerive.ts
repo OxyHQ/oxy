@@ -98,8 +98,7 @@ export function computeReliability(counts: ReliabilityCounts): ReputationReliabi
     reportTotal === 0 ? NEUTRAL_REPORT_ACCURACY : accurateReports / reportTotal;
 
   const abuseNumerator = rejectedReports + ABUSE_PENALTY_WEIGHT * reportAbuseCount;
-  const abuseDenominator =
-    accurateReports + rejectedReports + reportAbuseCount + ABUSE_SMOOTHING;
+  const abuseDenominator = accurateReports + rejectedReports + reportAbuseCount + ABUSE_SMOOTHING;
   const abuseScore = clamp(abuseNumerator / abuseDenominator, 0, 1);
 
   return {
@@ -177,7 +176,7 @@ export function deriveTrustTier(input: TrustTierInput): TrustTier {
  */
 export function deriveConductStanding(
   activeRisk: number,
-  thresholds: readonly ConductStandingThreshold[] = BASELINE_STANDING_THRESHOLDS
+  thresholds: readonly ConductStandingThreshold[] = BASELINE_STANDING_THRESHOLDS,
 ): ConductStanding {
   const ordered = [...thresholds].sort((a, b) => b.minRisk - a.minRisk);
   for (const threshold of ordered) {
@@ -227,8 +226,7 @@ export function computeReporting(counts: ReportingCounts): ReputationReportingSn
   const { confirmed, rejected, malicious } = counts;
 
   const successes = confirmed + REPORTING_PRIOR_SUCCESS;
-  const failures =
-    rejected + REPORTING_MALICIOUS_WEIGHT * malicious + REPORTING_PRIOR_FAILURE;
+  const failures = rejected + REPORTING_MALICIOUS_WEIGHT * malicious + REPORTING_PRIOR_FAILURE;
   const reliability = clamp(successes / (successes + failures), 0, 1);
 
   const effectiveSampleSize = confirmed + rejected + malicious;
@@ -262,7 +260,7 @@ export interface ContextualInfluenceInput {
  * much their answer counts.
  */
 export function deriveContextualInfluence(
-  input: ContextualInfluenceInput
+  input: ContextualInfluenceInput,
 ): ReputationContextualInfluenceSnapshot {
   const {
     contributionPoints,
@@ -287,10 +285,10 @@ export function deriveContextualInfluence(
 
   return {
     reportPriorityWeight: bound(
-      base * standingFactor * (REPORT_WEIGHT_ACCURACY_OFFSET + reportSignal)
+      base * standingFactor * (REPORT_WEIGHT_ACCURACY_OFFSET + reportSignal),
     ),
     reviewSelectionWeight: bound(
-      base * standingFactor * (REPORT_WEIGHT_ACCURACY_OFFSET + reviewingReliability)
+      base * standingFactor * (REPORT_WEIGHT_ACCURACY_OFFSET + reviewingReliability),
     ),
     rankingWeight: bound(base * standingFactor * RANKING_FEEDBACK_FACTOR),
   };
@@ -304,7 +302,7 @@ export function baseTrustWeight(total: number): number {
   return clamp(
     INFLUENCE_BASE_OFFSET + total / INFLUENCE_TOTAL_DIVISOR,
     INFLUENCE_MIN,
-    INFLUENCE_MAX
+    INFLUENCE_MAX,
   );
 }
 
@@ -315,7 +313,7 @@ export function baseTrustWeight(total: number): number {
 export function deriveInfluence(
   total: number,
   tier: TrustTier,
-  reliability: ReputationReliability
+  reliability: ReputationReliability,
 ): ReputationInfluence {
   if (tier === 'restricted') {
     return {
@@ -332,18 +330,10 @@ export function deriveInfluence(
   const reportWeight = clamp(
     base * (REPORT_WEIGHT_ACCURACY_OFFSET + reliability.reportAccuracyScore),
     INFLUENCE_MIN,
-    INFLUENCE_MAX
+    INFLUENCE_MAX,
   );
-  const moderationWeight = clamp(
-    base * MODERATION_TIER_FACTOR[tier],
-    INFLUENCE_MIN,
-    INFLUENCE_MAX
-  );
-  const rankingFeedbackWeight = clamp(
-    base * RANKING_FEEDBACK_FACTOR,
-    INFLUENCE_MIN,
-    INFLUENCE_MAX
-  );
+  const moderationWeight = clamp(base * MODERATION_TIER_FACTOR[tier], INFLUENCE_MIN, INFLUENCE_MAX);
+  const rankingFeedbackWeight = clamp(base * RANKING_FEEDBACK_FACTOR, INFLUENCE_MIN, INFLUENCE_MAX);
 
   return { defaultWeight, reportWeight, moderationWeight, rankingFeedbackWeight };
 }

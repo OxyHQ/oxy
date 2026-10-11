@@ -1,7 +1,4 @@
-import {
-  stepWoodenPills,
-  type WoodenPillBody,
-} from '../../components/auth/woodenPillsPhysics';
+import { stepWoodenPills, type WoodenPillBody } from '../../components/auth/woodenPillsPhysics';
 
 const WIDTH = 400;
 const HEIGHT = 720;
@@ -27,11 +24,7 @@ function makeBody(x: number, y: number, width = 110): WoodenPillBody {
   };
 }
 
-function step(
-  bodies: WoodenPillBody[],
-  gravityX = 0,
-  gravityY = 1
-) {
+function step(bodies: WoodenPillBody[], gravityX = 0, gravityY = 1) {
   return stepWoodenPills(bodies, {
     dt: 1 / 120,
     width: WIDTH,
@@ -60,14 +53,12 @@ describe('wooden pill physics', () => {
 
   it('keeps a tall supported stack still', () => {
     const bodies = Array.from({ length: 6 }, (_, index) =>
-      makeBody(WIDTH / 2, 650 - index * PILL_HEIGHT)
+      makeBody(WIDTH / 2, 650 - index * PILL_HEIGHT),
     );
 
     for (let frame = 0; frame < 1200; frame += 1) step(bodies);
 
-    const maximumSpeed = Math.max(
-      ...bodies.map((body) => Math.hypot(body.vx, body.vy))
-    );
+    const maximumSpeed = Math.max(...bodies.map((body) => Math.hypot(body.vx, body.vy)));
     expect(maximumSpeed).toBeLessThan(0.01);
     expect(bodies.every((body) => body.contacted)).toBe(true);
   });

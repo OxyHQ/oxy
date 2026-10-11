@@ -85,10 +85,18 @@ export async function commitDeviceSetAndResolve(
     // valid session is minted. Log at debug; warn only on genuine unexpected
     // failures (network, 5xx, malformed).
     if (isUnauthorizedStatus(registrationError)) {
-      loggerUtil.debug('commitSession: device-set registration skipped (signed out)', LOG_CONTEXT, registrationError);
+      loggerUtil.debug(
+        'commitSession: device-set registration skipped (signed out)',
+        LOG_CONTEXT,
+        registrationError,
+      );
       return;
     }
-    loggerUtil.warn('commitSession: device-set registration failed', LOG_CONTEXT, registrationError);
+    loggerUtil.warn(
+      'commitSession: device-set registration failed',
+      LOG_CONTEXT,
+      registrationError,
+    );
   };
 
   // Hydrate the full user then flip the auth-resolution gate. Falls back to the
@@ -100,7 +108,11 @@ export async function commitDeviceSetAndResolve(
       fullUser = await getCurrentUser();
     } catch (profileError) {
       if (__DEV__) {
-        loggerUtil.debug('Failed to fetch full user on commit; using minimal fallback', LOG_CONTEXT, profileError);
+        loggerUtil.debug(
+          'Failed to fetch full user on commit; using minimal fallback',
+          LOG_CONTEXT,
+          profileError,
+        );
       }
       fullUser = fallbackUser;
     }

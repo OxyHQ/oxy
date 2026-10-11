@@ -33,7 +33,12 @@ export function sealSecret(plaintext: string, context: string): string {
   cipher.setAAD(Buffer.from(context, 'utf8'));
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [VERSION, iv.toString('base64url'), ciphertext.toString('base64url'), tag.toString('base64url')].join('.');
+  return [
+    VERSION,
+    iv.toString('base64url'),
+    ciphertext.toString('base64url'),
+    tag.toString('base64url'),
+  ].join('.');
 }
 
 /** Decrypt what {@link sealSecret} produced for the same `context`; throws on any tampering. */
@@ -45,5 +50,8 @@ export function openSecret(sealed: string, context: string): string {
   const decipher = crypto.createDecipheriv('aes-256-gcm', key(), Buffer.from(iv, 'base64url'));
   decipher.setAAD(Buffer.from(context, 'utf8'));
   decipher.setAuthTag(Buffer.from(tag, 'base64url'));
-  return Buffer.concat([decipher.update(Buffer.from(ciphertext, 'base64url')), decipher.final()]).toString('utf8');
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertext, 'base64url')),
+    decipher.final(),
+  ]).toString('utf8');
 }

@@ -87,7 +87,7 @@ describe('rejected locales leave the column untouched', () => {
     const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(id, { languages: languages as string[] })
+      userService.updateUserProfile(id, { languages: languages as string[] }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     expect(await storedLanguages(id)).toEqual(SEEDED_LANGUAGES);
@@ -99,7 +99,7 @@ describe('rejected locales leave the column untouched', () => {
     await expect(
       userService.updateUserProfile(id, {
         languages: 'en-US' as unknown as string[],
-      })
+      }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     expect(await storedLanguages(id)).toEqual(SEEDED_LANGUAGES);
@@ -108,9 +108,9 @@ describe('rejected locales leave the column untouched', () => {
   it('names the offending field on the error', async () => {
     const id = await makeUser();
 
-    await expect(
-      userService.updateUserProfile(id, { languages: ['zz-ZZ'] })
-    ).rejects.toMatchObject({ statusCode: 400, details: { field: 'languages' } });
+    await expect(userService.updateUserProfile(id, { languages: ['zz-ZZ'] })).rejects.toMatchObject(
+      { statusCode: 400, details: { field: 'languages' } },
+    );
   });
 });
 

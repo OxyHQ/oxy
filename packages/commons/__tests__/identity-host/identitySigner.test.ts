@@ -46,7 +46,10 @@ describe('createIdentitySignerStore', () => {
   });
 
   it('reads a malformed native answer as empty', async () => {
-    requireOptional.mockReturnValue({ ...fakeNative(), read: jest.fn(async () => ({ privateKey: 1 })) });
+    requireOptional.mockReturnValue({
+      ...fakeNative(),
+      read: jest.fn(async () => ({ privateKey: 1 })),
+    });
     await expect(createIdentitySignerStore()?.read()).resolves.toBeNull();
   });
 

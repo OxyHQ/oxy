@@ -1,8 +1,8 @@
 /**
  * Subscription status projection — against a REAL Postgres.
  *
- * This is the replacement for a Mongo TTL index that DELETED a subscription when
- * its period closed. The single most important assertion in this file is
+ * A subscription's period closing must never DELETE its row. The single most
+ * important assertion in this file is
  * therefore a NEGATIVE one: the projection must relabel and never remove. A port
  * that "worked" by deleting would satisfy every status assertion here and still
  * be the data-loss bug the removal exists to fix, so the row count is checked
@@ -37,13 +37,15 @@ async function giveSubscription(
   status: 'active' | 'canceled' | 'expired',
   endDate: Date,
 ): Promise<void> {
-  await getDb().insert(subscriptions).values({
-    userId,
-    plan: 'pro',
-    status,
-    startDate: new Date(Date.now() - 30 * DAY_MS),
-    endDate,
-  });
+  await getDb()
+    .insert(subscriptions)
+    .values({
+      userId,
+      plan: 'pro',
+      status,
+      startDate: new Date(Date.now() - 30 * DAY_MS),
+      endDate,
+    });
 }
 
 async function storedRows(userId: string) {

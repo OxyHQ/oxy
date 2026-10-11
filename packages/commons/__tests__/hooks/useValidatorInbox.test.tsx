@@ -31,7 +31,11 @@ describe('useValidatorInbox', () => {
 
   it('calls getValidatorInbox and surfaces the list', async () => {
     const getValidatorInbox = jest.fn(async () => INBOX);
-    __setOxyState({ isAuthenticated: true, user: { id: 'me' }, oxyServices: { getValidatorInbox } });
+    __setOxyState({
+      isAuthenticated: true,
+      user: { id: 'me' },
+      oxyServices: { getValidatorInbox },
+    });
 
     const { result } = renderHook(() => useValidatorInbox(), { wrapper: makeWrapper() });
 

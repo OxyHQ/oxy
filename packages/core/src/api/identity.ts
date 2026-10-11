@@ -192,10 +192,15 @@ export class IdentityApi {
    * document. Public (no auth required); short-TTL cached.
    */
   async resolveDid(userId: string): Promise<DidDocument> {
-    return this.ctx.request<DidDocument>('GET', `/u/${encodeURIComponent(userId)}/did.json`, undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    return this.ctx.request<DidDocument>(
+      'GET',
+      `/u/${encodeURIComponent(userId)}/did.json`,
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
   }
 
   /**
@@ -204,7 +209,10 @@ export class IdentityApi {
    * verification-method fragment.
    */
   async authMethods(): Promise<AuthMethodsResponse> {
-    return this.ctx.request<AuthMethodsResponse>('GET', '/auth/methods', undefined, { cache: true, cacheTTL: SHORT_TTL });
+    return this.ctx.request<AuthMethodsResponse>('GET', '/auth/methods', undefined, {
+      cache: true,
+      cacheTTL: SHORT_TTL,
+    });
   }
 
   /**
@@ -212,7 +220,9 @@ export class IdentityApi {
    * linked (self-custody), or the email of an account without a key.
    */
   async rootStatus(): Promise<IdentityRootStatus> {
-    return this.ctx.request<IdentityRootStatus>('GET', '/identity/root-status', undefined, { cache: false });
+    return this.ctx.request<IdentityRootStatus>('GET', '/identity/root-status', undefined, {
+      cache: false,
+    });
   }
 
   /**
@@ -250,11 +260,14 @@ export class IdentityApi {
       throw new Error('No authenticated user — sign in before rotating your key.');
     }
 
-    const { KeyManager, RecoveryPhraseService, SignatureService, signMessage } = await import('../crypto/internal');
+    const { KeyManager, RecoveryPhraseService, SignatureService, signMessage } = await import(
+      '../crypto/internal'
+    );
 
     // 1. The NEW identity (in memory only). The UI may pre-derive + pre-show
     //    it and pass it back here so the phrase shown === the phrase committed.
-    const pending = options.pendingIdentity ?? (await RecoveryPhraseService.derivePendingIdentity());
+    const pending =
+      options.pendingIdentity ?? (await RecoveryPhraseService.derivePendingIdentity());
     const newPublicKey = pending.publicKey;
 
     // 2. Resolve the OLD signing capability from the chosen proof mode.
@@ -271,16 +284,23 @@ export class IdentityApi {
     } else {
       const currentPublicKey = await KeyManager.getPublicKey();
       if (!currentPublicKey) {
-        throw new Error('No on-device identity found. Use the recovery-phrase option to rotate your key.');
+        throw new Error(
+          'No on-device identity found. Use the recovery-phrase option to rotate your key.',
+        );
       }
       oldPublicKey = currentPublicKey;
       signWithOldKey = (message) => SignatureService.sign(message);
     }
 
     // 3. Request a single-use rotate_key challenge (bearer).
-    const { challenge } = await this.ctx.request<RotateKeyChallengeResponse>('POST', '/auth/rotate/challenge', undefined, {
-      cache: false,
-    });
+    const { challenge } = await this.ctx.request<RotateKeyChallengeResponse>(
+      'POST',
+      '/auth/rotate/challenge',
+      undefined,
+      {
+        cache: false,
+      },
+    );
 
     // 4. Sign the rotation proofs. The OLD key proves control of the key being
     //    replaced; the NEW key proves possession of the key being rotated in.
@@ -406,7 +426,9 @@ export class IdentityApi {
    */
   private async rotationAlreadyApplied(userId: string, newPublicKey: string): Promise<boolean> {
     return this.ctx
-      .request<DidDocument>('GET', `/u/${encodeURIComponent(userId)}/did.json`, undefined, { cache: false })
+      .request<DidDocument>('GET', `/u/${encodeURIComponent(userId)}/did.json`, undefined, {
+        cache: false,
+      })
       .then((doc) =>
         doc.verificationMethod.some(
           (vm) =>
@@ -442,7 +464,9 @@ export class IdentityLinksApi {
    * The "Link Commons" panel shows its `qrPayload`; Commons scans it and signs with `sign`.
    */
   async create(): Promise<IdentityLinkCreateResponse> {
-    const res = await this.ctx.request<unknown>('POST', '/identity/link', undefined, { cache: false });
+    const res = await this.ctx.request<unknown>('POST', '/identity/link', undefined, {
+      cache: false,
+    });
     const parsed = safeParseContract(identityLinkCreateResponseSchema, res);
     if (!parsed) throw new Error('identity/link returned an unexpected response shape');
     return parsed;
@@ -450,10 +474,15 @@ export class IdentityLinksApi {
 
   /** Where a link request stands. Both devices poll it; it needs no session. */
   async get(linkId: string): Promise<IdentityLinkState> {
-    const res = await this.ctx.request<unknown>('GET', `/identity/link/${encodeURIComponent(linkId)}`, undefined, {
-      cache: false,
-      skipAuth: true,
-    });
+    const res = await this.ctx.request<unknown>(
+      'GET',
+      `/identity/link/${encodeURIComponent(linkId)}`,
+      undefined,
+      {
+        cache: false,
+        skipAuth: true,
+      },
+    );
     const parsed = safeParseContract(identityLinkStateSchema, res);
     if (!parsed) throw new Error('identity/link returned an unexpected response shape');
     return parsed;
@@ -464,9 +493,17 @@ export class IdentityLinksApi {
    * device's identity key and post it. NATIVE-ONLY. Resolves to the key and the
    * 6-digit code the other screen will show for it, for the person to compare.
    */
-  async sign(linkId: string, challenge: string): Promise<{ publicKey: string; code: string; username: string | null }> {
-    const { KeyManager, signIdentityProof, deriveIdentityLinkCode } = await import('../crypto/internal');
-    const [privateKey, publicKey] = await Promise.all([KeyManager.getPrivateKey(), KeyManager.getPublicKey()]);
+  async sign(
+    linkId: string,
+    challenge: string,
+  ): Promise<{ publicKey: string; code: string; username: string | null }> {
+    const { KeyManager, signIdentityProof, deriveIdentityLinkCode } = await import(
+      '../crypto/internal'
+    );
+    const [privateKey, publicKey] = await Promise.all([
+      KeyManager.getPrivateKey(),
+      KeyManager.getPublicKey(),
+    ]);
     if (!privateKey || !publicKey) {
       throw new Error('No identity on this device to link');
     }
@@ -492,7 +529,11 @@ export class IdentityLinksApi {
       { publicKey: root, proof },
       { cache: false, skipAuth: true },
     );
-    return { publicKey: root, code: deriveIdentityLinkCode(linkId, root), username: state.username };
+    return {
+      publicKey: root,
+      code: deriveIdentityLinkCode(linkId, root),
+      username: state.username,
+    };
   }
 
   /**
@@ -517,7 +558,12 @@ export class IdentityLinksApi {
 
   /** Withdraw a link request that has not completed. */
   async cancel(linkId: string): Promise<void> {
-    await this.ctx.request<unknown>('DELETE', `/identity/link/${encodeURIComponent(linkId)}`, undefined, { cache: false });
+    await this.ctx.request<unknown>(
+      'DELETE',
+      `/identity/link/${encodeURIComponent(linkId)}`,
+      undefined,
+      { cache: false },
+    );
   }
 }
 
@@ -534,7 +580,12 @@ export class IdentityDomainsApi {
    * `verify`.
    */
   async requestVerification(domain: string): Promise<DomainVerificationInstructions> {
-    return this.ctx.request<DomainVerificationInstructions>('POST', '/identity/domains', { domain }, { cache: false });
+    return this.ctx.request<DomainVerificationInstructions>(
+      'POST',
+      '/identity/domains',
+      { domain },
+      { cache: false },
+    );
   }
 
   /**
@@ -555,10 +606,15 @@ export class IdentityDomainsApi {
 
   /** The signed-in user's verified domains. */
   async list(): Promise<VerifiedDomain[]> {
-    const res = await this.ctx.request<{ domains?: VerifiedDomain[] }>('GET', '/identity/domains', undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    const res = await this.ctx.request<{ domains?: VerifiedDomain[] }>(
+      'GET',
+      '/identity/domains',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
     return res.domains ?? [];
   }
 
@@ -649,7 +705,8 @@ export class IdentityBackupApi {
    * from SecureStore.
    */
   async create(phrase: string): Promise<BackupStatusResponse> {
-    const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } = await import('../crypto/internal');
+    const { KeyManager, RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO, encryptAead } =
+      await import('../crypto/internal');
     const { backupKey, lookupId } = await RecoveryPhraseService.deriveBackupMaterial(phrase);
     const privateKey = await RecoveryPhraseService.derivePrivateKeyFromPhrase(phrase);
     const publicKey = KeyManager.derivePublicKey(privateKey);
@@ -672,7 +729,9 @@ export class IdentityBackupApi {
       lookupId,
     };
 
-    return this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, { cache: false });
+    return this.ctx.request<BackupStatusResponse>('POST', '/identity/backup', body, {
+      cache: false,
+    });
   }
 
   /**
@@ -680,12 +739,16 @@ export class IdentityBackupApi {
    * and timestamp. Returns no ciphertext and no locator.
    */
   async status(): Promise<BackupStatusResponse> {
-    return this.ctx.request<BackupStatusResponse>('GET', '/identity/backup/status', undefined, { cache: false });
+    return this.ctx.request<BackupStatusResponse>('GET', '/identity/backup/status', undefined, {
+      cache: false,
+    });
   }
 
   /** Delete the signed-in user's stored backup. Idempotent. */
   async delete(): Promise<{ success: boolean }> {
-    return this.ctx.request<{ success: boolean }>('DELETE', '/identity/backup', undefined, { cache: false });
+    return this.ctx.request<{ success: boolean }>('DELETE', '/identity/backup', undefined, {
+      cache: false,
+    });
   }
 
   /**
@@ -718,7 +781,12 @@ export class IdentityBackupApi {
     }
 
     const aad = buildBackupAad(envelope.version, envelope.publicKeyHint);
-    const plaintext = decryptAead(backupKey, fromHex(envelope.nonce), fromHex(envelope.ciphertext), aad);
+    const plaintext = decryptAead(
+      backupKey,
+      fromHex(envelope.nonce),
+      fromHex(envelope.ciphertext),
+      aad,
+    );
     const payload = JSON.parse(new TextDecoder().decode(plaintext)) as BackupPayload;
 
     if (!payload.privateKey || !payload.publicKey) {

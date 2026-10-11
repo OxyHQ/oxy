@@ -65,9 +65,10 @@ export function isLoopbackOrigin(origin: string): boolean {
  * Used to refuse endpoints that must be native-only (e.g. background-credential
  * provisioning) without relying on client-side platform gates alone.
  */
-export function isBrowserClient(
-  headers: { origin?: string | string[]; 'sec-fetch-site'?: string | string[] },
-): boolean {
+export function isBrowserClient(headers: {
+  origin?: string | string[];
+  'sec-fetch-site'?: string | string[];
+}): boolean {
   const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
   if (origin !== undefined) {
     return true;

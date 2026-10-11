@@ -44,7 +44,12 @@ import { PressableScale } from '@oxy.so/bloom/pressable-scale';
 import { CompositionBar, type CompositionCategory } from '@oxy.so/bloom/composition-bar';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { Text } from '@oxy.so/bloom/typography';
-import { showsPrincipalHeaders, type AccountDialogSnapshot, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
+import {
+  showsPrincipalHeaders,
+  type AccountDialogSnapshot,
+  type SwitcherContextRow,
+  type SwitcherPrincipalRow,
+} from '@oxy.so/core/session';
 import AvatarCameraBadge from '../AvatarCameraBadge';
 import { authChooserStyles as styles } from './styles';
 import {
@@ -384,7 +389,8 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
             variant, `small` the compact height; it hugs its label instead of
             spanning the surface. */}
         <Button
-          appearance="subtle" tone="neutral"
+          appearance="subtle"
+          tone="neutral"
           size="sm"
           onPress={handlers.onManage}
           accessibilityLabel={manageLabel}
@@ -399,60 +405,60 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
       <View className="mb-space-16">
         <Animated.View style={[{ overflow: 'hidden' }, switchCardStyle]}>
           <View className="bg-fill">
-          <HoverPressable
-            baseClassName={`flex-row items-center gap-space-12 px-space-12 py-[10px] min-h-[44px]${
-              busy ? ' opacity-60' : ''
-            }`}
-            hoverClassName="bg-fill-secondary"
-            onPress={toggleExpanded}
-            disabled={busy}
-            accessibilityRole="button"
-            // The ARIA prop, not `accessibilityState`: react-native-web 0.21
-            // forwards only this one, and RN maps it to
-            // `accessibilityState.expanded` natively — so the disclosure state
-            // reaches assistive tech on BOTH platforms.
-            aria-expanded={expanded}
-            accessibilityLabel={switchLabel}
-          >
-            <Text className="flex-1 text-body text-text" numberOfLines={1}>
-              {switchLabel}
-            </Text>
-            {/* The facepile previews who you can switch to; once the list is open
+            <HoverPressable
+              baseClassName={`flex-row items-center gap-space-12 px-space-12 py-[10px] min-h-[44px]${
+                busy ? ' opacity-60' : ''
+              }`}
+              hoverClassName="bg-fill-secondary"
+              onPress={toggleExpanded}
+              disabled={busy}
+              accessibilityRole="button"
+              // The ARIA prop, not `accessibilityState`: react-native-web 0.21
+              // forwards only this one, and RN maps it to
+              // `accessibilityState.expanded` natively — so the disclosure state
+              // reaches assistive tech on BOTH platforms.
+              aria-expanded={expanded}
+              accessibilityLabel={switchLabel}
+            >
+              <Text className="flex-1 text-body text-text" numberOfLines={1}>
+                {switchLabel}
+              </Text>
+              {/* The facepile previews who you can switch to; once the list is open
                 it would just restate the rows below it. */}
-            {expanded ? null : (
-              <AvatarGroup
-                items={facepile}
-                layout="stack"
-                size={FACEPILE_AVATAR_SIZE}
-                max={FACEPILE_MAX}
-                overlap={FACEPILE_OVERLAP}
-                variant="thumb"
-                showInitials
-                ringColor={theme.colors.card}
-              />
-            )}
-            <View style={[styles.chevronCircle, { backgroundColor: theme.colors.contrast50 }]}>
-              <Animated.View style={chevronStyle}>
-                <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.text} />
-              </Animated.View>
-            </View>
-          </HoverPressable>
+              {expanded ? null : (
+                <AvatarGroup
+                  items={facepile}
+                  layout="stack"
+                  size={FACEPILE_AVATAR_SIZE}
+                  max={FACEPILE_MAX}
+                  overlap={FACEPILE_OVERLAP}
+                  variant="thumb"
+                  showInitials
+                  ringColor={theme.colors.card}
+                />
+              )}
+              <View style={[styles.chevronCircle, { backgroundColor: theme.colors.contrast50 }]}>
+                <Animated.View style={chevronStyle}>
+                  <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.text} />
+                </Animated.View>
+              </View>
+            </HoverPressable>
 
-          {/* Animated reveal: an overflow-clipped container whose height + opacity
+            {/* Animated reveal: an overflow-clipped container whose height + opacity
               are driven by `listProgress`; the inner style-based wrapper measures
               the natural content height via `onLayout`. */}
-          <Animated.View
-            style={[styles.collapse, listStyle]}
-            pointerEvents={expanded ? 'auto' : 'none'}
-          >
-            <View
-              key={switchListKey}
-              style={styles.collapseMeasure}
-              onLayout={(event) => setListContentHeight(event.nativeEvent.layout.height)}
+            <Animated.View
+              style={[styles.collapse, listStyle]}
+              pointerEvents={expanded ? 'auto' : 'none'}
             >
-              <View>{listItems}</View>
-            </View>
-          </Animated.View>
+              <View
+                key={switchListKey}
+                style={styles.collapseMeasure}
+                onLayout={(event) => setListContentHeight(event.nativeEvent.layout.height)}
+              >
+                <View>{listItems}</View>
+              </View>
+            </Animated.View>
           </View>
         </Animated.View>
       </View>
@@ -507,7 +513,14 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
         {menu.customItems.map((item) => (
           <SettingsListItem
             key={item.key}
-            icon={<MenuIcon name={(item.icon ?? 'dots-horizontal') as keyof typeof MaterialCommunityIcons.glyphMap} theme={theme} />}
+            icon={
+              <MenuIcon
+                name={
+                  (item.icon ?? 'dots-horizontal') as keyof typeof MaterialCommunityIcons.glyphMap
+                }
+                theme={theme}
+              />
+            }
             title={item.label}
             onPress={item.onPress}
           />
@@ -655,7 +668,10 @@ const ContextRow: React.FC<{
           {/* The accent ring is an OVERLAY: it costs the row no width, so every
               avatar in the list starts on the same content line. */}
           {context.isActive ? (
-            <View style={[styles.currentAvatarRing, { borderColor: accent }]} pointerEvents="none" />
+            <View
+              style={[styles.currentAvatarRing, { borderColor: accent }]}
+              pointerEvents="none"
+            />
           ) : null}
         </View>
         <View className="flex-1 min-w-0">
@@ -670,9 +686,7 @@ const ContextRow: React.FC<{
                 : ''}
           </Text>
         </View>
-        {activating ? (
-          <MaterialCommunityIcons name="loading" size={20} color={accent} />
-        ) : null}
+        {activating ? <MaterialCommunityIcons name="loading" size={20} color={accent} /> : null}
       </HoverPressable>
       <HoverPressable
         baseClassName={`px-space-12 py-[10px]${disabled ? ' opacity-60' : ''}`}

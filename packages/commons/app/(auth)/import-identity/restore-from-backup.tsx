@@ -4,14 +4,17 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
-import { KeyManager, RecoveryPhraseService, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  RecoveryPhraseService,
+  IdentityAlreadyExistsError,
+  IdentityUnavailableError,
+} from '@oxy.so/core/crypto';
 import { handleHttpError } from '@oxy.so/core';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
@@ -58,8 +61,8 @@ export default function RestoreFromBackupScreen() {
   );
   const setSynced = useIdentityStore((state) => state.setSynced);
 
-  const [phraseWords, setPhraseWords] = useState<string[]>(
-    () => new Array(RECOVERY_PHRASE_LENGTH).fill(''),
+  const [phraseWords, setPhraseWords] = useState<string[]>(() =>
+    new Array(RECOVERY_PHRASE_LENGTH).fill(''),
   );
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -112,7 +115,10 @@ export default function RestoreFromBackupScreen() {
         try {
           await KeyManager.storeRecoveryMnemonic(phrase);
         } catch (mnemonicError) {
-          console.warn('[restore-from-backup] Failed to persist recovery mnemonic for re-reveal', mnemonicError);
+          console.warn(
+            '[restore-from-backup] Failed to persist recovery mnemonic for re-reveal',
+            mnemonicError,
+          );
         }
 
         // The user typed the phrase by hand, so they unambiguously already hold
@@ -163,7 +169,16 @@ export default function RestoreFromBackupScreen() {
         setIsLoading(false);
       }
     },
-    [oxyServices, clearSessionState, syncIdentity, queryClient, router, setRecoveryPhraseAcknowledgedPersisted, setSynced, t],
+    [
+      oxyServices,
+      clearSessionState,
+      syncIdentity,
+      queryClient,
+      router,
+      setRecoveryPhraseAcknowledgedPersisted,
+      setSynced,
+      t,
+    ],
   );
 
   const handleRestore = useCallback(async () => {
@@ -182,24 +197,22 @@ export default function RestoreFromBackupScreen() {
     if ((await runRestore(phrase, false)) !== 'needs-overwrite') return;
     // A different identity is on this device. Confirm before clobbering —
     // the same consent gate as the manual importer.
-    alert(
-      t('restoreBackup.overwriteTitle'),
-      t('restoreBackup.overwriteBody'),
-      [
-        { text: t('restoreBackup.cancel'), style: 'cancel' },
-        {
-          text: t('restoreBackup.overwriteConfirm'),
-          style: 'destructive',
-          onPress: () => {
-            void runRestore(phrase, true);
-          },
+    alert(t('restoreBackup.overwriteTitle'), t('restoreBackup.overwriteBody'), [
+      { text: t('restoreBackup.cancel'), style: 'cancel' },
+      {
+        text: t('restoreBackup.overwriteConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          void runRestore(phrase, true);
         },
-      ],
-    );
+      },
+    ]);
   }, [phraseWords, runRestore, t]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.title, { color: colors.text }]}>{t('restoreBackup.title')}</Text>
         <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>
@@ -215,7 +228,16 @@ export default function RestoreFromBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleRestore} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={handleRestore}
+          disabled={isLoading}
+          loading={isLoading}
+          className="mt-space-32"
+        >
+          {isLoading ? t('restoreBackup.restoring') : t('restoreBackup.restore')}
+        </Button>
 
         <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}

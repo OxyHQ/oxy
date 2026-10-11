@@ -31,7 +31,6 @@ jest.mock('@/components/ui', () => ({
     React.createElement('button', { onClick: onPress }, children),
 }));
 
-
 jest.mock('@/hooks/useOnboardingStatus', () => {
   const actual = jest.requireActual('@/hooks/useOnboardingStatus');
   return {
@@ -41,7 +40,6 @@ jest.mock('@/hooks/useOnboardingStatus', () => {
 });
 
 // Imported after the UI and state-machine mocks so the screen binds to them.
-// eslint-disable-next-line import/first
 import RecoverIdentityScreen from '@/app/(auth)/recover-identity';
 
 function renderScreen(client: QueryClient) {

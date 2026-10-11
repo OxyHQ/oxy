@@ -5,12 +5,10 @@
  * (service-token only, `reputation:write`), the juror inbox, and the rejection
  * statuses for voting and recusal.
  *
- * The previous version mocked `validator.service` and asserted the shape of the
- * value it had just handed the route back — so it could not notice that the
- * route now reads `request.id` rather than a Mongo `_id`, nor that opening a
- * request first checks the subject EXISTS (a real 400 for a body field, added
- * because an unknown subject would otherwise reach a foreign key and answer
- * 500). Both of those are why it went red.
+ * `validator.service` is real, so the suite notices that the route reads
+ * `request.id` rather than `_id`, and that opening a request first checks the
+ * subject EXISTS (a real 400 for a body field, because an unknown subject would
+ * otherwise reach a foreign key and answer 500).
  *
  * The service is fully ported, so it runs for real here. Jury selection reads
  * every eligible `reputation_balances` row in the database, which other suites
@@ -73,11 +71,7 @@ import {
 } from '../../db/schema/validationRequests';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import {
-  VALIDATION_TTL_MS,
-  VALIDATOR_COUNT,
-  VALIDATOR_QUORUM,
-} from '../../utils/civic.constants';
+import { VALIDATION_TTL_MS, VALIDATOR_COUNT, VALIDATOR_QUORUM } from '../../utils/civic.constants';
 import civicRoutes from '../civic';
 
 interface JsonResponse {
@@ -410,7 +404,7 @@ describe('POST /civic/validations/:id/vote', () => {
 });
 
 describe('POST /civic/validations/:id/deny', () => {
-  it('removes the caller\'s seat and answers { denied: true }', async () => {
+  it("removes the caller's seat and answers { denied: true }", async () => {
     const subject = await account();
     const juror = await eligibleJuror();
     const other = await eligibleJuror();

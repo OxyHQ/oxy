@@ -1,6 +1,6 @@
 /**
  * Simple utility to format user objects for API responses.
- * Returns clean, explicit user object with id (MongoDB ObjectId) and publicKey as separate fields.
+ * Returns clean, explicit user object with id (the account id) and publicKey as separate fields.
  */
 
 import { isAvatarFileId } from './federatedAvatar';
@@ -15,28 +15,31 @@ import { formatUserNameResponse, type NameParts, type NameResponse } from './dis
 
 type StringableId = string | { toString(): string };
 
-export type UserLike = {
-  _id?: StringableId | null;
-  publicKey?: string;
-  username?: string;
-  email?: string;
-  avatar?: string | null;
-  color?: string | null;
-  name?: NameParts;
-  accountCategories?: unknown;
-  privacySettings?: unknown;
-  verified?: boolean;
-  languages?: string[];
-  bio?: string;
-  description?: string;
-  locations?: unknown;
-  links?: unknown;
-  linksMetadata?: unknown;
-  verifiedDomains?: unknown;
-  themePreference?: unknown;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-} | null | undefined;
+export type UserLike =
+  | {
+      _id?: StringableId | null;
+      publicKey?: string;
+      username?: string;
+      email?: string;
+      avatar?: string | null;
+      color?: string | null;
+      name?: NameParts;
+      accountCategories?: unknown;
+      privacySettings?: unknown;
+      verified?: boolean;
+      languages?: string[];
+      bio?: string;
+      description?: string;
+      locations?: unknown;
+      links?: unknown;
+      linksMetadata?: unknown;
+      verifiedDomains?: unknown;
+      themePreference?: unknown;
+      createdAt?: unknown;
+      updatedAt?: unknown;
+    }
+  | null
+  | undefined;
 
 /** A proven-domain badge as emitted on the user DTO (secret-free, no subdoc _id). */
 interface VerifiedDomainDto {
@@ -73,8 +76,8 @@ function toVerifiedDomains(value: unknown): VerifiedDomainDto[] | undefined {
 function toAccountCategories(value: unknown): AccountCategoryId[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const known = new Set<string>(ACCOUNT_CATEGORY_IDS);
-  const ids = value.filter((entry): entry is AccountCategoryId =>
-    typeof entry === 'string' && known.has(entry)
+  const ids = value.filter(
+    (entry): entry is AccountCategoryId => typeof entry === 'string' && known.has(entry),
   );
   return ids.length > 0 ? ids : undefined;
 }
@@ -87,7 +90,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Coerce a stored `themePreference` subdoc into the wire {@link ThemePreference}.
  *
  * Returns `undefined` unless BOTH a valid `mode` and a string `colorPreset` are
- * present — an empty/partial Mongoose nested path (`{}`) serializes as absent
+ * present — an empty/partial stored object (`{}`) serializes as absent
  * rather than an invalid `{}`, so consumers keep their own default theme until
  * the user actually chooses one. Shared by both the canonical
  * `formatUserResponse` here and `UserService.formatUserResponse` so the two
@@ -124,8 +127,8 @@ export interface UserIdentitySource {
   _id?: unknown;
   /**
    * Drizzle returns the users row FLAT — `name_first` / `name_last` columns, not
-   * the nested `name` object Mongoose's schema produced. Both shapes reach this
-   * one serializer during the Postgres port, and `name.displayName` is the
+   * a nested `name` object. Both shapes reach this one serializer, and
+   * `name.displayName` is the
    * canonical API contract every ecosystem app reads, so the flat form is
    * accepted here rather than reassembled by each caller. `formatUserResponse`
    * takes `unknown`, so a caller that got this wrong would not fail tsc — it
@@ -162,7 +165,7 @@ export interface UserIdentityFields {
 }
 
 /**
- * The SOLE definition of the DTO `id`: the stable Mongo ObjectId string, NEVER
+ * The SOLE definition of the DTO `id`: the stable account id string, NEVER
  * the `publicKey`. The whole social graph (`Post.oxyUserId`, follow edges,
  * client follow-state maps) is keyed on `_id`, so flipping `id` to the publicKey
  * once a user links a Commons identity makes author-feed/follow lookups miss —
@@ -183,7 +186,7 @@ function resolveIdentityId(source: UserIdentitySource): string | undefined {
 
 /**
  * Narrow a source's name to the structured `NameParts` the composer reads,
- * accepting either the nested Mongoose shape or the flat Drizzle columns.
+ * accepting either the nested `name` shape or the flat Drizzle columns.
  * Returns `undefined` when neither yields anything, so a nameless account still
  * omits `displayName` and consumers fall back to the handle.
  */
@@ -243,11 +246,11 @@ function servedAvatar(source: UserIdentitySource): string | undefined {
 
 /**
  * Format user object for API response.
- * id = MongoDB ObjectId (_id.toString())
+ * id = the account id (`_id` as a string)
  * publicKey = separate field for authentication
  *
  * Self-sufficient name composition: the returned `name.full` is composed
- * whether or not the source document was loaded with Mongoose virtuals, and
+ * whether or not the source carries a composed name, and
  * `name.displayName` is present ONLY when the user has a real name (omitted for
  * username-only / publicKey-only accounts — consumers fall back to the handle).
  * This is the canonical producer of the `@oxy.so/core` `userResponseSchema`
@@ -284,7 +287,9 @@ export function formatUserResponse(user: unknown) {
     bio: stringValue(user.bio),
     description: stringValue(user.description),
     locations: Array.isArray(user.locations) ? user.locations : undefined,
-    links: Array.isArray(user.links) ? user.links.filter((link): link is string => typeof link === 'string') : undefined,
+    links: Array.isArray(user.links)
+      ? user.links.filter((link): link is string => typeof link === 'string')
+      : undefined,
     linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
     verifiedDomains: toVerifiedDomains(user.verifiedDomains),
     // Account-graph classification. Orthogonal to `type` below — `kind` says

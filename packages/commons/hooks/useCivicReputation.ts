@@ -20,10 +20,7 @@ import { useMemo } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useOxy } from '@oxy.so/services';
 import type { ReputationBalance } from '@oxy.so/contracts';
-import {
-  deriveReputationSources,
-  type ReputationSource,
-} from '@/lib/civic/reputation-sources';
+import { deriveReputationSources, type ReputationSource } from '@/lib/civic/reputation-sources';
 
 const BALANCE_STALE_TIME_MS = 5 * 60 * 1000;
 const BALANCE_GC_TIME_MS = 24 * 60 * 60 * 1000;
@@ -36,9 +33,7 @@ const BALANCE_GC_TIME_MS = 24 * 60 * 60 * 1000;
  *   snapshot; the READ itself always resolves whoever the SDK is authenticated
  *   as, so no id is passed to it.
  */
-export function useCivicReputation(
-  userId: string | null,
-): UseQueryResult<ReputationBalance> {
+export function useCivicReputation(userId: string | null): UseQueryResult<ReputationBalance> {
   const { oxyServices } = useOxy();
 
   return useQuery<ReputationBalance>({
@@ -63,8 +58,5 @@ export function useCivicReputation(
 export function useReputationSources(
   balance: ReputationBalance | undefined,
 ): ReputationSource[] | null {
-  return useMemo(
-    () => (balance ? deriveReputationSources(balance.breakdown) : null),
-    [balance],
-  );
+  return useMemo(() => (balance ? deriveReputationSources(balance.breakdown) : null), [balance]);
 }

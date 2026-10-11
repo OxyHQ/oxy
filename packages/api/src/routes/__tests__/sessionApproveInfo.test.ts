@@ -67,15 +67,18 @@ let server: http.Server;
 function get(path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => {
-        raw += chunk;
-      });
-      res.on('end', () =>
-        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-      );
-    });
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -86,7 +89,9 @@ async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise
   return row.id;
 }
 
-async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+async function application(
+  fields: Partial<typeof applications.$inferInsert> = {},
+): Promise<string> {
   const ownerAccountId = fields.ownerAccountId ?? (await account());
   const [row] = await getDb()
     .insert(applications)
@@ -292,9 +297,11 @@ describe('GET /auth/session/approve-info/:authorizeCode', () => {
 
     const res = await get(`/auth/session/approve-info/${authorizeCode}`);
 
-    const subject = (res.body.data as {
-      subjectAccount: { id: string; username: string; displayName: string };
-    }).subjectAccount;
+    const subject = (
+      res.body.data as {
+        subjectAccount: { id: string; username: string; displayName: string };
+      }
+    ).subjectAccount;
     expect(subject.id).toBe(org);
     expect(subject.displayName).toBe('The Oxy Collective');
     // Id + handle + display name and NOTHING else: never kind, membership,
@@ -347,7 +354,6 @@ describe('GET /auth/session/approve-info/:authorizeCode', () => {
     expect(res.status).toBe(404);
   });
 });
-
 
 describe('OAuth approval info uses the approved empty-scope policy', () => {
   it.each(['first_party', 'third_party'] as const)('%s', async (type) => {

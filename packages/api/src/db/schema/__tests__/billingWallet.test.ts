@@ -139,12 +139,12 @@ describe('money columns are never floating point', () => {
       where table_schema = 'public'
         and table_name in (${sql.join(
           MONEY_TABLES.map((name) => sql`${name}`),
-          sql`, `
+          sql`, `,
         )})
     `);
 
     const byColumn = new Map(
-      rows.map((row) => [`${row.table_name}.${row.column_name}`, row.data_type])
+      rows.map((row) => [`${row.table_name}.${row.column_name}`, row.data_type]),
     );
 
     // The named set, with the type each one must have. A column that vanished
@@ -156,7 +156,7 @@ describe('money columns are never floating point', () => {
       }).filter((line, index) => {
         const [table, column, expected] = VALUE_COLUMNS[index];
         return byColumn.get(`${table}.${column}`) !== expected;
-      })
+      }),
     ).toEqual([]);
 
     // And the sweep, which catches a NEW column nobody thought about. `real` and
@@ -165,7 +165,7 @@ describe('money columns are never floating point', () => {
     expect(
       [...byColumn.entries()]
         .filter(([, type]) => type === 'real' || type === 'double precision')
-        .map(([id, type]) => `${id} = ${type}`)
+        .map(([id, type]) => `${id} = ${type}`),
     ).toEqual([]);
   });
 
@@ -240,7 +240,7 @@ describe('wallets — decimal arithmetic, not float arithmetic', () => {
     expect(row.balance).toBe('0.00000000');
   });
 
-  it('round-trips a value far outside a double\'s exact integer range', async () => {
+  it("round-trips a value far outside a double's exact integer range", async () => {
     const userId = await owner();
     const huge = '123456789012345678901234567890.12345678';
     await getDb().insert(wallets).values({ userId, balance: huge });
@@ -260,7 +260,7 @@ describe('wallets — decimal arithmetic, not float arithmetic', () => {
       getDb()
         .update(wallets)
         .set({ balance: sql`${wallets.balance} - 2.00000000` })
-        .where(eq(wallets.userId, userId))
+        .where(eq(wallets.userId, userId)),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -296,12 +296,16 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     const subscriptionId = `sub_${randomUUID()}`;
     const periodStart = new Date('2026-01-01T00:00:00Z');
 
-    await getDb().insert(billingTransactions).values(renewal(userId, subscriptionId, periodStart));
+    await getDb()
+      .insert(billingTransactions)
+      .values(renewal(userId, subscriptionId, periodStart));
 
     // Stripe retries webhooks. Without this index the retry grants a second
     // month of credits (`billing.ts:427-463`) and nothing anywhere says so.
     const error = await rejection(
-      getDb().insert(billingTransactions).values(renewal(userId, subscriptionId, periodStart))
+      getDb()
+        .insert(billingTransactions)
+        .values(renewal(userId, subscriptionId, periodStart)),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -319,7 +323,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     await expect(
       getDb()
         .insert(billingTransactions)
-        .values(renewal(userId, subscriptionId, new Date('2026-02-01T00:00:00Z')))
+        .values(renewal(userId, subscriptionId, new Date('2026-02-01T00:00:00Z'))),
     ).resolves.toBeDefined();
   });
 
@@ -328,20 +332,20 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     const subscriptionId = `sub_${randomUUID()}`;
     const periodStart = new Date('2026-01-01T00:00:00Z');
 
-    await getDb().insert(billingTransactions).values(renewal(userId, subscriptionId, periodStart));
+    await getDb()
+      .insert(billingTransactions)
+      .values(renewal(userId, subscriptionId, periodStart));
 
     await expect(
-      getDb()
-        .insert(billingTransactions)
-        .values({
-          userId,
-          stripeSubscriptionId: subscriptionId,
-          stripeSubscriptionPeriodStart: periodStart,
-          type: 'credit_purchase',
-          amountMinorUnits: 500,
-          credits: 1000,
-          status: 'completed',
-        })
+      getDb().insert(billingTransactions).values({
+        userId,
+        stripeSubscriptionId: subscriptionId,
+        stripeSubscriptionPeriodStart: periodStart,
+        type: 'credit_purchase',
+        amountMinorUnits: 500,
+        credits: 1000,
+        status: 'completed',
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -365,7 +369,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     // also an indexed COLUMN, so a differing type already avoids a collision
     // without any predicate at all. Only two rows of the SAME non-renewal type
     // distinguish the two shapes — drop the clause and this insert starts
-    // failing, constraining rows Mongo deliberately left unconstrained.
+    // failing, constraining rows that are deliberately left unconstrained.
     await getDb().insert(billingTransactions).values(refund);
     await expect(getDb().insert(billingTransactions).values(refund)).resolves.toBeDefined();
   });
@@ -383,7 +387,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     expect(indexdef).toContain('UNIQUE');
     expect(indexdef).toContain('stripe_subscription_id, stripe_subscription_period_start, type');
     expect(indexdef).toContain("type = 'subscription_payment'");
-    // The two `is not null` clauses reproduce Mongo's `$exists`. In Postgres they
+    // The two `is not null` clauses keep period-less rows out of the index. They
     // are index-SIZE fidelity rather than semantics — a btree already treats
     // NULLs as distinct, so a period-less row could never have collided (the case
     // below proves that end to end). A behavioural test therefore cannot hold
@@ -407,7 +411,7 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
     };
 
     await expect(
-      getDb().insert(billingTransactions).values([periodless, periodless])
+      getDb().insert(billingTransactions).values([periodless, periodless]),
     ).resolves.toBeDefined();
   });
 
@@ -433,12 +437,16 @@ describe('billing_transactions — the Stripe webhook idempotency index', () => 
 describe('user_credits — one Stripe customer resolves to one account', () => {
   it('rejects a second account claiming the same Stripe customer', async () => {
     const stripeCustomerId = `cus_${randomUUID()}`;
-    await getDb().insert(userCredits).values({ userId: await owner(), stripeCustomerId });
+    await getDb()
+      .insert(userCredits)
+      .values({ userId: await owner(), stripeCustomerId });
 
     // `billing.ts:387` resolves the account for a subscription webhook with
     // `findOne({stripeCustomerId})`. A `findOne` IS a uniqueness assumption.
     const error = await rejection(
-      getDb().insert(userCredits).values({ userId: await owner(), stripeCustomerId })
+      getDb()
+        .insert(userCredits)
+        .values({ userId: await owner(), stripeCustomerId }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -449,11 +457,11 @@ describe('user_credits — one Stripe customer resolves to one account', () => {
     await expect(
       getDb()
         .insert(userCredits)
-        .values([{ userId: await owner() }, { userId: await owner() }])
+        .values([{ userId: await owner() }, { userId: await owner() }]),
     ).resolves.toBeDefined();
   });
 
-  it('keys the row on the account id, with the Mongoose defaults', async () => {
+  it('keys the row on the account id, with the declared defaults', async () => {
     const userId = await owner();
     const [row] = await getDb().insert(userCredits).values({ userId }).returning();
 
@@ -492,18 +500,16 @@ describe('what deleting an account does to a financial row', () => {
     expect(pgConstraintName(error)).toBe('transactions_user_id_users_id_fk');
   });
 
-  it('will not let one erasure rewrite another person\'s ledger', async () => {
+  it("will not let one erasure rewrite another person's ledger", async () => {
     const payer = await owner();
     const payee = await owner();
-    await getDb()
-      .insert(transactions)
-      .values({
-        userId: payer,
-        recipientId: payee,
-        type: 'transfer',
-        amount: '12.50000000',
-        status: 'completed',
-      });
+    await getDb().insert(transactions).values({
+      userId: payer,
+      recipientId: payee,
+      type: 'transfer',
+      amount: '12.50000000',
+      status: 'completed',
+    });
 
     // The payee is only the COUNTERPARTY. Cascading would delete the payer's
     // record of the transfer; SET NULL would rewrite it into something with no
@@ -515,15 +521,13 @@ describe('what deleting an account does to a financial row', () => {
 
   it('refuses to erase an account that still has an invoice history', async () => {
     const userId = await owner();
-    await getDb()
-      .insert(billingTransactions)
-      .values({
-        userId,
-        type: 'credit_purchase',
-        amountMinorUnits: 500,
-        credits: 1000,
-        status: 'completed',
-      });
+    await getDb().insert(billingTransactions).values({
+      userId,
+      type: 'credit_purchase',
+      amountMinorUnits: 500,
+      credits: 1000,
+      status: 'completed',
+    });
 
     const error = await deleteAccount(userId);
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -545,23 +549,27 @@ describe('what deleting an account does to a financial row', () => {
     // is what blocks the delete above.
     await getDb().delete(users).where(eq(users.id, userId));
 
-    expect(await getDb().select().from(userCredits).where(eq(userCredits.userId, userId))).toEqual([]);
-    expect(await getDb().select().from(subscriptions).where(eq(subscriptions.userId, userId))).toEqual([]);
+    expect(await getDb().select().from(userCredits).where(eq(userCredits.userId, userId))).toEqual(
+      [],
+    );
     expect(
-      await getDb().select().from(billingSubscriptions).where(eq(billingSubscriptions.userId, userId))
+      await getDb().select().from(subscriptions).where(eq(subscriptions.userId, userId)),
+    ).toEqual([]);
+    expect(
+      await getDb()
+        .select()
+        .from(billingSubscriptions)
+        .where(eq(billingSubscriptions.userId, userId)),
     ).toEqual([]);
   });
 });
 
 describe('subscriptions — expiry is derived, never a deletion', () => {
   it('is deliberately absent from the expiry sweep registry', () => {
-    // Mongo declared `index({endDate: 1}, {expireAfterSeconds: 0})`, which
-    // DELETES the document — destroying the record of what a user bought the
-    // moment the period closed. `db/expiry.ts` deletes rows too, so registering
-    // this table there would reintroduce exactly that bug under a new name.
-    expect(
-      EXPIRY_SWEEP_TARGETS.filter((target) => target.table === subscriptions)
-    ).toEqual([]);
+    // An expiry that DELETES the row destroys the record of what a user bought
+    // the moment the period closed. `db/expiry.ts` deletes rows, so registering
+    // this table there would introduce exactly that bug.
+    expect(EXPIRY_SWEEP_TARGETS.filter((target) => target.table === subscriptions)).toEqual([]);
     // Non-empty registry, so this cannot pass because the registry broke.
     expect(EXPIRY_SWEEP_TARGETS.length).toBeGreaterThan(0);
   });
@@ -597,8 +605,8 @@ describe('subscriptions — expiry is derived, never a deletion', () => {
         and(
           eq(subscriptions.userId, userId),
           eq(subscriptions.status, 'active'),
-          gt(subscriptions.endDate, new Date())
-        )
+          gt(subscriptions.endDate, new Date()),
+        ),
       );
 
     expect(entitled).toEqual([]);
@@ -624,8 +632,8 @@ describe('subscriptions — expiry is derived, never a deletion', () => {
         and indexname = 'subscriptions_active_end_date_idx'
     `);
 
-    // Mongo's TTL index carried the same obligation: without it the projection
-    // is a sequential scan of the whole table every interval.
+    // Without it the projection is a sequential scan of the whole table every
+    // interval.
     expect(rows).toHaveLength(1);
     expect(rows[0].indexdef).toContain('end_date');
     expect(rows[0].indexdef).toContain("WHERE (status = 'active'");
@@ -673,7 +681,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
       getDb().execute(sql`
         insert into transactions (id, user_id, type, amount)
         values (${randomUUID()}, ${await owner()}, 'chargeback', 1)
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -685,7 +693,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
       getDb().execute(sql`
         insert into billing_transactions (id, user_id, type, amount_minor_units, credits)
         values (${randomUUID()}, ${await owner()}, 'chargeback', 100, 0)
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -697,11 +705,9 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
    * can send — including the three this platform does not sell
    * (`incomplete`, `incomplete_expired`, `paused`).
    *
-   * Mongoose declared only the five sellable ones and never enforced them: the
-   * webhook writes through `findOneAndUpdate` WITHOUT `runValidators`, so Mongo
-   * stored whatever arrived. A CHECK *is* enforced, so porting the narrow list
-   * would have turned a silent write into a failed webhook — Stripe retrying
-   * forever while the mirror froze at its previous value. A subscription Stripe
+   * Only five are sellable, but a CHECK *is* enforced, so restricting it to
+   * the sellable list would turn every other status into a failed webhook —
+   * Stripe retrying forever while the mirror froze at its previous value. A subscription Stripe
    * had moved to `paused` would still read `active` here, and
    * `subscriptionPlan.ts` would keep granting premium to someone who stopped
    * paying. Widening grants nothing: only `active` and `trialing` ever count as
@@ -718,7 +724,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
              current_period_start, current_period_end, plan_name, plan_credits_per_month, plan_price_minor_units)
           values (${randomUUID()}, ${userId}, 'cus_x', ${`sub_${randomUUID()}`}, 'price_x', ${status},
                   now(), now() + interval '30 days', 'Pro', 10000, 2999)
-        `)
+        `),
       ).resolves.toBeDefined();
     }
   });
@@ -732,7 +738,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
            current_period_start, current_period_end, plan_name, plan_credits_per_month, plan_price_minor_units)
         values (${randomUUID()}, ${userId}, 'cus_x', ${`sub_${randomUUID()}`}, 'price_x', 'chargeback',
                 now(), now() + interval '30 days', 'Pro', 10000, 2999)
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -743,7 +749,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
     const error = await rejection(
       getDb()
         .insert(transactions)
-        .values({ userId: await owner(), type: 'purchase', amount: '-1.00000000' })
+        .values({ userId: await owner(), type: 'purchase', amount: '-1.00000000' }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);

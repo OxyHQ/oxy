@@ -8,11 +8,7 @@ import { useOxy } from '@oxy.so/services';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  Screen,
-  StackHeader,
-  ImportantBanner,
-} from '@/components/ui';
+import { Screen, StackHeader, ImportantBanner } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -68,7 +64,7 @@ export default function RotateKeyConfirmScreen() {
     try {
       const result = await oxyServices.identity.rotateKey({
         proof,
-        phrase: proof === 'phrase' ? currentPhraseRef.current ?? undefined : undefined,
+        phrase: proof === 'phrase' ? (currentPhraseRef.current ?? undefined) : undefined,
         signOutEverywhere,
         pendingIdentity: pending,
       });
@@ -99,9 +95,7 @@ export default function RotateKeyConfirmScreen() {
     return (
       <Screen>
         <StackHeader title={t('rotateKey.confirm.successTitle')} />
-        <Admonition type="info">
-          {t('rotateKey.confirm.successBody')}
-        </Admonition>
+        <Admonition type="info">{t('rotateKey.confirm.successBody')}</Admonition>
         <Button appearance="solid" tone="accent" onPress={finish}>
           {t('rotateKey.confirm.done')}
         </Button>
@@ -149,7 +143,7 @@ export default function RotateKeyConfirmScreen() {
         accessibilityLabel={t('rotateKey.confirm.signOutEverywhere')}
         disabled={rotating}
       >
-        <Icons.signOut size='md' fill={colors.textSecondary} />
+        <Icons.signOut size="md" fill={colors.textSecondary} />
         <View className="flex-1 gap-space-2">
           <Text style={[styles.toggleTitle, { color: colors.text }]}>
             {t('rotateKey.confirm.signOutEverywhere')}
@@ -166,7 +160,15 @@ export default function RotateKeyConfirmScreen() {
         />
       </TouchableOpacity>
 
-      <Button appearance="solid" tone="accent" onPress={handleRotate} loading={rotating} disabled={rotating}>{rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}</Button>
+      <Button
+        appearance="solid"
+        tone="accent"
+        onPress={handleRotate}
+        loading={rotating}
+        disabled={rotating}
+      >
+        {rotating ? t('rotateKey.confirm.rotating') : t('rotateKey.confirm.cta')}
+      </Button>
     </Screen>
   );
 }

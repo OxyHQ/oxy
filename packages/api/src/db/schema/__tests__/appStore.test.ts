@@ -125,7 +125,11 @@ describe('a listing belongs to exactly one application', () => {
 
     await getDb().insert(appListings).values({ applicationId: first, slug });
 
-    expect(pgErrorCode(await rejection(getDb().insert(appListings).values({ applicationId: second, slug })))).toBe(UNIQUE_VIOLATION);
+    expect(
+      pgErrorCode(
+        await rejection(getDb().insert(appListings).values({ applicationId: second, slug })),
+      ),
+    ).toBe(UNIQUE_VIOLATION);
   });
 
   it('goes with the application it describes', async () => {
@@ -176,7 +180,9 @@ describe('a screenshot cannot outlive its file', () => {
       .insert(appListingScreenshots)
       .values({ listingId, fileId: file.id, caption: 'Home' });
 
-    expect(pgErrorCode(await rejection(getDb().delete(files).where(eq(files.id, file.id))))).toBe(FOREIGN_KEY_VIOLATION);
+    expect(pgErrorCode(await rejection(getDb().delete(files).where(eq(files.id, file.id))))).toBe(
+      FOREIGN_KEY_VIOLATION,
+    );
   });
 });
 
@@ -185,7 +191,9 @@ describe('the rating is one to five, in the database', () => {
     const owner = await insertUser();
     const applicationId = await insertApplication(owner);
 
-    expect(pgErrorCode(await rejection(insertReview(applicationId, owner, rating)))).toBe(CHECK_VIOLATION);
+    expect(pgErrorCode(await rejection(insertReview(applicationId, owner, rating)))).toBe(
+      CHECK_VIOLATION,
+    );
   });
 
   it.each([1, 3, 5])('accepts %i', async (rating) => {
@@ -244,14 +252,18 @@ describe('the publisher answers once', () => {
     const owner = await insertUser();
     const applicationId = await insertApplication(owner);
     const reviewId = await insertReview(applicationId, owner);
-    await getDb().insert(appReviewReplies).values({ reviewId, authorUserId: owner, body: 'Thanks.' });
+    await getDb()
+      .insert(appReviewReplies)
+      .values({ reviewId, authorUserId: owner, body: 'Thanks.' });
 
     expect(
       pgErrorCode(
         await rejection(
-          getDb().insert(appReviewReplies).values({ reviewId, authorUserId: owner, body: 'Again.' })
-        )
-      )
+          getDb()
+            .insert(appReviewReplies)
+            .values({ reviewId, authorUserId: owner, body: 'Again.' }),
+        ),
+      ),
     ).toBe(UNIQUE_VIOLATION);
   });
 
@@ -279,7 +291,9 @@ describe('the publisher answers once', () => {
     const owner = await insertUser();
     const applicationId = await insertApplication(owner);
     const reviewId = await insertReview(applicationId, owner);
-    await getDb().insert(appReviewReplies).values({ reviewId, authorUserId: owner, body: 'Thanks.' });
+    await getDb()
+      .insert(appReviewReplies)
+      .values({ reviewId, authorUserId: owner, body: 'Thanks.' });
 
     await getDb().delete(appReviews).where(eq(appReviews.id, reviewId));
 

@@ -45,7 +45,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: actingUserId, id: actingUserId };
     next();
@@ -109,7 +109,7 @@ function uniqueUsername(prefix: string): string {
 
 async function seedAccount(
   kind: 'personal' | 'organization' | 'project' | 'channel',
-  parentAccountId?: string
+  parentAccountId?: string,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
@@ -138,7 +138,7 @@ async function seedMember(
     status?: 'active' | 'invited' | 'removed';
     permissionGrants?: string[];
     permissionRevokes?: string[];
-  } = {}
+  } = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(accountMembers)
@@ -177,7 +177,7 @@ function listMembers(accountId: string): Promise<ListResponse> {
             body: raw ? (JSON.parse(raw) as ListResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -341,7 +341,7 @@ describe('the roster and the gate answer the same question', () => {
     // Vacuity floor: this case is worthless if the list is empty or one-sided.
     expect(active.length).toBeGreaterThanOrEqual(2);
     expect(new Set(active.map((member) => member.source))).toEqual(
-      new Set(['direct', 'inherited'])
+      new Set(['direct', 'inherited']),
     );
 
     for (const member of active) {
@@ -353,7 +353,7 @@ describe('the roster and the gate answer the same question', () => {
     }
 
     expect(active.map((member) => member.memberUserId).sort()).toEqual(
-      [directUser, inheritedUser].sort()
+      [directUser, inheritedUser].sort(),
     );
   });
 });
@@ -398,7 +398,9 @@ describe('the roster still answers its own question', () => {
     const entries = entryFor(res.body, both);
     expect(entries).toHaveLength(2);
     expect(entries.filter((e) => e.status === 'invited' && e.source === 'direct')).toHaveLength(1);
-    expect(entries.filter((e) => e.status === 'active' && e.source === 'inherited')).toHaveLength(1);
+    expect(entries.filter((e) => e.status === 'active' && e.source === 'inherited')).toHaveLength(
+      1,
+    );
   });
 
   test('an ACTIVE direct row beats the inherited one — one entry, and it is the direct one', async () => {

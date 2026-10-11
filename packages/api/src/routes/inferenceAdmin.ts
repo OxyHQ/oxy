@@ -179,8 +179,7 @@ const DEPLOYMENT_ADMIN_COLUMNS = {
   routingLatencyEvidenceRef: inferenceDeploymentRoutingScores.latencyEvidenceRef,
   routingLatencyMeasurementWindowStart:
     inferenceDeploymentRoutingScores.latencyMeasurementWindowStart,
-  routingLatencyMeasurementWindowEnd:
-    inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+  routingLatencyMeasurementWindowEnd: inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
   routingLatencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
   routingThroughputScore: inferenceDeploymentRoutingScores.throughputScore,
   routingThroughputSource: inferenceDeploymentRoutingScores.throughputSource,
@@ -239,7 +238,7 @@ router.get(
   '/rollout',
   asyncHandler(async (_req: AuthRequest, res: Response) => {
     res.json({ data: describeRolloutFlags() });
-  })
+  }),
 );
 
 /**
@@ -269,7 +268,7 @@ router.get(
       .limit(limit);
 
     res.json({ data: rows, count: rows.length });
-  })
+  }),
 );
 
 /**
@@ -302,7 +301,7 @@ router.get(
       .limit(limit);
 
     res.json({ data: rows, count: rows.length });
-  })
+  }),
 );
 
 /**
@@ -350,7 +349,7 @@ router.get(
       ...(query.applicationId === undefined ? {} : { applicationId: query.applicationId }),
     });
     res.json({ data: metrics });
-  })
+  }),
 );
 
 /**
@@ -372,17 +371,17 @@ router.get(
       .from(inferenceDeployments)
       .innerJoin(
         inferenceModelRevisions,
-        eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+        eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
       )
       .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
       .leftJoin(
         inferenceDeploymentRoutingScores,
-        eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+        eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId),
       )
       .orderBy(desc(inferenceDeployments.createdAt));
 
     res.json({ data: rows, count: rows.length });
-  })
+  }),
 );
 
 /**
@@ -401,10 +400,12 @@ router.post(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const body = catalogueSyncBody.parse(req.body ?? {});
     const summary = await runKaanaCatalogueSync({
-      ...(body.allowMassRetirement === undefined ? {} : { allowMassRetirement: body.allowMassRetirement }),
+      ...(body.allowMassRetirement === undefined
+        ? {}
+        : { allowMassRetirement: body.allowMassRetirement }),
     });
     res.json({ data: summary });
-  })
+  }),
 );
 
 /**
@@ -416,7 +417,7 @@ router.get(
   '/catalogue/blocklist',
   asyncHandler(async (_req: AuthRequest, res: Response) => {
     res.json({ data: await listCatalogueBlocks() });
-  })
+  }),
 );
 
 /**
@@ -440,7 +441,7 @@ router.post(
       userId: staffUserId(req),
     });
     res.json({ data: result });
-  })
+  }),
 );
 
 /**
@@ -459,7 +460,7 @@ router.delete(
     const removed = await unblockCatalogueModel(`${params.publisher}/${params.model}`);
     if (!removed) throw new NotFoundError('That model line is not blocked.');
     res.json({ data: { removed: true } });
-  })
+  }),
 );
 
 /**
@@ -487,7 +488,7 @@ router.post(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**
@@ -516,7 +517,7 @@ router.put(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**
@@ -545,7 +546,7 @@ router.put(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**
@@ -573,7 +574,7 @@ router.post(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**
@@ -629,7 +630,7 @@ router.post(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**
@@ -665,7 +666,7 @@ router.put(
     } catch (error) {
       throw translate(error);
     }
-  })
+  }),
 );
 
 /**

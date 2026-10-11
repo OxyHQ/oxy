@@ -11,7 +11,12 @@
 import type { ReauthAction } from '@oxy.so/contracts';
 import { getAuthWebOrigin } from '../config/env';
 
-async function sendSystem(message: { to: string; subject: string; text: string; html: string }): Promise<void> {
+async function sendSystem(message: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<void> {
   const { smtpOutbound } = await import('./smtp.outbound.js');
   await smtpOutbound.sendSystem(message);
 }
@@ -21,7 +26,9 @@ function escapeHtml(value: string): string {
 }
 
 function htmlPage(paragraphs: string[], code?: string): string {
-  const body = paragraphs.map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph)}</p>`);
+  const body = paragraphs.map(
+    (paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph)}</p>`,
+  );
   if (code) {
     body.splice(
       1,
@@ -106,7 +113,12 @@ const REAUTH_ACTION_TEXT: Record<ReauthAction, string> = {
 };
 
 /** A code a signed-in person enters to confirm ONE named sensitive change. */
-export async function sendReauthCode(to: string, code: string, username: string | null, action: ReauthAction): Promise<void> {
+export async function sendReauthCode(
+  to: string,
+  code: string,
+  username: string | null,
+  action: ReauthAction,
+): Promise<void> {
   const greeting = username ? `Hi @${username},` : 'Hi,';
   const lead = `Enter this code to ${REAUTH_ACTION_TEXT[action]}. It works for nothing else:`;
   const tail = [
@@ -130,8 +142,14 @@ export type SecurityNotice =
   | 'commons_linked';
 
 const SECURITY_NOTICE_TEXT: Record<SecurityNotice, { subject: string; body: string }> = {
-  password_set: { subject: 'A password was added to your Oxy account', body: 'A password was just added to your Oxy account.' },
-  password_changed: { subject: 'Your Oxy password was changed', body: 'The password of your Oxy account was just changed.' },
+  password_set: {
+    subject: 'A password was added to your Oxy account',
+    body: 'A password was just added to your Oxy account.',
+  },
+  password_changed: {
+    subject: 'Your Oxy password was changed',
+    body: 'The password of your Oxy account was just changed.',
+  },
   totp_enabled: {
     subject: 'An authenticator app was turned on',
     body: 'An authenticator app was just turned on for your Oxy account. Signing in now also asks for its code.',
@@ -151,12 +169,21 @@ const SECURITY_NOTICE_TEXT: Record<SecurityNotice, { subject: string; body: stri
 };
 
 /** Tell the account's email that a security setting changed. Only the username is named. */
-export async function sendSecurityNotice(to: string, notice: SecurityNotice, username: string | null): Promise<void> {
+export async function sendSecurityNotice(
+  to: string,
+  notice: SecurityNotice,
+  username: string | null,
+): Promise<void> {
   const text = SECURITY_NOTICE_TEXT[notice];
   const paragraphs = [
     username ? `Hi @${username},` : 'Hi,',
     text.body,
     `If it wasn't you, sign in at ${getAuthWebOrigin()} and secure your account now.`,
   ];
-  await sendSystem({ to, subject: text.subject, text: paragraphs.join('\n\n'), html: htmlPage(paragraphs) });
+  await sendSystem({
+    to,
+    subject: text.subject,
+    text: paragraphs.join('\n\n'),
+    html: htmlPage(paragraphs),
+  });
 }

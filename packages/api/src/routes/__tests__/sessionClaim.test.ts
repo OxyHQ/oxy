@@ -13,7 +13,7 @@
  * mocked it and asserted on the arguments it was handed.
  *
  * `session.service` (token minting) and `deviceSession.service` (the deviceSecret
- * mint) are mocked: collaborators, not the subject. Nothing about MongoDB is
+ * mint) are mocked: collaborators, not the subject. The database is not
  * mocked.
  */
 
@@ -140,19 +140,21 @@ async function approvedRequest(
 
   const sessionId = `sess-${randomUUID()}`;
   const deviceId = `dev-${randomUUID()}`;
-  await getDb().insert(sessions).values({
-    sessionId,
-    userId: user.id,
-    deviceId,
-    deviceType: 'desktop',
-    platform: 'web',
-    // `sessions.access_token` / `.refresh_token` are UNIQUE, so a shared
-    // literal would make the SECOND fixture in the run fail on the constraint
-    // rather than on anything this suite is about.
-    accessToken: `stored-access-${sessionId}`,
-    refreshToken: `stored-refresh-${sessionId}`,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId,
+      userId: user.id,
+      deviceId,
+      deviceType: 'desktop',
+      platform: 'web',
+      // `sessions.access_token` / `.refresh_token` are UNIQUE, so a shared
+      // literal would make the SECOND fixture in the run fail on the constraint
+      // rather than on anything this suite is about.
+      accessToken: `stored-access-${sessionId}`,
+      refreshToken: `stored-refresh-${sessionId}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
 
   const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
   await getDb()

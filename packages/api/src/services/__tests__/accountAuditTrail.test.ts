@@ -112,17 +112,15 @@ async function insertCredentialEvent(options: {
 
 async function insertConnection(ownerAccountId: string, applicationId: string): Promise<string> {
   const slug = `prv${suffix()}`;
-  await getDb()
-    .insert(inferenceProviders)
-    .values({
-      slug,
-      displayName: 'Fixture Provider',
-      kind: 'customer_byok',
-      retainsPayloads: false,
-      retentionDays: 0,
-      trainsOnCustomerData: false,
-      zeroDataRetentionAvailable: true,
-    });
+  await getDb().insert(inferenceProviders).values({
+    slug,
+    displayName: 'Fixture Provider',
+    kind: 'customer_byok',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
   // The id is minted here to mirror the service: it is part of Kaana's exact
   // provider + owner + connection + environment credential identity.
   const connectionId = uuidv7();
@@ -291,9 +289,7 @@ describe('the cursor does not skip a row when two sources share an instant', () 
       cursor = page.nextCursor;
     }
 
-    expect(walked).toEqual(
-      whole.entries.map((entry) => `${entry.source}:${entry.eventType}`)
-    );
+    expect(walked).toEqual(whole.entries.map((entry) => `${entry.source}:${entry.eventType}`));
     // Stated separately from the ordering, because a walk that repeated a row
     // could still be ordered.
     expect(new Set(walked).size).toBe(3);
@@ -325,7 +321,7 @@ describe('the cursor does not skip a row when two sources share an instant', () 
     const first = await listAccountAuditTrail(account, { limit: 50 });
     const second = await listAccountAuditTrail(account, { limit: 50 });
     expect(first.entries.map((entry) => entry.source)).toEqual(
-      second.entries.map((entry) => entry.source)
+      second.entries.map((entry) => entry.source),
     );
     // `source desc` is the declared tiebreak — every component of the sort key
     // descends, because the cursor is a row-value comparison and that only

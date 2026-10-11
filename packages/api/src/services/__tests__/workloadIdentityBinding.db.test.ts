@@ -53,12 +53,16 @@ import {
 /** The operator at a terminal, which is what the script claims to be. */
 const STAFF = { isPlatformStaff: true, describedAs: 'the binding tests, as staff' } as const;
 /** Anything that has not passed a staff check — including a caller that never asked. */
-const NOT_STAFF = { isPlatformStaff: false, describedAs: 'the binding tests, as a member' } as const;
+const NOT_STAFF = {
+  isPlatformStaff: false,
+  describedAs: 'the binding tests, as a member',
+} as const;
 
 const ACCOUNT = '237343248947';
 const roleName = () => `oxy-test-${randomUUID()}`;
 const roleArn = (role: string) => `arn:aws:iam::${ACCOUNT}:role/${role}`;
-const assumedRoleArn = (role: string) => `arn:aws:sts::${ACCOUNT}:assumed-role/${role}/${randomUUID()}`;
+const assumedRoleArn = (role: string) =>
+  `arn:aws:sts::${ACCOUNT}:assumed-role/${role}/${randomUUID()}`;
 
 const createdApplicationIds: string[] = [];
 
@@ -176,7 +180,10 @@ describe('bindWorkloadIdentity', () => {
     const application = await applicationFixture();
     const role = roleName();
 
-    const result = await bindWorkloadIdentity({ applicationId: application.id, subject: `  ${roleArn(role)}\n` });
+    const result = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject: `  ${roleArn(role)}\n`,
+    });
 
     expect(result.binding.subject).toBe(roleArn(role));
   });
@@ -185,9 +192,15 @@ describe('bindWorkloadIdentity', () => {
     const application = await applicationFixture();
     const role = roleName();
 
-    const first = await bindWorkloadIdentity({ applicationId: application.id, subject: assumedRoleArn(role) });
+    const first = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject: assumedRoleArn(role),
+    });
     // A different session: the same workload on the next deploy.
-    const second = await bindWorkloadIdentity({ applicationId: application.id, subject: assumedRoleArn(role) });
+    const second = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject: assumedRoleArn(role),
+    });
 
     expect(first.state).toBe('created');
     expect(second.state).toBe('unchanged');
@@ -198,10 +211,21 @@ describe('bindWorkloadIdentity', () => {
     const application = await applicationFixture();
     const subject = roleArn(roleName());
 
-    const first = await bindWorkloadIdentity({ applicationId: application.id, subject, description: 'first' });
-    const second = await bindWorkloadIdentity({ applicationId: application.id, subject, description: 'first' });
+    const first = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject,
+      description: 'first',
+    });
+    const second = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject,
+      description: 'first',
+    });
 
-    expect(second).toMatchObject({ state: 'unchanged', binding: { id: first.binding.id, description: 'first' } });
+    expect(second).toMatchObject({
+      state: 'unchanged',
+      binding: { id: first.binding.id, description: 'first' },
+    });
     expect(second.ignoredChanges).toBeUndefined();
 
     const rows = await getDb()
@@ -225,7 +249,10 @@ describe('bindWorkloadIdentity', () => {
 
     expect(again.state).toBe('unchanged');
     expect(again.ignoredChanges).toEqual(
-      expect.arrayContaining([expect.stringContaining('description'), expect.stringContaining('expiresAt')]),
+      expect.arrayContaining([
+        expect.stringContaining('description'),
+        expect.stringContaining('expiresAt'),
+      ]),
     );
     expect(again.binding.description).toBe('first');
     expect(again.binding.expiresAt).toBeNull();
@@ -264,7 +291,11 @@ describe('bindWorkloadIdentity', () => {
   });
 
   it.each([
-    ['an application the mint would refuse as inactive', { status: 'suspended' as const }, 'application_inactive'],
+    [
+      'an application the mint would refuse as inactive',
+      { status: 'suspended' as const },
+      'application_inactive',
+    ],
     [
       'a third-party application, which runs where we cannot attest',
       { isOfficial: false, type: 'third_party' as const },
@@ -291,13 +322,18 @@ describe('bindWorkloadIdentity', () => {
     ['the account root', 'arn:aws:iam::237343248947:root'],
     // The assumed-role ARN omits the path, so only the pathless form can match.
     ['a role ARN carrying an IAM path', 'arn:aws:iam::237343248947:role/service/oxy-mention-task'],
-    ['an assumed-role ARN with no session, which does not reduce', 'arn:aws:sts::237343248947:assumed-role/oxy-x'],
+    [
+      'an assumed-role ARN with no session, which does not reduce',
+      'arn:aws:sts::237343248947:assumed-role/oxy-x',
+    ],
     ['a federated user, which is a human', 'arn:aws:sts::237343248947:federated-user/nate'],
     ['something that is not an ARN', 'oxy-mention-task'],
   ])('refuses %s', async (_label, subject) => {
     const application = await applicationFixture();
 
-    const refusal = await refusalOf(bindWorkloadIdentity({ applicationId: application.id, subject }));
+    const refusal = await refusalOf(
+      bindWorkloadIdentity({ applicationId: application.id, subject }),
+    );
 
     expect(refusal.reason).toBe('uncanonical_subject');
   });
@@ -310,7 +346,11 @@ describe('bindWorkloadIdentity', () => {
     const application = await applicationFixture();
 
     const refusal = await refusalOf(
-      bindWorkloadIdentity({ applicationId: application.id, subject: roleArn(roleName()), ...overrides }),
+      bindWorkloadIdentity({
+        applicationId: application.id,
+        subject: roleArn(roleName()),
+        ...overrides,
+      }),
     );
 
     expect(refusal.reason).toBe(reason);
@@ -334,7 +374,8 @@ describe('listWorkloadIdentityBindings', () => {
     const application = await applicationFixture();
     const other = await applicationFixture();
     const mine = [roleArn(roleName()), roleArn(roleName())].sort();
-    for (const subject of mine) await bindWorkloadIdentity({ applicationId: application.id, subject });
+    for (const subject of mine)
+      await bindWorkloadIdentity({ applicationId: application.id, subject });
     await bindWorkloadIdentity({ applicationId: other.id, subject: roleArn(roleName()) });
 
     const bindings = await listWorkloadIdentityBindings(application.id);
@@ -390,7 +431,10 @@ describe('bindWorkloadIdentity scopes', () => {
 
   it('names none when no scopes are given, which is what every existing row says', async () => {
     const application = await applicationFixture();
-    const result = await bindWorkloadIdentity({ applicationId: application.id, subject: roleArn(roleName()) });
+    const result = await bindWorkloadIdentity({
+      applicationId: application.id,
+      subject: roleArn(roleName()),
+    });
 
     expect(result.binding.scopes).toEqual([]);
   });
@@ -635,10 +679,14 @@ describe('parseBindWorkloadIdentityArgv', () => {
   it('reads a bind', () => {
     expect(
       parseBindWorkloadIdentityArgv([
-        '--app-id', 'app_1',
-        '--role-arn', 'arn:aws:iam::237343248947:role/oxy-mention-task',
-        '--description', 'Mention ECS task role',
-        '--expires-at', '2099-01-01T00:00:00Z',
+        '--app-id',
+        'app_1',
+        '--role-arn',
+        'arn:aws:iam::237343248947:role/oxy-mention-task',
+        '--description',
+        'Mention ECS task role',
+        '--expires-at',
+        '2099-01-01T00:00:00Z',
       ]),
     ).toEqual({
       mode: 'bind',
@@ -652,7 +700,9 @@ describe('parseBindWorkloadIdentityArgv', () => {
   });
 
   it('reads --flag=value as well, because operators type both', () => {
-    expect(parseBindWorkloadIdentityArgv(['--app-id=app_1', '--subject=arn', '--provider=aws-iam'])).toEqual({
+    expect(
+      parseBindWorkloadIdentityArgv(['--app-id=app_1', '--subject=arn', '--provider=aws-iam']),
+    ).toEqual({
       mode: 'bind',
       request: { applicationId: 'app_1', subject: 'arn', provider: 'aws-iam' },
     });
@@ -661,9 +711,12 @@ describe('parseBindWorkloadIdentityArgv', () => {
   it('reads --scopes as a comma-separated list, however it is spaced', () => {
     expect(
       parseBindWorkloadIdentityArgv([
-        '--app-id', 'app_1',
-        '--subject', 'arn',
-        '--scopes', 'federation:write, signals:write ,catalogs:write',
+        '--app-id',
+        'app_1',
+        '--subject',
+        'arn',
+        '--scopes',
+        'federation:write, signals:write ,catalogs:write',
       ]),
     ).toEqual({
       mode: 'bind',
@@ -680,10 +733,19 @@ describe('parseBindWorkloadIdentityArgv', () => {
     // none. Folding the two together makes the next routine re-run of a
     // deploy's bind step revoke what somebody granted that morning.
     const absent = parseBindWorkloadIdentityArgv(['--app-id', 'app_1', '--subject', 'arn']);
-    const empty = parseBindWorkloadIdentityArgv(['--app-id', 'app_1', '--subject', 'arn', '--scopes=']);
+    const empty = parseBindWorkloadIdentityArgv([
+      '--app-id',
+      'app_1',
+      '--subject',
+      'arn',
+      '--scopes=',
+    ]);
 
     expect(absent).toEqual({ mode: 'bind', request: { applicationId: 'app_1', subject: 'arn' } });
-    expect(empty).toEqual({ mode: 'bind', request: { applicationId: 'app_1', subject: 'arn', scopes: [] } });
+    expect(empty).toEqual({
+      mode: 'bind',
+      request: { applicationId: 'app_1', subject: 'arn', scopes: [] },
+    });
   });
 
   it('reads a --list', () => {
@@ -694,18 +756,30 @@ describe('parseBindWorkloadIdentityArgv', () => {
   });
 
   it.each([
-    ['an unrecognised flag, rather than skipping it', ['--app-id', 'app_1', '--expires', '2099-01-01']],
+    [
+      'an unrecognised flag, rather than skipping it',
+      ['--app-id', 'app_1', '--expires', '2099-01-01'],
+    ],
     ['a flag with no value', ['--app-id']],
     ['a flag whose value is the next flag', ['--app-id', '--list']],
     ['a repeated flag', ['--app-id', 'app_1', '--app-id', 'app_2', '--subject', 'arn']],
-    ['--role-arn and --subject disagreeing', ['--app-id', 'a', '--role-arn', 'one', '--subject', 'two']],
+    [
+      '--role-arn and --subject disagreeing',
+      ['--app-id', 'a', '--role-arn', 'one', '--subject', 'two'],
+    ],
     ['no application', ['--subject', 'arn']],
     ['a bind with nothing to bind', ['--app-id', 'app_1']],
     ['a --list that also asks to write', ['--app-id', 'app_1', '--list', '--subject', 'arn']],
     ['--list given a value', ['--app-id', 'app_1', '--list=yes']],
     ['a --list that also names scopes', ['--app-id', 'app_1', '--list', '--scopes', 'user:read']],
-    ['--scopes with a stray comma, where a dropped entry would be silent', ['--app-id', 'a', '--subject', 'arn', '--scopes', 'user:read,,files:read']],
-    ['--scopes with a trailing comma', ['--app-id', 'a', '--subject', 'arn', '--scopes', 'user:read,']],
+    [
+      '--scopes with a stray comma, where a dropped entry would be silent',
+      ['--app-id', 'a', '--subject', 'arn', '--scopes', 'user:read,,files:read'],
+    ],
+    [
+      '--scopes with a trailing comma',
+      ['--app-id', 'a', '--subject', 'arn', '--scopes', 'user:read,'],
+    ],
   ])('refuses %s', (_label, argv) => {
     expect(() => parseBindWorkloadIdentityArgv(argv)).toThrow(WorkloadBindingUsageError);
   });

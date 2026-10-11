@@ -32,8 +32,8 @@ import { z } from 'zod';
 
 /**
  * The closed set, as a value — consumed directly where a runtime list is
- * required (e.g. the Mongoose `enum` of `AuthSession.deniedReason`, which is
- * the storage-level guarantee that an unauthenticated caller can never write
+ * required (e.g. the `enum` of the `auth_sessions.denied_reason` column, which
+ * is the storage-level guarantee that an unauthenticated caller can never write
  * free-form text into the field).
  */
 export const COMMONS_DENY_REASONS = ['declined', 'not_me'] as const;

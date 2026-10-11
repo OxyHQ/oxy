@@ -72,9 +72,7 @@ export default function SignInScreen() {
       <View style={styles.content}>
         <LogoText height={40} style={styles.logo} />
 
-        <Text style={[styles.title, { color: colors.text }]}>
-          {t('auth.signIn.title')}
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('auth.signIn.title')}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           {t('auth.signIn.subtitle')}
         </Text>

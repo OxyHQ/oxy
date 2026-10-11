@@ -29,11 +29,17 @@ if (!/\$service\.runningCount == \$service\.desiredCount/.test(code)) {
 if (!/\(\$service\.deployments \| length\) == 1/.test(code)) {
   throw new Error('worker rollout must require one consolidated deployment');
 }
-if (!/all\(\$service\.deployments\[\] \| select\(\.status != "PRIMARY"\); \.desiredCount == 0\)/.test(code)) {
+if (
+  !/all\(\$service\.deployments\[\] \| select\(\.status != "PRIMARY"\); \.desiredCount == 0\)/.test(
+    code,
+  )
+) {
   throw new Error('the API may only move once every old worker deployment is scaled to zero');
 }
-if (!/PRE_ROLLOUT_SCRIPT: \.github\/scripts\/deploy-asset-variant-worker\.sh/.test(workflow) ||
-    !/WORKER_ROLLOUT_PHASE: start/.test(workflow)) {
+if (
+  !/PRE_ROLLOUT_SCRIPT: \.github\/scripts\/deploy-asset-variant-worker\.sh/.test(workflow) ||
+  !/WORKER_ROLLOUT_PHASE: start/.test(workflow)
+) {
   throw new Error('deploy-aws.yml must start the worker rollout before the API moves');
 }
 if (!/deploy-asset-variant-worker\.sh wait/.test(workflow)) {

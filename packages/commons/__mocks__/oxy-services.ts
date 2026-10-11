@@ -69,7 +69,11 @@ function toNamespaced(flat: MockOxyServices | null): NamespacedOxyServices | nul
     if (name === 'getCurrentUserId') {
       // A getter in 3.0: `oxyServices.session.userId`.
       const session = (out.session ??= {}) as Record<string, unknown>;
-      Object.defineProperty(session, 'userId', { get: () => fn(), enumerable: true, configurable: true });
+      Object.defineProperty(session, 'userId', {
+        get: () => fn(),
+        enumerable: true,
+        configurable: true,
+      });
       continue;
     }
     const path = (NAMESPACED[name] ?? name).split('.');
@@ -138,9 +142,15 @@ function emit(): void {
   for (const fn of listeners) fn();
 }
 
-export function __setOxyState(next: Partial<Omit<MockOxyState, 'oxyServices'>> & { oxyServices?: MockOxyServices | null }): void {
+export function __setOxyState(
+  next: Partial<Omit<MockOxyState, 'oxyServices'>> & { oxyServices?: MockOxyServices | null },
+): void {
   const { oxyServices, ...rest } = next;
-  state = { ...state, ...rest, ...(oxyServices !== undefined ? { oxyServices: toNamespaced(oxyServices) } : {}) };
+  state = {
+    ...state,
+    ...rest,
+    ...(oxyServices !== undefined ? { oxyServices: toNamespaced(oxyServices) } : {}),
+  };
   emit();
 }
 
@@ -303,9 +313,7 @@ export const hasNotificationPermission = jest.fn<Promise<boolean>, []>(async () 
 
 export const requestNotificationPermission = jest.fn<Promise<boolean>, []>(async () => true);
 
-export const getExpoPushToken = jest.fn<Promise<string | null>, []>(
-  async () => __EXPO_PUSH_TOKEN,
-);
+export const getExpoPushToken = jest.fn<Promise<string | null>, []>(async () => __EXPO_PUSH_TOKEN);
 
 export const takeLaunchNotificationData = jest.fn<Promise<unknown>, []>(async () => null);
 

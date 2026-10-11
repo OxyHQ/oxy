@@ -51,7 +51,9 @@ const files = SOURCE_DIRS.flatMap((dir) => {
 });
 
 if (files.length < 90) {
-  console.error(`Only found ${files.length} source files — the directory layout moved and this check is not looking at the app.`);
+  console.error(
+    `Only found ${files.length} source files — the directory layout moved and this check is not looking at the app.`,
+  );
   process.exit(1);
 }
 
@@ -66,7 +68,9 @@ for (const file of files) {
 }
 
 const globalCss = join(ROOT, 'global.css');
-const built = (await postcss([tailwind()]).process(readFileSync(globalCss, 'utf8'), { from: globalCss })).css;
+const built = (
+  await postcss([tailwind()]).process(readFileSync(globalCss, 'utf8'), { from: globalCss })
+).css;
 
 // A class is emitted as a selector; escape the characters Tailwind escapes in one.
 const emitted = (name) => built.includes(`.${name.replace(/([\\.:/[\]!])/g, '\\$1')}`);
@@ -79,8 +83,10 @@ if (missing.length) {
     console.error(`  ${name}\n    ${[...new Set(used.get(name))].join('\n    ')}`);
   }
   console.error('\nEither the rung does not exist (check @oxy.so/bloom/design-tokens/theme.css)');
-  console.error('or the file is outside global.css\'s @source globs.');
+  console.error("or the file is outside global.css's @source globs.");
   process.exit(1);
 }
 
-console.log(`all ${used.size} classNames across ${files.length} files compile (${built.length} bytes of CSS)`);
+console.log(
+  `all ${used.size} classNames across ${files.length} files compile (${built.length} bytes of CSS)`,
+);

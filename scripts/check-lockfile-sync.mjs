@@ -238,7 +238,9 @@ function staleManifestRecords() {
   }
   for (const workspacePath of Object.keys(recorded)) {
     if (!declaredPaths.includes(workspacePath)) {
-      findings.push(`${LOCKFILE} records ${workspacePath}, which the root manifest does not declare.`);
+      findings.push(
+        `${LOCKFILE} records ${workspacePath}, which the root manifest does not declare.`,
+      );
     }
   }
 

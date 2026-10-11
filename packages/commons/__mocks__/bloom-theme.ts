@@ -103,14 +103,21 @@ export function parseRgb(color: string): { r: number; g: number; b: number } | n
   const trimmed = color.trim();
   if (trimmed.startsWith('#')) {
     let hex = trimmed.slice(1);
-    if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+    if (hex.length === 3)
+      hex = hex
+        .split('')
+        .map((c) => c + c)
+        .join('');
     if (hex.length !== 6) return null;
     const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
     return [r, g, b].some(Number.isNaN) ? null : { r, g, b };
   }
   const match = /rgba?\(([^)]+)\)/i.exec(trimmed);
   if (!match) return null;
-  const [r, g, b] = match[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+  const [r, g, b] = match[1]
+    .split(/[\s,/]+/)
+    .filter(Boolean)
+    .map(Number);
   return [r, g, b].some((v) => v === undefined || Number.isNaN(v)) ? null : { r, g, b };
 }
 

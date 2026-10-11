@@ -61,8 +61,12 @@ function runMigrations(databaseUrl: string): Promise<void> {
     });
 
     let output = '';
-    child.stdout.on('data', (chunk: Buffer) => { output += chunk.toString(); });
-    child.stderr.on('data', (chunk: Buffer) => { output += chunk.toString(); });
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
 
     child.on('error', (error) => {
       reject(new Error(`Failed to run \`bun run db:migrate\`: ${error.message}`));
@@ -105,17 +109,20 @@ export type CreateTestDatabaseOptions = {
  * @throws {ConfigurationError} When neither `TEST_DATABASE_URL` nor
  *   `DATABASE_URL` is set — there is no server to create the database on.
  */
-export async function createTestDatabase(
-  options: CreateTestDatabaseOptions = {}
-): Promise<string> {
+export async function createTestDatabase(options: CreateTestDatabaseOptions = {}): Promise<string> {
   const { assignEnv = true } = options;
-  if (options.billingSandboxNamespace && (process.env.NODE_ENV !== 'test' || !['test:test', 'test:staging', 'test:development'].includes(options.billingSandboxNamespace))) throw new ConfigurationError('Invalid test-only billing database declaration');
+  if (
+    options.billingSandboxNamespace &&
+    (process.env.NODE_ENV !== 'test' ||
+      !['test:test', 'test:staging', 'test:development'].includes(options.billingSandboxNamespace))
+  )
+    throw new ConfigurationError('Invalid test-only billing database declaration');
   const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
   if (!baseUrl) {
     throw new ConfigurationError(
       'TEST_DATABASE_URL (or DATABASE_URL) must point at a Postgres server so ' +
-      'a throwaway test database can be created on it. Start one with: ' +
-      'docker compose -f docker-compose.dev.yml up -d postgres'
+        'a throwaway test database can be created on it. Start one with: ' +
+        'docker compose -f docker-compose.dev.yml up -d postgres',
     );
   }
 
@@ -136,10 +143,16 @@ export async function createTestDatabase(
     if (options.billingSandboxNamespace) {
       const fresh = postgres(url, { max: 1 });
       try {
-        const rows = await fresh`select current_database() as name, (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public') as tables`;
-        if (rows[0].name !== name || rows[0].tables !== 0) throw new ConfigurationError('Billing sandbox must be a new empty test database');
-        await create.unsafe(`alter database "${name}" set oxy.billing_namespace = '${options.billingSandboxNamespace}'`);
-      } finally { await fresh.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS }); }
+        const rows =
+          await fresh`select current_database() as name, (select count(*)::integer from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public') as tables`;
+        if (rows[0].name !== name || rows[0].tables !== 0)
+          throw new ConfigurationError('Billing sandbox must be a new empty test database');
+        await create.unsafe(
+          `alter database "${name}" set oxy.billing_namespace = '${options.billingSandboxNamespace}'`,
+        );
+      } finally {
+        await fresh.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+      }
     }
   } catch (error) {
     if (created) await dropTestDatabase(url);
@@ -189,7 +202,7 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
   const name = new URL(databaseUrl).pathname.replace(/^\//, '');
   if (!TEST_DATABASE_NAME.test(name)) {
     throw new ConfigurationError(
-      `Refusing to drop "${name}": only throwaway databases created by createTestDatabase (oxy_test_<16 hex>) may be dropped.`
+      `Refusing to drop "${name}": only throwaway databases created by createTestDatabase (oxy_test_<16 hex>) may be dropped.`,
     );
   }
 

@@ -34,25 +34,19 @@ export const getSubscription = async (req: AuthRequest, res: Response) => {
         .where(
           and(
             eq(billingSubscriptions.userId, userId),
-            inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES)
-          ,
-					)
-        ,
-				)
+            inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES),
+          ),
+        )
         .limit(2),
       db.select().from(subscriptions).where(eq(subscriptions.userId, userId)).limit(1),
     ]);
 
     if (billingRows.length > 1)
-			return res
-				.status(409)
-				.json({
-					message: "Multiple subscriptions require the named plural view",
-				});
-		const [billingSubscription] = billingRows;
-		res.json(
-      formatSubscriptionResponse(billingSubscription ?? null, legacySubscription ?? null)
-    );
+      return res.status(409).json({
+        message: 'Multiple subscriptions require the named plural view',
+      });
+    const [billingSubscription] = billingRows;
+    res.json(formatSubscriptionResponse(billingSubscription ?? null, legacySubscription ?? null));
   } catch (error) {
     if (error instanceof ForbiddenError || error instanceof UnauthorizedError) {
       throw error;
@@ -77,23 +71,22 @@ export const cancelSubscription = async (req: AuthRequest, res: Response) => {
       .where(
         and(
           eq(billingSubscriptions.userId, userId),
-          inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES)
-        ,
-				)
-      ,
-			)
+          inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES),
+        ),
+      )
       .limit(2);
-		if (billingRows.length > 1)return res
-				.status(409)
-				.json({ message: "Multiple subscriptions require named cancellation" });
-		const [billingSubscription] = billingRows;
+    if (billingRows.length > 1)
+      return res.status(409).json({ message: 'Multiple subscriptions require named cancellation' });
+    const [billingSubscription] = billingRows;
 
     let cancelledBilling = billingSubscription ?? null;
     if (billingSubscription) {
-      await (await getBillingStripe()).subscriptions.update(billingSubscription.stripeSubscriptionId, {
-        cancel_at_period_end: true,
-      },
-			);
+      await (await getBillingStripe()).subscriptions.update(
+        billingSubscription.stripeSubscriptionId,
+        {
+          cancel_at_period_end: true,
+        },
+      );
       const [updated] = await db
         .update(billingSubscriptions)
         .set({ cancelAtPeriodEnd: true })
@@ -105,17 +98,15 @@ export const cancelSubscription = async (req: AuthRequest, res: Response) => {
     // The legacy row is CANCELED, never deleted — the record of what was bought
     // survives its own cancellation, same reason the TTL index was removed.
     const [legacySubscription] = billingSubscription
-			? []
-			: await db
-      .update(subscriptions)
-      .set({ status: "canceled" })
-      .where(and(eq(subscriptions.userId, userId), ne(subscriptions.status, "canceled"),
-						),
-					)
-      .returning();
+      ? []
+      : await db
+          .update(subscriptions)
+          .set({ status: 'canceled' })
+          .where(and(eq(subscriptions.userId, userId), ne(subscriptions.status, 'canceled')))
+          .returning();
 
     if (!cancelledBilling && !legacySubscription) {
-      return res.status(404).json({ message: "Subscription not found" });
+      return res.status(404).json({ message: 'Subscription not found' });
     }
 
     // Cancelling a plan is a COMMERCIAL act and changes nothing about the
@@ -123,9 +114,7 @@ export const cancelSubscription = async (req: AuthRequest, res: Response) => {
     // off as a side effect — a preference the person never touched, flipped by
     // a billing action. The preference changes only through its own setting.
 
-    res.json(
-      formatSubscriptionResponse(cancelledBilling, legacySubscription ?? null)
-    );
+    res.json(formatSubscriptionResponse(cancelledBilling, legacySubscription ?? null));
   } catch (error) {
     if (error instanceof ForbiddenError || error instanceof UnauthorizedError) {
       throw error;

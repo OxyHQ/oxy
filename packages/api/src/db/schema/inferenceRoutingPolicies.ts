@@ -106,11 +106,11 @@ export const inferenceRoutingPolicies = pgTable(
   (t) => [
     check(
       'inference_routing_policies_scope_kind_check',
-      sql`${t.scopeKind} in (${sql.raw(inList(ROUTING_POLICY_SCOPE_KINDS))})`
+      sql`${t.scopeKind} in (${sql.raw(inList(ROUTING_POLICY_SCOPE_KINDS))})`,
     ),
     check(
       'inference_routing_policies_status_check',
-      sql`${t.status} in (${sql.raw(inList(ROUTING_POLICY_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(ROUTING_POLICY_STATUSES))})`,
     ),
 
     /**
@@ -122,7 +122,7 @@ export const inferenceRoutingPolicies = pgTable(
      */
     check(
       'inference_routing_policies_scope_target_check',
-      sql`(${t.scopeKind} = 'application') = (${t.applicationId} is not null)`
+      sql`(${t.scopeKind} = 'application') = (${t.applicationId} is not null)`,
     ),
 
     /**
@@ -139,7 +139,7 @@ export const inferenceRoutingPolicies = pgTable(
 
     /** "Every policy this account owns" — the Console list. */
     index('inference_routing_policies_account_id_idx').on(t.accountId),
-  ]
+  ],
 );
 
 export type InferenceRoutingPolicyRow = typeof inferenceRoutingPolicies.$inferSelect;

@@ -61,9 +61,9 @@ import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from './identit
  * `envelope.record` with its own `z.ZodType<TPayload>` payload schema.
  */
 export interface LexiconRecord<TPayload> {
-    collection: string;
-    rkey: string;
-    record: TPayload;
+  collection: string;
+  rkey: string;
+  record: TPayload;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -80,15 +80,15 @@ export interface LexiconRecord<TPayload> {
  * the total number of records on the chain.
  */
 export interface ChainHeadResponse {
-    headRecordId: string | null;
-    seq: number;
-    recordCount: number;
+  headRecordId: string | null;
+  seq: number;
+  recordCount: number;
 }
 
 export const chainHeadResponseSchema: z.ZodType<ChainHeadResponse> = z.object({
-    headRecordId: z.string().nullable(),
-    seq: z.number().int(),
-    recordCount: z.number().int().nonnegative(),
+  headRecordId: z.string().nullable(),
+  seq: z.number().int(),
+  recordCount: z.number().int().nonnegative(),
 });
 
 /**
@@ -97,11 +97,11 @@ export const chainHeadResponseSchema: z.ZodType<ChainHeadResponse> = z.object({
  * `records.length`, echoed for convenience.
  */
 export interface LogPageResponse {
-    records: SignedRecordEnvelope[];
-    count: number;
+  records: SignedRecordEnvelope[];
+  count: number;
 }
 
 export const logPageResponseSchema: z.ZodType<LogPageResponse> = z.object({
-    records: z.array(signedRecordEnvelopeSchema),
-    count: z.number().int().nonnegative(),
+  records: z.array(signedRecordEnvelopeSchema),
+  count: z.number().int().nonnegative(),
 });

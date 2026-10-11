@@ -72,7 +72,7 @@ live only after the running-task and Kaana trust-set checks below pass.
 |---|---|
 | `kid` | `oxy-edge-2026-08-17` |
 | public half, as Kaana's `KAANA_EDGE_PUBLIC_KEYS` entry | `oxy-edge-2026-08-17:jQBxDX3B/Z0ULOHPbQz3gfFinKpl7Qv5MVBTfRYSd34=` |
-| private half | GitHub Actions repo secret `KAANA_EDGE_SIGNING_PRIVATE_KEY`, set 2026-08-17. Not in this repository, not in any file. |
+| private half | SSM `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY` (SecureString), the only copy since 2026-10-10 (it was first stored as a GitHub Actions repo secret on 2026-08-17 and copied into SSM by every deploy until then). Not in this repository, not in any file. |
 
 Generated with `openssl genpkey -algorithm ed25519`, and verified before storage
 by signing Kaana's exact signing input — `oxy-kaana-envelope:v1\n<kid>\n<unix
@@ -91,12 +91,14 @@ silent. With only the private key injected it returns
 production error line identifying a genuinely partial configuration. The URL,
 key id and private key must land together.
 
-Rotating or replacing it means editing BOTH hand-maintained
-allowlists in `.github/workflows/deploy-aws.yml` — the `SYNC_<NAME>` env block
-and the `API_SECRETS` list — in the same change;
-`scripts/check-deploy-secrets-sync.mjs` fails the build if the two disagree. A
-name in one list and not the other syncs nothing, silently, and surfaces later as
-`ResourceInitializationError: unable to pull secrets` at task launch.
+Rotating or replacing it means writing
+`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY` in SSM with `aws ssm put-parameter
+--type SecureString --overwrite` (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`)
+and relaunching; nothing in a workflow writes it. `TASK_SECRET_OVERRIDES_JSON` in
+`.github/workflows/deploy-aws.yml` binds it by exact ARN, which
+`scripts/check-deploy-secrets-sync.mjs` holds. A binding naming a parameter that
+does not exist surfaces as `ResourceInitializationError: unable to pull secrets`
+at task launch, so a NEW name is written to SSM first and bound second.
 
 **Oxy prints the PUBLIC half at startup**, once, as
 `inference.kaana.configured` with `baseUrl`, `keyId` and `publicKey` — the

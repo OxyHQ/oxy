@@ -64,7 +64,13 @@ function schemaSource(tables) {
     const body = Object.entries(columns)
       .map(([column, builder]) => `  ${column}: ${builder},`)
       .join('\n');
-    lines.push(`export const t${index} = pgTable('${tableName}', {`, '  id: text(),', body, '});', '');
+    lines.push(
+      `export const t${index} = pgTable('${tableName}', {`,
+      '  id: text(),',
+      body,
+      '});',
+      '',
+    );
     index += 1;
   }
   return lines.join('\n');
@@ -149,8 +155,8 @@ for (const entry of banned) {
   const pattern = new RegExp(entry.source);
   if (PLANTED.some((planted) => pattern.test(normalise(planted.column)))) continue;
   console.error(
-    `FAIL coverage: the guard bans /${entry.source}/ (${entry.holds}) and no planted column in\n`
-    + 'this file matches it, so the pattern ships untested. Add one to PLANTED.',
+    `FAIL coverage: the guard bans /${entry.source}/ (${entry.holds}) and no planted column in\n` +
+      'this file matches it, so the pattern ships untested. Add one to PLANTED.',
   );
   process.exit(1);
 }
@@ -223,7 +229,10 @@ const cases = [
     // would need a name-based exception for each, and the next flag after that.
     name: 'boolean flags whose names contain banned words do NOT fire',
     tables: cleanTables({
-      inference_models: { supportsPromptCaching: 'boolean()', supportsParallelToolCalls: 'boolean()' },
+      inference_models: {
+        supportsPromptCaching: 'boolean()',
+        supportsParallelToolCalls: 'boolean()',
+      },
       inference_providers: { retainsPayloads: 'boolean()' },
     }),
     expectFailure: false,
@@ -323,16 +332,16 @@ for (const testCase of cases) {
 
   if (didFail !== testCase.expectFailure) {
     console.error(
-      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, `
-      + `got exit ${exitCode}\n${output}`,
+      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, ` +
+        `got exit ${exitCode}\n${output}`,
     );
     failed += 1;
     continue;
   }
   if (testCase.expectOutput && !output.includes(testCase.expectOutput)) {
     console.error(
-      `FAIL ${testCase.name}: failed as expected, but the message never said `
-      + `"${testCase.expectOutput}"\n${output}`,
+      `FAIL ${testCase.name}: failed as expected, but the message never said ` +
+        `"${testCase.expectOutput}"\n${output}`,
     );
     failed += 1;
     continue;
@@ -345,7 +354,7 @@ if (failed > 0) {
   process.exit(1);
 }
 console.log(
-  `\nAll ${cases.length} payload-persistence cases passed — ${banned.length} banned patterns each `
-  + `covered by a planted column, ${declared.length} declared columns and ${requiredTables.length} `
-  + 'required tables, taken from the guard itself.',
+  `\nAll ${cases.length} payload-persistence cases passed — ${banned.length} banned patterns each ` +
+    `covered by a planted column, ${declared.length} declared columns and ${requiredTables.length} ` +
+    'required tables, taken from the guard itself.',
 );

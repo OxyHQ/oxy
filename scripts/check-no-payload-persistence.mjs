@@ -140,8 +140,14 @@ const BANNED_NAME_PATTERNS = [
   { pattern: /rawrequest|requestbody|requestjson|requesttext/, holds: 'a raw request' },
   { pattern: /rawresponse|responsebody|responsejson|responsetext/, holds: 'a raw response' },
   { pattern: /messagebody|messagetext|messagecontent|^messages$/, holds: 'chat message content' },
-  { pattern: /modeloutput|generatedtext|generationtext|inputtext|outputtext/, holds: 'model output' },
-  { pattern: /debugcapture|debugpayload|debugtrace|capturedbody|capturedpayload/, holds: 'a debug capture' },
+  {
+    pattern: /modeloutput|generatedtext|generationtext|inputtext|outputtext/,
+    holds: 'model output',
+  },
+  {
+    pattern: /debugcapture|debugpayload|debugtrace|capturedbody|capturedpayload/,
+    holds: 'a debug capture',
+  },
 ];
 
 /**
@@ -158,112 +164,273 @@ const BANNED_NAME_PATTERNS = [
  * completions Oxy would be storing on its own initiative.
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
-  { table: 'inference_deployments', column: 'privateAutoSourceApproval', holds: 'closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret' },
-  { table: 'inference_deployments', column: 'scopedExecution', holds: 'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token' },
+  {
+    table: 'inference_deployments',
+    column: 'privateAutoSourceApproval',
+    holds:
+      'closed privateAutoSourceApprovalSchema source-review metadata: approval, principal, policy, economic and exact route/price identifiers, evidence references, expiry and fixed limits; no variable text, child input hash, state, question, prompt, completion, bearer token or provider credential secret',
+  },
+  {
+    table: 'inference_deployments',
+    column: 'scopedExecution',
+    holds:
+      'closed scopedExecutionAudienceSchema authority metadata: permit and idempotency identifiers, fixture SHA-256, principal and exact route/policy bindings, expiry and grant-only cost limits; no fixture state, question, prompt, completion, tool arguments, provider credential or bearer token',
+  },
   // ---- external account identity evidence ------------------------------------
-  { table: 'external_identities', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response' },
+  {
+    table: 'external_identities',
+    column: 'evidenceLinks',
+    holds:
+      'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response',
+  },
   {
     table: 'linked_account_oauth_challenges',
     column: 'providerState',
     holds:
-      "the atproto OAuth client library's per-flow state for one linking attempt: authorization "
-      + 'server issuer, client auth method, PKCE verifier and ephemeral DPoP JWK. No token, no '
-      + 'request body; wiped when the challenge is spent and the row lives at most ten minutes',
+      "the atproto OAuth client library's per-flow state for one linking attempt: authorization " +
+      'server issuer, client auth method, PKCE verifier and ephemeral DPoP JWK. No token, no ' +
+      'request body; wiped when the challenge is spent and the row lives at most ten minutes',
   },
-  { table: 'external_identity_actors', column: 'evidenceLinks', holds: 'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings for this transport, each at most 2048 characters; no source payload or inference content' },
+  {
+    table: 'external_identity_actors',
+    column: 'evidenceLinks',
+    holds:
+      'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings for this transport, each at most 2048 characters; no source payload or inference content',
+  },
   // ---- OTA updates ------------------------------------------------------------
-  { table: 'app_updates', column: 'extra', holds: 'the Expo manifest `extra` block, embedded verbatim in the signed manifest' },
-  { table: 'app_updates', column: 'metadata', holds: 'the string->string Expo manifest metadata dictionary' },
+  {
+    table: 'app_updates',
+    column: 'extra',
+    holds: 'the Expo manifest `extra` block, embedded verbatim in the signed manifest',
+  },
+  {
+    table: 'app_updates',
+    column: 'metadata',
+    holds: 'the string->string Expo manifest metadata dictionary',
+  },
 
   // ---- audit trails -----------------------------------------------------------
-  { table: 'application_credential_audit_events', column: 'metadata', holds: 'per-event credential audit detail (which field changed, which grace window)' },
+  {
+    table: 'application_credential_audit_events',
+    column: 'metadata',
+    holds: 'per-event credential audit detail (which field changed, which grace window)',
+  },
   {
     table: 'inference_provider_connection_audit_events',
     column: 'metadata',
     holds:
-      'per-event BYOK connection audit detail. The only open-shaped column in the BYOK feature, '
-      + 'and therefore the one place a credential leak would land — asserted against a real '
-      + 'plaintext in inferenceProviderConnection.service.test.ts',
+      'per-event BYOK connection audit detail. The only open-shaped column in the BYOK feature, ' +
+      'and therefore the one place a credential leak would land — asserted against a real ' +
+      'plaintext in inferenceProviderConnection.service.test.ts',
   },
-  { table: 'security_activities', column: 'metadata', holds: 'per-event security detail; carries no IP in any form, per the platform invariant' },
-  { table: 'reputation_transactions', column: 'metadata', holds: 'the reason and source of a reputation award or correction' },
+  {
+    table: 'security_activities',
+    column: 'metadata',
+    holds: 'per-event security detail; carries no IP in any form, per the platform invariant',
+  },
+  {
+    table: 'reputation_transactions',
+    column: 'metadata',
+    holds: 'the reason and source of a reputation award or correction',
+  },
   // ---- delegated agency -------------------------------------------------------
   {
     table: 'app_capability_catalog_registrations',
     column: 'catalog',
-    holds: 'a schema-validated app capability catalog: tool metadata and JSON Schemas, never an invocation or its data',
+    holds:
+      'a schema-validated app capability catalog: tool metadata and JSON Schemas, never an invocation or its data',
   },
   {
     table: 'capability_audit_events',
     column: 'event',
-    holds: 'a schema-validated authority decision and bounded result status with hashed idempotency correlation; no tool input or output field',
+    holds:
+      'a schema-validated authority decision and bounded result status with hashed idempotency correlation; no tool input or output field',
   },
   {
     table: 'capability_execution_authorizations',
     column: 'limits',
-    holds: 'catalog-declared numeric maxima and exact booleans for one authorized tool; no strings, arrays or tool arguments',
+    holds:
+      'catalog-declared numeric maxima and exact booleans for one authorized tool; no strings, arrays or tool arguments',
   },
   {
     table: 'delegation_limits',
     column: 'value',
-    holds: 'one catalog-declared finite numeric maximum or exact boolean, never a string, list or tool argument',
+    holds:
+      'one catalog-declared finite numeric maximum or exact boolean, never a string, list or tool argument',
   },
   {
     table: 'normalized_app_event_outbox',
     column: 'event',
     holds:
-      'a schema-validated normalized Inbox event: stable ids, exact account/mailbox resource, '
-      + 'event type/time and minimal routing metadata (message id, mailbox id, sender, subject or '
-      + 'response classification); never the message body, headers, prompt, completion or tool data',
+      'a schema-validated normalized Inbox event: stable ids, exact account/mailbox resource, ' +
+      'event type/time and minimal routing metadata (message id, mailbox id, sender, subject or ' +
+      'response classification); never the message body, headers, prompt, completion or tool data',
   },
 
   // ---- email: the customer's own mailbox --------------------------------------
-  { table: 'email_outbox', column: 'payload', holds: "a queued outbound email the USER composed — their mail, not an inference payload" },
-  { table: 'email_saved_searches', column: 'filters', holds: 'a saved mailbox search: labels, senders, date bounds' },
-  { table: 'messages', column: 'headers', holds: 'the RFC 5322 headers of a received email, as received' },
-  { table: 'messages', column: 'cardData', holds: 'the extracted rich card for an email (flight, order, event); shape differs per card type' },
-  { table: 'messages', column: 'highlights', holds: 'display-only search highlight chips for an email' },
+  {
+    table: 'email_outbox',
+    column: 'payload',
+    holds: 'a queued outbound email the USER composed — their mail, not an inference payload',
+  },
+  {
+    table: 'email_saved_searches',
+    column: 'filters',
+    holds: 'a saved mailbox search: labels, senders, date bounds',
+  },
+  {
+    table: 'messages',
+    column: 'headers',
+    holds: 'the RFC 5322 headers of a received email, as received',
+  },
+  {
+    table: 'messages',
+    column: 'cardData',
+    holds:
+      'the extracted rich card for an email (flight, order, event); shape differs per card type',
+  },
+  {
+    table: 'messages',
+    column: 'highlights',
+    holds: 'display-only search highlight chips for an email',
+  },
 
   // ---- files ------------------------------------------------------------------
-  { table: 'files', column: 'metadata', holds: 'uploaded-file metadata: dimensions, duration, checksum' },
-  { table: 'file_variants', column: 'metadata', holds: 'per-variant metadata of a derived image or video rendition' },
+  {
+    table: 'files',
+    column: 'metadata',
+    holds: 'uploaded-file metadata: dimensions, duration, checksum',
+  },
+  {
+    table: 'file_variants',
+    column: 'metadata',
+    holds: 'per-variant metadata of a derived image or video rendition',
+  },
 
   // ---- the follow graph -------------------------------------------------------
-  { table: 'follow_events', column: 'payload', holds: 'bounded extra detail on a follow event; never required to interpret the event' },
-  { table: 'follow_targets', column: 'capabilities', holds: 'what a follow target supports (notifications, contexts)' },
-  { table: 'follow_target_kinds', column: 'capabilities', holds: 'the capability template for a kind of follow target' },
-  { table: 'follow_targets', column: 'metadataSnapshot', holds: 'bounded display metadata of a target: name, handle, icon, deep link' },
+  {
+    table: 'follow_events',
+    column: 'payload',
+    holds: 'bounded extra detail on a follow event; never required to interpret the event',
+  },
+  {
+    table: 'follow_targets',
+    column: 'capabilities',
+    holds: 'what a follow target supports (notifications, contexts)',
+  },
+  {
+    table: 'follow_target_kinds',
+    column: 'capabilities',
+    holds: 'the capability template for a kind of follow target',
+  },
+  {
+    table: 'follow_targets',
+    column: 'metadataSnapshot',
+    holds: 'bounded display metadata of a target: name, handle, icon, deep link',
+  },
 
   // ---- reputation and civic validation ---------------------------------------
-  { table: 'reporter_reputation_profiles', column: 'confirmedByFamily', holds: 'per-report-family confirmation counts' },
-  { table: 'reporter_reputation_profiles', column: 'rejectedByFamily', holds: 'per-report-family rejection counts' },
-  { table: 'reviewer_reputation_profiles', column: 'categoryReliability', holds: 'per-category reviewer reliability scores' },
-  { table: 'reviewer_reputation_profiles', column: 'languageReliability', holds: 'per-language reviewer reliability scores' },
-  { table: 'validation_requests', column: 'payload', holds: 'the civic claim body jurors inspect — a DNI validation claim, not a model request' },
-  { table: 'validation_requests', column: 'payloadHash', holds: 'the SHA-256 the signed juror verdict binds to; a hash cannot hold what it hashes' },
-  { table: 'validation_requests', column: 'candidateSnapshot', holds: 'the `{userId, weight}` juror pool at selection time; audit only' },
-  { table: 'validation_votes', column: 'envelope', holds: "a juror's signed vote envelope, verbatim" },
+  {
+    table: 'reporter_reputation_profiles',
+    column: 'confirmedByFamily',
+    holds: 'per-report-family confirmation counts',
+  },
+  {
+    table: 'reporter_reputation_profiles',
+    column: 'rejectedByFamily',
+    holds: 'per-report-family rejection counts',
+  },
+  {
+    table: 'reviewer_reputation_profiles',
+    column: 'categoryReliability',
+    holds: 'per-category reviewer reliability scores',
+  },
+  {
+    table: 'reviewer_reputation_profiles',
+    column: 'languageReliability',
+    holds: 'per-language reviewer reliability scores',
+  },
+  {
+    table: 'validation_requests',
+    column: 'payload',
+    holds: 'the civic claim body jurors inspect — a DNI validation claim, not a model request',
+  },
+  {
+    table: 'validation_requests',
+    column: 'payloadHash',
+    holds: 'the SHA-256 the signed juror verdict binds to; a hash cannot hold what it hashes',
+  },
+  {
+    table: 'validation_requests',
+    column: 'candidateSnapshot',
+    holds: 'the `{userId, weight}` juror pool at selection time; audit only',
+  },
+  {
+    table: 'validation_votes',
+    column: 'envelope',
+    holds: "a juror's signed vote envelope, verbatim",
+  },
 
   // ---- identity ---------------------------------------------------------------
-  { table: 'signed_records', column: 'envelope', holds: 'a signed identity record envelope, verbatim' },
-  { table: 'identity_link_requests', column: 'proof', holds: "the `link_identity` root proof Commons posted, as `identityProofSchema` validated it: `{ v, challenge, expiresAt, signature }` — a signature over fixed claims, never a request or response" },
-  { table: 'verifiable_credentials', column: 'claims', holds: 'the claims of a verifiable credential' },
+  {
+    table: 'signed_records',
+    column: 'envelope',
+    holds: 'a signed identity record envelope, verbatim',
+  },
+  {
+    table: 'identity_link_requests',
+    column: 'proof',
+    holds:
+      'the `link_identity` root proof Commons posted, as `identityProofSchema` validated it: `{ v, challenge, expiresAt, signature }` — a signature over fixed claims, never a request or response',
+  },
+  {
+    table: 'verifiable_credentials',
+    column: 'claims',
+    holds: 'the claims of a verifiable credential',
+  },
 
   // ---- misc -------------------------------------------------------------------
-  { table: 'access_provider_periods', column: 'payload', holds: 'strict whitelisted normalized paid-line access projection: provider/account/live/environment, invoice/line/price IDs, subscription/source/segment IDs, payer/beneficiary, offer/version/origin, quantity one and period; no raw provider event, inference content or financial balance' },
-  { table: 'access_provider_periods', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized paid-line access projection, never its raw provider payload' },
-  { table: 'access_provider_events', column: 'payload', holds: 'strict normalized delivery mapping: schema version, provider/account/live/environment, event ID/time, source/evidence IDs and paid-line projection SHA-256; no raw provider event, inference content or financial balance' },
-  { table: 'access_provider_events', column: 'payloadSha256', holds: 'SHA-256 of that canonical normalized delivery mapping, never raw provider content' },
+  {
+    table: 'access_provider_periods',
+    column: 'payload',
+    holds:
+      'strict whitelisted normalized paid-line access projection: provider/account/live/environment, invoice/line/price IDs, subscription/source/segment IDs, payer/beneficiary, offer/version/origin, quantity one and period; no raw provider event, inference content or financial balance',
+  },
+  {
+    table: 'access_provider_periods',
+    column: 'payloadSha256',
+    holds:
+      'SHA-256 of that canonical normalized paid-line access projection, never its raw provider payload',
+  },
+  {
+    table: 'access_provider_events',
+    column: 'payload',
+    holds:
+      'strict normalized delivery mapping: schema version, provider/account/live/environment, event ID/time, source/evidence IDs and paid-line projection SHA-256; no raw provider event, inference content or financial balance',
+  },
+  {
+    table: 'access_provider_events',
+    column: 'payloadSha256',
+    holds: 'SHA-256 of that canonical normalized delivery mapping, never raw provider content',
+  },
   { table: 'topics', column: 'translations', holds: 'per-locale topic labels' },
-  { table: 'user_analytics', column: 'demographicsCountries', holds: 'aggregate audience counts per country; no per-user location and no IP' },
-  { table: 'user_analytics', column: 'demographicsLanguages', holds: 'aggregate audience counts per language' },
+  {
+    table: 'user_analytics',
+    column: 'demographicsCountries',
+    holds: 'aggregate audience counts per country; no per-user location and no IP',
+  },
+  {
+    table: 'user_analytics',
+    column: 'demographicsLanguages',
+    holds: 'aggregate audience counts per language',
+  },
   {
     table: 'user_app_data',
     column: 'value',
     holds:
-      "whatever an application stored under its own namespace and key. Shape-less by design and "
-      + "the application is its controller; no Oxy inference path writes here, which is what keeps "
-      + 'it out of this policy',
+      'whatever an application stored under its own namespace and key. Shape-less by design and ' +
+      'the application is its controller; no Oxy inference path writes here, which is what keeps ' +
+      'it out of this policy',
   },
 ];
 
@@ -294,8 +461,14 @@ const MINIMUM_COLUMNS = fixtureFloors ? 1 : 1700;
 if (process.env.PAYLOAD_PERSISTENCE_EMIT_POLICY === '1') {
   console.log(
     JSON.stringify({
-      banned: BANNED_NAME_PATTERNS.map((entry) => ({ source: entry.pattern.source, holds: entry.holds })),
-      declared: DECLARED_FREE_SHAPED_COLUMNS.map((entry) => ({ table: entry.table, column: entry.column })),
+      banned: BANNED_NAME_PATTERNS.map((entry) => ({
+        source: entry.pattern.source,
+        holds: entry.holds,
+      })),
+      declared: DECLARED_FREE_SHAPED_COLUMNS.map((entry) => ({
+        table: entry.table,
+        column: entry.column,
+      })),
       requiredTables: REQUIRED_TABLES,
     }),
   );
@@ -398,23 +571,23 @@ if (findings.length > 0 || problems.length > 0) {
   for (const problem of problems) console.error(`  ${problem}\n`);
   if (findings.length > 0) {
     console.error(
-      '  Oxy persists no prompt, completion, chat message body or tool argument. That is ADR\n'
-      + '  0016 and docs/inference/data-policy.md, and #972 section 12 requires any future debug\n'
-      + '  capture to be explicit opt-in, time-limited, encrypted with a key Oxy does not hold in\n'
-      + '  PostgreSQL, audited and PII-redacted BEFORE it exists — not afterwards. No secret\n'
-      + '  backend is wired in this deployment (ADR 0013), so the encryption precondition cannot\n'
-      + '  be met today and a capture table cannot honestly land.\n\n'
-      + '  If the column above holds something else, add a DECLARED_FREE_SHAPED_COLUMNS entry in\n'
-      + '  scripts/check-no-payload-persistence.mjs saying what it holds, in the same commit as\n'
-      + '  the column.\n',
+      '  Oxy persists no prompt, completion, chat message body or tool argument. That is ADR\n' +
+        '  0016 and docs/inference/data-policy.md, and #972 section 12 requires any future debug\n' +
+        '  capture to be explicit opt-in, time-limited, encrypted with a key Oxy does not hold in\n' +
+        '  PostgreSQL, audited and PII-redacted BEFORE it exists — not afterwards. No secret\n' +
+        '  backend is wired in this deployment (ADR 0013), so the encryption precondition cannot\n' +
+        '  be met today and a capture table cannot honestly land.\n\n' +
+        '  If the column above holds something else, add a DECLARED_FREE_SHAPED_COLUMNS entry in\n' +
+        '  scripts/check-no-payload-persistence.mjs saying what it holds, in the same commit as\n' +
+        '  the column.\n',
     );
   }
   process.exit(1);
 }
 
 console.log(
-  `Payload-persistence guard passed — ${seenTables.size} tables / ${columnsInspected} columns `
-  + `inspected, ${freeShapedInspected} of them free-shaped; `
-  + `${DECLARED_FREE_SHAPED_COLUMNS.length} declared open-shaped or payload-named columns all still `
-  + `present; ${REQUIRED_TABLES.length} required tables reached.`,
+  `Payload-persistence guard passed — ${seenTables.size} tables / ${columnsInspected} columns ` +
+    `inspected, ${freeShapedInspected} of them free-shaped; ` +
+    `${DECLARED_FREE_SHAPED_COLUMNS.length} declared open-shaped or payload-named columns all still ` +
+    `present; ${REQUIRED_TABLES.length} required tables reached.`,
 );

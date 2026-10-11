@@ -238,9 +238,12 @@ export interface KaanaExecuteOptions {
 export interface KaanaClient {
   attestDeployments(
     deploymentIds: readonly string[],
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): Promise<KaanaDeploymentAttestation>;
-  execute(envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
+  execute(
+    envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
+    options: KaanaExecuteOptions,
+  ): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.
    *
@@ -250,7 +253,7 @@ export interface KaanaClient {
    */
   stream(
     envelope: InferenceRequest | ScopedInferenceRequest | PrivateAutoInferenceRequest,
-    options: KaanaExecuteOptions
+    options: KaanaExecuteOptions,
   ): AsyncIterable<KaanaStreamFrame>;
 }
 
@@ -342,7 +345,7 @@ export class KaanaIncompleteError extends Error {
     detail: {
       readonly failure?: InferenceError;
       readonly usage?: KaanaUsageEvidence;
-    } = {}
+    } = {},
   ) {
     super(message);
     this.name = 'KaanaIncompleteError';

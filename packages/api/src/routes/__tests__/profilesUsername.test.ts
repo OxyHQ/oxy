@@ -24,7 +24,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { userResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
-
 /** Set by a test before the request; read by the mocked optional-auth middleware. */
 let currentViewerId: string | undefined;
 
@@ -34,11 +33,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/optionalAuth', () => ({
-  optionalUserOrServiceAuth: (
-    req: { user?: { _id: string } },
-    _res: unknown,
-    next: () => void,
-  ) => {
+  optionalUserOrServiceAuth: (req: { user?: { _id: string } }, _res: unknown, next: () => void) => {
     if (currentViewerId) req.user = { _id: currentViewerId };
     next();
   },
@@ -166,7 +161,11 @@ describe('GET /profiles/username/:username — eligibility gate', () => {
     const name = handle('alice');
     await account({ username: name });
 
-    for (const coerced of [`${name.slice(0, 3)} ${name.slice(3)}`, `${name}!`, name.split('').join('!')]) {
+    for (const coerced of [
+      `${name.slice(0, 3)} ${name.slice(3)}`,
+      `${name}!`,
+      name.split('').join('!'),
+    ]) {
       const res = await lookup(coerced);
       expect(res.status).toBe(404);
       expect(res.raw).not.toContain(name);
@@ -201,10 +200,12 @@ describe('GET /profiles/username/:username — wire shape', () => {
     // Two real follow edges, so `_count` is a MEASUREMENT rather than a default.
     const follower = await account({ username: handle('follower') });
     const followed = await account({ username: handle('followed') });
-    await getDb().insert(userFollows).values([
-      { followerId: follower, followedId: id },
-      { followerId: id, followedId: followed },
-    ]);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: follower, followedId: id },
+        { followerId: id, followedId: followed },
+      ]);
 
     const [stored] = await getDb()
       .select({ createdAt: users.createdAt, updatedAt: users.updatedAt })
@@ -289,7 +290,14 @@ describe('GET /profiles/username/:username — wire shape', () => {
     const res = await lookup(username);
 
     expect(res.status).toBe(200);
-    for (const field of ['email', 'phone', 'refreshToken', 'publicKey', 'hashedEmail', 'hashedPhone']) {
+    for (const field of [
+      'email',
+      'phone',
+      'refreshToken',
+      'publicKey',
+      'hashedEmail',
+      'hashedPhone',
+    ]) {
       expect(res.body.data).not.toHaveProperty(field);
     }
     expect(res.raw).not.toContain(`${username}@oxy.so`);
@@ -348,11 +356,38 @@ describe('GET /profiles/username/:username — alsoKnownAs', () => {
     const username = handle('aliased');
     const id = await account({ username });
     const key = `${username}@mastodon.example`;
-    await getDb().insert(userLinkedAccounts).values([
-      { userId: id, network: 'activitypub', accountKey: key, actorUri: `https://mastodon.example/users/${username}`, handle: `@${key}`, host: 'mastodon.example', verifiedAt: new Date() },
-      { userId: id, network: 'activitypub', accountKey: `old-${key}`, actorUri: 'https://mastodon.example/users/old', handle: '@old', host: 'mastodon.example', verifiedAt: new Date(), revokedAt: new Date() },
-      { userId: id, network: 'atproto', accountKey: `did:plc:${username}`, actorUri: `did:plc:${username}`, handle: 'x.bsky.social', host: 'pds.example', verifiedAt: new Date() },
-    ]);
+    await getDb()
+      .insert(userLinkedAccounts)
+      .values([
+        {
+          userId: id,
+          network: 'activitypub',
+          accountKey: key,
+          actorUri: `https://mastodon.example/users/${username}`,
+          handle: `@${key}`,
+          host: 'mastodon.example',
+          verifiedAt: new Date(),
+        },
+        {
+          userId: id,
+          network: 'activitypub',
+          accountKey: `old-${key}`,
+          actorUri: 'https://mastodon.example/users/old',
+          handle: '@old',
+          host: 'mastodon.example',
+          verifiedAt: new Date(),
+          revokedAt: new Date(),
+        },
+        {
+          userId: id,
+          network: 'atproto',
+          accountKey: `did:plc:${username}`,
+          actorUri: `did:plc:${username}`,
+          handle: 'x.bsky.social',
+          host: 'pds.example',
+          verifiedAt: new Date(),
+        },
+      ]);
     const res = await lookup(username);
     expect(res.status).toBe(200);
     expect(res.body.data.alsoKnownAs).toEqual([`https://mastodon.example/users/${username}`]);
@@ -374,10 +409,12 @@ describe('GET /profiles/username/:username — viewer relationship', () => {
     const username = handle('mutual');
     const target = await account({ username });
     const viewer = await account({ username: handle('viewer') });
-    await getDb().insert(userFollows).values([
-      { followerId: viewer, followedId: target },
-      { followerId: target, followedId: viewer },
-    ]);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: target },
+        { followerId: target, followedId: viewer },
+      ]);
     currentViewerId = viewer;
 
     const res = await lookup(username);
@@ -390,9 +427,7 @@ describe('GET /profiles/username/:username — viewer relationship', () => {
     const username = handle('oneway');
     const target = await account({ username });
     const viewer = await account({ username: handle('viewer') });
-    await getDb()
-      .insert(userFollows)
-      .values({ followerId: viewer, followedId: target });
+    await getDb().insert(userFollows).values({ followerId: viewer, followedId: target });
     currentViewerId = viewer;
 
     const res = await lookup(username);

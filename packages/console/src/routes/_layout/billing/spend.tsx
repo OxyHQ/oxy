@@ -4,10 +4,7 @@ import * as Skeleton from '@oxy.so/bloom/skeleton';
 import type { ReportRangeDays, SpendDimension } from '@/lib/reporting';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BillingHeader } from '@/components/billing/billing-header';
-import {
-  ProvenanceBanner,
-  ProvenanceCrossReference,
-} from '@/components/billing/provenance-banner';
+import { ProvenanceBanner, ProvenanceCrossReference } from '@/components/billing/provenance-banner';
 import { ReportControls } from '@/components/billing/report-controls';
 import { accountLabel, useAccount } from '@/hooks/use-account';
 import { useAccountSpendReport } from '@/hooks/use-inference-reporting';
@@ -57,7 +54,7 @@ function BillingSpendPage() {
   const spendQuery = useAccountSpendReport(
     accountId,
     { range, groupBy, includeDescendants },
-    canRead
+    canRead,
   );
   const report = spendQuery.data;
 
@@ -66,7 +63,7 @@ function BillingSpendPage() {
       return [];
     }
     return [...report.rows].sort((left, right) =>
-      compareExactDecimals(right.netAmount, left.netAmount)
+      compareExactDecimals(right.netAmount, left.netAmount),
     );
   }, [report]);
 

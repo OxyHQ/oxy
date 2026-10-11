@@ -1,12 +1,10 @@
 /**
  * `getUserActor` against a REAL Postgres.
  *
- * The suite this replaces mocked `mongoose` wholesale and fed the function an
- * `as never` object, so neither the key lookup nor the actor's own shape was
- * checked against anything. Here the key pair is a real row and the parameter
- * is the declared `ActorSourceUser`, which is what makes the `as never` — and
- * with it the ability to hand this function a shape it cannot serve —
- * unnecessary.
+ * The key pair is a real row and the parameter is the declared
+ * `ActorSourceUser`, so both the key lookup and the actor's own shape are
+ * checked against something real — no `as never` object can hand this function
+ * a shape it cannot serve.
  *
  * MOCKED, because each is a collaborator this file is not about: the asset and
  * S3 services (avatar URL resolution) and `userCache`.
@@ -103,15 +101,27 @@ describe('getUserActor', () => {
   });
 
   it('publishes verified aliases as alsoKnownAs, with the term declared, only when there are some', async () => {
-    const plain = await getUserActor({ username: 'no-alias', kind: 'personal', alsoKnownAs: [] }, DOMAIN);
+    const plain = await getUserActor(
+      { username: 'no-alias', kind: 'personal', alsoKnownAs: [] },
+      DOMAIN,
+    );
     expect(plain).not.toHaveProperty('alsoKnownAs');
-    expect(plain?.['@context']).toEqual(['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1']);
+    expect(plain?.['@context']).toEqual([
+      'https://www.w3.org/ns/activitystreams',
+      'https://w3id.org/security/v1',
+    ]);
 
     const aliased = await getUserActor(
-      { username: 'aliased', kind: 'personal', alsoKnownAs: ['https://mastodon.example/users/aliased', 'http://insecure.example/u'] },
+      {
+        username: 'aliased',
+        kind: 'personal',
+        alsoKnownAs: ['https://mastodon.example/users/aliased', 'http://insecure.example/u'],
+      },
       DOMAIN,
     );
     expect(aliased?.alsoKnownAs).toEqual(['https://mastodon.example/users/aliased']);
-    expect(aliased?.['@context']).toContainEqual({ alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' } });
+    expect(aliased?.['@context']).toContainEqual({
+      alsoKnownAs: { '@id': 'as:alsoKnownAs', '@type': '@id' },
+    });
   });
 });

@@ -30,7 +30,10 @@ export class ContactsApi {
    * Which of these hashed contacts are on Oxy. Either list may be empty, not
    * both; at most 200 hashes per list per call (batch larger books).
    */
-  async discover(hashedEmails: string[], hashedPhones: string[]): Promise<ContactDiscoveryResponse> {
+  async discover(
+    hashedEmails: string[],
+    hashedPhones: string[],
+  ): Promise<ContactDiscoveryResponse> {
     return this.ctx.request<ContactDiscoveryResponse>(
       'POST',
       '/contacts/discover',

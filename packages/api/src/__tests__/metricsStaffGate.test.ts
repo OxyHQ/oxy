@@ -111,7 +111,7 @@ async function bearerFor(userId: string): Promise<string> {
   const session = await sessionService.createSession(
     userId,
     { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never,
-    { deviceId: randomUUID() }
+    { deviceId: randomUUID() },
   );
   const minted = await sessionService.getAccessToken(session.sessionId);
   if (!minted) {

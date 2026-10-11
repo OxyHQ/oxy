@@ -22,10 +22,7 @@ const themeIconEntering = () => {
     },
     animations: {
       opacity: withTiming(1, config),
-      transform: [
-        { rotate: withTiming('0deg', config) },
-        { scale: withTiming(1, config) },
-      ],
+      transform: [{ rotate: withTiming('0deg', config) }, { scale: withTiming(1, config) }],
     },
   };
 };
@@ -71,7 +68,12 @@ export function BottomActionBar({
   ) : undefined;
 
   return (
-    <View style={[isDesktop ? styles.desktopBottomActions : styles.mobileBottomActions, floatingPosition]}>
+    <View
+      style={[
+        isDesktop ? styles.desktopBottomActions : styles.mobileBottomActions,
+        floatingPosition,
+      ]}
+    >
       {isDesktop && Platform.OS !== 'web' && (
         <QuickActionButton
           icon="qrcode-scan"

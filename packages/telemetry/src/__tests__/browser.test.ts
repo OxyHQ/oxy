@@ -47,8 +47,15 @@ describe('browser telemetry', () => {
   it('rediscovers the edge after a VPN change without reloading the page', async () => {
     let now = 1_000;
     let edge = 'MAD';
-    const fetchTrace = jest.fn(async () => ({ ok: true, text: async () => `colo=${edge}\nip=203.0.113.8\nloc=ES` }));
-    const telemetry = createBrowserTelemetry({ location: { hostname: 'oxy.so', protocol: 'https:' }, now: () => now, fetchTrace });
+    const fetchTrace = jest.fn(async () => ({
+      ok: true,
+      text: async () => `colo=${edge}\nip=203.0.113.8\nloc=ES`,
+    }));
+    const telemetry = createBrowserTelemetry({
+      location: { hostname: 'oxy.so', protocol: 'https:' },
+      now: () => now,
+      fetchTrace,
+    });
     await expect(telemetry.getEdgeRegionHeader()).resolves.toEqual({ 'X-Oxy-Edge-Region': 'mad' });
     edge = 'NRT';
     now += 15_000;
@@ -58,13 +65,19 @@ describe('browser telemetry', () => {
 
   it('retries failed discovery on the next window instead of caching failure for the session', async () => {
     let now = 1_000;
-    const fetchTrace = jest.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ ok: true, text: async () => 'colo=SYD' });
-    const telemetry = createBrowserTelemetry({ location: { hostname: 'oxy.so', protocol: 'https:' }, now: () => now, fetchTrace });
+    const fetchTrace = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ok: true, text: async () => 'colo=SYD' });
+    const telemetry = createBrowserTelemetry({
+      location: { hostname: 'oxy.so', protocol: 'https:' },
+      now: () => now,
+      fetchTrace,
+    });
     await expect(telemetry.getEdgeRegionHeader()).resolves.toEqual({});
     now += 15_000;
     await expect(telemetry.getEdgeRegionHeader()).resolves.toEqual({ 'X-Oxy-Edge-Region': 'syd' });
   });
-
 });
 
 describe('peekEdgeRegionHeader', () => {
@@ -75,7 +88,10 @@ describe('peekEdgeRegionHeader', () => {
       now: () => clock,
       location: { hostname: 'app.oxy.so', protocol: 'https:' },
       edgePeekRefreshMs: 1000,
-      fetchTrace: async () => ({ ok: true, text: async () => `colo=${pops.shift()?.toUpperCase()}\n` }),
+      fetchTrace: async () => ({
+        ok: true,
+        text: async () => `colo=${pops.shift()?.toUpperCase()}\n`,
+      }),
     });
 
     expect(telemetry.peekEdgeRegionHeader()).toEqual({});

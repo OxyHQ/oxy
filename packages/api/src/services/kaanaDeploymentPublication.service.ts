@@ -73,7 +73,7 @@ export interface PublishedDeploymentReader {
 /** Whether an exact deployment id may be offered under this liveness view. */
 export function isDeploymentPublished(
   liveness: DeploymentLiveness,
-  deploymentId: string | null
+  deploymentId: string | null,
 ): boolean {
   if (liveness.status === 'not-configured') return true;
   if (liveness.status === 'unavailable') return false;
@@ -86,7 +86,7 @@ export function createDeploymentPublicationCache(
     readonly ttlMs?: number;
     readonly maxStaleMs?: number;
     readonly now?: () => number;
-  } = {}
+  } = {},
 ): DeploymentPublicationSource {
   const ttlMs = options.ttlMs ?? PUBLICATION_TTL_MS;
   const maxStaleMs = options.maxStaleMs ?? PUBLICATION_MAX_STALE_MS;
@@ -102,7 +102,15 @@ export function createDeploymentPublicationCache(
       last = {
         status: 'observed',
         snapshotId: snapshot.snapshotId,
-        deploymentIds: new Set(snapshot.deployments.filter((deployment) => deployment.scopedExecution === undefined && deployment.privateAutoSourceApproval === undefined).map((deployment) => deployment.deploymentId)),
+        deploymentIds: new Set(
+          snapshot.deployments
+            .filter(
+              (deployment) =>
+                deployment.scopedExecution === undefined &&
+                deployment.privateAutoSourceApproval === undefined,
+            )
+            .map((deployment) => deployment.deploymentId),
+        ),
         observedAt: now(),
       };
       return last;
@@ -153,7 +161,7 @@ export async function currentDeploymentLiveness(): Promise<DeploymentLiveness> {
  * function that restores the previous one.
  */
 export function overrideDeploymentPublicationSource(
-  replacement: DeploymentPublicationSource | undefined
+  replacement: DeploymentPublicationSource | undefined,
 ): () => void {
   const previous = source;
   source = replacement;

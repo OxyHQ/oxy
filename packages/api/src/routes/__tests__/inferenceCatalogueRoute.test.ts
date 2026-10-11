@@ -103,7 +103,7 @@ function request(path: string, options: { token?: string | null } = {}): Promise
           }
           resolve({ status: res.statusCode ?? 0, body, raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -340,7 +340,7 @@ async function machineTokenForApplication(input: {
  */
 async function withMachineLane(
   position: 'enabled' | 'unset',
-  run: () => Promise<void>
+  run: () => Promise<void>,
 ): Promise<void> {
   const original = process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE];
   if (position === 'enabled') process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
@@ -440,18 +440,18 @@ function signServiceToken(input: {
 }): string {
   const tokenIssuedAt = Math.floor(Date.now() / 1_000);
   const token = signServiceTokenEd25519({
-      type: 'service',
-      appId: input.appId,
-      appName: 'Catalogue Fixture App',
-      credentialId: input.credentialId ?? `cred-${suffix()}`,
-      ownerAccountId: input.ownerAccountId,
-      environment: 'production',
-      scopes: ['inference:invoke'],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: tokenIssuedAt,
-      exp: tokenIssuedAt + 300,
-    });
+    type: 'service',
+    appId: input.appId,
+    appName: 'Catalogue Fixture App',
+    credentialId: input.credentialId ?? `cred-${suffix()}`,
+    ownerAccountId: input.ownerAccountId,
+    environment: 'production',
+    scopes: ['inference:invoke'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: tokenIssuedAt,
+    exp: tokenIssuedAt + 300,
+  });
   // Same header and claims, a signature no Oxy key produced.
   return input.forged
     ? `${token.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`
@@ -494,7 +494,7 @@ afterAll(async () => {
     process.env.INFERENCE_CATALOGUE_AUDIENCE = ORIGINAL_CATALOGUE_AUDIENCE;
   }
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -523,7 +523,8 @@ describe('the audience is resolved from the request, and every branch but one is
     ],
     [
       'a service token whose application row does not exist',
-      async () => signServiceToken({ appId: `app-${suffix()}`, ownerAccountId: `acct-${suffix()}` }),
+      async () =>
+        signServiceToken({ appId: `app-${suffix()}`, ownerAccountId: `acct-${suffix()}` }),
     ],
     [
       'an ordinary third-party application',
@@ -547,10 +548,13 @@ describe('the audience is resolved from the request, and every branch but one is
     ['type: first_party', { type: 'first_party' as const }],
     ['type: internal', { type: 'internal' as const }],
     ['type: system', { type: 'system' as const }],
-    ['isInternal on an otherwise third-party application', {
-      type: 'third_party' as const,
-      isInternal: true,
-    }],
+    [
+      'isInternal on an otherwise third-party application',
+      {
+        type: 'third_party' as const,
+        isInternal: true,
+      },
+    ],
   ])('resolves %s to the platform audience', async (_label, application) => {
     const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
     const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
@@ -641,7 +645,11 @@ describe('an attested token resolves the audience of the application its binding
   it.each([
     [
       'a binding that has expired',
-      () => attestedTokenForApplication({ type: 'first_party', expiresAt: new Date(Date.now() - 1_000) }),
+      () =>
+        attestedTokenForApplication({
+          type: 'first_party',
+          expiresAt: new Date(Date.now() - 1_000),
+        }),
     ],
     [
       'a suspended application',
@@ -653,7 +661,11 @@ describe('an attested token resolves the audience of the application its binding
     ],
     [
       'a handle for a role nobody bound',
-      () => attestedTokenForApplication({ type: 'first_party', boundSubject: 'arn:aws:iam::237343248947:role/oxy-someone-else-task' }),
+      () =>
+        attestedTokenForApplication({
+          type: 'first_party',
+          boundSubject: 'arn:aws:iam::237343248947:role/oxy-someone-else-task',
+        }),
     ],
     [
       'an application with no binding at all',
@@ -869,10 +881,7 @@ describe('the served JSON carries no internal route id and no wholesale cost', (
     const detail = await request(`${MOUNT}/${route.modelId}`, { token: null });
     expect(detail.status).toBe(200);
 
-    const payloads = [
-      JSON.stringify(entryFor(list.body, 'data', route.modelId)),
-      detail.raw,
-    ];
+    const payloads = [JSON.stringify(entryFor(list.body, 'data', route.modelId)), detail.raw];
     for (const payload of payloads) {
       // POSITIVE CONTROL, in the same currency as the measurement: this scan can
       // find a string that IS in the payload. Without it, a scan of an empty
