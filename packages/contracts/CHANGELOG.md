@@ -1,5 +1,29 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.11.0-oxy-one.1
+
+Additive. A catalogue tool can now say which executing actors Oxy will
+authorize for it, so a coordinator stops offering tools it can never run.
+
+### Added
+
+- `catalogToolSchema.actors` (optional, non-empty, unique): the
+  `executionActorRefSchema` types (`alia`, `agent`, `requester`) Oxy issues a
+  capability ticket for. A tool naming `requester` must be a `read` tool
+  (requester tickets are read-only).
+- `CATALOG_TOOL_ACTOR_TYPES`, `catalogToolActorTypeSchema`,
+  `CatalogToolActorType`, `CATALOG_TOOL_DEFAULT_ACTORS` and
+  `catalogToolActors(tool)` / `catalogToolAllowsActor(tool, type)` — the one
+  reading of the field. **Absent means `alia` and `agent`**: the present
+  requester lane (ADR 0025) is opt-in, exactly as before the field existed.
+
+### Compatibility
+
+`catalogToolSchema` is still `.strict()`, so a consumer on 4.11.0-oxy-one.0 or
+earlier REFUSES a catalogue whose tools carry `actors`. A consumer that parses
+other apps' catalogues (Alia) must read the field tolerantly, or be on this
+version, before any app registers a catalogue that sets it.
+
 ## Unreleased (MINOR — additive; release coordinated with #1519 I04/I07)
 
 ### Added

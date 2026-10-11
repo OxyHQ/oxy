@@ -11357,8 +11357,7 @@
             "description": "Service principal missing or no longer active."
           },
           "403": {
-            "description": "The bot",
-            "its owner or the owner's authority over the account did not hold.": null
+            "description": "The bot, its owner or the owner's authority over the account did not hold, or the catalogue does not let an agent execute the tool (tool_not_available_to_actor)."
           }
         },
         "operationId": "postCapabilitiesAgentRunAuthorizations"
@@ -11568,7 +11567,7 @@
             "description": "Service or requester proof missing or no longer current."
           },
           "403": {
-            "description": "Live presenter or requester authority refused."
+            "description": "Live presenter or requester authority refused, or the tool does not name the requester among its catalogue actors."
           },
           "409": {
             "description": "Catalogue pin is not current."
