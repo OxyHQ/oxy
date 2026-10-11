@@ -1,3 +1,20 @@
+jest.mock('../../middleware/auth', () => ({
+  authMiddleware: (
+    req: { headers: Record<string, string | undefined>; user?: unknown },
+    res: { status(code: number): { json(body: unknown): void } },
+    next: () => void,
+  ) => {
+    const subject = req.headers['x-test-user'];
+    if (!subject) return res.status(401).json({ error: 'Authentication required' });
+    req.user = { _id: { toString: () => subject } };
+    next();
+  },
+}));
+import express from 'express';
+import type { AddressInfo } from 'node:net';
+import * as runtimeModule from '../peablePersonalRuntime.service';
+import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
+import { personalPlanCheckoutIntents } from '../../db/schema';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -594,5 +611,195 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         await rm(directory, { recursive: true, force: true });
       }
     }, 30_000);
+    it('runs Oxy HTTP checkout through the official SDK and Peable signed quote fixture, then fulfills one initial invoice', async () => {
+      const account = await productAccessFixture();
+      const start = new Date(Math.floor((Date.now() - 60000) / 1000) * 1000).toISOString();
+      const end = new Date(Math.floor((Date.now() + 86400000) / 1000) * 1000).toISOString();
+      const initialized = await rpc('initialize', [], {
+        accountId: account.payer,
+        appId: account.app.id,
+        planId: 'synthetic-approved',
+        offerId: account.offers[0].id,
+        offerVersion: 1,
+        periodStart: start,
+        periodEnd: end,
+        fiscalCheckout: true,
+      });
+      expect(initialized.checkoutId).toBeNull();
+      const client = new Peable({
+        baseURL: initialized.baseURL,
+        oxyApiUrl: initialized.baseURL,
+        publicKey: 'synthetic',
+        secret: 'synthetic',
+        invoiceAuthorityKeys: initialized.invoiceAuthorityKeys,
+        taxQuoteAuthorityKeys: initialized.invoiceAuthorityKeys,
+      });
+      const provider = createPeablePersonalCheckoutProvider(
+        client,
+        {
+          merchantId: initialized.merchantId,
+          applicationId: account.app.id,
+          namespace: { mode: 'live', environment: 'production' },
+          sellerId: 'synthetic-seller',
+          invoiceIssuerId: 'synthetic-issuer',
+          taxRemitterId: 'synthetic-remitter',
+          returnUrl: 'https://example.invalid/return',
+          offers: [
+            {
+              offerId: account.offers[0].id,
+              offerVersion: 1,
+              priceId: 'price_fixture',
+              planId: 'synthetic-approved',
+              amountMinorUnits: 2999,
+              currency: 'USD',
+              interval: 'month',
+              trial: 'none',
+            },
+          ],
+        },
+        () => new Date(),
+        {
+          resolveCustomerLocationEvidence: async (subject) => {
+            if (subject !== account.payer) throw new Error('Foreign trusted subject');
+            return { customerLocationEvidenceId: 'synthetic-location' };
+          },
+        },
+      );
+      const runtime = createPeablePersonalRuntime(
+        client,
+        {
+          merchantId: initialized.merchantId,
+          applicationId: account.app.id,
+          namespace: { mode: 'live', environment: 'production' },
+          offers: [
+            {
+              offerId: account.offers[0].id,
+              offerVersion: 1,
+              providerPriceId: 'price_fixture',
+              planId: 'synthetic-approved',
+            },
+          ],
+          sellerId: 'synthetic-seller',
+          invoiceIssuer: { legalName: 'The Oxy Collective, Inc.', id: 'synthetic-issuer' },
+          invoiceAuthorityKeys: initialized.invoiceAuthorityKeys,
+          taxQuoteAuthorityKeys: initialized.invoiceAuthorityKeys,
+          purchasesEnabled: false,
+          observationsEnabled: false,
+          recoveryEnabled: true,
+          recoveryIntervalMilliseconds: 60000,
+        },
+        undefined,
+        { checkoutProvider: provider },
+      );
+      const directory = await mkdtemp(join(tmpdir(), 'one-http-signed-checkout-'));
+      const path = join(directory, 'catalogue.json');
+      await writeFile(
+        path,
+        JSON.stringify({
+          ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+          products: account.products,
+          offers: account.offers,
+          personalPlans: [
+            {
+              offerId: account.offers[0].id,
+              offerVersion: 1,
+              displayName: 'Synthetic bundle',
+              kind: 'oxy_one',
+              audience: 'personal',
+              benefitNames: ['Synthetic first', 'Synthetic second'],
+            },
+          ],
+          prices: [
+            {
+              provider: 'peable',
+              providerAccountId: initialized.merchantId,
+              priceId: 'price_fixture',
+              mode: 'live',
+              environment: 'production',
+              offerId: account.offers[0].id,
+              offerVersion: 1,
+              validFrom: '2000-01-01T00:00:00.000Z',
+              validUntil: null,
+              currency: 'usd',
+              amountMinorUnits: 2999,
+              offerKind: 'bundle',
+              kind: 'oxy_one',
+            },
+          ],
+        }),
+      );
+      const previous = process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+      process.env.BILLING_PRODUCT_CATALOGUE_FILE = path;
+      const currentRuntime = jest
+        .spyOn(runtimeModule, 'getPeablePersonalRuntime')
+        .mockReturnValue(runtime);
+      const router = (await import('../../routes/billing')).default;
+      const app = express();
+      app.use(express.json());
+      app.use('/billing', router);
+      const server = app.listen(0, '127.0.0.1');
+      await new Promise<void>((resolve) => server.once('listening', resolve));
+      const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/billing/checkout/personal-plan`;
+      const body = {
+        expectedSubjectAccountId: account.payer,
+        offerId: account.offers[0].id,
+        offerVersion: 1,
+        idempotencyKey: randomUUID(),
+      };
+      const send = () =>
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-test-user': account.payer },
+          body: JSON.stringify(body),
+        });
+      try {
+        const response = await send();
+        expect(response.status).toBe(200);
+        const result = (await response.json()) as {
+          state: string;
+          intentId: string;
+          checkoutUrl: string;
+        };
+        expect(result.state).toBe('pending');
+        const [before] = await getDb()
+          .select()
+          .from(personalPlanCheckoutIntents)
+          .where(eq(personalPlanCheckoutIntents.id, result.intentId));
+        expect(before.taxQuoteAuthority).toBeTruthy();
+        expect(before.providerSessionId).toBe('cs_live_fixture');
+        expect(JSON.parse(before.taxQuoteAuthority ?? '{}').signature.algorithm).toBe('Ed25519');
+        expect(
+          (await readSubjectProductAccess(account.payer, account.products[1].id)).capabilities,
+        ).toHaveLength(0);
+        expect((await send()).status).toBe(200);
+        expect(await rpc('checkoutDispatchCount')).toEqual({ dispatches: 1 });
+        expect(await runtime.recoverCheckout(result.intentId)).toMatchObject({
+          status: 'recorded',
+        });
+        expect(await runtime.recoverCheckout(result.intentId)).toEqual({ status: 'no_invoice' });
+        const [after] = await getDb()
+          .select()
+          .from(personalPlanCheckoutIntents)
+          .where(eq(personalPlanCheckoutIntents.id, result.intentId));
+        expect(after.initialInvoiceId).toBe('in_fixture');
+        expect(after.state).toBe('fulfilled');
+        expect(after.taxQuoteAuthority).toBe(before.taxQuoteAuthority);
+        expect(
+          (await readSubjectProductAccess(account.payer, account.products[1].id)).capabilities,
+        ).toHaveLength(1);
+        expect(
+          await getDb()
+            .select()
+            .from(accessGrants)
+            .where(eq(accessGrants.beneficiaryAccountId, account.payer)),
+        ).toHaveLength(2);
+      } finally {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        currentRuntime.mockRestore();
+        if (previous === undefined) delete process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+        else process.env.BILLING_PRODUCT_CATALOGUE_FILE = previous;
+        await rm(directory, { recursive: true, force: true });
+      }
+    }, 30000);
   },
 );
