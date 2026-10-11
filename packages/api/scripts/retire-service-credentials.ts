@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Revoke named service credentials whose service now authenticates as its
- * workload (ADR 0026) — the last step of retiring a key pair.
+ * Revoke named secret-bearing credentials nothing presents any more — the last
+ * step of retiring a key pair once its service authenticates as its workload
+ * (ADR 0026), and the way to close a confidential OAuth client never used.
  *
  * Deleting a pair's SSM parameters removes the deployed copy of its secret, but
  * the credential row stays `active`: any copy that ever left SSM (a laptop, a
@@ -10,8 +11,9 @@
  *
  * ## What it refuses
  *
- *   * An id that is not a `service` credential. Public clients, confidential
- *     OAuth clients and workload rows are someone else's lifecycle.
+ *   * An id that is not a `service` or `confidential` credential — the two
+ *     types that carry a secret. Public clients hold none, and workload rows
+ *     follow their binding's lifecycle.
  *   * A credential used within `MIN_IDLE_MINUTES` (default 60). Something still
  *     presenting the key is a consumer this retirement has not accounted for;
  *     stop and find it rather than break it.
@@ -35,6 +37,8 @@ import { applicationCredentials } from '../src/db/schema/applicationCredentials'
 import { recordCredentialLifecycleEvent } from '../src/services/applicationCredentialAudit.service';
 
 const RESULT_PREFIX = 'RETIRE_SERVICE_CREDENTIALS_RESULT=';
+/** The credential types that carry a secret, and so can be presented by a copy. */
+const RETIRABLE_TYPES: ReadonlySet<string> = new Set(['service', 'confidential']);
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
@@ -97,8 +101,8 @@ async function main(): Promise<void> {
     for (const id of ids) {
       const row = byId.get(id);
       if (!row) throw new Error(`Credential ${id} does not exist`);
-      if (row.type !== 'service') {
-        throw new Error(`Credential ${id} is a ${row.type} credential, not a service one`);
+      if (!RETIRABLE_TYPES.has(row.type)) {
+        throw new Error(`Credential ${id} is a ${row.type} credential, not a secret-bearing one`);
       }
       if (row.status === 'revoked') {
         planned.push({ id, disposition: 'already_revoked' });
