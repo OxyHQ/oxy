@@ -3,9 +3,8 @@
 -- Retire `developer_api_keys` and the stale foreign key into it (issue #972
 -- workstream 2.3).
 --
--- The table was ported from the Mongoose `DeveloperApiKey` model and has had no
--- reader or writer in `packages/api/src` since — no route, no service, no seed
--- script, and no surviving Mongoose model. Its only remaining reference in the
+-- The table has no reader or writer in `packages/api/src` — no route, no
+-- service, no seed script, and no model. Its only remaining reference in the
 -- schema was `api_key_usage_events.api_key_id`, the one foreign key in the whole
 -- snapshot that targeted it (measured against `meta/0046_snapshot.json`: 1 of
 -- 285 foreign keys).
