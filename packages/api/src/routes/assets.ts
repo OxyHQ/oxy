@@ -1893,6 +1893,7 @@ router.get(
         originalName: file.originalName,
         ownerUserId: file.ownerUserId,
         status: file.status,
+        visibility: file.visibility,
         usageCount: file.links.length,
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
