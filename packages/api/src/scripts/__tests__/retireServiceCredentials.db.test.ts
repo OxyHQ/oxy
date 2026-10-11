@@ -53,7 +53,7 @@ function retire(env: Record<string, string>): Run {
 }
 
 async function credential(
-  type: 'service' | 'public',
+  type: 'service' | 'public' | 'confidential',
   lastUsedAt: Date | null = null,
 ): Promise<string> {
   const id = randomUUID();
@@ -64,7 +64,7 @@ async function credential(
       applicationId,
       name: `fixture ${id}`,
       publicKey: `oxy_dk_${id.replace(/-/g, '')}`,
-      secretHash: type === 'service' ? 'd'.repeat(64) : null,
+      secretHash: type === 'public' ? null : 'd'.repeat(64),
       type,
       environment: 'production',
       scopes: ['user:read'],
@@ -155,6 +155,16 @@ describe('retire-service-credentials.ts', () => {
     });
   });
 
+  it('revokes an unused confidential OAuth client too', async () => {
+    const client = await credential('confidential');
+    const run = retire({ CREDENTIAL_IDS: client, APPLY: 'true' });
+    expect(run.result).toEqual({
+      mode: 'apply',
+      credentials: [{ id: client, disposition: 'revoke' }],
+    });
+    expect((await statuses([client]))[client]).toBe('revoked');
+  });
+
   it('refuses the whole batch when one credential was used recently', async () => {
     const idle = await credential('service');
     const recent = await credential('service', new Date(Date.now() - 5 * 60_000));
@@ -169,7 +179,9 @@ describe('retire-service-credentials.ts', () => {
     const publicClient = await credential('public');
     const notService = retire({ CREDENTIAL_IDS: publicClient, APPLY: 'true' });
     expect(notService.status).toBe(1);
-    expect(String(notService.result?.error)).toContain('is a public credential');
+    expect(String(notService.result?.error)).toContain(
+      'is a public credential, not a secret-bearing one',
+    );
     expect((await statuses([publicClient]))[publicClient]).toBe('active');
 
     const unknown = randomUUID();
