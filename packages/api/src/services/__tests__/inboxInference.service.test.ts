@@ -6,6 +6,8 @@
 
 const mockResolveCredentialAttribution = jest.fn();
 const mockExecuteInferenceRequest = jest.fn();
+const mockOwnWorkloadIdentity = jest.fn();
+const mockResolveLiveAgencyWorkloadByHandle = jest.fn();
 const mockWhere = jest.fn();
 
 jest.mock('../../config/postgres', () => ({
@@ -45,6 +47,16 @@ jest.mock('drizzle-orm', () => ({
 jest.mock('../attribution.service', () => ({
   resolveCredentialAttribution: (...args: unknown[]) => mockResolveCredentialAttribution(...args),
 }));
+jest.mock('../ownWorkloadIdentity.service', () => ({
+  ownWorkloadIdentity: () => mockOwnWorkloadIdentity(),
+}));
+jest.mock('../agencyServicePrincipal.service', () => ({
+  resolveLiveAgencyWorkloadByHandle: (...args: unknown[]) =>
+    mockResolveLiveAgencyWorkloadByHandle(...args),
+}));
+jest.mock('../../utils/credentialEnvironment', () => ({
+  workloadTokenEnvironment: () => 'production',
+}));
 jest.mock('../httpKaanaClient', () => ({ createHttpKaanaClient: () => undefined }));
 jest.mock('../inferenceEdge.service', () => ({
   allocateRequestId: () => 'req_inbox_instant_01',
@@ -70,7 +82,13 @@ function input() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  process.env = { ...ORIGINAL_ENV, INBOX_APPLICATION_KEY: 'oxy_pk_inbox' };
+  process.env = {
+    ...ORIGINAL_ENV,
+    INBOX_APPLICATION_KEY: 'oxy_pk_inbox',
+    INBOX_APPLICATION_SECRET: 'oxy_sk_inbox',
+  };
+  delete process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
+  delete process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI;
   delete process.env.INBOX_INFERENCE_ROUTING_PROFILE_ID;
   mockResolveCredentialAttribution.mockResolvedValue({
     status: 'resolved',
@@ -138,8 +156,92 @@ describe('Inbox point inference routing', () => {
     });
   });
 
-  it('still fails closed without the Inbox attribution credential', async () => {
+  it('still fails closed with no pair and no workload identity to prove', async () => {
     delete process.env.INBOX_APPLICATION_KEY;
+    delete process.env.INBOX_APPLICATION_SECRET;
+
+    await expect(executeInboxPointInference(input())).rejects.toMatchObject({
+      code: 'INBOX_INFERENCE_UNAVAILABLE',
+    });
+    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
+    expect(mockExecuteInferenceRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe('Inbox point inference identity', () => {
+  it('keeps the key pair when one is configured, even on a host that can attest', async () => {
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
+
+    await executeInboxPointInference(input());
+
+    expect(mockResolveCredentialAttribution).toHaveBeenCalledWith('oxy_pk_inbox');
+    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
+    expect(mockResolveLiveAgencyWorkloadByHandle).not.toHaveBeenCalled();
+    const [context] = mockExecuteInferenceRequest.mock.calls[0] as [
+      { principal: { credentialId: string } },
+    ];
+    expect(context.principal.credentialId).toBe('cred_1');
+  });
+
+  it('refuses half a pair rather than attesting instead', async () => {
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
+    delete process.env.INBOX_APPLICATION_SECRET;
+
+    await expect(executeInboxPointInference(input())).rejects.toMatchObject({
+      code: 'INBOX_INFERENCE_UNAVAILABLE',
+    });
+    expect(mockResolveCredentialAttribution).not.toHaveBeenCalled();
+    expect(mockOwnWorkloadIdentity).not.toHaveBeenCalled();
+    expect(mockExecuteInferenceRequest).not.toHaveBeenCalled();
+  });
+
+  it('asks for the binding of the pinned Inbox application and no other', async () => {
+    delete process.env.INBOX_APPLICATION_KEY;
+    delete process.env.INBOX_APPLICATION_SECRET;
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
+    const subject = 'arn:aws:iam::237343248947:role/oxy-oxy-api-task';
+    mockOwnWorkloadIdentity.mockResolvedValue({
+      provider: 'aws-iam',
+      subject,
+      attestationId: 'wl_000000000000000000000001',
+    });
+    mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
+      applicationId: INBOX_APPLICATION_ID,
+      provider: 'aws-iam',
+      subject,
+      handle: 'wl_000000000000000000000001',
+      ownerAccountId: 'account_1',
+      scopes: ['inference:invoke'],
+      capabilities: [],
+    });
+
+    await executeInboxPointInference(input());
+
+    expect(mockResolveLiveAgencyWorkloadByHandle).toHaveBeenCalledWith(
+      INBOX_APPLICATION_ID,
+      'wl_000000000000000000000001',
+    );
+    expect(mockResolveCredentialAttribution).not.toHaveBeenCalled();
+  });
+
+  it('refuses a binding whose subject is not the role this task attested', async () => {
+    delete process.env.INBOX_APPLICATION_KEY;
+    delete process.env.INBOX_APPLICATION_SECRET;
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/task';
+    mockOwnWorkloadIdentity.mockResolvedValue({
+      provider: 'aws-iam',
+      subject: 'arn:aws:iam::237343248947:role/oxy-oxy-api-task',
+      attestationId: 'wl_000000000000000000000001',
+    });
+    mockResolveLiveAgencyWorkloadByHandle.mockResolvedValue({
+      applicationId: INBOX_APPLICATION_ID,
+      provider: 'aws-iam',
+      subject: 'arn:aws:iam::237343248947:role/some-other-task',
+      handle: 'wl_000000000000000000000001',
+      ownerAccountId: 'account_1',
+      scopes: ['inference:invoke'],
+      capabilities: [],
+    });
 
     await expect(executeInboxPointInference(input())).rejects.toMatchObject({
       code: 'INBOX_INFERENCE_UNAVAILABLE',

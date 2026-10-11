@@ -35,12 +35,33 @@ subject, body, headers or attachment metadata. Only those four integer counts
 are placed in the inference prompt.
 
 The billing application is the exact Inbox record
-`6a37b3e61ddfd195b656819b`. `INBOX_APPLICATION_KEY` selects its revocable
-server-side attribution credential and the resolver refuses any credential for a
-different application, an inactive application, a non-service credential or a
-credential whose effective application/credential scope intersection lacks
-`inference:invoke`. It is not a provider key and it does not replace the human
-session authorization. The user is recorded as `delegatedUserId`; the Inbox
+`6a37b3e61ddfd195b656819b`. Its revocable server-side attribution anchor is
+chosen by the one decision every Inbox caller in oxy-api shares
+(`inboxServiceIdentity`, `packages/api/src/capabilities/inbox-service-client.ts`):
+
+### Identity
+
+- **No key pair (the production path, ADR 0026).** oxy-api acts as Inbox
+  through its ECS task role. The process learns that role from STS through the
+  same signer and verifier every workload mint uses
+  (`services/ownWorkloadIdentity.service.ts`), and the authority is the LIVE
+  binding of that role to the Inbox application
+  (`resolveLiveAgencyWorkloadByHandle`), re-read on every request. It is
+  refused when the role is bound to no application or another one, when the
+  binding is expired or has no materialised attribution row, when the
+  application is inactive or no longer first-party, when the owner is suspended
+  or fenced, or when the binding ∩ application scopes lack `inference:invoke`.
+  The usage ledger names the binding's `wl_…` handle.
+- **A full `INBOX_APPLICATION_KEY`/`INBOX_APPLICATION_SECRET` pair** still wins
+  when present: the key selects the credential, and the resolver refuses any
+  credential for a different application, an inactive application, a
+  non-service credential or a credential whose effective application/credential
+  scope intersection lacks `inference:invoke`.
+- **Half a pair, or neither on a host that cannot attest,** fails closed with
+  `503 INBOX_INFERENCE_UNAVAILABLE`.
+
+Neither is a provider key and neither replaces the human session
+authorization. The user is recorded as `delegatedUserId`; the Inbox
 application's owner account remains the billing principal.
 
 ## Routing: the `instant` power level
@@ -111,10 +132,12 @@ the two fields above). There is no workflow that writes routing policies.
    that exact application and existing production credential
    `01a06134-022c-72b6-a876-27da37a39e39`. The workflow pins this pair and adds
    only `inference:invoke`; it never looks up a credential by name or order.
-5. Verify the application and credential selected by `INBOX_APPLICATION_KEY`
-   are active and their effective scope intersection grants `inference:invoke`,
-   with the read-only [principal and ledger readback](inbox-principal-readback.md).
-   It proves metadata only and authorizes no canary or credential reuse.
+5. Verify the Inbox identity grants `inference:invoke`: the binding of
+   `arn:aws:iam::237343248947:role/oxy-oxy-api-task` to the Inbox application
+   (`bind-workload-identity.ts --app-id 6a37b3e61ddfd195b656819b --list`), or,
+   while a key pair is still configured, the credential it selects with the
+   read-only [principal and ledger readback](inbox-principal-readback.md).
+   Either proves metadata only and authorizes no canary or credential reuse.
 6. Deploy Oxy, authorize charging in its documented rollout order, and smoke
    one non-stream and one cancelled stream while checking the concrete model,
    reservation settlement and usage attribution.

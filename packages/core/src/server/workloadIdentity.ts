@@ -167,6 +167,38 @@ async function awsContainerAttestation(
   return { headers: signGetCallerIdentity(credentials, nonce, new Date()) };
 }
 
+/** A proof of this process's identity, exactly as `POST /auth/service-token/workload` takes it. */
+export interface WorkloadAttestation {
+  provider: 'aws-iam';
+  attestation: { headers: Record<string, string> };
+}
+
+/**
+ * Signs this process's identity proof over a nonce the CALLER chose, and sends
+ * it nowhere.
+ *
+ * {@link requestWorkloadServiceToken} is the ordinary consumer: Oxy issues the
+ * nonce and replays the proof. This exists for the one host that is its own
+ * verifier — Oxy's API acting as an application it hosts (Inbox) needs to learn
+ * which role it runs as, and the honest way to learn that is the way it learns
+ * anyone else's: sign `GetCallerIdentity` and let STS say whose signature it is.
+ * Reading a role name out of configuration would be the process's own word for
+ * what it is, which is what ADR 0026 refuses from every other caller.
+ *
+ * The same signer, so the two can never disagree about the shape the verifier
+ * accepts. Throws exactly as the token path does when there is no identity here.
+ */
+export async function attestWorkloadIdentity(options: {
+  nonce: string;
+  fetch?: typeof fetch;
+}): Promise<WorkloadAttestation> {
+  if (!options.nonce) throw new Error('A workload attestation needs a nonce to sign.');
+  return {
+    provider: 'aws-iam',
+    attestation: await awsContainerAttestation(options.fetch ?? fetch, options.nonce),
+  };
+}
+
 /**
  * Exchanges this process's identity for an Oxy service token.
  *

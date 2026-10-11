@@ -219,7 +219,9 @@ export function startNormalizedEventOutboxWorker(): boolean {
     return false;
   }
   if (!inboxServiceClient()) {
-    logger.error('[NormalizedEventOutbox] Inbox worker requires application credentials');
+    logger.error(
+      '[NormalizedEventOutbox] Inbox worker requires an Inbox identity (a full key pair or an attestable task role)',
+    );
     return false;
   }
   if (timer) return true;

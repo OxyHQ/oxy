@@ -151,6 +151,15 @@ scope the credential named.** Not a nicety: removing Mention's pair first cost
 313 × `Missing required scope: federation:write` in one morning. Bind with
 `--scopes`, check the token, then remove the pair.
 
+**A host acting as an application it hosts proves itself to itself.** oxy-api
+acts as Oxy Inbox, and Inbox point inference resolves that authority in-process
+(no token). Without a key pair it learns its own role exactly as it learns a
+caller's — `attestWorkloadIdentity` (`@oxy.so/core/server`) signs
+`GetCallerIdentity` over a local nonce and `verifyWorkloadAttestation` replays it
+to STS (`services/ownWorkloadIdentity.service.ts`) — then reads that role's live
+Inbox binding through `resolveLiveAgencyWorkloadByHandle`. A role name read from
+configuration would be the process's own word for what it is.
+
 Ecosystem activity publishing follows the same path: `createEcosystemTraffic`
 accepts a process with no key pair when it can attest, so removing
 `OXY_SERVICE_API_KEY`/`OXY_SERVICE_API_SECRET` from a task definition no longer
