@@ -103,11 +103,6 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
     expect(warnCalls).toMatch(/DATABASE_URL/);
   });
 
-  it('boots with no MONGODB_URI at all — Mongo left the serving path', () => {
-    delete process.env.MONGODB_URI;
-    expect(() => validateRequiredEnvVars()).not.toThrow();
-  });
-
   it('boots in production with no static AWS keys — S3 uses the task role', () => {
     process.env.NODE_ENV = 'production';
     delete process.env.AWS_ACCESS_KEY_ID;

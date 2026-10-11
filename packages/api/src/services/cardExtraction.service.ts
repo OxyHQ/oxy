@@ -16,9 +16,8 @@
  * throw nothing.
  *
  * **`messages.text` is PROTECTED** (`schema/protectedColumns.ts`) and is named
- * explicitly below because the extractor needs the body. `html` was in the Mongo
- * projection and read by nothing — it is another protected body, so it is no
- * longer fetched at all.
+ * explicitly below because the extractor needs the body. `html` is another
+ * protected body and the extractor does not read it, so it is not fetched.
  *
  * **`attachments` is a child table.** Only its emptiness was ever used, so the
  * projection became an `EXISTS`, not a load of every attachment row.

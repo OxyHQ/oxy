@@ -7,28 +7,18 @@
  * **A moderation decision must still be applicable for an account created after
  * the Postgres cutover.**
  *
- * The code this replaces guarded every id with
- * `mongoose.Types.ObjectId.isValid`, and `resolveBindingProof` opened with
- *
- * ```ts
- * if (!mongoose.Types.ObjectId.isValid(params.bindingProofId)) {
- *   return { ok: false, reason: 'no_binding_proof' };
- * }
- * ```
- *
  * Every row created since the cutover carries a **uuid v7** id
- * (`@oxy.so/db`'s `generatedId()`), which that regex rejects — so for a
- * post-cutover binding the answer was `no_binding_proof` BEFORE ANY QUERY RAN,
- * and `applyModerationDecision` could apply nothing at all, however real the
- * stored binding. It fails silently by construction: `no_binding_proof` is a
+ * (`@oxy.so/db`'s `generatedId()`). A guard that validated ids by a 24-hex SHAPE
+ * would answer `no_binding_proof` for such a binding BEFORE ANY QUERY RAN, and
+ * `applyModerationDecision` could apply nothing at all, however real the stored
+ * binding. That fails silently by construction: `no_binding_proof` is a
  * legitimate outcome an emitter is meant to record and stop retrying on, so it
  * looks exactly like a genuine miss.
  *
- * The previous suite could not have caught it. It replaced both models with an
- * in-memory store keyed on `new Types.ObjectId()`, so every id in it was 24-hex
- * by construction and the guard was unreachable. Here the ids are the ones the
- * schema actually mints, the bindings are real rows, and the first case asserts
- * they are NOT 24-hex so nothing can pass vacuously. Reinstate either guard and
+ * A store whose ids were all 24-hex by construction could never catch it. Here
+ * the ids are the ones the schema actually mints, the bindings are real rows,
+ * and the first case asserts they are NOT 24-hex so nothing can pass
+ * vacuously. Add such a shape guard and
  * `resolves a binding stored for a post-cutover account` goes red.
  *
  * ## What is still mocked, and why
@@ -333,8 +323,8 @@ describe('registerIdentityBinding', () => {
     const old = rows.find((row) => row.id === first.id);
     expect(old?.status).toBe('revoked');
     // `status` and `revoked_at` move together or the row fails the
-    // `identity_bindings_revoked_at_check` CHECK — Mongo could express neither
-    // half, so a row could read `active` while carrying a `revokedAt`.
+    // `identity_bindings_revoked_at_check` CHECK, so a row can never read
+    // `active` while carrying a `revokedAt`.
     expect(old?.revokedAt).toBeInstanceOf(Date);
     expect(old?.verifiedAt).toEqual(first.verifiedAt);
   });
@@ -360,11 +350,10 @@ describe('registerIdentityBinding', () => {
   });
 
   it('trims the local principal id, so one person cannot become two bindings', async () => {
-    // Mongoose declared the field `trim: true`, which applied to BOTH the write
-    // and the query filter it cast. Postgres has no counterpart, so the
-    // normalization is re-applied at the call site — otherwise a trailing space
-    // creates a SECOND active binding and the partial unique index, which sees
-    // two different strings, does not object.
+    // Trimming must apply to BOTH the write and the lookup filter. Postgres has
+    // no setter for it, so the normalization is applied at the call site —
+    // otherwise a trailing space creates a SECOND active binding and the
+    // partial unique index, which sees two different strings, does not object.
     const first = await registerIdentityBinding({
       applicationId: APP_ID,
       localPrincipalId: 'local-1',

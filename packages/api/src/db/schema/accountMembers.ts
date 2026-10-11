@@ -9,9 +9,9 @@
  *
  * ## `permissions` is DERIVED; the two delta columns are the stored part
  *
- * Mongo stored a `permissions[]` array beside `role` that every write site set to
- * exactly `permissionsForAccountRole(role)` — a derivation of `role`, not data,
- * so it did not travel. `serializeMember` (`routes/accounts.ts`) keeps emitting
+ * A `permissions[]` array beside `role` would always equal
+ * `permissionsForAccountRole(role)` — a derivation of `role`, not data, so it is
+ * not stored. `serializeMember` (`routes/accounts.ts`) keeps emitting
  * `permissions` on the wire, computed rather than read.
  *
  * What IS data is the per-member ADJUSTMENT: `permission_grants` and
@@ -50,8 +50,7 @@ import { users } from './users';
  * Membership lifecycle. `removed` is retained rather than deleted so a
  * re-invitation reactivates the same row (`addMember`).
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and
+ * This tuple is the SINGLE declaration. It renders the CHECK below, and
  * `check-drizzle-snapshot-sync` holds that rendering against the migration the
  * database was actually built from, so editing it without regenerating a
  * migration fails CI.
@@ -114,9 +113,9 @@ export const accountMembers = pgTable(
     unique('account_members_account_id_member_user_id_key').on(t.accountId, t.memberUserId),
     // "What can this user reach" — drives `listAccessibleAccounts`.
     index('account_members_member_user_id_status_idx').on(t.memberUserId, t.status),
-    // Mongo's standalone `{accountId}` and `{memberUserId}` are both dropped: a
-    // btree serves any leading prefix, and the two indexes above already lead
-    // with those columns.
+    // No standalone `(account_id)` or `(member_user_id)` index: a btree serves
+    // any leading prefix, and the two indexes above already lead with those
+    // columns.
     check('account_members_role_check', sql`${t.role} in (${sql.raw(inList(ACCOUNT_ROLES))})`),
     check(
       'account_members_status_check',

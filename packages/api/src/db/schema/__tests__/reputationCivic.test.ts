@@ -232,9 +232,9 @@ describe('personhood_vouches — the active-only partial unique', () => {
   });
 
   it("refuses the `?? ''` dangling record id the service can still produce", async () => {
-    // `personhood.service.ts` writes `stored.record.recordId ?? ''`. Under Mongo
-    // that was a silently dangling reference; the foreign key now makes it a
-    // loud failure the call-site port has to fix.
+    // `personhood.service.ts` writes `stored.record.recordId ?? ''`. Without the
+    // foreign key that would be a silently dangling reference; the key makes it
+    // a loud failure the call site has to fix.
     const voucherUserId = await owner();
     const subjectUserId = await owner();
 
@@ -248,7 +248,7 @@ describe('personhood_vouches — the active-only partial unique', () => {
   });
 });
 
-describe('validation_requests — the dedup constraint Mongo could not express', () => {
+describe('validation_requests — the open-request dedup constraint', () => {
   async function openRequest(sourceActionId: string, status: 'pending' | 'quorum_met') {
     return getDb()
       .insert(validationRequests)
@@ -267,9 +267,8 @@ describe('validation_requests — the dedup constraint Mongo could not express',
   }
 
   it('allows only one OPEN request per source action, across BOTH open statuses', async () => {
-    // Mongo's `partialFilterExpression` cannot express `status $in [...]`, which
-    // is why this lived in `openValidationRequest`'s check-then-create. Postgres
-    // can, so the check-then-create race is closed.
+    // A partial unique index over `status in (...)` closes the race a
+    // check-then-create in `openValidationRequest` would leave open.
     const sourceActionId = `src-${randomUUID()}`;
     await openRequest(sourceActionId, 'pending');
 
@@ -392,7 +391,7 @@ describe('the jury junction table', () => {
     expect(inbox).toEqual([{ id: request.id }]);
   });
 
-  it("refuses a juror who is not an account — which Mongo's id array could not", async () => {
+  it('refuses a juror who is not an account', async () => {
     const [request] = await getDb()
       .insert(validationRequests)
       .values({
@@ -467,7 +466,7 @@ describe('the jury junction table', () => {
 });
 
 describe('validator_affinities — the canonical pair', () => {
-  it('refuses the reversed pair, which Mongo stored as a second invisible row', async () => {
+  it('refuses the reversed pair, which would be a second invisible row', async () => {
     const a = await owner();
     const b = await owner();
     const [smaller, larger] = a < b ? [a, b] : [b, a];
@@ -545,10 +544,9 @@ describe('reputation_transactions — idempotency without a partial index', () =
   });
 
   it('exempts a row with no application — NULLS DISTINCT does what the partial filter did', async () => {
-    // Mongo needed `partialFilterExpression: { $exists: true }` on both fields
-    // because a missing field reads as null and every staff/civic award would
-    // collide. Postgres gives that for free, which is the whole reason this is a
-    // plain UNIQUE — and the case that would break if someone "tidied" the
+    // Rows with no application must not collide, or every staff/civic award
+    // would. Postgres treats NULLs as distinct, which is the whole reason this
+    // is a plain UNIQUE — and the case that would break if someone "tidied" the
     // column to NOT NULL DEFAULT ''.
     const userId = await owner();
     const sourceActionId = `act-${randomUUID()}`;
@@ -602,9 +600,8 @@ describe('reputation_transactions — idempotency without a partial index', () =
 });
 
 describe('reputation_balances — nine subdocuments as columns', () => {
-  it('reproduces every Mongoose default from a row with only a user id', async () => {
-    // Each subdocument defaulted to `() => ({})`, which Mongoose expanded to the
-    // per-field defaults. The neutral 0.5 on the two reliability estimates is
+  it('applies every per-field default from a row with only a user id', async () => {
+    // Every column has its own default. The neutral 0.5 on the two reliability estimates is
     // the one that matters: "no history" is not "a terrible record".
     const userId = await owner();
     const [row] = await getDb().insert(reputationBalances).values({ userId }).returning();

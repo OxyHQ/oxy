@@ -66,7 +66,7 @@ export const reporterReputationProfiles = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's `unique: true` on `userId`. It is also the only access path, so
+    // One profile per user. It is also the only access path, so
     // there is no second index: a btree serves the equality this leads with.
     unique('reporter_reputation_profiles_user_id_key').on(t.userId),
 

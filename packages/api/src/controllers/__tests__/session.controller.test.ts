@@ -2,12 +2,8 @@
  * `SessionController` against a REAL Postgres.
  *
  * Every handler that touches storage is exercised end to end and then the ROW
- * IS READ BACK. The suites this replaces (`getUserByPublicKey.test.ts`, and the
- * storage half of `sessionAccess.controller.test.ts`) mocked the Mongoose
- * models and asserted on the CALL — `expect(findOne).toHaveBeenCalledWith(...)`,
- * `expect(select).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT)` — which
- * proves a query was BUILT, never that the right row came back or that the
- * response withheld what it must.
+ * IS READ BACK. Asserting on a mocked CALL proves a query was BUILT, never that
+ * the right row came back or that the response withheld what it must.
  *
  * MOCKED, because each is a collaborator with its own port rather than the
  * subject here: `session.service` (session minting / validation),
@@ -440,9 +436,8 @@ describe('register', () => {
       asResponse(res),
     );
 
-    // Mongo indexed `username` case-SENSITIVELY, so `Nate` and `nate` could
-    // coexist while every lookup ran a case-insensitive regex. The unique index
-    // on `lower(btrim(username))` is what closes that.
+    // The unique index on `lower(btrim(username))` is what stops `Nate` and
+    // `nate` from coexisting.
     expect(res.statusCode).toBe(409);
     expect(res.body).toEqual({ message: 'Username already taken' });
   });
@@ -736,9 +731,9 @@ describe('verifyChallenge', () => {
   });
 
   it('mints NOTHING when the challenge is burned between the read and its own burn', async () => {
-    // Single-use is what a challenge IS. Mongo burned it with a filter on `_id`
-    // alone — so a request that read the row before another burned it still
-    // minted a session. The burn's `used = false` filter is what closes that,
+    // Single-use is what a challenge IS. A burn filtered on the id alone would
+    // let a request that read the row before another burned it still mint a
+    // session. The burn's `used = false` filter is what closes that,
     // and this drives the interleave through a real row lock rather than hoping
     // two `Promise.all` calls land in the right order.
     const { key, challenge } = await signer();
@@ -1016,9 +1011,8 @@ describe('getUsersBySessions', () => {
       asResponse(res),
     );
 
-    // The join names its columns; the natural transliteration of Mongo's
-    // `.populate()` — `select().from(sessions)` then `.map(...)` — would have
-    // carried both live tokens into whatever the mapper forgot to drop.
+    // The join names its columns; `select().from(sessions)` then `.map(...)`
+    // would carry both live tokens into whatever the mapper forgot to drop.
     expect(JSON.stringify(res.body)).not.toContain(token);
   });
 });
@@ -1084,10 +1078,8 @@ describe('getUserByPublicKey', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ username: name, bio: 'Analytical engines' });
 
-    // The Mongo projection was inclusion-only so that an unnamed field is
-    // dropped by the query rather than by a serializer remembering to. The
-    // explicit column list is the same guarantee, asserted on the REAL row
-    // rather than on the projection string having been passed.
+    // The explicit column list drops an unnamed field in the query rather than
+    // relying on a serializer remembering to — asserted on the REAL row.
     const serialized = JSON.stringify(res.body);
     expect(serialized).not.toContain(email);
     expect(serialized).not.toContain('+15551234567');
@@ -1138,8 +1130,8 @@ describe('getUserByPublicKey', () => {
       asResponse(res),
     );
 
-    // A preview with no image OMITS the key, exactly as the Mongo subdocument
-    // did — `image: null` would be a new value on the wire.
+    // A preview with no image OMITS the key — `image: null` would be a new
+    // value on the wire.
     expect((res.body as { linksMetadata: unknown[] }).linksMetadata).toEqual([
       { url: 'https://b.example', title: 'B', description: 'first', image: 'file-1' },
       { url: 'https://a.example', title: 'A', description: 'second' },

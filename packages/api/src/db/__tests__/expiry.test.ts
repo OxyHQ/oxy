@@ -1,8 +1,8 @@
 /**
  * Expiry sweep — the TTL-index replacement — against a REAL Postgres.
  *
- * Fourteen models relied on a Mongo TTL index, so this mechanism is the one that
- * must not be subtly wrong. Every assertion runs the real `sweepExpiredRows`
+ * Fourteen tables rely on this sweep to expire their rows, so this mechanism is
+ * the one that must not be subtly wrong. Every assertion runs the real `sweepExpiredRows`
  * against the throwaway database, and every row is tagged with a per-test random
  * value so nothing here depends on a table being empty (the suite shares one
  * database, and the sweep is table-wide by design).
@@ -67,8 +67,7 @@ describe('sweep registry', () => {
 
   it('has a supporting index on every swept column', async () => {
     // The sweep's predicate is a range scan on this column; without an index
-    // it is a sequential scan of the whole table every interval. Mongo's TTL
-    // index carried the same obligation.
+    // it is a sequential scan of the whole table every interval.
     const violations = await findUnsupportedExpiryColumns(getDb(), EXPIRY_SWEEP_TARGETS);
 
     expect(violations).toEqual([]);
@@ -182,8 +181,8 @@ describe('batching', () => {
     expect(first.deleted).toBe(2);
     expect(first.truncated).toBe(true);
 
-    // The remainder is not lost — the next run picks it up, exactly as Mongo's
-    // TTL monitor drained a backlog across successive passes.
+    // The remainder is not lost — the next run picks it up, so a backlog drains
+    // across successive passes.
     const second = await sweepExpiredRows(getDb(), challengeTarget, { batchSize: 1000 });
     expect(second.truncated).toBe(false);
 

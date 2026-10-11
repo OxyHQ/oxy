@@ -31,7 +31,7 @@ const MIN_SEARCH_LENGTH = 2;
 /** Debounce window applied to the search box before refetching. */
 const SEARCH_DEBOUNCE_MS = 500;
 
-/** ObjectId-like value: a raw MongoDB `_id` exposes `toString()`. */
+/** ObjectId-like value: a raw `_id` object exposes `toString()`. */
 interface ObjectIdLike {
   toString(): string;
 }
@@ -59,7 +59,7 @@ export default function SearchScreen() {
   const { user, oxyServices, isAuthenticated, showBottomSheet } = useOxy();
 
   // Helper to safely extract and validate user ID. Accepts either a standard
-  // `User` (with `id`) or a raw MongoDB document where the identifier is `_id`
+  // `User` (with `id`) or a raw document where the identifier is `_id`
   // (a string or an ObjectId-like value exposing `toString()`).
   const extractUserId = useCallback(
     (candidate: IdentifiableUser | null | undefined): string | null => {
@@ -70,7 +70,7 @@ export default function SearchScreen() {
         return candidate.id.trim();
       }
 
-      // Try _id field (MongoDB format)
+      // Try the raw `_id` field
       const rawId = candidate._id;
       if (typeof rawId === 'string') {
         const trimmed = rawId.trim();

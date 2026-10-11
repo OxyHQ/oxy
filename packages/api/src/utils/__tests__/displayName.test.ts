@@ -1,6 +1,6 @@
 /**
- * Unit tests for the `name.displayName` composition (the logic backing the
- * `User.name.displayName` Mongoose virtual — see `models/User.ts`).
+ * Unit tests for the `name.displayName` composition (the logic behind the
+ * serialized `name.displayName`).
  *
  * The composition returns the user's REAL name only:
  *
@@ -10,9 +10,8 @@
  * When there is no real name the helper returns `undefined`, the serializer
  * omits `name.displayName`, and consumers fall back to the handle.
  *
- * The API jest setup mocks Mongoose wholesale, so the model's virtual getter
- * never runs under test; the rules are exercised here against the pure helper
- * the virtual delegates to.
+ * The rules are exercised here against the pure helper the serializer
+ * delegates to.
  */
 
 import {

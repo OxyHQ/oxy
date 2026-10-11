@@ -104,7 +104,7 @@ describe('GET /nodes/me', () => {
       mode: 'pull',
       status: 'active',
     });
-    // Mongo internals are not leaked.
+    // Internal ids are not leaked.
     expect(node.userId).toBeUndefined();
     expect(node._id).toBeUndefined();
   });

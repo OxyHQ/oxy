@@ -155,8 +155,7 @@ const USAGE_TOP_ENDPOINTS = 10;
  * The credential columns a client may ever see — every column except
  * `secretHash` and `tokenHash`.
  *
- * Mongoose expressed this as `.select('-secretHash')`; drizzle enumerates
- * columns explicitly and has no exclusion form, so the selection is named once
+ * Drizzle enumerates columns explicitly and has no exclusion form, so the selection is named once
  * here and reused by the list read AND by every `returning()`. A credential
  * object in this module therefore never carries either hash in the first place,
  * which is a stronger guarantee than remembering to drop it in the serializer:
@@ -393,9 +392,9 @@ interface SerializedCallerMembership {
  * dropped field fails `tsc` here rather than silently changing the response.
  *
  * Every optional field is `?: T` and is fed `?? undefined` from its nullable
- * column: Mongo omitted an unset field entirely, and `JSON.stringify` drops an
+ * column: the wire omits an unset field entirely, and `JSON.stringify` drops an
  * `undefined` property but emits an explicit `null`. Mapping the column's NULL
- * back to `undefined` is what keeps the response byte-identical.
+ * to `undefined` is what keeps the key absent.
  */
 interface SerializedApplication {
   _id: string;
@@ -548,8 +547,7 @@ interface UsageStats {
  * `sum()` over an integer column yields `bigint`, which postgres.js hands back
  * as a STRING; every integer total is therefore cast in SQL rather than
  * converted in TypeScript. `avg` and the credit sum are already
- * double-precision. `count(*) filter (where …)` replaces Mongo's
- * `$sum: {$cond: […]}`.
+ * double-precision. Conditional counts use `count(*) filter (where …)`.
  */
 async function getUsageStats(applicationId: string, startDate: Date): Promise<UsageStats> {
   const db = getDb();
@@ -558,8 +556,8 @@ async function getUsageStats(applicationId: string, startDate: Date): Promise<Us
     gte(apiKeyUsageEvents.createdAt, startDate),
   );
 
-  // Mongo's `$dateToString` formats in UTC; `to_char` over a `timestamptz`
-  // formats in the SESSION time zone, so the day key is pinned to UTC here or
+  // Day keys are UTC; `to_char` over a `timestamptz` formats in the SESSION
+  // time zone, so the day key is pinned to UTC here or
   // the buckets silently shift with the server's `TimeZone`.
   const dayKey = sql<string>`to_char(${apiKeyUsageEvents.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
   const tokenTotal = sql<number>`coalesce(sum(${apiKeyUsageEvents.tokensUsed}), 0)::int`;
@@ -932,8 +930,7 @@ router.patch(
       if (body.capabilities !== undefined) updates.capabilities = body.capabilities;
     }
 
-    // An empty patch writes nothing at all — matching Mongoose's `save()` on a
-    // document with no modified paths, which also left `updatedAt` untouched.
+    // An empty patch writes nothing at all, so `updated_at` stays untouched.
     let application = stored;
     if (Object.keys(updates).length > 0) {
       const [updated] = await getDb()

@@ -1,14 +1,10 @@
 /**
  * `getLeaderboard` — eligibility, ordering and paging, against a real Postgres.
  *
- * The suite this replaces asserted on a MONGO AGGREGATION PIPELINE: it mocked
- * `ReputationBalance.aggregate` and then compared the `$lookup` / `$unwind` /
- * `$match` stage objects the service passed it against a literal copy of the
- * same stages written in the test. That is a check that can only ever confirm
- * the test and the implementation contain the same JSON — it would have passed
- * against a pipeline that matched the wrong field, and it fails now for the
- * only reason it ever could: there is no pipeline. The reads are a drizzle
- * `INNER JOIN` with a `<>` predicate.
+ * Comparing a query's shape against a literal copy of it in the test can only
+ * confirm both contain the same text — it would pass against a query that
+ * matched the wrong field. The reads are a drizzle `INNER JOIN` with a `<>`
+ * predicate, asserted by their results.
  *
  * The three properties worth holding, all asserted against rows written here:
  *

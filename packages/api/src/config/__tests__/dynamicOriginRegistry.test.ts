@@ -11,10 +11,9 @@
  * every failure path leaves the previous snapshot standing rather than
  * publishing a narrower one.
  *
- * The suite this replaces mocked `mongoose.connection.readyState` and
- * `Application.find`, so the "trusted vs third-party" routing was decided over
- * literals a test author typed — it could not have caught a `where` clause that
- * failed to filter `status`, because no row ever had a status.
+ * The suite runs against real rows rather than mocked lookups, so the
+ * "trusted vs third-party" routing is decided by the real `where` clause — a
+ * mocked lookup could not catch one that failed to filter `status`.
  *
  * Every test registers its own applications under UNIQUE hosts and asserts only
  * on those, so rows another test (or another suite sharing this database)

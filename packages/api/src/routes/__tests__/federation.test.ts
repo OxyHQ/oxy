@@ -19,11 +19,8 @@
  * over-wide allow-list signs a request for a domain the credential does not own
  * and nothing errors.
  *
- * The previous suite could not have caught any of it. It replaced
- * `credentialDomainCache` with a stub that returned whatever `Set` the test
- * handed it, so `loadAllowedDomains` — the entire boundary — never ran, and the
- * `models/Application` mock it needed was there only to keep the import from
- * reaching mongoose. Here the cache and the loader are real, the applications
+ * A stubbed `credentialDomainCache` would mean `loadAllowedDomains` — the
+ * entire boundary — never ran. Here the cache and the loader are real, the applications
  * are rows, and each fail-closed case is reached by putting the DATABASE into
  * that state rather than by asserting a stub was consulted.
  *

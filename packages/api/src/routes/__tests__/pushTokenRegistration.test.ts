@@ -333,8 +333,7 @@ describe('POST /notifications/push-token — re-registration', () => {
   });
 
   it('leaves a scope the caller did not resend UNTOUCHED', async () => {
-    // The property Mongo's explicit `$set` of the whitelist gave and a stubbed
-    // model could not show: re-registering without `clientId`/`deviceId` must
+    // Only the whitelisted fields the caller sends are written: re-registering without `clientId`/`deviceId` must
     // not retire an install from the capability-scoped delivery set.
     const clientId = await insertCredential(APP_ID);
     await request('POST', '/notifications/push-token', {
@@ -420,9 +419,8 @@ describe('POST /notifications/push-token — unscoped registration still works',
   });
 
   it('trims the token, so one install cannot become two rows', async () => {
-    // Mongoose declared `PushToken.token` with `trim: true`, which applied to
-    // both the write and the filter it cast. Postgres has no counterpart, so the
-    // normalization is re-applied at this call site — otherwise a trailing space
+    // The token is stored trimmed. Postgres has no column-level trim, so the
+    // normalization is applied at this call site — otherwise a trailing space
     // creates a SECOND row and `push_tokens_user_id_token_key`, which sees two
     // different strings, does not object.
     await request('POST', '/notifications/push-token', {

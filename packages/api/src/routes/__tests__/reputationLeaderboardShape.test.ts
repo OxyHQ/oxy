@@ -1,15 +1,13 @@
 /**
  * `GET /reputation/leaderboard` wire shape, against a REAL Postgres.
  *
- * The leaderboard used to hand `sendPaginated` the raw aggregate projection, so
- * each row's `user` carried Mongo's `_id` and the user's RAW stored name
- * subdocument. The SDK type promised `user.id` and the canonical composed
- * `name`, which meant `entry.user.id` was `undefined` for every row — the
- * `@oxy.so/services` leaderboard screen's `keyExtractor` silently fell through to
- * its index fallback, and `name.displayName` did not mean what it means on every
- * other user DTO.
+ * The SDK type promises `user.id` and the canonical composed `name`. A raw row
+ * carrying only `_id` and the stored name parts would leave `entry.user.id`
+ * `undefined` for every row — the `@oxy.so/services` leaderboard screen's
+ * `keyExtractor` would silently fall through to its index fallback, and
+ * `name.displayName` would not mean what it means on every other user DTO.
  *
- * The row now goes through `serializeLeaderboardEntry`, annotated against
+ * The row goes through `serializeLeaderboardEntry`, annotated against
  * `ReputationLeaderboardEntry` from `@oxy.so/contracts`. These tests lock what a
  * consumer actually receives, over real `reputation_balances` rows joined to
  * real `users` rows — the previous version fed a mocked service a hand-built

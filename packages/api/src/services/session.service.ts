@@ -152,12 +152,11 @@ const SESSION_COLUMNS = {
  * An id column's value, or `undefined` when it holds none.
  *
  * Both columns this reads (`sessions.user_id`, `sessions.operated_by_user_id`)
- * are `text`, so this is now only the empty-string/NULL check. The ObjectId
- * branches are gone with the 24-hex length check that used to sit beside them
- * — a 24-char test would REJECT every uuid v7 id minted after the cutover — and
- * so are the "value may be a populated user document" branches: Mongo replaced
- * `session.userId` with the user doc, and `getSessionWithUser` no longer does
- * (see its closing note), so a document can no longer reach here.
+ * are `text`, so this is only the empty-string/NULL check. There is no 24-hex
+ * length check — it would REJECT every uuid v7 id — and no "value may be a
+ * populated user document" branch: `getSessionWithUser` never swaps the user
+ * into `session.userId` (see its closing note), so a document cannot reach
+ * here.
  */
 function extractUserId(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -220,8 +219,8 @@ class SessionService {
    * a revoked operator can never refresh indefinitely.
    *
    * `account.service` is imported LAZILY so the session-service module graph does
-   * not statically load the Account* models (which breaks suites that mock
-   * mongoose wholesale, and would couple every session consumer to them).
+   * not statically load `account.service` (which would couple every session
+   * consumer to it).
    */
   private async ensureManagedSessionAuthorized(
     session: Pick<
@@ -257,9 +256,8 @@ class SessionService {
       }
     }
 
-    // The account this session belongs to. Mongo could hand back a populated
-    // user document here (the validate path swapped one in); `sessions.user_id`
-    // is a plain `text` foreign key now, so the id is the id.
+    // The account this session belongs to. `sessions.user_id` is a plain `text`
+    // foreign key, so the id is the id.
     const accountId = extractUserId(session.userId);
     if (!accountId) {
       return true;
@@ -330,7 +328,7 @@ class SessionService {
       }
 
       // Fallback to database. `is_active` + `expires_at > now()` are filtered
-      // HERE, exactly as Mongo did — the expiry sweep is housekeeping only, and
+      // HERE — the expiry sweep is housekeeping only, and
       // relying on it would turn its interval into a live-credential window.
       const [session] = await getDb()
         .select(SESSION_COLUMNS)
@@ -387,11 +385,8 @@ class SessionService {
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
       const { useCache = true } = options;
-      // Mongoose projection strings do not travel to Postgres, and the only
-      // caller ever passed the default, so the `select` option is dropped
-      // rather than translated. `readAccountDocument` reads through
-      // `publicColumns(users)`, which withholds strictly more than
-      // `-password` did.
+      // There is no `select` option: `readAccountDocument` reads through
+      // `publicColumns(users)`, which withholds every protected column.
 
       // Try cache first for session (fast path)
       if (useCache) {
@@ -454,10 +449,9 @@ class SessionService {
         }
       }
 
-      // Mongo replaced `session.userId` with the populated user document here.
-      // That swap does NOT travel: `sessions.user_id` is a `text` foreign key
-      // and the user rides beside the session in the returned pair instead, so
-      // `session.userId` stays the id it is declared to be.
+      // The user rides beside the session in the returned pair rather than
+      // being swapped into `session.userId`, so `session.userId` stays the id it
+      // is declared to be.
       return { session: sessionRow, user };
     } catch (error) {
       logger.error(
@@ -557,8 +551,8 @@ class SessionService {
     try {
       const now = new Date();
 
-      // `updated_at` is maintained by drizzle's `$onUpdate`, so it is no longer
-      // set by hand here (Mongoose needed the explicit `$set`).
+      // `updated_at` is maintained by drizzle's `$onUpdate`, so it is not set
+      // by hand here.
       await getDb()
         .update(sessions)
         .set({ lastActiveAt: now })
@@ -915,8 +909,8 @@ class SessionService {
         tokenBindingFromRow({ sessionId, userId, ...newBinding }, deviceInfo.deviceId),
       );
 
-      // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
-      // real columns now (see the table in `db/schema/sessions.ts`).
+      // The eight `deviceInfo` fields are real columns (see the table in
+      // `db/schema/sessions.ts`).
       const [session] = await db
         .insert(sessions)
         .values({
@@ -1071,8 +1065,7 @@ class SessionService {
         deviceId: payload.deviceId || session.deviceId,
       });
 
-      // Mongo mutated the document field by field and called `.save()`. Here it
-      // is ONE conditional update, and the condition is what makes the rotation
+      // ONE conditional update, and the condition is what makes the rotation
       // single-use: it still requires the presented `refresh_token` to be the
       // current one, so two tabs racing the same token cannot both rotate — the
       // loser matches nothing and falls to the grace path on its next attempt.

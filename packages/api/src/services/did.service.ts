@@ -88,8 +88,8 @@ function atprotoPdsEndpoint(): string | null {
 }
 
 /**
- * The minimal identity-bearing shape of a user the DID builder reads. Accepts a
- * lean Mongoose document or any structurally-compatible object.
+ * The minimal identity-bearing shape of a user the DID builder reads. Accepts
+ * any structurally-compatible object.
  */
 export interface DidUserInput {
   _id: string | { toString(): string };

@@ -36,10 +36,10 @@ export const USER_PROFILE_COLOR_PRESETS = [
  *    Emits `id` (NOT `_id`), forwards `username` verbatim (may be absent), and
  *    emits `name` as the structured `{ first, last, full, displayName }`
  *    subdocument.
- *  - `packages/api/src/models/User.ts` — `NameSchema` (`first`/`last` default
- *    `''`; `full` and `displayName` are Mongoose VIRTUALS. Formatted API
- *    responses compose both fields, while raw-document responses may omit the
- *    virtuals if the query did not materialise them.
+ *  - `packages/api/src/db/schema/users.ts` — the stored name (`first`/`last`);
+ *    `full` and `displayName` have no column of their own. Formatted API
+ *    responses compose both fields, while raw-document responses may omit
+ *    them.
  *
  * Platform-agnostic — zod only, no react/react-native/expo. ESM-safe (no
  * `require()`).
@@ -52,9 +52,8 @@ import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 /**
  * Structured human name subdocument. Mirrors `User.name` (`NameSchema`).
  *
- * - `first` / `last` default to `''` in Mongo, so they are optional on the wire.
- * - `full` is a Mongoose virtual — absent unless the query materialised
- *   virtuals or the serializer composed it.
+ * - `first` / `last` may be absent, so they are optional on the wire.
+ * - `full` is derived — absent unless the serializer composed it.
  * - `displayName` is the canonical app-facing display string when present.
  *   It is OPTIONAL on the wire: the API still synthesizes a default today, but
  *   the contract no longer guarantees it, so consumers fall back to a handle
@@ -208,7 +207,7 @@ export const dateOfBirthSchema = z
  */
 export const userResponseSchema = z
   .object({
-    /** MongoDB ObjectId as a string. Present on `formatUserResponse` output. */
+    /** The user id as a string. Present on `formatUserResponse` output. */
     id: z.string().optional(),
     /** Raw-document id (e.g. `GET /users/me`). Present when `id` is not. */
     _id: z.string().optional(),

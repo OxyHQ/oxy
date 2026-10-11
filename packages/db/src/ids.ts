@@ -2,11 +2,10 @@
  * The two shapes an entity id can have in a schema built on {@link generatedId}
  * (`columns.ts`).
  *
- * A primary key is `text` holding a 24-char ObjectId hex for every row that
- * existed before a Mongo-to-Postgres cutover, and a uuid v7 for every row
- * created after it. Both can be live simultaneously and permanently — a
- * backfill copies the original id verbatim, so a row migrated from Mongo keeps
- * its ObjectId forever.
+ * A primary key is `text` holding a legacy 24-char hex id for every row that
+ * predates uuid ids, and a uuid v7 for every row created since. Both can be
+ * live simultaneously and permanently — a legacy row keeps its 24-hex id
+ * forever.
  *
  * ## This is for a 400, and nothing else
  *
@@ -22,7 +21,7 @@
  * out.
  */
 
-/** A 24-character MongoDB ObjectId, hex, case-insensitive. */
+/** A legacy 24-character hex id, case-insensitive. */
 const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
 
 /**

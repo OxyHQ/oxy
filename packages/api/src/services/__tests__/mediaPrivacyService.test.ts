@@ -237,11 +237,9 @@ describe('the rest of the ladder still holds', () => {
   });
 
   it('denies a followers-only entity whose author does not exist', async () => {
-    // The deleted `ObjectId.isValid(authorId)` gate rejected a caller-supplied
-    // author id by SHAPE, to keep it from reaching Mongo as a query operator. A
-    // bound `text` parameter cannot be an operator, and an id naming no account
-    // matches no follow edge — the same denial, from the data rather than from a
-    // format check.
+    // No format check on the caller-supplied author id: a bound `text`
+    // parameter cannot be a query operator, and an id naming no account matches
+    // no follow edge — the denial comes from the data.
     const viewerId = await insertUser();
     const file = await insertFile({ ownerUserId: await insertUser() });
 

@@ -1,8 +1,8 @@
 /**
  * Credit balance mutations — against a REAL Postgres, including a real race.
  *
- * `db/credits.ts` exists because two of the Mongoose instance methods it
- * replaces were OPTIMISTIC-CONCURRENCY updates, not plain writes. A port that
+ * `db/credits.ts` exists because two of its mutations are
+ * OPTIMISTIC-CONCURRENCY updates, not plain writes. An implementation that
  * reads the row, decides in JavaScript, and then writes would pass every
  * single-threaded test in this file and still be wrong — so the deduction race
  * below is the assertion that actually holds the mechanism up. It runs genuinely
@@ -113,8 +113,8 @@ describe('deductCredits', () => {
   it('refuses a negative amount instead of turning a spend into a grant', async () => {
     const userId = await account({ creditsFree: 10, creditsPaid: 10 });
 
-    // The Mongoose version passed all three of its own checks on `-100` and
-    // ADDED 100 paid credits.
+    // A deduction of `-100` that skipped the amount guard would pass every
+    // balance check and ADD 100 paid credits.
     expect(await deductCredits(getDb(), userId, -100)).toBe(false);
     expect(await balance(userId)).toEqual({ free: 10, paid: 10 });
   });
@@ -190,10 +190,9 @@ describe('refreshCreditsIfNeeded', () => {
     });
 
     // The elapsed-time test IS the guard, so the loser re-evaluates it against
-    // the already-advanced `credits_last_refresh` and matches nothing. Under the
-    // Mongoose compare-and-set this held too; under a read-then-write port both
-    // callers would refresh and one interval's worth of credits would be granted
-    // twice.
+    // the already-advanced `credits_last_refresh` and matches nothing. Under a
+    // read-then-write implementation both callers would refresh and one
+    // interval's worth of credits would be granted twice.
     const outcomes = await Promise.all([
       refreshCreditsIfNeeded(getDb(), userId),
       refreshCreditsIfNeeded(getDb(), userId),

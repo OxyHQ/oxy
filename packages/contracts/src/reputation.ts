@@ -24,8 +24,8 @@
  *  - **The balance has two views, and the union is the contract.** See
  *    {@link ReputationBalanceView} — the compile-time assertions below are what
  *    stop the private view's fields becoming reachable on a stranger's balance.
- *  - **The closed value sets live here, not beside the mongoose models.** The
- *    API's model enums and the SDK's unions are the same `as const` tuple, so a
+ *  - **The closed value sets live here, not beside the database schema.** The
+ *    API's column enums and the SDK's unions are the same `as const` tuple, so a
  *    seventh category cannot be added on one side only.
  *
  * The response entities are declared as explicit `interface`s with their runtime
@@ -154,7 +154,7 @@ export const reputationInfluenceContextSchema = z.enum(REPUTATION_INFLUENCE_CONT
  * appended), written only by policy-driven code — never by a person.
  */
 export interface ReputationTransaction {
-  /** The transaction's Mongo `_id` as a string. */
+  /** The transaction's id, as a string. */
   id: string;
   /** Subject of the reputation change — the user whose balance moves. */
   userId: string;
@@ -541,7 +541,7 @@ export const reputationRulesResponseSchema: z.ZodType<ReputationRulesResponse> =
  * real name — fall back to the handle when it is absent, never recompose.
  */
 export interface ReputationLeaderboardUser {
-  /** The user's Mongo `_id` as a string. */
+  /** The user's id, as a string. */
   id: string;
   username: string;
   name: UserNameResponse;

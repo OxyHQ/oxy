@@ -205,7 +205,7 @@ jobs:
     timeout-minutes: 36
 
     services:
-      # Postgres target of the Mongo->Postgres port. Mirrors
+      # The API's Postgres database. Mirrors
       # docker-compose.dev.yml so a developer's local database and CI's agree.
       #
       # PostGIS, not plain Postgres: `user_locations.geo` is a generated
@@ -940,19 +940,11 @@ jobs:
         timeout-minutes: 10
         run: node scripts/test-api-runtime-dependencies.mjs
       # Before the builds and the suite, and needing neither: it reads the tracked
-      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
-      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
-      # now always a mistake — and it would arrive as a hoisted transitive or a
-      # stray env name, neither of which breaks a build.
-      - name: 'API Checks: guard against MongoDB returning'
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run validate:no-mongo
-
-      # Same shape, same reason, one layer up. The switcher's flat account list
-      # was replaced by the server's device directory (ADR 0002, issue #937), and
-      # it would come back the way the Mongo references would: one surface
-      # reaching for `listAccounts()` because it is right there, one hook
-      # flattening the grouped rows. None of that fails a build on its own.
+      # file listing. The switcher's flat account list was replaced by the
+      # server's device directory (ADR 0002, issue #937), and it would come back
+      # quietly: one surface reaching for `listAccounts()` because it is right
+      # there, one hook flattening the grouped rows. None of that fails a build
+      # on its own.
       - name: 'API Checks: guard against the flat account list returning'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run validate:no-flat-account-list
@@ -960,7 +952,7 @@ jobs:
       # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
       # every task forever. It reached 152 KB here by accretion — a mechanism
       # write-up appended by the branch that shipped it, none wrong on its own
-      # and none visible except in the sum. Same family as the two guards above:
+      # and none visible except in the sum. Same family as the guard above:
       # nothing breaks, which is why it survives. Reads the tracked file listing
       # and nothing else, and covers the create-oxy-app template too, so every
       # scaffolded app is born bounded.
@@ -1192,7 +1184,7 @@ jobs:
           key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
           restore-keys: turbo-build-${{ runner.os }}-${{ runner.arch }}-
 
-      # Contracts package tests (Jest — no MongoDB), against nothing built.
+      # Contracts package tests (Jest, no database), against nothing built.
       - name: 'Contracts Tests: test'
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run test

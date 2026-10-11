@@ -5,9 +5,8 @@
  * 1. [CRITICAL] Content-addressed dedup MUST exclude `deleted` tombstones. A
  *    prior change matched tombstones globally and revived them under the next
  *    uploader's ownership — a cross-tenant ownership takeover via SHA-256
- *    collision. The previous version of this file asserted the QUERY carried
- *    `status: { $ne: 'deleted' }`; that is a statement about a Mongo filter, not
- *    about who ends up owning the bytes. Here the tombstone is a real row and
+ *    collision. Asserting the QUERY's filter would be a statement about a
+ *    filter, not about who ends up owning the bytes. Here the tombstone is a real row and
  *    the assertion is on the OUTCOME: the uploader gets a brand-new row, and the
  *    victim's tombstone is untouched.
  *

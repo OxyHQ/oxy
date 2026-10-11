@@ -1,16 +1,12 @@
 /**
  * `session.service` against a REAL Postgres.
  *
- * This replaces two suites that mocked the Mongoose model wholesale
- * (`session.service.test.ts` and `session.service.managedSwitch.test.ts`) and
- * therefore asserted on `$set` payload SHAPES — proving the call was BUILT as
- * expected, never that the stored row was correct. Every case below runs the
+ * Asserting on payload SHAPES would prove the call was BUILT as expected, never
+ * that the stored row was correct. Every case below runs the
  * real service against the throwaway database and reads the row back.
  *
- * Three collaborators stay mocked, and none of them is the subject:
- *  - `models/User` — the user half of `getSessionWithUser` is the one remaining
- *    Mongoose read in the service (see the note at its import).
- *  - `securityActivityService` — a different batch, still on Mongoose.
+ * Two collaborators stay mocked, and neither is the subject:
+ *  - `securityActivityService` — audit logging is covered by its own suite.
  *  - `account.service` — the `account:act_as` membership oracle, imported
  *    lazily; mocking it is what lets a test revoke membership deterministically.
  *
@@ -153,7 +149,7 @@ describe('createSession', () => {
     expect(session.userId).toBe(user);
 
     const stored = await storedSession(session.sessionId);
-    // `deviceInfo` was a nested subdocument in Mongo; these are real columns.
+    // The device info is stored as real columns.
     expect(stored.deviceName).toBe('My Laptop');
     expect(stored.deviceType).toBe('desktop');
     expect(stored.browser).toBe('Chrome');
@@ -739,8 +735,8 @@ describe('validateSession / getSessionWithUser', () => {
     const result = await sessionService.validateSession(created.accessToken);
 
     expect(result?.session.sessionId).toBe(created.sessionId);
-    // `session.userId` stays the id it is declared to be — Mongo replaced it
-    // with the populated user document here; that swap does not travel.
+    // `session.userId` stays the id it is declared to be, never the populated
+    // user document.
     expect(result?.session.userId).toBe(user);
     // The user half is the REAL account document, hydrated through
     // `userService.readAccountDocument` — the same serializer

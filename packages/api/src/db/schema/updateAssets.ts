@@ -32,8 +32,8 @@ import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
 export const UPDATE_ASSET_STATUSES = ['pending', 'uploaded'] as const;
 
 /**
- * Lowercase-hex SHA-256. The same `/^[a-f0-9]{64}$/` the Mongoose `match`
- * enforced, and the shape the S3 key and CDN URL are derived from.
+ * Lowercase-hex SHA-256 (`/^[a-f0-9]{64}$/`), the shape the S3 key and CDN URL
+ * are derived from.
  */
 export const SHA256_HEX_PATTERN = '^[a-f0-9]{64}$';
 
@@ -81,7 +81,7 @@ export const updateAssets = pgTable(
     // `find({sha256: {$in: […]}})` are the only reads, and this is also the
     // unique constraint the two referencing tables point at.
     unique('update_assets_sha256_key').on(t.sha256),
-    // Mongo's `{status}` index is dropped: it has two values, almost every row
+    // No `(status)` index: it has two values, almost every row
     // is `uploaded`, and the one query that mentions it
     // (`assertAssetsUploaded`, `publish.service.ts:253`) is already keyed on the
     // high-entropy `sha256` the unique above answers directly.

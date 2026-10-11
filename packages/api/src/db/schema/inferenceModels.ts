@@ -25,8 +25,9 @@
  * made of, so no write path — route, service, seed script or `psql` session —
  * can produce a row whose canonical id disagrees with its parts. A serializer
  * composing the same string would be bypassable in exactly the way
- * `CONVENTIONS.md` describes for a Mongoose hook, and the failure would be a
- * model id that resolves to the wrong model rather than an error.
+ * `CONVENTIONS.md` describes for an application-side derivation, and the
+ * failure would be a model id that resolves to the wrong model rather than an
+ * error.
  *
  * `text || text` is IMMUTABLE, which is what makes the expression legal in a
  * generated column at all — the same requirement that rejects `convert_to` and

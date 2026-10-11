@@ -870,7 +870,7 @@ export interface AssetUploadProgress {
 
 // Device-linked session interfaces — the sessions that share one physical
 // device (GET /session/device/sessions/:sessionId). Distinct from the
-// server-authority `DeviceSession` Mongoose model / `DeviceSessionState`.
+// server-authority `DeviceSession` record / `DeviceSessionState`.
 export interface DeviceLinkedSession {
   sessionId: string;
   deviceId: string;

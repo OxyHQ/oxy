@@ -46,10 +46,9 @@ export const moderationPolicySeverityRules = pgTable(
      * Days after which the strike's risk lapses.
      *
      * NULL is MEANINGFUL and is not "unset": it means the risk does not lapse
-     * automatically and requires a specialised recovery review. Mongoose spelled
-     * that as a nullable path with `default: null` for exactly this reason — the
-     * ledger row survives either way, so traceability is never traded for
-     * forgiveness.
+     * automatically and requires a specialised recovery review. Nullable with a
+     * NULL default for exactly this reason — the ledger row survives either
+     * way, so traceability is never traded for forgiveness.
      */
     riskExpiryDays: integer(),
   },

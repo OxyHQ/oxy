@@ -6,7 +6,7 @@ import { isAccountIdFormat, isValidObjectId } from '../validation';
  * post-migration account would have bypassed block enforcement entirely.
  */
 describe('account id format accepts both live shapes', () => {
-  it('accepts a pre-migration Mongo ObjectId', () => {
+  it('accepts a legacy 24-hex id', () => {
     expect(isAccountIdFormat('507f1f77bcf86cd799439011')).toBe(true);
   });
 
@@ -20,7 +20,7 @@ describe('account id format accepts both live shapes', () => {
     expect(isAccountIdFormat('not-an-id')).toBe(false);
   });
 
-  it('no longer accepts any 12-character string, which mongoose did and no caller wanted', () => {
+  it('does not accept an arbitrary 12-character string', () => {
     expect(isValidObjectId('abcdefghijkl')).toBe(false);
   });
 
@@ -28,7 +28,7 @@ describe('account id format accepts both live shapes', () => {
     // Widening this instead of adding isAccountIdFormat was the tempting fix and
     // the wrong one: it would silently make ~20 unreviewed call sites "work"
     // while hiding which ones still need a decision. Each remaining caller must
-    // either drop its guard (it only ever existed to stop a Mongoose CastError)
+    // either drop its guard (it only ever existed to stop a driver cast error)
     // or move to isAccountIdFormat where a 400 is a real contract.
     expect(isValidObjectId('019fb834-d8a6-73fc-9073-da304c940f28')).toBe(false);
     expect(isAccountIdFormat('019fb834-d8a6-73fc-9073-da304c940f28')).toBe(true);

@@ -14,9 +14,9 @@
  *
  * ## The second guarantee: `{}` is a VALUE
  *
- * Mongoose set `minimize: false` on this schema precisely so an empty object was
- * STORED rather than stripped to absent — a progress record with no entries yet
- * is not the same thing as no record. `jsonb` preserves it natively, and the
+ * An empty object must be STORED rather than stripped to absent — a progress
+ * record with no entries yet is not the same thing as no record. `jsonb`
+ * preserves it natively, and the
  * response contract (`{ value }`) must never collapse it to `null`. That is one
  * `??` away from breaking and nothing else would notice.
  *
@@ -176,8 +176,8 @@ describe("scoping — one account can never reach another account's data", () =>
 
 describe('the stored value round trip', () => {
   it('preserves an EMPTY OBJECT rather than collapsing it to null', async () => {
-    // Mongoose's `minimize: false` existed for exactly this: a record that
-    // legitimately has no entries yet is not the same thing as no record.
+    // A record that legitimately has no entries yet is not the same thing as no
+    // record.
     const written = await request('PUT', '/users/me/app-data/academy/progress', { value: {} });
     expect(written).toEqual({ status: 200, body: { value: {} } });
 

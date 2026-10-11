@@ -38,7 +38,7 @@ describe('oxySignedRecordTypeSchema (Oxy store re-narrowing)', () => {
 
   /**
    * The set stays CLOSED, which is the property that keeps the Postgres CHECK
-   * and the Mongoose enum meaningful — `app_record` widened it by exactly one
+   * meaningful — `app_record` widened it by exactly one
    * value rather than opening a lane. An app distinguishes its records by the
    * envelope's `collection`, so a new app needs no entry here at all.
    */

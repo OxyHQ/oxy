@@ -5,10 +5,9 @@
  * in-flight challenges: once ownership is proven the domain is written to
  * `user_verified_domains` and this row is DELETED (`identity.ts:476`).
  *
- * ## Two Mongoose fields do not travel
+ * ## Two fields are deliberately absent
  *
- * Both were verified dead against every call site before being dropped, not
- * assumed:
+ * Both were verified dead against every call site, not assumed:
  *
  * - **`status`** (`enum: ['pending']`, `default: 'pending'`) — written as the
  *   literal `'pending'` at `identity.ts:389` and read by nothing, anywhere. A
@@ -23,15 +22,13 @@
  *
  * ## Expiry
  *
- * Mongo TTL `expireAfterSeconds: 0` on `expiresAt`; registered in `db/expiry.ts`
- * with `retentionSeconds: 0`. Housekeeping only — `identity.ts:439` compares
+ * `expires_at` is the deadline; registered in `db/expiry.ts` with
+ * `retentionSeconds: 0`. Housekeeping only — `identity.ts:439` compares
  * `expiresAt` against now itself and refuses a stale challenge.
  *
- * Append-only timestamps: Mongoose declared
- * `timestamps: { createdAt: true, updatedAt: false }`, so there is no
- * `updated_at`. Re-requesting a challenge upserts a fresh `token` and
- * `expires_at` over the same row, and `expires_at` is what says when it was last
- * issued.
+ * Append-only timestamps: there is no `updated_at`. Re-requesting a challenge
+ * upserts a fresh `token` and `expires_at` over the same row, and `expires_at`
+ * is what says when it was last issued.
  */
 
 import { sql } from 'drizzle-orm';
@@ -47,7 +44,7 @@ export const domainVerifications = pgTable(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** Mongoose stored this `lowercase: true` + `trim: true`; re-apply at the call site. */
+    /** Stored lower-cased and trimmed; the call site normalizes. */
     domain: text().notNull(),
     /**
      * The challenge value the owner publishes in DNS-TXT or `/.well-known`.
@@ -60,17 +57,17 @@ export const domainVerifications = pgTable(
   },
   (t) => [
     // One in-flight challenge per (user, domain). On `lower(domain)` for the
-    // same reason `user_verified_domains` is: Mongoose's `lowercase: true`
-    // setter has no Postgres counterpart, and a call site that forgets it would
-    // otherwise open a SECOND live challenge for the same domain — two valid
-    // tokens where the model promises one.
+    // same reason `user_verified_domains` is: lower-casing happens at the call
+    // site with no Postgres setter behind it, and a call site that forgets it
+    // would otherwise open a SECOND live challenge for the same domain — two
+    // valid tokens where the model promises one.
     uniqueIndex('domain_verifications_user_id_lower_domain_key').on(
       t.userId,
       sql`lower(${t.domain})`,
     ),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('domain_verifications_expires_at_idx').on(t.expiresAt),
-    // Mongo's field-level `{userId: 1}` is dropped: the compound unique above
-    // leads with `user_id`, and a btree serves any leading prefix.
+    // No standalone `(user_id)` index: the compound unique above leads with
+    // `user_id`, and a btree serves any leading prefix.
   ],
 );

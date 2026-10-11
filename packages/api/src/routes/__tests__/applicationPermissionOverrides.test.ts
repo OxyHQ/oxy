@@ -16,7 +16,7 @@
  * only ever test the last hop. Everything here is real — the membership row,
  * `accountService.resolveEffectiveAccess`, the router, Postgres — and only the
  * auth middleware (caller identity) and the CORS-registry refresh (a background
- * Mongo-free snapshot this route fires and forgets) are stubbed.
+ * snapshot this route fires and forgets) are stubbed.
  *
  * ## Every refusal has a control that differs by ONE fixture field
  *

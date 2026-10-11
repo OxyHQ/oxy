@@ -12,15 +12,13 @@
  *    of a set whose `created_at` values are ALL IDENTICAL, which is the only
  *    input that can tell a total order from a partial one.
  *
- * 2. **Follower counts are non-zero.** `routes/profiles.ts:540` passed
- *    `.toString()` ids into an aggregation `$match`; Mongoose does not cast
- *    aggregation pipelines, so the match selected nothing and every follower
- *    count on `/profiles/search` read ZERO. A test that only asserts "a number
- *    came back" passes against that exact bug, so these assert the real
- *    arithmetic against edges written in the same test.
+ * 2. **Follower counts are non-zero.** A query that matched nothing would make
+ *    every follower count on `/profiles/search` read ZERO. A test that only
+ *    asserts "a number came back" passes against that exact bug, so these
+ *    assert the real arithmetic against edges written in the same test.
  *
- * Plus response parity for `formatUserResponse`, whose input shape changed from
- * a Mongoose document to a flat row and whose output is the wire contract every
+ * Plus response parity for `formatUserResponse`, whose input is a flat row and
+ * whose output is the wire contract every
  * app in the ecosystem reads.
  *
  * Every assertion goes through the application's own pool against the throwaway

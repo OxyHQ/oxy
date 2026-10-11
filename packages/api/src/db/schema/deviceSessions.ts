@@ -27,13 +27,11 @@
  * share one secret (ADR 0029 D2). This row keeps only the credential that has
  * exactly one holder: the background secret.
  *
- * ## The `default: undefined` workaround does NOT travel
+ * ## Cleared credentials are NULL, never `''`
  *
- * The Mongoose model used `default: undefined` (never `null`) on its hash fields
- * because a Mongo SPARSE unique index collides on nulls. Postgres unique indexes
- * treat NULLs as DISTINCT, so a plain `UNIQUE` on a nullable column is already
- * correct — and substituting `''` would be worse than the original problem,
- * since an empty string is a VALUE and therefore collides for real. Every
+ * Postgres unique indexes treat NULLs as DISTINCT, so a plain `UNIQUE` on a
+ * nullable hash column is already correct — and substituting `''` would break
+ * it, since an empty string is a VALUE and therefore collides for real. Every
  * cleared credential column below is therefore NULL.
  */
 
@@ -64,7 +62,7 @@ export const deviceSessions = pgTable(
      * organization — which is exactly why `contextId` is what the activation
      * endpoint takes.
      *
-     * `SET NULL`, and NULL is a first-class state here (the Mongoose default):
+     * `SET NULL`, and NULL is a first-class state here (the default):
      * "signed in, nothing selected". `CASCADE` would delete the whole DEVICE
      * when one of possibly several accounts is deleted, taking every other
      * account's entry with it. `resolveActiveToken` refuses to mint for a null

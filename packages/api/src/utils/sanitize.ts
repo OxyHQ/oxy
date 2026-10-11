@@ -10,7 +10,7 @@
  *    entities and strips tags instead. Use it for anything shown as text.
  *
  *  - `sanitizeHtml` — entity-escaping for values placed into an actual
- *    HTML/markup context. Do NOT use it on text fields or MongoDB `$regex`
+ *    HTML/markup context. Do NOT use it on text fields or regular-expression
  *    inputs (see `sanitizeSearchQuery`).
  *
  * Never apply either to passwords, hashes, or binary data.
@@ -186,14 +186,14 @@ export function sanitizeProfileUpdate(updates: Record<string, unknown>): Record<
 
 /**
  * Escape regex metacharacters to prevent ReDoS and injection
- * when using user input in MongoDB $regex queries.
+ * when using user input in a regular expression.
  */
 export function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * Sanitize a search query string for MongoDB `$regex` use.
+ * Sanitize a search query string for use in a regular expression.
  *
  * Trims, limits length, and escapes regex metacharacters. HTML entity-escaping
  * is intentionally omitted — stored usernames/names are literal text (e.g.

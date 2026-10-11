@@ -526,8 +526,8 @@ router.get('/check-publickey/:publicKey', checkLimiter, validate({ params: check
     throw new BadRequestError('Invalid public key format');
   }
 
-  // Matched through `users_lower_public_key_key`. Mongoose lower-cased the key
-  // on write, so the stored values are already canonical; applying the same
+  // Matched through `users_lower_public_key_key`. Keys are stored lower-cased,
+  // so the stored values are already canonical; applying the same
   // expression on both sides is what lets the index serve the lookup.
   const [existingUser] = await getDb()
     .select({ id: users.id })
@@ -824,8 +824,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   // The OAuth binding is written as FLAT columns alongside `purpose` in ONE
   // insert, because `auth_sessions_oauth_binding_check` and
   // `auth_sessions_oauth_purpose_check` require the whole group and the purpose
-  // to agree. There is no half-bound row to write — the schema-level statement
-  // of what the Mongoose sub-schema achieved by staying `undefined`.
+  // to agree. There is no half-bound row to write.
   const [authSession] = await getDb()
     .insert(authSessions)
     .values({
@@ -1261,8 +1260,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   }
 
   // Update auth session — including WHICH identity approved. `authorizedBy` is
-  // left untouched when the approver has no public key, matching the Mongoose
-  // path that only assigned the field when one existed.
+  // left untouched when the approver has no public key.
   await getDb()
     .update(authSessions)
     .set({
@@ -2371,9 +2369,9 @@ function registeredOriginsOf(app: Pick<ApplicationRow, 'redirectUris'>): Set<str
  * the serializer simply omits the attribution.
  *
  * `created_by_user_id` is NULLABLE here (`ON DELETE SET NULL`): it is pure
- * attribution, and Mongoose's `required` only ever guaranteed a creator was
- * recorded at INSERT — a deleted user left a dangling id with no error. A NULL
- * owner takes the same "no attribution" branch a deleted one already took.
+ * attribution: a creator is recorded at INSERT, and deleting that user leaves
+ * NULL rather than a dangling id. A NULL owner takes the "no attribution"
+ * branch.
  */
 async function resolveDeveloperName(
   app: Pick<ApplicationRow, 'isOfficial' | 'createdByUserId'>

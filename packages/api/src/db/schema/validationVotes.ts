@@ -77,7 +77,7 @@ export const validationVotes = pgTable(
     // The tally reads every vote of one request; the compound above leads with
     // `request_id`, so no second index is needed for it. This one serves the
     // OTHER direction — "which requests has this juror voted on" — which
-    // `getValidatorInbox` runs on every inbox load and Mongo could not serve.
+    // `getValidatorInbox` runs on every inbox load.
     index('validation_votes_validator_user_id_idx').on(t.validatorUserId),
 
     check(

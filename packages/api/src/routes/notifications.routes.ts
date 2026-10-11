@@ -90,10 +90,8 @@ router.get('/unread-count', asyncHandler(getUnreadCount));
  *
  * `token` arrives already TRIMMED: `registerPushTokenSchema` declares
  * `z.string().trim()` and `validate` replaces `req.body` with the parsed value.
- * That is the port of Mongoose's `trim: true` on `PushToken.token`, which had no
- * Postgres counterpart and would otherwise have let `"tok "` and `"tok"` become
- * two rows under the `(user_id, token)` unique index (`CONVENTIONS.md`,
- * "Mongoose behaviour that has no schema counterpart"). The unregister schema
+ * Postgres has no column-level trim, so without it `"tok "` and `"tok"` would
+ * become two rows under the `(user_id, token)` unique index (`CONVENTIONS.md`). The unregister schema
  * trims identically, so a token registered from a padded string is still
  * deletable by the same padded string.
  */
@@ -139,8 +137,7 @@ router.post(
 
     // Only the fields the caller actually sent are updated on conflict, so
     // re-registering an existing install never silently drops a scope it
-    // already carries — the same guarantee Mongo's explicit `$set` of the
-    // whitelist gave. `updated_at` is bumped by drizzle's `$onUpdate`, which
+    // already carries. `updated_at` is bumped by drizzle's `$onUpdate`, which
     // applies to the `do update` branch too.
     const onConflict: Partial<PushTokenWrite> = { platform: write.platform };
     if (write.deviceId !== undefined) {
@@ -151,8 +148,8 @@ router.post(
     }
 
     try {
-      // ONE statement, so the concurrent-registration race Mongo answered with
-      // an `E11000` retry is now unrepresentable: `push_tokens_user_id_token_key`
+      // ONE statement, so a concurrent-registration race is unrepresentable:
+      // `push_tokens_user_id_token_key`
       // is the conflict target, and a duplicate takes the `do update` branch
       // rather than raising.
       await getDb()

@@ -10,8 +10,8 @@
  * The value sets are derived from the schema's own tuples rather than re-spelt,
  * so a CHECK constraint and the TypeScript union can never disagree.
  *
- * **`usageCount` is not a field.** Mongoose exposed it as a virtual over
- * `links.length`; here it is `file.links.length` at the point of use. A stored
+ * **`usageCount` is not a field.** It is `file.links.length` at the point of
+ * use. A stored
  * counter would be a second source of truth for a number the rows already
  * answer — see `schema/files.ts`.
  */
@@ -51,10 +51,8 @@ export type FilePurpose = (typeof FILE_PURPOSES)[number];
 /**
  * The system namespaces that own an asset instead of a user.
  *
- * Mongo stored these as sentinel STRINGS in the same column that otherwise held
- * user ids, which is why `mediaPrivacyService` had to recognise them by their
- * shape. Here they live in their own column and `owner_user_id is null` is the
- * exact, total discriminator.
+ * They live in their own column, never as sentinel strings in the user-id
+ * column, and `owner_user_id is null` is the exact, total discriminator.
  */
 export type FileSystemOwner = (typeof FILE_SYSTEM_OWNERS)[number];
 
@@ -65,7 +63,7 @@ export type FileSystemOwner = (typeof FILE_SYSTEM_OWNERS)[number];
  * `files_owner_exclusive_check` says exactly this in SQL. Saying it in the type
  * too means a write path cannot even construct the ambiguous case, so the CHECK
  * is a backstop for raw SQL rather than the only thing standing between a
- * sentinel string and the user-id column, which is what it was in Mongo.
+ * sentinel string and the user-id column.
  */
 export type FileOwner =
   | { ownerUserId: string; systemOwner: null }

@@ -1,17 +1,15 @@
 /**
  * `sessions` — one signed-in account on one device, and the tokens that address it.
  *
- * Ported from `models/Session.ts`.
+ * ## Device info is COLUMNS, not `jsonb`
  *
- * ## `deviceInfo` becomes COLUMNS, not `jsonb`
- *
- * Mongo indexed `deviceInfo.fingerprint` and sorted on `deviceInfo.lastActive`.
- * A `jsonb` blob can serve neither without a hand-written expression index per
+ * Sessions are looked up by device fingerprint and sorted by last activity. A
+ * `jsonb` blob can serve neither without a hand-written expression index per
  * path, and the shape is fully known (eight fields), which is the opposite of
- * the shape-less data `jsonb` exists for. The flattening, so the backfill map is
- * unambiguous:
+ * the shape-less data `jsonb` exists for. The flattening, from the API's
+ * `deviceInfo` shape:
  *
- * | Mongo                      | Column               |
+ * | `deviceInfo` field         | Column               |
  * |----------------------------|----------------------|
  * | `deviceInfo.deviceName`    | `device_name`        |
  * | `deviceInfo.deviceType`    | `device_type`        |
@@ -27,25 +25,23 @@
  * `fingerprint` no longer says what it fingerprints. Every other date column in
  * this schema ends `_at`.
  *
- * `device_type` and `platform` are `NOT NULL` because the Mongoose subdocument
- * declared them `required: true`. Neither is a closed set there — `mobile`,
- * `desktop`, `tablet`, `web`, … are conventions the callers agree on, not an
- * enum the model enforced — so no CHECK is invented for them here.
+ * `device_type` and `platform` are `NOT NULL`: every session records them.
+ * Neither is a closed set — `mobile`, `desktop`, `tablet`, `web`, … are
+ * conventions the callers agree on, not an enum — so no CHECK is invented for
+ * them here.
  *
  * ## Expiry
  *
- * Mongo pruned expired sessions with a TTL index on `expiresAt`; the table is
- * registered in `db/expiry.ts` with `retentionSeconds: 0`. The sweep is
- * HOUSEKEEPING ONLY: `session.controller.ts:297` and every lookup in
- * `session.service.ts` already filter `expiresAt: { $gt: new Date() }`
- * alongside `isActive`. Port those filters verbatim — dropping one because "the
- * sweep handles it" turns a bounded lag into a live credential.
+ * Expired sessions are pruned by the sweep: the table is registered in
+ * `db/expiry.ts` with `retentionSeconds: 0`. The sweep is HOUSEKEEPING ONLY:
+ * every session lookup filters `expires_at > now()` alongside `is_active`. Keep
+ * those filters — dropping one because "the sweep handles it" turns a bounded
+ * lag into a live credential.
  *
- * ## The three Mongoose instance methods
+ * ## The three session operations
  *
- * `updateLastActive`, `isValid` and `deactivate` are document behaviour with no
- * schema counterpart, and they are the reason three of these columns exist. They
- * become, at the call site:
+ * `updateLastActive`, `isValid` and `deactivate` are application behaviour, and
+ * they are the reason three of these columns exist. At the call site they are:
  *
  * - `updateLastActive` → `update sessions set last_active_at = now() where …`
  * - `isValid`          → `is_active and expires_at > now()`
@@ -90,7 +86,7 @@ export const sessions = pgTable(
     platform: text().notNull(),
     browser: text(),
     os: text(),
-    /** Mongoose defaulted this to `Date.now`, so every row carries one. */
+    /** Defaults to now, so every row carries one. */
     lastActiveAt: timestamptz().notNull().defaultNow(),
     userAgent: text(),
     /** Stable per-device hash used by `findExistingDeviceId` (`deviceUtils.ts:315`). */
@@ -176,7 +172,7 @@ export const sessions = pgTable(
 
     isActive: boolean().notNull().default(true),
     expiresAt: timestamptz().notNull(),
-    /** Mongoose defaulted this to `Date.now`. */
+    /** Defaults to now. */
     lastRefresh: timestamptz().notNull().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -196,9 +192,8 @@ export const sessions = pgTable(
       .on(t.authMethodId)
       .where(sql`${t.authMethodId} is not null`),
     unique('sessions_session_id_key').on(t.sessionId),
-    // Mongo's `{accessToken:1}` / `{refreshToken:1}` were unique + SPARSE, but
-    // both fields are `required: true`, so nothing was ever sparse about them —
-    // a plain UNIQUE on a NOT NULL column is the exact same guarantee.
+    // Both tokens are NOT NULL, so a plain UNIQUE is the whole guarantee — no
+    // partial index is needed.
     unique('sessions_access_token_key').on(t.accessToken),
     unique('sessions_refresh_token_key').on(t.refreshToken),
 
@@ -209,8 +204,7 @@ export const sessions = pgTable(
     // "Everything signed in on this device" (`devices.controller.ts:46`).
     index('sessions_device_id_is_active_expires_at_idx').on(t.deviceId, t.isActive, t.expiresAt),
     // Grace-period lookup after a refresh rotation (`session.service.ts:657`).
-    // Partial rather than Mongo's `sparse: true`, which is the same intent:
-    // only a session mid-rotation carries a previous token.
+    // Partial: only a session mid-rotation carries a previous token.
     index('sessions_previous_refresh_token_rotated_at_idx')
       .on(t.previousRefreshToken, t.tokenRotatedAt)
       .where(sql`${t.previousRefreshToken} is not null`),
@@ -224,14 +218,14 @@ export const sessions = pgTable(
     // None of the compound indexes above can serve it: each leads with another
     // column, and the sweep's predicate is a bare range scan on `expires_at`.
     index('sessions_expires_at_idx').on(t.expiresAt),
-    // Mongo also declared `{sessionId:1, isActive:1, expiresAt:1}`. Dropped as
-    // redundant: `sessions_session_id_key` is UNIQUE, so a lookup by
+    // No `(session_id, is_active, expires_at)` index: it would be redundant.
+    // `sessions_session_id_key` is UNIQUE, so a lookup by
     // `session_id` already resolves to at most one row and the remaining two
     // predicates are a free check on that single heap tuple.
     //
     // No CHECK constraint on this table. `expires_at > created_at` is true of
-    // every row the application writes, but the Mongoose model never validated
-    // it, so asserting it here would risk failing the backfill on production
-    // data to restate something no read path depends on.
+    // every row the application writes, but it has never been validated, so
+    // asserting it here would risk failing on existing production data to
+    // restate something no read path depends on.
   ],
 );

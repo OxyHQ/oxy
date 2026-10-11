@@ -105,9 +105,8 @@ describe('formatSubscriptionResponse', () => {
 
   describe('legacy expiry is DERIVED, not read from the stored status', () => {
     /**
-     * The Mongo TTL index used to DELETE a lapsed subscription, destroying the
-     * record of what was bought. It is gone, so the row now outlives its own
-     * deadline — and a serializer that trusted the stored `status` would report
+     * A lapsed subscription is never deleted, so the record of what was bought
+     * survives and the row outlives its own deadline — and a serializer that trusted the stored `status` would report
      * `active` for a subscription that ended months ago.
      */
     it('reports expired once end_date has passed, without deleting anything', () => {

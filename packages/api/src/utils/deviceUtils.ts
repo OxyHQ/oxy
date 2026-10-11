@@ -400,7 +400,7 @@ interface DeviceSessionEntry {
 export const getDeviceActiveSessions = async (deviceId: string, currentSessionId?: string) => {
   try {
     const now = new Date();
-    // Mongo's `.populate('userId', …)` becomes a real join. Columns are named
+    // The user is a real join. Columns are named
     // explicitly rather than `select()`-ing whole tables: `sessions` carries two
     // live bearer tokens and `users` carries the contact-discovery hashes, none
     // of which this DTO may see (`db/schema/protectedColumns.ts`).
@@ -493,14 +493,12 @@ export const logoutAllDeviceSessions = async (deviceId: string, excludeSessionId
       ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
     );
 
-    // One statement instead of Mongo's read-then-updateMany: `returning` gives
-    // back exactly the rows this update deactivated, so the cache invalidation
-    // below can no longer act on a row a concurrent writer changed in between.
+    // One statement, not read-then-update: `returning` gives back exactly the
+    // rows this update deactivated, so the cache invalidation below can never
+    // act on a row a concurrent writer changed in between.
     //
-    // The Mongo version also wrote `loggedOutAt` here. That field is on NO
-    // schema — Mongoose strict mode silently dropped it on every call, so it has
-    // never been persisted or read. There is deliberately no `logged_out_at`
-    // column; the write is dropped rather than reproduced.
+    // There is deliberately no `logged_out_at` column: nothing has ever read a
+    // logout timestamp.
     const deactivated = await getDb()
       .update(sessions)
       .set({ isActive: false })

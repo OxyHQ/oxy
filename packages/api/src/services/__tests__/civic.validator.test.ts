@@ -1,16 +1,14 @@
 /**
  * The validator jury (civic / Fase 2 Part B), against a REAL Postgres.
  *
- * The suite this replaces mocked seven Mongoose models the service no longer
- * imports, handed `tallyAndResolve` a hand-built document with a `save()` spy,
- * and then asserted on the arguments a mocked `award` was called with. None of
- * that could observe the three things the port actually moved into the database:
+ * Mocks asserting on the arguments a mocked `award` was called with could not
+ * observe the three things the database itself enforces:
  *
- *  1. **"One open jury per source action" is a CONSTRAINT again.**
+ *  1. **"One open jury per source action" is a CONSTRAINT.**
  *     `unique (source_action_id) where status in ('pending','quorum_met')`.
- *     Mongo could not express it, so `openValidationRequest` paid with a
- *     check-then-act window in which two callers each opened a jury for one
- *     action and both could only expire. The race is driven concurrently below,
+ *     Without it `openValidationRequest` would have a check-then-act window in
+ *     which two callers each open a jury for one action and both can only
+ *     expire. The race is driven concurrently below,
  *     and the partial-ness is checked too: a CLOSED request must free the slot.
  *  2. **The jury is a junction table with real foreign keys**, and the draw
  *     ORDER is stored. A seat can no longer name an account that does not exist.
@@ -508,8 +506,8 @@ describe('openValidationRequest — one open jury per source action', () => {
 
   it('answers a CONCURRENT caller with the winner’s request — the index, not the lookup', async () => {
     // Both callers pass the friendly `findOne` (neither sees the other's row
-    // yet) and race into the insert. Under Mongo this split one action's jury
-    // across two requests that could each only expire.
+    // yet) and race into the insert. Without the index this would split one
+    // action's jury across two requests that could each only expire.
     const subject = await makeAccount();
     await makeEligible();
     const sourceActionId = `src-${uniqueId()}`;

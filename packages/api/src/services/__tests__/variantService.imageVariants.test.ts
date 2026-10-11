@@ -280,8 +280,8 @@ describe('VariantService.ensureVideoImageVariant — sizes derived from the post
   /**
    * A REAL `files` row for a video, plus a REAL poster child row.
    *
-   * main's fixture was an in-memory object with a Mongoose `_id`: fine against
-   * a mocked store, impossible against this one. `file_variants.file_id` is a
+   * An in-memory object with an `_id` would be fine against a mocked store and
+   * impossible against this one. `file_variants.file_id` is a
    * foreign key, so a synthetic parent fails the insert — and before that, the
    * port reads `file.id`, so `_id` produced
    * `delete from file_variants where file_id = ''`. Two different failures,

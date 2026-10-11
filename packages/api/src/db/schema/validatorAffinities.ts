@@ -10,17 +10,16 @@
  *
  * `affinityPair` (`validator.service.ts:78`) stores the lexicographically
  * smaller id as `validator_a`, so each unordered pair has exactly one row.
- * Mongo's unique index enforced only that a given ORDERED pair appears once —
- * `(b, a)` was a second, invisible row that silently halved every co-vote count
- * it should have been part of. `validator_a < validator_b` makes the canonical
- * form the only representable one, so the unique index means what its comment
- * always claimed.
+ * A unique index alone would enforce only that a given ORDERED pair appears
+ * once — `(b, a)` would be a second, invisible row that silently halves every
+ * co-vote count it should be part of. `validator_a < validator_b` makes the
+ * canonical form the only representable one, so the unique index means what its
+ * comment always claimed.
  *
  * ## No timestamps
  *
- * `timestamps: false` in Mongoose, and the model declares no `createdAt` of its
- * own — `last_co_vote_at` is the only date the throttle reads. So this table has
- * neither `created_at` nor `updated_at`, and that absence is the port rather
+ * `last_co_vote_at` is the only date the throttle reads. So this table has
+ * neither `created_at` nor `updated_at`, and that absence is deliberate rather
  * than an omission.
  */
 

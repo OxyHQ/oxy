@@ -17,11 +17,10 @@
  * an in-memory object store, so the bytes asserted at the end are the bytes the
  * pipeline actually produced.
  *
- * The FIXTURE is what the port changed. `main` handed the services a plain
- * object with a Mongoose `_id` and an empty `variants` array, which was free
- * against a mocked model and is impossible here twice over: the code reads
- * `file.id`, so an `_id` fixture addressed `file_id = ''`; and `file_variants`
- * carries a real foreign key, so a fabricated parent cannot own a rendition.
+ * The FIXTURE is a real row. A plain object with an `_id` and an empty
+ * `variants` array would not work twice over: the code reads `file.id`, so an
+ * `_id` fixture addresses `file_id = ''`; and `file_variants` carries a real
+ * foreign key, so a fabricated parent cannot own a rendition.
  * The video is a REAL `files` row with a REAL owner — see `seedVideoFile`.
  *
  * ffmpeg reads the video over `http://127.0.0.1:<port>` rather than from disk,
@@ -230,7 +229,7 @@ function buildSampleVideo(): Buffer {
  *
  * `file_variants.file_id` is a foreign key, so every rendition the pipeline
  * writes needs a parent that exists; and the services address the file by
- * `file.id`, which a Mongoose-shaped `_id` fixture leaves undefined.
+ * `file.id`, which an `_id`-only fixture leaves undefined.
  */
 async function seedVideoFile(): Promise<FileRecord> {
   const [owner] = await getDb().insert(users).values({}).returning({ id: users.id });

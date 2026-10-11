@@ -291,7 +291,7 @@ export type {
 } from './civic';
 
 export {
-  // Closed value sets — shared by the API's mongoose enums, the API's request
+  // Closed value sets — shared by the API's column enums, the API's request
   // validation, and the SDK's unions, so a new category/tier/status cannot be
   // added on one side only.
   REPUTATION_CATEGORIES,

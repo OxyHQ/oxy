@@ -312,14 +312,9 @@ export class VariantService {
    * Persist a file's whole rendition set, together with any intrinsic metadata
    * derived from the SAME decode pass, as ONE transaction.
    *
-   * Mongoose wrote both in a single `$set` on one document and wrapped it in a
-   * `VersionError` retry loop — optimistic concurrency over `__v`, which merged
-   * the two sets by variant type when a racing writer bumped the version. None
-   * of that travels: there is no document version to conflict on, and
+   * There is no document version to conflict on and no retry loop:
    * `upsertVariantSet` is a single transaction, so a racing writer either sees
-   * the whole previous set or the whole new one. The retry loop, its
-   * `VariantCommitRetryOptions`, and the declaration-merged `commitVariants`
-   * that carried them are deleted rather than reproduced.
+   * the whole previous set or the whole new one.
    *
    * The in-memory `file.variants` is merged by type to match what the
    * transaction did — rows of types this batch did not write are preserved, so
@@ -1646,10 +1641,8 @@ export class VariantService {
    * Write ONE freshly-produced rendition, replacing any row of the same type,
    * and keep the caller's in-hand record consistent with what was stored.
    *
-   * The Mongoose original spliced the variant into the document's array and
-   * re-`$set` the WHOLE array, so a concurrent writer's rendition of a DIFFERENT
-   * type was silently dropped — which is why both call sites carried a "retry
-   * once with a fresh document" block underneath. `upsertVariant` touches only
+   * Rewriting the WHOLE rendition set would silently drop a concurrent
+   * writer's rendition of a DIFFERENT type. `upsertVariant` touches only
    * the rows of this type, in a transaction, so there is no whole-array write to
    * lose a neighbour and no retry to write.
    */

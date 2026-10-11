@@ -3,15 +3,12 @@
  *
  * Ported from `models/Mailbox.ts`.
  *
- * ## The three counters do not travel
+ * ## The three counters are not stored
  *
- * Mongo stored `totalMessages`, `unseenMessages` and `size` on the mailbox and
- * kept them current with **eighteen separate `$inc` sites** in
- * `email.service.ts` (399, 583, 608, 611, 654, 740, 855, 1061, 1117, 1149,
- * 1152, 1180, 1183, 1273, 1995, 2557, 2572 …). That is the exact shape
- * `CONVENTIONS.md` refuses to inherit: a cached aggregate that exists only
- * because the store cannot JOIN, maintained by hand, outside a transaction, in
- * twenty-one places — so it drifts, and nothing notices.
+ * `totalMessages`, `unseenMessages` and `size` are not columns. Stored on the
+ * mailbox they would be a cached aggregate maintained by hand at every write
+ * site in `email.service.ts`, outside a transaction — so it drifts, and nothing
+ * notices. `CONVENTIONS.md` refuses that shape.
  *
  * Postgres computes all three from `messages`, and the DTO is unchanged
  * because the numbers are the same numbers:
@@ -56,8 +53,8 @@ export const mailboxes = pgTable(
     path: text().notNull(),
     /**
      * IMAP special-use attribute (`\Inbox`, `\Sent`, `\Trash`, …), or NULL for
-     * a user-created folder. Deliberately no CHECK: Mongo declared no enum, and
-     * a CHECK would reject any production row carrying a value this list forgot.
+     * a user-created folder. Deliberately no CHECK: the value set is open, and
+     * a CHECK would reject any production row carrying a value a list forgot.
      */
     specialUse: text(),
     /** Days a message survives in this mailbox, or NULL for "keep forever". */
@@ -69,7 +66,7 @@ export const mailboxes = pgTable(
     uniqueIndex('mailboxes_user_id_path_key').on(t.userId, t.path),
     // "Find this user's Inbox" — `getMailboxBySpecialUse`.
     index('mailboxes_user_id_special_use_idx').on(t.userId, t.specialUse),
-    // Mongo also declared a standalone `{userId: 1}`. Dropped: the unique index
-    // above leads with `user_id`, and a btree serves any leading prefix.
+    // No standalone `(user_id)` index: the unique index above leads with
+    // `user_id`, and a btree serves any leading prefix.
   ],
 );

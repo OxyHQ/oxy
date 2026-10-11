@@ -89,10 +89,10 @@ import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
- * Mongo's `maxTimeMS` on the two search queries, as `statement_timeout`.
+ * The `statement_timeout` on the two search queries.
  *
- * It is a DoS guard on a user-supplied search, not an optimisation, so it
- * survives the port. `SET LOCAL` needs a transaction — which is why both the
+ * It is a DoS guard on a user-supplied search, not an optimisation.
+ * `SET LOCAL` needs a transaction — which is why both the
  * page and the count run inside one.
  */
 const EMAIL_SEARCH_MAX_TIME_MS = 5_000;
@@ -164,8 +164,7 @@ export function normalizeStructuredSearchFilter(value: string | undefined): stri
 }
 
 /**
- * Case-insensitive substring containment — the exact semantic of Mongo's
- * `{ $regex: <escaped literal>, $options: 'i' }`.
+ * Case-insensitive substring containment of a literal.
  *
  * `strpos` rather than `ilike`: a LIKE pattern would need its own escaping for
  * `%`, `_` and `\`, which is a second escaping routine to get wrong for no gain.
@@ -341,21 +340,14 @@ async function renameLabelReferences(
 //
 // Every response below carries BOTH `_id` and `id`, as strings.
 //
-// That is not indecision: the Mongo reads this replaces disagreed with each
-// other. `.lean({virtuals:true})` returned `_id` AND the `id` virtual, a plain
-// `.lean()` (bundles, the reminder list, bundled messages) returned only `_id`,
-// and `.toJSON()` returned only `id`. The three shapes reached the same clients
-// through different endpoints, so both keys are load-bearing somewhere —
+// That is not indecision: some clients read `_id`, others read `id`, through
+// different endpoints, so both keys are load-bearing somewhere —
 // `SYSTEM_LABELS` even keys on `_id` alone and is merged into the same array as
-// stored labels. Emitting both is the only shape that is a superset of all
-// three: no consumer loses a field and no existing field changes value.
-//
-// `__v` does not travel. It was a Mongo version key, absent from every
-// `toJSON` response already, and there is no column behind it.
+// stored labels. Emitting both means no consumer loses a field.
 
 /** One addressee, exactly as the wire has always carried it. */
 export interface EmailAddressDto {
-  /** Mongoose defaulted this to `''`; a header with no display name still sends `''`. */
+  /** A header with no display name sends `''`. */
   name: string;
   address: string;
 }
@@ -370,7 +362,7 @@ export interface AttachmentDto {
   isInline: boolean;
 }
 
-/** The six message flags, still nested exactly as Mongo nested them. */
+/** The six message flags, nested on the wire. */
 export interface MessageFlagsDto {
   seen: boolean;
   starred: boolean;
@@ -845,10 +837,9 @@ async function toMessageDtos(
  * The set of RFC Message-ID tokens that identify a message's place in a thread:
  * its own `Message-ID`, its `In-Reply-To`, and every entry of `References`.
  *
- * Two messages are in the same thread exactly when these sets intersect — which
- * is, term for term, the sibling test the Mongo pipeline finished in JS
+ * Two messages are in the same thread exactly when these sets intersect
  * (`m.messageId ∈ myIds ∨ m.inReplyTo ∈ myIds ∨ m.references ∩ myIds ≠ ∅`,
- * where `myIds` was this same set). Stating it as one symmetric relation is
+ * where `myIds` is this same set). Stating it as one symmetric relation is
  * what lets the walk be transitive instead of one hop.
  */
 function threadKeys(alias: string): SQL {
@@ -944,8 +935,8 @@ async function writeFilterChildren(
 }
 
 /**
- * Refuse a rule with no conditions or no actions — Mongoose's two
- * `length > 0` validators, enforced where Postgres can enforce them.
+ * Refuse a rule with no conditions or no actions — enforced here because a
+ * CHECK cannot require child rows.
  *
  * The scoping is what the outer parentheses in `incompleteEmailFilters()` exist
  * for: without them this `and` would render as `(id = $1 and …) or …` and
@@ -1008,7 +999,7 @@ async function loadFilterChildren(
   const actionsById = new Map<string, FilterActionDto[]>();
   for (const row of actionRows) {
     const entry = actionsById.get(row.filterId) ?? [];
-    // Mongoose omitted `value` when unset rather than storing null.
+    // `value` is omitted when unset rather than sent as null.
     entry.push(row.value === null ? { type: row.type } : { type: row.type, value: row.value });
     actionsById.set(row.filterId, entry);
   }
@@ -1113,8 +1104,8 @@ function toContactDto(row: typeof contacts.$inferSelect): ContactDto {
  * `resolveEmailFromName` composes a display name out of.
  *
  * Shaped as `DisplayNameSource` so it feeds that helper directly. `name.full`
- * and `name.displayName` were Mongoose VIRTUALS with no column behind them —
- * they stay derived, so there is nothing else to select.
+ * and `name.displayName` are derived, with no column behind them, so there is
+ * nothing else to select.
  */
 async function loadSenderIdentity(
   db: Database,
@@ -1136,13 +1127,11 @@ async function loadSenderIdentity(
  *
  * The recipients and attachments are the message — a crash between the parent
  * insert and the children would leave stored mail claiming addressees it does
- * not have, which is exactly what Mongo's single-document write made
- * impossible and what a naive three-statement port would reintroduce.
+ * not have, which three separate statements outside a transaction would allow.
  *
  * Addresses are lower-cased and trimmed HERE, the call-site obligation
- * `db/schema/messages.ts` records: Mongoose applied it with a setter that
- * Postgres has no counterpart for, and skipping it turns address matching
- * silently case-sensitive.
+ * `db/schema/messages.ts` records: Postgres has no column-level setter, and
+ * skipping it turns address matching silently case-sensitive.
  */
 async function insertMessageWithChildren(
   db: Database,
@@ -1573,11 +1562,11 @@ class EmailService {
   }
 
   /**
-   * A user's folders with the three counters Mongo cached on the row.
+   * A user's folders with their three counters.
    *
-   * `total_messages`, `unseen_messages` and `size` are derived here — the
-   * numbers are the same numbers, and the eighteen hand-maintained `$inc` sites
-   * that kept them approximately current are gone. See `db/schema/mailboxes.ts`.
+   * `total_messages`, `unseen_messages` and `size` are derived here rather than
+   * stored, so there is no hand-maintained counter to drift. See
+   * `db/schema/mailboxes.ts`.
    */
   async listMailboxes(userId: string): Promise<MailboxDto[]> {
     const stats = getDb()
@@ -1872,15 +1861,13 @@ class EmailService {
    * Attach `threadCount` / `threadParticipants` to every page message that has
    * any threading header.
    *
-   * ## What changed, deliberately
+   * ## The walk is transitive
    *
-   * Mongo fetched every message adjacent to the union of the page's Message-ID
-   * tokens, then resolved siblings per page message IN JS — ONE hop. A message
-   * two replies removed that had dropped the shared reference was simply not
-   * counted. Postgres walks the same adjacency TRANSITIVELY (`WITH RECURSIVE`),
-   * so the numbers are the whole thread rather than its immediate neighbourhood.
-   * In practice they usually agree, because `References` accumulates the whole
-   * ancestor chain — but where they differ, the old answer was wrong.
+   * Postgres walks the adjacency TRANSITIVELY (`WITH RECURSIVE`), so the numbers
+   * are the whole thread rather than its immediate neighbourhood. A one-hop
+   * lookup would miss a message two replies removed that had dropped the shared
+   * reference. Usually the two agree, because `References` accumulates the
+   * whole ancestor chain — but where they differ, one hop is wrong.
    *
    * `root_id` rides along so each page message keeps its OWN component: without
    * it the walk would return one merged set and every page message would report
@@ -1926,7 +1913,7 @@ class EmailService {
     for (const message of page) {
       const thread = byRoot.get(message.id);
       // A message is always in its own component, so a count of one means it
-      // has headers but no counterpart stored here — same rule Mongo applied.
+      // has headers but no counterpart stored here.
       if (!thread) continue;
       message.threadId = thread.threadId;
       if (thread.threadCount <= 1) continue;
@@ -1978,7 +1965,7 @@ class EmailService {
     const owned = and(eq(messages.id, messageId), eq(messages.userId, userId));
 
     // An empty flag set is a no-op read, not an error. Drizzle refuses a `set`
-    // with no columns, and Mongo refused an empty `$set` too.
+    // with no columns.
     const [updated] =
       Object.keys(flags).length === 0
         ? await db.select({ id: messages.id }).from(messages).where(owned).limit(1)
@@ -2092,7 +2079,7 @@ class EmailService {
     const owned = and(inArray(messages.id, messageIds), eq(messages.userId, userId));
 
     // "Already in the requested state" is what separates matched from modified:
-    // Mongo's `modifiedCount` skipped documents the write would not change. The
+    // a message the write would not change is not counted as modified. The
     // predicate is stated as the DISJUNCTION of the differing flags rather than
     // the negation of their conjunction — the same set by De Morgan, and it
     // composes with `and(...)` without a nullable operand in the middle.
@@ -3020,9 +3007,7 @@ class EmailService {
    *
    * The same `WITH RECURSIVE` walk `attachThreadMetadata` counts with — one
    * definition of "same thread", so a list that says `threadCount: 5` can never
-   * open onto a thread view showing three. Mongo ran the two independently, and
-   * both one hop: this one built a `$or` of five clauses over the anchor's own
-   * tokens and stopped there.
+   * open onto a thread view showing three.
    *
    * The anchor is always in its own component, so no separate dedup-and-append
    * step is needed — the walk returns it whether or not it has any counterpart.
@@ -3099,8 +3084,7 @@ class EmailService {
     const db = getDb();
 
     // `lower(name)`, matching `labels_user_id_lower_name_key`. A plain equality
-    // is correct-looking, case-SENSITIVE, and will not use the index — which is
-    // the whole difference between this and Mongo's `strength: 2` collation.
+    // is correct-looking, case-SENSITIVE, and will not use the index.
     const [existing] = await db
       .select({ id: labelsTable.id })
       .from(labelsTable)
@@ -3249,14 +3233,12 @@ class EmailService {
   /**
    * Add and remove labels on one message.
    *
-   * Mongo could not `$addToSet` and `$pull` the same field in one operation, so
-   * this ran TWO `updateOne` calls with a window between them where the message
-   * held the added labels but not yet the removals. Postgres rewrites the array
-   * once, and the expression states the same precedence Mongo's ordering did:
-   * add first, then remove, so a name in BOTH lists ends up removed.
+   * The array is rewritten once, so there is no window where the message holds
+   * the added labels but not yet the removals. The precedence is add first,
+   * then remove, so a name in BOTH lists ends up removed.
    *
    * The order of the surviving entries is preserved — kept ones in place,
-   * genuinely new ones appended — which is what `$addToSet` did.
+   * genuinely new ones appended.
    */
   async updateMessageLabels(
     userId: string,
@@ -3406,7 +3388,7 @@ class EmailService {
       }
 
       // A child list is REPLACED, never merged — the request carries the whole
-      // ordered list, exactly as Mongo's `$set` of the array did.
+      // ordered list.
       if (conditions) {
         await tx.delete(emailFilterConditions).where(eq(emailFilterConditions.filterId, filterId));
       }
@@ -3422,8 +3404,7 @@ class EmailService {
   }
 
   async deleteFilter(userId: string, filterId: string): Promise<void> {
-    // The conditions and actions CASCADE, so this is one statement and not the
-    // hand-ordered pair Mongo needed.
+    // The conditions and actions CASCADE, so this is one statement.
     const deleted = await getDb()
       .delete(emailFilters)
       .where(and(eq(emailFilters.id, filterId), eq(emailFilters.userId, userId)))
@@ -4044,10 +4025,10 @@ class EmailService {
     const toFilter = normalizeStructuredSearchFilter(to);
     const subjectFilter = normalizeStructuredSearchFilter(subject);
 
-    // Mongo's `$text` becomes a `tsvector` match against the GENERATED column;
-    // the RANK has to be spelled out. `ts_rank` defaults to `{0.1, 0.2, 0.4, 1.0}`
-    // for D/C/B/A, which is exactly the 10:1 subject-to-body ratio Mongo's
-    // `weights: {subject: 10, text: 1}` declared — but it is passed explicitly,
+    // A `tsvector` match against the GENERATED column; the RANK has to be
+    // spelled out. `ts_rank` defaults to `{0.1, 0.2, 0.4, 1.0}` for D/C/B/A,
+    // which is exactly the intended 10:1 subject-to-body ratio — but it is
+    // passed explicitly,
     // because a default is a thing that can change underneath a search and
     // silently reorder every result.
     const tsQuery = query ? sql`websearch_to_tsquery('english', ${query})` : undefined;
@@ -4112,8 +4093,8 @@ class EmailService {
         : []),
     );
 
-    // `statement_timeout` is Mongo's `maxTimeMS`, and `SET LOCAL` needs a
-    // transaction — so the page and the count share one.
+    // `SET LOCAL statement_timeout` needs a transaction — so the page and the
+    // count share one.
     const { rows, total } = await getDb().transaction(async (tx) => {
       await tx.execute(
         sql`set local statement_timeout = ${sql.raw(String(EMAIL_SEARCH_MAX_TIME_MS))}`,
@@ -4235,10 +4216,9 @@ class EmailService {
   /**
    * Bytes stored, against the tier's allowance.
    *
-   * Mongo summed the cached `size` counter across the user's mailboxes; the
-   * counter is gone, so this sums the messages themselves. Same number by
-   * definition — every message belongs to exactly one of that user's mailboxes
-   * — and it cannot drift from what is actually stored, which the counter could.
+   * This sums the messages themselves — every message belongs to exactly one
+   * of that user's mailboxes — so it cannot drift from what is actually stored
+   * the way a cached counter could.
    */
   async getQuotaUsage(
     userId: string,
@@ -4352,9 +4332,9 @@ class EmailService {
       .limit(1);
     if (!user) throw new NotFoundError('User not found');
 
-    // The auto-reply sub-document is five columns now; it is reassembled here
-    // so the wire keeps the nested object, and each optional part is omitted
-    // when NULL exactly as an unset Mongo sub-field was.
+    // The auto-reply settings are five columns; they are reassembled here so
+    // the wire keeps the nested object, and each optional part is omitted when
+    // NULL.
     const autoReply: {
       enabled: boolean;
       subject?: string;
@@ -4858,11 +4838,8 @@ class EmailService {
   /**
    * The subscription tier the quota and send limits are read from.
    *
-   * The `mongoose.model('BillingSubscription')` lookup this replaced existed to
-   * avoid an import cycle and swallowed "model not registered" alongside every
-   * real database error. There is no registry to miss now, so the read is
-   * direct — and a failure is logged rather than silently downgrading a paying
-   * account to the free quota.
+   * The read is direct, and a failure is logged rather than silently
+   * downgrading a paying account to the free quota.
    */
   private async getUserTier(userId: string): Promise<SubscriptionTier> {
     try {
@@ -4897,8 +4874,8 @@ class EmailService {
    * blob lifecycle.
    *
    * Links are recorded under two entityId conventions: outbound sends link by
-   * the RFC Message-ID (the Mongo _id of the Sent copy is created later inside
-   * storeSentMessage), while inbound/import link by the Mongo _id. Unlinking
+   * the RFC Message-ID (the row id of the Sent copy is created later inside
+   * storeSentMessage), while inbound/import link by the row id. Unlinking
    * is a no-op when a link doesn't exist, so we clear both.
    */
   private async deleteMessageAttachments(message: {
@@ -4937,7 +4914,7 @@ class EmailService {
   /**
    * Unlink every attachment of every message matching `scope`.
    *
-   * Mongo streamed a cursor; this pages by primary key instead. A cursor holds
+   * This pages by primary key rather than streaming a cursor. A cursor holds
    * a snapshot open for the whole sweep, which for a large mailbox means a long
    * transaction the vacuum cannot get past — and the sweep is issuing S3-bound
    * unlink calls the whole time.
@@ -4974,11 +4951,9 @@ class EmailService {
   /**
    * Seed the four default bundles, once per user.
    *
-   * `onConflictDoNothing` replaces the `insertMany({ordered: false})` plus
-   * duplicate-key rescue: two concurrent first loads race here, and the whole
-   * point of that rescue was to let the loser proceed. Note the uniqueness is
-   * now case-INSENSITIVE (`bundles_user_id_lower_name_key`) where Mongo's was
-   * not — see `db/schema/bundles.ts`.
+   * `onConflictDoNothing`: two concurrent first loads race here, and the loser
+   * must proceed. Note the uniqueness is case-INSENSITIVE
+   * (`bundles_user_id_lower_name_key`) — see `db/schema/bundles.ts`.
    */
   async ensureDefaultBundles(userId: string): Promise<void> {
     const db = getDb();
@@ -5246,8 +5221,8 @@ class EmailService {
     data: { name: string; subject?: string; body: string },
   ): Promise<EmailTemplateDto> {
     const db = getDb();
-    // `lower(name)`, matching `email_templates_user_id_lower_name_key` — the
-    // Postgres form of Mongo's `strength: 2` collation.
+    // `lower(name)`, matching `email_templates_user_id_lower_name_key` — a
+    // case-insensitive uniqueness.
     const [existing] = await db
       .select({ id: emailTemplates.id })
       .from(emailTemplates)
@@ -5313,18 +5288,16 @@ class EmailService {
    *
    * ## Why this does NOT use `contacts_search_vector_idx`
    *
-   * The Mongo query was three unanchored case-insensitive REGEXES over `name`,
-   * `email` AND `company` — which no Mongo text index could serve either, so
-   * contact search has always been a scan. The `tsvector` on `contacts` is a
-   * port of that DEAD index: it covers `name` and `email` only, and it does
-   * prefix matching, not infix. Using it here would silently drop `company`
+   * Contact search is an unanchored case-insensitive SUBSTRING match over
+   * `name`, `email` AND `company`, which no text index can serve, so it is a
+   * scan. The `tsvector` on `contacts` covers `name` and `email` only, and it
+   * does prefix matching, not infix. Using it here would silently drop `company`
    * from the search and stop matching mid-word.
    *
    * `pg_trgm` WOULD reproduce the current semantics with an index, and it is
    * available — but adopting an extension is a schema decision with a
-   * migration-ordering cost in every environment, not something a call-site
-   * port gets to make. So the semantics are preserved exactly and the scan
-   * stays: it is bounded by `user_id`, i.e. one person's contacts.
+   * migration-ordering cost in every environment, not something a call site
+   * gets to make. So the scan stays: it is bounded by `user_id`, i.e. one person's contacts.
    */
   async listContacts(
     userId: string,
@@ -5370,8 +5343,8 @@ class EmailService {
     data: { name: string; email: string; company?: string; notes?: string; starred?: boolean },
   ): Promise<ContactDto> {
     const db = getDb();
-    // CALL-SITE OBLIGATION (`db/schema/contacts.ts`): Mongoose lower-cased and
-    // trimmed `email` with a setter. Postgres has none, so it happens here — or
+    // CALL-SITE OBLIGATION (`db/schema/contacts.ts`): `email` is stored
+    // lower-cased and trimmed. Postgres has no column setter, so it happens here — or
     // the user gets two address-book entries for one correspondent.
     const email = data.email.trim().toLowerCase();
 

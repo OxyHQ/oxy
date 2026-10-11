@@ -40,10 +40,8 @@ import { waitForDatabaseConnection } from './utils/dbConnection';
 dotenv.config();
 
 /**
- * Connections this worker takes. Matches the `maxPoolSize: 10` it asked Mongo
- * for; the Mongo `minPoolSize: 2` has no counterpart worth reproducing, since
- * `postgres.js` opens lazily and closes on `idle_timeout` rather than holding a
- * floor.
+ * Connections this worker takes. There is no minimum: `postgres.js` opens
+ * lazily and closes on `idle_timeout` rather than holding a floor.
  */
 const WORKER_MAX_POOL_SIZE = 10;
 

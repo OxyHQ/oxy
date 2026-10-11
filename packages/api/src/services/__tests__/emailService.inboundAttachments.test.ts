@@ -13,8 +13,8 @@
  *   - the parent and its children are ONE transaction, so a message can never
  *     be stored claiming addressees it does not have;
  *   - `ord` preserves header order;
- *   - addresses are lower-cased and trimmed at the call site, the obligation
- *     Mongoose discharged with a setter that Postgres has no counterpart for.
+ *   - addresses are lower-cased and trimmed at the call site, an obligation
+ *     Postgres has no setter to discharge.
  */
 
 const mockUploadFileDirect = jest.fn();
@@ -204,8 +204,8 @@ describe('storeIncomingMessage — attachment deposit', () => {
       { source: 'email-inbound' },
     );
 
-    // The wire shape is unchanged: the child rows are reassembled into the
-    // same `attachments` array the Mongo subdocument produced.
+    // The wire shape: the child rows are reassembled into the `attachments`
+    // array the API returns.
     expect(stored.attachments).toEqual([
       {
         fileId: pdf.id,
@@ -353,8 +353,8 @@ describe('storeIncomingMessage — the message itself', () => {
   });
 
   it('stores the recipients in header order, lower-cased and trimmed', async () => {
-    // Mongoose applied `lowercase: true, trim: true` with a setter. Postgres
-    // has none, so the call site owns it — and if it forgets, address matching
+    // Postgres has no setter to lower-case and trim, so the call site owns
+    // it — and if it forgets, address matching
     // quietly becomes case-sensitive with nothing to notice.
     const user = await recipient();
 

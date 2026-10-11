@@ -18,14 +18,13 @@
  *    member award is idempotent on (applicationId, sourceActionId = edge id).
  *  - A `remove` for an edge that does not exist is a no-op.
  *
- * ## What "invalid" means now
+ * ## What "invalid" means
  *
- * Under Mongo an id was rejected on its FORMAT (`ObjectId.isValid`), which is
- * gone: a Postgres id is `text` and any string is well-formed. What replaces it
- * is stronger — every id column here carries a real FOREIGN KEY, so an id that
- * names no user (or no application) is refused by the database. Those rejections
- * are counted as `invalid` per item, exactly as a malformed id was, and never
- * fail the surrounding batch.
+ * An id is never rejected on its FORMAT: an id is `text` and any string is
+ * well-formed. Instead every id column here carries a real FOREIGN KEY, so an id
+ * that names no user (or no application) is refused by the database. Those
+ * rejections are counted as `invalid` per item and never fail the surrounding
+ * batch.
  */
 
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -103,9 +102,8 @@ class AppSignalsService {
    * Resolve the ranking weight of an endorsement giver from the denormalized
    * `users.reputation_rank_weight` (kept in sync by `recalculateBalance`).
    *
-   * The column is `NOT NULL` with a floor default, so the "denorm field absent →
-   * recompute via the reputation service" branch the Mongo version carried
-   * cannot happen here and does not travel. A row that is missing entirely
+   * The column is `NOT NULL` with a floor default, so there is no "denorm field
+   * absent → recompute via the reputation service" branch. A row that is missing entirely
    * resolves to the influence floor, and the edge insert that follows will be
    * refused by the foreign key anyway.
    */
@@ -134,11 +132,10 @@ class AppSignalsService {
     };
 
     for (const edge of edges) {
-      // `AppEndorsementEdge.sourceId` was `trim: true` in Mongoose, which has no
-      // Postgres counterpart — re-applied here. Its `default: ''` does not
-      // travel: an empty string is a VALUE, and the column's CHECK forbids it.
-      // Absent is NULL, and the idempotency index is `NULLS NOT DISTINCT` so two
-      // unset sources still collide exactly as Mongo intended.
+      // `sourceId` is stored trimmed; Postgres has no column-level trim, so it
+      // is applied here. An empty string is a VALUE, and the column's CHECK
+      // forbids it. Absent is NULL, and the idempotency index is
+      // `NULLS NOT DISTINCT` so two unset sources still collide.
       const sourceId = edge.sourceId?.trim() || null;
 
       // A user cannot endorse themselves into the recommendation surface.
@@ -196,7 +193,7 @@ class AppSignalsService {
         throw error;
       }
       // An endorsement between ids that name no row cannot be applied. Counted
-      // like a malformed id was under Mongo — the batch continues.
+      // as `invalid` — the batch continues.
       logger.warn('appSignals: endorsement rejected by a foreign key', {
         component: 'appSignals.service',
         applicationId,
@@ -385,9 +382,8 @@ class AppSignalsService {
       // Idempotency: an app-supplied eventId is folded at most once. The unique
       // (applicationId, eventId) index + the expiry sweep bound the ledger; a
       // conflicting insert (or a pre-existing marker) marks the event as seen.
-      // `AppAffinityEventSeen.eventId` was `trim: true` in Mongoose, which has no
-      // Postgres counterpart — re-applied here so the two spellings of one id
-      // cannot both reserve.
+      // `eventId` is stored trimmed; Postgres has no column-level trim, so it is
+      // applied here so the two spellings of one id cannot both reserve.
       const eventId = event.eventId?.trim();
       if (eventId) {
         const alreadySeen = await this.reserveAffinityEventId(applicationId, eventId);

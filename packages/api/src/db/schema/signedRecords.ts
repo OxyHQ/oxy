@@ -23,23 +23,21 @@
  * silent corruption, and it is the correct failure mode — `text`/`json` would
  * accept it and trade a queryable typed column for an opaque blob.
  *
- * ## The three Mongo indexes, and why two of them stop being partial
+ * ## The three indexes, and why two of them are NOT partial
  *
- * Mongo's `recordId` and `{userId, seq}` unique indexes carry
- * `partialFilterExpression: { …: { $type: … } }` for ONE reason: Mongo treats a
- * MISSING field as `null` and would collide across every v1 row, which has
- * neither field. Postgres unique indexes treat NULLs as DISTINCT by default, so
- * a plain `UNIQUE` already has exactly that semantic — `CONVENTIONS.md` names
- * this workaround explicitly and forbids carrying it over.
+ * The `record_id` and `(user_id, seq)` unique indexes must not collide across
+ * every v1 row, which has neither field. Postgres unique indexes treat NULLs as
+ * DISTINCT by default, so a plain `UNIQUE` already has exactly that semantic —
+ * `CONVENTIONS.md` says the same for every nullable unique column.
  *
  * That is not cosmetic here. A PARTIAL unique index cannot be the target of a
  * foreign key (`there is no unique constraint matching given keys`), and five
  * tables plus this one's own `prev` must reference `record_id`. Dropping the
  * partial-ness is what makes the whole chain declarable as real constraints.
  *
- * The third index (`{userId, nsid, rkey, createdAt: -1}`) is NOT unique, and its
- * partial filter is a genuine size optimisation — v1 rows have no `nsid` and can
- * never match the materialization query — so it stays partial.
+ * The third index (`(user_id, nsid, rkey, created_at desc)`) is NOT unique, and
+ * its partial filter is a genuine size optimisation — v1 rows have no `nsid`
+ * and can never match the materialization query — so it stays partial.
  *
  * **`{user_id, seq}` is the multi-device write-race backstop.** Two devices that
  * sign at the same `seq` both try to insert; the loser gets a unique violation,
@@ -49,9 +47,8 @@
  * ## `nsid`, not `collection`
  *
  * The wire/envelope field is `collection`; the denormalized column is `nsid`
- * (the AtProto term), because `collection` is a reserved Mongoose `Document`
- * member. The name is kept on port: queries read `nsid` today and the stored
- * envelope is untouched either way.
+ * (the AtProto term). Queries read `nsid`, and the stored envelope is untouched
+ * either way.
  */
 
 import { sql } from 'drizzle-orm';
@@ -190,8 +187,8 @@ export const signedRecords = pgTable(
     // A row is either v1 — no chain fields at all — or v2, in which case its
     // content address AND its record key are all present, because
     // `collection`/`rkey` are part of the signed bytes and `record_id` is what
-    // five other tables reference. Mongo could represent a half-chained row that
-    // no reader knows how to treat; here it is unrepresentable.
+    // five other tables reference. A half-chained row that no reader knows how
+    // to treat is unrepresentable.
     //
     // `seq` is deliberately NOT required by the v2 branch: it is the separate
     // marker for "this row is ON the linear chain". A genuine FORK carries a

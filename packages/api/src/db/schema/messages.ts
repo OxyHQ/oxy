@@ -13,9 +13,8 @@
  *   mail" and "which messages went to this address" are ordinary reads, and a
  *   `jsonb` array can only answer them with a containment operator over an
  *   index that cannot also carry the ordering the UI renders.
- * - `attachments` → `message_attachments`. Mongo indexed `attachments.fileId`
- *   precisely because it is a REFERENCE, and here it is a real foreign key to
- *   `files`.
+ * - `attachments` → `message_attachments`. `file_id` is a REFERENCE, so it is
+ *   a real, indexed foreign key to `files`.
  *
  * ## What stayed on this row, and why not a child table
  *
@@ -34,7 +33,7 @@
  * returns every column it is asked for, so they are in `protectedColumns.ts` —
  * `db.select(publicColumns(messages)).from(messages)` cannot return them and a
  * serializer that reads one fails `tsc`. `search_vector` is protected too, for a
- * reason the Mongo schema never had to consider: it is derived FROM `text`, and
+ * reason that is easy to miss: it is derived FROM `text`, and
  * a `tsvector` carries every lexeme with its position, so shipping it hands back
  * a reconstructable copy of the body the other guard exists to withhold.
  *
@@ -92,20 +91,18 @@ export interface MessageHighlight {
 }
 
 /**
- * Text-search configuration, matching the Mongo text index's
- * `default_language: 'en'`. A LITERAL: the one-argument `to_tsvector` reads
- * `default_text_search_config` at runtime and is therefore STABLE, which
+ * Text-search configuration: English. A LITERAL: the one-argument `to_tsvector`
+ * reads `default_text_search_config` at runtime and is therefore STABLE, which
  * Postgres refuses in a generated column.
  */
 const SEARCH_CONFIGURATION = 'english';
 
 /**
- * `subject` weighted above `text`, reproducing Mongo's `weights: {subject: 10,
- * text: 1}`.
+ * `subject` weighted ten times `text`.
  *
  * Postgres weights are fixed multipliers — A = 1.0, B = 0.4, C = 0.2, D = 0.1 —
- * so A over D is exactly the 10:1 ratio Mongo declared. B or C would silently
- * re-rank every search result.
+ * so A over D is exactly the 10:1 ratio. B or C would silently re-rank every
+ * search result.
  *
  * `"text"` is quoted because it is also a type name; unquoted, the expression
  * is at the mercy of the parser resolving an identifier that could be either.
@@ -148,12 +145,12 @@ export const messages = pgTable(
     replyToAddress: text(),
 
     /**
-     * NOT NULL with no DEFAULT. Mongoose declared `default: ''`, which is an
-     * APPLICATION default — and `''` is deliberately not available as a column
-     * default here (`schemaInvariants.test.ts`, "never defaults a column to the
-     * empty string"). A subjectless message still stores `''`, exactly as
-     * today; the writer supplies it, and an insert that forgets fails loudly
-     * instead of inventing a value.
+     * NOT NULL with no DEFAULT. `''` for a missing subject is an APPLICATION
+     * default — and `''` is deliberately not available as a column default here
+     * (`schemaInvariants.test.ts`, "never defaults a column to the empty
+     * string"). A subjectless message still stores `''`, exactly as today; the
+     * writer supplies it, and an insert that forgets fails loudly instead of
+     * inventing a value.
      */
     subject: text().notNull(),
 
@@ -163,8 +160,8 @@ export const messages = pgTable(
     /** HTML body. */
     html: text(),
     /**
-     * Every RFC 5322 header, as received. A `Map` of String in Mongo; the shape
-     * is a flat string→string dictionary with arbitrary keys, which is
+     * Every RFC 5322 header, as received. The shape is a flat string→string
+     * dictionary with arbitrary keys, which is
      * genuinely shape-less and therefore `jsonb` rather than columns.
      */
     headers: jsonb().$type<Record<string, string>>().notNull().default({}),
@@ -182,20 +179,20 @@ export const messages = pgTable(
     /**
      * Label NAMES, not label ids — `email.service.ts:1445` pulls by
      * `label.name`, so the value here is the user-visible string a `labels` row
-     * happens to carry. A native `text[]` with a GIN index answers the same
-     * membership read Mongo's multikey index did.
+     * happens to carry. A native `text[]` with a GIN index answers the
+     * membership read.
      */
     labels: text().array().notNull().default([]),
 
     // ---- extracted card ---------------------------------------------------
     /** Non-NULL exactly when a card was extracted; the CHECK below states that. */
     cardType: text({ enum: MESSAGE_CARD_TYPES }),
-    /** `Mixed` in Mongo and genuinely shape-less — it differs per card type. */
+    /** Genuinely shape-less — it differs per card type. */
     cardData: jsonb().$type<Record<string, unknown>>(),
     cardConfidence: doublePrecision(),
     cardExtractedAt: timestamptz(),
 
-    /** Display-only chips. Mongo defaulted to `[]`, so this is NOT NULL. */
+    /** Display-only chips. Empty by default, so this is NOT NULL. */
     highlights: jsonb().$type<MessageHighlight[]>().notNull().default([]),
 
     encrypted: boolean().notNull().default(false),
@@ -229,7 +226,7 @@ export const messages = pgTable(
 
     /** RFC `In-Reply-To`. */
     inReplyTo: text(),
-    /** RFC `References`, ordered oldest-first. Mongo defaulted to `[]`. */
+    /** RFC `References`, ordered oldest-first. Empty by default. */
     references: text().array().notNull().default([]),
     /** The `+tag` part when the message arrived at `user+tag@oxy.so`. */
     aliasTag: text(),
@@ -259,19 +256,17 @@ export const messages = pgTable(
     /** When this server accepted it. */
     receivedAt: timestamptz().notNull().defaultNow(),
 
-    /** GENERATED — the replacement for Mongo's weighted text index. */
+    /** GENERATED — the weighted full-text search vector. */
     searchVector: tsvector().generatedAlwaysAs(SEARCH_VECTOR_EXPRESSION),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    // ---- the fourteen Mongo indexes, adapted ------------------------------
-    // (1) The primary listing read. Mongo declared `{userId, mailboxId, date:-1}`
-    // while EVERY list actually sorts `{'flags.pinned': -1, date: -1}`
-    // (`email.service.ts:474` and `:2783`), which that index cannot serve — so
-    // Mongo sorts in memory today. Adding `pinned` in the middle makes the same
-    // index answer the filter AND the sort; nothing orders by `date` alone.
+    // ---- indexes ------------------------------------------------------------
+    // (1) The primary listing read. EVERY list sorts pinned-then-date
+    // (`email.service.ts`), so `pinned` sits in the middle: the same index
+    // answers the filter AND the sort; nothing orders by `date` alone.
     index('messages_user_id_mailbox_id_pinned_date_idx').on(
       t.userId,
       t.mailboxId,
@@ -279,16 +274,14 @@ export const messages = pgTable(
       t.date.desc(),
     ),
     // (2) + (3) + (4) Threading: by Message-ID, by In-Reply-To, and by any
-    // entry of References. The third is a multikey read in Mongo and a GIN
-    // containment read here.
+    // entry of References. The third is a GIN containment read.
     index('messages_user_id_message_id_idx').on(t.userId, t.messageId),
     index('messages_user_id_in_reply_to_idx').on(t.userId, t.inReplyTo),
     index('messages_user_id_relay_message_id_idx')
       .on(t.userId, t.relayMessageId)
       .where(sql`${t.relayMessageId} is not null`),
     index('messages_references_idx').using('gin', t.references),
-    // (5) Unread. Mongo's `{userId, 'flags.seen', mailboxId}` indexed BOTH
-    // values of a boolean; only `seen = false` is ever queried
+    // (5) Unread. Only `seen = false` is ever queried
     // (`email.service.ts:466`, `emailInbound.ts:148`). A partial index over the
     // unread rows alone is smaller, serves the same reads, AND makes the unseen
     // count that replaced `mailboxes.unseen_messages` an index-only scan.
@@ -311,9 +304,8 @@ export const messages = pgTable(
     // (11) Pinned-then-date listing when no mailbox is fixed (starred/label
     // views). Not redundant with (1), which requires a `mailbox_id` equality.
     index('messages_user_id_pinned_date_idx').on(t.userId, t.pinned.desc(), t.date.desc()),
-    // (12) + (13) The two cron sweeps. Mongo declared these `sparse`, which on a
-    // single-field index means "skip documents missing the field" — a partial
-    // index on `is not null` is the exact Postgres counterpart.
+    // (12) + (13) The two cron sweeps. Partial on `is not null`: only the rows
+    // carrying the field are ever swept.
     index('messages_snoozed_until_idx')
       .on(t.snoozedUntil)
       .where(sql`${t.snoozedUntil} is not null`),
@@ -321,10 +313,9 @@ export const messages = pgTable(
     // (14) Retention/cleanup, and the aggregate that replaced
     // `mailboxes.total_messages` / `.size`.
     index('messages_mailbox_id_received_at_idx').on(t.mailboxId, t.receivedAt),
-    // Mongo's fifteenth, `{userId, 'attachments.fileId'}`, moved WITH the data:
-    // it is `message_attachments_file_id_idx` on the child table.
-    // Mongo's standalone `{userId}` and `{mailboxId}` are dropped — (1) and (14)
-    // lead with them.
+    // The attachment lookup by file is `message_attachments_file_id_idx` on the
+    // child table. No standalone `(user_id)` or `(mailbox_id)` index — (1) and
+    // (14) lead with them.
 
     check(
       'messages_card_type_check',
@@ -332,14 +323,13 @@ export const messages = pgTable(
         MESSAGE_CARD_TYPES.map((value) => `'${value}'`).join(', '),
       )})`,
     ),
-    // A card is whole or absent. Mongo required `type` inside the sub-document,
-    // so "the card exists" and "the card has a type" were the same statement;
-    // flattened to columns they are not, unless this says so.
+    // A card is whole or absent. Flattened to columns, "the card exists" and
+    // "the card has a type" are different statements unless this says so.
     check(
       'messages_card_complete_check',
       sql`${t.cardType} is not null or (${t.cardData} is null and ${t.cardConfidence} is null and ${t.cardExtractedAt} is null)`,
     ),
-    // Mongo's `min: 0`.
+    // A size is never negative.
     check('messages_size_check', sql`${t.size} >= 0`),
     check('messages_draft_revision_check', sql`${t.draftRevision} >= 1`),
     // `replyTo` was a whole sub-document: it had an address or it did not exist.
@@ -347,14 +337,14 @@ export const messages = pgTable(
       'messages_reply_to_complete_check',
       sql`${t.replyToAddress} is not null or ${t.replyToName} is null`,
     ),
-    // CALL-SITE OBLIGATION (`CONVENTIONS.md`, "Mongoose behaviour that has no
-    // schema counterpart"): `from_address`, `reply_to_address` and every
-    // `message_recipients.address` were `lowercase: true, trim: true` on the
-    // Mongoose sub-schema. Postgres has no setter; the MIME parse path
+    // CALL-SITE OBLIGATION (`CONVENTIONS.md`, "Normalization that lives at the
+    // call site"): `from_address`, `reply_to_address` and every
+    // `message_recipients.address` are stored lower-cased and trimmed.
+    // Postgres has no setter; the MIME parse path
     // (`emailInbound.ts`) and the compose path (`email.service.ts`) must
     // normalize before writing, or address matching quietly becomes
     // case-sensitive. Deliberately not a CHECK — a CHECK would reject a
-    // production row the old setter never saw and turn a silent normalization
-    // into a 500 during backfill.
+    // production row stored before normalization and turn a silent
+    // normalization into a 500.
   ],
 );

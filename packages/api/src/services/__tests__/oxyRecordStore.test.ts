@@ -1,11 +1,8 @@
 /**
  * The Oxy `RecordStore` adapter's own reads, against a REAL Postgres.
  *
- * The suite this replaces mocked `SignedRecord.findOne` and asserted that the
- * store BUILT a particular Mongo filter object
- * (`{ userId: {$eq}, nsid: {$eq}, rkey: {$eq} }`). The model is gone, the mock was
- * inert, and a filter-shape assertion answers a narrower question than the one
- * that matters: what the store RETURNS for the row it finds. Each case below
+ * A filter-shape assertion answers a narrower question than the one that
+ * matters: what the store RETURNS for the row it finds. Each case below
  * seeds rows and asserts the answer.
  *
  * The headline is `latestIssuedAtForKey`, the monotonicity frontier the engine's

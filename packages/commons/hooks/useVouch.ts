@@ -46,7 +46,7 @@ export interface UseVouch {
  *
  * @param subjectDid - The subject's DID (`did:web:oxy.so:u:<userId>`); the vouch
  *   record's `about`. `null` disables the actions (unparseable target).
- * @param subjectUserId - The subject account's Mongo `_id`, used to key the
+ * @param subjectUserId - The subject account's user id, used to key the
  *   withdraw call and the personhood-cache invalidation.
  * @param biometricReason - Localized prompt shown in the biometric dialog.
  */

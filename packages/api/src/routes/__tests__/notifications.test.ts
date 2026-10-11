@@ -2,15 +2,11 @@
  * `/notifications` — the in-app activity feed, end to end against a REAL
  * Postgres.
  *
- * There was no coverage of these endpoints at all before the port, which is how
- * the bug in the second block below survived: the handlers read
- * `req.params.notificationId` while the routes that reach them are `/:id/read`
- * and `/:id`, so the id was ALWAYS `undefined`, Mongoose dropped the undefined
- * key from the filter, and both endpoints acted on an ARBITRARY notification of
- * the caller's. Postgres cannot express "ignore this predicate", so the port had
- * to choose; it reads `req.params.id` — the parameter `notificationIdParams`
- * validates — and these cases hold it there by seeding TWO notifications and
- * naming one.
+ * The handlers read `req.params.id` — the parameter `notificationIdParams`
+ * validates, on the `/:id/read` and `/:id` routes. Reading a parameter no route
+ * supplies would leave the id `undefined`, and a filter that dropped it would
+ * act on an ARBITRARY notification of the caller's. These cases hold the right
+ * parameter by seeding TWO notifications and naming one.
  *
  * The rest of the file is the WIRE FORMAT, which every ecosystem app consumes
  * and none will be rebuilt for. Full bodies are asserted, not status codes:
@@ -18,8 +14,7 @@
  *  - `_id` (not `id`) is the row key, and the populated actor keeps the exact
  *    `{_id, username, name, avatar}` projection `populate` selected.
  *  - An absent optional is OMITTED, never emitted as `null`.
- *  - `__v` does not travel: it was Mongoose's version counter, it has no
- *    Postgres counterpart and no consumer reads it.
+ *  - There is no `__v` version key on the wire; no consumer reads one.
  */
 
 import express from 'express';
@@ -219,14 +214,13 @@ describe('GET /notifications — wire format', () => {
     expect(data.page).toBe(1);
     expect(data.limit).toBe(20);
 
-    // `__v` was Mongoose's version counter and does not travel.
+    // No `__v` version key on the wire.
     expect(Object.keys(list[0])).not.toContain('__v');
   });
 
   it('OMITS an actor field that is unset rather than emitting null', async () => {
-    // Mongo left an unset optional out of the document entirely, and the SDK's
-    // zod parses reject a null where a string is optional. Drizzle hands back
-    // `null`, so the serializer has to reconcile the two.
+    // The SDK's zod parses reject a null where a string is optional. Drizzle
+    // hands back `null`, so the serializer has to omit the key.
     const bare = await insertUser();
     await insertNotification({ actorId: bare });
 
@@ -315,9 +309,8 @@ describe('GET /notifications/unread-count', () => {
 
 describe('PUT /notifications/:id/read — the NAMED notification, and only it', () => {
   it('marks the notification the URL names', async () => {
-    // The regression this file exists for: the handler used to read
-    // `req.params.notificationId`, which no route supplies, so Mongoose dropped
-    // the undefined key and an ARBITRARY row of the caller's was marked read.
+    // The regression this file exists for: reading a parameter no route
+    // supplies would mark an ARBITRARY row of the caller's as read.
     const target = await insertNotification({
       entityId: 'target',
       createdAt: new Date('2026-06-01T00:00:00.000Z'),
@@ -655,9 +648,8 @@ describe('POST /notifications — privileged service scope only', () => {
     expect(emitted).toHaveLength(1);
     expect(emitted[0].room).toBe(`user:${RECIPIENT_ID}`);
     expect(emitted[0].event).toBe('notification');
-    // `title` / `message` / `data` were never columns on this model — Mongoose
-    // `strict: true` stripped them on save, so they have never reached the
-    // socket and are not added by the port.
+    // `title` / `message` / `data` are not columns on this table, so they do
+    // not reach the socket.
     expect(emitted[0].payload).toEqual({
       id: expect.any(String),
       type: 'follow',
@@ -742,8 +734,8 @@ describe('POST /notifications — privileged service scope only', () => {
   });
 
   it('400s a recipient that names no account, rather than 500ing', async () => {
-    // `recipient_id` and `actor_id` are real foreign keys now; Mongo let a
-    // notification name an account that does not exist.
+    // `recipient_id` and `actor_id` are real foreign keys, so a notification
+    // cannot name an account that does not exist.
     const res = await request('POST', '/notifications', {
       recipientId: randomUUID(),
       actorId: ACTOR_ID,

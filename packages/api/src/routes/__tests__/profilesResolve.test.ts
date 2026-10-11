@@ -8,10 +8,8 @@
  * resolved by our WebFinger, so a local miss there would surface as a false
  * "Profile not found".
  *
- * The previous version asserted that a Mongoose `findOne` had been handed a
- * particular object; the route builds no such object any more, and a
- * query-shape assertion could not distinguish a working local-first path from a
- * broken one. This exercises the real query over real rows instead.
+ * A query-shape assertion could not distinguish a working local-first path
+ * from a broken one, so this exercises the real query over real rows.
  *
  * `resolveAndUpsert` (a network call) and the auth middleware are the only
  * mocks. `isFediverseHandle` and the serializer are REAL.

@@ -3,7 +3,7 @@
  *
  * This file owns the schema's FIRST partial unique indexes (per owner, per
  * content hash). `CONVENTIONS.md`
- * documents the pattern — Mongo `partialFilterExpression` → drizzle
+ * documents the pattern — a partial unique index as drizzle
  * `uniqueIndex().where(...)` — and every later table that needs one will copy
  * what is verified here, so the checks are on the BEHAVIOUR rather than on the
  * DDL text: the constraint fires among live rows, does NOT fire among
@@ -276,9 +276,9 @@ describe('files — one owner, user or system', () => {
   });
 
   it('accepts a system-owned asset with no user at all', async () => {
-    // The whole reason the column split: Mongo put `'__federation__'` in a
-    // field that otherwise held user ids, which is why it could never carry a
-    // foreign key.
+    // The whole reason the columns are split: a sentinel such as
+    // `'__federation__'` in a field that otherwise holds user ids could never
+    // carry a foreign key.
     const [row] = await getDb()
       .insert(files)
       .values({
@@ -314,7 +314,7 @@ describe('files — one owner, user or system', () => {
     expect(pgConstraint(neither)).toBe('files_owner_exclusive_check');
   });
 
-  it('refuses a user id that is not an account — the constraint Mongo could not have', async () => {
+  it('refuses a user id that is not an account', async () => {
     const error = await rejection(
       insertFile({ sha256: unique(), ownerUserId: `ghost-${unique()}` }),
     );

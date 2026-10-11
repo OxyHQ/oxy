@@ -771,9 +771,8 @@ router.get('/subscription', authMiddleware, async (req: AuthRequest, res: Respon
       });
     const [row] = rows;
 
-    // `null`, not `undefined`: the Mongoose `findOne` returned null and
-    // `res.json` emitted `"subscription": null`. Dropping the key entirely is a
-    // different shape.
+    // `null`, not `undefined`: the wire carries `"subscription": null`.
+    // Dropping the key entirely is a different shape.
     const subscription: BillingSubscriptionResponse | null = row
       ? toBillingSubscriptionResponse(row)
       : null;
@@ -1164,8 +1163,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 /** The account a Stripe customer belongs to, or `null`. */
 async function accountForStripeCustomer(customerId: string): Promise<string | null> {
   // `user_credits.stripe_customer_id` carries a partial UNIQUE index, so this
-  // resolves at most one account — the uniqueness the Mongoose `findOne` assumed
-  // without stating.
+  // resolves at most one account.
   const [account] = await getDb()
     .select({ userId: userCredits.userId })
     .from(userCredits)
@@ -1291,8 +1289,8 @@ async function syncSubscriptionFromProvider(
       : { outcome: 'ignored', detail: `unrecognized price ${priceId}` };
   }
 
-  // The Mongo upsert keyed on `stripeSubscriptionId`, which is the table's
-  // unique key here too — so it is one statement, not a read-then-write.
+  // Keyed on `stripe_subscription_id`, the table's unique key — so it is one
+  // statement, not a read-then-write.
   const mirror = {
     userId,
     stripeCustomerId: customerId,

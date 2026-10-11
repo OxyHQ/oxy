@@ -167,7 +167,7 @@ describe.each([
     ['alphabetical', 'an ordering we do not implement'],
     ['RECENT', 'the right word in the wrong case'],
     ['', 'an empty value'],
-    ['createdAt', 'a raw Mongo field name'],
+    ['createdAt', 'a raw field name'],
   ])('rejects sort=%s (%s) with 400 INVALID_SORT', async (sort) => {
     const mock = getMock();
     const res = await getJson(server, `/users/${TARGET}${suffix}?sort=${encodeURIComponent(sort)}`);

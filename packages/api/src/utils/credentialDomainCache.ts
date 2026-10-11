@@ -17,7 +17,7 @@ import { logger } from './logger';
  * FAIL CLOSED: if the Application is missing, not `active`, or has no usable
  * redirectUri hosts, the allowed set is EMPTY and every host check fails (403).
  * The loader is the caller's responsibility and must itself fail closed (return
- * an empty array on DB error) so a transient Mongo hiccup denies rather than
+ * an empty array on DB error) so a transient database hiccup denies rather than
  * admits.
  *
  * MULTI-TASK CAVEAT: oxy-api runs as multiple ECS Fargate tasks, so this Map is
@@ -48,7 +48,7 @@ class CredentialDomainCache {
 
   /**
    * Return the cached allowed-domains set for an appId, otherwise invoke
-   * `loader()` (the uncached Mongo read), store the result, and return it.
+   * `loader()` (the uncached database read), store the result, and return it.
    */
   async getAllowedDomains(appId: string, loader: () => Promise<string[]>): Promise<Set<string>> {
     const cached = this.getLocal(appId);

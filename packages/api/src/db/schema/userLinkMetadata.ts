@@ -13,8 +13,8 @@
  * `position` preserves the array's order, which is user-chosen and visible on
  * the profile. Without it the order would be whatever Postgres returned.
  *
- * `title` / `description` hold text scraped from a REMOTE page. Mongoose's
- * `trim` was a backstop only; the real normalization (interior newlines from an
+ * `title` / `description` hold text scraped from a REMOTE page. The
+ * normalization (interior newlines from an
  * indented `<title>`, length caps) lives in `utils/profileTextNormalization.ts`
  * and must be re-applied at the write call site — Postgres has no setter.
  */

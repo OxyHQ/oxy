@@ -84,10 +84,9 @@ const upload = multer(); // memory storage
 /**
  * Project a link/variant row onto the wire shape clients already receive.
  *
- * Two differences would otherwise ship silently. Mongo stored these as
- * subdocuments declared `{ _id: false }`, so they carried NO id and no parent
- * pointer — the `file_links.id` / `file_variants.id` / `file_id` columns are
- * new and internal, and must not leak. And Mongo OMITTED an unset optional
+ * Two differences would otherwise ship silently. The wire shape carries NO id
+ * and no parent pointer — the `file_links.id` / `file_variants.id` / `file_id`
+ * columns are internal, and must not leak. And the wire OMITS an unset optional
  * field, where a Postgres row spells it `null`; `JSON.stringify` drops
  * `undefined` but preserves `null`, so passing rows through verbatim would turn
  * "absent" into an explicit `null` for every consumer in the ecosystem.

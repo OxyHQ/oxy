@@ -210,8 +210,8 @@ function candidateDomainSpellings(canonical: string): string[] {
  * would (a) re-delete and re-count the same file on every later pass over a
  * RETAINED actor — whose row survives, and with it its tombstones — and (b) keep
  * that actor retained forever on the strength of another app's already-deleted
- * file. Mongo's `File.find({ownerUserId})` carried no status filter; here it is
- * what makes a repeat pass over a retained actor a genuine no-op.
+ * file. The status filter is what makes a repeat pass over a retained actor a
+ * genuine no-op.
  */
 async function classifyActorFiles(
   oxyUserId: string,
@@ -325,14 +325,12 @@ export async function purgeBlockedDomain(
   // total order rather than an arbitrary one, so a resumed pass cannot skip or
   // repeat an actor.
   //
-  // `id` is a `text` column holding two shapes — pre-cutover 24-hex ObjectId
-  // strings and post-cutover uuid v7 — so the order is neither creation order
+  // `id` is a `text` column holding two shapes — legacy 24-hex ids and
+  // uuid v7 — so the order is neither creation order
   // nor uniform across the two. That is fine and deliberate: a cursor needs the
   // comparison and the sort to be the SAME total order, which they are (one
-  // column, one collation), not a meaningful one. Mongo's
-  // `new ObjectId(afterId)` cast is gone with the ids it required; casting a
-  // uuid cursor to an ObjectId would have thrown on every continuation this
-  // endpoint issues.
+  // column, one collation), not a meaningful one. The cursor is compared as
+  // text and never cast to an id type, which would throw on a uuid cursor.
   const scanWhere =
     options.afterId === undefined ? matchWhere : and(matchWhere, gt(users.id, options.afterId));
   const candidates = await getDb()
@@ -464,10 +462,8 @@ async function countActors(where: ReturnType<typeof and>): Promise<number> {
  * Inbound follows from LOCAL (non-federated) users. Reported so an operator can
  * see, before executing, that a purge will remove real people's follows.
  *
- * Mongo needed two round trips (`distinct` then `countDocuments`) because the
- * follower ids and the follower TYPE lived in different collections. One join
- * answers it here, and — unlike the `$in` it replaces — it does not have to
- * materialise every follower id in the API process first.
+ * One join answers it, without materialising every follower id in the API
+ * process first.
  */
 async function countLocalFollowers(oxyUserId: string): Promise<number> {
   const [row] = await getDb()

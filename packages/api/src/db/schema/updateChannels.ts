@@ -18,8 +18,7 @@ import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
  * Platforms an Oxy Update targets. Narrower than `push_tokens.platform` — there
  * is no `web` OTA channel, because expo-updates has no web client.
  *
- * This tuple is the SINGLE declaration — the Mongoose model that carried the
- * other copy is gone. It renders the CHECK below, and
+ * This tuple is the SINGLE declaration. It renders the CHECK below, and
  * `check-drizzle-snapshot-sync` holds that rendering against the migration the
  * database was actually built from, so editing it without regenerating a
  * migration fails CI.
@@ -42,8 +41,8 @@ export const updateChannels = pgTable(
   (t) => [
     // A channel name is unique within an application, reusable across apps. This
     // is what makes `ensureChannel`'s upsert (`publish.service.ts:236`) a real
-    // upsert. Mongo's standalone `{applicationId}` is dropped: a btree serves
-    // any leading prefix, which also covers cascading an application delete.
+    // upsert. No standalone `(application_id)` index: a btree serves any
+    // leading prefix, which also covers cascading an application delete.
     unique('update_channels_application_id_name_key').on(t.applicationId, t.name),
   ],
 );

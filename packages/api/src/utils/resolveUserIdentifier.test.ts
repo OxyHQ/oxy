@@ -20,17 +20,14 @@
  * finds anything — it would have passed against a filter naming a column that
  * does not exist.
  *
- * ## The ambiguity branch, and why the guarantee moved
+ * ## The ambiguity guarantee lives at write time
  *
- * Mongo indexed `username` case-SENSITIVELY while every lookup matched
- * case-INSENSITIVELY, so `alice` and `Alice` could coexist and a naive resolve
- * would grant membership to an arbitrary one of them. The function defended
- * itself by fetching two rows and refusing when both matched.
- *
+ * Every lookup matches case-INSENSITIVELY, so if `alice` and `Alice` could
+ * coexist a naive resolve would grant membership to an arbitrary one of them.
  * Postgres refuses the PAIR instead: `users_lower_username_key` is unique on
  * `lower(btrim(username))`, so the second account cannot be stored at all. The
- * read-side guard is deleted and the write-side one is asserted here — that is
- * the same guarantee, enforced one layer down where nothing can forget it.
+ * write-side guarantee is asserted here, enforced one layer down where nothing
+ * can forget it.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -126,8 +123,8 @@ describe('resolveUserByIdentifier — emails', () => {
   });
 
   it('omits an absent optional rather than emitting null', async () => {
-    // Drizzle hands back `null` where Mongoose handed `undefined`; the contract
-    // is that an absent optional is OMITTED, and the SDK's zod parse rejects a
+    // Drizzle hands back `null` for an absent column; the contract is that an
+    // absent optional is OMITTED, and the SDK's zod parse rejects a
     // null.
     const id = await insertAccount({ username: `dave-${RUN}` });
 
@@ -140,10 +137,8 @@ describe('resolveUserByIdentifier — emails', () => {
 
 describe('the ambiguity the read-side guard used to cover', () => {
   it('refuses to STORE two usernames differing only by case', async () => {
-    // This is the guarantee that replaced `limit(2)` + "more than one match is
-    // ambiguous": in Mongo the pair could exist and the resolver had to fail
-    // closed; here `users_lower_username_key` rejects the second write, so a
-    // membership grant can never face two look-alike accounts.
+    // `users_lower_username_key` rejects the second write, so a membership
+    // grant can never face two look-alike accounts.
     const username = `twin-${RUN}`;
     await insertAccount({ username });
 

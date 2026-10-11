@@ -7,20 +7,14 @@
  * **The helper must RETURN NULL when a clientId does not resolve, and must never
  * throw — in either id shape.**
  *
- * The Mongoose version resolved in two hops, and the second one CAST:
- *
- * ```ts
- * const credential = await ApplicationCredential.findOne({ publicKey: clientId });
- * const application = await Application.findById(credential.applicationId);
- * ```
- *
- * `findById` throws a `CastError` on anything that is not 24-char hex, so for an
- * application whose id is the uuid v7 `generatedId()` mints — every application
- * registered since the cutover — this did not return null: it THREW, out of a
+ * A lookup that CAST the application id to the 24-char hex shape would throw
+ * for an application whose id is the uuid v7 `generatedId()` mints — every
+ * recently registered application — instead of returning null, out of a
  * helper whose entire contract is "null when it does not resolve".
- * `POST /notifications/push-token` answers that with its 500 branch instead of
- * the documented 400, and `emailPushDelivery` loses the whole inbox push for the
- * identity. Neither caller could tell the difference from a genuine outage.
+ * `POST /notifications/push-token` would answer that with its 500 branch
+ * instead of the documented 400, and `emailPushDelivery` would lose the whole
+ * inbox push for the identity. Neither caller could tell the difference from a
+ * genuine outage.
  *
  * There was no suite here at all, so nothing was asserting the contract. The
  * first case below asserts the seeded application id is NOT 24-hex, so the
@@ -114,7 +108,7 @@ describe('the application id format must not decide whether a clientId resolves'
     // `findById`-style 24-hex cast would leave this suite green.
     expect(applicationId).not.toMatch(HEX24);
 
-    // The Mongoose version THREW a CastError here rather than resolving.
+    // A 24-hex cast would THROW here rather than resolving.
     await expect(resolveApplicationIdFromClientId(publicKey)).resolves.toBe(applicationId);
   });
 

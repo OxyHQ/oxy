@@ -3,13 +3,13 @@
  *
  * This is the server authority for what is signed in on a device, so every
  * assertion here runs the real service against the throwaway database rather
- * than against a mocked driver — the previous suite mocked the Mongoose model
- * and therefore asserted on `$set`/`$unset` payload SHAPES, which proved the
- * call was built as expected but never that the stored row ended up correct.
+ * than against a mocked driver — asserting on a write's payload SHAPE proves
+ * the call was built as expected but never that the stored row ended up
+ * correct.
  *
  * `session.service` IS mocked: it is a collaborator (token minting, session
  * validation/deactivation), not the subject, and its own port is a separate
- * file. Nothing about MongoDB is mocked here.
+ * file. Nothing about the database is mocked here.
  *
  * Every test mints its own device id and its own `users` rows, so no assertion
  * depends on a table being empty — the suite shares one database with the rest

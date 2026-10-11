@@ -258,12 +258,10 @@ router.post(
  * nothing without cryptographic verification), but rate-limited hard by IP. The
  * read path is untouched — this only schedules background work.
  *
- * The `isValidObjectId` pre-filter is DELETED, not ported. It existed to keep a
- * non-ObjectId path param out of a Mongoose `CastError`; here `user_id` is
- * `text`, so an unknown or malformed id simply selects no row. Keeping it would
- * have been worse than useless: every account minted since the cutover carries a
- * uuid v7, which the 24-hex predicate rejects — the notify would have silently
- * enqueued nothing for exactly those accounts, with a 202 either way. Same trap
+ * There is no id-shape pre-filter. `user_id` is `text`, so an unknown or
+ * malformed id simply selects no row. A 24-hex pre-filter would be worse than
+ * useless: it rejects every uuid v7 account, so the notify would silently
+ * enqueue nothing for exactly those accounts, with a 202 either way. Same trap
  * the chain-head route hit (`routes/__tests__/chainHead.test.ts`).
  */
 router.post(
