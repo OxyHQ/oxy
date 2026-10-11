@@ -735,7 +735,14 @@ async function observeBootstrap(
     assertExact(
       "clarity_application",
       `Clarity application ${clarity.application.id}`,
-      clarityApplication,
+      {
+        ...clarityApplication,
+        // Sets, not sequences: the same URIs, scopes or capabilities in another
+        // order are the same authority and must not read as drift.
+        capabilities: [...clarityApplication.capabilities].sort(),
+        redirectUris: [...clarityApplication.redirectUris].sort(),
+        scopes: [...clarityApplication.scopes].sort(),
+      },
       {
         id: clarity.application.id,
         name: clarity.application.name,
@@ -745,8 +752,8 @@ async function observeBootstrap(
         isOfficial: true,
         isInternal: false,
         capabilities: [],
-        redirectUris: [...clarity.application.redirectUris],
-        scopes: [...clarity.application.scopes],
+        redirectUris: [...clarity.application.redirectUris].sort(),
+        scopes: [...clarity.application.scopes].sort(),
         ownerAccountId: clarity.project.id,
         createdByUserId: root,
       },
