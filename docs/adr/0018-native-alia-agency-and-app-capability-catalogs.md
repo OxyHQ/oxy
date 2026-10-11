@@ -9,6 +9,8 @@
 - Amended: 2026-10-16 — an app's external MCP lives on the app's OWN domain
   (`mcp.mention.earth`, `mcp.homiio.com`, `mcp.mercaria.co`, `mcp.clarity.surf`),
   never under `oxy.so`; the `mcp.<app>.oxy.so` default below is retired (owner decision)
+- Amended: 2026-10-11 — a catalogue tool declares which executing actors may
+  run it (see "Addendum: a tool names its actors")
 - Scope: Oxy authority, Alia coordination, app execution, and external MCP access
 
 ## Context

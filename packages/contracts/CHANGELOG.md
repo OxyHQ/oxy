@@ -1,5 +1,13 @@
 # Changelog: `@oxy.so/contracts`
 
+## 5.2.0
+
+Additive: capability catalogue tools declare which actor types may execute them.
+
+### Added
+
+- `catalogToolActorsSchema`, `catalogToolAllowsActor` and `catalogToolActors`.
+
 ## 5.1.0
 
 The account's email and password can be changed and removed (ADR 0030 D9).

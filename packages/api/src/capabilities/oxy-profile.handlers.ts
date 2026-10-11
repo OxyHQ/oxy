@@ -6,6 +6,7 @@ import graphCache from '../utils/graphCache';
 import { PAGINATION } from '../utils/constants';
 import { reauthorizeCapabilityTicket } from '../services/capabilityAuthority.service';
 import { persistCapabilityAuditEvent } from '../services/capabilityRuntimeStore.service';
+import { oxyProfileToolAllowsActor } from './oxy-profile.catalog';
 
 /** Domain logic is shared with HTTP; identity is always signed and live checked. */
 export async function executeOxyProfileRead(
@@ -14,7 +15,7 @@ export async function executeOxyProfileRead(
 ): Promise<Record<string, unknown>> {
   if (
     Date.now() >= claims.exp * 1000 ||
-    claims.actor.type !== 'requester' ||
+    !oxyProfileToolAllowsActor(claims.tool, claims.actor.type) ||
     claims.autonomy !== 'read_only' ||
     claims.resource.appId !== 'oxy' ||
     claims.resource.resourceType !== 'account' ||

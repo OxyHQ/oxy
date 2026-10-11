@@ -7,6 +7,8 @@ import { z } from 'zod';
 import {
   actorRefSchema,
   agentRequesterCeilingWriteSchema,
+  catalogToolAllowsActor,
+  catalogToolActors,
   foregroundExecutionAuthorizationInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
@@ -1030,6 +1032,14 @@ router.post(
       !tool.resourceTypes.includes(input.resource.resourceType)
     ) {
       response.status(400).json({ error: 'tool_not_available_for_resource' });
+      return;
+    }
+    if (!catalogToolAllowsActor(tool, input.actor.type)) {
+      response.status(403).json({
+        error: 'tool_not_available_to_actor',
+        actor: input.actor.type,
+        allowedActors: catalogToolActors(tool),
+      });
       return;
     }
     if (input.ceilingId !== undefined) {
