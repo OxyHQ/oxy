@@ -60,15 +60,29 @@ import {
   type KaanaDeploymentDescriptor,
   SYNCED_LICENSE,
   blockCatalogueModel,
+  intersectAcceptedParameters,
   normalizeAcceptedParameters,
   normalizeDecimal,
   parseKaanaCatalogue,
   planKaanaModel,
+  reviewedRoutesWanted,
   runKaanaCatalogueSync,
   syncedPriceScore,
   syncedUnitPrices,
   unblockCatalogueModel,
+  withReviewedRoutes,
 } from '../kaanaCatalogueSync.service';
+import {
+  KAANA_REVIEWED_PROVIDER_ROUTES,
+  indexReviewedProviderRoutes,
+  type ReviewedProviderRoute,
+} from '../../config/kaanaReviewedProviderRoutes';
+import {
+  FUNDING_EVIDENCE_TTL_MS,
+  type CredentialEconomicsReader,
+  type CredentialEconomicsResponse,
+} from '../kaanaCredentialEconomics.service';
+import { firstUnacceptedParameter } from '../inferenceCatalogue.service';
 
 jest.setTimeout(60_000);
 
@@ -1010,7 +1024,12 @@ describe('independent private Auto catalogue import', () => {
         { status: 200, headers: { 'Cache-Control': 'no-store' } },
       );
     });
-    const first = await runKaanaCatalogueSync({ reader: createHttpKaanaCatalogueReader()! });
+    // The credential-economics read is a separate signed purpose with its own
+    // tests; this one counts the catalogue projections only.
+    const first = await runKaanaCatalogueSync({
+      reader: createHttpKaanaCatalogueReader()!,
+      economics: null,
+    });
     expect(first.status).toBe('synced');
     expect(first.skippedModels).toEqual([]);
     expect(first.deployments.created).toBe(3);
@@ -1034,7 +1053,10 @@ describe('independent private Auto catalogue import', () => {
       status: 'active',
       autoApprovalPolicyId: KAANA_SYNC_AUTO_APPROVAL_POLICY_ID,
     });
-    const second = await runKaanaCatalogueSync({ reader: createHttpKaanaCatalogueReader()! });
+    const second = await runKaanaCatalogueSync({
+      reader: createHttpKaanaCatalogueReader()!,
+      economics: null,
+    });
     expect(second.deployments.created).toBe(0);
     expect(second.deployments.retired).toBe(0);
     const stable = (items: typeof before) =>
@@ -1875,5 +1897,628 @@ describe('source-reviewed scoped price bootstrap', () => {
     ).toBe(1);
     expect(await f.prices()).toEqual([]);
     expect(await foreign()).toEqual(before);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Routes whose provider's model list publishes no price (OxyHQ/Kaana#166)    */
+/* -------------------------------------------------------------------------- */
+
+describe('reviewed provider routes', () => {
+  const line = parseKaanaCatalogue({
+    models: [
+      {
+        model: 'acme/chat',
+        modelReference: 'acme/chat@r1',
+        providers: ['direct', 'router'],
+        contextTokens: 1000,
+        maxOutputTokens: 500,
+        inputModalities: ['text'],
+        outputModalities: ['text'],
+        listPrices: [
+          {
+            deploymentId: 'dep_router',
+            provider: 'router',
+            currency: 'USD',
+            input: '3',
+            output: '15',
+          },
+        ],
+      },
+    ],
+  });
+  const direct: ReviewedProviderRoute = {
+    provider: 'direct',
+    model: 'acme/chat',
+    upstreamModelId: 'chat-1',
+    price: { input: '2', cachedInput: '0.1', output: '10' },
+    priceEvidenceRef: 'https://example.test/pricing@2026-10-11',
+    acceptedParameters: ['maxOutputTokens', 'tools'],
+  };
+  const reviewed = indexReviewedProviderRoutes([direct]);
+  const published = {
+    deployments: [
+      {
+        deploymentId: 'dep_router',
+        provider: 'router',
+        modelReference: 'acme/chat@r1',
+        regions: [],
+      },
+      {
+        deploymentId: 'dep_direct',
+        provider: 'direct',
+        modelReference: 'acme/chat@r1',
+        regions: [],
+      },
+      // Another revision of the line, and another line: never named.
+      {
+        deploymentId: 'dep_direct_old',
+        provider: 'direct',
+        modelReference: 'acme/chat@r0',
+        regions: [],
+      },
+      {
+        deploymentId: 'dep_other',
+        provider: 'direct',
+        modelReference: 'acme/other@r1',
+        regions: [],
+      },
+    ],
+  };
+
+  it('names the exact published deployment of a reviewed provider and line, with the reviewed price', () => {
+    expect(reviewedRoutesWanted(line, reviewed)).toBe(true);
+    const [entry] = withReviewedRoutes(line, published, reviewed).models;
+    expect(entry.listPrices).toEqual([
+      { deploymentId: 'dep_router', provider: 'router', price: { input: '3', output: '15' } },
+      {
+        deploymentId: 'dep_direct',
+        provider: 'direct',
+        price: { input: '2', cachedInput: '0.1', output: '10' },
+        priceEvidenceRef: 'https://example.test/pricing@2026-10-11',
+      },
+    ]);
+  });
+
+  it('never prices a provider Kaana already prices, one the line does not name, or a private descriptor', () => {
+    const kaanaPriced = parseKaanaCatalogue({
+      models: [
+        {
+          ...line.models[0],
+          listPrices: [
+            {
+              deploymentId: 'dep_direct',
+              provider: 'direct',
+              currency: 'USD',
+              input: '9',
+              output: '9',
+            },
+          ],
+        },
+      ],
+    });
+    expect(reviewedRoutesWanted(kaanaPriced, reviewed)).toBe(false);
+    expect(withReviewedRoutes(kaanaPriced, published, reviewed)).toEqual(kaanaPriced);
+
+    const notServed = { ...line, models: [{ ...line.models[0], providers: ['router'] }] };
+    expect(reviewedRoutesWanted(notServed, reviewed)).toBe(false);
+    expect(withReviewedRoutes(notServed, published, reviewed)).toEqual(notServed);
+
+    const scoped = {
+      deployments: [
+        {
+          ...published.deployments[1],
+          scopedExecution: { deploymentId: 'dep_direct' } as unknown as ScopedExecutionAudience,
+        },
+      ],
+    };
+    expect(withReviewedRoutes(line, scoped, reviewed).models[0].listPrices).toHaveLength(1);
+    // A reviewed price is never borrowed from another provider of the line.
+    expect(reviewedRoutesWanted(line, indexReviewedProviderRoutes([]))).toBe(false);
+  });
+
+  it('plans the reviewed route with its cache-read price and intersects its controls with Kaana’s', () => {
+    const entry = withReviewedRoutes(line, published, reviewed).models[0];
+    const attested = new Map<string, KaanaDeploymentDescriptor>([
+      ['dep_router', { ...published.deployments[0] }],
+      [
+        'dep_direct',
+        { ...published.deployments[1], acceptedParameters: ['sampling.temperature', 'tools'] },
+      ],
+    ]);
+    const plan = planKaanaModel(entry, {
+      blocked: new Set(),
+      knownProviders: new Set(['direct', 'router']),
+      attested,
+      reviewed,
+    });
+    expect(plan.status).toBe('planned');
+    if (plan.status !== 'planned') return;
+    const byProvider = new Map(plan.model.routes.map((route) => [route.provider, route]));
+    expect(byProvider.get('direct')).toMatchObject({
+      deploymentId: 'dep_direct',
+      price: { input: '2', cachedInput: '0.1', output: '10' },
+      priceEvidenceRef: 'https://example.test/pricing@2026-10-11',
+      // Kaana said temperature and tools; the review says maxOutputTokens and tools.
+      acceptedParameters: ['tools'],
+    });
+    // The other provider of the line is untouched by the review.
+    expect(byProvider.get('router')?.acceptedParameters).toBeNull();
+    expect(
+      Object.fromEntries(
+        syncedUnitPrices(
+          byProvider.get('direct')?.price ?? { input: 'missing', output: 'missing' },
+        ).map((unit) => [unit.unit, unit.amount]),
+      ),
+    ).toEqual({
+      cached_input_tokens: '0.1',
+      input_tokens: '2',
+      output_tokens: '10',
+      reasoning_tokens: '10',
+      requests: '0',
+    });
+  });
+
+  it('combines accepted-parameter statements as Kaana combines a line: unknown abstains', () => {
+    expect(intersectAcceptedParameters(null, null)).toBeNull();
+    expect(intersectAcceptedParameters(null, ['tools'])).toEqual(['tools']);
+    expect(intersectAcceptedParameters(['tools', 'maxOutputTokens'], null)).toEqual([
+      'tools',
+      'maxOutputTokens',
+    ]);
+    expect(intersectAcceptedParameters(['tools', 'maxOutputTokens'], ['maxOutputTokens'])).toEqual([
+      'maxOutputTokens',
+    ]);
+    expect(intersectAcceptedParameters(['tools'], [])).toEqual([]);
+  });
+});
+
+describe('the reviewed Anthropic routes (OxyHQ/Kaana#166)', () => {
+  const byLine = new Map(KAANA_REVIEWED_PROVIDER_ROUTES.map((route) => [route.model, route]));
+
+  it('covers exactly the thirteen lines Kaana attributes to direct Anthropic deployments', () => {
+    expect(() => indexReviewedProviderRoutes()).not.toThrow();
+    expect(KAANA_REVIEWED_PROVIDER_ROUTES.every((route) => route.provider === 'anthropic')).toBe(
+      true,
+    );
+    expect([...byLine.keys()].sort()).toEqual(
+      [
+        'anthropic/claude-fable-5.1',
+        'anthropic/claude-fable-5',
+        'anthropic/claude-opus-5.5',
+        'anthropic/claude-opus-5',
+        'anthropic/claude-opus-4.8',
+        'anthropic/claude-opus-4.7',
+        'anthropic/claude-opus-4.6',
+        'anthropic/claude-opus-4.5',
+        'anthropic/claude-sonnet-5.5',
+        'anthropic/claude-sonnet-5',
+        'anthropic/claude-sonnet-4.6',
+        'anthropic/claude-haiku-5.5',
+        'anthropic/claude-haiku-4.5',
+      ].sort(),
+    );
+  });
+
+  it('pins Anthropic’s list prices as read on 2026-10-11 (input / cache read / output per MTok)', () => {
+    const prices = Object.fromEntries(
+      KAANA_REVIEWED_PROVIDER_ROUTES.map((route) => [
+        route.model.replace('anthropic/claude-', ''),
+        `${route.price.input}/${route.price.cachedInput}/${route.price.output}`,
+      ]),
+    );
+    expect(prices).toEqual({
+      'fable-5.1': '10/0.25/50',
+      'fable-5': '10/1/50',
+      'opus-5.5': '4/0.2/20',
+      'opus-5': '5/0.5/25',
+      'opus-4.8': '5/0.5/25',
+      'opus-4.7': '5/0.5/25',
+      'opus-4.6': '5/0.5/25',
+      'opus-4.5': '5/0.5/25',
+      'sonnet-5.5': '2/0.1/10',
+      'sonnet-5': '2/0.2/10',
+      'sonnet-4.6': '3/0.3/15',
+      // The over-100,000-token tier: never less than Anthropic invoices.
+      'haiku-5.5': '0.5/0.05/2.5',
+      'haiku-4.5': '1/0.1/5',
+    });
+    for (const route of KAANA_REVIEWED_PROVIDER_ROUTES) {
+      for (const amount of Object.values(route.price)) {
+        expect(normalizeDecimal(amount)).toBe(amount);
+      }
+      expect(route.priceEvidenceRef).toBe(
+        'https://platform.claude.com/docs/en/about-claude/pricing@2026-10-11',
+      );
+    }
+  });
+
+  it('states only controls the Messages adapter sends and Anthropic accepts per model', () => {
+    for (const route of KAANA_REVIEWED_PROVIDER_ROUTES) {
+      // Kaana's Translate refuses these for every Anthropic deployment.
+      for (const refused of [
+        'responseFormat',
+        'sampling.frequencyPenalty',
+        'sampling.presencePenalty',
+        'sampling.seed',
+      ] as const) {
+        expect(route.acceptedParameters).not.toContain(refused);
+      }
+      expect(route.acceptedParameters).toEqual(
+        normalizeAcceptedParameters([...route.acceptedParameters]),
+      );
+      expect(route.acceptedParameters).toEqual(
+        expect.arrayContaining(['maxOutputTokens', 'sampling.stopSequences', 'tools']),
+      );
+    }
+    const accepts = (model: string, control: string) =>
+      (byLine.get(`anthropic/claude-${model}`)?.acceptedParameters ?? []).includes(
+        control as never,
+      );
+    // Non-default temperature/top_p: 400 on Claude Opus 4.7 and every later model.
+    for (const model of [
+      'opus-4.7',
+      'opus-4.8',
+      'opus-5',
+      'opus-5.5',
+      'fable-5',
+      'fable-5.1',
+      'sonnet-5',
+      'sonnet-5.5',
+      'haiku-5.5',
+    ]) {
+      expect([
+        model,
+        accepts(model, 'sampling.temperature'),
+        accepts(model, 'sampling.topP'),
+      ]).toEqual([model, false, false]);
+    }
+    for (const model of ['opus-4.5', 'opus-4.6', 'sonnet-4.6', 'haiku-4.5']) {
+      expect([
+        model,
+        accepts(model, 'sampling.temperature'),
+        accepts(model, 'sampling.topP'),
+      ]).toEqual([model, true, true]);
+    }
+    // Forced tool_choice: 400 on Fable 5.1, Opus 5.5 and Sonnet 5.5 only.
+    for (const model of byLine.keys()) {
+      const short = model.replace('anthropic/claude-', '');
+      expect([short, accepts(short, 'toolChoice')]).toEqual([
+        short,
+        !['fable-5.1', 'opus-5.5', 'sonnet-5.5'].includes(short),
+      ]);
+    }
+    expect(accepts('haiku-4.5', 'reasoning.effort')).toBe(false);
+    // So a request with temperature for Sonnet 5.5 can never be signed onto the direct route.
+    expect(
+      firstUnacceptedParameter(
+        [...(byLine.get('anthropic/claude-sonnet-5.5')?.acceptedParameters ?? [])],
+        ['maxOutputTokens', 'sampling.temperature'],
+      ),
+    ).toBe('sampling.temperature');
+  });
+});
+
+describe('syncing a direct provider beside a paid one', () => {
+  /** One credential-economics read: `keys` per provider, described as stated. */
+  function economics(
+    keys: Record<string, { category: string | null; evidence?: unknown[] }[]>,
+  ): CredentialEconomicsReader {
+    const response: CredentialEconomicsResponse = {
+      schemaVersion: 1,
+      credentials: Object.entries(keys).flatMap(([provider, list]) =>
+        list.map((key, index) => ({
+          provider,
+          keyId: `key-${provider}-${index}`,
+          keyClass: '',
+          description:
+            key.category === null ? null : { revision: 1, capacityCategory: key.category },
+          capacityEvidence: (key.evidence ?? []) as never,
+        })),
+      ),
+    };
+    return { read: async () => response };
+  }
+
+  interface DirectWorld {
+    readonly line: string;
+    readonly direct: string;
+    readonly router: string;
+    readonly directDeployment: string;
+    readonly routerDeployment: string;
+    readonly reviewedRoutes: readonly ReviewedProviderRoute[];
+    serve(): KaanaCatalogueReader;
+  }
+
+  /**
+   * A line served by a paid router that publishes a list price and a direct
+   * provider that publishes none, like OpenRouter and Anthropic for a Claude
+   * line. The router's row is zero-retention (Kaana binds OpenRouter to ZDR);
+   * the direct provider's row retains for 30 days, as Anthropic's does.
+   */
+  async function directWorld(
+    options: { readonly realAnthropic?: boolean } = {},
+  ): Promise<DirectWorld> {
+    const tag = suffix();
+    const router = `rt${tag}`;
+    const direct = options.realAnthropic === true ? 'anthropic' : `dr${tag}`;
+    await getDb()
+      .insert(inferenceProviders)
+      .values({
+        slug: router,
+        displayName: `Router ${tag}`,
+        kind: 'third_party',
+        retainsPayloads: false,
+        retentionDays: 0,
+        trainsOnCustomerData: false,
+        zeroDataRetentionAvailable: true,
+      });
+    if (options.realAnthropic !== true) {
+      await getDb()
+        .insert(inferenceProviders)
+        .values({
+          slug: direct,
+          displayName: `Direct ${tag}`,
+          kind: 'third_party',
+          retainsPayloads: true,
+          retentionDays: 30,
+          trainsOnCustomerData: false,
+          zeroDataRetentionAvailable: true,
+        });
+    }
+    const model = options.realAnthropic === true ? 'anthropic/claude-sonnet-5.5' : `pub${tag}/chat`;
+    const reference = `${model}@observed-2026-10-11`;
+    const directDeployment = `dep_${direct}_${tag}`;
+    const routerDeployment = `dep_${router}`;
+    const reviewedRoutes: readonly ReviewedProviderRoute[] =
+      options.realAnthropic === true
+        ? KAANA_REVIEWED_PROVIDER_ROUTES
+        : [
+            {
+              provider: direct,
+              model,
+              upstreamModelId: 'chat-1',
+              price: { input: '2', cachedInput: '0.1', output: '10' },
+              priceEvidenceRef: 'https://example.test/pricing@2026-10-11',
+              acceptedParameters: ['maxOutputTokens', 'tools'],
+            },
+          ];
+    const routes = [
+      { deploymentId: directDeployment, provider: direct, modelReference: reference, regions: [] },
+      { deploymentId: routerDeployment, provider: router, modelReference: reference, regions: [] },
+    ];
+    const entry = {
+      model,
+      modelReference: reference,
+      providers: [direct, router].sort(),
+      contextTokens: 1_000_000,
+      maxOutputTokens: 64_000,
+      inputModalities: ['image', 'text'],
+      outputModalities: ['text'],
+      supportsTools: true,
+      reasoningEfforts: ['low', 'medium', 'high'],
+      // Only the router publishes a price; Anthropic's Models API publishes none.
+      listPrices: [
+        {
+          deploymentId: routerDeployment,
+          provider: router,
+          currency: 'USD',
+          input: '2',
+          output: '10',
+        },
+      ],
+    };
+    return {
+      line: model,
+      direct,
+      router,
+      directDeployment,
+      routerDeployment,
+      reviewedRoutes,
+      serve: () => reader([entry], routes),
+    };
+  }
+
+  const resolve = (model: string, constraints = UNCONSTRAINED_ROUTING) =>
+    resolveEdgeRoute(
+      INTERNAL_VIEWER,
+      model,
+      constraints,
+      TEXT_COMPLETION_MODALITY,
+      'price',
+      UNCONSTRAINED_EDGE_CAPACITY,
+      undefined,
+    );
+
+  async function scorecardOf(deploymentId: string) {
+    const [row] = await getDb()
+      .select()
+      .from(inferenceDeploymentRoutingScores)
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, deploymentId));
+    return row;
+  }
+
+  it('writes the direct route at its reviewed price and prefers its promotional credit over the paid route', async () => {
+    const world = await directWorld();
+    const summary = await runKaanaCatalogueSync({
+      reader: world.serve(),
+      reviewedRoutes: world.reviewedRoutes,
+      economics: economics({
+        [world.direct]: [{ category: 'promotional' }],
+        [world.router]: [{ category: 'paid' }],
+      }),
+    });
+    expect(summary.deployments.created).toBe(2);
+    expect(summary.deployments.skipped).toEqual({});
+
+    const rows = await deploymentsOf(world.line);
+    const directRow = rows.find((row) => row.internalRouteId === world.directDeployment);
+    if (directRow === undefined) throw new Error('the direct route was not written');
+    expect(directRow).toMatchObject({
+      status: 'active',
+      permissionState: 'approved',
+      availabilityScope: 'platform_internal',
+      retentionDays: 30,
+      acceptedParameters: ['maxOutputTokens', 'tools'],
+    });
+    const units = await getDb()
+      .select({ unit: priceVersionUnitPrices.unit, amount: priceVersionUnitPrices.amount })
+      .from(priceVersionUnitPrices)
+      .where(eq(priceVersionUnitPrices.priceVersionId, directRow.priceVersionId ?? ''));
+    expect(
+      Object.fromEntries(units.map((row) => [row.unit, normalizeDecimal(row.amount)])),
+    ).toEqual({
+      input_tokens: '2',
+      cached_input_tokens: '0.1',
+      output_tokens: '10',
+      reasoning_tokens: '10',
+      requests: '0',
+    });
+
+    const directCard = await scorecardOf(world.directDeployment);
+    expect(directCard).toMatchObject({
+      priceEvidenceRef: 'https://example.test/pricing@2026-10-11',
+      fundingClass: 'promotional_credit',
+      fundingState: 'available',
+    });
+    expect(
+      (directCard.fundingValidUntil?.getTime() ?? 0) -
+        (directCard.fundingObservedAt?.getTime() ?? 0),
+    ).toBe(FUNDING_EVIDENCE_TTL_MS);
+    expect(await scorecardOf(world.routerDeployment)).toMatchObject({
+      fundingClass: 'standard_payg',
+      fundingObservedAt: null,
+    });
+
+    // The same price on both routes: promotional credit ranks first, and the
+    // paid route stays the same-model failover destination.
+    const resolved = await resolve(world.line);
+    expect(resolved).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: world.directDeployment, provider: world.direct },
+      alternates: [{ deploymentId: world.routerDeployment, provider: world.router }],
+    });
+
+    // A rerun inside the window writes no new scorecard event.
+    const rerun = await runKaanaCatalogueSync({
+      reader: world.serve(),
+      reviewedRoutes: world.reviewedRoutes,
+      economics: economics({ [world.direct]: [{ category: 'promotional' }] }),
+    });
+    expect(rerun.scorecardsWritten).toBe(0);
+    expect(rerun.priceVersionsCreated).toBe(0);
+  });
+
+  it('drops the direct route when its credit is spent or its evidence is stale, and serves the paid route', async () => {
+    const world = await directWorld();
+    await runKaanaCatalogueSync({
+      reader: world.serve(),
+      reviewedRoutes: world.reviewedRoutes,
+      economics: economics({
+        [world.direct]: [
+          {
+            category: 'promotional',
+            evidence: [
+              { kind: 'balance', observedAt: new Date().toISOString(), balancePicos: '0' },
+            ],
+          },
+        ],
+      }),
+    });
+    expect(await scorecardOf(world.directDeployment)).toMatchObject({
+      fundingClass: 'promotional_credit',
+      fundingState: 'exhausted',
+    });
+    expect(await resolve(world.line)).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: world.routerDeployment },
+      alternates: [],
+    });
+
+    // Observed seven hours ago: the six-hour window has passed.
+    await runKaanaCatalogueSync({
+      reader: world.serve(),
+      reviewedRoutes: world.reviewedRoutes,
+      now: new Date(Date.now() - 7 * 60 * 60 * 1000),
+      economics: economics({ [world.direct]: [{ category: 'promotional' }] }),
+    });
+    expect((await scorecardOf(world.directDeployment)).fundingState).toBe('available');
+    expect(await resolve(world.line)).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: world.routerDeployment },
+      alternates: [],
+    });
+  });
+
+  it('keeps the direct route as ordinary paid usage when its funding is unknown', async () => {
+    const world = await directWorld();
+    for (const unknown of [
+      null,
+      economics({ [world.direct]: [{ category: null }] }),
+      economics({ [world.direct]: [{ category: 'promotional' }, { category: 'promotional' }] }),
+      { read: async () => Promise.reject(new Error('Kaana answered 503')) },
+    ]) {
+      await runKaanaCatalogueSync({
+        reader: world.serve(),
+        reviewedRoutes: world.reviewedRoutes,
+        economics: unknown,
+      });
+      expect(await scorecardOf(world.directDeployment)).toMatchObject({
+        fundingClass: 'standard_payg',
+        fundingState: 'available',
+        fundingValidUntil: null,
+      });
+    }
+    // Still served: same price, and the exact deployment id breaks the tie.
+    const resolved = await resolve(world.line);
+    expect(resolved.status).toBe('resolved');
+    if (resolved.status !== 'resolved') return;
+    expect(
+      [resolved.route, ...resolved.alternates].map((route) => route.deploymentId).sort(),
+    ).toEqual([world.directDeployment, world.routerDeployment].sort());
+  });
+
+  it('serves anthropic/claude-sonnet-5.5 from the migrated anthropic row, and excludes it under zero data retention', async () => {
+    const [anthropic] = await getDb()
+      .select()
+      .from(inferenceProviders)
+      .where(eq(inferenceProviders.slug, 'anthropic'));
+    expect(anthropic).toMatchObject({
+      kind: 'third_party',
+      retainsPayloads: true,
+      retentionDays: 30,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+    });
+
+    const world = await directWorld({ realAnthropic: true });
+    await runKaanaCatalogueSync({
+      reader: world.serve(),
+      economics: economics({ anthropic: [{ category: 'promotional' }] }),
+    });
+    const directRow = (await deploymentsOf(world.line)).find(
+      (row) => row.internalRouteId === world.directDeployment,
+    );
+    expect(directRow?.acceptedParameters).toEqual([
+      'maxOutputTokens',
+      'reasoning.effort',
+      'sampling.stopSequences',
+      'tools',
+    ]);
+    expect((await scorecardOf(world.directDeployment)).priceEvidenceRef).toBe(
+      'https://platform.claude.com/docs/en/about-claude/pricing@2026-10-11',
+    );
+    expect(await resolve(world.line)).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: world.directDeployment, provider: 'anthropic' },
+      alternates: [{ deploymentId: world.routerDeployment }],
+    });
+    expect(
+      await resolve(world.line, { ...UNCONSTRAINED_ROUTING, requireZeroDataRetention: true }),
+    ).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: world.routerDeployment },
+      alternates: [],
+    });
   });
 });

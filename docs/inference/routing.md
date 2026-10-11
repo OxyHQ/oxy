@@ -407,6 +407,11 @@ Oxy owns this classification and the order it produces. Kaana owns live
 technical health and provider limits; Oxy does not turn cached economic
 evidence into a claim that a provider is healthy.
 
+A route written by the Kaana catalogue sync takes its class from Kaana's signed
+credential economics: `promotional_credit` with a six-hour observation window
+when its provider has exactly one enabled key described `promotional`,
+otherwise `standard_payg` ([catalogue.md](./catalogue.md#funding-class-of-a-synced-route)).
+
 Because one stale score refuses every route, score expiry is a scheduled
 production cliff. A daily read-only monitor requires seven days of validity and
 the same-value renewal is a dry-run-first workflow:

@@ -90,7 +90,22 @@ import {
   type InferenceOutputModalityValue,
 } from '../db/schema';
 import { logger } from '../utils/logger';
+import {
+  indexReviewedProviderRoutes,
+  reviewedRouteKey,
+  type ReviewedProviderRoute,
+  type ReviewedProviderRouteIndex,
+} from '../config/kaanaReviewedProviderRoutes';
 import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
+import type { KaanaDeploymentAttestation } from './kaanaClient';
+import {
+  createHttpKaanaCredentialEconomicsReader,
+  fundingEvidenceByProvider,
+  fundingNeedsRenewal,
+  type CredentialEconomicsReader,
+  type ProviderFundingEvidence,
+  type ProviderFundingIndex,
+} from './kaanaCredentialEconomics.service';
 
 /* -------------------------------------------------------------------------- */
 /*  Constants                                                                 */
@@ -163,6 +178,12 @@ export type DeploymentSkipReason =
 export interface KaanaListPrice {
   readonly input: string;
   readonly output: string;
+  /**
+   * A prompt-cache read, when the provider publishes a price for one. Kaana's
+   * `listPrices` never carries it; a reviewed provider route does
+   * (`config/kaanaReviewedProviderRoutes.ts`). Absent means the input rate.
+   */
+  readonly cachedInput?: string;
 }
 
 /**
@@ -193,6 +214,11 @@ export interface KaanaPricedRoute {
   readonly deploymentId: string;
   readonly provider: string;
   readonly price: KaanaListPrice | 'invalid';
+  /**
+   * Where the price came from when it is NOT Kaana's list price: the reviewed
+   * provider documentation it was read from. Absent for a Kaana observation.
+   */
+  readonly priceEvidenceRef?: string;
 }
 
 /** One model line exactly as Kaana reported it, after shape validation only. */
@@ -433,6 +459,8 @@ export interface PlannedRoute {
   readonly provider: string;
   readonly regions: readonly string[];
   readonly price: KaanaListPrice;
+  /** The reviewed source of `price`, when it is not Kaana's list price. */
+  readonly priceEvidenceRef?: string;
   /** `inference_deployments.accepted_parameters`; `null` is unknown. */
   readonly acceptedParameters: readonly DeploymentRequestParameter[] | null;
 }
@@ -507,6 +535,22 @@ function acceptedParametersForRoute(
   return normalizeAcceptedParameters(entry.acceptedParameters);
 }
 
+/**
+ * Two statements about one route, combined: a control is accepted only when
+ * every statement that SAID something accepts it. `null` (nobody said) abstains,
+ * exactly as Kaana combines a line's reports; two `null`s stay unknown.
+ */
+export function intersectAcceptedParameters(
+  first: readonly DeploymentRequestParameter[] | null,
+  second: readonly DeploymentRequestParameter[] | null,
+): DeploymentRequestParameter[] | null {
+  if (first === null) return second === null ? null : [...second];
+  if (second === null) return [...first];
+  return DEPLOYMENT_REQUEST_PARAMETERS.filter(
+    (parameter) => first.includes(parameter) && second.includes(parameter),
+  );
+}
+
 function knownModalities(values: readonly string[] | undefined): InferenceModalityValue[] {
   return [
     ...new Set((values ?? []).filter((value) => KNOWN_MODALITIES.has(value))),
@@ -543,6 +587,12 @@ export function planKaanaModel(
     readonly knownProviders: ReadonlySet<string>;
     /** Kaana's signed attestation, by exact deployment id. */
     readonly attested: ReadonlyMap<string, KaanaDeploymentDescriptor>;
+    /**
+     * Reviewed facts for routes whose provider's model list publishes none
+     * (`config/kaanaReviewedProviderRoutes.ts`). Their accepted controls are
+     * intersected with whatever Kaana publishes for the deployment.
+     */
+    readonly reviewed?: ReviewedProviderRouteIndex;
   },
 ): ModelPlan {
   const separator = entry.modelReference.indexOf('@');
@@ -683,18 +733,25 @@ export function planKaanaModel(
     }
     seenProviders.add(providerLane);
     seenDeploymentIds.add(deployment.deploymentId);
+    const reviewed = context.reviewed?.get(reviewedRouteKey(deployment.provider, entry.model));
     routes.push({
       deploymentId: deployment.deploymentId,
       provider: deployment.provider,
       regions: deployment.regions,
       price,
+      ...(priced.priceEvidenceRef === undefined
+        ? {}
+        : { priceEvidenceRef: priced.priceEvidenceRef }),
       ...(deployment.scopedExecution === undefined
         ? {}
         : { scopedExecution: deployment.scopedExecution }),
       ...(deployment.privateAutoSourceApproval === undefined
         ? {}
         : { privateAutoSourceApproval: deployment.privateAutoSourceApproval }),
-      acceptedParameters: acceptedParametersForRoute(entry, deployment),
+      acceptedParameters: intersectAcceptedParameters(
+        acceptedParametersForRoute(entry, deployment),
+        reviewed === undefined ? null : reviewed.acceptedParameters,
+      ),
     });
   }
   if (routes.length === 0) return { status: 'skipped', reason: 'no_priced_route', routeSkips };
@@ -732,9 +789,10 @@ export function planKaanaModel(
  * The unit prices a synced route is charged at, from the provider list price.
  *
  * Every unit Kaana can report is priced, because an unpriced unit makes a
- * request unquotable: cached input at the full input rate and reasoning at the
- * output rate (the conservative reading when a provider publishes no discount),
- * and `requests` explicitly zero, since Kaana reports `requests: 1` per attempt.
+ * request unquotable: cached input at the published cache-read rate when there
+ * is one and otherwise at the full input rate, reasoning at the output rate (the
+ * conservative reading when a provider publishes no discount), and `requests`
+ * explicitly zero, since Kaana reports `requests: 1` per attempt.
  */
 export function syncedUnitPrices(price: KaanaListPrice): {
   readonly unit:
@@ -747,7 +805,7 @@ export function syncedUnitPrices(price: KaanaListPrice): {
   readonly per: number;
 }[] {
   return [
-    { unit: 'cached_input_tokens', amount: price.input, per: 1_000_000 },
+    { unit: 'cached_input_tokens', amount: price.cachedInput ?? price.input, per: 1_000_000 },
     { unit: 'input_tokens', amount: price.input, per: 1_000_000 },
     { unit: 'output_tokens', amount: price.output, per: 1_000_000 },
     { unit: 'reasoning_tokens', amount: price.output, per: 1_000_000 },
@@ -798,6 +856,13 @@ export interface KaanaCatalogueSyncOptions {
   readonly reader?: KaanaCatalogueReader;
   readonly now?: Date;
   readonly allowMassRetirement?: boolean;
+  /** Defaults to `KAANA_REVIEWED_PROVIDER_ROUTES`. */
+  readonly reviewedRoutes?: readonly ReviewedProviderRoute[];
+  /**
+   * Kaana's credential-economics read. Omitted: the configured signed read;
+   * `null`: none (every route's funding is unknown, the synced default).
+   */
+  readonly economics?: CredentialEconomicsReader | null;
 }
 
 interface MutableCounts {
@@ -924,22 +989,42 @@ async function ensureSyncedPrice(
   return created.id;
 }
 
-/** Keep the route's price-only scorecard aligned with its price version. */
+/**
+ * Keep the route's price-only scorecard aligned with its price version and its
+ * funding evidence.
+ *
+ * `funding` is the route's provider's evidence from Kaana's credential
+ * economics (`kaanaCredentialEconomics.service.ts`); absent means unknown, which
+ * is the synced default, `standard_payg`. A windowed (promotional) class is
+ * renewed once less than half of its window remains, so an unchanged report
+ * does not append a scorecard event on every run.
+ */
 async function ensureSyncedScorecard(
   tx: Transaction,
   deploymentId: string,
   priceVersionId: string,
   price: KaanaListPrice,
   evidenceRef: string,
+  funding: ProviderFundingEvidence | undefined,
   now: Date,
   counts: MutableCounts,
 ): Promise<void> {
   const priceScore = syncedPriceScore(price);
+  const economics = {
+    fundingClass: funding?.fundingClass ?? ('standard_payg' as const),
+    fundingState: funding?.fundingState ?? ('available' as const),
+    fundingEvidenceRef: funding?.fundingEvidenceRef ?? evidenceRef,
+    fundingObservedAt: funding?.fundingObservedAt ?? null,
+    fundingValidUntil: funding?.fundingValidUntil ?? null,
+  };
   const [existing] = await tx
     .select({
       priceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       priceScore: inferenceDeploymentRoutingScores.priceScore,
-      changedByUserId: inferenceDeploymentRoutingScores.changedByUserId,
+      fundingClass: inferenceDeploymentRoutingScores.fundingClass,
+      fundingState: inferenceDeploymentRoutingScores.fundingState,
+      fundingEvidenceRef: inferenceDeploymentRoutingScores.fundingEvidenceRef,
+      fundingValidUntil: inferenceDeploymentRoutingScores.fundingValidUntil,
     })
     .from(inferenceDeploymentRoutingScores)
     .where(eq(inferenceDeploymentRoutingScores.deploymentId, deploymentId))
@@ -947,7 +1032,13 @@ async function ensureSyncedScorecard(
   if (
     existing !== undefined &&
     existing.priceVersionId === priceVersionId &&
-    existing.priceScore === priceScore
+    existing.priceScore === priceScore &&
+    existing.fundingClass === economics.fundingClass &&
+    existing.fundingState === economics.fundingState &&
+    (funding === undefined
+      ? existing.fundingValidUntil === null
+      : existing.fundingEvidenceRef === economics.fundingEvidenceRef &&
+        !fundingNeedsRenewal(existing.fundingValidUntil, now))
   ) {
     return;
   }
@@ -978,39 +1069,28 @@ async function ensureSyncedScorecard(
     balancedValidUntil: now,
     fundingRemaining: null,
     fundingRemainingUnit: null,
-    fundingObservedAt: null,
-    fundingValidUntil: null,
+    ...economics,
     reason:
-      'Kaana sync: price score from the provider list price; no measured latency or throughput.',
+      funding === undefined
+        ? 'Kaana sync: price score from the provider list price; no measured latency or throughput.'
+        : 'Kaana sync: price score from the provider list price; funding class from Kaana credential economics; no measured latency or throughput.',
     changedByUserId: KAANA_SYNC_ACTOR,
   };
   if (existing === undefined) {
     await tx.insert(inferenceDeploymentRoutingScores).values({
       deploymentId,
       ...card,
-      fundingClass: 'standard_payg',
-      fundingState: 'available',
-      fundingEvidenceRef: evidenceRef,
       changedAt: now,
     });
   } else {
     await tx
       .update(inferenceDeploymentRoutingScores)
-      .set({
-        ...card,
-        fundingClass: 'standard_payg',
-        fundingState: 'available',
-        fundingEvidenceRef: evidenceRef,
-        changedAt: now,
-      })
+      .set({ ...card, changedAt: now })
       .where(eq(inferenceDeploymentRoutingScores.deploymentId, deploymentId));
   }
   await tx.insert(inferenceDeploymentRoutingScoreEvents).values({
     deploymentId,
     ...card,
-    fundingClass: 'standard_payg',
-    fundingState: 'available',
-    fundingEvidenceRef: evidenceRef,
     createdAt: now,
   });
   counts.scorecardsWritten += 1;
@@ -1059,6 +1139,7 @@ async function applyPlannedModel(
   planned: PlannedModel,
   providers: ReadonlyMap<string, ProviderPolicyRow>,
   evidenceRef: string,
+  funding: ProviderFundingIndex,
   now: Date,
   counts: MutableCounts,
 ): Promise<string[]> {
@@ -1436,7 +1517,9 @@ async function applyPlannedModel(
       route.deploymentId,
       priceVersionId,
       route.price,
-      evidenceRef,
+      route.priceEvidenceRef ?? evidenceRef,
+      // A restricted (private) import keeps its reviewed standard economics.
+      restriction === undefined ? funding.get(route.provider) : undefined,
       now,
       counts,
     );
@@ -1454,7 +1537,14 @@ async function applyPlannedModel(
 export async function applyKaanaCatalogue(
   catalogue: ParsedKaanaCatalogue,
   attested: ReadonlyMap<string, KaanaDeploymentDescriptor>,
-  options: { readonly now?: Date; readonly allowMassRetirement?: boolean } = {},
+  options: {
+    readonly now?: Date;
+    readonly allowMassRetirement?: boolean;
+    /** Reviewed facts for routes whose provider publishes none; see {@link planKaanaModel}. */
+    readonly reviewed?: ReviewedProviderRouteIndex;
+    /** Each provider's funding evidence; a provider absent is unknown (`standard_payg`). */
+    readonly funding?: ProviderFundingIndex;
+  } = {},
 ): Promise<KaanaCatalogueSyncSummary> {
   const now = options.now ?? new Date();
   if (catalogue.models.length === 0) {
@@ -1557,6 +1647,7 @@ export async function applyKaanaCatalogue(
         blocked,
         knownProviders: new Set(providers.keys()),
         attested,
+        ...(options.reviewed === undefined ? {} : { reviewed: options.reviewed }),
       });
       for (const skip of plan.status === 'planned'
         ? plan.model.routeSkips
@@ -1575,6 +1666,7 @@ export async function applyKaanaCatalogue(
         plan.model,
         providers,
         evidenceRef,
+        options.funding ?? new Map(),
         now,
         counts,
       )) {
@@ -1740,6 +1832,107 @@ export async function attestPricedDeployments(
   return attested;
 }
 
+/**
+ * The reviewed facts a line could use: a provider Kaana says serves the line,
+ * with a reviewed route for that exact `(provider, line)`, and no list price
+ * of its own in Kaana's report (a Kaana-published price always wins).
+ */
+function reviewedRoutesOf(
+  entry: KaanaCatalogueModel,
+  reviewed: ReviewedProviderRouteIndex,
+): ReviewedProviderRoute[] {
+  const routes: ReviewedProviderRoute[] = [];
+  for (const provider of new Set(entry.providers ?? [])) {
+    const route = reviewed.get(reviewedRouteKey(provider, entry.model));
+    if (route === undefined) continue;
+    if (entry.listPrices.some((priced) => priced.provider === provider)) continue;
+    routes.push(route);
+  }
+  return routes;
+}
+
+/** Whether any line of the report can use a reviewed route, so the snapshot must be read. */
+export function reviewedRoutesWanted(
+  catalogue: ParsedKaanaCatalogue,
+  reviewed: ReviewedProviderRouteIndex,
+): boolean {
+  return (
+    reviewed.size > 0 &&
+    catalogue.models.some((entry) => reviewedRoutesOf(entry, reviewed).length > 0)
+  );
+}
+
+/**
+ * Name the deployments of providers whose model list publishes no price.
+ *
+ * Kaana's catalogue names a deployment only through its `listPrices` row, so a
+ * direct Anthropic deployment appears in a line's `providers` and nowhere else.
+ * Its exact id, provider and revision-pinned reference come from Kaana's signed
+ * serving snapshot (the `{}` deployment query the edge's publication cache also
+ * reads), and its price from the reviewed provider route. The result goes
+ * through the same exact attestation and planning as every Kaana-priced route.
+ * Only ordinary deployments are named: a scoped or private descriptor has its
+ * own reviewed authority and is never priced here.
+ */
+export function withReviewedRoutes(
+  catalogue: ParsedKaanaCatalogue,
+  published: Pick<KaanaDeploymentAttestation, 'deployments'>,
+  reviewed: ReviewedProviderRouteIndex,
+): ParsedKaanaCatalogue {
+  return {
+    ...catalogue,
+    models: catalogue.models.map((entry) => {
+      const additions: KaanaPricedRoute[] = [];
+      for (const route of reviewedRoutesOf(entry, reviewed)) {
+        for (const descriptor of published.deployments) {
+          if (
+            descriptor.provider !== route.provider ||
+            descriptor.modelReference !== entry.modelReference ||
+            descriptor.scopedExecution !== undefined ||
+            descriptor.privateAutoSourceApproval !== undefined ||
+            entry.listPrices.some((priced) => priced.deploymentId === descriptor.deploymentId)
+          ) {
+            continue;
+          }
+          additions.push({
+            deploymentId: descriptor.deploymentId,
+            provider: route.provider,
+            price: { ...route.price },
+            priceEvidenceRef: route.priceEvidenceRef,
+          });
+        }
+      }
+      return additions.length === 0
+        ? entry
+        : { ...entry, listPrices: [...entry.listPrices, ...additions] };
+    }),
+  };
+}
+
+/**
+ * Each provider's funding evidence from one credential-economics read, or
+ * nothing when the read is not configured or fails. Unknown funding is the
+ * synced default, so a failed read never stops the catalogue from syncing; it
+ * only withholds a cheaper class nobody proved this run.
+ */
+async function readFundingEvidence(
+  reader: CredentialEconomicsReader | undefined,
+  now: Date,
+): Promise<ProviderFundingIndex> {
+  if (reader === undefined) return new Map();
+  try {
+    return fundingEvidenceByProvider(
+      await reader.read(AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS)),
+      now,
+    );
+  } catch (error) {
+    logger.warn('inference.catalogue_sync.credential_economics_unavailable', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return new Map();
+  }
+}
+
 /** Fetch Kaana's catalogue and apply it. */
 export async function runKaanaCatalogueSync(
   options: KaanaCatalogueSyncOptions = {},
@@ -1756,11 +1949,29 @@ export async function runKaanaCatalogueSync(
       skippedModels: [],
     };
   }
-  const catalogue = parseKaanaCatalogue(
+  const reviewed = indexReviewedProviderRoutes(options.reviewedRoutes);
+  let catalogue = parseKaanaCatalogue(
     await reader.listModels(AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS)),
   );
+  if (reviewedRoutesWanted(catalogue, reviewed)) {
+    catalogue = withReviewedRoutes(
+      catalogue,
+      await reader.listPublishedDeployments(AbortSignal.timeout(KAANA_CATALOGUE_FETCH_TIMEOUT_MS)),
+      reviewed,
+    );
+  }
   const attested = await attestPricedDeployments(reader, catalogue);
-  const summary = await applyKaanaCatalogue(catalogue, attested, options);
+  const funding = await readFundingEvidence(
+    options.economics === undefined
+      ? createHttpKaanaCredentialEconomicsReader()
+      : (options.economics ?? undefined),
+    options.now ?? new Date(),
+  );
+  const summary = await applyKaanaCatalogue(catalogue, attested, {
+    ...options,
+    reviewed,
+    funding,
+  });
   logger.info('inference.catalogue_sync.completed', {
     status: summary.status,
     reason: summary.reason,
