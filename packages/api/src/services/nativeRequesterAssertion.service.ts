@@ -10,19 +10,18 @@
  *
  * ## What each half proves
  *
- * MINT proves, live: the caller is one pinned entry point for the named agent —
- * by its credential, or by attesting the IAM role that entry point declares
- * (ADR 0026), which is one identity with two proofs and not two identities; the
- * row behind whichever proof it used is still live and trusted with
- * `inference:invoke`; the presented access token is a valid, bound, live session
+ * MINT proves, live: the caller is one pinned entry point for the named agent,
+ * by attesting the IAM role that entry point declares (ADR 0026) — no key pair
+ * enters a product's agent; the binding behind that proof is still live and
+ * trusted with `inference:invoke`; the presented access token is a valid, bound, live session
  * whose owner account is active; and that session is the shared first-party
  * session or the calling application's own. The session id and requester are
  * stored server-side under the `jti`, never placed in the token.
  *
  * INTROSPECT proves, live and exactly once: the token is ours, for Alia, and is
  * being presented by the application and the exact service identity it was
- * minted for (`cid` names what called: a credential id, or a `wl_…` attestation
- * handle); the entry point and the product principal are still live; the server-side record
+ * minted for (`cid` names what called: the `wl_…` attestation handle); the
+ * entry point and the product's binding are still live; the server-side record
  * exists and is consumed atomically (a second presentation finds nothing); and
  * the session it names is still active, read past every cache, still owned by
  * the same account, which is still active.
@@ -65,19 +64,12 @@ export interface RequesterAssertionRecord {
   readonly agentId: string;
 }
 
-export interface LiveServicePrincipal {
-  readonly applicationId: string;
-  readonly credentialId: string;
-  readonly scopes: readonly string[];
-}
-
 /**
- * The attestation path's live principal: the BINDING ROW, plus the application
- * and owner it hangs off.
+ * The entry point's live principal: the BINDING ROW, plus the application and
+ * owner it hangs off.
  *
- * There is no `ApplicationCredential` on this path, so there is nothing for
- * `resolvePrincipal` to find and the credential check cannot simply be skipped
- * — it is the live ceiling. `application_workload_identities` is its exact
+ * There is no `ApplicationCredential` behind an entry point — the one it used to
+ * pin is retired — so the binding is the live ceiling. `application_workload_identities` is its exact
  * counterpart (ADR 0026): staff write the row, it names one role and one
  * application, it can expire, and since #1350 it names scopes. Deleting it,
  * expiring it, dropping a scope from it, deactivating the application or
@@ -131,13 +123,8 @@ export interface RequesterAssertionDependencies {
   readonly issuer: string;
   readonly now: () => Date;
   readonly signing: () => RequesterAssertionSigning;
-  /** Live app + credential + trust + owner state; `null` when no longer usable. */
-  readonly resolvePrincipal: (
-    applicationId: string,
-    credentialId: string,
-  ) => Promise<LiveServicePrincipal | null>;
   /**
-   * The same question for an ATTESTED caller: live binding + app + trust + owner
+   * The live ceiling for the attested caller: live binding + app + trust + owner
    * state; `null` when no longer usable. Looked up by `(provider, subject)` —
    * the role, not the handle — because that is the unique key the binding table
    * is indexed on and the one an operator can read off a task definition.
@@ -212,47 +199,36 @@ function sessionBelongsToApplication(
 /**
  * The value the caller actually presented as its `credentialId`.
  *
- * Read off the match rather than off the request, so it is by construction one
- * of the two values the entry point admits.
+ * Read off the match rather than off the request, so it is by construction the
+ * handle the entry point admits.
  */
 function presentedCredentialId(principal: NativeProductAgentPrincipal): string {
-  return principal.kind === 'credential' ? principal.credentialId : principal.handle;
+  return principal.handle;
 }
 
 /**
- * The LIVE ceiling, on whichever row the caller actually has.
+ * The LIVE ceiling, on the caller's BINDING.
  *
  * A scope staff removed must not survive in an hour-old token, so the token's
- * own claims are never the last word — the row behind them is re-read on every
- * mint and every introspection. Which row that is depends on how the caller
- * proved itself, and the two must be equally strong:
- *
- *   * a credential-minted caller is its `ApplicationCredential`
- *     (`resolveLiveAgencyCoordinator`: active application, trusted, active
- *     owner, no closure fence, usable service credential);
- *   * an attested caller has no credential row at all and is its BINDING
- *     (`resolveLiveAgencyWorkload`: the same application, trust, owner and
- *     fence checks, plus an unexpired `application_workload_identities` row
- *     whose scopes are decided by the same `workloadBindingScopes` the mint
- *     used).
- *
- * Both then have to still name `inference:invoke`. Skipping the check for the
- * attested caller — on the grounds that there is no credential to check — would
- * make an attested token the one bearer no revocation reaches.
+ * own claims are never the last word — the binding behind them is re-read on
+ * every mint and every introspection (`resolveLiveAgencyWorkload`: active
+ * application, trusted, active owner, no closure fence, plus an unexpired
+ * `application_workload_identities` row whose scopes are decided by the same
+ * `workloadBindingScopes` the mint used). It then has to still name
+ * `inference:invoke`. Skipping the check on the grounds that there is no
+ * credential to check would make an attested token the one bearer no
+ * revocation reaches.
  */
 async function liveEntryPrincipal(
   deps: RequesterAssertionDependencies,
   match: NativeProductAgentEntryPointMatch,
 ): Promise<'service_principal_not_live' | 'missing_inference_scope' | null> {
   const { entry, principal } = match;
-  const live =
-    principal.kind === 'credential'
-      ? await deps.resolvePrincipal(entry.applicationId, principal.credentialId)
-      : await deps.resolveWorkloadPrincipal(
-          entry.applicationId,
-          principal.provider,
-          principal.subject,
-        );
+  const live = await deps.resolveWorkloadPrincipal(
+    entry.applicationId,
+    principal.provider,
+    principal.subject,
+  );
   if (!live) return 'service_principal_not_live';
   if (!live.scopes.includes(REQUIRED_SERVICE_SCOPE)) return 'missing_inference_scope';
   return null;
@@ -283,7 +259,7 @@ export async function mintRequesterAssertion(
   const entry = match.entry;
   // The token's own scopes, then the live ceiling: a scope staff removed must
   // not survive in an hour-old token, and a scope never minted into the token
-  // must not be conjured from the credential.
+  // must not be conjured from the binding.
   if (!input.caller.scopes.includes(REQUIRED_SERVICE_SCOPE))
     return { ok: false, reason: 'missing_inference_scope' };
   const principalRefusal = await liveEntryPrincipal(deps, match);
@@ -324,17 +300,12 @@ export async function mintRequesterAssertion(
     exp: issuedAt + REQUESTER_ASSERTION_TTL_SECONDS,
     azp: entry.applicationId,
     /**
-     * WHAT CALLED, not what the entry point also admits.
+     * WHAT CALLED: the `wl_…` handle the attested caller's token carries.
      *
-     * For a credential-minted caller this is the pinned credential id, exactly
-     * as before. For an attested one it is the `wl_…` handle its token carries.
-     * Naming the credential in an assertion a workload asked for would be a
-     * claim about a credential that did not call and whose liveness was never
-     * checked — and it would not work: every verifier of this claim, Oxy's own
-     * `introspectRequesterAssertion` and `@oxy.so/core`'s
-     * `requesterAssertion.ts` alike, compares `cid` to the PRESENTER's verified
-     * service-token `credentialId`, which for an attested presenter is the
-     * handle. An honest claim and a working one are the same claim here.
+     * Every verifier of this claim, Oxy's own `introspectRequesterAssertion`
+     * and `@oxy.so/core`'s `requesterAssertion.ts` alike, compares `cid` to the
+     * PRESENTER's verified service-token `credentialId`, which for an attested
+     * presenter is the handle.
      */
     cid: presentedCredentialId(match.principal),
     agentId: entry.agentId,
