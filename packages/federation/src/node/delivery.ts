@@ -81,7 +81,10 @@ export interface DeliverSingleHopInit {
  * response WITHOUT following redirects. Mention adapts its `@oxy.so/core/server`-
  * backed `fetchUpstreamSingleHop` into this shape.
  */
-export type DeliverSingleHop = (url: string, init: DeliverSingleHopInit) => Promise<DeliverSingleHopResult>;
+export type DeliverSingleHop = (
+  url: string,
+  init: DeliverSingleHopInit,
+) => Promise<DeliverSingleHopResult>;
 
 /** A durable-delivery job body (BullMQ + the fallback queue share this shape). */
 export interface DeliveryQueueJob {
@@ -94,9 +97,8 @@ export interface DeliveryQueueJob {
  * The durable-delivery fallback (written when BullMQ is unavailable).
  *
  * App-supplied, like every other store in this package: the engine never names
- * a database. Mention backs it with Postgres; the method names below are the
- * ones its original Mongoose collection exposed and are kept only so the
- * adapter shape stays stable for consumers.
+ * a database. Mention backs it with Postgres; the method names below are kept
+ * stable so the adapter shape stays stable for consumers.
  */
 export interface DeliveryFallbackQueue {
   /** Insert one fallback delivery row (`queueDelivery`). */
@@ -134,7 +136,9 @@ export interface DeliveryActorStore<TActor extends DeliveryActorFields> {
   /** One cached actor by uri (`resolveActorInbox` / `sendFollow` / `sendUndoFollow` / `sendAccept`). */
   findActorByUri(uri: string): Promise<TActor | null>;
   /** Inbox fields for many actor uris (`deliverToFollowers`, step 2). */
-  findActorInboxesByUris(uris: string[]): Promise<Array<Pick<DeliveryActorFields, 'sharedInboxUrl' | 'inboxUrl'>>>;
+  findActorInboxesByUris(
+    uris: string[],
+  ): Promise<Array<Pick<DeliveryActorFields, 'sharedInboxUrl' | 'inboxUrl'>>>;
 }
 
 /** Bring-your-own-store: the AP follow records stay in the app DB behind this adapter. */
@@ -142,9 +146,16 @@ export interface DeliveryFollowStore {
   /** Accepted inbound followers' remote actor uris (`deliverToFollowers`, step 1). */
   listAcceptedInboundFollowerActorUris(localOxyUserId: string): Promise<string[]>;
   /** Upsert an outbound pending follow with its activity id (`sendFollow`). */
-  upsertOutboundPending(localOxyUserId: string, remoteActorUri: string, activityId: string): Promise<void>;
+  upsertOutboundPending(
+    localOxyUserId: string,
+    remoteActorUri: string,
+    activityId: string,
+  ): Promise<void>;
   /** The outbound follow row for `(localOxyUserId, remoteActorUri)` (`sendUndoFollow`). */
-  findOutbound(localOxyUserId: string, remoteActorUri: string): Promise<{ _id: unknown; activityId?: string } | null>;
+  findOutbound(
+    localOxyUserId: string,
+    remoteActorUri: string,
+  ): Promise<{ _id: unknown; activityId?: string } | null>;
   /** Delete a follow row by id (`sendUndoFollow`). */
   deleteById(id: unknown): Promise<void>;
 }
@@ -356,7 +367,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         ...sigHeaders,
       };
 
-      logger.debug(`[FedDeliver] POST ${targetInbox} body=${body} sig-headers=${sigHeaders.Signature?.match(/headers="([^"]+)"/)?.[1]}`);
+      logger.debug(
+        `[FedDeliver] POST ${targetInbox} body=${body} sig-headers=${sigHeaders.Signature?.match(/headers="([^"]+)"/)?.[1]}`,
+      );
 
       const { response, status } = await config.deliverSingleHop(targetInbox, {
         method: 'POST',
@@ -372,7 +385,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       }
 
       const responseBody = await readResponsePreview(response);
-      logger.debug(`Activity delivery failed to ${targetInbox}: ${status} body=${responseBody.slice(0, 500)}`);
+      logger.debug(
+        `Activity delivery failed to ${targetInbox}: ${status} body=${responseBody.slice(0, 500)}`,
+      );
       return false;
     } catch (err) {
       logger.debug(`Activity delivery error to ${targetInbox}:`, err);
@@ -402,7 +417,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       .enqueueDelivery({ activityJson: activity, targetInbox, senderOxyUserId })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to the durable queue: ${message}`);
+        logger.warn(
+          `[FedDeliver] enqueue failed for ${targetInbox}, falling back to the durable queue: ${message}`,
+        );
         return false;
       });
 
@@ -473,12 +490,19 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         .enqueueDelivery({ activityJson: activity, targetInbox: inbox, senderOxyUserId })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to the durable queue: ${message}`);
+          logger.warn(
+            `[FedDeliver] follower enqueue failed for ${inbox}, falling back to the durable queue: ${message}`,
+          );
           return false;
         });
 
       if (!enqueued) {
-        durableFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
+        durableFallback.push({
+          activityJson: activity,
+          targetInbox: inbox,
+          senderOxyUserId,
+          nextAttemptAt: now,
+        });
       }
     }
 
@@ -512,7 +536,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedSync] deferred follow delivery setup failed for ${remoteActorUri}: ${message}`);
+        logger.warn(
+          `[FedSync] deferred follow delivery setup failed for ${remoteActorUri}: ${message}`,
+        );
       }
     })();
   }
@@ -541,9 +567,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     const localActorUri = urls.actor(localUsername);
     // Use the actor _id when known, otherwise a stable hash of the URI so the
     // activity ID is deterministic across retries before the actor is cached.
-    const activityIdSuffix = cached?._id
-      ? String(cached._id)
-      : encodeURIComponent(canonicalUri);
+    const activityIdSuffix = cached?._id ? String(cached._id) : encodeURIComponent(canonicalUri);
     const activityId = `${localActorUri}/follows/${activityIdSuffix}`;
 
     // Create or update the follow record
@@ -567,7 +591,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedSync] background follow delivery failed for ${canonicalUri}: ${message}`);
+          logger.warn(
+            `[FedSync] background follow delivery failed for ${canonicalUri}: ${message}`,
+          );
         });
     } else {
       // No cached inbox yet — resolve the actor's inbox in the background and
@@ -623,10 +649,14 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`);
+          logger.warn(
+            `[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`,
+          );
         });
     } else if (targetInbox) {
-      logger.warn(`[FedDeliver] skipping Undo(Follow) delivery to blocked origin ${remoteActorUri}`);
+      logger.warn(
+        `[FedDeliver] skipping Undo(Follow) delivery to blocked origin ${remoteActorUri}`,
+      );
     }
 
     return true;
@@ -649,7 +679,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       return;
     }
     if (isBlockedUrl(targetInbox) || isBlockedUrl(remoteActorUri)) {
-      logger.warn(`[FedDeliver] refusing Accept(Follow) delivery to blocked origin ${remoteActorUri}`);
+      logger.warn(
+        `[FedDeliver] refusing Accept(Follow) delivery to blocked origin ${remoteActorUri}`,
+      );
       return;
     }
 
@@ -681,7 +713,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     try {
       const user = await config.identity.resolveUserByUsername(username);
       if (!user) {
-        logger.warn(`[FedDeliver] cannot federate actor update for ${username}: user not resolvable`);
+        logger.warn(
+          `[FedDeliver] cannot federate actor update for ${username}: user not resolvable`,
+        );
         return;
       }
 

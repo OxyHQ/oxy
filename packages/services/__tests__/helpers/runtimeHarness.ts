@@ -22,7 +22,11 @@ export interface TestRuntimeOptions {
 export function createTestRuntime(options: TestRuntimeOptions = {}): OxyRuntime {
   return createOxyRuntime({
     oxyServices: {
-      session: { get accessToken() { return (options.getAccessToken ?? (() => null))(); } },
+      session: {
+        get accessToken() {
+          return (options.getAccessToken ?? (() => null))();
+        },
+      },
       users: { getMany: options.getUsersByIds ?? (async () => []) },
     },
     sessionClient: {

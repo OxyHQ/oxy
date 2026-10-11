@@ -24,20 +24,17 @@
  * field, not just the value: a string `"42"` compares unequal to `42`, but a
  * test that only checked one counter's value would let the other seven regress.
  *
- * ## `activeSessions` gained an expiry predicate
+ * ## `activeSessions` carries an expiry predicate
  *
- * Mongo counted `{ isActive: true }` and relied on a TTL index to have already
- * removed expired rows. `sessions` is registered in `db/expiry.ts` with
- * `retentionSeconds: 0`, so the sweep is the port of that TTL — but nothing in
- * this codebase ever DELETES a session row (`schema/sessions.ts`: "`deactivate`
+ * `sessions` is registered in `db/expiry.ts` with `retentionSeconds: 0`, but
+ * nothing in this codebase ever DELETES a session row (`schema/sessions.ts`: "`deactivate`
  * never DELETES"), which makes an unfiltered count depend on a background job
  * running for its answer to be right rather than merely tidy. That is the class
- * (B) read `schema/CONVENTIONS.md` says to move into class (A) at port time by
- * adding the read-side filter, and it is the same `is_active and expires_at >
- * now()` the Mongoose `isValid()` method already spelled out. With a healthy
- * sweep the number is identical to Mongo's; without one it is still correct.
+ * (B) read `schema/CONVENTIONS.md` says to move into class (A) by adding the
+ * read-side filter `is_active and expires_at > now()`, so the number is correct
+ * with or without a healthy sweep.
  *
- * ## The wire format is otherwise byte-identical
+ * ## The wire format
  *
  * Same eight field names in the same order, plus the constant `aiModels` and an
  * ISO-8601 `timestamp`. `totalApplications` keeps its name — it was renamed from
@@ -78,8 +75,8 @@ interface PlatformStats {
 }
 
 /**
- * Distinct AI models the platform exposes. A constant in the Mongo version too —
- * nothing counts these, and inventing a query for them would be inventing data.
+ * Distinct AI models the platform exposes. A constant — nothing counts these,
+ * and inventing a query for them would be inventing data.
  */
 const AI_MODEL_COUNT = 4;
 
@@ -138,15 +135,13 @@ async function refreshStats(now: number): Promise<PlatformStats> {
       db
         .select({ n: count() })
         .from(sessions)
-        .where(and(eq(sessions.isActive, true), gt(sessions.expiresAt, new Date())))
+        .where(and(eq(sessions.isActive, true), gt(sessions.expiresAt, new Date()))),
     ),
     total(db.select({ n: count() }).from(messages)),
     total(db.select({ n: count() }).from(notifications)),
     total(db.select({ n: count() }).from(files)),
     total(db.select({ n: count() }).from(transactions)),
-    total(
-      db.select({ n: count() }).from(applications).where(eq(applications.status, 'active'))
-    ),
+    total(db.select({ n: count() }).from(applications).where(eq(applications.status, 'active'))),
     total(db.select({ n: count() }).from(userFollows)),
   ]);
 
@@ -193,7 +188,7 @@ router.get('/stream', (req: Request, res: Response) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no', // Disable Nginx buffering
   });
 

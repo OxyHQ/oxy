@@ -46,12 +46,12 @@ const FOREIGN_KEY_VIOLATION = '23503';
 const CHECK_VIOLATION = '23514';
 
 /**
- * Mongo's rank weights `{name: 10, displayName: 8, aliases: 5, description: 1}`,
+ * The rank weights `{name: 10, displayName: 8, aliases: 5, description: 1}`,
  * normalized and ordered `{D, C, B, A}` as `ts_rank` expects. Postgres's DEFAULT
  * weights order the four fields the same way but do not reproduce these ratios,
- * which is exactly why the call-site port must pass this array explicitly.
+ * which is exactly why the call site must pass this array explicitly.
  */
-const MONGO_RANK_WEIGHTS = '{0.1, 0.5, 0.8, 1.0}';
+const RANK_WEIGHTS = '{0.1, 0.5, 0.8, 1.0}';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
@@ -175,7 +175,7 @@ describe('user_follows — one typed table, both sides constrained', () => {
     await getDb().insert(userFollows).values({ followerId: follower, followedId: followed });
 
     const error = await rejection(
-      getDb().insert(userFollows).values({ followerId: follower, followedId: followed })
+      getDb().insert(userFollows).values({ followerId: follower, followedId: followed }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorMessage(error)).toContain('user_follows_follower_id_followed_id_key');
@@ -186,25 +186,26 @@ describe('user_follows — one typed table, both sides constrained', () => {
     const b = await account();
     await getDb().insert(userFollows).values({ followerId: a, followedId: b });
     await expect(
-      getDb().insert(userFollows).values({ followerId: b, followedId: a })
+      getDb().insert(userFollows).values({ followerId: b, followedId: a }),
     ).resolves.toBeDefined();
   });
 
-  it('refuses a self-follow, which Mongo permitted', async () => {
+  it('refuses a self-follow', async () => {
     const self = await account();
     const error = await rejection(
-      getDb().insert(userFollows).values({ followerId: self, followedId: self })
+      getDb().insert(userFollows).values({ followerId: self, followedId: self }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(error)).toContain('user_follows_not_self_check');
   });
 
   it('refuses an edge into an account that does not exist', async () => {
-    // The guarantee Mongo never had, and the reason `followed_id` is a real
-    // foreign key rather than a discriminated polymorphic column.
+    // The reason `followed_id` is a real foreign key rather than a discriminated polymorphic column.
     const follower = await account();
     const error = await rejection(
-      getDb().insert(userFollows).values({ followerId: follower, followedId: `ghost-${uniqueId()}` })
+      getDb()
+        .insert(userFollows)
+        .values({ followerId: follower, followedId: `ghost-${uniqueId()}` }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
     expect(pgErrorMessage(error)).toContain('user_follows_followed_id_users_id_fk');
@@ -255,12 +256,9 @@ describe('user_follows — the string/ObjectId ambiguity is gone', () => {
     ]);
   });
 
-  it('no longer accepts two spellings of the same id as equivalent', async () => {
-    // Mongo's `followedId` was declared `ObjectId`, so a call site could pass a
-    // `Types.ObjectId` OR its `.toString()` and Mongoose cast between them
-    // silently — which is the only reason `followedIdToObjectId`
-    // (`routes/profiles.ts:894`) existed. That cast was CASE-INSENSITIVE, so
-    // these two spellings were ONE key in Mongo.
+  it('does not accept two spellings of the same id as equivalent', async () => {
+    // These two spellings of a legacy 24-hex id differ only in case. A
+    // case-insensitive id cast would treat them as ONE key.
     const lower = 'a1b2c3d4e5f60718293a4b5c';
     const upper = lower.toUpperCase();
 
@@ -296,7 +294,7 @@ describe('user_follows — the string/ObjectId ambiguity is gone', () => {
     const follower = await account();
 
     const error = await rejection(
-      getDb().insert(userFollows).values({ followerId: follower, followedId: lower.toUpperCase() })
+      getDb().insert(userFollows).values({ followerId: follower, followedId: lower.toUpperCase() }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -309,12 +307,12 @@ describe('restrictions — mirrors blocks, minus the index blocks needed', () =>
     await getDb().insert(restrictions).values({ userId: a, restrictedId: b });
 
     const error = await rejection(
-      getDb().insert(restrictions).values({ userId: a, restrictedId: b })
+      getDb().insert(restrictions).values({ userId: a, restrictedId: b }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     await expect(
-      getDb().insert(restrictions).values({ userId: b, restrictedId: a })
+      getDb().insert(restrictions).values({ userId: b, restrictedId: a }),
     ).resolves.toBeDefined();
   });
 
@@ -335,22 +333,34 @@ describe('notifications — participants constrained, entity deliberately not', 
     const recipient = await account();
     const actor = await account();
     const entityId = uniqueId();
-    await getDb()
-      .insert(notifications)
-      .values({ recipientId: recipient, actorId: actor, type: 'like', entityId, entityType: 'post' });
+    await getDb().insert(notifications).values({
+      recipientId: recipient,
+      actorId: actor,
+      type: 'like',
+      entityId,
+      entityType: 'post',
+    });
 
     const error = await rejection(
-      getDb()
-        .insert(notifications)
-        .values({ recipientId: recipient, actorId: actor, type: 'like', entityId, entityType: 'post' })
+      getDb().insert(notifications).values({
+        recipientId: recipient,
+        actorId: actor,
+        type: 'like',
+        entityId,
+        entityType: 'post',
+      }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     // A different TYPE against the same entity is a different notification.
     await expect(
-      getDb()
-        .insert(notifications)
-        .values({ recipientId: recipient, actorId: actor, type: 'reply', entityId, entityType: 'post' })
+      getDb().insert(notifications).values({
+        recipientId: recipient,
+        actorId: actor,
+        type: 'reply',
+        entityId,
+        entityType: 'post',
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -361,23 +371,27 @@ describe('notifications — participants constrained, entity deliberately not', 
     // at all.
     const recipient = await account();
     await expect(
-      getDb().insert(notifications).values({
-        recipientId: recipient,
-        actorId: await account(),
-        type: 'mention',
-        entityId: `mention-post-${uniqueId()}`,
-        entityType: 'post',
-      })
+      getDb()
+        .insert(notifications)
+        .values({
+          recipientId: recipient,
+          actorId: await account(),
+          type: 'mention',
+          entityId: `mention-post-${uniqueId()}`,
+          entityType: 'post',
+        }),
     ).resolves.toBeDefined();
 
     const error = await rejection(
-      getDb().insert(notifications).values({
-        recipientId: recipient,
-        actorId: `ghost-${uniqueId()}`,
-        type: 'mention',
-        entityId: uniqueId(),
-        entityType: 'post',
-      })
+      getDb()
+        .insert(notifications)
+        .values({
+          recipientId: recipient,
+          actorId: `ghost-${uniqueId()}`,
+          type: 'mention',
+          entityId: uniqueId(),
+          entityType: 'post',
+        }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -393,7 +407,7 @@ describe('notifications — participants constrained, entity deliberately not', 
       getDb().execute(sql`
         insert into notifications (id, recipient_id, actor_id, type, entity_id, entity_type)
         values (${uniqueId()}, ${recipient}, ${actor}, 'subscribed', ${uniqueId()}, 'post')
-      `)
+      `),
     );
     expect(pgErrorCode(badType)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(badType)).toContain('notifications_type_check');
@@ -402,7 +416,7 @@ describe('notifications — participants constrained, entity deliberately not', 
       getDb().execute(sql`
         insert into notifications (id, recipient_id, actor_id, type, entity_id, entity_type)
         values (${uniqueId()}, ${recipient}, ${actor}, 'like', ${uniqueId()}, 'comment')
-      `)
+      `),
     );
     expect(pgErrorCode(badEntity)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(badEntity)).toContain('notifications_entity_type_check');
@@ -428,11 +442,11 @@ describe('topics — the weighted text index', () => {
     return row.id;
   }
 
-  /** `ts_rank` under Mongo's weight ratios for one query term. */
+  /** `ts_rank` under the intended weight ratios for one query term. */
   async function rank(id: string, term: string): Promise<number> {
     const [row] = await getDb()
       .select({
-        rank: sql<number>`ts_rank(${sql.raw(`'${MONGO_RANK_WEIGHTS}'`)}, ${topics.searchVector}, to_tsquery('english', ${term}))`,
+        rank: sql<number>`ts_rank(${sql.raw(`'${RANK_WEIGHTS}'`)}, ${topics.searchVector}, to_tsquery('english', ${term}))`,
       })
       .from(topics)
       .where(eq(topics.id, id));
@@ -441,10 +455,7 @@ describe('topics — the weighted text index', () => {
 
   it('ranks name above display name above aliases above description', async () => {
     const id = await searchableTopic();
-    const [row] = await getDb()
-      .select({ name: topics.name })
-      .from(topics)
-      .where(eq(topics.id, id));
+    const [row] = await getDb().select({ name: topics.name }).from(topics).where(eq(topics.id, id));
 
     const byName = await rank(id, row.name);
     const byDisplayName = await rank(id, 'videogam');
@@ -499,7 +510,7 @@ describe('topics — the weighted text index', () => {
       // assembled element by element — each element still a bound parameter.
       const literal = sql`array[${sql.join(
         aliases.map((alias) => sql`${alias}`),
-        sql`, `
+        sql`, `,
       )}]::text[]`;
       const [row] = await getDb().execute<{ equivalent: boolean }>(sql`
         select strip(to_tsvector('english', replace(array_to_tsvector(${literal})::text, '''', ' ')))
@@ -531,7 +542,7 @@ describe('topics — the weighted text index', () => {
       getDb().execute(sql`
         insert into topics (id, name, slug, display_name, type, source, translations)
         values (${uniqueId()}, ${`bad${token}`}, ${`bad${token}`}, 'Bad', 'category', 'seed', '[]'::jsonb)
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(error)).toContain('topics_translations_object_check');
@@ -586,8 +597,7 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
   });
 
   it('preserves an empty object exactly, distinct from NULL', async () => {
-    // Mongoose sets `minimize: false` on this schema precisely so `{}` is
-    // STORED rather than stripped: a progress record with no entries yet is not
+    // `{}` must be STORED rather than stripped: a progress record with no entries yet is not
     // the same thing as no record.
     const userId = await account();
     const [stored] = await getDb()
@@ -640,7 +650,7 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
     expect(byKey.get('absent')).toBeNull();
   });
 
-  it('refuses an identifier the Mongoose validator would have rejected', async () => {
+  it('refuses an identifier `APP_DATA_IDENTIFIER_PATTERN` rejects', async () => {
     const userId = await account();
 
     for (const [column, values] of [
@@ -648,9 +658,10 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
       ['key', ['Progress', 'pro gress', 'pro/gress', '']],
     ] as const) {
       for (const value of values) {
-        const row = column === 'namespace'
-          ? { userId, namespace: value, key: 'progress' }
-          : { userId, namespace: 'academy', key: value };
+        const row =
+          column === 'namespace'
+            ? { userId, namespace: value, key: 'progress' }
+            : { userId, namespace: 'academy', key: value };
         const error = await rejection(getDb().insert(userAppData).values(row));
         expect({ column, value, code: pgErrorCode(error) }).toEqual({
           column,
@@ -662,12 +673,21 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
     }
   });
 
-  it('states the same identifier rule the Mongoose model does', async () => {
-    // The SQL pattern is written for POSIX regex and the Mongoose one for
-    // JavaScript, so they cannot be compared as strings — they are compared by
+  it('states the same identifier rule as the JavaScript pattern', async () => {
+    // The SQL pattern is written for POSIX regex and `APP_DATA_IDENTIFIER_PATTERN`
+    // for JavaScript, so they cannot be compared as strings — they are compared by
     // BEHAVIOUR, against inputs on both sides of the boundary.
     const accepted = ['a', 'academy', 'oxy-academy', 'oxy_academy_2', '0', 'x'.repeat(64)];
-    const refused = ['', 'A', 'Academy', 'oxy academy', 'oxy.academy', 'oxy/academy', 'x'.repeat(65), 'ñ'];
+    const refused = [
+      '',
+      'A',
+      'Academy',
+      'oxy academy',
+      'oxy.academy',
+      'oxy/academy',
+      'x'.repeat(65),
+      'ñ',
+    ];
 
     for (const value of [...accepted, ...refused]) {
       const [row] = await getDb().execute<{ matches: boolean }>(sql`
@@ -687,19 +707,25 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
 
   it('permits one row per (user, namespace, key) and no more', async () => {
     const userId = await account();
-    await getDb().insert(userAppData).values({ userId, namespace: 'academy', key: 'progress', value: 1 });
+    await getDb()
+      .insert(userAppData)
+      .values({ userId, namespace: 'academy', key: 'progress', value: 1 });
 
     const error = await rejection(
-      getDb().insert(userAppData).values({ userId, namespace: 'academy', key: 'progress', value: 2 })
+      getDb()
+        .insert(userAppData)
+        .values({ userId, namespace: 'academy', key: 'progress', value: 2 }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     // A different key, and the same key under another namespace, both stand.
     await expect(
-      getDb().insert(userAppData).values([
-        { userId, namespace: 'academy', key: 'streak', value: 2 },
-        { userId, namespace: 'inbox', key: 'progress', value: 3 },
-      ])
+      getDb()
+        .insert(userAppData)
+        .values([
+          { userId, namespace: 'academy', key: 'streak', value: 2 },
+          { userId, namespace: 'inbox', key: 'progress', value: 3 },
+        ]),
     ).resolves.toBeDefined();
   });
 });
@@ -714,11 +740,11 @@ describe('moderation policy — the arrays that became child tables', () => {
     const error = await rejection(
       getDb()
         .insert(moderationPolicySeverityRules)
-        .values({ policyId: id, severity: 'high', points: -30, riskPoints: 15 })
+        .values({ policyId: id, severity: 'high', points: -30, riskPoints: 15 }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorMessage(error)).toContain(
-      'moderation_policy_severity_rules_policy_id_severity_key'
+      'moderation_policy_severity_rules_policy_id_severity_key',
     );
 
     // Another severity under the same version, and the same severity under a
@@ -730,7 +756,7 @@ describe('moderation policy — the arrays that became child tables', () => {
         .values([
           { policyId: id, severity: 'low', points: -5, riskPoints: 2 },
           { policyId: other.id, severity: 'high', points: -20, riskPoints: 10 },
-        ])
+        ]),
     ).resolves.toBeDefined();
   });
 
@@ -743,9 +769,13 @@ describe('moderation policy — the arrays that became child tables', () => {
     expect(row.riskExpiryDays).toBeNull();
 
     const error = await rejection(
-      getDb()
-        .insert(moderationPolicySeverityRules)
-        .values({ policyId: id, severity: 'medium', points: -10, riskPoints: 5, riskExpiryDays: 0 })
+      getDb().insert(moderationPolicySeverityRules).values({
+        policyId: id,
+        severity: 'medium',
+        points: -10,
+        riskPoints: 5,
+        riskExpiryDays: 0,
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -759,7 +789,7 @@ describe('moderation policy — the arrays that became child tables', () => {
     const error = await rejection(
       getDb()
         .insert(moderationPolicyStandingThresholds)
-        .values({ policyId: id, standing: 'watch', minRisk: 20 })
+        .values({ policyId: id, standing: 'watch', minRisk: 20 }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -837,7 +867,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     const error = await rejection(getDb().insert(conductStrikes).values(values));
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorMessage(error)).toContain(
-      'conduct_strikes_incident_id_user_id_effect_type_revision_key'
+      'conduct_strikes_incident_id_user_id_effect_type_revision_key',
     );
 
     // A different AXIS in the same incident is a distinct consequence, not a
@@ -845,11 +875,13 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     await expect(
       getDb()
         .insert(conductStrikes)
-        .values({ ...values, effectType: 'review_abuse_penalty' })
+        .values({ ...values, effectType: 'review_abuse_penalty' }),
     ).resolves.toBeDefined();
     // And an appeal's revision creates its own strike.
     await expect(
-      getDb().insert(conductStrikes).values({ ...values, decisionRevision: 2 })
+      getDb()
+        .insert(conductStrikes)
+        .values({ ...values, decisionRevision: 2 }),
     ).resolves.toBeDefined();
   });
 
@@ -860,7 +892,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     const error = await rejection(
       getDb()
         .delete(moderationPolicies)
-        .where(eq(moderationPolicies.policyVersion, values.policyVersion))
+        .where(eq(moderationPolicies.policyVersion, values.policyVersion)),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
     expect(pgErrorMessage(error)).toContain('conduct_strikes_policy_version_fk');
@@ -871,7 +903,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     const error = await rejection(
       getDb()
         .insert(conductStrikes)
-        .values({ ...values, policyVersion: `oxy.absent.${uniqueId()}` })
+        .values({ ...values, policyVersion: `oxy.absent.${uniqueId()}` }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -884,13 +916,19 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
       .returning({ id: conductStrikes.id });
 
     const halfExpired = await rejection(
-      getDb().update(conductStrikes).set({ status: 'expired' }).where(eq(conductStrikes.id, row.id))
+      getDb()
+        .update(conductStrikes)
+        .set({ status: 'expired' })
+        .where(eq(conductStrikes.id, row.id)),
     );
     expect(pgErrorCode(halfExpired)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(halfExpired)).toContain('conduct_strikes_resolution_complete_check');
 
     const halfActive = await rejection(
-      getDb().update(conductStrikes).set({ resolvedAt: new Date() }).where(eq(conductStrikes.id, row.id))
+      getDb()
+        .update(conductStrikes)
+        .set({ resolvedAt: new Date() })
+        .where(eq(conductStrikes.id, row.id)),
     );
     expect(pgErrorCode(halfActive)).toBe(CHECK_VIOLATION);
 
@@ -899,7 +937,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
       getDb()
         .update(conductStrikes)
         .set({ status: 'expired', resolvedAt: new Date() })
-        .where(eq(conductStrikes.id, row.id))
+        .where(eq(conductStrikes.id, row.id)),
     ).resolves.toBeDefined();
   });
 
@@ -946,7 +984,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     const redelivered = await rejection(
       getDb()
         .insert(moderationEffects)
-        .values({ ...effect, incidentId: `inc-${uniqueId()}` })
+        .values({ ...effect, incidentId: `inc-${uniqueId()}` }),
     );
     expect(pgErrorCode(redelivered)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorMessage(redelivered)).toContain('moderation_effects_event_id_key');
@@ -957,11 +995,11 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
     const reEmitted = await rejection(
       getDb()
         .insert(moderationEffects)
-        .values({ ...effect, eventId: `evt-${uniqueId()}` })
+        .values({ ...effect, eventId: `evt-${uniqueId()}` }),
     );
     expect(pgErrorCode(reEmitted)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorMessage(reEmitted)).toContain(
-      'moderation_effects_incident_principal_type_revision_key'
+      'moderation_effects_incident_principal_type_revision_key',
     );
 
     // And a genuinely different incident, with its own event id, is accepted —
@@ -974,7 +1012,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
           eventId: `evt-${uniqueId()}`,
           incidentId: `inc-${uniqueId()}`,
           idempotencyKey: `idem-${uniqueId()}`,
-        })
+        }),
     ).resolves.toBeDefined();
   });
 
@@ -1011,7 +1049,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
       getDb()
         .update(moderationEffects)
         .set({ status: 'reversed' })
-        .where(eq(moderationEffects.id, row.id))
+        .where(eq(moderationEffects.id, row.id)),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(error)).toContain('moderation_effects_reversal_complete_check');
@@ -1020,7 +1058,7 @@ describe('conduct_strikes and moderation_effects — one penalty per incident', 
       getDb()
         .update(moderationEffects)
         .set({ status: 'reversed', reversedAt: new Date(), reversalReason: 'appeal upheld' })
-        .where(eq(moderationEffects.id, row.id))
+        .where(eq(moderationEffects.id, row.id)),
     ).resolves.toBeDefined();
   });
 });
@@ -1030,9 +1068,7 @@ describe('reputation profiles — one per account, maps kept as objects', () => 
     const userId = await account();
     await getDb().insert(reporterReputationProfiles).values({ userId });
 
-    const error = await rejection(
-      getDb().insert(reporterReputationProfiles).values({ userId })
-    );
+    const error = await rejection(getDb().insert(reporterReputationProfiles).values({ userId }));
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
@@ -1062,11 +1098,11 @@ describe('reputation profiles — one per account, maps kept as objects', () => 
       getDb().execute(sql`
         insert into reporter_reputation_profiles (id, user_id, confirmed_by_family)
         values (${uniqueId()}, ${await account()}, '"spam"'::jsonb)
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(error)).toContain(
-      'reporter_reputation_profiles_confirmed_by_family_object_check'
+      'reporter_reputation_profiles_confirmed_by_family_object_check',
     );
   });
 
@@ -1107,7 +1143,7 @@ describe('reputation profiles — one per account, maps kept as objects', () => 
       getDb().execute(sql`
         insert into reviewer_reputation_profiles (id, user_id, status)
         values (${uniqueId()}, ${await account()}, 'banned')
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -1132,13 +1168,13 @@ describe('user_analytics — one aggregate per account per window', () => {
     await getDb().insert(userAnalytics).values({ userId, period: 'daily', date });
 
     const error = await rejection(
-      getDb().insert(userAnalytics).values({ userId, period: 'daily', date })
+      getDb().insert(userAnalytics).values({ userId, period: 'daily', date }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     // A different window over the same instant is a different aggregate.
     await expect(
-      getDb().insert(userAnalytics).values({ userId, period: 'weekly', date })
+      getDb().insert(userAnalytics).values({ userId, period: 'weekly', date }),
     ).resolves.toBeDefined();
   });
 
@@ -1186,12 +1222,14 @@ describe('user_analytics — one aggregate per account per window', () => {
   it('refuses an hour outside the day', async () => {
     const userId = await account();
     const error = await rejection(
-      getDb().insert(userAnalytics).values({
-        userId,
-        period: 'daily',
-        date: new Date('2026-07-02T00:00:00.000Z'),
-        peakActivityHour: 24,
-      })
+      getDb()
+        .insert(userAnalytics)
+        .values({
+          userId,
+          period: 'daily',
+          date: new Date('2026-07-02T00:00:00.000Z'),
+          peakActivityHour: 24,
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     expect(pgErrorMessage(error)).toContain('user_analytics_peak_activity_hour_check');
@@ -1199,12 +1237,14 @@ describe('user_analytics — one aggregate per account per window', () => {
     // 23 is the last valid hour — the pair is what proves the bound is `< 24`
     // rather than "any check at all".
     await expect(
-      getDb().insert(userAnalytics).values({
-        userId,
-        period: 'daily',
-        date: new Date('2026-07-03T00:00:00.000Z'),
-        peakActivityHour: 23,
-      })
+      getDb()
+        .insert(userAnalytics)
+        .values({
+          userId,
+          period: 'daily',
+          date: new Date('2026-07-03T00:00:00.000Z'),
+          peakActivityHour: 23,
+        }),
     ).resolves.toBeDefined();
   });
 });
@@ -1217,16 +1257,16 @@ describe('deleting an account takes its social graph and its records with it', (
 
     await getDb().insert(userFollows).values({ followerId: subject, followedId: other });
     await getDb().insert(restrictions).values({ userId: subject, restrictedId: other });
+    await getDb().insert(notifications).values({
+      recipientId: subject,
+      actorId: other,
+      type: 'follow',
+      entityId: uniqueId(),
+      entityType: 'profile',
+    });
     await getDb()
-      .insert(notifications)
-      .values({
-        recipientId: subject,
-        actorId: other,
-        type: 'follow',
-        entityId: uniqueId(),
-        entityType: 'profile',
-      });
-    await getDb().insert(userAppData).values({ userId: subject, namespace: 'academy', key: 'progress', value: {} });
+      .insert(userAppData)
+      .values({ userId: subject, namespace: 'academy', key: 'progress', value: {} });
     await getDb()
       .insert(userAnalytics)
       .values({ userId: subject, period: 'daily', date: new Date('2026-06-01T00:00:00.000Z') });
@@ -1247,49 +1287,87 @@ describe('deleting an account takes its social graph and its records with it', (
         transactionId: await ledgerEntry(subject),
       })
       .returning({ id: conductStrikes.id });
-    await getDb().insert(moderationEffects).values({
-      eventId: `evt-${uniqueId()}`,
-      incidentId: `inc-${uniqueId()}`,
-      caseId: `case-${uniqueId()}`,
-      decisionId: `dec-${uniqueId()}`,
-      decisionRevision: 1,
-      principalId: subject,
-      bindingId: await binding(subject),
-      applicationId: await application(),
-      effectType: 'conduct_penalty',
-      points: -20,
-      activeRisk: 10,
-      severity: 'high',
-      family: 'spam',
-      repetitionMultiplier: 1,
-      multiFindingMultiplier: 1,
-      idempotencyKey: `idem-${uniqueId()}`,
-      transactionId: await ledgerEntry(subject),
-      strikeId: strike.id,
-      policyVersionUniversal: 'universal.1',
-      policyVersionApplication: 'app.1',
-      policyVersionOxyConduct: version,
-      proofHash: uniqueId(),
-    });
+    await getDb()
+      .insert(moderationEffects)
+      .values({
+        eventId: `evt-${uniqueId()}`,
+        incidentId: `inc-${uniqueId()}`,
+        caseId: `case-${uniqueId()}`,
+        decisionId: `dec-${uniqueId()}`,
+        decisionRevision: 1,
+        principalId: subject,
+        bindingId: await binding(subject),
+        applicationId: await application(),
+        effectType: 'conduct_penalty',
+        points: -20,
+        activeRisk: 10,
+        severity: 'high',
+        family: 'spam',
+        repetitionMultiplier: 1,
+        multiFindingMultiplier: 1,
+        idempotencyKey: `idem-${uniqueId()}`,
+        transactionId: await ledgerEntry(subject),
+        strikeId: strike.id,
+        policyVersionUniversal: 'universal.1',
+        policyVersionApplication: 'app.1',
+        policyVersionOxyConduct: version,
+        proofHash: uniqueId(),
+      });
 
     await getDb().delete(users).where(eq(users.id, subject));
 
     for (const [label, rows] of [
-      ['follows', await getDb().select().from(userFollows).where(eq(userFollows.followerId, subject))],
-      ['restrictions', await getDb().select().from(restrictions).where(eq(restrictions.userId, subject))],
-      ['notifications', await getDb().select().from(notifications).where(eq(notifications.recipientId, subject))],
+      [
+        'follows',
+        await getDb().select().from(userFollows).where(eq(userFollows.followerId, subject)),
+      ],
+      [
+        'restrictions',
+        await getDb().select().from(restrictions).where(eq(restrictions.userId, subject)),
+      ],
+      [
+        'notifications',
+        await getDb().select().from(notifications).where(eq(notifications.recipientId, subject)),
+      ],
       ['appData', await getDb().select().from(userAppData).where(eq(userAppData.userId, subject))],
-      ['analytics', await getDb().select().from(userAnalytics).where(eq(userAnalytics.userId, subject))],
-      ['reporterProfile', await getDb().select().from(reporterReputationProfiles).where(eq(reporterReputationProfiles.userId, subject))],
-      ['reviewerProfile', await getDb().select().from(reviewerReputationProfiles).where(eq(reviewerReputationProfiles.userId, subject))],
-      ['strikes', await getDb().select().from(conductStrikes).where(eq(conductStrikes.userId, subject))],
-      ['effects', await getDb().select().from(moderationEffects).where(eq(moderationEffects.principalId, subject))],
+      [
+        'analytics',
+        await getDb().select().from(userAnalytics).where(eq(userAnalytics.userId, subject)),
+      ],
+      [
+        'reporterProfile',
+        await getDb()
+          .select()
+          .from(reporterReputationProfiles)
+          .where(eq(reporterReputationProfiles.userId, subject)),
+      ],
+      [
+        'reviewerProfile',
+        await getDb()
+          .select()
+          .from(reviewerReputationProfiles)
+          .where(eq(reviewerReputationProfiles.userId, subject)),
+      ],
+      [
+        'strikes',
+        await getDb().select().from(conductStrikes).where(eq(conductStrikes.userId, subject)),
+      ],
+      [
+        'effects',
+        await getDb()
+          .select()
+          .from(moderationEffects)
+          .where(eq(moderationEffects.principalId, subject)),
+      ],
     ] as const) {
       expect({ [label]: rows.length }).toEqual({ [label]: 0 });
     }
 
     // The counterparty is untouched: only the erased account's own rows go.
-    const [survivor] = await getDb().select({ id: users.id }).from(users).where(eq(users.id, other));
+    const [survivor] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, other));
     expect(survivor).toEqual({ id: other });
   });
 });

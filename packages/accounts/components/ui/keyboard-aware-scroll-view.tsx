@@ -45,4 +45,3 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 });
-

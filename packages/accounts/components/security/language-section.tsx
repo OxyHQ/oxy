@@ -22,21 +22,28 @@ export function LanguageSection() {
   const { t } = useTranslation();
   const { currentLanguage } = useOxy();
 
-  const items = useMemo<GroupedItem[]>(() => [{
-    id: 'app-language',
-    icon: 'translate',
-    iconColor: colors.sidebarIconData,
-    title: t('security.language.label'),
-    // Reflect the account's actual primary locale (its native endonym),
-    // which may be a region variant the app UI itself does not ship.
-    subtitle: getNativeLanguageName(currentLanguage),
-    onPress: () => showBottomSheet('LanguageSelector'),
-    showChevron: true,
-  }], [colors.sidebarIconData, t, currentLanguage]);
+  const items = useMemo<GroupedItem[]>(
+    () => [
+      {
+        id: 'app-language',
+        icon: 'translate',
+        iconColor: colors.sidebarIconData,
+        title: t('security.language.label'),
+        // Reflect the account's actual primary locale (its native endonym),
+        // which may be a region variant the app UI itself does not ship.
+        subtitle: getNativeLanguageName(currentLanguage),
+        onPress: () => showBottomSheet('LanguageSelector'),
+        showChevron: true,
+      },
+    ],
+    [colors.sidebarIconData, t, currentLanguage],
+  );
 
   return (
     <Section title={t('security.sections.language')}>
-      <ThemedText style={styles.sectionSubtitle}>{t('security.sections.languageSubtitle')}</ThemedText>
+      <ThemedText style={styles.sectionSubtitle}>
+        {t('security.sections.languageSubtitle')}
+      </ThemedText>
       <AccountCard>
         <GroupedSection items={items} />
       </AccountCard>

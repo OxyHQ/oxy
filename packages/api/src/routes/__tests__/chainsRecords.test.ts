@@ -21,7 +21,11 @@ import type { AddressInfo } from 'net';
 let currentServiceApp: Record<string, unknown> | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  serviceAuthMiddleware: (req: { serviceApp?: Record<string, unknown> }, _res: unknown, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { serviceApp?: Record<string, unknown> },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.serviceApp = currentServiceApp;
     next();
   },
@@ -39,7 +43,6 @@ import { appGrants } from '../../db/schema/appGrants';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import chainsRoutes from '../chains';
-
 
 let server: http.Server;
 let savedEnv: { priv?: string; pub?: string };
@@ -99,7 +102,10 @@ function post(body: unknown): Promise<{ status: number; body: Record<string, unk
         host: '127.0.0.1',
         port: address.port,
         path: '/chains/records',
-        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) },
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(payload),
+        },
       },
       (res) => {
         let raw = '';

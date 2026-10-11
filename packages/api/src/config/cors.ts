@@ -27,14 +27,7 @@ import { getCorsDecision } from './dynamicOriginRegistry';
 /**
  * Standard HTTP methods allowed for CORS
  */
-export const ALLOWED_METHODS = [
-  'GET',
-  'POST',
-  'PUT',
-  'DELETE',
-  'PATCH',
-  'OPTIONS',
-] as const;
+export const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const;
 
 /**
  * Headers that clients are allowed to send
@@ -180,7 +173,7 @@ export function createCorsMiddleware() {
 export const SOCKET_IO_CORS_CONFIG = {
   origin: (
     origin: string | undefined,
-    callback: (err: Error | null, allow?: boolean) => void
+    callback: (err: Error | null, allow?: boolean) => void,
   ): void => {
     if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);

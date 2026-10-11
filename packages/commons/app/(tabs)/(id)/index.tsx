@@ -72,7 +72,8 @@ export default function IdScreen() {
   const fabClearance = useFabClearance(tabBarFootprint);
   const { t } = useTranslation();
   const { user, oxyServices } = useOxy();
-  const [cameraPermission, requestCameraPermission, refreshCameraPermission] = useCameraPermissions();
+  const [cameraPermission, requestCameraPermission, refreshCameraPermission] =
+    useCameraPermissions();
   // Hydrate the user record (createdAt + fields missing from a cached signIn).
   useCurrentUser();
   const { getPublicKey, identitySyncState } = useIdentity();
@@ -230,7 +231,7 @@ export default function IdScreen() {
           />
           {attestedVisible && (
             <View style={[styles.attestedBadge, { backgroundColor: colors.card }]}>
-              <Icons.verified size='sm' fill={colors.success} />
+              <Icons.verified size="sm" fill={colors.success} />
               <Text style={styles.attestedBadgeText}>{t('civic.attest.confirmed')}</Text>
             </View>
           )}
@@ -250,13 +251,13 @@ export default function IdScreen() {
             footer={t('vault.home.yourIdentitySubtitle')}
           >
             <SettingsListItem
-              icon={<Icons.shield size='md' fill={colors.text} />}
+              icon={<Icons.shield size="md" fill={colors.text} />}
               title={t('home.identity.selfCustody')}
               description={t('home.identity.selfCustodySubtitle')}
               onPress={handleAboutIdentity}
             />
             <SettingsListItem
-              icon={<Icons.key size='md' fill={colors.text} />}
+              icon={<Icons.key size="md" fill={colors.text} />}
               title={t('home.identity.publicKey')}
               description={t('home.identity.publicKeySubtitle')}
               onPress={handleAboutIdentity}
@@ -270,7 +271,7 @@ export default function IdScreen() {
           footer={t('civic.attest.section.subtitle')}
         >
           <SettingsListItem
-            icon={<Icons.handshake size='md' fill={colors.text} />}
+            icon={<Icons.handshake size="md" fill={colors.text} />}
             title={t('civic.attest.section.action')}
             description={t('civic.attest.section.actionSubtitle')}
             onPress={handleGetVerified}
@@ -280,7 +281,11 @@ export default function IdScreen() {
         {did && (
           <View style={styles.gutter}>
             <Section title={t('civic.id.didLabel')}>
-              <Text style={[styles.didValue, { color: colors.textSecondary }]} selectable numberOfLines={2}>
+              <Text
+                style={[styles.didValue, { color: colors.textSecondary }]}
+                selectable
+                numberOfLines={2}
+              >
                 {did}
               </Text>
             </Section>
@@ -289,15 +294,19 @@ export default function IdScreen() {
 
         {state === 'pending' && (
           <View style={styles.gutter}>
-            <Admonition type="warning">
-              {t('civic.id.pendingNote')}
-            </Admonition>
+            <Admonition type="warning">{t('civic.id.pendingNote')}</Admonition>
           </View>
         )}
       </Screen>
 
       {/* Placement belongs to the screen; preserve the previous tab-bar anchor. */}
-      <View style={{ position: 'absolute', bottom: tabBarFootprint + bottomEdgeInset, right: tabBarFootprint }}>
+      <View
+        style={{
+          position: 'absolute',
+          bottom: tabBarFootprint + bottomEdgeInset,
+          right: tabBarFootprint,
+        }}
+      >
         <Fab
           size="md"
           onPress={handleScan}

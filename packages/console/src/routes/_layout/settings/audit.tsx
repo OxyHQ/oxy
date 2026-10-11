@@ -48,10 +48,7 @@ export const Route = createFileRoute('/_layout/settings/audit')({
 
 function AccountAuditPage() {
   const { currentAccount } = useAccount();
-  const access =
-    currentAccount === null
-      ? null
-      : accountAuditAccess(currentAccount);
+  const access = currentAccount === null ? null : accountAuditAccess(currentAccount);
 
   const query = useAccountAuditTrail(currentAccount?.accountId, access?.kind === 'permitted');
 
@@ -60,7 +57,7 @@ function AccountAuditPage() {
   // and a comparator on this side would be a second definition of it.
   const entries = useMemo(
     () => (query.data?.pages ?? []).flatMap((page) => page.data),
-    [query.data]
+    [query.data],
   );
 
   const serverRefused = query.isError && isPermissionRefused(query.error);
@@ -85,10 +82,7 @@ function AccountAuditPage() {
       ) : serverRefused ? (
         // The membership changed under the page, or a permission was revoked
         // between the switcher and this read. Same words, from the same rule.
-        <AuditRefusal
-          missing={ACCOUNT_AUDIT_PERMISSIONS}
-          what="this account's audit log"
-        />
+        <AuditRefusal missing={ACCOUNT_AUDIT_PERMISSIONS} what="this account's audit log" />
       ) : query.isLoading ? (
         <div className="space-y-2 px-6 py-6">
           {[1, 2, 3].map((row) => (

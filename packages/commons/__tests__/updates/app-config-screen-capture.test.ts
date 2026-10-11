@@ -9,7 +9,6 @@ interface AndroidConfig {
 }
 
 describe('app.config.js Android permissions', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { android } = (require('../../app.config.js') as { expo: { android: AndroidConfig } }).expo;
 
   it('blocks the media permission the capture guard does not need', () => {

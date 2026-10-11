@@ -8,7 +8,10 @@ import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@oxy.so/db';
 import type { LinkedAccount, ServiceLinkedAccount } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../../config/postgres';
-import { linkedAccountOauthChallenges, userLinkedAccounts } from '../../db/schema/userLinkedAccounts';
+import {
+  linkedAccountOauthChallenges,
+  userLinkedAccounts,
+} from '../../db/schema/userLinkedAccounts';
 import userCache from '../../utils/userCache';
 import { logger } from '../../utils/logger';
 import { lookupExternalIdentity } from '../externalIdentityRegistry.service';
@@ -72,7 +75,11 @@ function announceAliasChange(userId: string, network: string): void {
  * Two users racing for one account meet the partial unique index, which the
  * caller maps to the same refusal. Returns the link id.
  */
-async function recordLinkedAccount(tx: Transaction, userId: string, account: VerifiedExternalAccount): Promise<string> {
+async function recordLinkedAccount(
+  tx: Transaction,
+  userId: string,
+  account: VerifiedExternalAccount,
+): Promise<string> {
   const [live] = await tx
     .select({ id: userLinkedAccounts.id, userId: userLinkedAccounts.userId })
     .from(userLinkedAccounts)
@@ -89,7 +96,12 @@ async function recordLinkedAccount(tx: Transaction, userId: string, account: Ver
   if (live) {
     await tx
       .update(userLinkedAccounts)
-      .set({ actorUri: account.actorUri, handle: account.handle, host: account.host, verifiedAt: sql`now()` })
+      .set({
+        actorUri: account.actorUri,
+        handle: account.handle,
+        host: account.host,
+        verifiedAt: sql`now()`,
+      })
       .where(eq(userLinkedAccounts.id, live.id));
     return live.id;
   }
@@ -134,7 +146,10 @@ export class LinkCodeNotYours extends Error {
  * lifetime answers the same link.
  */
 export async function completeLinkedAccount(userId: string, code: string): Promise<LinkedAccount> {
-  let outcome: { kind: 'invalid' } | { kind: 'refused' } | { kind: 'linked'; id: string; network: string; created: boolean };
+  let outcome:
+    | { kind: 'invalid' }
+    | { kind: 'refused' }
+    | { kind: 'linked'; id: string; network: string; created: boolean };
   try {
     outcome = await getDb().transaction(async (tx) => {
       const [challenge] = await tx
@@ -169,7 +184,12 @@ export async function completeLinkedAccount(userId: string, code: string): Promi
       }
       if (challenge.status === 'linked') {
         return challenge.linkedAccountId
-          ? ({ kind: 'linked', id: challenge.linkedAccountId, network: challenge.network, created: false } as const)
+          ? ({
+              kind: 'linked',
+              id: challenge.linkedAccountId,
+              network: challenge.network,
+              created: false,
+            } as const)
           : ({ kind: 'invalid' } as const);
       }
       const id = await recordLinkedAccount(tx, userId, {
@@ -186,20 +206,32 @@ export async function completeLinkedAccount(userId: string, code: string): Promi
       return { kind: 'linked', id, network: challenge.network, created: true } as const;
     });
   } catch (error) {
-    if (isUniqueViolation(error, 'user_linked_accounts_live_account_key')) throw new LinkedAccountAlreadyClaimed();
+    if (isUniqueViolation(error, 'user_linked_accounts_live_account_key'))
+      throw new LinkedAccountAlreadyClaimed();
     throw error;
   }
 
   if (outcome.kind === 'invalid') throw new LinkCodeInvalid();
   if (outcome.kind === 'refused') {
-    logger.warn('[LinkedAccounts] link code presented by a user who did not start the flow; burned', { userId });
+    logger.warn(
+      '[LinkedAccounts] link code presented by a user who did not start the flow; burned',
+      { userId },
+    );
     throw new LinkCodeNotYours();
   }
   if (outcome.created) {
     announceAliasChange(userId, outcome.network);
-    logger.info('[LinkedAccounts] account linked', { userId, network: outcome.network, linkId: outcome.id });
+    logger.info('[LinkedAccounts] account linked', {
+      userId,
+      network: outcome.network,
+      linkId: outcome.id,
+    });
   }
-  const [row] = await getDb().select(LINK_COLUMNS).from(userLinkedAccounts).where(eq(userLinkedAccounts.id, outcome.id)).limit(1);
+  const [row] = await getDb()
+    .select(LINK_COLUMNS)
+    .from(userLinkedAccounts)
+    .where(eq(userLinkedAccounts.id, outcome.id))
+    .limit(1);
   return toLinkedAccount(row as LinkRow);
 }
 
@@ -218,7 +250,9 @@ export async function listLinkedAccounts(userId: string): Promise<LinkedAccount[
  * already holds for each external account — read from the external-identity
  * registry, never written to it.
  */
-export async function listLinkedAccountsForService(userId: string): Promise<ServiceLinkedAccount[]> {
+export async function listLinkedAccountsForService(
+  userId: string,
+): Promise<ServiceLinkedAccount[]> {
   const links = await listLinkedAccounts(userId);
   return Promise.all(
     links.map(async (link) => {

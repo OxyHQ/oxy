@@ -80,8 +80,7 @@ export const CREDENTIAL_AUDIT_TRIGGER = 'application_credential_audit_events_imm
  * assertion passes whether or not the trigger fired — that exact mistake made a
  * first mutation run on PR #997 turn fewer tests red than it should have.
  */
-export const CREDENTIAL_AUDIT_IMMUTABLE_MESSAGE =
-  `${CREDENTIAL_AUDIT_TABLE} is append-only: an audit entry is corrected by a new entry, never by update`;
+export const CREDENTIAL_AUDIT_IMMUTABLE_MESSAGE = `${CREDENTIAL_AUDIT_TABLE} is append-only: an audit entry is corrected by a new entry, never by update`;
 
 /** Current function installed by 0146; 0043 remains immutable migration history. */
 export const CREDENTIAL_AUDIT_IMMUTABILITY_DDL = `CREATE OR REPLACE FUNCTION credential_audit_row_immutable() RETURNS trigger

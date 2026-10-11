@@ -360,10 +360,7 @@ export function persistOAuthHandshake(
     store.setItem(OXY_OAUTH_STATE_STORAGE_KEY, state);
     store.setItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY, codeVerifier);
     if (redirectUri) {
-      store.setItem(
-        OXY_OAUTH_REDIRECT_URI_STORAGE_KEY,
-        canonicalizeOAuthRedirectUri(redirectUri),
-      );
+      store.setItem(OXY_OAUTH_REDIRECT_URI_STORAGE_KEY, canonicalizeOAuthRedirectUri(redirectUri));
     }
     return true;
   } catch (error) {

@@ -8,27 +8,16 @@
  *
  * ## The guarantee this file exists for
  *
- * **A remote Follow of an account created after the Postgres cutover must be
- * mirrored.** Two independent defects stopped that, and either one alone was
- * enough:
+ * **A remote Follow of a uuid-id account must be mirrored.**
  *
- *  1. `federationFollowSchema` validated both ids with `/^[a-f0-9]{24}$/i`. That
- *     runs inside `validate({ body })`, i.e. BEFORE the handler, so a
- *     post-cutover account — whose id is the uuid v7 `generatedId()` mints —
- *     was answered 400 without a single lookup.
- *  2. The route's anti-impersonation guards read `User.findById(...)` (Mongo)
- *     while the write they gate, `userService.followUser`, was already on
- *     Postgres. The guard and the write disagreed about whether an account
- *     exists at all: an account present only in Postgres 404'd at the guard,
- *     and one present only in Mongo passed the guard and then failed the write.
- *
- * The previous suite could not have caught either. It mirrored every seeded row
- * into an in-memory `guardUsers` map so the two halves agreed by construction,
- * and every id in it was 24-hex by construction, so the schema was never asked
- * a question it could get wrong. Here there is ONE store — the database — and
- * `mirrors a Follow of a POST-CUTOVER account` seeds an account whose id is
- * minted by the schema itself and asserts it is not 24-hex before using it, so
- * nothing can pass vacuously.
+ * A 24-hex pattern on either id in `federationFollowSchema` runs inside
+ * `validate({ body })`, i.e. BEFORE the handler, so it would answer a uuid v7
+ * account 400 without a single lookup. The route's anti-impersonation guards
+ * and the write they gate, `userService.followUser`, read the same store, so
+ * they cannot disagree about whether an account exists. Here there is ONE
+ * store — the database — and `mirrors a Follow of a POST-CUTOVER account` seeds
+ * an account whose id is minted by the schema itself and asserts it is not
+ * 24-hex before using it, so nothing can pass vacuously.
  *
  * ## What is still mocked, and why
  *

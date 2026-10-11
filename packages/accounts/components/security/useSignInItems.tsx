@@ -51,9 +51,10 @@ export function useSignInItems({
       } else if (!isBiometricEnrolled) {
         biometricSubtitle = t('security.signIn.biometricNotEnrolled');
       } else if (biometricEnabled) {
-        biometricSubtitle = biometricTypes.length > 0
-          ? t('security.signIn.biometricEnabledWithTypes', { types: biometricTypes.join(', ') })
-          : t('security.signIn.biometricEnabled');
+        biometricSubtitle =
+          biometricTypes.length > 0
+            ? t('security.signIn.biometricEnabledWithTypes', { types: biometricTypes.join(', ') })
+            : t('security.signIn.biometricEnabled');
       } else {
         biometricSubtitle = canEnableBiometric
           ? t('security.signIn.biometricAvailableToggle')
@@ -64,7 +65,10 @@ export function useSignInItems({
         id: 'biometric',
         icon: Platform.OS === 'ios' ? 'face-recognition' : 'fingerprint',
         iconColor: biometricEnabled ? colors.success : colors.sidebarIconSecurity,
-        title: Platform.OS === 'ios' ? t('security.signIn.faceTouchId') : t('security.signIn.biometricAuthTitle'),
+        title:
+          Platform.OS === 'ios'
+            ? t('security.signIn.faceTouchId')
+            : t('security.signIn.biometricAuthTitle'),
         subtitle: biometricSubtitle,
         customContent: canEnableBiometric ? (
           <Switch

@@ -1,8 +1,8 @@
 /**
  * Credit balance mutations — against a REAL Postgres, including a real race.
  *
- * `db/credits.ts` exists because two of the Mongoose instance methods it
- * replaces were OPTIMISTIC-CONCURRENCY updates, not plain writes. A port that
+ * `db/credits.ts` exists because two of its mutations are
+ * OPTIMISTIC-CONCURRENCY updates, not plain writes. An implementation that
  * reads the row, decides in JavaScript, and then writes would pass every
  * single-threaded test in this file and still be wrong — so the deduction race
  * below is the assertion that actually holds the mechanism up. It runs genuinely
@@ -36,7 +36,9 @@ async function account(values: {
   creditsLastRefresh?: Date;
 }): Promise<string> {
   const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
-  await getDb().insert(userCredits).values({ userId: user.id, ...values });
+  await getDb()
+    .insert(userCredits)
+    .values({ userId: user.id, ...values });
   return user.id;
 }
 
@@ -88,7 +90,7 @@ describe('deductCredits', () => {
     // would read 100, all ten would decide they could afford 30, and the balance
     // would land at -200 (or, with the CHECK in place, blow up mid-flight).
     const outcomes = await Promise.all(
-      Array.from({ length: 10 }, () => deductCredits(getDb(), userId, 30))
+      Array.from({ length: 10 }, () => deductCredits(getDb(), userId, 30)),
     );
 
     expect(outcomes.filter(Boolean)).toHaveLength(3);
@@ -101,7 +103,7 @@ describe('deductCredits', () => {
     // 60 available, four spends of 25: exactly two can succeed, and paid must be
     // drained before free regardless of which order they land in.
     const outcomes = await Promise.all(
-      Array.from({ length: 4 }, () => deductCredits(getDb(), userId, 25))
+      Array.from({ length: 4 }, () => deductCredits(getDb(), userId, 25)),
     );
 
     expect(outcomes.filter(Boolean)).toHaveLength(2);
@@ -111,8 +113,8 @@ describe('deductCredits', () => {
   it('refuses a negative amount instead of turning a spend into a grant', async () => {
     const userId = await account({ creditsFree: 10, creditsPaid: 10 });
 
-    // The Mongoose version passed all three of its own checks on `-100` and
-    // ADDED 100 paid credits.
+    // A deduction of `-100` that skipped the amount guard would pass every
+    // balance check and ADD 100 paid credits.
     expect(await deductCredits(getDb(), userId, -100)).toBe(false);
     expect(await balance(userId)).toEqual({ free: 10, paid: 10 });
   });
@@ -129,7 +131,10 @@ describe('deductCredits', () => {
   });
 
   it('answers false for an account with no credit row', async () => {
-    const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+    const [user] = await getDb()
+      .insert(users)
+      .values({ color: 'teal' })
+      .returning({ id: users.id });
     expect(await deductCredits(getDb(), user.id, 1)).toBe(false);
   });
 });
@@ -153,7 +158,11 @@ describe('refreshCreditsIfNeeded', () => {
 
   it('does nothing before the interval has passed', async () => {
     const lastRefresh = new Date(Date.now() - 23 * HOUR_MS);
-    const userId = await account({ creditsFree: 12, creditsFreeLimit: 1000, creditsLastRefresh: lastRefresh });
+    const userId = await account({
+      creditsFree: 12,
+      creditsFreeLimit: 1000,
+      creditsLastRefresh: lastRefresh,
+    });
 
     expect(await refreshCreditsIfNeeded(getDb(), userId)).toBe(false);
     expect(await balance(userId)).toEqual({ free: 12, paid: 0 });
@@ -181,10 +190,9 @@ describe('refreshCreditsIfNeeded', () => {
     });
 
     // The elapsed-time test IS the guard, so the loser re-evaluates it against
-    // the already-advanced `credits_last_refresh` and matches nothing. Under the
-    // Mongoose compare-and-set this held too; under a read-then-write port both
-    // callers would refresh and one interval's worth of credits would be granted
-    // twice.
+    // the already-advanced `credits_last_refresh` and matches nothing. Under a
+    // read-then-write implementation both callers would refresh and one
+    // interval's worth of credits would be granted twice.
     const outcomes = await Promise.all([
       refreshCreditsIfNeeded(getDb(), userId),
       refreshCreditsIfNeeded(getDb(), userId),
@@ -196,7 +204,10 @@ describe('refreshCreditsIfNeeded', () => {
   });
 
   it('answers false for an account with no credit row', async () => {
-    const [user] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+    const [user] = await getDb()
+      .insert(users)
+      .values({ color: 'teal' })
+      .returning({ id: users.id });
     expect(await refreshCreditsIfNeeded(getDb(), user.id)).toBe(false);
   });
 });
@@ -220,7 +231,7 @@ describe('addCredits', () => {
     const userId = await account({ creditsFree: 0, creditsPaid: 0 });
 
     const outcomes = await Promise.all(
-      Array.from({ length: 10 }, () => addCredits(getDb(), userId, 100, 'paid'))
+      Array.from({ length: 10 }, () => addCredits(getDb(), userId, 100, 'paid')),
     );
 
     // An increment is already atomic under the row lock; this is what proves it

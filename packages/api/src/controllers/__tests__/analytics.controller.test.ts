@@ -5,16 +5,12 @@
  *
  * **1. Every aggregate is attributed to the AUTHENTICATED account.** Each
  * handler takes a `userID` from the query string or the body and must ignore it
- * — the previous suite pinned that, and it stays pinned here, but over rows that
- * really exist rather than over the arguments a mock was called with. That
- * distinction matters: the old assertions were of the form "`Analytics.find` was
- * called with `{ userID: <me> }`", which is a statement about a query SHAPE. A
- * shape assertion survives a port that reads the wrong rows, returns the wrong
- * numbers, or writes nothing at all.
+ * — pinned here over rows that really exist rather than over the arguments a
+ * mock was called with. A query-SHAPE assertion survives code that reads the
+ * wrong rows, returns the wrong numbers, or writes nothing at all.
  *
- * **2. A DOT PATH MUST NOT REACH DRIZZLE.** `updateAnalytics` accepts Mongo dot
- * paths on the wire (`stats.engagement.likes`) and the storage is now FLAT
- * COLUMNS. Drizzle keys `values()` / `set()` by column PROPERTY and silently
+ * **2. A DOT PATH MUST NOT REACH DRIZZLE.** `updateAnalytics` accepts dot paths
+ * on the wire (`stats.engagement.likes`) and the storage is FLAT COLUMNS. Drizzle keys `values()` / `set()` by column PROPERTY and silently
  * ignores a key naming no column, so passing the wire key straight through
  * writes NOTHING and throws NOTHING — an increment endpoint that returns
  * `200 {"message":"Analytics updated successfully"}` while storing zero. Every
@@ -26,13 +22,11 @@
  * constraint, the `user_follows` foreign keys and the check constraints are the
  * real database.
  *
- * ## The wire format, which is a Mongoose document shape
+ * ## The wire format
  *
- * `timeSeriesData` used to be serialized `Analytics` documents, so the response
- * still carries `_id`, the capital-D `userID`, and the NESTED `stats` tree even
- * though the table spells them `id`, `user_id` and one flat column per counter.
- * `__v` deliberately does not travel — it is a driver artifact the migration
- * contract forbids and no reader ever consumed it.
+ * `timeSeriesData` carries `_id`, the capital-D `userID`, and the NESTED `stats`
+ * tree even though the table spells them `id`, `user_id` and one flat column per
+ * counter. There is deliberately no `__v` version key; no reader consumes one.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -100,9 +94,7 @@ function makeRequest(overrides: Partial<AuthRequest> = {}): AuthRequest {
 }
 
 async function insertUser(createdAt?: Date): Promise<string> {
-  const values = createdAt
-    ? { color: 'teal', createdAt, updatedAt: createdAt }
-    : { color: 'teal' };
+  const values = createdAt ? { color: 'teal', createdAt, updatedAt: createdAt } : { color: 'teal' };
   const [row] = await getDb().insert(users).values(values).returning({ id: users.id });
   return row.id;
 }
@@ -133,26 +125,28 @@ beforeEach(async () => {
 });
 
 describe('getAnalytics', () => {
-  it('rebuilds the nested `stats` tree and the Mongo field spellings', async () => {
+  it('rebuilds the nested `stats` tree and the wire field spellings', async () => {
     const date = new Date(Date.now() - DAY_MS);
-    await getDb().insert(userAnalytics).values({
-      userId: USER_ID,
-      period: 'weekly',
-      date,
-      postViews: 11,
-      profileViews: 12,
-      engagementLikes: 1,
-      engagementReplies: 2,
-      engagementReposts: 3,
-      engagementQuotes: 4,
-      engagementBookmarks: 5,
-      reachImpressions: 6,
-      reachUniqueViewers: 7,
-      demographicsCountries: { ES: 3 },
-      demographicsLanguages: { es: 3 },
-      peakActivityHour: 9,
-      peakActivityCount: 21,
-    });
+    await getDb()
+      .insert(userAnalytics)
+      .values({
+        userId: USER_ID,
+        period: 'weekly',
+        date,
+        postViews: 11,
+        profileViews: 12,
+        engagementLikes: 1,
+        engagementReplies: 2,
+        engagementReposts: 3,
+        engagementQuotes: 4,
+        engagementBookmarks: 5,
+        reachImpressions: 6,
+        reachUniqueViewers: 7,
+        demographicsCountries: { ES: 3 },
+        demographicsLanguages: { es: 3 },
+        peakActivityHour: 9,
+        peakActivityCount: 21,
+      });
 
     const { res, taken } = capture();
     await getAnalytics(makeRequest(), res);
@@ -192,7 +186,9 @@ describe('getAnalytics', () => {
     const { res, taken } = capture();
     await getAnalytics(makeRequest(), res);
 
-    const body = taken.body as { timeSeriesData: { userID: string; stats: { postViews: number } }[] };
+    const body = taken.body as {
+      timeSeriesData: { userID: string; stats: { postViews: number } }[];
+    };
     expect(body.timeSeriesData).toHaveLength(1);
     expect(body.timeSeriesData[0].userID).toBe(USER_ID);
     expect(body.timeSeriesData[0].stats.postViews).toBe(1);
@@ -220,8 +216,8 @@ describe('getAnalytics', () => {
   });
 
   it('answers an unknown period with an empty series rather than an error', async () => {
-    // Mongo matched nothing for a `period` outside the enum; the port
-    // short-circuits to the same empty result instead of reaching the query.
+    // A `period` outside the enum short-circuits to an empty result instead of
+    // reaching the query.
     const { res, taken } = capture();
     await getAnalytics(makeRequest({ query: { period: 'fortnightly' } }), res);
 
@@ -230,8 +226,8 @@ describe('getAnalytics', () => {
   });
 
   it('reports growth as a MEASUREMENT over the follow graph', async () => {
-    // `users._count` is deleted — a cached counter existed only because Mongo
-    // cannot JOIN. These two numbers cannot disagree with the edges any more.
+    // There is no cached `users._count`; these two numbers are counted from the
+    // edges, so they cannot disagree with them.
     const followerA = await insertUser();
     const followerB = await insertUser();
     await getDb()
@@ -290,12 +286,7 @@ describe('updateAnalytics', () => {
 
     const rows = await storedRows(USER_ID);
     expect(rows).toHaveLength(4);
-    expect(rows.map((row) => row.period).sort()).toEqual([
-      'daily',
-      'monthly',
-      'weekly',
-      'yearly',
-    ]);
+    expect(rows.map((row) => row.period).sort()).toEqual(['daily', 'monthly', 'weekly', 'yearly']);
     for (const row of rows) {
       expect(row.profileViews).toBe(1);
       expect(row.reachImpressions).toBe(4);
@@ -330,7 +321,7 @@ describe('updateAnalytics', () => {
           },
         },
       }),
-      res
+      res,
     );
 
     const [row] = await storedRows(USER_ID);
@@ -373,7 +364,7 @@ describe('updateAnalytics', () => {
       makeRequest({
         body: { type: 'postViews', data: { 'stats.engagement.likes': 2, peakActivityHour: 5 } },
       }),
-      res
+      res,
     );
 
     const [row] = await storedRows(USER_ID);
@@ -402,11 +393,8 @@ describe('updateAnalytics', () => {
 
 describe('getContentViewers', () => {
   it('answers an empty list — the field it aggregated has never existed', async () => {
-    // `$match: { "stats.viewers": { $exists: true } }` selected zero documents on
-    // every call this endpoint ever served: `stats.viewers` is not in the
-    // Mongoose schema and strict mode drops an out-of-schema update path, so no
-    // writer could create one. `user_analytics` has no viewers column for the
-    // same reason — there is no data to port, and `200 []` IS the contract.
+    // No writer has ever recorded viewers, so `user_analytics` has no viewers
+    // column and `200 []` IS the contract.
     await getDb().insert(userAnalytics).values({
       userId: USER_ID,
       period: 'weekly',
@@ -493,7 +481,7 @@ describe('getFollowerDetails', () => {
     const { res, taken } = capture();
     await getFollowerDetails(
       makeRequest({ user: { _id: randomUUID() } as AuthRequest['user'] }),
-      res
+      res,
     );
 
     expect(taken.body).toEqual({ totalFollowers: 0, newFollowers: 0, activeFollowers: 0 });

@@ -161,7 +161,9 @@ export const useSessionManagement = ({
           throw new Error('Session is invalid or expired');
         }
 
-        const validation = await oxyServices.session.validate(sessionId, { useHeaderValidation: true });
+        const validation = await oxyServices.session.validate(sessionId, {
+          useHeaderValidation: true,
+        });
         if (!validation?.valid) {
           throw new Error('Session is invalid or expired');
         }

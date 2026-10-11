@@ -47,7 +47,13 @@ jest.mock('react-native-reanimated', () => {
     withSequence: (...v: unknown[]) => v[v.length - 1],
     interpolate: () => 0,
     Extrapolation: { CLAMP: 'clamp' },
-    Easing: { bezier: () => () => 0, out: () => () => 0, inOut: () => () => 0, ease: () => 0, cubic: () => 0 },
+    Easing: {
+      bezier: () => () => 0,
+      out: () => () => 0,
+      inOut: () => () => 0,
+      ease: () => 0,
+      cubic: () => 0,
+    },
     runOnJS: (f: unknown) => f,
     cancelAnimation: () => undefined,
   };
@@ -74,6 +80,8 @@ describe('animated onboarding text reaches assistive technology once', () => {
       <RotatingTextAnimation texts={['human ID', 'digital identity']} fontSize={38} />,
     );
 
-    expect((container.firstElementChild as HTMLElement | null)?.getAttribute('aria-hidden')).toBe('true');
+    expect((container.firstElementChild as HTMLElement | null)?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
   });
 });

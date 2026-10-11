@@ -54,7 +54,9 @@ function BillingPlansPage() {
   const productSubscriptions = useProductSubscriptions();
   const creditGrants = useCreditGrants();
   const cancelNamed = useCancelNamedSubscription();
-  const liveCreditPlans = (creditSubscriptions.data ?? []).filter(plan => ['active', 'trialing'].includes(plan.status));
+  const liveCreditPlans = (creditSubscriptions.data ?? []).filter((plan) =>
+    ['active', 'trialing'].includes(plan.status),
+  );
   const { data: plans = [] } = useSubscriptionPlans();
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
@@ -98,7 +100,13 @@ function BillingPlansPage() {
     <ScrollArea className="flex-1 bg-background">
       <BillingHeader
         active="plans"
-        accountName={user ? (typeof user.displayName === 'string' && user.displayName ? user.displayName : getNormalizedUserHandle(user) ?? undefined) : undefined}
+        accountName={
+          user
+            ? typeof user.displayName === 'string' && user.displayName
+              ? user.displayName
+              : (getNormalizedUserHandle(user) ?? undefined)
+            : undefined
+        }
       />
 
       <div className="px-6 py-6 border-b border-border">
@@ -107,10 +115,10 @@ function BillingPlansPage() {
             Product access, API credits and inference money
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Product subscriptions grant named rights. API-credit plans and purchases hold separate credits. Oxy One excludes API credits.
-            Pay-as-you-go inference is billed to the account in exact money and is under Overview,
-            Spend and Holds and charges. The two are never added together, and a credit is not a
-            currency.
+            Product subscriptions grant named rights. API-credit plans and purchases hold separate
+            credits. Oxy One excludes API credits. Pay-as-you-go inference is billed to the account
+            in exact money and is under Overview, Spend and Holds and charges. The two are never
+            added together, and a credit is not a currency.
           </p>
         </div>
       </div>
@@ -150,46 +158,144 @@ function BillingPlansPage() {
 
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold mb-4">Product subscriptions</p>
-        {productSubscriptions.isError ? <p role="alert">Product subscriptions could not be loaded.</p> :
-          productSubscriptions.isLoading ? <p>Loading subscriptions…</p> :
-          (productSubscriptions.data ?? []).length === 0 ? <p>No product subscription sources.</p> :
-          (productSubscriptions.data ?? []).map(source => <div key={source.sourceId} className="py-4 border-b border-border">
-            <p className="text-sm font-medium">{source.offers.map(offer => offer.displayName).join(', ')}</p>
-            <p className="text-sm">Products: {source.offers.flatMap(offer => offer.products.map(product => product.displayName)).join(', ')}</p>
-            {source.offers.map(offer => <p key={offer.segmentId} className="text-xs text-muted-foreground">{offer.displayName} · {offer.origin === 'bundle' ? 'Bundle' : 'Individual'} · {offer.current ? 'Current paid period' : 'Paid history'} · {new Date(offer.period.start).toLocaleDateString()} – {new Date(offer.period.end).toLocaleDateString()}</p>)}
-            <p className="text-xs text-muted-foreground">{source.status} · {new Date(source.period.start).toLocaleDateString()} – {new Date(source.period.end).toLocaleDateString()}</p>
-            {source.cancelAtPeriodEnd ? <Badge variant="secondary">Cancels at period end</Badge> : source.canCancel &&
-              <Button variant="outline" size="sm" disabled={cancelNamed.isPending} onClick={() => {
-                if (window.confirm('Cancel this named product subscription at its period end?'))
-                  void cancelNamed.mutateAsync({ kind: 'product', id: source.sourceId, subject: user?.id ?? '' }).then(result => {
-                    if (result && 'reconciliationPending' in result) toast.info('Cancellation accepted. Your subscription view is still updating; retry to reconcile it.');
-                  }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
-              }}>Cancel this subscription</Button>}
-          </div>)}
+        {productSubscriptions.isError ? (
+          <p role="alert">Product subscriptions could not be loaded.</p>
+        ) : productSubscriptions.isLoading ? (
+          <p>Loading subscriptions…</p>
+        ) : (productSubscriptions.data ?? []).length === 0 ? (
+          <p>No product subscription sources.</p>
+        ) : (
+          (productSubscriptions.data ?? []).map((source) => (
+            <div key={source.sourceId} className="py-4 border-b border-border">
+              <p className="text-sm font-medium">
+                {source.offers.map((offer) => offer.displayName).join(', ')}
+              </p>
+              <p className="text-sm">
+                Products:{' '}
+                {source.offers
+                  .flatMap((offer) => offer.products.map((product) => product.displayName))
+                  .join(', ')}
+              </p>
+              {source.offers.map((offer) => (
+                <p key={offer.segmentId} className="text-xs text-muted-foreground">
+                  {offer.displayName} · {offer.origin === 'bundle' ? 'Bundle' : 'Individual'} ·{' '}
+                  {offer.current ? 'Current paid period' : 'Paid history'} ·{' '}
+                  {new Date(offer.period.start).toLocaleDateString()} –{' '}
+                  {new Date(offer.period.end).toLocaleDateString()}
+                </p>
+              ))}
+              <p className="text-xs text-muted-foreground">
+                {source.status} · {new Date(source.period.start).toLocaleDateString()} –{' '}
+                {new Date(source.period.end).toLocaleDateString()}
+              </p>
+              {source.cancelAtPeriodEnd ? (
+                <Badge variant="secondary">Cancels at period end</Badge>
+              ) : (
+                source.canCancel && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={cancelNamed.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm('Cancel this named product subscription at its period end?')
+                      )
+                        void cancelNamed
+                          .mutateAsync({
+                            kind: 'product',
+                            id: source.sourceId,
+                            subject: user?.id ?? '',
+                          })
+                          .then((result) => {
+                            if (result && 'reconciliationPending' in result)
+                              toast.info(
+                                'Cancellation accepted. Your subscription view is still updating; retry to reconcile it.',
+                              );
+                          })
+                          .catch((error) =>
+                            toast.error(getErrorMessage(error, 'Cancellation failed')),
+                          );
+                    }}
+                  >
+                    Cancel this subscription
+                  </Button>
+                )
+              )}
+            </div>
+          ))
+        )}
       </div>
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold mb-4">API-credit plans</p>
-        {creditSubscriptions.isError ? <p role="alert">Credit plans could not be loaded.</p> : liveCreditPlans.map(plan =>
-          <div key={plan._id} className="py-4 border-b border-border"><p>{plan.plan.name} · {plan.plan.creditsPerMonth.toLocaleString()} credits/month</p>
-            <p className="text-xs">{plan.status} · through {new Date(plan.currentPeriodEnd).toLocaleDateString()}</p>
-            {plan.cancelAtPeriodEnd ? <Badge variant="secondary">Cancels at period end</Badge> :
-              <Button variant="outline" size="sm" disabled={cancelNamed.isPending} onClick={() => {
-                if (window.confirm(`Cancel ${plan.plan.name} at its period end?`))
-                  void cancelNamed.mutateAsync({ kind: 'credit', id: plan._id, subject: user?.id ?? '' }).catch(error => toast.error(getErrorMessage(error, 'Cancellation failed')));
-              }}>Cancel this credit plan</Button>}
-          </div>)}
-        {liveCreditPlans.length === 0 && !creditSubscriptions.isError && <p>300 free credits daily refresh</p>}
-        {liveCreditPlans.length === 0 && <Button variant="outline" size="sm" onClick={() => setShowUpgradeDialog(true)}>Choose a credit plan</Button>}
+        {creditSubscriptions.isError ? (
+          <p role="alert">Credit plans could not be loaded.</p>
+        ) : (
+          liveCreditPlans.map((plan) => (
+            <div key={plan._id} className="py-4 border-b border-border">
+              <p>
+                {plan.plan.name} · {plan.plan.creditsPerMonth.toLocaleString()} credits/month
+              </p>
+              <p className="text-xs">
+                {plan.status} · through {new Date(plan.currentPeriodEnd).toLocaleDateString()}
+              </p>
+              {plan.cancelAtPeriodEnd ? (
+                <Badge variant="secondary">Cancels at period end</Badge>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={cancelNamed.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Cancel ${plan.plan.name} at its period end?`))
+                      void cancelNamed
+                        .mutateAsync({ kind: 'credit', id: plan._id, subject: user?.id ?? '' })
+                        .catch((error) =>
+                          toast.error(getErrorMessage(error, 'Cancellation failed')),
+                        );
+                  }}
+                >
+                  Cancel this credit plan
+                </Button>
+              )}
+            </div>
+          ))
+        )}
+        {liveCreditPlans.length === 0 && !creditSubscriptions.isError && (
+          <p>300 free credits daily refresh</p>
+        )}
+        {liveCreditPlans.length === 0 && (
+          <Button variant="outline" size="sm" onClick={() => setShowUpgradeDialog(true)}>
+            Choose a credit plan
+          </Button>
+        )}
       </div>
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold mb-4">Credit grant origins and remaining amounts</p>
-        <p className="text-xs text-muted-foreground">Historical mixed credits are preserved without inferred origins. Spending uses tracked grants in FIFO order, then historical paid credits, then free credits.</p>
-        {creditGrants.isError ? <p role="alert">Grant history could not be loaded.</p> : (creditGrants.data ?? []).map(grant =>
-          <div key={grant.id} className="py-3 border-b border-border">
-            <p>{grant.origin.replaceAll('_', ' ')}{grant.promotionId ? ` · ${grant.promotionId}` : ''}</p>
-            <p className="text-xs">Granted {grant.granted.toLocaleString()} · consumed {grant.consumed.toLocaleString()} · refunded {grant.clawed.toLocaleString()} · remaining {grant.remaining.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Invoice {grant.invoiceId} · {new Date(grant.period.start).toLocaleDateString()} – {new Date(grant.period.end).toLocaleDateString()}</p>
-          </div>)}
+        <p className="text-xs text-muted-foreground">
+          Historical mixed credits are preserved without inferred origins. Spending uses tracked
+          grants in FIFO order, then historical paid credits, then free credits.
+        </p>
+        {creditGrants.isError ? (
+          <p role="alert">Grant history could not be loaded.</p>
+        ) : (
+          (creditGrants.data ?? []).map((grant) => (
+            <div key={grant.id} className="py-3 border-b border-border">
+              <p>
+                {grant.origin.replaceAll('_', ' ')}
+                {grant.promotionId ? ` · ${grant.promotionId}` : ''}
+              </p>
+              <p className="text-xs">
+                Granted {grant.granted.toLocaleString()} · consumed{' '}
+                {grant.consumed.toLocaleString()} · refunded {grant.clawed.toLocaleString()} ·
+                remaining {grant.remaining.toLocaleString()}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Invoice {grant.invoiceId} · {new Date(grant.period.start).toLocaleDateString()} –{' '}
+                {new Date(grant.period.end).toLocaleDateString()}
+              </p>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Credit packages */}

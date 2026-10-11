@@ -6,9 +6,19 @@
  * parses MIME with `mailparser`, and stores messages through the email service.
  */
 
-import { SMTPServer, type SMTPServerSession, type SMTPServerAddress, type SMTPServerDataStream } from 'smtp-server';
+import {
+  SMTPServer,
+  type SMTPServerSession,
+  type SMTPServerAddress,
+  type SMTPServerDataStream,
+} from 'smtp-server';
 import { sql } from 'drizzle-orm';
-import { SMTP_INBOUND_CONFIG, EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
+import {
+  SMTP_INBOUND_CONFIG,
+  EMAIL_DOMAIN,
+  extractUsername,
+  extractAliasTag,
+} from '../config/email.config';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { emailService } from './email.service';
@@ -29,10 +39,10 @@ let smtpServer: SMTPServer | null = null;
  *
  * The match is written `lower(btrim(username)) = lower(btrim($1))`, the
  * EXPRESSION `users_lower_username_key` is built on and the same spelling the
- * Cloudflare-webhook path uses (`routes/emailInbound.ts`). Mongo compared
- * `{ username }` for exact equality against a lower-cased address, so mail to
- * `Nate@oxy.so` was rejected for an account stored as `Nate` while the webhook
- * path delivered it — the two inbound routes now agree.
+ * Cloudflare-webhook path uses (`routes/emailInbound.ts`). An exact-equality
+ * match against a lower-cased address would reject mail to `Nate@oxy.so` for an
+ * account stored as `Nate` while the webhook path delivered it — the two
+ * inbound routes must agree.
  *
  * Only `id` is selected. `users` is in `db/schema/protectedColumns.ts`, and a
  * bare `select()` here would pull the raw phone, the contact-discovery hashes
@@ -57,9 +67,15 @@ export async function findRecipientAccountId(emailAddress: string): Promise<stri
  * Create and start the SMTP inbound server.
  */
 export function startSmtpInbound(): SMTPServer {
-  let tlsOptions: {
-    key: Buffer; cert: Buffer; minVersion: 'TLSv1.2'; ciphers: string; sigalgs: string;
-  } | undefined;
+  let tlsOptions:
+    | {
+        key: Buffer;
+        cert: Buffer;
+        minVersion: 'TLSv1.2';
+        ciphers: string;
+        sigalgs: string;
+      }
+    | undefined;
 
   if (SMTP_INBOUND_CONFIG.tls.key && SMTP_INBOUND_CONFIG.tls.cert) {
     try {
@@ -97,7 +113,9 @@ export function startSmtpInbound(): SMTPServer {
   }
 
   if (!tlsOptions) {
-    throw new Error('SMTP inbound requires readable SMTP_TLS_KEY and SMTP_TLS_CERT to advertise STARTTLS');
+    throw new Error(
+      'SMTP inbound requires readable SMTP_TLS_KEY and SMTP_TLS_CERT to advertise STARTTLS',
+    );
   }
 
   smtpServer = new SMTPServer({
@@ -115,7 +133,7 @@ export function startSmtpInbound(): SMTPServer {
     async onRcptTo(
       address: SMTPServerAddress,
       _session: SMTPServerSession,
-      callback: (err?: Error | null) => void
+      callback: (err?: Error | null) => void,
     ) {
       try {
         const emailAddr = address.address.toLowerCase();
@@ -131,7 +149,10 @@ export function startSmtpInbound(): SMTPServer {
 
         callback();
       } catch (error) {
-        logger.error('SMTP RCPT TO error', error instanceof Error ? error : new Error(String(error)));
+        logger.error(
+          'SMTP RCPT TO error',
+          error instanceof Error ? error : new Error(String(error)),
+        );
         callback(new Error('451 Temporary error, try again later'));
       }
     },
@@ -142,7 +163,7 @@ export function startSmtpInbound(): SMTPServer {
     async onData(
       stream: SMTPServerDataStream,
       session: SMTPServerSession,
-      callback: (err?: Error | null) => void
+      callback: (err?: Error | null) => void,
     ) {
       try {
         // Collect the raw message into a buffer
@@ -182,6 +203,7 @@ export function startSmtpInbound(): SMTPServer {
               name: mime.from?.name || '',
               address: senderAddress,
             },
+            replyTo: mime.replyTo,
             to: mime.to,
             cc: mime.cc,
             subject: mime.subject,
@@ -202,11 +224,13 @@ export function startSmtpInbound(): SMTPServer {
 
         callback();
       } catch (error) {
-        logger.error('SMTP data processing error', error instanceof Error ? error : new Error(String(error)));
+        logger.error(
+          'SMTP data processing error',
+          error instanceof Error ? error : new Error(String(error)),
+        );
         callback(new Error('451 Message processing failed'));
       }
     },
-
   });
 
   smtpServer.on('error', (err: Error) => {

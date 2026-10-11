@@ -178,7 +178,7 @@ export function compareExactDecimals(left: string, right: string): number {
  */
 export function isUnitPriceAtMost(
   unitPrice: { readonly amount: string; readonly per: number },
-  cap: { readonly amount: string; readonly per: number }
+  cap: { readonly amount: string; readonly per: number },
 ): boolean | undefined {
   const left = splitDecimal(unitPrice.amount);
   const right = splitDecimal(cap.amount);

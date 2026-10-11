@@ -84,7 +84,7 @@ describe('errorHandler middleware', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         error: 'INTERNAL_SERVER_ERROR',
-      })
+      }),
     );
   });
 });

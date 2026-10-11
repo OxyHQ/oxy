@@ -67,7 +67,7 @@ const sweptTables = EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.tab
 
 it('sweeps the inference telemetry stream at the window it declares', () => {
   const target = EXPIRY_SWEEP_TARGETS.find(
-    (candidate) => getTableName(candidate.table) === getTableName(inferenceUsageEvents)
+    (candidate) => getTableName(candidate.table) === getTableName(inferenceUsageEvents),
   );
   expect(target).toBeDefined();
   expect(target?.retentionSeconds).toBe(INFERENCE_USAGE_RETENTION_SECONDS);

@@ -21,31 +21,37 @@ const forbid = (source, pattern, message) => {
   if (pattern.test(source)) failures.push(message);
 };
 const quotedArray = (source, name) => {
-  const match = source.match(new RegExp(
-    `(?:export\\s+)?const\\s+${name}\\s*=\\s*\\[([\\s\\S]*?)\\](?:\\s+as const)?;`,
-  ));
+  const match = source.match(
+    new RegExp(`(?:export\\s+)?const\\s+${name}\\s*=\\s*\\[([\\s\\S]*?)\\](?:\\s+as const)?;`),
+  );
   return match === null ? undefined : [...match[1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
 };
 const schemaFields = (source, name) => {
-  const match = source.match(new RegExp(
-    `export const ${name} = z\\.object\\(\\{([\\s\\S]*?)\\n\\}\\);`,
-  ));
+  const match = source.match(
+    new RegExp(`export const ${name} = z\\.object\\(\\{([\\s\\S]*?)\\n\\}\\);`),
+  );
   return match === null
     ? undefined
     : [...match[1].matchAll(/^\s*([A-Za-z][A-Za-z0-9]*):/gm)].map((entry) => entry[1]);
 };
 const schemaRules = (source, name) => {
-  const match = source.match(new RegExp(
-    `export const ${name} = z\\.object\\(\\{([\\s\\S]*?)\\n\\}\\);`,
-  ));
+  const match = source.match(
+    new RegExp(`export const ${name} = z\\.object\\(\\{([\\s\\S]*?)\\n\\}\\);`),
+  );
   return match === null
     ? undefined
-    : [...match[1].matchAll(/^\s*([A-Za-z][A-Za-z0-9]*):\s*([^,\n]+),/gm)]
-      .map((entry) => [entry[1], entry[2].trim()]);
+    : [...match[1].matchAll(/^\s*([A-Za-z][A-Za-z0-9]*):\s*([^,\n]+),/gm)].map((entry) => [
+        entry[1],
+        entry[2].trim(),
+      ]);
 };
 const requireExactList = (actual, expected, message) => {
-  if (actual === undefined || expected === undefined ||
-      actual.length !== expected.length || actual.some((value, index) => value !== expected[index])) {
+  if (
+    actual === undefined ||
+    expected === undefined ||
+    actual.length !== expected.length ||
+    actual.some((value, index) => value !== expected[index])
+  ) {
     failures.push(message);
   }
 };
@@ -57,12 +63,15 @@ const requireExactEntries = (actual, expected, message) => {
 
 const contractInferenceErrorCodes = quotedArray(inferenceErrorsContract, 'INFERENCE_ERROR_CODES');
 const canaryInferenceErrorCodes = quotedArray(canary, 'CANARY_INFERENCE_ERROR_CODES');
-const workflowInferenceErrorCodesMatch = workflow.match(/inference_error_codes_json='(\[[^\n]+\])'/);
+const workflowInferenceErrorCodesMatch = workflow.match(
+  /inference_error_codes_json='(\[[^\n]+\])'/,
+);
 let workflowInferenceErrorCodes;
 try {
-  workflowInferenceErrorCodes = workflowInferenceErrorCodesMatch === null
-    ? undefined
-    : JSON.parse(workflowInferenceErrorCodesMatch[1]);
+  workflowInferenceErrorCodes =
+    workflowInferenceErrorCodesMatch === null
+      ? undefined
+      : JSON.parse(workflowInferenceErrorCodesMatch[1]);
 } catch {
   workflowInferenceErrorCodes = undefined;
 }
@@ -128,8 +137,10 @@ requireMatch(
 const canaryTimestampPattern = canary.match(
   /const CANARY_UTC_DATETIME_PATTERN =\s*\/([^\n]+)\/;/,
 )?.[1];
-if (canaryTimestampPattern !==
-    '^([0-9]{4})-([0-9]{2})-([0-9]{2})T([01][0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9])(?:\\.([0-9]+))?)?Z$') {
+if (
+  canaryTimestampPattern !==
+  '^([0-9]{4})-([0-9]{2})-([0-9]{2})T([01][0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9])(?:\\.([0-9]+))?)?Z$'
+) {
   failures.push('the local start timestamp grammar must remain the exact UTC contract grammar');
 }
 
@@ -352,7 +363,7 @@ requireMatch(
 );
 const minimizedReadbackTask = readbackWorkflow.slice(
   readbackWorkflow.indexOf('readback_task_json=$(jq'),
-  readbackWorkflow.indexOf("readback_task_definition=''")
+  readbackWorkflow.indexOf("readback_task_definition=''"),
 );
 forbid(
   minimizedReadbackTask,

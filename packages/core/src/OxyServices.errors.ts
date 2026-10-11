@@ -54,7 +54,12 @@ export class AssetUrlResolutionError extends Error {
    */
   public readonly cause?: unknown;
 
-  constructor(fileId: string, variant: string | undefined, status: number | undefined, cause?: unknown) {
+  constructor(
+    fileId: string,
+    variant: string | undefined,
+    status: number | undefined,
+    cause?: unknown,
+  ) {
     const variantSuffix = variant ? ` (variant "${variant}")` : '';
     const statusSuffix = typeof status === 'number' ? ` — status ${status}` : '';
     super(`Could not resolve a download URL for asset "${fileId}"${variantSuffix}${statusSuffix}`);
@@ -152,12 +157,11 @@ export class OxyAuthenticationTimeoutError extends OxyAuthenticationError {
     super(
       `Authentication timeout (${timeoutMs}ms): ${operationName} requires user authentication. Please ensure the user is logged in before calling this method.`,
       'AUTH_TIMEOUT',
-      408
+      408,
     );
     this.name = 'OxyAuthenticationTimeoutError';
   }
 }
-
 
 /**
  * The one error every `OxyServices` call rejects with.

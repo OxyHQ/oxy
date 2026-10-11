@@ -89,7 +89,11 @@ const NIBBLE_LEADING_ZERO_BITS: Readonly<Record<string, number>> = {
  * vice versa — the two are unrelated preimages even for the same
  * `publicKey`/`timestamp` pair.
  */
-export function registrationPowMessage(publicKey: string, timestamp: number, nonce: string): string {
+export function registrationPowMessage(
+  publicKey: string,
+  timestamp: number,
+  nonce: string,
+): string {
   return `oxy:register-pow:${publicKey}:${timestamp}:${nonce}`;
 }
 

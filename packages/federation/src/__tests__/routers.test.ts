@@ -50,7 +50,8 @@ function makeWebfingerApp(overrides: Partial<WebfingerRouterConfig> = {}): Expre
     resolveUser: async (username) => (username === 'alice' ? { _id: 'u-alice' } : null),
     consent: {
       isSharingEnabledFromUser: () => true,
-      getSharingStateByUsername: async (username) => (username === 'alice' ? 'enabled' : 'unknown-user'),
+      getSharingStateByUsername: async (username) =>
+        username === 'alice' ? 'enabled' : 'unknown-user',
     },
     cache: { get: async () => null, set: () => {} },
     logger: { error: () => {} },
@@ -60,10 +61,12 @@ function makeWebfingerApp(overrides: Partial<WebfingerRouterConfig> = {}): Expre
   return app;
 }
 
-function makeActorApp(overrides: {
-  actorConfig?: Partial<ActorRouterConfig>;
-  onDispatch?: (activity: Record<string, unknown>, verifiedActorUri: string) => void;
-} = {}): Express {
+function makeActorApp(
+  overrides: {
+    actorConfig?: Partial<ActorRouterConfig>;
+    onDispatch?: (activity: Record<string, unknown>, verifiedActorUri: string) => void;
+  } = {},
+): Express {
   const app = express();
   app.use(
     express.json({
@@ -80,17 +83,30 @@ function makeActorApp(overrides: {
     apContentType: 'application/activity+json',
     urls,
     wantsActivityPub,
-    getPublicKey: async () => ({ keyId: `${urls.actor('alice')}#main-key`, publicKeyPem: 'LOCALPEM' }),
-    resolveUser: async (username) => (username === 'alice' ? { _id: 'u-alice', name: { displayName: 'Alice' }, _count: { followers: 3, following: 1 } } : null),
+    getPublicKey: async () => ({
+      keyId: `${urls.actor('alice')}#main-key`,
+      publicKeyPem: 'LOCALPEM',
+    }),
+    resolveUser: async (username) =>
+      username === 'alice'
+        ? { _id: 'u-alice', name: { displayName: 'Alice' }, _count: { followers: 3, following: 1 } }
+        : null,
     consent: {
       isSharingEnabledFromUser: () => true,
-      getSharingStateByUsername: async (username) => (username === 'alice' ? 'enabled' : 'unknown-user'),
+      getSharingStateByUsername: async (username) =>
+        username === 'alice' ? 'enabled' : 'unknown-user',
     },
-    buildLocalActorObject: (params) => ({ id: urls.actor(params.username), type: 'Person', name: params.displayName }),
+    buildLocalActorObject: (params) => ({
+      id: urls.actor(params.username),
+      type: 'Person',
+      name: params.displayName,
+    }),
     getBanner: async () => null,
     inbound: {
       fetchPublicKey: async (keyId) =>
-        keyId === REMOTE_KEY_ID ? { publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR } : null,
+        keyId === REMOTE_KEY_ID
+          ? { publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR }
+          : null,
       trustForwardedHost: true,
       enqueueInboxActivity: async () => false, // force the inline dispatch path
       processInboxActivity: async (activity, verifiedActorUri) => {
@@ -108,23 +124,35 @@ function makeActorApp(overrides: {
 
 describe('webfinger router', () => {
   it('resolves acct:alice@mention.earth to the actor self link (200)', async () => {
-    const res = await request(makeWebfingerApp()).get('/.well-known/webfinger').query({ resource: 'acct:alice@mention.earth' });
+    const res = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
     expect(res.status).toBe(200);
     expect(res.body.subject).toBe('acct:alice@mention.earth');
-    expect(res.body.links[0]).toEqual({ rel: 'self', type: 'application/activity+json', href: urls.actor('alice') });
+    expect(res.body.links[0]).toEqual({
+      rel: 'self',
+      type: 'application/activity+json',
+      href: urls.actor('alice'),
+    });
   });
 
   it('normalizes mixed-case acct local-parts before resolve', async () => {
-    const resolveUser = jest.fn(async (username: string) => (username === 'alice' ? { _id: 'u-alice' } : null));
+    const resolveUser = jest.fn(async (username: string) =>
+      username === 'alice' ? { _id: 'u-alice' } : null,
+    );
     const app = makeWebfingerApp({ resolveUser });
-    const res = await request(app).get('/.well-known/webfinger').query({ resource: 'acct:Alice@mention.earth' });
+    const res = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:Alice@mention.earth' });
     expect(res.status).toBe(200);
     expect(resolveUser).toHaveBeenCalledWith('alice');
     expect(res.body.subject).toBe('acct:alice@mention.earth');
   });
 
   it('404s an unknown domain', async () => {
-    const res = await request(makeWebfingerApp()).get('/.well-known/webfinger').query({ resource: 'acct:alice@other.example' });
+    const res = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@other.example' });
     expect(res.status).toBe(404);
   });
 
@@ -138,9 +166,14 @@ describe('webfinger router', () => {
 
   it('404s a sharing-disabled user indistinguishably', async () => {
     const app = makeWebfingerApp({
-      consent: { isSharingEnabledFromUser: () => false, getSharingStateByUsername: async () => 'disabled' },
+      consent: {
+        isSharingEnabledFromUser: () => false,
+        getSharingStateByUsername: async () => 'disabled',
+      },
     });
-    const res = await request(app).get('/.well-known/webfinger').query({ resource: 'acct:alice@mention.earth' });
+    const res = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: 'User not found' });
   });
@@ -193,9 +226,7 @@ describe('webfinger router — the instance (server) actor', () => {
     expect(webfinger.status).toBe(200);
     expect(actor.status).toBe(200);
 
-    const selfLink = webfinger.body.links.find(
-      (link: { rel: string }) => link.rel === 'self',
-    );
+    const selfLink = webfinger.body.links.find((link: { rel: string }) => link.rel === 'self');
     expect(selfLink).toBeDefined();
     // Positive control: neither side may be vacuously undefined.
     expect(typeof actor.body.id).toBe('string');
@@ -333,17 +364,34 @@ describe('actor router — GET /ap/users/:username', () => {
 
 describe('actor router — inbox POST', () => {
   /** Build a validly-signed inbox request body + headers for `activity`. */
-  async function signedInbox(path: string, activity: Record<string, unknown>): Promise<{ body: string; headers: Record<string, string> }> {
+  async function signedInbox(
+    path: string,
+    activity: Record<string, unknown>,
+  ): Promise<{ body: string; headers: Record<string, string> }> {
     const body = JSON.stringify(activity);
-    const headers = await signRequest(sign, REMOTE_KEY_ID, 'POST', `https://${DOMAIN}${path}`, body);
+    const headers = await signRequest(
+      sign,
+      REMOTE_KEY_ID,
+      'POST',
+      `https://${DOMAIN}${path}`,
+      body,
+    );
     return { body, headers };
   }
 
   it('accepts a validly-signed activity (202) and reaches the dispatcher — no redirect', async () => {
     const dispatched: Array<{ activity: Record<string, unknown>; verifiedActorUri: string }> = [];
-    const app = makeActorApp({ onDispatch: (activity, verifiedActorUri) => dispatched.push({ activity, verifiedActorUri }) });
+    const app = makeActorApp({
+      onDispatch: (activity, verifiedActorUri) => dispatched.push({ activity, verifiedActorUri }),
+    });
 
-    const activity = { '@context': 'https://www.w3.org/ns/activitystreams', id: 'https://remote.example/f/1', type: 'Follow', actor: REMOTE_ACTOR, object: urls.actor('alice') };
+    const activity = {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      id: 'https://remote.example/f/1',
+      type: 'Follow',
+      actor: REMOTE_ACTOR,
+      object: urls.actor('alice'),
+    };
     const { body, headers } = await signedInbox('/ap/inbox', activity);
 
     const res = await request(app)
@@ -399,7 +447,9 @@ describe('actor router — inbox POST', () => {
       actorConfig: {
         inbound: {
           fetchPublicKey: async (keyId) =>
-            keyId === REMOTE_KEY_ID ? { publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR } : null,
+            keyId === REMOTE_KEY_ID
+              ? { publicKeyPem: REMOTE_PUBLIC_PEM, actorUri: REMOTE_ACTOR }
+              : null,
           trustForwardedHost: true,
           enqueueInboxActivity: async () => false,
           processInboxActivity: dispatcher.processInboxActivity,
@@ -436,7 +486,12 @@ describe('actor router — inbox POST', () => {
   });
 
   it('rejects an actor mismatch with 403', async () => {
-    const activity = { id: 'https://remote.example/f/2', type: 'Follow', actor: 'https://evil.example/users/x', object: urls.actor('alice') };
+    const activity = {
+      id: 'https://remote.example/f/2',
+      type: 'Follow',
+      actor: 'https://evil.example/users/x',
+      object: urls.actor('alice'),
+    };
     const { body, headers } = await signedInbox('/ap/inbox', activity);
     const res = await request(makeActorApp())
       .post('/ap/inbox')
@@ -448,7 +503,12 @@ describe('actor router — inbox POST', () => {
   });
 
   it('404s a user inbox for a sharing-disabled user (before signature verify)', async () => {
-    const activity = { id: 'https://remote.example/f/3', type: 'Follow', actor: REMOTE_ACTOR, object: urls.actor('ghost') };
+    const activity = {
+      id: 'https://remote.example/f/3',
+      type: 'Follow',
+      actor: REMOTE_ACTOR,
+      object: urls.actor('ghost'),
+    };
     const { body, headers } = await signedInbox('/ap/users/ghost/inbox', activity);
     const res = await request(makeActorApp())
       .post('/ap/users/ghost/inbox')

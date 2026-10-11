@@ -90,7 +90,10 @@ export interface RealtimeEdgeOptions {
  * Serve `GET /v1/realtime` on `server`'s upgrades. Other upgrade paths are left
  * to their own listeners (Socket.IO's, in `server.ts`).
  */
-export function attachRealtimeEdge(server: http.Server, options: RealtimeEdgeOptions): WebSocketServer {
+export function attachRealtimeEdge(
+  server: http.Server,
+  options: RealtimeEdgeOptions,
+): WebSocketServer {
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: MAX_REALTIME_CUSTOMER_FRAME_BYTES,
@@ -120,7 +123,7 @@ export function attachRealtimeEdge(server: http.Server, options: RealtimeEdgeOpt
         logger.error(
           'inference.realtime.connection_failed',
           error instanceof Error ? error : new Error(String(error)),
-          { requestId }
+          { requestId },
         );
         ws.close(REALTIME_CLOSE.internal, 'internal_error');
       });
@@ -140,7 +143,7 @@ async function serveConnection(
   url: URL,
   requestId: string,
   receivedAt: number,
-  options: RealtimeEdgeOptions
+  options: RealtimeEdgeOptions,
 ): Promise<void> {
   const link: RealtimeCustomerLink = {
     send: (text) => {
@@ -191,10 +194,14 @@ async function serveConnection(
   // from the frame is logged.
   ws.on('error', () => undefined);
 
-  const refuse = (code: Parameters<typeof buildInferenceError>[0]['code'], message: string, param?: string): void => {
+  const refuse = (
+    code: Parameters<typeof buildInferenceError>[0]['code'],
+    message: string,
+    param?: string,
+  ): void => {
     refuseCustomer(
       link,
-      buildInferenceError({ code, message, requestId, ...(param === undefined ? {} : { param }) })
+      buildInferenceError({ code, message, requestId, ...(param === undefined ? {} : { param }) }),
     );
   };
 
@@ -241,13 +248,18 @@ async function serveConnection(
     refuse('invalid_request', 'The first frame is not JSON.');
     return;
   }
-  const type = typeof payload === 'object' && payload !== null ? Reflect.get(payload, 'type') : undefined;
+  const type =
+    typeof payload === 'object' && payload !== null ? Reflect.get(payload, 'type') : undefined;
 
   if (type === 'session.open') {
     const open = realtimeOpenFrameSchema.safeParse(payload);
     if (!open.success) {
       const issue = open.error.issues[0];
-      refuse('invalid_request', issue?.message ?? 'The session.open frame could not be parsed.', issue?.path.join('.'));
+      refuse(
+        'invalid_request',
+        issue?.message ?? 'The session.open frame could not be parsed.',
+        issue?.path.join('.'),
+      );
       return;
     }
     const modelParam = url.searchParams.get('model');

@@ -36,7 +36,9 @@ const PLATE_SIZE = QR_SIZE + PLATE_PADDING * 2;
 /** The spinner while a code is on its way: React Native's `large` indicator size. */
 const SPINNER_SIZE = 36;
 
-export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | null }> = ({ controller }) => {
+export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | null }> = ({
+  controller,
+}) => {
   const theme = useTheme();
   const { t } = useI18n();
   const { signIn } = useAccountDialogSnapshot(controller);
@@ -58,7 +60,8 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
     }
     return () => {
       const { signIn: last } = controller.getSnapshot();
-      if (last.inline && (last.phase === 'starting' || last.phase === 'waiting')) controller.cancelSignIn();
+      if (last.inline && (last.phase === 'starting' || last.phase === 'waiting'))
+        controller.cancelSignIn();
     };
   }, [controller, shown]);
 
@@ -71,7 +74,14 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
   if (signIn.inline && signIn.progress === 'identity-confirmed') {
     plate = <RiCheckboxCircleLine size="3xl" fill={theme.colors.success} />;
   } else if (live && signIn.qrPayload && signIn.progress !== 'confirming-identity') {
-    plate = <QRCode value={signIn.qrPayload} size={QR_SIZE} backgroundColor={QR_PLATE_BG} color={QR_FOREGROUND} />;
+    plate = (
+      <QRCode
+        value={signIn.qrPayload}
+        size={QR_SIZE}
+        backgroundColor={QR_PLATE_BG}
+        color={QR_FOREGROUND}
+      />
+    );
   } else if (live || expired || (signIn.inline && signIn.phase === 'completed')) {
     plate = <SpinnerIcon size={SPINNER_SIZE} color={QR_FOREGROUND} />;
   } else {
@@ -100,9 +110,7 @@ export const InlineCommonsQr: React.FC<{ controller: AccountDialogController | n
       }}
     >
       <View style={[styles.plate, { borderColor: theme.colors.border }]}>{plate}</View>
-      <Text style={[styles.caption, styles.captionOnMedia]}>
-        {t('signin.qr.caption')}
-      </Text>
+      <Text style={[styles.caption, styles.captionOnMedia]}>{t('signin.qr.caption')}</Text>
     </View>
   );
 };

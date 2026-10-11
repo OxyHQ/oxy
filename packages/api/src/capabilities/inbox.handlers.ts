@@ -10,11 +10,7 @@ import {
   finalizeCapabilityEffectFor,
   reserveCapabilityEffectFor,
 } from '../services/capabilityRuntimeStore.service';
-import {
-  ApiError,
-  BadRequestError,
-  ConflictError,
-} from '../utils/error';
+import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
 import { INBOX_TOOLS, type InboxToolInput, type InboxToolResult } from './inbox.tools';
 
@@ -37,17 +33,22 @@ const idempotencyArgument = {
   type: 'string',
   minLength: 1,
   maxLength: 255,
-  description: 'A key you generate once for this action (a UUID, for example) and reuse only when retrying '
-    + 'the SAME action. A key already used is refused instead of acting twice.',
+  description:
+    'A key you generate once for this action (a UUID, for example) and reuse only when retrying ' +
+    'the SAME action. A key already used is refused instead of acting twice.',
 } as const;
 
 function withIdempotencyArgument(tool: CatalogTool): CatalogTool {
   if (tool.idempotency !== 'required') return tool;
   const properties = (tool.inputSchema.properties ?? {}) as Record<string, unknown>;
   if (Object.prototype.hasOwnProperty.call(properties, IDEMPOTENCY_ARGUMENT)) {
-    throw new Error(`Inbox tool ${tool.name} must not declare the reserved ${IDEMPOTENCY_ARGUMENT} argument`);
+    throw new Error(
+      `Inbox tool ${tool.name} must not declare the reserved ${IDEMPOTENCY_ARGUMENT} argument`,
+    );
   }
-  const required = Array.isArray(tool.inputSchema.required) ? tool.inputSchema.required as string[] : [];
+  const required = Array.isArray(tool.inputSchema.required)
+    ? (tool.inputSchema.required as string[])
+    : [];
   return {
     ...tool,
     inputSchema: {
@@ -114,15 +115,17 @@ function handlerFor(tool: CatalogTool): CatalogToolHandler {
     }
     const accountId = context.principal.activeAccountId;
     return {
-      structuredContent: await executeEffect(tool.name, idempotencyKey, context, () => (
-        run(input as InboxToolInput, { accountId, idempotencyKey })
-      )),
+      structuredContent: await executeEffect(tool.name, idempotencyKey, context, () =>
+        run(input as InboxToolInput, { accountId, idempotencyKey }),
+      ),
     };
   };
 }
 
-export const INBOX_MCP_HANDLERS: CatalogToolHandlers = Object.freeze(Object.fromEntries(
-  INBOX_MCP_CATALOG.tools
-    .filter(({ exposure }) => exposure.includes('mcp'))
-    .map((tool) => [tool.name, handlerFor(tool)]),
-));
+export const INBOX_MCP_HANDLERS: CatalogToolHandlers = Object.freeze(
+  Object.fromEntries(
+    INBOX_MCP_CATALOG.tools
+      .filter(({ exposure }) => exposure.includes('mcp'))
+      .map((tool) => [tool.name, handlerFor(tool)]),
+  ),
+);

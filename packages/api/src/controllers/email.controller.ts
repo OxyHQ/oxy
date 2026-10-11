@@ -19,16 +19,22 @@ import { messages } from '../db/schema/messages';
 import { users } from '../db/schema/users';
 import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { FileRecord } from '../types/file.types';
-import {
-  BadRequestError,
-  ForbiddenError,
-  NotFoundError,
-} from '../utils/error';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { resolveEmailFromName } from '../utils/displayName';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
-import type { RecipientInput, AttachmentInput } from '../schemas/email.schemas';
-import { cancelEmailOutbox, listEmailOutbox, retryEmailOutbox } from '../services/emailOutbox.service';
+import type { z } from 'zod';
+import type {
+  RecipientInput,
+  AttachmentInput,
+  listSubscriptionsResponseSchema,
+  unsubscribeResponseSchema,
+} from '../schemas/email.schemas';
+import {
+  cancelEmailOutbox,
+  listEmailOutbox,
+  retryEmailOutbox,
+} from '../services/emailOutbox.service';
 
 /**
  * Read an optional query-string param that MUST be a single string.
@@ -71,7 +77,7 @@ function parseSeenSearchOperator(query: string): { query: string; seen?: boolean
  */
 async function resolveAttachmentInputs(
   inputs: AttachmentInput[],
-  userId: string
+  userId: string,
 ): Promise<{ resolved: MessageAttachment[]; files: FileRecord[] }> {
   const fileIds = inputs.map((a) => a.fileId);
   const files = await assetService.getFilesByIds(fileIds);
@@ -125,7 +131,7 @@ async function resolveAttachmentInputs(
 async function linkAttachmentsToMessage(
   files: FileRecord[],
   messageId: string,
-  userId: string
+  userId: string,
 ): Promise<void> {
   for (const file of files) {
     try {
@@ -145,7 +151,6 @@ async function linkAttachmentsToMessage(
   }
 }
 
-
 /**
  * Find one of this user's own messages by its RFC 5322 `Message-ID`.
  *
@@ -156,7 +161,9 @@ async function linkAttachmentsToMessage(
 async function findOwnMessageByRfcId(
   userId: string,
   rfcMessageId: string,
-): Promise<{ id: string; messageId: string; inReplyTo: string | null; references: string[] } | undefined> {
+): Promise<
+  { id: string; messageId: string; inReplyTo: string | null; references: string[] } | undefined
+> {
   const [row] = await getDb()
     .select({
       id: messages.id,
@@ -211,9 +218,8 @@ async function resolveReplyThreading(
   const parent = await findOwnMessageByRfcId(userId, inReplyTo);
   if (!parent) return { inReplyTo, references };
 
-  const ancestry = parent.references.length > 0
-    ? parent.references
-    : parent.inReplyTo ? [parent.inReplyTo] : [];
+  const ancestry =
+    parent.references.length > 0 ? parent.references : parent.inReplyTo ? [parent.inReplyTo] : [];
   const chain = [...new Set([...ancestry, parent.messageId])].filter(
     (id) => rfcMessageIdSchema.safeParse(id).success,
   );
@@ -277,13 +283,21 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
   }
 
   const result = await emailService.listMessages(userId, mailboxId || null, {
-    limit, offset, cursor, unseenOnly, starred, label,
+    limit,
+    offset,
+    cursor,
+    unseenOnly,
+    starred,
+    label,
   });
   const pagination = {
     total: result.total,
     limit: result.limit,
     offset: result.offset,
-    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    hasMore:
+      cursor !== undefined
+        ? result.nextCursor !== null
+        : result.offset + result.limit < result.total,
     ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
   };
   res.json({
@@ -492,7 +506,9 @@ export async function deleteLabel(req: AuthRequest, res: Response): Promise<void
  * a send always answered with for an account that has no username, since
  * without one there is no address.
  */
-export async function senderIdentityFor(userId: string): Promise<{ address: string; name: string }> {
+export async function senderIdentityFor(
+  userId: string,
+): Promise<{ address: string; name: string }> {
   const [user] = await getDb()
     .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
     .from(users)
@@ -522,6 +538,11 @@ export interface SendEmailCommand {
   attachments?: AttachmentInput[];
   scheduledAt?: string;
   requestReadReceipt?: boolean;
+  /**
+   * Row id of the draft this message was composed from. It is removed once the
+   * message is sent or scheduled, so the same text is never left in Drafts.
+   */
+  draftId?: string;
 }
 
 export interface SendEmailResult {
@@ -545,6 +566,7 @@ export async function sendMessageForUser(
     attachments,
     scheduledAt,
     requestReadReceipt,
+    draftId,
   } = command;
 
   // Schema validation already guarantees to.length >= 1 and recipient shape.
@@ -563,17 +585,21 @@ export async function sendMessageForUser(
   // the attempt still counts toward the bounce rate that gets a sending domain
   // suspended — and the sender would be told nothing. One query for the whole
   // recipient list; see `emailSuppression.service.ts` for the scope rules.
-  const suppressed = await findSuppressed(userId, allRecipients.map((r) => r.address));
+  const suppressed = await findSuppressed(
+    userId,
+    allRecipients.map((r) => r.address),
+  );
   if (suppressed.length > 0) {
     const detail = suppressed
       .map((s) => {
-        const why = s.reason === 'complaint'
-          ? 'marked your mail as spam'
-          : s.reason === 'bounce_permanent'
-            ? 'permanently rejected mail'
-            : s.reason === 'bounce_transient'
-              ? 'is temporarily rejecting mail'
-              : 'was blocked manually';
+        const why =
+          s.reason === 'complaint'
+            ? 'marked your mail as spam'
+            : s.reason === 'bounce_permanent'
+              ? 'permanently rejected mail'
+              : s.reason === 'bounce_transient'
+                ? 'is temporarily rejecting mail'
+                : 'was blocked manually';
         return `${s.address} (${why}${s.diagnostic ? `: ${s.diagnostic}` : ''})`;
       })
       .join('; ');
@@ -586,9 +612,10 @@ export async function sendMessageForUser(
   // Resolve { fileId } references → canonical MessageAttachment[] for storage and
   // outbound transport. Throws 400/403 on missing / non-active / unauthorized
   // fileIds before any side effects.
-  const { resolved: resolvedAttachments, files: attachedFiles } = attachments && attachments.length > 0
-    ? await resolveAttachmentInputs(attachments, userId)
-    : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
+  const { resolved: resolvedAttachments, files: attachedFiles } =
+    attachments && attachments.length > 0
+      ? await resolveAttachmentInputs(attachments, userId)
+      : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
 
   if (scheduledAt) {
     const scheduledDate = new Date(scheduledAt);
@@ -619,8 +646,15 @@ export async function sendMessageForUser(
       await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
     }
 
+    if (draftId) {
+      await emailService.deleteSentDraft(userId, draftId);
+    }
+
     emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
-      logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
+      logger.warn('autoCollectContacts failed', {
+        userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 
     return {
@@ -657,8 +691,17 @@ export async function sendMessageForUser(
     await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
   }
 
+  // A queued message is held by the server's durable outbox, so the draft has
+  // done its job either way.
+  if (draftId) {
+    await emailService.deleteSentDraft(userId, draftId);
+  }
+
   emailService.autoCollectContacts(userId, allRecipients).catch((err) => {
-    logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
+    logger.warn('autoCollectContacts failed', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   });
 
   return {
@@ -702,7 +745,19 @@ export async function saveDraftForUser(
   userId: string,
   command: SaveDraftCommand,
 ): Promise<Awaited<ReturnType<typeof emailService.saveDraft>>> {
-  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId, expectedRevision } = command;
+  const {
+    to,
+    cc,
+    bcc,
+    subject,
+    text,
+    html,
+    inReplyTo,
+    references,
+    attachments,
+    existingDraftId,
+    expectedRevision,
+  } = command;
   const { resolved: resolvedAttachments, files: attachedFiles } = attachments?.length
     ? await resolveAttachmentInputs(attachments, userId)
     : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
@@ -823,9 +878,15 @@ export async function searchMessagesForUser(
   }
 
   const result = await emailService.searchMessages(userId, q, {
-    limit, offset, mailboxId, from, to, subject,
+    limit,
+    offset,
+    mailboxId,
+    from,
+    to,
+    subject,
     hasAttachment: hasAttachment || undefined,
-    dateAfter, dateBefore,
+    dateAfter,
+    dateBefore,
     starred: starred || undefined,
     label,
     seen,
@@ -835,7 +896,10 @@ export async function searchMessagesForUser(
     total: result.total,
     limit: result.limit,
     offset: result.offset,
-    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    hasMore:
+      cursor !== undefined
+        ? result.nextCursor !== null
+        : result.offset + result.limit < result.total,
     ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
   };
   return {
@@ -883,7 +947,12 @@ export async function updateEmailSettings(req: AuthRequest, res: Response): Prom
   const userId = req.user!.id;
   const { signature, autoReply, autoForwardTo, autoForwardKeepCopy } = req.body;
 
-  await emailService.updateEmailSettings(userId, { signature, autoReply, autoForwardTo, autoForwardKeepCopy });
+  await emailService.updateEmailSettings(userId, {
+    signature,
+    autoReply,
+    autoForwardTo,
+    autoForwardKeepCopy,
+  });
   res.json({ data: { message: 'Settings updated' } });
 }
 
@@ -895,7 +964,7 @@ export async function listSubscriptions(req: AuthRequest, res: Response): Promis
   const offset = Number.parseInt(req.query.offset as string) || 0;
 
   const result = await emailService.getSubscriptions(userId, { limit, offset });
-  res.json({
+  const body: z.infer<typeof listSubscriptionsResponseSchema> = {
     data: result.data,
     pagination: {
       total: result.total,
@@ -903,7 +972,8 @@ export async function listSubscriptions(req: AuthRequest, res: Response): Promis
       offset,
       hasMore: offset + limit < result.total,
     },
-  });
+  };
+  res.json(body);
 }
 
 export async function unsubscribe(req: AuthRequest, res: Response): Promise<void> {
@@ -919,8 +989,13 @@ export async function unsubscribe(req: AuthRequest, res: Response): Promise<void
     throw new BadRequestError('method must be "list-unsubscribe" or "block"');
   }
 
-  const result = await emailService.unsubscribe(userId, senderAddress, method || 'list-unsubscribe');
-  res.json({ data: result });
+  const result = await emailService.unsubscribe(
+    userId,
+    senderAddress,
+    method || 'list-unsubscribe',
+  );
+  const body: z.infer<typeof unsubscribeResponseSchema> = { data: result };
+  res.json(body);
 }
 
 // ─── Bundles ──────────────────────────────────────────────────────
@@ -952,7 +1027,10 @@ export async function listBundledMessages(req: AuthRequest, res: Response): Prom
   const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
   const offset = Number.parseInt(req.query.offset as string) || 0;
 
-  const result = await emailService.listBundledMessages(userId, mailboxId || null, { limit, offset });
+  const result = await emailService.listBundledMessages(userId, mailboxId || null, {
+    limit,
+    offset,
+  });
   res.json({
     data: {
       primary: result.primary,
@@ -1033,7 +1111,7 @@ export async function deleteReminder(req: AuthRequest, res: Response): Promise<v
 // ─── Contacts ──────────────────────────────────────────────────────
 
 export async function suggestContacts(req: AuthRequest, res: Response): Promise<void> {
-  res.json({ data: await suggestContactsForUser(req.user!.id, req.query.q as string || '') });
+  res.json({ data: await suggestContactsForUser(req.user!.id, (req.query.q as string) || '') });
 }
 
 /**
@@ -1054,14 +1132,12 @@ export async function suggestContactsForUser(
 
   // Search both the address book and message history in parallel.
   //
-  // Mongo's `$concatArrays` of `from`, `to` and `cc` followed by `$unwind`
-  // existed only because all three lived on one document. `to` and `cc` are a
-  // child table now, so the concat IS the union — and the `$regex` becomes
-  // `strpos`, which has no metacharacter language, so the escaping the old
-  // query needed to neutralize ReDoS has nothing left to escape.
+  // `to` and `cc` are a child table, so the candidate set is the union of
+  // `from`, `to` and `cc` — and matching is `strpos`, which has no
+  // metacharacter language, so there is nothing to escape against ReDoS.
   //
-  // `$first` after no `$sort` picked an arbitrary spelling of the name; this
-  // picks the most recently used one, which is at least a decision.
+  // The most recently used spelling of a name wins, rather than an arbitrary
+  // one.
   const [contactResults, messageResults] = await Promise.all([
     emailService.searchContacts(userId, q, 10),
     getDb().execute<{ name: string | null; address: string }>(sql`
@@ -1107,7 +1183,7 @@ export async function suggestContactsForUser(
     const key = (m.address || '').toLowerCase();
     if (key && !seen.has(key)) {
       seen.add(key);
-      // Mongoose defaulted an absent display name to `''`, not null.
+      // An absent display name is `''` on the wire, not null.
       merged.push({ name: m.name ?? '', address: m.address });
     }
   }
@@ -1119,10 +1195,17 @@ export async function listContacts(req: AuthRequest, res: Response): Promise<voi
   const userId = req.user!.id;
   const q = req.query.q as string | undefined;
   const starred = req.query.starred === 'true';
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
+  // Clamped on both sides: a negative `limit` or `offset` reached Postgres as
+  // `LIMIT -1` / `OFFSET -1` and answered 500.
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit as string) || 50, 1), 100);
+  const offset = Math.max(Number.parseInt(req.query.offset as string) || 0, 0);
 
-  const result = await emailService.listContacts(userId, { q, starred: starred || undefined, limit, offset });
+  const result = await emailService.listContacts(userId, {
+    q,
+    starred: starred || undefined,
+    limit,
+    offset,
+  });
   res.json({
     data: result.data,
     pagination: {
@@ -1315,7 +1398,9 @@ export async function importMessages(req: AuthRequest, res: Response): Promise<v
   // Validate that all files are .eml
   for (const file of files) {
     if (!file.originalname.toLowerCase().endsWith('.eml')) {
-      throw new BadRequestError(`Invalid file type: ${file.originalname}. Only .eml files are accepted.`);
+      throw new BadRequestError(
+        `Invalid file type: ${file.originalname}. Only .eml files are accepted.`,
+      );
     }
   }
 

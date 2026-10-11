@@ -22,13 +22,7 @@ import { userResponseSchema } from '../userResponse';
 
 describe('@oxy.so/contracts account kinds', () => {
   it('carries channel as a child kind, and personal as the only root', () => {
-    expect([...ACCOUNT_KINDS]).toEqual([
-      'personal',
-      'organization',
-      'project',
-      'bot',
-      'channel',
-    ]);
+    expect([...ACCOUNT_KINDS]).toEqual(['personal', 'organization', 'project', 'bot', 'channel']);
     expect([...CHILD_ACCOUNT_KINDS]).toEqual(['organization', 'project', 'bot', 'channel']);
     expect(CHILD_ACCOUNT_KINDS).not.toContain('personal');
   });
@@ -134,7 +128,7 @@ describe('@oxy.so/contracts account kinds', () => {
    */
   it('admits only organization/project/bot as a delegated subject', () => {
     const verdicts = Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, isDelegatedActAsEligibleKind(kind)])
+      ACCOUNT_KINDS.map((kind) => [kind, isDelegatedActAsEligibleKind(kind)]),
     );
     expect(verdicts).toEqual({
       personal: false,
@@ -153,7 +147,7 @@ describe('@oxy.so/contracts account kinds', () => {
    */
   it('refuses bot as well as channel to a person switching accounts', () => {
     const verdicts = Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, isOperatorSwitchTargetKind(kind)])
+      ACCOUNT_KINDS.map((kind) => [kind, isOperatorSwitchTargetKind(kind)]),
     );
     expect(verdicts).toEqual({
       personal: false,
@@ -282,7 +276,7 @@ describe('@oxy.so/contracts account categories', () => {
     const chosen: AccountCategoryId[] = ['news', 'art', 'film'];
     const alphabetical = [...chosen].sort();
     const declarationOrder = [...chosen].sort(
-      (a, b) => ACCOUNT_CATEGORY_IDS.indexOf(a) - ACCOUNT_CATEGORY_IDS.indexOf(b)
+      (a, b) => ACCOUNT_CATEGORY_IDS.indexOf(a) - ACCOUNT_CATEGORY_IDS.indexOf(b),
     );
     // The fixture can tell a sort from a pass-through only if the sorts DIFFER
     // from it. Assert that before trusting the round-trip below.
@@ -306,7 +300,7 @@ describe('@oxy.so/contracts account categories', () => {
    */
   it('admits every kind except personal', () => {
     const verdicts = Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, kindAcceptsAccountCategories(kind)])
+      ACCOUNT_KINDS.map((kind) => [kind, kindAcceptsAccountCategories(kind)]),
     );
     expect(verdicts).toEqual({
       personal: false,
@@ -380,7 +374,7 @@ describe('@oxy.so/contracts account categories', () => {
         });
 
         expect(parsed.success).toBe(true);
-      }
+      },
     );
   });
 
@@ -414,7 +408,7 @@ describe('@oxy.so/contracts account categories', () => {
       expect(newlyAddedRetiredCategories(['landlord'], ['landlord'], retired)).toEqual([]);
       // Re-ordering to promote another category to primary is still a keep.
       expect(
-        newlyAddedRetiredCategories(['news', 'landlord'], ['landlord', 'news'], retired)
+        newlyAddedRetiredCategories(['news', 'landlord'], ['landlord', 'news'], retired),
       ).toEqual([]);
       // Dropping it is always allowed.
       expect(newlyAddedRetiredCategories(['news'], ['landlord'], retired)).toEqual([]);

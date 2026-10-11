@@ -8,18 +8,21 @@
  *     write path owns the invariant inside the SAME transaction that writes the
  *     children — a violation has to roll the whole rule back, not leave a rule
  *     that silently matches everything.
- *   - **Bundles** gained case-insensitive uniqueness, which Mongo's index
- *     lacked while its two siblings had it.
+ *   - **Bundles** are unique case-insensitively, like their two siblings.
  *   - **Reminders** had a read-then-write-per-row cron; it is one statement now.
- *   - **Templates** and **contacts** carry call-site obligations Mongoose
- *     discharged with setters that Postgres has no counterpart for.
+ *   - **Templates** and **contacts** carry call-site normalization obligations
+ *     that Postgres has no setter to discharge.
  */
 
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -72,10 +75,7 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
           { field: 'from', operator: 'contains', value: 'ops@' },
           { field: 'subject', operator: 'starts-with', value: 'Alert' },
         ],
-        actions: [
-          { type: 'label', value: 'Work' },
-          { type: 'mark-read' },
-        ],
+        actions: [{ type: 'label', value: 'Work' }, { type: 'mark-read' }],
       }),
     );
 
@@ -83,8 +83,8 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
       { field: 'from', operator: 'contains', value: 'ops@' },
       { field: 'subject', operator: 'starts-with', value: 'Alert' },
     ]);
-    // `value` is OMITTED for the actions that take none — Mongoose stored no
-    // key at all rather than a null.
+    // `value` is OMITTED for the actions that take none — no key at all rather
+    // than a null.
     expect(filter.actions).toEqual([{ type: 'label', value: 'Work' }, { type: 'mark-read' }]);
     expect(filter._id).toBe(filter.id);
   });
@@ -92,9 +92,9 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
   it('rolls the whole rule back when it would have no actions', async () => {
     const userId = await owner();
 
-    await expect(
-      emailService.createFilter(userId, filterInput({ actions: [] })),
-    ).rejects.toThrow(/at least one condition and one action/);
+    await expect(emailService.createFilter(userId, filterInput({ actions: [] }))).rejects.toThrow(
+      /at least one condition and one action/,
+    );
 
     // Nothing survived the rollback — not the parent, not the conditions.
     const rows = await getDb()
@@ -108,9 +108,9 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
     const userId = await owner();
     const filter = await emailService.createFilter(userId, filterInput());
 
-    await expect(
-      emailService.updateFilter(userId, filter.id, { conditions: [] }),
-    ).rejects.toThrow(/at least one condition and one action/);
+    await expect(emailService.updateFilter(userId, filter.id, { conditions: [] })).rejects.toThrow(
+      /at least one condition and one action/,
+    );
 
     const [reloaded] = await emailService.listFilters(userId);
     expect(reloaded.conditions).toHaveLength(1);
@@ -339,7 +339,7 @@ describe('templates — the case-insensitive name', () => {
   });
 });
 
-describe('contacts — the normalization Mongoose did with a setter', () => {
+describe('contacts — the normalization the call site owns', () => {
   it('lower-cases and trims the address on create and on update', async () => {
     const userId = await owner();
     const local = `Contact${unique().slice(0, 8)}`;
@@ -400,11 +400,36 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
     expect(onlyStarred.data.map((c) => c.id)).toEqual([starred.id]);
   });
 
+  it('pages through same-named contacts with every one returned exactly once', async () => {
+    // `starred desc, name asc` alone is not a total order: equal names may
+    // swap across a page boundary between requests. `id` breaks the tie.
+    const userId = await owner();
+    const tag = unique().slice(0, 8);
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const contact = await emailService.createContact(userId, {
+        name: `Sam${tag}`,
+        email: `sam${i}-${tag}@example.com`,
+      });
+      ids.push(contact.id);
+    }
+
+    const seen: string[] = [];
+    for (let offset = 0; offset < 5; offset += 2) {
+      const page = await emailService.listContacts(userId, { q: tag, limit: 2, offset });
+      expect(page.total).toBe(5);
+      seen.push(...page.data.map((c) => c.id));
+    }
+    expect(seen).toEqual([...ids].sort());
+  });
+
   it('auto-collects a new correspondent and only touches the stamp on the next one', async () => {
     const userId = await owner();
     const email = `auto${unique().slice(0, 8)}@example.com`;
 
-    await emailService.autoCollectContacts(userId, [{ name: 'First Seen', address: ` ${email.toUpperCase()} ` }]);
+    await emailService.autoCollectContacts(userId, [
+      { name: 'First Seen', address: ` ${email.toUpperCase()} ` },
+    ]);
     const { data: afterFirst } = await emailService.listContacts(userId, { q: email });
     expect(afterFirst[0]).toMatchObject({ name: 'First Seen', email, autoCollected: true });
     const firstStamp = afterFirst[0].lastContactedAt;
@@ -433,7 +458,10 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
   it('suggests contacts starred-first, then most recently contacted', async () => {
     const userId = await owner();
     const tag = unique().slice(0, 8);
-    await emailService.createContact(userId, { name: `Plain${tag}`, email: `p-${tag}@example.com` });
+    await emailService.createContact(userId, {
+      name: `Plain${tag}`,
+      email: `p-${tag}@example.com`,
+    });
     await emailService.createContact(userId, {
       name: `Star${tag}`,
       email: `s-${tag}@example.com`,
@@ -448,5 +476,52 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
   it('returns nothing for a query shorter than two characters', async () => {
     const userId = await owner();
     await expect(emailService.searchContacts(userId, 'a')).resolves.toEqual([]);
+  });
+});
+
+describe('filters — matching an address field', () => {
+  it('matches "equals" and "starts with" against the address of a sender who has a name', async () => {
+    // Storing a message kicks off card extraction and push; resolve them.
+    jest
+      .requireMock('../cardExtraction.service')
+      .cardExtractionService.extractAndUpdate.mockResolvedValue(undefined);
+    jest
+      .requireMock('../emailPushDelivery.service')
+      .sendInboxEmailPush.mockResolvedValue(undefined);
+    const username = `filters${unique().slice(0, 10)}`;
+    const [row] = await getDb()
+      .insert(users)
+      .values({ username, color: 'teal' })
+      .returning({ id: users.id });
+    await emailService.createFilter(
+      row.id,
+      filterInput({
+        conditions: [{ field: 'from', operator: 'equals', value: 'Bob@Example.com' }],
+        actions: [{ type: 'star' }],
+      }),
+    );
+    await emailService.createFilter(
+      row.id,
+      filterInput({
+        conditions: [{ field: 'from', operator: 'starts-with', value: 'bob@' }],
+        actions: [{ type: 'mark-read' }],
+      }),
+    );
+
+    const stored = await emailService.storeIncomingMessage({
+      recipientUsername: username,
+      from: { name: 'Bob Builder', address: 'bob@example.com' },
+      to: [{ address: `${username}@oxy.so` }],
+      subject: 'Hi',
+      text: 'Hello',
+      messageId: `<filter-${unique()}@example.com>`,
+      date: new Date(),
+      headers: {},
+      rawSize: 10,
+    });
+    await emailService.applyFilters(row.id, stored.id);
+
+    const message = await emailService.getMessage(row.id, stored.id);
+    expect(message?.flags).toMatchObject({ starred: true, seen: true });
   });
 });

@@ -10,11 +10,18 @@ import { createTokenTransport } from '../tokenTransport';
 // account switch) must still mint the new account's token. These tests exercise
 // that account-match contract and the transport's error/swallow behavior.
 
-function fakeOxy(currentUserId: string | null, refreshAccessToken = jest.fn(async () => 'minted-token')) {
+function fakeOxy(
+  currentUserId: string | null,
+  refreshAccessToken = jest.fn(async () => 'minted-token'),
+) {
   const userId = jest.fn((): string | null => currentUserId);
   return {
     userId,
-    session: { get userId() { return userId(); } },
+    session: {
+      get userId() {
+        return userId();
+      },
+    },
     http: { refreshAccessToken },
   };
 }

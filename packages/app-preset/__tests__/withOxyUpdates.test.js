@@ -50,20 +50,17 @@ test('rejects a missing or blank clientId', () => {
 
 test('builds the manifest URL from the client id and the default origin', () => {
   const config = withOxyUpdates(baseConfig(), unsignedOptions());
-  assert.equal(
-    config.updates.url,
-    `https://api.oxy.so/updates/v1/apps/${CLIENT_ID}/manifest`,
-  );
+  assert.equal(config.updates.url, `https://api.oxy.so/updates/v1/apps/${CLIENT_ID}/manifest`);
 });
 
 test('honours an explicit apiOrigin and strips its trailing slashes', () => {
-  const config = withOxyUpdates(baseConfig(), unsignedOptions({
-    apiOrigin: 'http://localhost:3001//',
-  }));
-  assert.equal(
-    config.updates.url,
-    `http://localhost:3001/updates/v1/apps/${CLIENT_ID}/manifest`,
+  const config = withOxyUpdates(
+    baseConfig(),
+    unsignedOptions({
+      apiOrigin: 'http://localhost:3001//',
+    }),
   );
+  assert.equal(config.updates.url, `http://localhost:3001/updates/v1/apps/${CLIENT_ID}/manifest`);
 });
 
 test('sets the channel request header without dropping existing headers', () => {
@@ -83,14 +80,20 @@ test('defaults the runtime version to the appVersion policy', () => {
 });
 
 test('honours another runtime version policy, and leaves the app value alone when false', () => {
-  const fingerprint = withOxyUpdates(baseConfig(), unsignedOptions({
-    runtimeVersionPolicy: 'fingerprint',
-  }));
+  const fingerprint = withOxyUpdates(
+    baseConfig(),
+    unsignedOptions({
+      runtimeVersionPolicy: 'fingerprint',
+    }),
+  );
   assert.deepEqual(fingerprint.runtimeVersion, { policy: 'fingerprint' });
 
-  const untouched = withOxyUpdates(baseConfig({ runtimeVersion: '9.9.9' }), unsignedOptions({
-    runtimeVersionPolicy: false,
-  }));
+  const untouched = withOxyUpdates(
+    baseConfig({ runtimeVersion: '9.9.9' }),
+    unsignedOptions({
+      runtimeVersionPolicy: false,
+    }),
+  );
   assert.equal(untouched.runtimeVersion, '9.9.9');
 });
 
@@ -100,12 +103,12 @@ test('wires the certificate as a project-relative path, with metadata matching t
 
     // expo-updates resolves this as `path.join(projectRoot, value)`, so the value
     // must be relative and must land back on the real file.
-    assert.equal(config.updates.codeSigningCertificate, path.relative(PROJECT_ROOT, certificatePath));
-    assert.ok(!path.isAbsolute(config.updates.codeSigningCertificate));
     assert.equal(
-      path.join(PROJECT_ROOT, config.updates.codeSigningCertificate),
-      certificatePath,
+      config.updates.codeSigningCertificate,
+      path.relative(PROJECT_ROOT, certificatePath),
     );
+    assert.ok(!path.isAbsolute(config.updates.codeSigningCertificate));
+    assert.equal(path.join(PROJECT_ROOT, config.updates.codeSigningCertificate), certificatePath);
 
     // Must equal CODE_SIGNING_KEY_ID / CODE_SIGNING_ALG in oxy-api's
     // services/updates/signing.service.ts, or every signature check fails.
@@ -155,7 +158,8 @@ test('wires the URL but no signing when the certificate is absent and codeSignin
 test('fails loudly when the project root is unavailable and a certificate must be wired', () => {
   withTemporaryCertificate((certificatePath) => {
     assert.throws(
-      () => withOxyUpdates({ name: 'Test', slug: 'test' }, { clientId: CLIENT_ID, certificatePath }),
+      () =>
+        withOxyUpdates({ name: 'Test', slug: 'test' }, { clientId: CLIENT_ID, certificatePath }),
       /could not resolve the project root/,
     );
   });

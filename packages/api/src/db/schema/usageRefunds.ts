@@ -97,11 +97,11 @@ export const usageRefunds = pgTable(
 
     check(
       'usage_refunds_subject_kind_check',
-      sql`${t.subjectKind} in (${sql.raw(inList(USAGE_REFUND_SUBJECT_KINDS))})`
+      sql`${t.subjectKind} in (${sql.raw(inList(USAGE_REFUND_SUBJECT_KINDS))})`,
     ),
     check(
       'usage_refunds_reason_check',
-      sql`${t.reason} in (${sql.raw(inList(USAGE_REFUND_REASONS))})`
+      sql`${t.reason} in (${sql.raw(inList(USAGE_REFUND_REASONS))})`,
     ),
     check('usage_refunds_currency_check', currencyCodeCheck(t.currency)),
     // A refund of nothing is a record that money moved when it did not.
@@ -115,18 +115,18 @@ export const usageRefunds = pgTable(
       sql`(${t.subjectKind} = 'reservation'
             and ${t.reservationId} is not null and ${t.receiptId} is null)
         or (${t.subjectKind} = 'receipt'
-            and ${t.receiptId} is not null and ${t.reservationId} is null)`
+            and ${t.receiptId} is not null and ${t.reservationId} is null)`,
     ),
     // An unused reservation is released against the reservation, not a receipt.
     check(
       'usage_refunds_unused_reservation_check',
-      sql`${t.reason} <> 'unused_reservation' or ${t.subjectKind} = 'reservation'`
+      sql`${t.reason} <> 'unused_reservation' or ${t.subjectKind} = 'reservation'`,
     ),
     // A correction reverses a settled charge, so it acts on a receipt.
     check(
       'usage_refunds_receipt_only_reason_check',
       sql`${t.reason} not in (${sql.raw(inList(RECEIPT_ONLY_REFUND_REASONS))})
-        or ${t.subjectKind} = 'receipt'`
+        or ${t.subjectKind} = 'receipt'`,
     ),
-  ]
+  ],
 );

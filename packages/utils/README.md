@@ -36,6 +36,7 @@ the rest in.
 import { likeContains }      from '@oxy.so/utils/sql';
 import { resolvePageLimit }  from '@oxy.so/utils/paging';
 import { escapeRegExp }      from '@oxy.so/utils/text';
+import { calendarDaysBetween } from '@oxy.so/utils/date';
 ```
 
 ### `./sql` — LIKE pattern building
@@ -62,6 +63,20 @@ lane's page size belongs next to the lane.
 
 `escapeRegExp` (16 byte-identical copies across four repos), `clamp` (with the
 `NaN` guard two of three copies had), `chunk`.
+
+### `./date` — calendar-day arithmetic
+
+`calendarDaysBetween(from, to)`: whole LOCAL calendar days, `0` same day, `1`
+next, `-1` previous, time of day ignored.
+
+The "Today / Yesterday / this week" bucketing is hand-written in **six repos**
+as `(startOfDay(a) - startOfDay(b)) / 86400000`. Two (Inbox ×4, oxy's accounts
+activity list) round it with `Math.floor`, which is wrong across a
+spring-forward night: midnight-to-midnight is 23 hours, floors to `0`, and
+yesterday's mail files under "Today". This subtracts the date parts as UTC
+dates, where every day is 24 hours. It answers *which calendar day*, not *how
+much time elapsed* — elapsed-time labels (`"2d ago"`) stay where they are. An
+invalid `Date` yields `NaN`, which fails every `=== 0` / `< 7` comparison.
 
 ## Consuming it
 

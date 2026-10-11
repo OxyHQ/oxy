@@ -1,6 +1,6 @@
 /**
  * Biometric Authentication Service
- * 
+ *
  * Provides biometric authentication (FaceID/TouchID/Fingerprint) functionality
  * using expo-local-authentication. This acts as a local security layer to protect
  * access to the private key stored on the device.
@@ -25,7 +25,7 @@ export async function hasBiometricHardware(): Promise<boolean> {
   if (Platform.OS === 'web') {
     return false;
   }
-  
+
   try {
     return await LocalAuthentication.hasHardwareAsync();
   } catch (error) {
@@ -41,7 +41,7 @@ export async function isBiometricEnrolled(): Promise<boolean> {
   if (Platform.OS === 'web') {
     return false;
   }
-  
+
   try {
     return await LocalAuthentication.isEnrolledAsync();
   } catch (error) {
@@ -57,7 +57,7 @@ export async function getEnrolledLevel(): Promise<LocalAuthentication.SecurityLe
   if (Platform.OS === 'web') {
     return LocalAuthentication.SecurityLevel.NONE;
   }
-  
+
   try {
     return await LocalAuthentication.getEnrolledLevelAsync();
   } catch (error) {
@@ -73,7 +73,7 @@ export async function getSupportedTypes(): Promise<AuthenticationType[]> {
   if (Platform.OS === 'web') {
     return [];
   }
-  
+
   try {
     return await LocalAuthentication.supportedAuthenticationTypesAsync();
   } catch (error) {
@@ -90,23 +90,23 @@ export async function canUseBiometrics(): Promise<boolean> {
   if (Platform.OS === 'web') {
     return false;
   }
-  
+
   const hasHardware = await hasBiometricHardware();
   const isEnrolled = await isBiometricEnrolled();
-  
+
   return hasHardware && isEnrolled;
 }
 
 /**
  * Authenticate user with biometrics
- * 
+ *
  * @param reason - Reason for authentication (shown to user)
  * @param options - Additional authentication options
  * @returns Promise resolving to authentication result
  */
 export async function authenticate(
   reason: string = 'Authenticate to access your identity',
-  options?: LocalAuthentication.LocalAuthenticationOptions
+  options?: LocalAuthentication.LocalAuthenticationOptions,
 ): Promise<BiometricAuthResult> {
   if (Platform.OS === 'web') {
     return {
@@ -114,7 +114,7 @@ export async function authenticate(
       error: 'not_available' as LocalAuthenticationError,
     };
   }
-  
+
   try {
     // Check if biometrics can be used
     const canUse = await canUseBiometrics();
@@ -131,7 +131,7 @@ export async function authenticate(
         error: 'not_enrolled' as LocalAuthenticationError,
       };
     }
-    
+
     // Perform authentication
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage: reason,
@@ -140,7 +140,7 @@ export async function authenticate(
       fallbackLabel: 'Use Passcode',
       ...options,
     });
-    
+
     if (result.success) {
       return { success: true };
     } else {
@@ -201,9 +201,7 @@ export type LocalConfirmationResult =
  *
  * @param reason - Localized copy shown inside the system prompt.
  */
-export async function requestLocalConfirmation(
-  reason: string,
-): Promise<LocalConfirmationResult> {
+export async function requestLocalConfirmation(reason: string): Promise<LocalConfirmationResult> {
   if (Platform.OS === 'web') {
     return { outcome: 'unavailable', reason: 'unsupported_platform' };
   }
@@ -247,7 +245,7 @@ export async function cancelAuthenticate(): Promise<void> {
   if (Platform.OS === 'web') {
     return;
   }
-  
+
   try {
     await LocalAuthentication.cancelAuthenticate();
   } catch (error) {
@@ -278,7 +276,7 @@ export function getErrorMessage(error?: LocalAuthenticationError): string {
   if (!error) {
     return 'Authentication failed';
   }
-  
+
   switch (error) {
     case 'not_available':
       return 'Biometric authentication is not available on this device';
@@ -310,5 +308,3 @@ export function getErrorMessage(error?: LocalAuthenticationError): string {
       return 'Authentication failed';
   }
 }
-
-

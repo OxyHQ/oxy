@@ -43,14 +43,19 @@ function stored(overrides: Partial<Notification> = {}): Notification {
   };
 }
 
-function push(notificationId: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+function push(
+  notificationId: string,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
   return { type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE, notificationId, ...extra };
 }
 
 describe('systemNotificationIdFromPush', () => {
   it('reads the id of a system-notification push, and nothing else', () => {
     expect(systemNotificationIdFromPush(push('n-7'))).toBe('n-7');
-    expect(systemNotificationIdFromPush({ type: 'oxy_commons_auth_request', notificationId: 'n-7' })).toBeNull();
+    expect(
+      systemNotificationIdFromPush({ type: 'oxy_commons_auth_request', notificationId: 'n-7' }),
+    ).toBeNull();
     expect(systemNotificationIdFromPush({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE })).toBeNull();
     expect(systemNotificationIdFromPush(null)).toBeNull();
   });
@@ -76,7 +81,11 @@ describe('openSystemNotification', () => {
     const openUrl = jest.fn(async () => undefined);
 
     await expect(
-      openSystemNotification({ notifications: { markRead: async () => notification } }, 'n-1', openUrl),
+      openSystemNotification(
+        { notifications: { markRead: async () => notification } },
+        'n-1',
+        openUrl,
+      ),
     ).resolves.toBe('no-link');
     expect(openUrl).not.toHaveBeenCalled();
   });
@@ -130,9 +139,12 @@ describe('useSystemNotificationTaps', () => {
 
   it('waits for the routing gate and a usable session', async () => {
     __setOxyState({ canUsePrivateApi: false });
-    const { rerender } = renderHook(({ enabled }) => useSystemNotificationTaps(enabled, 'gated-1'), {
-      initialProps: { enabled: false },
-    });
+    const { rerender } = renderHook(
+      ({ enabled }) => useSystemNotificationTaps(enabled, 'gated-1'),
+      {
+        initialProps: { enabled: false },
+      },
+    );
     rerender({ enabled: true });
     await act(async () => {
       await Promise.resolve();
@@ -151,7 +163,10 @@ describe('useSystemNotificationTaps', () => {
     await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
     act(() => {
-      __emitNotificationResponse({ type: 'oxy_commons_auth_request', approvalUrl: 'oxycommons://approve?code=x' });
+      __emitNotificationResponse({
+        type: 'oxy_commons_auth_request',
+        approvalUrl: 'oxycommons://approve?code=x',
+      });
     });
     await act(async () => {
       await Promise.resolve();

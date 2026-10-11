@@ -28,10 +28,7 @@ export const PRICE_ROUTING_SCORE_SOURCES = [
   'reviewed_scorecard',
 ] as const;
 
-export const MEASURED_ROUTING_SCORE_SOURCES = [
-  'kaana_measurement',
-  'reviewed_scorecard',
-] as const;
+export const MEASURED_ROUTING_SCORE_SOURCES = ['kaana_measurement', 'reviewed_scorecard'] as const;
 
 export const BALANCED_ROUTING_SCORE_SOURCES = ['cost_model', 'reviewed_scorecard'] as const;
 
@@ -105,21 +102,21 @@ export const inferenceDeploymentRoutingScores = pgTable(
   (t) => [
     check(
       'inference_deployment_routing_scores_identity_check',
-      sql`length(btrim(${t.deploymentId})) > 0`
+      sql`length(btrim(${t.deploymentId})) > 0`,
     ),
     check(
       'inference_deployment_routing_scores_range_check',
       sql`(${t.priceScore} is null or ${t.priceScore} between -1000000 and 1000000)
         and (${t.latencyScore} is null or ${t.latencyScore} between -1000000 and 1000000)
         and (${t.throughputScore} is null or ${t.throughputScore} between -1000000 and 1000000)
-        and (${t.balancedScore} is null or ${t.balancedScore} between -1000000 and 1000000)`
+        and (${t.balancedScore} is null or ${t.balancedScore} between -1000000 and 1000000)`,
     ),
     check(
       'inference_deployment_routing_scores_source_check',
       sql`${t.priceSource} in (${sql.raw(inList(PRICE_ROUTING_SCORE_SOURCES))})
         and ${t.latencySource} in (${sql.raw(inList(MEASURED_ROUTING_SCORE_SOURCES))})
         and ${t.throughputSource} in (${sql.raw(inList(MEASURED_ROUTING_SCORE_SOURCES))})
-        and ${t.balancedSource} in (${sql.raw(inList(BALANCED_ROUTING_SCORE_SOURCES))})`
+        and ${t.balancedSource} in (${sql.raw(inList(BALANCED_ROUTING_SCORE_SOURCES))})`,
     ),
     check(
       'inference_deployment_routing_scores_evidence_check',
@@ -128,22 +125,22 @@ export const inferenceDeploymentRoutingScores = pgTable(
         and length(btrim(${t.throughputEvidenceRef})) between 1 and 500
         and length(btrim(${t.balancedEvidenceRef})) between 1 and 500
         and length(btrim(${t.balancedFormulaRef})) between 1 and 500
-        and length(btrim(${t.reason})) between 1 and 500`
+        and length(btrim(${t.reason})) between 1 and 500`,
     ),
     check(
       'inference_deployment_routing_scores_measurement_windows_check',
       sql`${t.latencyMeasurementWindowEnd} >= ${t.latencyMeasurementWindowStart}
         and ${t.latencyValidUntil} >= ${t.latencyMeasurementWindowEnd}
         and ${t.throughputMeasurementWindowEnd} >= ${t.throughputMeasurementWindowStart}
-        and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`
+        and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`,
     ),
     check(
       'inference_deployment_routing_scores_funding_class_check',
-      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`
+      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`,
     ),
     check(
       'inference_deployment_routing_scores_funding_state_check',
-      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`
+      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`,
     ),
     check(
       'inference_deployment_routing_scores_funding_evidence_check',
@@ -153,9 +150,9 @@ export const inferenceDeploymentRoutingScores = pgTable(
         and (${t.fundingRemainingUnit} is null or length(btrim(${t.fundingRemainingUnit})) between 1 and 64)
         and (${t.fundingObservedAt} is null) = (${t.fundingValidUntil} is null)
         and (${t.fundingValidUntil} is null or ${t.fundingValidUntil} > ${t.fundingObservedAt})
-        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`
+        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`,
     ),
-  ]
+  ],
 );
 
 /** Append-only provenance for every scorecard change accepted by the staff API. */
@@ -201,21 +198,21 @@ export const inferenceDeploymentRoutingScoreEvents = pgTable(
   (t) => [
     check(
       'inference_deployment_routing_score_events_identity_check',
-      sql`length(btrim(${t.deploymentId})) > 0`
+      sql`length(btrim(${t.deploymentId})) > 0`,
     ),
     check(
       'inference_deployment_routing_score_events_range_check',
       sql`(${t.priceScore} is null or ${t.priceScore} between -1000000 and 1000000)
         and (${t.latencyScore} is null or ${t.latencyScore} between -1000000 and 1000000)
         and (${t.throughputScore} is null or ${t.throughputScore} between -1000000 and 1000000)
-        and (${t.balancedScore} is null or ${t.balancedScore} between -1000000 and 1000000)`
+        and (${t.balancedScore} is null or ${t.balancedScore} between -1000000 and 1000000)`,
     ),
     check(
       'inference_deployment_routing_score_events_source_check',
       sql`${t.priceSource} in (${sql.raw(inList(PRICE_ROUTING_SCORE_SOURCES))})
         and ${t.latencySource} in (${sql.raw(inList(MEASURED_ROUTING_SCORE_SOURCES))})
         and ${t.throughputSource} in (${sql.raw(inList(MEASURED_ROUTING_SCORE_SOURCES))})
-        and ${t.balancedSource} in (${sql.raw(inList(BALANCED_ROUTING_SCORE_SOURCES))})`
+        and ${t.balancedSource} in (${sql.raw(inList(BALANCED_ROUTING_SCORE_SOURCES))})`,
     ),
     check(
       'inference_deployment_routing_score_events_evidence_check',
@@ -224,22 +221,22 @@ export const inferenceDeploymentRoutingScoreEvents = pgTable(
         and length(btrim(${t.throughputEvidenceRef})) between 1 and 500
         and length(btrim(${t.balancedEvidenceRef})) between 1 and 500
         and length(btrim(${t.balancedFormulaRef})) between 1 and 500
-        and length(btrim(${t.reason})) between 1 and 500`
+        and length(btrim(${t.reason})) between 1 and 500`,
     ),
     check(
       'inference_deployment_routing_score_events_measurement_windows_check',
       sql`${t.latencyMeasurementWindowEnd} >= ${t.latencyMeasurementWindowStart}
         and ${t.latencyValidUntil} >= ${t.latencyMeasurementWindowEnd}
         and ${t.throughputMeasurementWindowEnd} >= ${t.throughputMeasurementWindowStart}
-        and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`
+        and ${t.throughputValidUntil} >= ${t.throughputMeasurementWindowEnd}`,
     ),
     check(
       'inference_deployment_routing_score_events_funding_class_check',
-      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`
+      sql`${t.fundingClass} in (${sql.raw(inList(INFERENCE_FUNDING_CLASSES))})`,
     ),
     check(
       'inference_deployment_routing_score_events_funding_state_check',
-      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`
+      sql`${t.fundingState} in (${sql.raw(inList(INFERENCE_FUNDING_STATES))})`,
     ),
     check(
       'inference_deployment_routing_score_events_funding_evidence_check',
@@ -249,7 +246,7 @@ export const inferenceDeploymentRoutingScoreEvents = pgTable(
         and (${t.fundingRemainingUnit} is null or length(btrim(${t.fundingRemainingUnit})) between 1 and 64)
         and (${t.fundingObservedAt} is null) = (${t.fundingValidUntil} is null)
         and (${t.fundingValidUntil} is null or ${t.fundingValidUntil} > ${t.fundingObservedAt})
-        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`
+        and (${t.fundingClass} in ('discounted_payg', 'standard_payg') or (${t.fundingObservedAt} is not null and ${t.fundingValidUntil} is not null))`,
     ),
-  ]
+  ],
 );

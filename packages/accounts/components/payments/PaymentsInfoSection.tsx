@@ -16,50 +16,49 @@ export function PaymentsInfoSection() {
   const colors = useColors();
   const { t } = useTranslation();
 
-  const items = useMemo<GroupedItem[]>(() => [
-    {
-      id: 'faircoin',
-      customIcon: (
-        <CircleIconBadge backgroundColor={colors.sidebarIconPayments}>
-          <Image
-            source={faircoinImage}
-            style={styles.faircoinIconImage}
-            resizeMode="cover"
-          />
-        </CircleIconBadge>
-      ),
-      title: t('payments.info.fairCoin'),
-      subtitle: t('payments.info.fairCoinBody'),
-    },
-    {
-      id: 'peable',
-      icon: 'wallet-outline',
-      iconColor: colors.sidebarIconPersonalInfo,
-      title: t('payments.info.peable'),
-      subtitle: t('payments.info.peableBody'),
-    },
-    {
-      id: 'fairwallet',
-      icon: 'qrcode-scan',
-      iconColor: colors.sidebarIconSharing,
-      title: t('payments.info.fairwallet'),
-      subtitle: t('payments.info.fairwalletBody'),
-    },
-    {
-      id: 'security',
-      icon: 'shield-check-outline',
-      iconColor: colors.sidebarIconSecurity,
-      title: t('payments.info.security'),
-      subtitle: t('payments.info.securityBody'),
-    },
-    {
-      id: 'payment-methods',
-      icon: 'credit-card-outline',
-      iconColor: colors.sidebarIconData,
-      title: t('payments.info.paymentMethods'),
-      subtitle: t('payments.info.paymentMethodsBody'),
-    },
-  ], [colors, t]);
+  const items = useMemo<GroupedItem[]>(
+    () => [
+      {
+        id: 'faircoin',
+        customIcon: (
+          <CircleIconBadge backgroundColor={colors.sidebarIconPayments}>
+            <Image source={faircoinImage} style={styles.faircoinIconImage} resizeMode="cover" />
+          </CircleIconBadge>
+        ),
+        title: t('payments.info.fairCoin'),
+        subtitle: t('payments.info.fairCoinBody'),
+      },
+      {
+        id: 'peable',
+        icon: 'wallet-outline',
+        iconColor: colors.sidebarIconPersonalInfo,
+        title: t('payments.info.peable'),
+        subtitle: t('payments.info.peableBody'),
+      },
+      {
+        id: 'fairwallet',
+        icon: 'qrcode-scan',
+        iconColor: colors.sidebarIconSharing,
+        title: t('payments.info.fairwallet'),
+        subtitle: t('payments.info.fairwalletBody'),
+      },
+      {
+        id: 'security',
+        icon: 'shield-check-outline',
+        iconColor: colors.sidebarIconSecurity,
+        title: t('payments.info.security'),
+        subtitle: t('payments.info.securityBody'),
+      },
+      {
+        id: 'payment-methods',
+        icon: 'credit-card-outline',
+        iconColor: colors.sidebarIconData,
+        title: t('payments.info.paymentMethods'),
+        subtitle: t('payments.info.paymentMethodsBody'),
+      },
+    ],
+    [colors, t],
+  );
 
   return (
     <Section title={t('payments.sections.about')}>

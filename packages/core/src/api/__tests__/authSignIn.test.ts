@@ -16,7 +16,11 @@ const SESSION: LoginResult = {
   user: { id: 'user-1', username: 'u' },
 };
 const TOKEN = 'A'.repeat(43);
-const CHALLENGE = { secondFactorRequired: true as const, challengeId: 'C'.repeat(43), expiresAt: 1_900_000_000_000 };
+const CHALLENGE = {
+  secondFactorRequired: true as const,
+  challengeId: 'C'.repeat(43),
+  expiresAt: 1_900_000_000_000,
+};
 const DEVICE = { deviceId: 'browser-device', deviceSecret: 'browser-secret' };
 const PRE_SESSION = { cache: false, skipAuth: true };
 
@@ -34,15 +38,28 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('email sign-in', () => {
   it('starts with the identifier and this browser device', async () => {
-    makeRequest.mockResolvedValueOnce({ requestId: 'r1', requestSecret: TOKEN, expiresAt: 1_900_000_000_000 });
+    makeRequest.mockResolvedValueOnce({
+      requestId: 'r1',
+      requestSecret: TOKEN,
+      expiresAt: 1_900_000_000_000,
+    });
     const started = await oxy.auth.email.start('ada');
     expect(started.requestSecret).toBe(TOKEN);
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/auth/signin/email/start', { identifier: 'ada', device: DEVICE }, PRE_SESSION);
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/signin/email/start',
+      { identifier: 'ada', device: DEVICE },
+      PRE_SESSION,
+    );
   });
 
   it('confirms the code into a session and plants its token', async () => {
     makeRequest.mockResolvedValueOnce(SESSION);
-    const result = await oxy.auth.email.confirm({ requestId: 'r1', requestSecret: TOKEN, code: '123456' });
+    const result = await oxy.auth.email.confirm({
+      requestId: 'r1',
+      requestSecret: TOKEN,
+      code: '123456',
+    });
     expect(result).toEqual(SESSION);
     expect(setTokens).toHaveBeenCalledWith('access-1');
     expect(makeRequest).toHaveBeenCalledWith(
@@ -55,7 +72,12 @@ describe('email sign-in', () => {
 
   it('returns the second-factor step without planting anything', async () => {
     makeRequest.mockResolvedValueOnce(CHALLENGE);
-    const result = await oxy.auth.email.confirm({ requestId: 'r1', requestSecret: TOKEN, code: '123456', device: null });
+    const result = await oxy.auth.email.confirm({
+      requestId: 'r1',
+      requestSecret: TOKEN,
+      code: '123456',
+      device: null,
+    });
     expect(result).toEqual(CHALLENGE);
     expect(setTokens).not.toHaveBeenCalled();
     expect(makeRequest.mock.calls[0][2]).not.toHaveProperty('device');
@@ -63,9 +85,14 @@ describe('email sign-in', () => {
 
   it('collects: pending until the link is opened, then the session', async () => {
     makeRequest.mockResolvedValueOnce({ status: 'pending', expiresAt: 1_900_000_000_000 });
-    expect(await oxy.auth.email.collect({ requestId: 'r1', requestSecret: TOKEN })).toEqual({ status: 'pending', expiresAt: 1_900_000_000_000 });
+    expect(await oxy.auth.email.collect({ requestId: 'r1', requestSecret: TOKEN })).toEqual({
+      status: 'pending',
+      expiresAt: 1_900_000_000_000,
+    });
     makeRequest.mockResolvedValueOnce(SESSION);
-    expect(await oxy.auth.email.collect({ requestId: 'r1', requestSecret: TOKEN })).toEqual(SESSION);
+    expect(await oxy.auth.email.collect({ requestId: 'r1', requestSecret: TOKEN })).toEqual(
+      SESSION,
+    );
     expect(makeRequest).toHaveBeenLastCalledWith(
       'POST',
       '/auth/signin/email/collect',
@@ -77,7 +104,12 @@ describe('email sign-in', () => {
   it("approves a link with this browser's device, and refuses without one", async () => {
     makeRequest.mockResolvedValueOnce({ approved: true });
     expect(await oxy.auth.email.approveLink(TOKEN)).toEqual({ approved: true });
-    expect(makeRequest).toHaveBeenCalledWith('POST', '/auth/signin/email/link', { token: TOKEN, device: DEVICE }, PRE_SESSION);
+    expect(makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/auth/signin/email/link',
+      { token: TOKEN, device: DEVICE },
+      PRE_SESSION,
+    );
 
     oxy.session.setDeviceCredentialProvider(null);
     await expect(oxy.auth.email.approveLink(TOKEN)).rejects.toThrow();
@@ -85,14 +117,20 @@ describe('email sign-in', () => {
 
   it('refuses an answer that is neither', async () => {
     makeRequest.mockResolvedValueOnce({ unexpected: true });
-    await expect(oxy.auth.email.confirm({ requestId: 'r1', requestSecret: TOKEN, code: '123456' })).rejects.toThrow();
+    await expect(
+      oxy.auth.email.confirm({ requestId: 'r1', requestSecret: TOKEN, code: '123456' }),
+    ).rejects.toThrow();
   });
 });
 
 describe('password, second factor and sign-up', () => {
   it('signs in with a password', async () => {
     makeRequest.mockResolvedValueOnce(SESSION);
-    await oxy.auth.password.signIn({ identifier: 'ada', password: 'secret password', deviceName: 'Laptop' });
+    await oxy.auth.password.signIn({
+      identifier: 'ada',
+      password: 'secret password',
+      deviceName: 'Laptop',
+    });
     expect(makeRequest).toHaveBeenCalledWith(
       'POST',
       '/auth/signin/password',
@@ -115,7 +153,9 @@ describe('password, second factor and sign-up', () => {
 
   it('never accepts a second-factor step as the answer to the second factor', async () => {
     makeRequest.mockResolvedValueOnce(CHALLENGE);
-    await expect(oxy.auth.completeSecondFactor({ challengeId: CHALLENGE.challengeId, code: '123456' })).rejects.toThrow();
+    await expect(
+      oxy.auth.completeSecondFactor({ challengeId: CHALLENGE.challengeId, code: '123456' }),
+    ).rejects.toThrow();
   });
 
   it('signs up with the confirmed email', async () => {
@@ -134,17 +174,33 @@ describe('the signed-in account', () => {
   const reauth = { emailCode: { verificationId: 'v1', code: '123456' } };
 
   it('reads its sign-in methods and asks for a confirmation code with the bearer', async () => {
-    makeRequest.mockResolvedValueOnce({ hasEmail: true, hasPassword: false, totpEnabled: false, backupCodesRemaining: 0 });
+    makeRequest.mockResolvedValueOnce({
+      hasEmail: true,
+      hasPassword: false,
+      totpEnabled: false,
+      backupCodesRemaining: 0,
+    });
     await oxy.auth.methods();
-    expect(makeRequest).toHaveBeenCalledWith('GET', '/users/me/sign-in-methods', undefined, { cache: false });
+    expect(makeRequest).toHaveBeenCalledWith('GET', '/users/me/sign-in-methods', undefined, {
+      cache: false,
+    });
     makeRequest.mockResolvedValueOnce({ verificationId: 'v1', expiresAt: 1_900_000_000_000 });
     await oxy.auth.requestReauthCode('delete_account');
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/users/me/reauth/email', { action: 'delete_account' }, { cache: false });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/me/reauth/email',
+      { action: 'delete_account' },
+      { cache: false },
+    );
   });
 
   it('sets a password with its proof', async () => {
     makeRequest.mockResolvedValueOnce({ success: true });
-    await oxy.auth.password.set({ newPassword: 'a new password', reauth, revokeOtherSessions: true });
+    await oxy.auth.password.set({
+      newPassword: 'a new password',
+      reauth,
+      revokeOtherSessions: true,
+    });
     expect(makeRequest).toHaveBeenCalledWith(
       'PUT',
       '/users/me/password',
@@ -154,17 +210,29 @@ describe('the signed-in account', () => {
   });
 
   it('enrols, confirms, regenerates and disables the authenticator', async () => {
-    makeRequest.mockResolvedValueOnce({ secret: 'JBSWY3DPEHPK3PXP', otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP' });
+    makeRequest.mockResolvedValueOnce({
+      secret: 'JBSWY3DPEHPK3PXP',
+      otpauthUri: 'otpauth://totp/Oxy:ada?secret=JBSWY3DPEHPK3PXP',
+    });
     expect((await oxy.auth.totp.enroll()).secret).toBe('JBSWY3DPEHPK3PXP');
-    const codes = Array.from({ length: 10 }, (_, index) => `abcd${index % 8 + 2}-efghj`);
+    const codes = Array.from({ length: 10 }, (_, index) => `abcd${(index % 8) + 2}-efghj`);
     makeRequest.mockResolvedValueOnce({ backupCodes: codes });
     expect(await oxy.auth.totp.confirm('123456', reauth)).toEqual(codes);
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/users/me/totp/confirm', { code: '123456', reauth }, { cache: false });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/me/totp/confirm',
+      { code: '123456', reauth },
+      { cache: false },
+    );
     makeRequest.mockResolvedValueOnce({ backupCodes: codes });
     await oxy.auth.totp.regenerateBackupCodes(reauth);
     makeRequest.mockResolvedValueOnce({ success: true });
     await oxy.auth.totp.disable(reauth);
-    expect(makeRequest).toHaveBeenLastCalledWith('POST', '/users/me/totp/disable', { reauth }, { cache: false });
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/users/me/totp/disable',
+      { reauth },
+      { cache: false },
+    );
   });
-
 });

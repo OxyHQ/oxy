@@ -79,7 +79,7 @@ async function user(): Promise<string> {
  */
 async function seedApp(
   type: 'internal' | 'third_party' = 'internal',
-  status: 'active' | 'suspended' = 'active'
+  status: 'active' | 'suspended' = 'active',
 ): Promise<SeededApp> {
   const ownerAccountId = await user();
   const [app] = await getDb()
@@ -136,7 +136,7 @@ function serviceToken(app: SeededApp, options: { expiresIn?: number; forged?: bo
 
 function verify(
   query: { appId: string; userId: string },
-  token: string | null
+  token: string | null,
 ): Promise<VerifyResponse> {
   const address = server.address() as AddressInfo;
   const path =
@@ -160,9 +160,9 @@ function verify(
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} })
+          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
         );
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -208,7 +208,7 @@ describe('authentication', () => {
     const userJwt = jwt.sign(
       { type: 'access', userId: subjectUser, sessionId: 'session-1' },
       ACCESS_TOKEN_SECRET,
-      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
+      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' },
     );
 
     const res = await verify({ appId: subject.appId, userId: subjectUser }, userJwt);
@@ -258,10 +258,7 @@ describe('caller trust', () => {
     const subjectUser = await user();
     await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
+    const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
     expect(res.status).toBe(403);
     expect(res.body.data).toBeUndefined();
@@ -275,10 +272,7 @@ describe('caller trust', () => {
     const subjectUser = await user();
     await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
+    const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
     expect(res.status).toBe(403);
   });
@@ -304,10 +298,7 @@ describe('delegation', () => {
       const subject = await seedApp('internal');
       const subjectUser = await user();
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
@@ -318,10 +309,7 @@ describe('delegation', () => {
       const subjectUser = await user();
       await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE, 'podcasts:write']);
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.body.data).toMatchObject({
         authorized: true,
@@ -334,10 +322,7 @@ describe('delegation', () => {
       const subjectUser = await user();
       await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
@@ -349,10 +334,7 @@ describe('delegation', () => {
       const subject = await seedApp('third_party');
       const subjectUser = await user();
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
@@ -365,10 +347,7 @@ describe('delegation', () => {
       const subjectUser = await user();
       await grant(subjectUser, subject.appId, ['user:read', 'files:write', 'podcasts:write']);
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
@@ -378,10 +357,7 @@ describe('delegation', () => {
       const subjectUser = await user();
       await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE, 'podcasts:write']);
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.body.data).toMatchObject({
         authorized: true,
@@ -398,7 +374,7 @@ describe('delegation', () => {
 
       const before = await verify(
         { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
+        serviceToken(caller),
       );
       expect(before.body.data).toMatchObject({
         authorized: true,
@@ -409,7 +385,7 @@ describe('delegation', () => {
 
       const after = await verify(
         { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
+        serviceToken(caller),
       );
       expect(after.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
@@ -421,10 +397,7 @@ describe('delegation', () => {
       await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
       await revoke(subjectUser, subject.appId);
 
-      const res = await verify(
-        { appId: subject.appId, userId: subjectUser },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller));
 
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
     });
@@ -437,13 +410,10 @@ describe('delegation', () => {
       await grant(bystander, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
       await revoke(refuser, subject.appId);
 
-      const refused = await verify(
-        { appId: subject.appId, userId: refuser },
-        serviceToken(caller)
-      );
+      const refused = await verify({ appId: subject.appId, userId: refuser }, serviceToken(caller));
       const allowed = await verify(
         { appId: subject.appId, userId: bystander },
-        serviceToken(caller)
+        serviceToken(caller),
       );
 
       expect(refused.body.data).toMatchObject({ authorized: false, scopes: [] });
@@ -463,10 +433,10 @@ describe('delegation', () => {
 
       expect(
         (await verify({ appId: revoked.appId, userId: subjectUser }, serviceToken(caller))).body
-          .data
+          .data,
       ).toMatchObject({ authorized: false, scopes: [] });
       expect(
-        (await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller))).body.data
+        (await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller))).body.data,
       ).toMatchObject({ authorized: true, scopes: [SERVICE_ACTING_AS_SCOPE] });
     });
 
@@ -482,7 +452,7 @@ describe('delegation', () => {
       await grant(subjectUser, subject.appId, ['user:read']);
       expect(
         (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
-          .data
+          .data,
       ).toMatchObject({ authorized: false, scopes: [] });
 
       // The real thing does — this is what `persistOAuthAuthorization` calls.
@@ -490,23 +460,18 @@ describe('delegation', () => {
       await getDb()
         .update(appGrants)
         .set({ scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] })
-        .where(
-          and(eq(appGrants.userId, subjectUser), eq(appGrants.applicationId, subject.appId))
-        );
+        .where(and(eq(appGrants.userId, subjectUser), eq(appGrants.applicationId, subject.appId)));
 
       expect(
         (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
-          .data
+          .data,
       ).toMatchObject({ authorized: true, scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] });
     });
   });
 
   describe('the answer reveals nothing else', () => {
     it('answers 200 false for ids that name nothing — never 404', async () => {
-      const res = await verify(
-        { appId: randomUUID(), userId: randomUUID() },
-        serviceToken(caller)
-      );
+      const res = await verify({ appId: randomUUID(), userId: randomUUID() }, serviceToken(caller));
 
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ authorized: false, scopes: [] });
@@ -530,9 +495,9 @@ describe('delegation', () => {
               raw += c;
             });
             r.on('end', () =>
-              resolve({ status: r.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} })
+              resolve({ status: r.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
             );
-          }
+          },
         );
         req.on('error', reject);
         req.end();

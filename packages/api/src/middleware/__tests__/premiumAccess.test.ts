@@ -55,9 +55,7 @@ describe('checkPremiumAccess', () => {
 
     expect(mockResolveUserSubscriptionPlan).toHaveBeenCalledWith('user-1');
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'PREMIUM_REQUIRED' }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'PREMIUM_REQUIRED' }));
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -96,9 +94,7 @@ describe('checkPremiumAccess', () => {
     await checkPremiumAccess(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: 'ANALYTICS_OPT_OUT' }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'ANALYTICS_OPT_OUT' }));
     expect(next).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,9 @@ describe('relayAssignedMessageId', () => {
         'email-smtp.us-west-2.amazonaws.com',
         '250 Ok 010101a0e167f1da-8a9cef8c-7895-4d67-ace3-1b62e41ee6a2-000000',
       ),
-    ).toBe('<010101a0e167f1da-8a9cef8c-7895-4d67-ace3-1b62e41ee6a2-000000@us-west-2.amazonses.com>');
+    ).toBe(
+      '<010101a0e167f1da-8a9cef8c-7895-4d67-ace3-1b62e41ee6a2-000000@us-west-2.amazonses.com>',
+    );
   });
 
   it('is null for a relay that keeps our Message-ID', () => {

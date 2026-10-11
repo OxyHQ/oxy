@@ -26,7 +26,10 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { serviceTokenSigningConfig, signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
+import {
+  serviceTokenSigningConfig,
+  signServiceTokenEd25519,
+} from '../../config/serviceTokenSigning';
 import { verifyServiceToken } from '../serviceToken';
 
 const SECRET = 'test_access_token_secret_minimum_32_characters';
@@ -62,7 +65,11 @@ function segment(value: unknown): string {
 }
 
 /** Hand-signs with an arbitrary Ed25519 key under an arbitrary header. */
-function signWith(key: KeyObject, header: Record<string, unknown>, payload: Record<string, unknown>): string {
+function signWith(
+  key: KeyObject,
+  header: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): string {
   const input = `${segment(header)}.${segment(payload)}`;
   return `${input}.${signBytes(null, Buffer.from(input), key).toString('base64url')}`;
 }
@@ -136,7 +143,11 @@ describe('signature verification is mandatory', () => {
 
   it('refuses a token naming a kid that is not published', () => {
     const stranger = generateKeyPairSync('ed25519').privateKey;
-    const forged = signWith(stranger, { alg: 'EdDSA', typ: 'JWT', kid: 'not-a-published-kid' }, timed({}));
+    const forged = signWith(
+      stranger,
+      { alg: 'EdDSA', typ: 'JWT', kid: 'not-a-published-kid' },
+      timed({}),
+    );
 
     expect(verifyServiceToken(forged)).toEqual({ ok: false, reason: 'invalid' });
   });
@@ -203,7 +214,14 @@ describe('the attribution tuple is required', () => {
   it('refuses a user/session token replayed as a service token', () => {
     const now = Math.floor(Date.now() / 1_000);
     const userToken = signHs256(
-      { userId: 'u-1', sessionId: 's-1', iss: 'oxy-auth', aud: 'oxy-api', iat: now, exp: now + 300 },
+      {
+        userId: 'u-1',
+        sessionId: 's-1',
+        iss: 'oxy-auth',
+        aud: 'oxy-api',
+        iat: now,
+        exp: now + 300,
+      },
       SECRET,
     );
 

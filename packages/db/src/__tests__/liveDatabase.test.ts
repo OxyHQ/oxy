@@ -36,7 +36,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
-import { MigrationsNotCurrentError, assertPostgresMigrationsCurrent, readAppliedMillis, readJournal, readLastAppliedMillis, type JournalEntry } from '../migrate/ledger';
+import {
+  MigrationsNotCurrentError,
+  assertPostgresMigrationsCurrent,
+  readAppliedMillis,
+  readJournal,
+  readLastAppliedMillis,
+  type JournalEntry,
+} from '../migrate/ledger';
 import { runMigrations } from '../migrate/runner';
 import { WrongMigrationTargetError, assertMigrationTarget } from '../migrate/targetDatabase';
 import { createTestDatabase, dropTestDatabase } from '../testing';
@@ -59,7 +66,7 @@ function migrationsFixture(): string {
   mkdirSync(join(folder, 'meta'), { recursive: true });
   writeFileSync(
     join(folder, 'meta', '_journal.json'),
-    JSON.stringify({ version: '7', dialect: 'postgresql', entries: FIXTURE_ENTRIES })
+    JSON.stringify({ version: '7', dialect: 'postgresql', entries: FIXTURE_ENTRIES }),
   );
   for (const file of FIXTURE_FILES) {
     writeFileSync(join(folder, `${file.tag}.sql`), file.sql);
@@ -123,7 +130,7 @@ describeLive('createTestDatabase / dropTestDatabase (live Postgres)', () => {
           capturedUrl = url;
           throw new Error('simulated migration failure');
         },
-      })
+      }),
     ).rejects.toThrow('simulated migration failure');
 
     expect(capturedUrl).not.toBe('');
@@ -200,10 +207,10 @@ describeLive('migration-ledger functions against a real Postgres', () => {
     it('rejects, naming both sides, when it is not', async () => {
       const client = assertAssigned(migratedClient, 'migratedClient');
       await expect(assertMigrationTarget(client, 'definitely_not_this_database')).rejects.toThrow(
-        WrongMigrationTargetError
+        WrongMigrationTargetError,
       );
       await expect(assertMigrationTarget(client, 'definitely_not_this_database')).rejects.toThrow(
-        new RegExp(migratedName)
+        new RegExp(migratedName),
       );
     });
   });
@@ -220,7 +227,7 @@ describeLive('migration-ledger functions against a real Postgres', () => {
       // Order-independent: `readAppliedMillis` runs no ORDER BY (see its own
       // comment in ledger.ts).
       await expect(readAppliedMillis(client)).resolves.toEqual(
-        expect.arrayContaining([1_000, 2_000])
+        expect.arrayContaining([1_000, 2_000]),
       );
       await expect(readLastAppliedMillis(client)).resolves.toBe(2_000);
     });
@@ -230,7 +237,7 @@ describeLive('migration-ledger functions against a real Postgres', () => {
     it('resolves when the ledger covers every shipped journal entry', async () => {
       const client = assertAssigned(migratedClient, 'migratedClient');
       await expect(
-        assertPostgresMigrationsCurrent(client, FIXTURE_ENTRIES)
+        assertPostgresMigrationsCurrent(client, FIXTURE_ENTRIES),
       ).resolves.toBeUndefined();
     });
 
@@ -238,7 +245,7 @@ describeLive('migration-ledger functions against a real Postgres', () => {
       const client = assertAssigned(migratedClient, 'migratedClient');
       const aheadEntries: JournalEntry[] = [...FIXTURE_ENTRIES, { tag: '0002_third', when: 3_000 }];
       await expect(assertPostgresMigrationsCurrent(client, aheadEntries)).rejects.toThrow(
-        /0002_third/
+        /0002_third/,
       );
     });
 
@@ -251,10 +258,10 @@ describeLive('migration-ledger functions against a real Postgres', () => {
       const client = assertAssigned(migratedClient, 'migratedClient');
       const aheadEntries: JournalEntry[] = [...FIXTURE_ENTRIES, { tag: '0002_third', when: 3_000 }];
       await expect(assertPostgresMigrationsCurrent(client, aheadEntries)).rejects.toBeInstanceOf(
-        MigrationsNotCurrentError
+        MigrationsNotCurrentError,
       );
       const error = await assertPostgresMigrationsCurrent(client, aheadEntries).catch(
-        (thrown: unknown) => thrown
+        (thrown: unknown) => thrown,
       );
       expect(error).toBeInstanceOf(MigrationsNotCurrentError);
       expect((error as MigrationsNotCurrentError).pending.map((entry) => entry.tag)).toEqual([
@@ -275,7 +282,7 @@ function emptyMigrationsFixture(): string {
   mkdirSync(join(folder, 'meta'), { recursive: true });
   writeFileSync(
     join(folder, 'meta', '_journal.json'),
-    JSON.stringify({ version: '7', dialect: 'postgresql', entries: [] })
+    JSON.stringify({ version: '7', dialect: 'postgresql', entries: [] }),
   );
   return folder;
 }
@@ -421,7 +428,7 @@ describeLive('runMigrations — expectedDatabase is optional', () => {
               dryRun: false,
               logger: noopLogger,
             }),
-        })
+        }),
         // createTestDatabase's own migrate-hook contract drops the database
         // it created before rethrowing, so nothing is leaked here.
       ).rejects.toThrow(WrongMigrationTargetError);

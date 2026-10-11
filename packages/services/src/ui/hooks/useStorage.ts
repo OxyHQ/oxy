@@ -16,10 +16,7 @@ export interface UseStorageResult {
  * Simple React hook that initializes platform-appropriate storage.
  * Returns storage instance once ready, or null if initialization failed.
  */
-export const useStorage = ({
-  onError,
-  logger,
-}: UseStorageOptions = {}): UseStorageResult => {
+export const useStorage = ({ onError, logger }: UseStorageOptions = {}): UseStorageResult => {
   const [storage, setStorage] = useState<StorageInterface | null>(null);
   const initRef = useRef<Promise<void> | null>(null);
 

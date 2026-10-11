@@ -27,7 +27,11 @@ import { RiUserAddLine } from '@oxy.so/bloom/icons/RiUserAddLine';
 import { SpinnerIcon } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from '@oxy.so/core/session';
+import {
+  showsPrincipalHeaders,
+  type SwitcherContextRow,
+  type SwitcherPrincipalRow,
+} from '@oxy.so/core/session';
 import { useI18n } from '../../hooks/useI18n';
 import { resolveAccentHex } from '../authChooser/types';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthTerms } from './OxyAuthScreen';
@@ -98,9 +102,16 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
     <OxyAuthScreen>
       <OxyAuthScreenHeader
         title={t('signin.chooser.title')}
-        description={appName ? t('signin.chooser.subtitleToApp', { app: appName }) : t('signin.chooser.subtitle')}
+        description={
+          appName
+            ? t('signin.chooser.subtitleToApp', { app: appName })
+            : t('signin.chooser.subtitle')
+        }
       />
-      <View className="bg-fill-secondary rounded-[22px] overflow-hidden" testID="account-picker-list">
+      <View
+        className="bg-fill-secondary rounded-[22px] overflow-hidden"
+        testID="account-picker-list"
+      >
         <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} contentContainerStyle={{ padding: 8 }}>
           {rows.map(({ context, operatedBy }, index) => {
             const activating = pendingContextId === context.contextId;
@@ -124,7 +135,11 @@ export const OxyAccountPicker: React.FC<OxyAccountPickerProps> = ({
                   accessibilityState={{ selected: current, disabled, busy: activating }}
                 >
                   <View className="flex-1 min-w-0">
-                    <Text className="text-body text-text" style={{ fontWeight: '500' }} numberOfLines={1}>
+                    <Text
+                      className="text-body text-text"
+                      style={{ fontWeight: '500' }}
+                      numberOfLines={1}
+                    >
                       {context.displayName}
                     </Text>
                     {operatedBy || handle ? (

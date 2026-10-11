@@ -202,7 +202,9 @@ export function defaultOptions(shardCount) {
 function parseShardCount(argv) {
   const { values } = parseArgs({ args: argv, options: { shards: { type: 'string' } } });
   if (values.shards === undefined) {
-    throw new Error('Usage: merge-coverage.mjs --shards=<N> (the N the suite ran with as --shard=<i>/<N>)');
+    throw new Error(
+      'Usage: merge-coverage.mjs --shards=<N> (the N the suite ran with as --shard=<i>/<N>)',
+    );
   }
   if (!/^[1-9]\d*$/.test(values.shards)) {
     throw new Error(`--shards must be a positive integer, got ${JSON.stringify(values.shards)}`);

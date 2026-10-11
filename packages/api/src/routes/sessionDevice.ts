@@ -47,7 +47,11 @@ function mintRequesterKey(deviceId: string, req: Request): string {
 }
 
 function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
-  return reserveAttempt({ scope, identifier: mintRequesterKey(deviceId, req), maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS });
+  return reserveAttempt({
+    scope,
+    identifier: mintRequesterKey(deviceId, req),
+    maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS,
+  });
 }
 
 async function clearMintAttempts(scope: string, deviceId: string, req: Request): Promise<void> {
@@ -163,7 +167,11 @@ router.post(
 
     // Telemetry carries the lane and the pin discriminator only — never the
     // pinned accountId, the secret, or any other user-identifying value.
-    logger.info('device.token.mint', { mint_source: 'secret', deviceId, ...(accountId ? { pinned: true } : {}) });
+    logger.info('device.token.mint', {
+      mint_source: 'secret',
+      deviceId,
+      ...(accountId ? { pinned: true } : {}),
+    });
     res.json({
       data: {
         accessToken: mintedToken.accessToken,
@@ -277,14 +285,19 @@ router.post(
     const outcome = await deviceJoinService.issueJoinCode(parsed.data);
     if (!outcome.ok) {
       if (outcome.reason === 'invalid_device_secret') {
-          res.status(401).json({ error: 'invalid_device_secret' });
+        res.status(401).json({ error: 'invalid_device_secret' });
         return;
       }
       res.status(400).json({ error: outcome.reason });
       return;
     }
     await clearMintAttempts(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
-    res.json({ data: deviceJoinCodeResponseSchema.parse({ code: outcome.code, expiresIn: outcome.expiresIn }) });
+    res.json({
+      data: deviceJoinCodeResponseSchema.parse({
+        code: outcome.code,
+        expiresIn: outcome.expiresIn,
+      }),
+    });
   }),
 );
 
@@ -309,7 +322,10 @@ router.post(
       return;
     }
     const origin = req.headers.origin;
-    if (typeof origin === 'string' && normaliseOrigin(origin) !== normaliseOrigin(new URL(parsed.data.redirectUri).origin)) {
+    if (
+      typeof origin === 'string' &&
+      normaliseOrigin(origin) !== normaliseOrigin(new URL(parsed.data.redirectUri).origin)
+    ) {
       res.status(403).json({ error: 'origin_mismatch' });
       return;
     }
@@ -321,7 +337,10 @@ router.post(
     }
     logger.info('device.bridge.join', { deviceId: outcome.deviceId });
     res.json({
-      data: deviceJoinResponseSchema.parse({ deviceId: outcome.deviceId, deviceSecret: outcome.deviceSecret }),
+      data: deviceJoinResponseSchema.parse({
+        deviceId: outcome.deviceId,
+        deviceSecret: outcome.deviceSecret,
+      }),
     });
   }),
 );
@@ -496,12 +515,18 @@ router.post(
 // RP client additionally unions the org/shared account graph from `GET /accounts`;
 // that extra graph is legitimate and is NOT part of the device subset — do not
 // try to mirror it here.
-router.get('/state', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const deviceId = resolveCallerDeviceId(req);
-  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+router.get(
+  '/state',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const deviceId = resolveCallerDeviceId(req);
+    if (!deviceId) {
+      res.status(401).json({ error: 'No device' });
+      return;
+    }
 
-  res.json({ data: withoutActiveToken(await deviceSessionService.getState(deviceId)) });
-}));
+    res.json({ data: withoutActiveToken(await deviceSessionService.getState(deviceId)) });
+  }),
+);
 
 /**
  * GET /session/device/directory
@@ -516,12 +541,19 @@ router.get('/state', asyncHandler(async (req: AuthRequest, res: Response) => {
  * device holding two people can only ever answer it for one of them — it holds
  * ONE caller's account graph and cannot enumerate the other principals'.
  */
-router.get('/directory', directoryLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const deviceId = resolveCallerDeviceId(req);
-  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+router.get(
+  '/directory',
+  directoryLimiter,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const deviceId = resolveCallerDeviceId(req);
+    if (!deviceId) {
+      res.status(401).json({ error: 'No device' });
+      return;
+    }
 
-  res.json({ data: await deviceSessionService.getDirectory(deviceId) });
-}));
+    res.json({ data: await deviceSessionService.getDirectory(deviceId) });
+  }),
+);
 
 /**
  * POST /session/device/activate
@@ -537,102 +569,134 @@ router.get('/directory', directoryLimiter, asyncHandler(async (req: AuthRequest,
  * `/switch` remains, unchanged, as the compatibility path for clients that have
  * not moved yet.
  */
-router.post('/activate', activateLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const deviceId = resolveCallerDeviceId(req);
-  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
-
-  const body: unknown = req.body ?? {};
-  if (typeof body === 'object' && body !== null && 'accountId' in body) {
-    res.status(400).json({ error: 'accountId_not_accepted' });
-    return;
-  }
-  const parsed = deviceActivateRequestSchema.safeParse(body);
-  if (!parsed.success) { res.status(400).json({ error: 'contextId required' }); return; }
-
-  const outcome = await deviceSessionService.activateContext(deviceId, parsed.data.contextId, req);
-  if (!outcome.ok) {
-    if (outcome.reason === 'unauthorized') {
-      // The target was stale or revoked and has been healed out of the device.
-      // Broadcast the healed state so the device's other apps drop it too, then
-      // reject — exactly what `/switch` does on the same class of failure.
-      broadcastDeviceState(outcome.state);
-      broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'revoke');
-      res.status(403).json({ error: 'Context not authorized' });
+router.post(
+  '/activate',
+  activateLimiter,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const deviceId = resolveCallerDeviceId(req);
+    if (!deviceId) {
+      res.status(401).json({ error: 'No device' });
       return;
     }
-    res.status(404).json({ error: 'Context not on this device' });
-    return;
-  }
 
-  // An idempotent activation changed nothing — no revision moved, so there is
-  // nothing for the other apps on this device to converge on.
-  if (outcome.changed) {
+    const body: unknown = req.body ?? {};
+    if (typeof body === 'object' && body !== null && 'accountId' in body) {
+      res.status(400).json({ error: 'accountId_not_accepted' });
+      return;
+    }
+    const parsed = deviceActivateRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'contextId required' });
+      return;
+    }
+
+    const outcome = await deviceSessionService.activateContext(
+      deviceId,
+      parsed.data.contextId,
+      req,
+    );
+    if (!outcome.ok) {
+      if (outcome.reason === 'unauthorized') {
+        // The target was stale or revoked and has been healed out of the device.
+        // Broadcast the healed state so the device's other apps drop it too, then
+        // reject — exactly what `/switch` does on the same class of failure.
+        broadcastDeviceState(outcome.state);
+        broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'revoke');
+        res.status(403).json({ error: 'Context not authorized' });
+        return;
+      }
+      res.status(404).json({ error: 'Context not on this device' });
+      return;
+    }
+
+    // An idempotent activation changed nothing — no revision moved, so there is
+    // nothing for the other apps on this device to converge on.
+    if (outcome.changed) {
+      broadcastDeviceState(outcome.state);
+      broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
+    }
+    const dto: DeviceActivateResponse = {
+      directory: outcome.directory,
+      activeToken: outcome.activeToken,
+    };
+    res.json({ data: deviceActivateResponseSchema.parse(dto) });
+  }),
+);
+
+router.post(
+  '/add',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const session = resolveCallerSession(req);
+    const accountId = req.user?._id?.toString();
+    if (!session?.deviceId || !accountId || !session.sessionId) {
+      res.status(401).json({ error: 'Invalid session' });
+      return;
+    }
+    // The bearer JWT does not carry `operatedByUserId` (it is session-doc-only),
+    // so a managed-account sign-in must be resolved from the session record
+    // itself to bind the device-session entry to its operator.
+    const sessionDoc = await sessionService.getSession(session.sessionId, true);
+    // The session record must still be active. `getSession` returns null for an
+    // expired/revoked session (JWT not yet expired but the session doc
+    // deactivated) — such a session must NOT be re-added to the device set.
+    if (!sessionDoc) {
+      res.status(401).json({ error: 'Invalid session' });
+      return;
+    }
+    // `sessions.operated_by_user_id` is a plain text id, NULL for an ordinary
+    // personal session. That NULL is the whole distinction between a delegated
+    // (`account:act_as`) entry and a personal one, so it is mapped to `undefined`
+    // and the key is then OMITTED below rather than sent as an empty value.
+    const operatedByUserId = sessionDoc.operatedByUserId ?? undefined;
+
+    const { state, changed } = await deviceSessionService.addAccount(session.deviceId, {
+      accountId,
+      sessionId: session.sessionId,
+      ...(operatedByUserId ? { operatedByUserId } : {}),
+    });
+    // An idempotent re-register (reload handoff) changes nothing — do not broadcast.
+    if (changed) {
+      broadcastDeviceState(state);
+      // Also signal the added account's user across their other apps/devices.
+      broadcastSessionAccountsChanged(accountId, state.revision, 'add');
+    }
+    res.json({ data: withoutActiveToken(state) });
+  }),
+);
+
+router.post(
+  '/switch',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const deviceId = resolveCallerDeviceId(req);
+    const { accountId } = req.body ?? {};
+    if (!deviceId) {
+      res.status(401).json({ error: 'No device' });
+      return;
+    }
+    if (!accountId) {
+      res.status(400).json({ error: 'accountId required' });
+      return;
+    }
+    const outcome = await deviceSessionService.switchActive(deviceId, accountId);
+    if (!outcome.ok) {
+      if (outcome.reason === 'unauthorized') {
+        // The target session was revoked; `switchActive` healed the device set by
+        // removing the dead account. Broadcast the healed state so the device's
+        // other tabs drop it too, then reject the switch.
+        broadcastDeviceState(outcome.state);
+        // The dropped account was revoked — signal its user to refetch.
+        broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'revoke');
+        res.status(403).json({ error: 'Account not authorized' });
+        return;
+      }
+      res.status(404).json({ error: 'Account not on this device' });
+      return;
+    }
     broadcastDeviceState(outcome.state);
-    broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
-  }
-  const dto: DeviceActivateResponse = {
-    directory: outcome.directory,
-    activeToken: outcome.activeToken,
-  };
-  res.json({ data: deviceActivateResponseSchema.parse(dto) });
-}));
-
-router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const session = resolveCallerSession(req);
-  const accountId = req.user?._id?.toString();
-  if (!session?.deviceId || !accountId || !session.sessionId) { res.status(401).json({ error: 'Invalid session' }); return; }
-  // The bearer JWT does not carry `operatedByUserId` (it is session-doc-only),
-  // so a managed-account sign-in must be resolved from the session record
-  // itself to bind the device-session entry to its operator.
-  const sessionDoc = await sessionService.getSession(session.sessionId, true);
-  // The session record must still be active. `getSession` returns null for an
-  // expired/revoked session (JWT not yet expired but the session doc
-  // deactivated) — such a session must NOT be re-added to the device set.
-  if (!sessionDoc) { res.status(401).json({ error: 'Invalid session' }); return; }
-  // `sessions.operated_by_user_id` is a plain text id, NULL for an ordinary
-  // personal session. That NULL is the whole distinction between a delegated
-  // (`account:act_as`) entry and a personal one, so it is mapped to `undefined`
-  // and the key is then OMITTED below rather than sent as an empty value.
-  const operatedByUserId = sessionDoc.operatedByUserId ?? undefined;
-
-  const { state, changed } = await deviceSessionService.addAccount(session.deviceId, {
-    accountId,
-    sessionId: session.sessionId,
-    ...(operatedByUserId ? { operatedByUserId } : {}),
-  });
-  // An idempotent re-register (reload handoff) changes nothing — do not broadcast.
-  if (changed) {
-    broadcastDeviceState(state);
-    // Also signal the added account's user across their other apps/devices.
-    broadcastSessionAccountsChanged(accountId, state.revision, 'add');
-  }
-  res.json({ data: withoutActiveToken(state) });
-}));
-
-router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const deviceId = resolveCallerDeviceId(req);
-  const { accountId } = req.body ?? {};
-  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
-  if (!accountId) { res.status(400).json({ error: 'accountId required' }); return; }
-  const outcome = await deviceSessionService.switchActive(deviceId, accountId);
-  if (!outcome.ok) {
-    if (outcome.reason === 'unauthorized') {
-      // The target session was revoked; `switchActive` healed the device set by
-      // removing the dead account. Broadcast the healed state so the device's
-      // other tabs drop it too, then reject the switch.
-      broadcastDeviceState(outcome.state);
-      // The dropped account was revoked — signal its user to refetch.
-      broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'revoke');
-      res.status(403).json({ error: 'Account not authorized' });
-      return;
-    }
-    res.status(404).json({ error: 'Account not on this device' });
-    return;
-  }
-  broadcastDeviceState(outcome.state);
-  broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'switch');
-  res.json({ data: withoutActiveToken(outcome.state) });
-}));
+    broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'switch');
+    res.json({ data: withoutActiveToken(outcome.state) });
+  }),
+);
 
 /**
  * POST /session/device/signout
@@ -664,43 +728,53 @@ router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
  * (same principal's personal, then another of that principal's, then the next
  * principal's personal, then none).
  */
-router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const deviceId = resolveCallerDeviceId(req);
-  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
-  const { accountId, all, contextId, principalId } = req.body ?? {};
-
-  if (typeof contextId === 'string' || typeof principalId === 'string') {
-    if (typeof contextId === 'string' && typeof principalId === 'string') {
-      res.status(400).json({ error: 'contextId and principalId are different operations' });
+router.post(
+  '/signout',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const deviceId = resolveCallerDeviceId(req);
+    if (!deviceId) {
+      res.status(401).json({ error: 'No device' });
       return;
     }
-    const outcome = typeof contextId === 'string'
-      ? await deviceSessionService.removeContext(deviceId, contextId)
-      : await deviceSessionService.removePrincipal(deviceId, String(principalId));
-    if (!outcome.ok) {
-      res.status(404).json({ error: 'Not on this device' });
+    const { accountId, all, contextId, principalId } = req.body ?? {};
+
+    if (typeof contextId === 'string' || typeof principalId === 'string') {
+      if (typeof contextId === 'string' && typeof principalId === 'string') {
+        res.status(400).json({ error: 'contextId and principalId are different operations' });
+        return;
+      }
+      const outcome =
+        typeof contextId === 'string'
+          ? await deviceSessionService.removeContext(deviceId, contextId)
+          : await deviceSessionService.removePrincipal(deviceId, String(principalId));
+      if (!outcome.ok) {
+        res.status(404).json({ error: 'Not on this device' });
+        return;
+      }
+      broadcastDeviceState(outcome.state);
+      broadcastSessionAccountsChanged(outcome.removedAccountIds, outcome.state.revision, 'signout');
+      res.json({ data: { directory: outcome.directory, ...withoutActiveToken(outcome.state) } });
       return;
     }
-    broadcastDeviceState(outcome.state);
-    broadcastSessionAccountsChanged(outcome.removedAccountIds, outcome.state.revision, 'signout');
-    res.json({ data: { directory: outcome.directory, ...withoutActiveToken(outcome.state) } });
-    return;
-  }
 
-  const target = all === true ? { all: true as const } : accountId ? { accountId } : null;
-  if (!target) { res.status(400).json({ error: 'accountId, contextId, principalId or all required' }); return; }
-  // Capture the account set BEFORE signout so we can signal every user actually
-  // removed — this covers `all`, a single account, AND the operator-cascade
-  // (signing out an operator removes their managed accounts too).
-  const before = await deviceSessionService.getState(deviceId);
-  const state = await deviceSessionService.signout(deviceId, target);
-  broadcastDeviceState(state);
-  const remaining = new Set(state.accounts.map((a) => a.accountId));
-  const removedUserIds = before.accounts
-    .map((a) => a.accountId)
-    .filter((id) => !remaining.has(id));
-  broadcastSessionAccountsChanged(removedUserIds, state.revision, 'signout');
-  res.json({ data: withoutActiveToken(state) });
-}));
+    const target = all === true ? { all: true as const } : accountId ? { accountId } : null;
+    if (!target) {
+      res.status(400).json({ error: 'accountId, contextId, principalId or all required' });
+      return;
+    }
+    // Capture the account set BEFORE signout so we can signal every user actually
+    // removed — this covers `all`, a single account, AND the operator-cascade
+    // (signing out an operator removes their managed accounts too).
+    const before = await deviceSessionService.getState(deviceId);
+    const state = await deviceSessionService.signout(deviceId, target);
+    broadcastDeviceState(state);
+    const remaining = new Set(state.accounts.map((a) => a.accountId));
+    const removedUserIds = before.accounts
+      .map((a) => a.accountId)
+      .filter((id) => !remaining.has(id));
+    broadcastSessionAccountsChanged(removedUserIds, state.revision, 'signout');
+    res.json({ data: withoutActiveToken(state) });
+  }),
+);
 
 export default router;

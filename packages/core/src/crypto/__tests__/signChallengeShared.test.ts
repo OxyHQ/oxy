@@ -38,26 +38,24 @@ describe('SignatureService.signChallengeWithSharedKey', () => {
     // The signature verifies against the SAME message format `signChallenge`
     // uses, proving the format is unchanged and the shared key signed it.
     const message = `auth:${sharedPublicKey}:chal-123:${result.timestamp}`;
-    await expect(
-      verifySignature(message, result.challenge, sharedPublicKey),
-    ).resolves.toBe(true);
+    await expect(verifySignature(message, result.challenge, sharedPublicKey)).resolves.toBe(true);
   });
 
   it('throws when no shared identity exists', async () => {
     jest.spyOn(KeyManager, 'getSharedPublicKey').mockResolvedValue(null);
     jest.spyOn(KeyManager, 'getSharedPrivateKey').mockResolvedValue(null);
 
-    await expect(
-      SignatureService.signChallengeWithSharedKey('chal-123'),
-    ).rejects.toThrow(/No shared identity/);
+    await expect(SignatureService.signChallengeWithSharedKey('chal-123')).rejects.toThrow(
+      /No shared identity/,
+    );
   });
 
   it('throws when the shared private key is missing even if the public key is present', async () => {
     jest.spyOn(KeyManager, 'getSharedPublicKey').mockResolvedValue(sharedPublicKey);
     jest.spyOn(KeyManager, 'getSharedPrivateKey').mockResolvedValue(null);
 
-    await expect(
-      SignatureService.signChallengeWithSharedKey('chal-123'),
-    ).rejects.toThrow(/No shared identity/);
+    await expect(SignatureService.signChallengeWithSharedKey('chal-123')).rejects.toThrow(
+      /No shared identity/,
+    );
   });
 });

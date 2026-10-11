@@ -161,12 +161,7 @@ describe('readMigrationPhases', () => {
 });
 
 describe('planMigrationRun', () => {
-  const pending = [
-    { tag: 'a_pre' },
-    { tag: 'b_pre' },
-    { tag: 'c_post' },
-    { tag: 'd_post' },
-  ];
+  const pending = [{ tag: 'a_pre' }, { tag: 'b_pre' }, { tag: 'c_post' }, { tag: 'd_post' }];
   const phases = new Map<string, 'pre' | 'post'>([
     ['a_pre', 'pre'],
     ['b_pre', 'pre'],
@@ -225,8 +220,11 @@ describe('planMigrationRun', () => {
     const stranded = [{ tag: 'c_post' }, { tag: 'e_pre' }];
     const plan = planMigrationRun(
       stranded,
-      new Map<string, 'pre' | 'post'>([['c_post', 'post'], ['e_pre', 'pre']]),
-      'pre'
+      new Map<string, 'pre' | 'post'>([
+        ['c_post', 'post'],
+        ['e_pre', 'pre'],
+      ]),
+      'pre',
     );
 
     expect(plan.apply).toEqual([]);

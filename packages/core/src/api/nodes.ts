@@ -126,16 +126,23 @@ export class NodesApi {
 
   /** The signed-in user's node status, or `null` when they have none. Short-TTL cached. */
   async mine(): Promise<UserNodeStatus | null> {
-    const res = await this.ctx.request<{ node: UserNodeStatus | null }>('GET', '/nodes/me', undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    const res = await this.ctx.request<{ node: UserNodeStatus | null }>(
+      'GET',
+      '/nodes/me',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
     return res.node ?? null;
   }
 
   /** Revoke the signed-in user's node registration. */
   async removeMine(): Promise<RemoveNodeResult> {
-    const res = await this.ctx.request<{ success: boolean }>('DELETE', '/nodes/me', undefined, { cache: false });
+    const res = await this.ctx.request<{ success: boolean }>('DELETE', '/nodes/me', undefined, {
+      cache: false,
+    });
     this.sweep();
     return { revoked: res.success === true };
   }
@@ -145,7 +152,12 @@ export class NodesApi {
    * user. Idempotent server-side; the owner comes from the session.
    */
   async provisionManagedVault(): Promise<UserNodeStatus> {
-    const res = await this.ctx.request<{ node: UserNodeStatus }>('POST', '/nodes/managed', undefined, { cache: false });
+    const res = await this.ctx.request<{ node: UserNodeStatus }>(
+      'POST',
+      '/nodes/managed',
+      undefined,
+      { cache: false },
+    );
     this.sweep();
     return res.node;
   }

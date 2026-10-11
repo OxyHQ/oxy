@@ -195,9 +195,7 @@ async function ensureOwnerMembership(accountId: string, oxyId: string): Promise<
   const [existingOwner] = await getDb()
     .select({ id: accountMembers.id })
     .from(accountMembers)
-    .where(
-      and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, oxyId)),
-    )
+    .where(and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, oxyId)))
     .limit(1);
 
   if (existingOwner) {
@@ -269,9 +267,7 @@ async function resolveTargets(dryRun: boolean): Promise<ResolvedTargets> {
     const [existingOwner] = await getDb()
       .select({ id: accountMembers.id })
       .from(accountMembers)
-      .where(
-        and(eq(accountMembers.accountId, oxyOrg.id), eq(accountMembers.memberUserId, oxyId)),
-      )
+      .where(and(eq(accountMembers.accountId, oxyOrg.id), eq(accountMembers.memberUserId, oxyId)))
       .limit(1);
     ownerMembershipAction = existingOwner ? 'unchanged' : 'create';
   }
@@ -402,7 +398,9 @@ async function register(): Promise<void> {
     }
 
     logger.info(
-      dryRun ? 'Application registration plan (dry run — not written)' : 'Application registration applied',
+      dryRun
+        ? 'Application registration plan (dry run — not written)'
+        : 'Application registration applied',
       {
         dryRun,
         app: spec.name,
@@ -413,7 +411,7 @@ async function register(): Promise<void> {
 
     let credential =
       application && application.id !== DRY_RUN_PLACEHOLDER_ID
-        ? (
+        ? ((
             await getDb()
               .select()
               .from(applicationCredentials)
@@ -426,7 +424,7 @@ async function register(): Promise<void> {
                 ),
               )
               .limit(1)
-          )[0] ?? null
+          )[0] ?? null)
         : null;
 
     const credentialAction: 'create' | 'reuse' = credential ? 'reuse' : 'create';
@@ -484,11 +482,9 @@ async function register(): Promise<void> {
   const byKey = (key: ClientKey): string =>
     mapping.find((m) => m.key === key)?.clientId ?? 'ERROR-missing';
 
-  /* eslint-disable no-console */
   console.log(`COMMONS_CLIENT_ID=${byKey('COMMONS_CLIENT_ID')}`);
   console.log(`AUTH_IDP_CLIENT_ID=${byKey('AUTH_IDP_CLIENT_ID')}`);
   console.log('OXY_SIGNIN_CLIENTS_JSON=' + JSON.stringify({ dryRun, clients: mapping }));
-  /* eslint-enable no-console */
 }
 
 async function main(): Promise<void> {
@@ -504,9 +500,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  logger.error('Client registration failed', error instanceof Error ? error : new Error(String(error)), {
-    component: 'register-commons-clients',
-    method: 'main',
-  });
+  logger.error(
+    'Client registration failed',
+    error instanceof Error ? error : new Error(String(error)),
+    {
+      component: 'register-commons-clients',
+      method: 'main',
+    },
+  );
   process.exit(1);
 });

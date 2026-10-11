@@ -9,12 +9,10 @@
  *
  * ## Idempotency: a plain UNIQUE, not a partial one
  *
- * Mongo's `{applicationId, sourceActionId}` index carries
- * `partialFilterExpression: { …: { $exists: true } }` on BOTH fields, because
- * Mongo treats a missing field as `null` and every in-process award (which has
- * neither) would collide on it. Postgres unique indexes treat NULLs as DISTINCT
- * by default, so `UNIQUE (application_id, source_action_id)` already exempts any
- * row missing either field — the same semantic with none of the machinery.
+ * Every in-process award has neither `application_id` nor `source_action_id`,
+ * and must not collide with another. Postgres unique indexes treat NULLs as
+ * DISTINCT by default, so `UNIQUE (application_id, source_action_id)` already
+ * exempts any row missing either field, with no partial-index machinery.
  * `CONVENTIONS.md` names this workaround and forbids carrying it over.
  *
  * ## `points` is an `integer`
@@ -113,11 +111,9 @@ export const reputationTransactions = pgTable(
     actionType: text().notNull(),
     category: text({ enum: REPUTATION_CATEGORIES }).notNull(),
     /** Reporting application. Constraint deferred until `applications` lands. */
-    applicationId: text()
-      .references(() => applications.id, { onDelete: 'set null' }),
+    applicationId: text().references(() => applications.id, { onDelete: 'set null' }),
     /** The specific credential used. Constraint deferred with `application_credentials`. */
-    credentialId: text()
-      .references(() => applicationCredentials.id, { onDelete: 'set null' }),
+    credentialId: text().references(() => applicationCredentials.id, { onDelete: 'set null' }),
     /** Opaque id of the originating action in the source system — the idempotency key. */
     sourceActionId: text(),
     /** Source-system action type, e.g. `report_confirmed`. */
@@ -152,8 +148,8 @@ export const reputationTransactions = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Balance recomputation reads a user's `active` rows. Mongo's standalone
-    // `{userId}` index does not travel: a btree serves any leading prefix.
+    // Balance recomputation reads a user's `active` rows. No standalone
+    // `(user_id)` index: a btree serves any leading prefix.
     index('reputation_transactions_user_id_status_idx').on(t.userId, t.status),
     // Ledger listing, newest first.
     index('reputation_transactions_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
@@ -167,20 +163,20 @@ export const reputationTransactions = pgTable(
 
     check(
       'reputation_transactions_category_check',
-      sql`${t.category} in (${sql.raw(inList(REPUTATION_CATEGORIES))})`
+      sql`${t.category} in (${sql.raw(inList(REPUTATION_CATEGORIES))})`,
     ),
     check(
       'reputation_transactions_status_check',
-      sql`${t.status} in (${sql.raw(inList(REPUTATION_TRANSACTION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(REPUTATION_TRANSACTION_STATUSES))})`,
     ),
     check(
       'reputation_transactions_target_entity_type_check',
-      sql`${t.targetEntityType} is null or ${t.targetEntityType} in (${sql.raw(inList(REPUTATION_TARGET_ENTITY_TYPES))})`
+      sql`${t.targetEntityType} is null or ${t.targetEntityType} in (${sql.raw(inList(REPUTATION_TARGET_ENTITY_TYPES))})`,
     ),
     // A transaction cannot reverse itself.
     check(
       'reputation_transactions_reversal_not_self_check',
-      sql`${t.reversedTransactionId} is null or ${t.reversedTransactionId} <> ${t.id}`
+      sql`${t.reversedTransactionId} is null or ${t.reversedTransactionId} <> ${t.id}`,
     ),
-  ]
+  ],
 );

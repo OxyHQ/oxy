@@ -105,7 +105,7 @@ const uploadDirect = (bytes: Buffer) =>
   request(app).post(`/assets/${FILE_ID}/upload-direct`).attach('file', bytes, 'photo.png');
 
 describe('POST /assets/:id/upload-direct', () => {
-  it('writes the owner\'s bytes when they hash to the row\'s sha256', async () => {
+  it("writes the owner's bytes when they hash to the row's sha256", async () => {
     const res = await uploadDirect(CONTENT);
 
     expect(res.status).toBe(200);
@@ -140,6 +140,9 @@ describe('POST /assets/complete', () => {
       mime: 'image/png',
     });
 
-    expect(mockCompleteUpload).toHaveBeenCalledWith(expect.objectContaining({ fileId: FILE_ID }), STRANGER_ID);
+    expect(mockCompleteUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ fileId: FILE_ID }),
+      STRANGER_ID,
+    );
   });
 });

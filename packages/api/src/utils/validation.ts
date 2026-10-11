@@ -31,18 +31,16 @@ export function isAccountIdFormat(id: string): boolean {
 }
 
 /**
- * Whether `id` is a 24-character hexadecimal ObjectId.
+ * Whether `id` is a legacy 24-character hexadecimal id.
  *
- * LEGACY SHAPE, and knowingly so: it recognises only the PRE-CUTOVER half of
- * {@link isAccountIdFormat}, so it rejects the uuid v7 every account created
- * since is given. Every remaining caller lives in a batch that has not been
- * ported yet; each of those guards is either deleted (it only ever existed to
- * stop a Mongoose `CastError`, and a `text` id simply matches no rows) or
- * replaced with {@link isAccountIdFormat} where a 400 is a real contract.
+ * LEGACY SHAPE, and knowingly so: it recognises only the legacy half of
+ * {@link isAccountIdFormat}, so it rejects the uuid v7 every newer account is
+ * given. Each remaining caller's guard is either to be deleted (a `text` id
+ * that matches no row already gives the "not found" answer) or replaced with
+ * {@link isAccountIdFormat} where a 400 is a real contract.
  *
- * The implementation no longer goes through mongoose: `ObjectId.isValid` also
- * accepts any 12-character string, which no caller here wanted — every test
- * that stubs this module already stubs it as exactly this regex.
+ * It is exactly this regex — it does not accept arbitrary 12-character
+ * strings — and every test that stubs this module stubs it as this regex.
  */
 export function isValidObjectId(id: string): boolean {
   return /^[0-9a-f]{24}$/i.test(id);
@@ -52,19 +50,14 @@ export function isValidObjectId(id: string): boolean {
  * Validates required fields in an object
  * Throws ValidationError if any required fields are missing
  */
-export function validateRequiredFields(
-  data: Record<string, unknown>,
-  fields: string[]
-): void {
-  const missing = fields.filter(field => {
+export function validateRequiredFields(data: Record<string, unknown>, fields: string[]): void {
+  const missing = fields.filter((field) => {
     const value = data[field];
     return value === undefined || value === null || value === '';
   });
 
   if (missing.length > 0) {
-    throw new ValidationError(
-      `Missing required fields: ${missing.join(', ')}`
-    );
+    throw new ValidationError(`Missing required fields: ${missing.join(', ')}`);
   }
 }
 
@@ -77,19 +70,19 @@ export function validatePagination(
   limit?: unknown,
   offset?: unknown,
   maxLimit = 100,
-  defaultLimit = 50
+  defaultLimit = 50,
 ): { limit: number; offset: number } {
   // Convert to string first, then parse
   const limitStr = limit !== undefined ? String(limit) : undefined;
   const offsetStr = offset !== undefined ? String(offset) : undefined;
 
-  const parsedLimit = limitStr !== undefined
-    ? Math.min(Math.max(Number.parseInt(limitStr, 10) || defaultLimit, 1), maxLimit)
-    : defaultLimit;
+  const parsedLimit =
+    limitStr !== undefined
+      ? Math.min(Math.max(Number.parseInt(limitStr, 10) || defaultLimit, 1), maxLimit)
+      : defaultLimit;
 
-  const parsedOffset = offsetStr !== undefined
-    ? Math.max(Number.parseInt(offsetStr, 10) || 0, 0)
-    : 0;
+  const parsedOffset =
+    offsetStr !== undefined ? Math.max(Number.parseInt(offsetStr, 10) || 0, 0) : 0;
 
   return { limit: parsedLimit, offset: parsedOffset };
 }

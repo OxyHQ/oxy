@@ -29,7 +29,9 @@ const savedEnv = { ...process.env };
 
 beforeAll(async () => {
   process.env.SERVICE_TOKEN_SIGNING_KEY_ID = 'account-events-worker-test';
-  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey
+    .export({ type: 'pkcs8', format: 'pem' })
+    .toString();
   delete process.env.SERVICE_TOKEN_PUBLIC_JWKS;
   await connectPostgres();
 });
@@ -73,21 +75,30 @@ async function seedDeletion(webhookUrl: string | null) {
   await getDb()
     .update(accountEventDeliveries)
     .set({ deliveredAt: new Date() })
-    .where(and(
-      eq(accountEventDeliveries.eventId, recorded.eventId),
-      ne(accountEventDeliveries.applicationId, app.id),
-    ));
-  return { eventId: recorded.eventId, applicationId: app.id, personId: person.id, username: person.username };
+    .where(
+      and(
+        eq(accountEventDeliveries.eventId, recorded.eventId),
+        ne(accountEventDeliveries.applicationId, app.id),
+      ),
+    );
+  return {
+    eventId: recorded.eventId,
+    applicationId: app.id,
+    personId: person.id,
+    username: person.username,
+  };
 }
 
 async function delivery(eventId: string, applicationId: string) {
   const [row] = await getDb()
     .select()
     .from(accountEventDeliveries)
-    .where(and(
-      eq(accountEventDeliveries.eventId, eventId),
-      eq(accountEventDeliveries.applicationId, applicationId),
-    ));
+    .where(
+      and(
+        eq(accountEventDeliveries.eventId, eventId),
+        eq(accountEventDeliveries.applicationId, applicationId),
+      ),
+    );
   return row!;
 }
 
@@ -115,16 +126,24 @@ describe('account event webhook worker', () => {
       return 202;
     });
 
-    const ours = requests.filter((request) => request.url === 'https://rp.example/webhooks/oxy' && request.eventId === seeded.eventId);
+    const ours = requests.filter(
+      (request) =>
+        request.url === 'https://rp.example/webhooks/oxy' && request.eventId === seeded.eventId,
+    );
     expect(ours).toHaveLength(1);
     expect(ours[0]!.eventType).toBe('account.deleted');
 
-    jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
-      JSON.stringify({ keys: serviceTokenPublicJwks() }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
-    const verified = await new OxyServer({ baseURL: 'https://api.oxy.test' })
-      .accountEvents.verify(ours[0]!.token, { audience: seeded.applicationId });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ keys: serviceTokenPublicJwks() }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const verified = await new OxyServer({ baseURL: 'https://api.oxy.test' }).accountEvents.verify(
+      ours[0]!.token,
+      { audience: seeded.applicationId },
+    );
     expect(verified).toMatchObject({
       eventId: seeded.eventId,
       userId: seeded.personId,
@@ -142,7 +161,12 @@ describe('account event webhook worker', () => {
       again.push(request);
       return 202;
     });
-    expect(again.filter((request) => request.eventId === seeded.eventId && request.url === 'https://rp.example/webhooks/oxy')).toHaveLength(0);
+    expect(
+      again.filter(
+        (request) =>
+          request.eventId === seeded.eventId && request.url === 'https://rp.example/webhooks/oxy',
+      ),
+    ).toHaveLength(0);
   });
 
   it('retries a non-2xx with exponential backoff, re-sending the same event id', async () => {
@@ -156,7 +180,13 @@ describe('account event webhook worker', () => {
     let clock = new Date();
     await runFor(seeded.applicationId, deliver, () => clock);
     let row = await delivery(seeded.eventId, seeded.applicationId);
-    expect(row).toMatchObject({ attempts: 1, lastStatus: 503, deliveredAt: null, failedAt: null, claimedBy: null });
+    expect(row).toMatchObject({
+      attempts: 1,
+      lastStatus: 503,
+      deliveredAt: null,
+      failedAt: null,
+      claimedBy: null,
+    });
     expect(row.nextAttemptAt.getTime()).toBe(clock.getTime() + accountEventBackoffMs(1));
 
     // Not due yet: nothing is sent.
@@ -176,10 +206,12 @@ describe('account event webhook worker', () => {
     await getDb()
       .update(accountEventDeliveries)
       .set({ attempts: ACCOUNT_EVENT_WEBHOOK_MAX_ATTEMPTS - 1 })
-      .where(and(
-        eq(accountEventDeliveries.eventId, seeded.eventId),
-        eq(accountEventDeliveries.applicationId, seeded.applicationId),
-      ));
+      .where(
+        and(
+          eq(accountEventDeliveries.eventId, seeded.eventId),
+          eq(accountEventDeliveries.applicationId, seeded.applicationId),
+        ),
+      );
 
     const result = await runFor(seeded.applicationId, async (request) => {
       if (request.url === 'https://rp.example/down') throw new Error('connect ECONNREFUSED');
@@ -196,7 +228,8 @@ describe('account event webhook worker', () => {
   it('records an SSRF refusal as a failed attempt instead of throwing the batch', async () => {
     const seeded = await seedDeletion('https://rp.example/internal');
     await runFor(seeded.applicationId, async (request) => {
-      if (request.url === 'https://rp.example/internal') throw new SsrfRejection('resolves to a private address');
+      if (request.url === 'https://rp.example/internal')
+        throw new SsrfRejection('resolves to a private address');
       return 202;
     });
     const row = await delivery(seeded.eventId, seeded.applicationId);
@@ -220,10 +253,12 @@ describe('account event webhook worker', () => {
     await getDb()
       .update(accountEventDeliveries)
       .set({ claimedAt: new Date(), claimedBy: 'other-worker' })
-      .where(and(
-        eq(accountEventDeliveries.eventId, seeded.eventId),
-        eq(accountEventDeliveries.applicationId, seeded.applicationId),
-      ));
+      .where(
+        and(
+          eq(accountEventDeliveries.eventId, seeded.eventId),
+          eq(accountEventDeliveries.applicationId, seeded.applicationId),
+        ),
+      );
     const deliver = jest.fn(async () => 202);
     await runFor(seeded.applicationId, deliver);
     const row = await delivery(seeded.eventId, seeded.applicationId);

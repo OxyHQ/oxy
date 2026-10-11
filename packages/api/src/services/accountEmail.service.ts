@@ -62,11 +62,19 @@ export const REAUTH_SENDS_PER_HOUR = 10;
 export type SendBudgetGroup = 'public' | 'reauth';
 
 function codeInvalid(): ApiError {
-  return new ApiError(401, 'That code is not right, or it has expired.', EMAIL_VERIFICATION_ERROR_CODES.codeInvalid);
+  return new ApiError(
+    401,
+    'That code is not right, or it has expired.',
+    EMAIL_VERIFICATION_ERROR_CODES.codeInvalid,
+  );
 }
 
 export function ticketInvalid(): ApiError {
-  return new ApiError(401, 'This confirmation has expired. Start again.', EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid);
+  return new ApiError(
+    401,
+    'This confirmation has expired. Start again.',
+    EMAIL_VERIFICATION_ERROR_CODES.ticketInvalid,
+  );
 }
 
 function sha256Hex(value: string): string {
@@ -82,13 +90,17 @@ function hashCode(verificationId: string, code: string): string {
 function newLongCode(): string {
   let code = '';
   for (let index = 0; index < EMAIL_SIGNIN_LONG_CODE_LENGTH; index += 1) {
-    code += EMAIL_SIGNIN_LONG_CODE_ALPHABET[crypto.randomInt(0, EMAIL_SIGNIN_LONG_CODE_ALPHABET.length)];
+    code +=
+      EMAIL_SIGNIN_LONG_CODE_ALPHABET[crypto.randomInt(0, EMAIL_SIGNIN_LONG_CODE_ALPHABET.length)];
   }
   return code;
 }
 
 function newCode(): string {
-  return crypto.randomInt(0, 10 ** EMAIL_CODE_LENGTH).toString().padStart(EMAIL_CODE_LENGTH, '0');
+  return crypto
+    .randomInt(0, 10 ** EMAIL_CODE_LENGTH)
+    .toString()
+    .padStart(EMAIL_CODE_LENGTH, '0');
 }
 
 function emailMatches(email: string) {
@@ -106,7 +118,11 @@ interface Delivery {
 }
 
 async function resolveDelivery(request: EmailVerificationStartRequest): Promise<Delivery> {
-  const [existing] = await getDb().select({ id: users.id }).from(users).where(emailMatches(request.email)).limit(1);
+  const [existing] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(emailMatches(request.email))
+    .limit(1);
   return {
     emailHash: hashEmail(request.email),
     sendCodeTo: existing ? null : request.email,
@@ -133,7 +149,11 @@ function dispatch(delivery: Delivery, code: string): void {
 /** 503 when this server has no relay to send mail through. */
 export function assertMailConfigured(): void {
   if (SMTP_RELAYS.length === 0) {
-    throw new ApiError(503, 'Oxy cannot send email right now. Try again later.', EMAIL_VERIFICATION_ERROR_CODES.unavailable);
+    throw new ApiError(
+      503,
+      'Oxy cannot send email right now. Try again later.',
+      EMAIL_VERIFICATION_ERROR_CODES.unavailable,
+    );
   }
 }
 
@@ -218,7 +238,9 @@ export async function startEmailVerification(
   assertMailConfigured();
   let delivery = await resolveDelivery(request);
   const db = getDb();
-  if (!(await reserveSendBudget({ group: 'public', emailHash: delivery.emailHash, requesterKey }))) {
+  if (
+    !(await reserveSendBudget({ group: 'public', emailHash: delivery.emailHash, requesterKey }))
+  ) {
     // Over budget: the same answer, a decoy row, and nothing sent.
     delivery = { ...delivery, sendCodeTo: null, sendNoticeTo: null };
   }
@@ -271,7 +293,11 @@ export async function consumeEmailCode(
         ...(input.userId ? [eq(emailVerifications.userId, input.userId)] : []),
         // A re-verification code confirms only the change it was asked for.
         ...(input.purpose === 'reauth'
-          ? [input.reauthAction ? eq(emailVerifications.reauthAction, input.reauthAction) : sql`false`]
+          ? [
+              input.reauthAction
+                ? eq(emailVerifications.reauthAction, input.reauthAction)
+                : sql`false`,
+            ]
           : []),
       ),
     )
@@ -330,13 +356,21 @@ export async function confirmEmailVerification(
     const given = Buffer.from(hashCode(row.id, code), 'hex');
     if (expected.length !== given.length || !crypto.timingSafeEqual(expected, given)) {
       const attempts = row.attempts + 1;
-      await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
+      await tx
+        .update(emailVerifications)
+        .set({ attempts })
+        .where(eq(emailVerifications.id, row.id));
       return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };
     }
 
     await tx
       .update(emailVerifications)
-      .set({ attempts: row.attempts + 1, confirmedAt: now, ticketHash: sha256Hex(ticket), expiresAt })
+      .set({
+        attempts: row.attempts + 1,
+        confirmedAt: now,
+        ticketHash: sha256Hex(ticket),
+        expiresAt,
+      })
       .where(eq(emailVerifications.id, row.id));
     return null;
   });
@@ -347,7 +381,11 @@ export async function confirmEmailVerification(
 }
 
 function tooManyAttempts(): ApiError {
-  return new ApiError(429, 'Too many wrong codes. Ask for a new one.', EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts);
+  return new ApiError(
+    429,
+    'Too many wrong codes. Ask for a new one.',
+    EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts,
+  );
 }
 
 function liveTicket(ticket: string, purpose: EmailVerificationPurpose, now: Date) {
@@ -372,7 +410,9 @@ export async function spendSignupTicket(
   const spent = await tx
     .update(emailVerifications)
     .set({ usedAt: now })
-    .where(and(liveTicket(ticket, 'signup', now), eq(emailVerifications.emailHash, hashEmail(email))))
+    .where(
+      and(liveTicket(ticket, 'signup', now), eq(emailVerifications.emailHash, hashEmail(email))),
+    )
     .returning({ id: emailVerifications.id });
   if (spent.length === 0) throw ticketInvalid();
 }

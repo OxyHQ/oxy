@@ -19,11 +19,19 @@ import { OxyServer } from '../OxyServer';
 import type { User } from '../../models/interfaces';
 
 const b64url = (input: string): string =>
-  Buffer.from(input, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  Buffer.from(input, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 
 const token = (claims: Record<string, unknown>): string =>
   `${b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${b64url(
-    JSON.stringify({ iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, ...claims }),
+    JSON.stringify({
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      ...claims,
+    }),
   )}.sig`;
 
 interface MockReq {
@@ -81,7 +89,11 @@ function chain(effectiveAccountId: string, actorAccountId: string) {
 
 async function authenticate(
   answer: ReturnType<typeof validation>,
-  extra: { headers?: Record<string, string>; claims?: Record<string, unknown>; optional?: boolean } = {},
+  extra: {
+    headers?: Record<string, string>;
+    claims?: Record<string, unknown>;
+    optional?: boolean;
+  } = {},
 ) {
   const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
   jest.spyOn(oxy.session, 'validate').mockResolvedValue(answer as never);
@@ -121,7 +133,11 @@ describe('the actor chain on a user session', () => {
     const { req } = await authenticate(validation(BOT, chain(BOT, OWNER)));
 
     const actor = getOxyActor(req as never);
-    expect(actor).toMatchObject({ effectiveAccountId: BOT, actorAccountId: OWNER, delegated: true });
+    expect(actor).toMatchObject({
+      effectiveAccountId: BOT,
+      actorAccountId: OWNER,
+      delegated: true,
+    });
     expect(req.userId).toBe(BOT);
   });
 
@@ -149,7 +165,12 @@ describe('the actor chain on a user session', () => {
 
   it('refuses a malformed chain rather than ignoring it', async () => {
     const { res, next } = await authenticate(
-      validation(BOT, { schemaVersion: 1, effectiveAccountId: BOT, actorAccountId: OWNER, delegated: false }),
+      validation(BOT, {
+        schemaVersion: 1,
+        effectiveAccountId: BOT,
+        actorAccountId: OWNER,
+        delegated: false,
+      }),
     );
 
     expect(next).not.toHaveBeenCalled();
@@ -157,7 +178,9 @@ describe('the actor chain on a user session', () => {
   });
 
   it('on the optional path, a mismatched chain leaves the request anonymous', async () => {
-    const { req, next } = await authenticate(validation(BOT, chain(INTRUDER, INTRUDER)), { optional: true });
+    const { req, next } = await authenticate(validation(BOT, chain(INTRUDER, INTRUDER)), {
+      optional: true,
+    });
 
     expect(next).toHaveBeenCalledWith();
     expect(req.userId).toBeNull();

@@ -73,7 +73,9 @@ export function ActivityRow({ transaction }: ActivityRowProps) {
       }
       subtitle={relativeTime(transaction.createdAt)}
       trailing={
-        <Text style={[styles.delta, { color: accent }]}>{formatPointsDelta(transaction.points)}</Text>
+        <Text style={[styles.delta, { color: accent }]}>
+          {formatPointsDelta(transaction.points)}
+        </Text>
       }
       accessibilityLabel={`${label}, ${formatPointsDelta(transaction.points)}`}
     />

@@ -82,18 +82,36 @@ jest.mock('../../services/authSession.service', () => ({
   resolveOAuthContext: jest.fn(() => null),
   verifyDelegatedSubject: jest.fn(),
 }));
-jest.mock('../../services/session.service', () => ({ __esModule: true, default: { createSession: jest.fn() } }));
-jest.mock('../../services/oauthCode.service', () => ({ issueAuthCode: jest.fn(), exchangeAuthCode: jest.fn(), AUTH_CODE_TTL_MS: 60_000 }));
-jest.mock('../../services/signature.service', () => ({ __esModule: true, default: { verifyChallengeResponse: jest.fn(), isValidPublicKey: jest.fn() } }));
+jest.mock('../../services/session.service', () => ({
+  __esModule: true,
+  default: { createSession: jest.fn() },
+}));
+jest.mock('../../services/oauthCode.service', () => ({
+  issueAuthCode: jest.fn(),
+  exchangeAuthCode: jest.fn(),
+  AUTH_CODE_TTL_MS: 60_000,
+}));
+jest.mock('../../services/signature.service', () => ({
+  __esModule: true,
+  default: { verifyChallengeResponse: jest.fn(), isValidPublicKey: jest.fn() },
+}));
 jest.mock('../../utils/userTransform', () => ({ formatUserResponse: jest.fn() }));
 jest.mock('../../controllers/session.controller', () => ({
   SessionController: {
-    register: jest.fn(), signUp: jest.fn(), signIn: jest.fn(), requestChallenge: jest.fn(),
-    verifyChallenge: jest.fn(), requestPasswordReset: jest.fn(), verifyRecoveryCode: jest.fn(),
-    resetPassword: jest.fn(), getUserByPublicKey: jest.fn(),
+    register: jest.fn(),
+    signUp: jest.fn(),
+    signIn: jest.fn(),
+    requestChallenge: jest.fn(),
+    verifyChallenge: jest.fn(),
+    requestPasswordReset: jest.fn(),
+    verifyRecoveryCode: jest.fn(),
+    resetPassword: jest.fn(),
+    getUserByPublicKey: jest.fn(),
   },
 }));
-jest.mock('../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
+jest.mock('../../utils/logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -127,11 +145,18 @@ async function request(
   }
 
   return new Promise((resolve, reject) => {
-    const req = http.request({ method, host: '127.0.0.1', port: address.port, path, headers }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
-    });
+    const req = http.request(
+      { method, host: '127.0.0.1', port: address.port, path, headers },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -205,7 +230,9 @@ async function storedRow(authorizeCode: string) {
 
 /** The tokens the push transport was handed. */
 function pushedTokens(): string[] {
-  return (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? [];
+  return (
+    (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? []
+  );
 }
 
 beforeAll(async () => {
@@ -272,7 +299,9 @@ describe('POST /auth/session/deliver/:authorizeCode — capability-scoped target
     mockSendPushToTokens.mockResolvedValue({ targeted: 2, accepted: 2 });
     const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(200);
     // COUNTS ONLY — no token, no device, no application identity.
@@ -296,7 +325,9 @@ describe('POST /auth/session/deliver/:authorizeCode — capability-scoped target
     await insertInstall(USER_ID, 'tok-plain', plain);
     const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 0 });
@@ -308,7 +339,9 @@ describe('POST /auth/session/deliver/:authorizeCode — capability-scoped target
     await insertInstall(VICTIM_ID, 'tok-someone-else', VAULT_APP_ID);
     const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 0 });
@@ -322,7 +355,9 @@ describe('POST /auth/session/deliver/:authorizeCode — failures never break the
     mockSendPushToTokens.mockRejectedValue(new Error('expo unreachable'));
     const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 1 });
@@ -342,7 +377,9 @@ describe('POST /auth/session/deliver/:authorizeCode — failures never break the
     await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
     const { authorizeCode } = await storedPendingRequest({ status: 'authorized' });
 
-    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(400);
     expect(mockSendPushToTokens).not.toHaveBeenCalled();

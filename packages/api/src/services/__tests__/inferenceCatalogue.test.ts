@@ -92,8 +92,8 @@ describe('the rolling availability-scope bridge', () => {
       .where(
         and(
           eq(inferenceDeployments.id, legacy.deploymentId),
-          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
-        )
+          sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
+        ),
       );
     expect(oldReader).toEqual([{ deploymentId: legacy.deploymentId }]);
 
@@ -103,13 +103,13 @@ describe('the rolling availability-scope bridge', () => {
     expect(bridged?.availabilityScope).toBe('platform_internal');
     expect(native?.availabilityScope).toBe('platform_internal');
     expect(JSON.stringify([bridged, native])).not.toContain(
-      LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
+      LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
     );
 
     const selected = await selectRouteForViewer(
       INTERNAL_VIEWER,
       legacy.modelReference,
-      UNCONSTRAINED_ROUTING
+      UNCONSTRAINED_ROUTING,
     );
     expect(selected?.availabilityScope).toBe('platform_internal');
 
@@ -159,7 +159,11 @@ async function insertRoute(options: {
    */
   price?: {
     currency: string;
-    unitPrices: ReadonlyArray<{ unit: 'input_tokens' | 'output_tokens'; amount: string; per: number }>;
+    unitPrices: ReadonlyArray<{
+      unit: 'input_tokens' | 'output_tokens';
+      amount: string;
+      per: number;
+    }>;
   };
   /** Keep the route deliberately unpriced. Ordinary selectable fixtures are priced. */
   unpriced?: boolean;
@@ -258,7 +262,7 @@ async function insertRoute(options: {
           unit: unitPrice.unit,
           amount: unitPrice.amount,
           per: unitPrice.per,
-        }))
+        })),
       );
     }
   }
@@ -362,7 +366,7 @@ async function insertSiblingDeployment(
     readonly zeroDataRetentionAvailable: boolean;
     readonly subprocessors: readonly string[];
     readonly policyUrl: string;
-  }
+  },
 ): Promise<void> {
   const db = getDb();
   await db.insert(inferenceProviders).values({
@@ -439,19 +443,27 @@ describe('an internal-only route cannot be selected by a public credential', () 
 
     // The claim.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeUndefined();
 
     // POSITIVE CONTROL, same viewer, same code path: a broken fixture or a
     // predicate that matched nothing would fail here, so the line above cannot
     // pass by accident.
-    const served = await selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, publicRoute.modelId, UNCONSTRAINED_ROUTING);
+    const served = await selectRouteForViewer(
+      PUBLIC_CATALOGUE_VIEWER,
+      publicRoute.modelId,
+      UNCONSTRAINED_ROUTING,
+    );
     expect(served?.modelReference).toBe(publicRoute.modelReference);
 
     // SECOND CONTROL: the internal route is real and selectable — by the
     // principal it is for. Without this, "nobody can select it" and "it is
     // withheld from the public" are indistinguishable.
-    const internalServed = await selectRouteForViewer(INTERNAL_VIEWER, internalOnly.modelId, UNCONSTRAINED_ROUTING);
+    const internalServed = await selectRouteForViewer(
+      INTERNAL_VIEWER,
+      internalOnly.modelId,
+      UNCONSTRAINED_ROUTING,
+    );
     expect(internalServed?.modelReference).toBe(internalOnly.modelReference);
   });
 
@@ -466,14 +478,14 @@ describe('an internal-only route cannot be selected by a public credential', () 
     });
 
     const publicIds = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).map(
-      (entry) => entry.modelId
+      (entry) => entry.modelId,
     );
     expect(publicIds).not.toContain(internalOnly.modelId);
     // Control, again scoped to a row this file owns rather than to a count.
     expect(publicIds).toContain(publicRoute.modelId);
 
     const internalIds = (await listCatalogueForViewer(INTERNAL_VIEWER, CATALOGUED)).map(
-      (entry) => entry.modelId
+      (entry) => entry.modelId,
     );
     expect(internalIds).toContain(internalOnly.modelId);
   });
@@ -487,10 +499,10 @@ describe('an internal-only route cannot be selected by a public credential', () 
     });
 
     await expect(
-      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId, CATALOGUED)
+      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, internalOnly.modelId, CATALOGUED),
     ).resolves.toBeUndefined();
     await expect(
-      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, `nobody/nothing${suffix()}`, CATALOGUED)
+      getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, `nobody/nothing${suffix()}`, CATALOGUED),
     ).resolves.toBeUndefined();
   });
 });
@@ -616,7 +628,7 @@ describe('a route’s published price reaches the catalogue entry', () => {
     });
 
     const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).find(
-      (candidate) => candidate.modelId === priced.modelId
+      (candidate) => candidate.modelId === priced.modelId,
     );
     expect(entry).toBeDefined();
     // POSITIVE CONTROL for the scan: the id IS findable where it belongs, so a
@@ -648,7 +660,7 @@ describe('catalogue terms are aggregates, never the terms of a name-sorted route
     });
 
     const entry = (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER, CATALOGUED)).find(
-      (candidate) => candidate.modelId === route.modelId
+      (candidate) => candidate.modelId === route.modelId,
     );
     expect(entry).toBeDefined();
     expect(entry?.schemaVersion).toBe(3);
@@ -680,7 +692,7 @@ describe('the permission gate has no exemption', () => {
       permissionState: 'pending_review',
     });
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, pending.modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, pending.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeUndefined();
   });
 
@@ -692,7 +704,9 @@ describe('the permission gate has no exemption', () => {
       commercialPermission: 'standard_application_use',
       permissionState: 'pending_review',
     });
-    await expect(selectRouteForViewer(INTERNAL_VIEWER, pending.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeUndefined();
+    await expect(
+      selectRouteForViewer(INTERNAL_VIEWER, pending.modelId, UNCONSTRAINED_ROUTING),
+    ).resolves.toBeUndefined();
 
     // Control: the same viewer selects an APPROVED internal route, so the case
     // above is measuring the permission state and not the audience.
@@ -700,7 +714,9 @@ describe('the permission gate has no exemption', () => {
       availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
-    await expect(selectRouteForViewer(INTERNAL_VIEWER, approved.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
+    await expect(
+      selectRouteForViewer(INTERNAL_VIEWER, approved.modelId, UNCONSTRAINED_ROUTING),
+    ).resolves.toBeDefined();
   });
 
   it('withholds a suspended route', async () => {
@@ -710,7 +726,7 @@ describe('the permission gate has no exemption', () => {
       permissionState: 'suspended',
     });
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, suspended.modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, suspended.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeUndefined();
   });
 });
@@ -760,12 +776,14 @@ describe('the audience is default-deny', () => {
     const empty: CatalogueViewer = { scopes: [], label: 'test-empty' };
 
     await expect(listCatalogueForViewer(empty, CATALOGUED)).resolves.toEqual([]);
-    await expect(selectRouteForViewer(empty, route.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeUndefined();
+    await expect(
+      selectRouteForViewer(empty, route.modelId, UNCONSTRAINED_ROUTING),
+    ).resolves.toBeUndefined();
 
     // Control: the route is genuinely selectable, so the two lines above are
     // measuring the empty scope set and not a fixture that never landed.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, route.modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, route.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeDefined();
   });
 });
@@ -778,15 +796,27 @@ describe('a pinned revision is never substituted', () => {
     });
 
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, `${route.modelId}@does-not-exist`, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(
+        PUBLIC_CATALOGUE_VIEWER,
+        `${route.modelId}@does-not-exist`,
+        UNCONSTRAINED_ROUTING,
+      ),
     ).resolves.toBeUndefined();
 
     // Controls in both forms: the unpinned request resolves, and the correctly
     // pinned one resolves to exactly those weights.
-    const unpinned = await selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, route.modelId, UNCONSTRAINED_ROUTING);
+    const unpinned = await selectRouteForViewer(
+      PUBLIC_CATALOGUE_VIEWER,
+      route.modelId,
+      UNCONSTRAINED_ROUTING,
+    );
     expect(unpinned?.modelReference).toBe(route.modelReference);
 
-    const pinned = await selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, route.modelReference, UNCONSTRAINED_ROUTING);
+    const pinned = await selectRouteForViewer(
+      PUBLIC_CATALOGUE_VIEWER,
+      route.modelReference,
+      UNCONSTRAINED_ROUTING,
+    );
     expect(pinned?.modelReference).toBe(route.modelReference);
   });
 });

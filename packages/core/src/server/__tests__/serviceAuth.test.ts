@@ -67,12 +67,13 @@ const servicePayload = (claims: ServiceTokenClaims): ServiceTokenClaims => {
 const signServiceToken = (claims: ServiceTokenClaims, key = SIGNING_KEY): string =>
   signEdDSA(servicePayload(claims), key);
 
-
 const cacheTokens = new Map<string, string>();
 function cacheToken(label: string): string {
-  const existing = cacheTokens.get(label); if (existing) return existing;
+  const existing = cacheTokens.get(label);
+  if (existing) return existing;
   const token = signServiceToken({ appId: label, appName: label });
-  cacheTokens.set(label, token); return token;
+  cacheTokens.set(label, token);
+  return token;
 }
 
 let jwksFetch: jest.SpyInstance;
@@ -144,9 +145,7 @@ describe('C3: service-token acting-as enforcement', () => {
   });
 
   it('rejects X-Oxy-User-Id when no delegation grant exists (403)', async () => {
-    const verifySpy = jest
-      .spyOn(oxy, 'verifyActingAs')
-      .mockResolvedValue(null);
+    const verifySpy = jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue(null);
 
     const token = signServiceToken({ appId: 'app-1', appName: 'attacker-service' });
     const req = makeReq({
@@ -163,7 +162,16 @@ describe('C3: service-token acting-as enforcement', () => {
     // so we don't take a dep on @types/express in core just for tests.
     await mw(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(verifySpy).toHaveBeenCalledWith('app-1', 'victim-user-id', expect.objectContaining({ cache: false, credentialId: 'cred-1', ownerAccountId: 'owner-account-1', environment: 'production' }));
+    expect(verifySpy).toHaveBeenCalledWith(
+      'app-1',
+      'victim-user-id',
+      expect.objectContaining({
+        cache: false,
+        credentialId: 'cred-1',
+        ownerAccountId: 'owner-account-1',
+        environment: 'production',
+      }),
+    );
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
     expect(res.body).toMatchObject({
@@ -176,9 +184,11 @@ describe('C3: service-token acting-as enforcement', () => {
       .spyOn(oxy, 'verifyActingAs')
       .mockResolvedValue({ authorized: true, scopes: ['user:read', 'files:write'] });
 
-    const token = signServiceToken(
-      { appId: 'app-1', appName: 'trusted-service', scopes: ['user:read'] },
-    );
+    const token = signServiceToken({
+      appId: 'app-1',
+      appName: 'trusted-service',
+      scopes: ['user:read'],
+    });
     const req = makeReq({
       headers: {
         authorization: `Bearer ${token}`,
@@ -191,7 +201,11 @@ describe('C3: service-token acting-as enforcement', () => {
     const mw = oxy.middleware.auth();
     await mw(req as unknown as never, res as unknown as never, next as unknown as never);
 
-    expect(verifySpy).toHaveBeenCalledWith('app-1', 'user-1', expect.objectContaining({ cache: false, credentialId: 'cred-1' }));
+    expect(verifySpy).toHaveBeenCalledWith(
+      'app-1',
+      'user-1',
+      expect.objectContaining({ cache: false, credentialId: 'cred-1' }),
+    );
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.headersSent).toBe(false);
     expect(req.userId).toBe('user-1');
@@ -208,18 +222,31 @@ describe('C3: service-token acting-as enforcement', () => {
     });
   });
 
-  it("refuses an internal application acting for a user without a grant", async () => {
+  it('refuses an internal application acting for a user without a grant', async () => {
     const verifySpy = jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue(null);
-    const token = signServiceToken(
-      { appId: 'alia', appName: 'Alia', scopes: [], tier: 'internal' },
-    );
-    const req = makeReq({ headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' } });
+    const token = signServiceToken({
+      appId: 'alia',
+      appName: 'Alia',
+      scopes: [],
+      tier: 'internal',
+    });
+    const req = makeReq({
+      headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' },
+    });
     const res = makeRes();
     const next = jest.fn();
 
-    await oxy.middleware.auth()(req as unknown as never, res as unknown as never, next as unknown as never);
+    await oxy.middleware.auth()(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
-    expect(verifySpy).toHaveBeenCalledWith('alia', 'user-1', expect.objectContaining({ cache: false }));
+    expect(verifySpy).toHaveBeenCalledWith(
+      'alia',
+      'user-1',
+      expect.objectContaining({ cache: false }),
+    );
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
     expect(req.userId).toBeUndefined();
@@ -228,20 +255,24 @@ describe('C3: service-token acting-as enforcement', () => {
   it('still refuses an EXTERNAL application acting for a user without a grant', async () => {
     jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue(null);
     const token = signServiceToken({ appId: 'app-1', appName: 'third-party', tier: 'external' });
-    const req = makeReq({ headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' } });
+    const req = makeReq({
+      headers: { authorization: `Bearer ${token}`, 'x-oxy-user-id': 'user-1' },
+    });
     const res = makeRes();
     const next = jest.fn();
 
-    await oxy.middleware.auth()(req as unknown as never, res as unknown as never, next as unknown as never);
+    await oxy.middleware.auth()(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
   });
 
   it('does NOT call verifyActingAs when X-Oxy-User-Id is absent (service acts as itself)', async () => {
-    const verifySpy = jest
-      .spyOn(oxy, 'verifyActingAs')
-      .mockResolvedValue(null);
+    const verifySpy = jest.spyOn(oxy, 'verifyActingAs').mockResolvedValue(null);
 
     const token = signServiceToken({ appId: 'app-1', appName: 'self-acting' });
     const req = makeReq({
@@ -342,9 +373,9 @@ describe('H1: serviceToken per-credential cache + secret verification', () => {
     expect(makeRequestSpy).toHaveBeenCalledTimes(1);
 
     // Same apiKey, WRONG secret — must NOT receive tenant A's token.
-    await expect(
-      oxy.serviceToken('key-A', 'wrong-secret'),
-    ).rejects.toBeInstanceOf(ServiceCredentialMismatchError);
+    await expect(oxy.serviceToken('key-A', 'wrong-secret')).rejects.toBeInstanceOf(
+      ServiceCredentialMismatchError,
+    );
 
     // No re-issue attempted either — we reject immediately.
     expect(makeRequestSpy).toHaveBeenCalledTimes(1);
@@ -426,8 +457,16 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
 
   it('re-mints on the next serviceToken() after invalidation (configured credential)', async () => {
     makeRequestSpy
-      .mockResolvedValueOnce({ token: cacheToken('token-first'), expiresIn: 300, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: cacheToken('token-second'), expiresIn: 300, appName: 'tenant-A' });
+      .mockResolvedValueOnce({
+        token: cacheToken('token-first'),
+        expiresIn: 300,
+        appName: 'tenant-A',
+      })
+      .mockResolvedValueOnce({
+        token: cacheToken('token-second'),
+        expiresIn: 300,
+        appName: 'tenant-A',
+      });
 
     oxy.configureServiceAuth('key-A', 'secret-A');
 
@@ -450,7 +489,11 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
     makeRequestSpy
       .mockResolvedValueOnce({ token: cacheToken('token-A1'), expiresIn: 300, appName: 'tenant-A' })
       .mockResolvedValueOnce({ token: cacheToken('token-B1'), expiresIn: 300, appName: 'tenant-B' })
-      .mockResolvedValueOnce({ token: cacheToken('token-A2'), expiresIn: 300, appName: 'tenant-A' });
+      .mockResolvedValueOnce({
+        token: cacheToken('token-A2'),
+        expiresIn: 300,
+        appName: 'tenant-A',
+      });
 
     await oxy.serviceToken('key-A', 'secret-A');
     await oxy.serviceToken('key-B', 'secret-B');
@@ -475,7 +518,11 @@ describe('invalidateServiceToken: forces a fresh mint after a same-run 401', () 
       .mockResolvedValueOnce({ token: cacheToken('token-A1'), expiresIn: 300, appName: 'tenant-A' })
       .mockResolvedValueOnce({ token: cacheToken('token-B1'), expiresIn: 300, appName: 'tenant-B' })
       .mockResolvedValueOnce({ token: cacheToken('token-A2'), expiresIn: 300, appName: 'tenant-A' })
-      .mockResolvedValueOnce({ token: cacheToken('token-B2'), expiresIn: 300, appName: 'tenant-B' });
+      .mockResolvedValueOnce({
+        token: cacheToken('token-B2'),
+        expiresIn: 300,
+        appName: 'tenant-B',
+      });
 
     await oxy.serviceToken('key-A', 'secret-A');
     await oxy.serviceToken('key-B', 'secret-B');
@@ -532,7 +579,15 @@ describe('H2: malformed service tokens return 401 (not 500)', () => {
 
   it('rejects a token with empty signature segment as 401', async () => {
     const headerB64 = b64url(JSON.stringify({ alg: 'EdDSA', typ: 'JWT', kid: SIGNING_KEY.kid }));
-    const payloadB64 = b64url(JSON.stringify({ type: 'service', appId: 'a', exp: 99999999999, aud: 'oxy-api', iss: 'oxy-auth' }));
+    const payloadB64 = b64url(
+      JSON.stringify({
+        type: 'service',
+        appId: 'a',
+        exp: 99999999999,
+        aud: 'oxy-api',
+        iss: 'oxy-auth',
+      }),
+    );
     const malformed = `${headerB64}.${payloadB64}.`; // empty signature
 
     const req = makeReq({ headers: { authorization: `Bearer ${malformed}` } });
@@ -599,9 +654,7 @@ describe('H4: aud / iss / type claim verification', () => {
   });
 
   it('rejects a token with the wrong audience', async () => {
-    const token = signServiceToken(
-      { appId: 'a', appName: 'svc', aud: 'wrong-audience' },
-    );
+    const token = signServiceToken({ appId: 'a', appName: 'svc', aud: 'wrong-audience' });
 
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
@@ -616,9 +669,7 @@ describe('H4: aud / iss / type claim verification', () => {
   });
 
   it('rejects a token with the wrong issuer', async () => {
-    const token = signServiceToken(
-      { appId: 'a', appName: 'svc', iss: 'evil-auth' },
-    );
+    const token = signServiceToken({ appId: 'a', appName: 'svc', iss: 'evil-auth' });
 
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
@@ -636,9 +687,12 @@ describe('H4: aud / iss / type claim verification', () => {
     // This is the H4 cross-token-type attack: same signing key, valid
     // signature, but the original token was minted as `type: 'access'` or
     // `type: 'recovery'`. Without claim binding it would be accepted.
-    const accessToken = signServiceToken(
-      { appId: 'a', appName: 'svc', type: 'access', userId: 'attacker' },
-    );
+    const accessToken = signServiceToken({
+      appId: 'a',
+      appName: 'svc',
+      type: 'access',
+      userId: 'attacker',
+    });
 
     const req = makeReq({ headers: { authorization: `Bearer ${accessToken}` } });
     const res = makeRes();
@@ -660,7 +714,12 @@ describe('H4: aud / iss / type claim verification', () => {
       // Casting through unknown to inject a malformed claim — production
       // libraries should never emit this, but a malicious or buggy auth
       // server might. The SDK must still refuse it.
-      { appId: 'a', appName: 'svc', type: 'service', iss: 'wrong-iss' } as unknown as ServiceTokenClaims,
+      {
+        appId: 'a',
+        appName: 'svc',
+        type: 'service',
+        iss: 'wrong-iss',
+      } as unknown as ServiceTokenClaims,
     );
 
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
@@ -676,9 +735,11 @@ describe('H4: aud / iss / type claim verification', () => {
   });
 
   it('accepts a token with array-form audience that includes oxy-api', async () => {
-    const token = signServiceToken(
-      { appId: 'a', appName: 'svc', aud: ['oxy-api', 'other-audience'] },
-    );
+    const token = signServiceToken({
+      appId: 'a',
+      appName: 'svc',
+      aud: ['oxy-api', 'other-audience'],
+    });
 
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
@@ -692,9 +753,12 @@ describe('H4: aud / iss / type claim verification', () => {
   });
 
   it('honors expectedAudience and expectedIssuer overrides', async () => {
-    const token = signServiceToken(
-      { appId: 'a', appName: 'svc', aud: 'custom-api', iss: 'custom-auth' },
-    );
+    const token = signServiceToken({
+      appId: 'a',
+      appName: 'svc',
+      aud: 'custom-api',
+      iss: 'custom-auth',
+    });
 
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
@@ -721,14 +785,24 @@ describe('requireScope() middleware', () => {
     oxy = new OxyServer({ baseURL: 'http://test.invalid' });
   });
 
-  it("rejects an internal application missing the required application and delegated scopes", () => {
+  it('rejects an internal application missing the required application and delegated scopes', () => {
     const req = makeReq();
-    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: [], tier: 'internal' };
+    req.serviceApp = {
+      appId: 'a',
+      appName: 'svc',
+      credentialId: 'cred-1',
+      scopes: [],
+      tier: 'internal',
+    };
     req.serviceActingAs = { userId: 'u-1', scopes: [] };
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -736,11 +810,21 @@ describe('requireScope() middleware', () => {
 
   it('holds an external application to its scopes', () => {
     const req = makeReq();
-    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: ['user:read'], tier: 'external' };
+    req.serviceApp = {
+      appId: 'a',
+      appName: 'svc',
+      credentialId: 'cred-1',
+      scopes: ['user:read'],
+      tier: 'external',
+    };
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -751,11 +835,20 @@ describe('requireScope() middleware', () => {
       // Simulate a fully-authenticated service request — auth() has already
       // attached `serviceApp`. requireScope() only reads from that field.
     });
-    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: ['files:write'] };
+    req.serviceApp = {
+      appId: 'a',
+      appName: 'svc',
+      credentialId: 'cred-1',
+      scopes: ['files:write'],
+    };
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.headersSent).toBe(false);
@@ -768,19 +861,32 @@ describe('requireScope() middleware', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('user:read')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('user:read')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('rejects delegated requests when only the app carries the required scope', () => {
     const req = makeReq();
-    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: ['files:write'] };
+    req.serviceApp = {
+      appId: 'a',
+      appName: 'svc',
+      credentialId: 'cred-1',
+      scopes: ['files:write'],
+    };
     req.serviceActingAs = { userId: 'u-1', scopes: ['profile:read'] };
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -789,12 +895,21 @@ describe('requireScope() middleware', () => {
 
   it('rejects delegated requests when only the delegation carries the required scope', () => {
     const req = makeReq();
-    req.serviceApp = { appId: 'a', appName: 'svc', credentialId: 'cred-1', scopes: ['profile:read'] };
+    req.serviceApp = {
+      appId: 'a',
+      appName: 'svc',
+      credentialId: 'cred-1',
+      scopes: ['profile:read'],
+    };
     req.serviceActingAs = { userId: 'u-1', scopes: ['files:write'] };
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -807,7 +922,11 @@ describe('requireScope() middleware', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -820,7 +939,11 @@ describe('requireScope() middleware', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    oxy.middleware.requireScope('files:write')(req as unknown as never, res as unknown as never, next as unknown as never);
+    oxy.middleware.requireScope('files:write')(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(403);
@@ -829,7 +952,9 @@ describe('requireScope() middleware', () => {
 
   it('throws if scope argument is missing/empty (programmer error)', () => {
     expect(() => oxy.middleware.requireScope('')).toThrow('requireScope');
-    expect(() => oxy.middleware.requireScope(undefined as unknown as string)).toThrow('requireScope');
+    expect(() => oxy.middleware.requireScope(undefined as unknown as string)).toThrow(
+      'requireScope',
+    );
   });
 });
 
@@ -845,9 +970,7 @@ describe('service-token environment claim (F2.0 task 1b)', () => {
   });
 
   it('populates req.serviceApp.environment from the token claim', async () => {
-    const token = signServiceToken(
-      { appId: 'app-1', appName: 'svc', environment: 'development' },
-    );
+    const token = signServiceToken({ appId: 'app-1', appName: 'svc', environment: 'development' });
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
     const next = jest.fn();
@@ -860,9 +983,7 @@ describe('service-token environment claim (F2.0 task 1b)', () => {
   });
 
   it('rejects a service token missing the environment claim (401)', async () => {
-    const token = signServiceToken(
-      { appId: 'app-1', appName: 'svc', environment: undefined },
-    );
+    const token = signServiceToken({ appId: 'app-1', appName: 'svc', environment: undefined });
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
     const next = jest.fn();
@@ -876,9 +997,7 @@ describe('service-token environment claim (F2.0 task 1b)', () => {
   });
 
   it('rejects a service token with an environment value outside the known set (401)', async () => {
-    const token = signServiceToken(
-      { appId: 'app-1', appName: 'svc', environment: 'bogus' },
-    );
+    const token = signServiceToken({ appId: 'app-1', appName: 'svc', environment: 'bogus' });
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } });
     const res = makeRes();
     const next = jest.fn();
@@ -909,11 +1028,17 @@ describe('retired HS256 service tokens are refused', () => {
   // Every claim a pre-cutover token carried, correct issuer and audience: only
   // the algorithm is wrong.
   const hs256 = () =>
-    signHS256(servicePayload({ appId: 'app-1', appName: 'legacy-service' }), 'the-retired-shared-secret');
+    signHS256(
+      servicePayload({ appId: 'app-1', appName: 'legacy-service' }),
+      'the-retired-shared-secret',
+    );
 
   it.each([
     ['auth()', () => oxy.middleware.auth()],
-    ['auth({ optional: true }) attaches no principal', () => oxy.middleware.auth({ optional: true })],
+    [
+      'auth({ optional: true }) attaches no principal',
+      () => oxy.middleware.auth({ optional: true }),
+    ],
     ['serviceAuth()', () => oxy.middleware.service()],
   ])('%s refuses an HS256 service token without fetching the JWKS', async (label, middleware) => {
     const req = makeReq({ headers: { authorization: `Bearer ${hs256()}` } });
@@ -945,7 +1070,11 @@ describe('retired HS256 service tokens are refused', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    await oxy.middleware.service()(req as unknown as never, res as unknown as never, next as unknown as never);
+    await oxy.middleware.service()(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);
@@ -978,7 +1107,10 @@ describe('retired HS256 service tokens are refused', () => {
     ['RS256', { alg: 'RS256', typ: 'JWT', kid: 'service-test-a' }],
     ['ES256', { alg: 'ES256', typ: 'JWT', kid: 'service-test-a' }],
     ['EdDSA without a kid', { alg: 'EdDSA', typ: 'JWT' }],
-    ['EdDSA with an extra header field', { alg: 'EdDSA', typ: 'JWT', kid: 'service-test-a', jku: 'https://evil.test/jwks' }],
+    [
+      'EdDSA with an extra header field',
+      { alg: 'EdDSA', typ: 'JWT', kid: 'service-test-a', jku: 'https://evil.test/jwks' },
+    ],
     ['lower-case eddsa', { alg: 'eddsa', typ: 'JWT', kid: 'service-test-a' }],
   ])('refuses a %s header before any key lookup', async (_label, header) => {
     // Sign the body with the REAL key so only the header is at fault.
@@ -989,7 +1121,11 @@ describe('retired HS256 service tokens are refused', () => {
     const res = makeRes();
     const next = jest.fn();
 
-    await oxy.middleware.auth()(req as unknown as never, res as unknown as never, next as unknown as never);
+    await oxy.middleware.auth()(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(401);
@@ -999,12 +1135,18 @@ describe('retired HS256 service tokens are refused', () => {
 
   it('the control: the same claims signed EdDSA with the published key are accepted', async () => {
     const req = makeReq({
-      headers: { authorization: `Bearer ${signServiceToken({ appId: 'app-1', appName: 'legacy-service' })}` },
+      headers: {
+        authorization: `Bearer ${signServiceToken({ appId: 'app-1', appName: 'legacy-service' })}`,
+      },
     });
     const res = makeRes();
     const next = jest.fn();
 
-    await oxy.middleware.service()(req as unknown as never, res as unknown as never, next as unknown as never);
+    await oxy.middleware.service()(
+      req as unknown as never,
+      res as unknown as never,
+      next as unknown as never,
+    );
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(req.serviceApp).toMatchObject({ appId: 'app-1' });

@@ -73,7 +73,10 @@ function createOxyMetroConfig(projectRoot, options = {}) {
   config.projectRoot = projectRoot;
 
   // Include the monorepo root so Metro resolves hoisted deps in root node_modules/.
-  config.watchFolders = unique([monorepoRoot, ...extraWatchFolders.map((folder) => path.resolve(folder))]);
+  config.watchFolders = unique([
+    monorepoRoot,
+    ...extraWatchFolders.map((folder) => path.resolve(folder)),
+  ]);
 
   const blockList = [
     blockPath(path.join(monorepoRoot, 'packages/backend')),
@@ -94,7 +97,9 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     /\.spec\.(js|ts|tsx|jsx)$/,
     /\.md$/,
     /(?:^|[/\\])README(?:\.[^/\\]+)?$/,
-    ...extraBlockList.map((pattern) => typeof pattern === 'string' ? blockPath(pattern) : pattern),
+    ...extraBlockList.map((pattern) =>
+      typeof pattern === 'string' ? blockPath(pattern) : pattern,
+    ),
   ];
 
   const extraNodeModules = {};
@@ -134,7 +139,9 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     // '…/empty.svg')} />`) — there is no react-native-svg-transformer configured,
     // so removing `svg` from assetExts leaves it unresolvable (breaks the build).
     assetExts: [
-      ...config.resolver.assetExts.filter((extension) => !svgTransformerPath || extension !== 'svg'),
+      ...config.resolver.assetExts.filter(
+        (extension) => !svgTransformerPath || extension !== 'svg',
+      ),
       'wasm',
       'woff2',
       'woff',

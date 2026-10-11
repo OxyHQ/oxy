@@ -1,10 +1,12 @@
 {
-  "CORSRules": [{
-    "ID": "oxy-one-reviewed-upload-origins",
-    "AllowedOrigins": ["https://REPLACE_APPROVED_UPLOAD_ORIGIN.example"],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["content-type", "if-none-match", "x-amz-checksum-sha256", "cache-control"],
-    "ExposeHeaders": ["etag"],
-    "MaxAgeSeconds": 60
-  }]
+  "CORSRules": [
+    {
+      "ID": "oxy-one-reviewed-upload-origins",
+      "AllowedOrigins": ["https://REPLACE_APPROVED_UPLOAD_ORIGIN.example"],
+      "AllowedMethods": ["PUT"],
+      "AllowedHeaders": ["content-type", "if-none-match", "x-amz-checksum-sha256", "cache-control"],
+      "ExposeHeaders": ["etag"],
+      "MaxAgeSeconds": 60
+    }
+  ]
 }

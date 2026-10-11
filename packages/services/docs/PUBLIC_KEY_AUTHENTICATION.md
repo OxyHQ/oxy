@@ -156,10 +156,10 @@ Response: { success, sessionId, user }
 
 // 4. User registration
 POST /api/auth/register
-Body: { publicKey, signature, timestamp }
-Response: { user, session }
+Body: { publicKey, signature, timestamp, username }
+Response: { message, user }
 
-Note: Identity is purely cryptographic. Username and profile data are optional and can be added later via profile update endpoints.
+Note: The username is required and written in the same insert as the key, so an account never exists without one (400 for a missing or invalid username, 409 `Username already taken`). Other profile data can be added later via profile update endpoints.
 
 // 5. Challenge-request authentication
 POST /api/auth/challenge
@@ -179,14 +179,14 @@ Note: These endpoints are also available under `/auth` (e.g., `POST /auth/verify
 import { KeyManager, SignatureService } from '@oxy.so/core';
 
 // Client-side (in Oxy Accounts app)
-async function registerUser() {
+async function registerUser(username: string) {
   // 1. Generate key pair (or use existing)
   const publicKey = await KeyManager.createIdentity();
   
-  // 2. Create registration signature (no username/email needed)
+  // 2. Create registration signature (no email needed)
   const { signature, timestamp } = await SignatureService.createRegistrationSignature();
   
-  // 3. Register with backend (identity is just the publicKey)
+  // 3. Register with backend: the key and the (required) username, in one request
   const response = await fetch('https://api.oxy.so/api/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -194,13 +194,14 @@ async function registerUser() {
       publicKey,
       signature,
       timestamp,
+      username,
     }),
   });
   
   return response.json();
 }
 
-// Profile data (username, name, etc.) can be added later via profile update endpoints
+// Other profile data (name, avatar, etc.) can be added later via profile update endpoints
 ```
 
 #### Example: Challenge-Response Login

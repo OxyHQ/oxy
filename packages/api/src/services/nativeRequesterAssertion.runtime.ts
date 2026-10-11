@@ -10,7 +10,10 @@
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getRedisClient } from '../config/redis';
 import { logger } from '../utils/logger';
-import { resolveLiveAgencyCoordinator, resolveLiveAgencyWorkload } from './agencyServicePrincipal.service';
+import {
+  resolveLiveAgencyCoordinator,
+  resolveLiveAgencyWorkload,
+} from './agencyServicePrincipal.service';
 import sessionService from './session.service';
 import type {
   ReplayStoreResult,
@@ -24,15 +27,18 @@ const KEY_PREFIX = 'native-requester-assertion:';
 function isRecord(value: unknown): value is RequesterAssertionRecord {
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
-  return ['sessionId', 'requesterAccountId', 'applicationId', 'credentialId', 'agentId']
-    .every((key) => typeof record[key] === 'string' && (record[key] as string).length > 0);
+  return ['sessionId', 'requesterAccountId', 'applicationId', 'credentialId', 'agentId'].every(
+    (key) => typeof record[key] === 'string' && (record[key] as string).length > 0,
+  );
 }
 
 /**
  * Process-local store, for development and tests only. It cannot enforce
  * single use across tasks, which is why production never falls back to it.
  */
-export function createMemoryRequesterAssertionStore(now: () => number = Date.now): RequesterAssertionStore {
+export function createMemoryRequesterAssertionStore(
+  now: () => number = Date.now,
+): RequesterAssertionStore {
   const entries = new Map<string, { record: RequesterAssertionRecord; expiresAt: number }>();
   return {
     async put(jti, record, ttlSeconds) {
@@ -61,7 +67,13 @@ function createRedisRequesterAssertionStore(): RequesterAssertionStore {
       const redis = client();
       if (!redis) return unavailable;
       try {
-        const result = await redis.set(`${KEY_PREFIX}${jti}`, JSON.stringify(record), 'EX', ttlSeconds, 'NX');
+        const result = await redis.set(
+          `${KEY_PREFIX}${jti}`,
+          JSON.stringify(record),
+          'EX',
+          ttlSeconds,
+          'NX',
+        );
         return { status: 'ok', value: result === 'OK' };
       } catch (error) {
         logger.warn('[requester-assertion] replay store write failed', { error: String(error) });
@@ -92,8 +104,12 @@ function requesterAssertionStore(): RequesterAssertionStore {
   if (process.env.REDIS_URL) return createRedisRequesterAssertionStore();
   if (process.env.NODE_ENV === 'production') {
     return {
-      async put() { return { status: 'unavailable' }; },
-      async take() { return { status: 'unavailable' }; },
+      async put() {
+        return { status: 'unavailable' };
+      },
+      async take() {
+        return { status: 'unavailable' };
+      },
     };
   }
   memoryStore ??= createMemoryRequesterAssertionStore();
@@ -111,13 +127,21 @@ export function requesterAssertionRuntime(): RequesterAssertionDependencies {
     resolvePrincipal: async (applicationId, credentialId) => {
       const principal = await resolveLiveAgencyCoordinator(applicationId, credentialId);
       return principal
-        ? { applicationId: principal.applicationId, credentialId: principal.credentialId, scopes: principal.scopes }
+        ? {
+            applicationId: principal.applicationId,
+            credentialId: principal.credentialId,
+            scopes: principal.scopes,
+          }
         : null;
     },
     resolveWorkloadPrincipal: async (applicationId, provider, subject) => {
       const principal = await resolveLiveAgencyWorkload(applicationId, provider, subject);
       return principal
-        ? { applicationId: principal.applicationId, handle: principal.handle, scopes: principal.scopes }
+        ? {
+            applicationId: principal.applicationId,
+            handle: principal.handle,
+            scopes: principal.scopes,
+          }
         : null;
     },
     validateSubjectToken: async (token) => {

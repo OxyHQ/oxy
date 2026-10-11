@@ -43,11 +43,10 @@ describe('backend package.json', () => {
     devDependencies: Record<string, string>;
   };
 
-  test('depends on the Postgres stack and not on mongoose', () => {
+  test('depends on the Postgres stack', () => {
     expect(Object.keys(manifest.dependencies)).toContain('@oxy.so/db');
     expect(Object.keys(manifest.dependencies)).toContain('drizzle-orm');
     expect(Object.keys(manifest.dependencies)).toContain('postgres');
-    expect(Object.keys(manifest.dependencies)).not.toContain('mongoose');
   });
 
   test('drizzle-kit is a devDependency — it generates migrations, never applies them', () => {
@@ -73,9 +72,8 @@ describe('backend package.json', () => {
 describe('generated .env.example', () => {
   const env = render('packages', 'backend', 'DOT_env.example');
 
-  test('carries DATABASE_URL and no MONGODB_URI', () => {
+  test('carries DATABASE_URL', () => {
     expect(env).toContain('DATABASE_URL=postgres://');
-    expect(env).not.toContain('MONGODB_URI');
   });
 
   test('its DATABASE_URL matches the port and database docker-compose creates', () => {
@@ -119,8 +117,14 @@ describe('shipped migration 0000', () => {
     // skipping a migration. The snapshot is what stops the next `db:generate`
     // from re-emitting a migration for a table that already exists.
     for (const [index, entry] of journal.entries.entries()) {
-      expect(readFileSync(path.join(migrationsDir, `${entry.tag}.sql`), 'utf8').length).toBeGreaterThan(0);
-      const snapshot = path.join(migrationsDir, 'meta', `${String(index).padStart(4, '0')}_snapshot.json`);
+      expect(
+        readFileSync(path.join(migrationsDir, `${entry.tag}.sql`), 'utf8').length,
+      ).toBeGreaterThan(0);
+      const snapshot = path.join(
+        migrationsDir,
+        'meta',
+        `${String(index).padStart(4, '0')}_snapshot.json`,
+      );
       expect(readFileSync(snapshot, 'utf8').length).toBeGreaterThan(0);
     }
   });
@@ -156,10 +160,6 @@ describe('schema barrel', () => {
     // it, so a table missing here gets neither a migration nor a typed query.
     const barrel = render('packages', 'backend', 'src', 'db', 'schema', 'index.ts');
     expect(barrel).toContain("export * from './notes'");
-  });
-
-  test('the mongoose connector is gone', () => {
-    expect(() => render('packages', 'backend', 'src', 'config', 'database.ts')).toThrow();
   });
 });
 

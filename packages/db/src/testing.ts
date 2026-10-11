@@ -96,16 +96,14 @@ function maintenanceUrl(databaseUrl: string): string {
  * @throws Whatever `options.migrate` throws, after dropping the database it
  *   was given — a failed migration never leaves a throwaway database behind.
  */
-export async function createTestDatabase(
-  options: CreateTestDatabaseOptions = {}
-): Promise<string> {
+export async function createTestDatabase(options: CreateTestDatabaseOptions = {}): Promise<string> {
   const baseUrl = options.adminUrl;
   if (!baseUrl) {
     throw new Error(
       'createTestDatabase requires options.adminUrl: a Postgres connection ' +
         'string for a server it can create and drop databases on. There is ' +
         'no default — pass the URL your own application already resolves ' +
-        'this from, however it names that environment variable.'
+        'this from, however it names that environment variable.',
     );
   }
 
@@ -150,7 +148,7 @@ export async function createTestDatabase(
           [migrateError, dropError],
           `options.migrate failed (${migrateMessage}), and the throwaway \
 database could not be dropped afterward either (${dropMessage}) — it may \
-still exist and need manual cleanup.`
+still exist and need manual cleanup.`,
         );
       }
       throw migrateError;
@@ -176,7 +174,7 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
   if (!TEST_DATABASE_NAME.test(name)) {
     throw new Error(
       `Refusing to drop "${name}": only throwaway databases created by \
-createTestDatabase (oxydb_test_<16 hex>) may be dropped.`
+createTestDatabase (oxydb_test_<16 hex>) may be dropped.`,
     );
   }
 

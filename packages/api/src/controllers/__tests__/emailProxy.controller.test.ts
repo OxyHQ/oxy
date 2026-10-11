@@ -68,9 +68,9 @@ describe('email proxy SSRF protections', () => {
     mockSafeFetch.mockRejectedValue(new SsrfRejection('blocked host'));
     const res = makeRes();
 
-    await expect(proxyResource(makeReq('http://127.0.0.1/internal.png'), res as unknown as ExpressResponse)).rejects.toThrow(
-      'Private network URLs are not allowed'
-    );
+    await expect(
+      proxyResource(makeReq('http://127.0.0.1/internal.png'), res as unknown as ExpressResponse),
+    ).rejects.toThrow('Private network URLs are not allowed');
 
     expect(mockSafeFetch).toHaveBeenCalledWith(
       'http://127.0.0.1/internal.png',
@@ -82,9 +82,12 @@ describe('email proxy SSRF protections', () => {
     mockSafeFetch.mockRejectedValue(new SsrfRejection('blocked metadata address'));
     const res = makeRes();
 
-    await expect(proxyResource(makeReq('http://metadata.example/internal.png'), res as unknown as ExpressResponse)).rejects.toThrow(
-      'Private network URLs are not allowed'
-    );
+    await expect(
+      proxyResource(
+        makeReq('http://metadata.example/internal.png'),
+        res as unknown as ExpressResponse,
+      ),
+    ).rejects.toThrow('Private network URLs are not allowed');
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
   });
@@ -93,9 +96,9 @@ describe('email proxy SSRF protections', () => {
     mockSafeFetch.mockRejectedValue(new SsrfRejection('redirect target blocked'));
     const res = makeRes();
 
-    await expect(proxyResource(makeReq('http://public.example/redirect'), res as unknown as ExpressResponse)).rejects.toThrow(
-      'Private network URLs are not allowed'
-    );
+    await expect(
+      proxyResource(makeReq('http://public.example/redirect'), res as unknown as ExpressResponse),
+    ).rejects.toThrow('Private network URLs are not allowed');
 
     expect(mockSafeFetch).toHaveBeenCalledWith(
       'http://public.example/redirect',
@@ -114,7 +117,10 @@ describe('email proxy SSRF protections', () => {
     );
     const res = makeRes();
 
-    await proxyResource(makeReq('https://public.example/redirect'), res as unknown as ExpressResponse);
+    await proxyResource(
+      makeReq('https://public.example/redirect'),
+      res as unknown as ExpressResponse,
+    );
 
     expect(mockSafeFetch).toHaveBeenCalledWith(
       'https://public.example/redirect',
@@ -136,11 +142,19 @@ describe('email proxy SSRF protections', () => {
     // and an invisible pixel is painted over the initials placeholder, leaving
     // an empty avatar. The GIF is only for a tracking pixel we blocked.
     mockSafeFetch.mockResolvedValue(
-      makeSafeFetchResult(404, Buffer.alloc(0), { 'content-type': 'text/html' }, 'https://sender.example/favicon.ico'),
+      makeSafeFetchResult(
+        404,
+        Buffer.alloc(0),
+        { 'content-type': 'text/html' },
+        'https://sender.example/favicon.ico',
+      ),
     );
     const res = makeRes();
 
-    await proxyResource(makeReq('https://sender.example/favicon.ico'), res as unknown as ExpressResponse);
+    await proxyResource(
+      makeReq('https://sender.example/favicon.ico'),
+      res as unknown as ExpressResponse,
+    );
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.end).toHaveBeenCalled();

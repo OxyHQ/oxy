@@ -14,11 +14,15 @@ describe('netConnectivity', () => {
     });
 
     it('treats connected + explicitly unreachable as offline', () => {
-      expect(isNetConnectivityOnline({ isConnected: true, isInternetReachable: false })).toBe(false);
+      expect(isNetConnectivityOnline({ isConnected: true, isInternetReachable: false })).toBe(
+        false,
+      );
     });
 
     it('treats disconnected as offline', () => {
-      expect(isNetConnectivityOnline({ isConnected: false, isInternetReachable: true })).toBe(false);
+      expect(isNetConnectivityOnline({ isConnected: false, isInternetReachable: true })).toBe(
+        false,
+      );
     });
   });
 

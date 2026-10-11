@@ -15,11 +15,13 @@ function cacheSpies(client: OxyServices): { keys: jest.Mock; prefixes: jest.Mock
   let spies = cacheSpyMap.get(client);
   if (!spies) {
     const created = { keys: jest.fn(), prefixes: jest.fn() };
-    jest.spyOn(client.http, 'invalidateCache').mockImplementation(({ keys = [], prefixes = [] }) => {
-      for (const key of keys) created.keys(key);
-      for (const prefix of prefixes) created.prefixes(prefix);
-      return 0;
-    });
+    jest
+      .spyOn(client.http, 'invalidateCache')
+      .mockImplementation(({ keys = [], prefixes = [] }) => {
+        for (const key of keys) created.keys(key);
+        for (const prefix of prefixes) created.prefixes(prefix);
+        return 0;
+      });
     cacheSpyMap.set(client, created);
     spies = created;
   }
@@ -39,7 +41,9 @@ const didDocFixture: DidDocument = {
 
 const authMethodsFixture: AuthMethodsResponse = {
   did: 'did:web:oxy.so:u:user-123',
-  methods: [{ type: 'identity', linkedAt: '2026-06-26T00:00:00.000Z', verificationMethodId: '#key-1' }],
+  methods: [
+    { type: 'identity', linkedAt: '2026-06-26T00:00:00.000Z', verificationMethodId: '#key-1' },
+  ],
 };
 
 const domainFixture: VerifiedDomain = {

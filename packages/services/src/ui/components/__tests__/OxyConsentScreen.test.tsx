@@ -40,7 +40,9 @@ describe('OxyConsentScreen', () => {
     const { getByTestId } = renderScreen({ scopes: ['openid', 'files:write', 'custom:thing'] });
 
     expect(getByTestId('consent-scope-openid').textContent).toContain('Confirm your identity');
-    expect(getByTestId('consent-scope-files:write').textContent).toContain('Upload and modify your files');
+    expect(getByTestId('consent-scope-files:write').textContent).toContain(
+      'Upload and modify your files',
+    );
     // Unknown scope → the raw scope string is shown, never an empty row.
     expect(getByTestId('consent-scope-custom:thing').textContent).toContain('custom:thing');
   });
@@ -68,18 +70,24 @@ describe('OxyConsentScreen', () => {
   it('keeps an unknown scope alongside known ones instead of dropping the permission', () => {
     const { getByTestId } = renderScreen({ scopes: ['profile:read', 'acme:teleport'] });
 
-    expect(getByTestId('consent-scope-profile:read').textContent).toContain('Read your basic profile');
+    expect(getByTestId('consent-scope-profile:read').textContent).toContain(
+      'Read your basic profile',
+    );
     expect(getByTestId('consent-scope-acme:teleport').textContent).toContain('acme:teleport');
   });
 
   it('shows the basic-permissions fallback when no scopes are requested', () => {
     const { getByTestId, queryByTestId } = renderScreen({ scopes: [] });
-    expect(getByTestId('consent-scope-basic').textContent).toContain('Sign you in and read your basic profile');
+    expect(getByTestId('consent-scope-basic').textContent).toContain(
+      'Sign you in and read your basic profile',
+    );
     expect(queryByTestId('consent-scope-openid')).toBeNull();
   });
 
   it('renders the provenance line for an official application', () => {
-    const { getByTestId } = renderScreen({ application: { name: 'Oxy Console', isOfficial: true } });
+    const { getByTestId } = renderScreen({
+      application: { name: 'Oxy Console', isOfficial: true },
+    });
     expect(getByTestId('consent-provenance').textContent).toContain('Official Oxy application');
   });
 
@@ -166,13 +174,15 @@ describe('OxyConsentScreen', () => {
       resource: {
         application: { name: 'Inbox', iconUrl: 'inbox-icon' },
         uri: 'https://mcp.inbox.oxy.so',
-        writeActions: [{
-          name: 'sendEmail',
-          version: '1.0.0',
-          description: 'Send an email from the selected mailbox.',
-          requiredCapabilities: ['email.send'],
-          effect: 'external',
-        }],
+        writeActions: [
+          {
+            name: 'sendEmail',
+            version: '1.0.0',
+            description: 'Send an email from the selected mailbox.',
+            requiredCapabilities: ['email.send'],
+            effect: 'external',
+          },
+        ],
       },
     });
 

@@ -349,9 +349,7 @@ export interface NotificationChannelSpec {
  * @returns Whether the channel was actually created (`false` off Android, or
  *   when the native module is unavailable, or when creation failed).
  */
-export async function ensureNotificationChannel(
-  spec: NotificationChannelSpec,
-): Promise<boolean> {
+export async function ensureNotificationChannel(spec: NotificationChannelSpec): Promise<boolean> {
   if (Platform.OS !== 'android') {
     return false;
   }

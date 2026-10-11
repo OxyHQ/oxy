@@ -92,7 +92,9 @@ test('two enabled endpoints for the same URL FAIL', () => {
 });
 
 test('the URL comparison ignores case and a trailing slash, nothing else', () => {
-  const upper = evaluateWebhookEndpoints([endpoint({ url: 'HTTPS://API.OXY.SO/billing/webhook/' })]);
+  const upper = evaluateWebhookEndpoints([
+    endpoint({ url: 'HTTPS://API.OXY.SO/billing/webhook/' }),
+  ]);
   assert.equal(upper.ok, true);
   const other = evaluateWebhookEndpoints([
     endpoint({ url: 'https://api.oxy.so/billing/webhook-old' }),
@@ -118,12 +120,12 @@ test('listing follows pagination with a GET and a bearer key only', async () => 
       { data: [endpoint({ id: 'we_a', url: 'https://x' })], has_more: true },
       { data: [endpoint({ id: 'we_b' })], has_more: false },
     ],
-    seen
+    seen,
   );
   const endpoints = await listWebhookEndpoints('rk_test', fetchImpl);
   assert.deepEqual(
     endpoints.map((e) => e.id),
-    ['we_a', 'we_b']
+    ['we_a', 'we_b'],
   );
   assert.equal(seen.length, 2);
   for (const call of seen) {
@@ -159,49 +161,70 @@ test('main exits 1 when invoice.paid is missing, 0 when ready, 2 when Stripe err
         has_more: false,
       },
     ]),
-    missing.log
+    missing.log,
   );
   assert.equal(code, 1);
   assert.ok(missing.lines.some((line) => line.includes('invoice.paid')));
-  assert.ok(!missing.lines.some((line) => line.includes('rk_live_secret_value')), 'key never printed');
+  assert.ok(
+    !missing.lines.some((line) => line.includes('rk_live_secret_value')),
+    'key never printed',
+  );
 
   const ready = capture();
   assert.equal(
     await main(
       { STRIPE_SECRET_KEY: 'rk_live_fixture' },
       fakeFetch([{ data: [endpoint()], has_more: false }]),
-      ready.log
+      ready.log,
     ),
-    0
+    0,
   );
 
   const failing = capture();
-  assert.equal(await main({ STRIPE_SECRET_KEY: 'rk_live_fixture' }, fakeFetch([401]), failing.log), 2);
+  assert.equal(
+    await main({ STRIPE_SECRET_KEY: 'rk_live_fixture' }, fakeFetch([401]), failing.log),
+    2,
+  );
 });
 
 test('OXY_STRIPE_WEBHOOK_URL selects another endpoint (e.g. staging)', async () => {
   const { log } = capture();
   const code = await main(
-    { STRIPE_SECRET_KEY: 'rk_live_fixture', OXY_STRIPE_WEBHOOK_URL: 'https://staging.oxy.so/billing/webhook' },
+    {
+      STRIPE_SECRET_KEY: 'rk_live_fixture',
+      OXY_STRIPE_WEBHOOK_URL: 'https://staging.oxy.so/billing/webhook',
+    },
     fakeFetch([{ data: [endpoint()], has_more: false }]),
-    log
+    log,
   );
   assert.equal(code, 1);
 });
 
 for (const api_version of [null, '2024-06-20']) {
   test(`unproven or incompatible version ${api_version} fails even with wildcard`, () => {
-    assert.equal(evaluateWebhookEndpoints([endpoint({ api_version, enabled_events: ['*'] })]).ok, false);
+    assert.equal(
+      evaluateWebhookEndpoints([endpoint({ api_version, enabled_events: ['*'] })]).ok,
+      false,
+    );
   });
 }
 test('live and test endpoint modes cannot be substituted', () => {
   assert.equal(evaluateWebhookEndpoints([endpoint({ livemode: false })]).ok, false);
-  assert.equal(evaluateWebhookEndpoints([endpoint({ livemode: false })], DEFAULT_WEBHOOK_URL, 'test').ok, true);
+  assert.equal(
+    evaluateWebhookEndpoints([endpoint({ livemode: false })], DEFAULT_WEBHOOK_URL, 'test').ok,
+    true,
+  );
   assert.equal(evaluateWebhookEndpoints([endpoint({ livemode: undefined })]).ok, false);
 });
 test('URL paths preserve case and query strings', () => {
-  assert.equal(evaluateWebhookEndpoints([endpoint({ url: 'https://api.oxy.so/Billing/webhook' })]).ok, false);
-  assert.equal(evaluateWebhookEndpoints([endpoint({ url: `${DEFAULT_WEBHOOK_URL}?wrong=1` })]).ok, false);
+  assert.equal(
+    evaluateWebhookEndpoints([endpoint({ url: 'https://api.oxy.so/Billing/webhook' })]).ok,
+    false,
+  );
+  assert.equal(
+    evaluateWebhookEndpoints([endpoint({ url: `${DEFAULT_WEBHOOK_URL}?wrong=1` })]).ok,
+    false,
+  );
 });
 test('malformed or stalled pagination fails instead of returning partial endpoints', async () => {
   for (const page of [{ data: [], has_more: true }, { has_more: false }, { data: [endpoint()] }]) {
@@ -213,6 +236,13 @@ test('test key cannot certify default live deployment and is never logged', asyn
   const seen = [];
   assert.equal(await main({ STRIPE_SECRET_KEY: 'rk_test_secret' }, fakeFetch([], seen), log), 2);
   assert.equal(seen.length, 0);
-  assert.ok(lines.every(line => !line.includes('rk_test_secret')));
-  assert.equal(await main({ STRIPE_SECRET_KEY: 'rk_test_secret', OXY_STRIPE_MODE: 'test' }, fakeFetch([{ data: [endpoint({ livemode: false })], has_more: false }]), log), 0);
+  assert.ok(lines.every((line) => !line.includes('rk_test_secret')));
+  assert.equal(
+    await main(
+      { STRIPE_SECRET_KEY: 'rk_test_secret', OXY_STRIPE_MODE: 'test' },
+      fakeFetch([{ data: [endpoint({ livemode: false })], has_more: false }]),
+      log,
+    ),
+    0,
+  );
 });

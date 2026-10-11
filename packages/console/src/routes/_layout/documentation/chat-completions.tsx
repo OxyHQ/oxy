@@ -1,6 +1,11 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArrowLeft01Icon, ArrowRight01Icon, Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Copy01Icon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons';
 import { useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
 import { Button } from '@/components/ui/button';
@@ -30,7 +35,9 @@ function CodeBlock({ code, title }: { code: string; title?: string }) {
           <span className="text-xs font-medium text-muted-foreground">{title}</span>
         </div>
       )}
-      <pre className={`bg-muted p-4 overflow-x-auto text-sm font-mono ${title ? 'rounded-b-lg' : 'rounded-lg'}`}>
+      <pre
+        className={`bg-muted p-4 overflow-x-auto text-sm font-mono ${title ? 'rounded-b-lg' : 'rounded-lg'}`}
+      >
         {code}
       </pre>
       <Button
@@ -115,8 +122,8 @@ function ChatCompletionsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Request Body</h2>
         <div>
           <ParamRow name="model" type="string" required>
-            A model as <code className="text-xs">{MODEL_ID_PLACEHOLDER}</code>, an exact revision
-            as <code className="text-xs">{MODEL_REVISION_PLACEHOLDER}</code>, or a routing profile
+            A model as <code className="text-xs">{MODEL_ID_PLACEHOLDER}</code>, an exact revision as{' '}
+            <code className="text-xs">{MODEL_REVISION_PLACEHOLDER}</code>, or a routing profile
             slug. A request naming a concrete revision is served exactly or refused — never
             substituted for a different model.
           </ParamRow>
@@ -124,7 +131,8 @@ function ChatCompletionsPage() {
             A list of messages comprising the conversation so far
           </ParamRow>
           <ParamRow name="stream" type="boolean">
-            If set to true, partial message deltas will be sent as server-sent events. Default: false
+            If set to true, partial message deltas will be sent as server-sent events. Default:
+            false
           </ParamRow>
           <ParamRow name="temperature" type="number">
             Sampling temperature between 0 and 2. Higher values make output more random. Default: 1
@@ -233,9 +241,7 @@ function ChatCompletionsPage() {
     "stream": true
   }'`}
         />
-        <p className="text-sm text-muted-foreground mt-4 mb-2">
-          Streaming response format:
-        </p>
+        <p className="text-sm text-muted-foreground mt-4 mb-2">Streaming response format:</p>
         <CodeBlock
           code={`data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[{"delta":{"content":"Once"},"index":0}]}
 

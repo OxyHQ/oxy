@@ -1,34 +1,14 @@
 /**
  * Location queries over `user_locations`.
  *
- * Ported from an aggregation pipeline that `$unwind`-ed the `locations` array
- * embedded in every user document. That array is a child table now
- * (`db/schema/userLocations.ts`), so the unwind IS the join and the seven
- * indexes Mongo hung off `locations.*` paths are real indexes.
+ * Saved places are a child table (`db/schema/userLocations.ts`), joined to
+ * `users` for the owner.
  *
- * ## Two of these methods could not return a correct answer before the port
+ * ## Coordinate order
  *
- * Reported rather than quietly fixed, because both are the kind of defect that
- * looks like "no results" to a caller:
- *
- * 1. **`findLocationsNear` filtered on transposed points.** Mongo stored
- *    `{ lat, lon }` and the `$geoWithin: { $centerSphere: [[lon, lat], r] }`
- *    stage read that object POSITIONALLY as `[longitude, latitude]` — so the
- *    stored point was interpreted with its axes swapped, putting a Barcelona
- *    row in the Indian Ocean. The `$addFields` haversine that followed used the
- *    NAMED fields and was correct, so the pipeline intersected a wrong circle
- *    with a right one and returned (almost always) nothing. The `query` const at
- *    the top of that method, a `$near` that was never handed to anything, is
- *    gone with it.
- *
- * 2. **`searchLocationsByText` threw on every call.** `$text` is only legal in
- *    the FIRST stage of a pipeline, and the same `matchConditions` object —
- *    which always carried `$text` — was used again in a `$match` after
- *    `$unwind`. Mongo answers that with an error, so the endpoint has never
- *    returned a result.
- *
- * ## Where the ordering fix lives now
- *
+ * A point read POSITIONALLY as `[longitude, latitude]` from a `{ lat, lon }`
+ * pair is interpreted with its axes swapped, putting a Barcelona row in the
+ * Indian Ocean — a defect that looks like "no results" to a caller.
  * `user_locations.geo` is `GENERATED ALWAYS AS (ST_MakePoint(longitude,
  * latitude)::geography) STORED`, so the `(longitude, latitude)` order is stated
  * ONCE, in the schema, and no write path can reintroduce the transposition —
@@ -62,8 +42,8 @@ const SEARCH_CONFIGURATION = 'english';
 /**
  * Terms honoured from one text query.
  *
- * Mongo's `$text` had no ceiling; a query is one bound parameter per term here,
- * so an unbounded term count is an unbounded statement. Thirty-two is far past
+ * A query is one bound parameter per term, so an unbounded term count is an
+ * unbounded statement. Thirty-two is far past
  * any real place name and is applied by truncation, so a normal search is
  * untouched.
  */
@@ -77,9 +57,9 @@ export interface LocationQueryOptions {
   city?: string;
 }
 
-/** A saved place, shaped exactly as the Mongo `locations` subdocument was. */
+/** A saved place, in its wire shape. */
 export interface LocationDto {
-  /** The client-supplied handle, `locations[].id` in Mongo. */
+  /** The client-supplied handle. */
   id: string;
   name: string;
   label?: string;
@@ -109,7 +89,7 @@ export interface LocationDto {
 
 /** One row of every list this service returns: the owner plus their place. */
 export interface LocationMatch {
-  /** The OWNER's account id — Mongo projected the root document's `_id`. */
+  /** The OWNER's account id. */
   _id: string;
   username?: string;
   location: LocationDto;
@@ -123,13 +103,13 @@ export interface NearbyLocationMatch extends LocationMatch {
 
 /** A {@link LocationMatch} with its text-search relevance. */
 export interface ScoredLocationMatch extends LocationMatch {
-  /** `ts_rank`, replacing Mongo's `$meta: "textScore"`. */
+  /** `ts_rank` relevance. */
   score: number;
 }
 
 /**
- * `total` is the length of THIS page, not a table count — Mongo returned the
- * same thing and every consumer reads it that way. Preserved verbatim.
+ * `total` is the length of THIS page, not a table count — every consumer reads
+ * it that way.
  */
 export interface LocationSearchResult<T extends LocationMatch> {
   locations: T[];
@@ -247,12 +227,10 @@ function toLocationMatch(row: LocationRow): LocationMatch {
 }
 
 /**
- * A case-insensitive SUBSTRING match, which is what Mongo's
- * `{ $regex: value, $options: 'i' }` was.
+ * A case-insensitive SUBSTRING match.
  *
  * The value is escaped for LIKE (`\`, `%`, `_`) and bound as a parameter, so no
- * input can widen the pattern — the same job escaping regex metacharacters
- * would have done, which the Mongo version never did.
+ * input can widen the pattern.
  */
 function substringMatch(column: Column, value: string): SQL {
   const pattern = likeContains(value);
@@ -271,8 +249,8 @@ function queryPoint(lat: number, lon: number): SQL {
 /**
  * Split a text query into the terms it should match ANY of.
  *
- * Mongo's `$text` scored a document containing ANY of the whitespace-separated
- * terms, so the port ORs one `plainto_tsquery` per term (`||` is tsquery OR)
+ * A place matches if it contains ANY of the whitespace-separated terms, so this
+ * ORs one `plainto_tsquery` per term (`||` is tsquery OR)
  * rather than using `websearch_to_tsquery`, whose bare words are ANDed. Each
  * term is a bound parameter, so nothing in the input reaches the query language.
  *
@@ -295,7 +273,7 @@ class LocationQueryService {
     lat: number,
     lon: number,
     maxDistance = 10000,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<NearbyLocationMatch>> {
     const endTimer = performanceMonitor.startTimer('db_find_locations_near');
 
@@ -311,11 +289,11 @@ class LocationQueryService {
         .where(
           and(
             isNotNull(userLocations.geo),
-            sql`ST_DWithin(${qualified(userLocations.geo)}, ${point}, ${maxDistance})`
-          )
+            sql`ST_DWithin(${qualified(userLocations.geo)}, ${point}, ${maxDistance})`,
+          ),
         )
-        // The secondary key is what Mongo lacked: two places at the same
-        // distance could otherwise swap between pages of the same scan.
+        // The secondary key matters: two places at the same distance could
+        // otherwise swap between pages of the same scan.
         .orderBy(asc(distance), asc(userLocations.id))
         .limit(limit + 1)
         .offset(skip);
@@ -339,12 +317,12 @@ class LocationQueryService {
   }
 
   /**
-   * Full-text search over `search_vector`, the GENERATED replacement for Mongo's
-   * text index on `name` + `formatted_address`.
+   * Full-text search over `search_vector`, GENERATED from `name` +
+   * `formatted_address`.
    */
   async searchLocationsByText(
     searchQuery: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<ScoredLocationMatch>> {
     try {
       const { limit = 10, skip = 0, type, country, city } = options;
@@ -356,13 +334,11 @@ class LocationQueryService {
 
       const tsQuery = sql.join(
         terms.map((term) => sql`plainto_tsquery(${SEARCH_CONFIGURATION}, ${term})`),
-        sql` || `
+        sql` || `,
       );
       const score = sql<number>`ts_rank(${qualified(userLocations.searchVector)}, ${tsQuery})`;
 
-      const filters: SQL[] = [
-        sql`${qualified(userLocations.searchVector)} @@ (${tsQuery})`,
-      ];
+      const filters: SQL[] = [sql`${qualified(userLocations.searchVector)} @@ (${tsQuery})`];
       if (type) filters.push(sql`${qualified(userLocations.type)} = ${type}`);
       if (country) filters.push(substringMatch(userLocations.country, country));
       if (city) filters.push(substringMatch(userLocations.city, city));
@@ -395,7 +371,7 @@ class LocationQueryService {
    */
   async getLocationsByType(
     type: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<LocationMatch>> {
     try {
       const { limit = 10, skip = 0, country, city } = options;
@@ -417,7 +393,7 @@ class LocationQueryService {
   async getLocationsByCountryCity(
     country: string,
     city?: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<LocationMatch>> {
     try {
       const { limit = 10, skip = 0, type } = options;
@@ -436,9 +412,7 @@ class LocationQueryService {
   /**
    * Counts by type and by country, plus the ten most-saved cities.
    *
-   * Mongo `$push`-ed every type and every country into two arrays and counted
-   * them in JavaScript — the pipeline's own comment called that "optimized".
-   * Both are `GROUP BY` here, so the row count never leaves the database.
+   * Both are `GROUP BY`, so the rows never leave the database.
    */
   async getLocationStats(): Promise<LocationStats> {
     try {
@@ -449,7 +423,10 @@ class LocationQueryService {
 
       const [totals, byType, byCountry, topCities] = await Promise.all([
         db.select({ total }).from(userLocations),
-        db.select({ key: userLocations.type, total }).from(userLocations).groupBy(userLocations.type),
+        db
+          .select({ key: userLocations.type, total })
+          .from(userLocations)
+          .groupBy(userLocations.type),
         db
           .select({ key: userLocations.country, total })
           .from(userLocations)
@@ -480,7 +457,7 @@ class LocationQueryService {
         locationsByType,
         locationsByCountry,
         topCities: topCities.flatMap((row) =>
-          row.city === null ? [] : [{ city: row.city, count: Number(row.count) }]
+          row.city === null ? [] : [{ city: row.city, count: Number(row.count) }],
         ),
       };
     } catch (error) {
@@ -495,21 +472,19 @@ class LocationQueryService {
    * The pair is written by NAME, so there is no ordering left to get wrong, and
    * `geo` follows automatically — it is generated FROM these two columns and
    * cannot be written directly. `updated_at` is maintained by drizzle's
-   * `$onUpdate`, as Mongoose's explicit `$set` of it used to be.
+   * `$onUpdate`.
    */
   async updateLocationCoordinates(
     userId: string,
     locationId: string,
     lat: number,
-    lon: number
+    lon: number,
   ): Promise<boolean> {
     try {
       const updated = await getDb()
         .update(userLocations)
         .set({ latitude: lat, longitude: lon })
-        .where(
-          and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId))
-        )
+        .where(and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId)))
         .returning({ id: userLocations.id });
 
       return updated.length > 0;
@@ -520,16 +495,13 @@ class LocationQueryService {
   }
 
   /**
-   * Remove one saved place. A real DELETE now, where Mongo `$pull`-ed an
-   * element out of an embedded array.
+   * Remove one saved place.
    */
   async deleteLocation(userId: string, locationId: string): Promise<boolean> {
     try {
       const deleted = await getDb()
         .delete(userLocations)
-        .where(
-          and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId))
-        )
+        .where(and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId)))
         .returning({ id: userLocations.id });
 
       return deleted.length > 0;
@@ -543,7 +515,7 @@ class LocationQueryService {
   private async listLocations(
     filters: SQL[],
     limit: number,
-    skip: number
+    skip: number,
   ): Promise<LocationSearchResult<LocationMatch>> {
     const rows = await getDb()
       .select(locationSelection)

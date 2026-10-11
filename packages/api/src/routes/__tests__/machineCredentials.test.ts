@@ -131,7 +131,7 @@ interface JsonResponse {
 async function request(
   method: string,
   path: string,
-  options: { payload?: unknown; bearer?: string } = {}
+  options: { payload?: unknown; bearer?: string } = {},
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(options.payload ?? {});
@@ -167,7 +167,7 @@ async function request(
           }
           resolve({ status: res.statusCode ?? 0, raw, body });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -214,7 +214,7 @@ async function createMachineCredential(
     scopes?: string[];
     environment?: 'development' | 'staging' | 'production';
     expiresInSeconds?: number;
-  } = {}
+  } = {},
 ): Promise<CreatedMachineCredential> {
   const applicationId = options.applicationId ?? (await seedApp(options.appScopes));
   const response = await request('POST', `/applications/${applicationId}/credentials`, {
@@ -242,7 +242,7 @@ async function createMachineCredential(
 
 /** Re-read a credential row WITH its hash columns — the tests' own read. */
 async function readCredentialRow(
-  id: string
+  id: string,
 ): Promise<typeof applicationCredentials.$inferSelect | undefined> {
   const [row] = await getDb()
     .select()
@@ -254,7 +254,7 @@ async function readCredentialRow(
 
 /** Every audit row for one credential, oldest first. */
 async function auditEventsFor(
-  credentialId: string
+  credentialId: string,
 ): Promise<(typeof applicationCredentialAuditEvents.$inferSelect)[]> {
   return getDb()
     .select()
@@ -281,7 +281,7 @@ async function callLane(token: string): Promise<JsonResponse> {
  */
 function hashColumnHoldsPlaintext(
   row: typeof applicationCredentials.$inferSelect | undefined,
-  token: string
+  token: string,
 ): boolean {
   if (!row?.tokenHash) return false;
   const secretHalf = token.slice(token.lastIndexOf('_') + 1);
@@ -322,7 +322,7 @@ beforeAll(async () => {
     machineApplicationLimiter,
     (req, res) => {
       res.json({ principal: (req as MachineCredentialRequest).machineCredential });
-    }
+    },
   );
   app.post(LIMITER_ONLY_PATH, machineCredentialLimiter, machineApplicationLimiter, (_req, res) => {
     res.json({ ok: true });
@@ -350,7 +350,7 @@ beforeEach(async () => {
     (
       req: { headers: Record<string, string | undefined>; user?: unknown },
       res: { status: (code: number) => { json: (body: unknown) => void } },
-      next: () => void
+      next: () => void,
     ) => {
       const bearer = req.headers.authorization?.slice('Bearer '.length);
       if (bearer !== SESSION_BEARER) {
@@ -359,7 +359,7 @@ beforeEach(async () => {
       }
       req.user = { _id: { toString: () => OWNER_ID }, isStaff: false };
       next();
-    }
+    },
   );
 });
 
@@ -546,7 +546,10 @@ describe('the machine bearer lane', () => {
     const { applicationId, credentialId, token } = await createMachineCredential();
     expect(await callLane(token)).toMatchObject({ status: 200 });
 
-    const revoke = await request('DELETE', `/applications/${applicationId}/credentials/${credentialId}`);
+    const revoke = await request(
+      'DELETE',
+      `/applications/${applicationId}/credentials/${credentialId}`,
+    );
     expect(revoke.status).toBe(200);
 
     expect(await callLane(token)).toMatchObject({ status: 401 });
@@ -689,7 +692,7 @@ describe('scope intersection', () => {
     expect(res.body.message).toContain('inference:invoke');
 
     const failures = (await auditEventsFor(credentialId)).filter(
-      (event) => event.eventType === 'validation_failed'
+      (event) => event.eventType === 'validation_failed',
     );
     expect(failures).toHaveLength(1);
     expect(failures[0].reason).toBe('scope_missing');
@@ -708,7 +711,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
 
     const rotate = await request(
       'POST',
-      `/applications/${applicationId}/credentials/${credentialId}/rotate`
+      `/applications/${applicationId}/credentials/${credentialId}/rotate`,
     );
     expect(rotate.status).toBe(200);
     expect(rotate.body.graceExpiresAt).toBeNull();
@@ -732,7 +735,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
     const rotate = await request(
       'POST',
       `/applications/${applicationId}/credentials/${credentialId}/rotate`,
-      { payload: { graceSeconds: 1 } }
+      { payload: { graceSeconds: 1 } },
     );
     expect(rotate.status).toBe(200);
     expect(typeof rotate.body.graceExpiresAt).toBe('string');
@@ -761,7 +764,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
     const res = await request(
       'POST',
       `/applications/${applicationId}/credentials/${credentialId}/rotate`,
-      { payload: { graceSeconds: 60 } }
+      { payload: { graceSeconds: 60 } },
     );
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/machine credential/i);
@@ -778,7 +781,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
 
     const rotate = await request(
       'POST',
-      `/applications/${applicationId}/credentials/${credentialId}/rotate`
+      `/applications/${applicationId}/credentials/${credentialId}/rotate`,
     );
     expect(rotate.status).toBe(200);
     expect(typeof rotate.body.secret).toBe('string');
@@ -786,8 +789,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
 
     const previous = await readCredentialRow(credentialId);
     expect(previous?.status).toBe('deprecated');
-    const graceDays =
-      ((previous?.expiresAt?.getTime() ?? 0) - Date.now()) / (24 * 60 * 60 * 1000);
+    const graceDays = ((previous?.expiresAt?.getTime() ?? 0) - Date.now()) / (24 * 60 * 60 * 1000);
     expect(graceDays).toBeGreaterThan(6.9);
     expect(graceDays).toBeLessThan(7.1);
   });
@@ -796,7 +798,7 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
     const { applicationId, credentialId } = await createMachineCredential();
     const rotate = await request(
       'POST',
-      `/applications/${applicationId}/credentials/${credentialId}/rotate`
+      `/applications/${applicationId}/credentials/${credentialId}/rotate`,
     );
     expect(rotate.body.rotatedFrom).toBe(credentialId);
     expect(rotate.body.credential?.rotatedFromCredentialId).toBe(credentialId);
@@ -827,7 +829,7 @@ describe('credential audit events', () => {
     const rotate = await request(
       'POST',
       `/applications/${applicationId}/credentials/${credentialId}/rotate`,
-      { payload: { graceSeconds: 60 } }
+      { payload: { graceSeconds: 60 } },
     );
     const newCredentialId = rotate.body.credential?._id as string;
 
@@ -868,7 +870,7 @@ describe('credential audit events', () => {
     await callLane(`${token.slice(0, secretStart)}${flipped}${token.slice(secretStart + 1)}`);
 
     const failures = (await auditEventsFor(credentialId)).filter(
-      (event) => event.eventType === 'validation_failed'
+      (event) => event.eventType === 'validation_failed',
     );
     expect(failures).toHaveLength(1);
     expect(failures[0].reason).toBe('secret_mismatch');
@@ -886,7 +888,7 @@ describe('credential audit events', () => {
 
     await callLane(token);
     const failures = (await auditEventsFor(credentialId)).filter(
-      (event) => event.eventType === 'validation_failed'
+      (event) => event.eventType === 'validation_failed',
     );
     expect(failures).toHaveLength(1);
     expect(failures[0].reason).toBe('not_usable');
@@ -911,7 +913,7 @@ describe('credential audit events', () => {
       await callLane(tampered);
     }
     const failures = (await auditEventsFor(credentialId)).filter(
-      (event) => event.eventType === 'validation_failed'
+      (event) => event.eventType === 'validation_failed',
     );
     expect(failures).toHaveLength(1);
 
@@ -922,8 +924,8 @@ describe('credential audit events', () => {
     await callLane(tampered);
     expect(
       (await auditEventsFor(credentialId)).filter(
-        (event) => event.eventType === 'validation_failed'
-      )
+        (event) => event.eventType === 'validation_failed',
+      ),
     ).toHaveLength(2);
   });
 });
@@ -962,7 +964,7 @@ describe('the staff flag opens no door into a customer’s credential trail', ()
       (
         req: { headers: Record<string, string | undefined>; user?: unknown },
         res: { status: (code: number) => { json: (body: unknown) => void } },
-        next: () => void
+        next: () => void,
       ) => {
         if (req.headers.authorization?.slice('Bearer '.length) !== SESSION_BEARER) {
           res.status(401).json({ error: 'Authentication required' });
@@ -970,7 +972,7 @@ describe('the staff flag opens no door into a customer’s credential trail', ()
         }
         req.user = { _id: { toString: () => userId }, isStaff };
         next();
-      }
+      },
     );
   }
 
@@ -1000,13 +1002,13 @@ describe('the staff flag opens no door into a customer’s credential trail', ()
     const rotated = await request(
       'POST',
       `/applications/${applicationId}/credentials/${credentialId}/rotate`,
-      { payload: { graceSeconds: 60 } }
+      { payload: { graceSeconds: 60 } },
     );
     expect(rotated.status).toBe(403);
 
     const revoked = await request(
       'DELETE',
-      `/applications/${applicationId}/credentials/${credentialId}`
+      `/applications/${applicationId}/credentials/${credentialId}`,
     );
     expect(revoked.status).toBe(403);
 
@@ -1027,7 +1029,7 @@ describe('the staff flag opens no door into a customer’s credential trail', ()
     asCaller(OWNER_ID, false);
     const byMember = await request(
       'DELETE',
-      `/applications/${applicationId}/credentials/${credentialId}`
+      `/applications/${applicationId}/credentials/${credentialId}`,
     );
     expect(byMember.status).toBe(200);
     const events = await auditEventsFor(credentialId);

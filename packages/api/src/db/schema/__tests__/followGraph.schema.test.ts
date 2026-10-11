@@ -114,7 +114,9 @@ describe('kinds are registered by applications, not enumerated by the platform',
   });
 
   it('refuses a target whose kind was never registered', async () => {
-    await expect(makeTarget('nobody.registered_this', unique('https://x.example/a'))).rejects.toThrow();
+    await expect(
+      makeTarget('nobody.registered_this', unique('https://x.example/a')),
+    ).rejects.toThrow();
   });
 });
 
@@ -207,31 +209,35 @@ describe('the closed value sets are closed in the DATABASE, not only in TypeScri
   it('refuses an event type nothing knows how to handle', async () => {
     const { relationshipId, uri, kind } = await aRelationship();
     await expect(
-      getDb().insert(followEvents).values({
-        eventId: unique('event-'),
-        // `follow.create`, not `follow.created`.
-        type: 'follow.create' as unknown as 'follow.created',
-        cause: 'user_action',
-        actorUserId: userId,
-        relationshipId,
-        targetUri: uri,
-        targetKind: kind,
-      })
+      getDb()
+        .insert(followEvents)
+        .values({
+          eventId: unique('event-'),
+          // `follow.create`, not `follow.created`.
+          type: 'follow.create' as unknown as 'follow.created',
+          cause: 'user_action',
+          actorUserId: userId,
+          relationshipId,
+          targetUri: uri,
+          targetKind: kind,
+        }),
     ).rejects.toThrow();
   });
 
   it('refuses a cause that would make an expiry indistinguishable from a decision', async () => {
     const { relationshipId, uri, kind } = await aRelationship();
     await expect(
-      getDb().insert(followEvents).values({
-        eventId: unique('event-'),
-        type: 'follow.removed',
-        cause: 'expiry' as unknown as 'expired',
-        actorUserId: userId,
-        relationshipId,
-        targetUri: uri,
-        targetKind: kind,
-      })
+      getDb()
+        .insert(followEvents)
+        .values({
+          eventId: unique('event-'),
+          type: 'follow.removed',
+          cause: 'expiry' as unknown as 'expired',
+          actorUserId: userId,
+          relationshipId,
+          targetUri: uri,
+          targetKind: kind,
+        }),
     ).rejects.toThrow();
   });
 
@@ -239,9 +245,7 @@ describe('the closed value sets are closed in the DATABASE, not only in TypeScri
     const ns = unique('enumns');
     await registerKind(`${ns}.thing`, ns);
     const targetId = await makeTarget(`${ns}.thing`, unique('https://x.example/t'));
-    await expect(
-      follow(targetId, { state: 'pending' })
-    ).rejects.toThrow();
+    await expect(follow(targetId, { state: 'pending' })).rejects.toThrow();
   });
 
   it('refuses a source that is not one of the four ways a follow can arrive', async () => {
@@ -262,7 +266,7 @@ describe('the closed value sets are closed in the DATABASE, not only in TypeScri
           relationshipId,
           applicationId,
           mode: 'inherit' as unknown as 'disabled',
-        })
+        }),
     ).rejects.toThrow();
   });
 });
@@ -278,15 +282,17 @@ describe('the outbox outlives what it describes', () => {
     const targetId = await makeTarget(`${ns}.thing`, uri);
     const relationshipId = await follow(targetId);
 
-    await getDb().insert(followEvents).values({
-      eventId: unique('event-'),
-      type: 'follow.removed',
-      cause: 'user_action',
-      actorUserId: userId,
-      relationshipId,
-      targetUri: uri,
-      targetKind: `${ns}.thing`,
-    });
+    await getDb()
+      .insert(followEvents)
+      .values({
+        eventId: unique('event-'),
+        type: 'follow.removed',
+        cause: 'user_action',
+        actorUserId: userId,
+        relationshipId,
+        targetUri: uri,
+        targetKind: `${ns}.thing`,
+      });
     await getDb().delete(followRelationships).where(eq(followRelationships.id, relationshipId));
 
     const events = await getDb()

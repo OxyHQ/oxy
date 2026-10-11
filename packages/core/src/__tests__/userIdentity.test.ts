@@ -15,7 +15,8 @@ function jsonResponse(data: unknown): Response {
 }
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 
@@ -27,11 +28,11 @@ describe('user identity normalization', () => {
     jest.restoreAllMocks();
   });
 
-  it('normalizes Mongo _id to id', () => {
-    expect(getNormalizedUserId({ _id: 'mongo_id' })).toBe('mongo_id');
-    expect(normalizeUserIdentity({ _id: 'mongo_id', username: 'nate' })).toEqual({
-      _id: 'mongo_id',
-      id: 'mongo_id',
+  it('normalizes a raw _id to id', () => {
+    expect(getNormalizedUserId({ _id: 'legacy_id' })).toBe('legacy_id');
+    expect(normalizeUserIdentity({ _id: 'legacy_id', username: 'nate' })).toEqual({
+      _id: 'legacy_id',
+      id: 'legacy_id',
       username: 'nate',
     });
   });
@@ -45,10 +46,12 @@ describe('user identity normalization', () => {
     };
 
     const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-    oxy.session.setAccessToken(createJwt({
-      userId: 'user_1',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    }));
+    oxy.session.setAccessToken(
+      createJwt({
+        userId: 'user_1',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
     const user = await oxy.users.me();
 
     expect(user.id).toBe('user_1');
@@ -84,50 +87,62 @@ describe('getNormalizedUserHandle', () => {
   });
 
   it('builds federated handles from username and instance', () => {
-    expect(getNormalizedUserHandle({
-      username: 'joannastern',
-      isFederated: true,
-      instance: 'threads.net',
-    })).toBe('joannastern@threads.net');
+    expect(
+      getNormalizedUserHandle({
+        username: 'joannastern',
+        isFederated: true,
+        instance: 'threads.net',
+      }),
+    ).toBe('joannastern@threads.net');
   });
 
   it('does not append an instance twice', () => {
-    expect(getNormalizedUserHandle({
-      username: '@joannastern@threads.net',
-      type: 'federated',
-      instance: 'threads.net',
-    })).toBe('joannastern@threads.net');
+    expect(
+      getNormalizedUserHandle({
+        username: '@joannastern@threads.net',
+        type: 'federated',
+        instance: 'threads.net',
+      }),
+    ).toBe('joannastern@threads.net');
   });
 
   it('uses federation domain as the federated instance source', () => {
-    expect(getNormalizedUserHandle({
-      username: 'alice',
-      isFederated: true,
-      federation: { domain: '@example.social' },
-    })).toBe('alice@example.social');
+    expect(
+      getNormalizedUserHandle({
+        username: 'alice',
+        isFederated: true,
+        federation: { domain: '@example.social' },
+      }),
+    ).toBe('alice@example.social');
   });
 
   it('does not use instance for local users', () => {
-    expect(getNormalizedUserHandle({
-      username: 'alice',
-      instance: 'example.social',
-    })).toBe('alice');
+    expect(
+      getNormalizedUserHandle({
+        username: 'alice',
+        instance: 'example.social',
+      }),
+    ).toBe('alice');
   });
 
   it('keeps case while normalizing whitespace', () => {
-    expect(getNormalizedUserHandle({
-      username: ' Alice ',
-      isFederated: true,
-      instance: ' Example.Social ',
-    })).toBe('Alice@Example.Social');
+    expect(
+      getNormalizedUserHandle({
+        username: ' Alice ',
+        isFederated: true,
+        instance: ' Example.Social ',
+      }),
+    ).toBe('Alice@Example.Social');
   });
 
   it('does not turn an invalid instance into a federated suffix', () => {
-    expect(getNormalizedUserHandle({
-      username: 'alice',
-      isFederated: true,
-      instance: 'example.social/users/alice',
-    })).toBe('alice');
+    expect(
+      getNormalizedUserHandle({
+        username: 'alice',
+        isFederated: true,
+        instance: 'example.social/users/alice',
+      }),
+    ).toBe('alice');
   });
 
   it('rejects empty and route-like values', () => {

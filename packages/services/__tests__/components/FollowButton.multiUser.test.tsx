@@ -6,10 +6,16 @@ import { createElement } from 'react';
 const oxyServicesStub = {
   // Multi-user status resolution now goes through the batched bulk endpoint
   // (one call for all members) rather than N single `getFollowStatus` calls.
-  follows: { statuses: jest.fn(async (ids: string[]) =>
-    Object.fromEntries(ids.map((id) => [id, false])),
-  ), followMany: jest.fn(), unfollowMany: jest.fn() },
-  session: { get userId() { return (jest.fn(() => 'me'))(); } },
+  follows: {
+    statuses: jest.fn(async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, false]))),
+    followMany: jest.fn(),
+    unfollowMany: jest.fn(),
+  },
+  session: {
+    get userId() {
+      return jest.fn(() => 'me')();
+    },
+  },
 };
 
 let ctx = {
@@ -60,9 +66,13 @@ describe('FollowButton multi-user initial state', () => {
   });
 
   it('does not announce an unaccepted single-user mutation as a follow', async () => {
-    const toggle = jest.spyOn(useFollowStore.getState(), 'toggleFollowUser').mockResolvedValue(false);
+    const toggle = jest
+      .spyOn(useFollowStore.getState(), 'toggleFollowUser')
+      .mockResolvedValue(false);
     const onFollowChange = jest.fn();
-    renderWithQueryClient(<FollowButton userId="u1" initiallyFollowing={false} onFollowChange={onFollowChange} />);
+    renderWithQueryClient(
+      <FollowButton userId="u1" initiallyFollowing={false} onFollowChange={onFollowChange} />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Follow' }));
     await waitFor(() => expect(toggle).toHaveBeenCalled());
     expect(onFollowChange).not.toHaveBeenCalled();

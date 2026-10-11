@@ -34,10 +34,7 @@ import { buildUserDid, OXY_DID } from '../did.service';
 import * as repoLog from '../repoLog.service';
 import { reputationService } from '../reputation.service';
 import SignatureService from '../signature.service';
-import {
-  PEER_VALIDATED_ACTION,
-  REAL_LIFE_ATTESTED_ACTION,
-} from '../../utils/reputation.constants';
+import { PEER_VALIDATED_ACTION, REAL_LIFE_ATTESTED_ACTION } from '../../utils/reputation.constants';
 
 const oxyKey = generateSecp256k1KeyPair();
 const OXY_PUBLIC = oxyKey.publicKey;
@@ -56,7 +53,7 @@ async function account(): Promise<string> {
 /** A ledger row to attest — a real one, since `award` hands `attestAward` one. */
 async function ledgerRow(
   userId: string,
-  overrides: { actionType?: string; points?: number; sourceActionId?: string } = {}
+  overrides: { actionType?: string; points?: number; sourceActionId?: string } = {},
 ): Promise<{
   id: string;
   userId: string;
@@ -96,15 +93,19 @@ async function attestations(userId: string) {
     .where(
       and(
         eq(signedRecords.userId, userId),
-        eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION)
-      )
+        eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION),
+      ),
     )
     .orderBy(asc(signedRecords.seq));
 }
 
 async function head(userId: string) {
   const [row] = await getDb()
-    .select({ seq: repoHeads.seq, headRecordId: repoHeads.headRecordId, recordCount: repoHeads.recordCount })
+    .select({
+      seq: repoHeads.seq,
+      headRecordId: repoHeads.headRecordId,
+      recordCount: repoHeads.recordCount,
+    })
     .from(repoHeads)
     .where(eq(repoHeads.userId, userId));
   return row;
@@ -158,8 +159,8 @@ describe('the attestation that gets stored', () => {
       SignatureService.verifySignature(
         signedRecordSigningInput(stored.envelope),
         stored.envelope.signature,
-        OXY_PUBLIC
-      )
+        OXY_PUBLIC,
+      ),
     ).toBe(true);
 
     // The proof chain: the ledger row it attests plus the user-signed envelopes
@@ -188,7 +189,9 @@ describe('the attestation that gets stored', () => {
     const first = await attestAward(await ledgerRow(subject));
     expect(first).not.toBeNull();
 
-    const second = await attestAward(await ledgerRow(subject, { actionType: PEER_VALIDATED_ACTION, points: 8 }));
+    const second = await attestAward(
+      await ledgerRow(subject, { actionType: PEER_VALIDATED_ACTION, points: 8 }),
+    );
     expect(second).not.toBeNull();
 
     const rows = await attestations(subject);
@@ -208,18 +211,18 @@ describe('the attestation that gets stored', () => {
     await attestAward(await ledgerRow(subject, { actionType: 'endorsement_received', points: 1 }));
 
     const rows = await attestations(subject);
-    expect(rows.map((row) => (row.envelope.record as { weightClass: string }).weightClass)).toEqual([
-      'HIGH',
-      'MEDIUM',
-      'LOW',
-    ]);
+    expect(rows.map((row) => (row.envelope.record as { weightClass: string }).weightClass)).toEqual(
+      ['HIGH', 'MEDIUM', 'LOW'],
+    );
   });
 
   it('defaults the proof chain to an empty list when no source envelopes are given', async () => {
     const subject = await account();
     await attestAward(await ledgerRow(subject));
     const [stored] = await attestations(subject);
-    expect((stored.envelope.record as { sourceEnvelopeIds: string[] }).sourceEnvelopeIds).toEqual([]);
+    expect((stored.envelope.record as { sourceEnvelopeIds: string[] }).sourceEnvelopeIds).toEqual(
+      [],
+    );
   });
 });
 

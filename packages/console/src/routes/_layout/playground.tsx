@@ -19,7 +19,11 @@ import {
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 import { PlaygroundRunReceipt } from '@/components/playground/playground-receipt';
 import { accountLabel, useAccount } from '@/hooks/use-account';
-import { useApplicationCredentials, useApplications, useCallerAccess } from '@/hooks/use-applications';
+import {
+  useApplicationCredentials,
+  useApplications,
+  useCallerAccess,
+} from '@/hooks/use-applications';
 import { useModelCatalogue } from '@/hooks/use-models';
 import { usePlaygroundReceipt, usePlaygroundRun } from '@/hooks/use-playground';
 import { usePlaygroundKey } from '@/lib/playground-key';
@@ -105,22 +109,21 @@ function PlaygroundPage() {
 
   const { data: credentials = [] } = useApplicationCredentials(
     application?._id ?? '',
-    application !== undefined && canReadCredentials
+    application !== undefined && canReadCredentials,
   );
 
   // Only a `machine` credential can authenticate the edge, and only an active one
   // resolves. Offering a revoked key would produce a refusal the user cannot act
   // on.
   const machineCredentials = credentials.filter(
-    (candidate) => candidate.type === 'machine' && candidate.status === 'active'
+    (candidate) => candidate.type === 'machine' && candidate.status === 'active',
   );
   const credential =
     machineCredentials.find((candidate) => candidate._id === credentialId) ??
     machineCredentials.at(0);
 
   const selectedModel =
-    catalogue.find((candidate) => candidate.modelId === model)?.modelId ??
-    catalogue.at(0)?.modelId;
+    catalogue.find((candidate) => candidate.modelId === model)?.modelId ?? catalogue.at(0)?.modelId;
 
   /**
    * Does the pasted key belong to the credential that is selected?
@@ -158,9 +161,7 @@ function PlaygroundPage() {
     <ScrollArea className="flex-1 bg-background">
       <div className="px-6 py-6 border-b border-border">
         <h1 className="text-2xl font-semibold text-foreground">Playground</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Try the inference API from the browser
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Try the inference API from the browser</p>
       </div>
 
       <div className="px-6 py-6 space-y-6 max-w-3xl">
@@ -311,14 +312,14 @@ function PlaygroundPage() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Held in this tab's memory only — never stored, never cached, and gone when you
-              reload. Oxy cannot show you a key again after it is created, so paste it here or
-              start from a freshly created credential.
+              Held in this tab's memory only — never stored, never cached, and gone when you reload.
+              Oxy cannot show you a key again after it is created, so paste it here or start from a
+              freshly created credential.
             </p>
             {keyMatchesCredential === false && (
               <p className="text-xs text-yellow-600 dark:text-yellow-500">
-                This key does not belong to the selected credential, so it may run in a
-                different environment than the one shown above.
+                This key does not belong to the selected credential, so it may run in a different
+                environment than the one shown above.
               </p>
             )}
           </div>
@@ -428,9 +429,7 @@ function PlaygroundPage() {
               onFetchReceipt={() =>
                 receipt.mutate({ apiKey: apiKey.trim(), requestId: completed.requestId })
               }
-              receiptError={
-                receipt.error instanceof Error ? receipt.error.message : undefined
-              }
+              receiptError={receipt.error instanceof Error ? receipt.error.message : undefined}
             />
           </>
         )}
@@ -468,7 +467,7 @@ function OutputMessage({ message }: { message: InferenceMessage }) {
           <Badge key={index} variant="outline" className="text-xs">
             {part.type} content
           </Badge>
-        )
+        ),
       )}
       {message.toolCalls?.map((call) => (
         <div key={call.id} className="rounded border border-border p-2">

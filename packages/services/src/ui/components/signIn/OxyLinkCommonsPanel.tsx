@@ -26,7 +26,12 @@ import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
 import { ReauthStep } from './ReauthStep';
-import { AccountFlowAction, AccountFlowErrorLine, AccountFlowNote, describeSignInError } from './accountFlowParts';
+import {
+  AccountFlowAction,
+  AccountFlowErrorLine,
+  AccountFlowNote,
+  describeSignInError,
+} from './accountFlowParts';
 
 /** How often the page asks whether Commons has signed. */
 export const IDENTITY_LINK_POLL_MS = 2000;
@@ -61,8 +66,8 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   const open = useCallback(() => {
     setError(null);
     setStep({ name: 'opening' });
-    oxyServices
-      .identity.links.create()
+    oxyServices.identity.links
+      .create()
       .then((link) => setStep({ name: 'qr', link }))
       .catch((reason: unknown) => {
         setError(describeSignInError(reason, t));
@@ -94,7 +99,11 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
         const state = await oxyServices.identity.links.get(link.linkId);
         if (stopped) return;
         if (state.status === 'signed' && state.publicKey) {
-          setStep({ name: 'matching', link, code: deriveIdentityLinkCode(link.linkId, state.publicKey) });
+          setStep({
+            name: 'matching',
+            link,
+            code: deriveIdentityLinkCode(link.linkId, state.publicKey),
+          });
           return;
         }
         if (state.status === 'cancelled') {
@@ -121,7 +130,10 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
   if (alreadyLinked) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.already')} />
+        <OxyAuthScreenHeader
+          title={t('linkCommons.title')}
+          description={t('linkCommons.already')}
+        />
       </OxyAuthScreen>
     );
   }
@@ -150,21 +162,35 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     case 'done':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('linkCommons.doneTitle')} description={t('linkCommons.done')} />
+          <OxyAuthScreenHeader
+            title={t('linkCommons.doneTitle')}
+            description={t('linkCommons.done')}
+          />
         </OxyAuthScreen>
       );
     case 'expired':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.expired')} />
+          <OxyAuthScreenHeader
+            title={t('linkCommons.title')}
+            description={t('linkCommons.expired')}
+          />
           {error ? <AccountFlowErrorLine message={error} /> : null}
-          <AccountFlowAction label={t('linkCommons.renew')} onPress={open} pending={false} testID="link-commons-renew" />
+          <AccountFlowAction
+            label={t('linkCommons.renew')}
+            onPress={open}
+            pending={false}
+            testID="link-commons-renew"
+          />
         </OxyAuthScreen>
       );
     case 'matching':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('linkCommons.compareTitle')} description={t('linkCommons.compare')} />
+          <OxyAuthScreenHeader
+            title={t('linkCommons.compareTitle')}
+            description={t('linkCommons.compare')}
+          />
           <Text
             accessibilityLabel={step.code.split('').join(' ')}
             style={[styles.code, { color: theme.colors.text }]}
@@ -178,7 +204,14 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
             pending={false}
             testID="link-commons-confirm"
           />
-          <Button appearance="plain" tone="neutral" size="lg" fullWidth onPress={() => cancel(step.link)} testID="link-commons-cancel">
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="lg"
+            fullWidth
+            onPress={() => cancel(step.link)}
+            testID="link-commons-cancel"
+          >
             {t('linkCommons.cancel')}
           </Button>
         </OxyAuthScreen>
@@ -186,15 +219,33 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     case 'qr':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.subtitle')} />
+          <OxyAuthScreenHeader
+            title={t('linkCommons.title')}
+            description={t('linkCommons.subtitle')}
+          />
           <View style={styles.plateRow}>
-            <View style={[styles.plate, { borderColor: theme.colors.border }]} testID="link-commons-qr">
-              <QRCode value={step.link.qrPayload} size={QR_SIZE} backgroundColor={QR_PLATE_BG} color={QR_FOREGROUND} />
+            <View
+              style={[styles.plate, { borderColor: theme.colors.border }]}
+              testID="link-commons-qr"
+            >
+              <QRCode
+                value={step.link.qrPayload}
+                size={QR_SIZE}
+                backgroundColor={QR_PLATE_BG}
+                color={QR_FOREGROUND}
+              />
             </View>
           </View>
           <AccountFlowNote>{t('linkCommons.scan')}</AccountFlowNote>
           <AccountFlowNote>{t('linkCommons.waiting')}</AccountFlowNote>
-          <Button appearance="plain" tone="neutral" size="lg" fullWidth onPress={() => cancel(step.link)} testID="link-commons-cancel">
+          <Button
+            appearance="plain"
+            tone="neutral"
+            size="lg"
+            fullWidth
+            onPress={() => cancel(step.link)}
+            testID="link-commons-cancel"
+          >
             {t('linkCommons.cancel')}
           </Button>
         </OxyAuthScreen>
@@ -202,7 +253,10 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
     default:
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('linkCommons.title')} description={t('linkCommons.subtitle')} />
+          <OxyAuthScreenHeader
+            title={t('linkCommons.title')}
+            description={t('linkCommons.subtitle')}
+          />
           <View style={styles.plateRow}>
             <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} />
           </View>

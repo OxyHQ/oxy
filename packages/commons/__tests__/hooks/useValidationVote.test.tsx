@@ -8,7 +8,6 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useValidationVote } from '@/hooks/useValidationVote';
 
 function makeWrapper() {

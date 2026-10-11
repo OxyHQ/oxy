@@ -6,12 +6,10 @@
  * the public code must not be able to cancel an already-authorized one — and the
  * waiting originator is notified on its own secret channel, WITHOUT the reason.
  *
- * Absorbs the former `sessionDenyReason.test.ts`, which asserted on
- * `session.save()` call counts against a mocked Mongoose document. That proved
- * a write was ATTEMPTED, never that the row ended up carrying the reason; here
- * the row is read back out of Postgres. The rate-limiter prefix uniqueness it
- * also checked is covered globally by the limiter registry, not by re-mocking
- * the factory per suite.
+ * The row is read back out of Postgres, so the suite proves the row carries the
+ * reason rather than that a write was attempted. Rate-limiter prefix uniqueness
+ * is covered globally by the limiter registry, not by re-mocking the factory
+ * per suite.
  *
  * Every test mints its own application and request, so no assertion depends on
  * a table being empty.
@@ -282,9 +280,7 @@ describe('POST /auth/session/deny/:authorizeCode — the closed reason set', () 
 
     await post(`/auth/session/deny/${authorizeCode}`, { reason: 'not_me' });
 
-    const flagged = mockWarn.mock.calls.find(
-      (call) => call[0] === 'Auth session denied as not-me',
-    );
+    const flagged = mockWarn.mock.calls.find((call) => call[0] === 'Auth session denied as not-me');
     expect(flagged).toBeDefined();
     const detail = flagged?.[1] as Record<string, unknown>;
     expect(detail).toEqual({

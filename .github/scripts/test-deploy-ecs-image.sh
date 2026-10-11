@@ -1081,14 +1081,29 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
+grep -F '{"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}' \
   "$workflow_file" >/dev/null
 grep -F 'TASK_EXTRA_CONTAINERS_JSON: >-' "$workflow_file" >/dev/null
 grep -F '"name":"aws-otel-collector","image":"public.ecr.aws/aws-observability/aws-otel-collector:v0.49.0","essential":false' \
   "$workflow_file" >/dev/null
+# Traces only: the default ECS config would also ship EMF metrics to CloudWatch.
+grep -F '"name":"AOT_CONFIG_CONTENT"' "$workflow_file" >/dev/null
+if grep -F 'ecs-default-config' "$workflow_file" >/dev/null; then
+  echo "deploy-aws.yml must not run the ADOT sidecar on its default config" >&2
+  exit 1
+fi
 grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION"]' \
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY","ALIA_API_KEY","AI_LABELING_MODEL","INSTAGRAM_GRAPH_FALLBACK_ENABLED","META_GRAPH_API_VERSION","INBOX_APPLICATION_KEY","INBOX_APPLICATION_SECRET"]' \
   "$workflow_file" >/dev/null
+# ADR 0026: oxy-api acts as Oxy Inbox through its task role's workload binding.
+# The retired key pair is removed above and must be neither re-asserted nor
+# required to exist in SSM by the deploy.
+if grep -F '"INBOX_APPLICATION_KEY":' "$workflow_file" >/dev/null ||
+  grep -F '"INBOX_APPLICATION_SECRET":' "$workflow_file" >/dev/null ||
+  grep -F '/oxy/inbox/' "$workflow_file" >/dev/null; then
+  echo "deploy-aws.yml must not bind or require the retired Inbox key pair" >&2
+  exit 1
+fi
 # Historical removal receipt only: the exact list above deletes the old
 # inference bindings. Their presence there does not make them accepted aliases
 # or active configuration.

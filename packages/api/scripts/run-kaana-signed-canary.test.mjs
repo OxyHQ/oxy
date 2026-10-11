@@ -51,25 +51,30 @@ test('candidate origin accepts only an exact RFC1918 HTTP endpoint on port 8080'
   const privateEnv = {
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: base.config.keyId,
-    KAANA_EDGE_SIGNING_PRIVATE_KEY: base.config.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: base.config.privateKey
+      .export({ type: 'pkcs8', format: 'pem' })
+      .toString(),
     CANARY_CONTRACT_VERSION: '2.0.0',
     CANARY_KAANA_PRIVATE_ORIGIN: 'http://10.21.2.34:8080',
   };
   assert.equal(readKaanaSigningConfig(privateEnv).baseUrl, 'http://10.21.2.34:8080');
-  for (const origin of ['https://10.21.2.34:8080', 'http://8.8.8.8:8080', 'http://10.21.2.34:80', 'http://127.0.0.1:8080']) {
+  for (const origin of [
+    'https://10.21.2.34:8080',
+    'http://8.8.8.8:8080',
+    'http://10.21.2.34:80',
+    'http://127.0.0.1:8080',
+  ]) {
     assert.throws(
       () => readKaanaSigningConfig({ ...privateEnv, CANARY_KAANA_PRIVATE_ORIGIN: origin }),
-      (error) => error instanceof KaanaCanaryError && error.code === 'candidate_kaana_origin_is_not_private',
+      (error) =>
+        error instanceof KaanaCanaryError && error.code === 'candidate_kaana_origin_is_not_private',
     );
   }
 });
 
 function signingInput(keyId, timestamp, body) {
   const digest = createHash('sha256').update(body).digest('hex');
-  return Buffer.from(
-    ['oxy-kaana-envelope:v1', keyId, timestamp, digest].join('\n'),
-    'utf8',
-  );
+  return Buffer.from(['oxy-kaana-envelope:v1', keyId, timestamp, digest].join('\n'), 'utf8');
 }
 
 function readAndVerifyRequest(publicKey, url, init) {
@@ -104,8 +109,9 @@ function json(payload, status = 200, headers = {}) {
 }
 
 function sse(frames) {
-  const body = frames.map(({ event, payload }) =>
-    `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`).join('');
+  const body = frames
+    .map(({ event, payload }) => `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
+    .join('');
   return new Response(body, {
     status: 200,
     headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' },
@@ -191,15 +197,21 @@ async function assertFirstPositiveFailure(expectedCode, mutateResponse) {
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [{
-          deploymentId: DEPLOYMENT_ID,
-          modelReference: MODEL_REFERENCE,
-          provider: 'cerebras',
-          regions: [],
-        }],
-      }, 200, { 'Cache-Control': 'no-store' });
+      return json(
+        {
+          snapshotId: 'snap-live-exact',
+          deployments: [
+            {
+              deploymentId: DEPLOYMENT_ID,
+              modelReference: MODEL_REFERENCE,
+              provider: 'cerebras',
+              regions: [],
+            },
+          ],
+        },
+        200,
+        { 'Cache-Control': 'no-store' },
+      );
     }
     inferenceCalls += 1;
     if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
@@ -232,15 +244,21 @@ test('runs every closed negative before exactly two one-token positive probes', 
     }
     if (path === '/internal/v1/deployments/query') {
       assert.deepEqual(body, { deploymentIds: [DEPLOYMENT_ID] });
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [{
-          deploymentId: DEPLOYMENT_ID,
-          modelReference: MODEL_REFERENCE,
-          provider: 'cerebras',
-          regions: ['us-west-2'],
-        }],
-      }, 200, { 'Cache-Control': 'no-store' });
+      return json(
+        {
+          snapshotId: 'snap-live-exact',
+          deployments: [
+            {
+              deploymentId: DEPLOYMENT_ID,
+              modelReference: MODEL_REFERENCE,
+              provider: 'cerebras',
+              regions: ['us-west-2'],
+            },
+          ],
+        },
+        200,
+        { 'Cache-Control': 'no-store' },
+      );
     }
 
     assert.equal(path, '/internal/v1/inference');
@@ -272,7 +290,10 @@ test('runs every closed negative before exactly two one-token positive probes', 
   assert.equal(inferenceBodies[0].schemaVersion, 1);
   assert.equal(inferenceBodies[1].schemaVersion, 2);
   assert.notEqual(inferenceBodies[2].authorizedRoutes[0].deploymentId, DEPLOYMENT_ID);
-  assert.match(inferenceBodies[2].authorizedRoutes[0].deploymentId, /^dep_canary_unknown_[0-9a-f]{32}$/);
+  assert.match(
+    inferenceBodies[2].authorizedRoutes[0].deploymentId,
+    /^dep_canary_unknown_[0-9a-f]{32}$/,
+  );
   assert.equal(inferenceBodies[3].authorizedRoutes[0].deploymentId, ` ${DEPLOYMENT_ID}`);
 
   const v1 = inferenceBodies[4];
@@ -304,15 +325,21 @@ test('stops before either provider probe if a slug arm is unexpectedly accepted'
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [{
-          deploymentId: DEPLOYMENT_ID,
-          modelReference: MODEL_REFERENCE,
-          provider: 'cerebras',
-          regions: [],
-        }],
-      }, 200, { 'Cache-Control': 'no-store' });
+      return json(
+        {
+          snapshotId: 'snap-live-exact',
+          deployments: [
+            {
+              deploymentId: DEPLOYMENT_ID,
+              modelReference: MODEL_REFERENCE,
+              provider: 'cerebras',
+              regions: [],
+            },
+          ],
+        },
+        200,
+        { 'Cache-Control': 'no-store' },
+      );
     }
     assert.equal(body.target.kind, 'routing_profile');
     return sse([errorEvent(body.attribution.requestId)]);
@@ -365,15 +392,21 @@ test('does not reinterpret a provider-credential UUID as a deployment identity',
     assert.equal(path, '/internal/v1/deployments/query');
     // The signed snapshot is the only authority and returns its actual opaque
     // deployment id, never the credential-shaped selector the operator passed.
-    return json({
-      snapshotId: 'snap-live-exact',
-      deployments: [{
-        deploymentId: DEPLOYMENT_ID,
-        modelReference: MODEL_REFERENCE,
-        provider: 'cerebras',
-        regions: [],
-      }],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId: 'snap-live-exact',
+        deployments: [
+          {
+            deploymentId: DEPLOYMENT_ID,
+            modelReference: MODEL_REFERENCE,
+            provider: 'cerebras',
+            regions: [],
+          },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
 
   await assert.rejects(
@@ -386,13 +419,10 @@ test('does not reinterpret a provider-credential UUID as a deployment identity',
 test('refuses every start event field outside the exact contract shape', async (t) => {
   for (const field of ['deploymentId', 'routeId', 'providerDetail']) {
     await t.test(field, async () => {
-      await assertFirstPositiveFailure(
-        'v1-direct-model_start_route_identity_present',
-        (frames) => {
-          frames[0].payload[field] = 'must-not-cross-start-event';
-          return sse(frames);
-        },
-      );
+      await assertFirstPositiveFailure('v1-direct-model_start_route_identity_present', (frames) => {
+        frames[0].payload[field] = 'must-not-cross-start-event';
+        return sse(frames);
+      });
     });
   }
 });
@@ -405,15 +435,21 @@ test('accepts the exact start shape when optional generationId is absent', async
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [{
-          deploymentId: DEPLOYMENT_ID,
-          modelReference: MODEL_REFERENCE,
-          provider: 'cerebras',
-          regions: [],
-        }],
-      }, 200, { 'Cache-Control': 'no-store' });
+      return json(
+        {
+          snapshotId: 'snap-live-exact',
+          deployments: [
+            {
+              deploymentId: DEPLOYMENT_ID,
+              modelReference: MODEL_REFERENCE,
+              provider: 'cerebras',
+              regions: [],
+            },
+          ],
+        },
+        200,
+        { 'Cache-Control': 'no-store' },
+      );
     }
     inferenceCalls += 1;
     if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
@@ -434,17 +470,23 @@ test('refuses every invalid contractual start-event value', async (t) => {
     {
       name: 'schema version',
       code: 'v1-direct-model_start_schema_mismatch',
-      mutate: (start) => { start.schemaVersion = 2; },
+      mutate: (start) => {
+        start.schemaVersion = 2;
+      },
     },
     {
       name: 'request identity',
       code: 'v1-direct-model_start_request_mismatch',
-      mutate: (start) => { start.requestId = 'wrong-request'; },
+      mutate: (start) => {
+        start.requestId = 'wrong-request';
+      },
     },
     ...[-1, 0.5, 1, Number.MAX_SAFE_INTEGER + 1].map((sequence) => ({
       name: `sequence ${sequence}`,
       code: 'v1-direct-model_start_sequence_mismatch',
-      mutate: (start) => { start.sequence = sequence; },
+      mutate: (start) => {
+        start.sequence = sequence;
+      },
     })),
     ...[
       { name: 'empty generation id', value: '' },
@@ -454,7 +496,9 @@ test('refuses every invalid contractual start-event value', async (t) => {
     ].map(({ name, value }) => ({
       name,
       code: 'v1-direct-model_start_generation_mismatch',
-      mutate: (start) => { start.generationId = value; },
+      mutate: (start) => {
+        start.generationId = value;
+      },
     })),
     ...[
       { name: 'offset timestamp', value: '2026-09-03T10:34:00+00:00' },
@@ -463,7 +507,9 @@ test('refuses every invalid contractual start-event value', async (t) => {
     ].map(({ name, value }) => ({
       name,
       code: 'v1-direct-model_start_timestamp_mismatch',
-      mutate: (start) => { start.startedAt = value; },
+      mutate: (start) => {
+        start.startedAt = value;
+      },
     })),
   ];
 
@@ -498,9 +544,8 @@ test('projects only a closed inference error code from execution error events', 
 
   const unknownError = await assertFirstPositiveFailure(
     'v1-direct-model_execution_error_event_present',
-    (_frames, request) => sse([
-      errorEvent(request.attribution.requestId, 'cerebras_uncontracted_detail'),
-    ]),
+    (_frames, request) =>
+      sse([errorEvent(request.attribution.requestId, 'cerebras_uncontracted_detail')]),
   );
   assert.deepEqual(canaryFailureResult(unknownError), {
     schemaVersion: 1,
@@ -521,7 +566,8 @@ test('reports the exact safe stage for every positive response-contract failure'
     {
       name: 'provider execution error event',
       code: 'v1-direct-model_execution_error_event_present',
-      mutate: (_frames, request) => sse([errorEvent(request.attribution.requestId, 'provider_error')]),
+      mutate: (_frames, request) =>
+        sse([errorEvent(request.attribution.requestId, 'provider_error')]),
     },
     {
       name: 'start event count',
@@ -557,19 +603,20 @@ test('reports the exact safe stage for every positive response-contract failure'
     {
       name: 'done event position',
       code: 'v1-direct-model_done_event_not_terminal',
-      mutate: (frames, request) => sse([
-        ...frames,
-        {
-          event: 'stream_event',
-          payload: {
-            schemaVersion: 1,
-            type: 'output_text_delta',
-            requestId: request.attribution.requestId,
-            sequence: 2,
-            delta: '',
+      mutate: (frames, request) =>
+        sse([
+          ...frames,
+          {
+            event: 'stream_event',
+            payload: {
+              schemaVersion: 1,
+              type: 'output_text_delta',
+              requestId: request.attribution.requestId,
+              sequence: 2,
+              delta: '',
+            },
           },
-        },
-      ]),
+        ]),
     },
     {
       name: 'receipt ownership',
@@ -660,31 +707,35 @@ test('lists the complete signed safe deployment projection without selecting or 
     }
     assert.equal(path, '/internal/v1/deployments/query');
     assert.deepEqual(body, {});
-    return json({
-      snapshotId: 'snap-live-exact',
-      deployments: [
-        {
-          deploymentId: 'dep_z_exact',
-          modelReference: 'openai/gpt-oss-120b@2026-08-05',
-          provider: 'cerebras',
-          regions: ['us-west-2'],
-        },
-        {
-          deploymentId: 'dep_a_exact',
-          modelReference: 'meta/llama-3.3-70b@2026-08-01',
-          provider: 'groq',
-          regions: [],
-        },
-      ],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId: 'snap-live-exact',
+        deployments: [
+          {
+            deploymentId: 'dep_z_exact',
+            modelReference: 'openai/gpt-oss-120b@2026-08-05',
+            provider: 'cerebras',
+            regions: ['us-west-2'],
+          },
+          {
+            deploymentId: 'dep_a_exact',
+            modelReference: 'meta/llama-3.3-70b@2026-08-01',
+            provider: 'groq',
+            regions: [],
+          },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
 
   const result = await readKaanaLiveDeployments(signingConfig, fetchImpl);
   assert.equal(result.snapshotId, 'snap-live-exact');
-  assert.deepEqual(result.deployments.map((deployment) => deployment.deploymentId), [
-    'dep_z_exact',
-    'dep_a_exact',
-  ]);
+  assert.deepEqual(
+    result.deployments.map((deployment) => deployment.deploymentId),
+    ['dep_z_exact', 'dep_a_exact'],
+  );
   assert.deepEqual(paths, ['/internal/v1/health', '/internal/v1/deployments/query']);
 });
 
@@ -694,22 +745,27 @@ test('refuses a readback descriptor that exposes any field outside the safe proj
     readAndVerifyRequest(publicKey, url, init);
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
-    return json({
-      snapshotId: 'snap-live-exact',
-      deployments: [{
-        deploymentId: DEPLOYMENT_ID,
-        modelReference: MODEL_REFERENCE,
-        provider: 'cerebras',
-        regions: [],
-        upstreamModelId: 'must-never-cross-the-operator-surface',
-      }],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId: 'snap-live-exact',
+        deployments: [
+          {
+            deploymentId: DEPLOYMENT_ID,
+            modelReference: MODEL_REFERENCE,
+            provider: 'cerebras',
+            regions: [],
+            upstreamModelId: 'must-never-cross-the-operator-surface',
+          },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
 
   await assert.rejects(
     () => readKaanaLiveDeployments(signingConfig, fetchImpl),
-    (error) => error instanceof KaanaCanaryError &&
-      error.code === 'invalid_deployment_descriptor',
+    (error) => error instanceof KaanaCanaryError && error.code === 'invalid_deployment_descriptor',
   );
 });
 
@@ -739,10 +795,14 @@ async function readbackDescriptor(descriptor) {
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     assert.equal(path, '/internal/v1/deployments/query');
-    return json({
-      snapshotId: 'snap-live-exact',
-      deployments: [descriptor],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId: 'snap-live-exact',
+        deployments: [descriptor],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
   return readKaanaLiveDeployments(signingConfig, fetchImpl);
 }
@@ -774,10 +834,13 @@ test('readback accepts the server-shaped acceptedParameters and projects only id
     ['absent (unknown)', IDENTITY_DESCRIPTOR],
     ['empty (takes none)', { ...IDENTITY_DESCRIPTOR, acceptedParameters: [] }],
     ['one control', { ...IDENTITY_DESCRIPTOR, acceptedParameters: ['maxOutputTokens'] }],
-    ['the full sorted vocabulary', {
-      ...IDENTITY_DESCRIPTOR,
-      acceptedParameters: SERVER_REQUEST_PARAMETERS,
-    }],
+    [
+      'the full sorted vocabulary',
+      {
+        ...IDENTITY_DESCRIPTOR,
+        acceptedParameters: SERVER_REQUEST_PARAMETERS,
+      },
+    ],
   ];
   for (const [name, descriptor] of cases) {
     await t.test(name, async () => {
@@ -796,25 +859,30 @@ test('readback accepts the server-shaped acceptedParameters and projects only id
 
 test('readback refuses every acceptedParameters the server could not have written', async (t) => {
   for (const [name, acceptedParameters] of INVALID_ACCEPTED_PARAMETERS) {
-    await t.test(name, () => assert.rejects(
-      () => readbackDescriptor({ ...IDENTITY_DESCRIPTOR, acceptedParameters }),
-      (error) => error instanceof KaanaCanaryError &&
-        error.code === 'invalid_deployment_descriptor',
-    ));
+    await t.test(name, () =>
+      assert.rejects(
+        () => readbackDescriptor({ ...IDENTITY_DESCRIPTOR, acceptedParameters }),
+        (error) =>
+          error instanceof KaanaCanaryError && error.code === 'invalid_deployment_descriptor',
+      ),
+    );
   }
 });
 
 test('readback still refuses an unknown extra field next to a valid acceptedParameters', async (t) => {
   for (const extra of ['upstreamModelId', 'AcceptedParameters', 'acceptedParams', 'observed']) {
-    await t.test(extra, () => assert.rejects(
-      () => readbackDescriptor({
-        ...IDENTITY_DESCRIPTOR,
-        acceptedParameters: ['maxOutputTokens'],
-        [extra]: ['maxOutputTokens'],
-      }),
-      (error) => error instanceof KaanaCanaryError &&
-        error.code === 'invalid_deployment_descriptor',
-    ));
+    await t.test(extra, () =>
+      assert.rejects(
+        () =>
+          readbackDescriptor({
+            ...IDENTITY_DESCRIPTOR,
+            acceptedParameters: ['maxOutputTokens'],
+            [extra]: ['maxOutputTokens'],
+          }),
+        (error) =>
+          error instanceof KaanaCanaryError && error.code === 'invalid_deployment_descriptor',
+      ),
+    );
   }
 });
 
@@ -824,10 +892,14 @@ function selectedRouteFetch(publicKey, descriptor, inferenceBodies) {
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
-      return json({
-        snapshotId: 'snap-live-exact',
-        deployments: [descriptor],
-      }, 200, { 'Cache-Control': 'no-store' });
+      return json(
+        {
+          snapshotId: 'snap-live-exact',
+          deployments: [descriptor],
+        },
+        200,
+        { 'Cache-Control': 'no-store' },
+      );
     }
     inferenceBodies.push(body);
     const index = inferenceBodies.length - 1;
@@ -840,11 +912,18 @@ function selectedRouteFetch(publicKey, descriptor, inferenceBodies) {
 test('selected route reads acceptedParameters but signs only the route identity', async () => {
   const { config, publicKey } = runtime();
   const inferenceBodies = [];
-  const result = await runKaanaSignedCanary(config, selectedRouteFetch(publicKey, {
-    ...IDENTITY_DESCRIPTOR,
-    regions: ['us-west-2'],
-    acceptedParameters: SERVER_REQUEST_PARAMETERS,
-  }, inferenceBodies));
+  const result = await runKaanaSignedCanary(
+    config,
+    selectedRouteFetch(
+      publicKey,
+      {
+        ...IDENTITY_DESCRIPTOR,
+        regions: ['us-west-2'],
+        acceptedParameters: SERVER_REQUEST_PARAMETERS,
+      },
+      inferenceBodies,
+    ),
+  );
 
   assert.equal(result.status, 'passed');
   assert.equal(result.providerRequests, 2);
@@ -877,12 +956,20 @@ test('selected route refuses an invalid acceptedParameters before any inference 
       const { config, publicKey } = runtime();
       const inferenceBodies = [];
       await assert.rejects(
-        () => runKaanaSignedCanary(config, selectedRouteFetch(publicKey, {
-          ...IDENTITY_DESCRIPTOR,
-          acceptedParameters,
-        }, inferenceBodies)),
-        (error) => error instanceof KaanaCanaryError &&
-          error.code === 'invalid_deployment_descriptor',
+        () =>
+          runKaanaSignedCanary(
+            config,
+            selectedRouteFetch(
+              publicKey,
+              {
+                ...IDENTITY_DESCRIPTOR,
+                acceptedParameters,
+              },
+              inferenceBodies,
+            ),
+          ),
+        (error) =>
+          error instanceof KaanaCanaryError && error.code === 'invalid_deployment_descriptor',
       );
       assert.equal(inferenceBodies.length, 0);
     });
@@ -898,15 +985,21 @@ test('refuses a changed serving snapshot before any inference probe', async () =
     const path = new URL(url).pathname;
     if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     assert.equal(path, '/internal/v1/deployments/query');
-    return json({
-      snapshotId: 'snap-changed-after-readback',
-      deployments: [{
-        deploymentId: DEPLOYMENT_ID,
-        modelReference: MODEL_REFERENCE,
-        provider: 'cerebras',
-        regions: [],
-      }],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId: 'snap-changed-after-readback',
+        deployments: [
+          {
+            deploymentId: DEPLOYMENT_ID,
+            modelReference: MODEL_REFERENCE,
+            provider: 'cerebras',
+            regions: [],
+          },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
 
   await assert.rejects(
@@ -941,7 +1034,10 @@ function realtimeRuntime() {
   return { env, config: readKaanaRealtimeCanaryConfig(env), publicKey };
 }
 
-function realtimeFetch(publicKey, { snapshotId = 'snap-live-exact', provider = 'xai-realtime' } = {}) {
+function realtimeFetch(
+  publicKey,
+  { snapshotId = 'snap-live-exact', provider = 'xai-realtime' } = {},
+) {
   const calls = [];
   const fetchImpl = async (url, init) => {
     readAndVerifyRequest(publicKey, url, init);
@@ -949,15 +1045,21 @@ function realtimeFetch(publicKey, { snapshotId = 'snap-live-exact', provider = '
     calls.push(path);
     if (path === '/internal/v1/health') return json({ contractVersion: '3.3.0' });
     assert.equal(path, '/internal/v1/deployments/query');
-    return json({
-      snapshotId,
-      deployments: [{
-        deploymentId: VOICE_DEPLOYMENT_ID,
-        modelReference: VOICE_MODEL_REFERENCE,
-        provider,
-        regions: [],
-      }],
-    }, 200, { 'Cache-Control': 'no-store' });
+    return json(
+      {
+        snapshotId,
+        deployments: [
+          {
+            deploymentId: VOICE_DEPLOYMENT_ID,
+            modelReference: VOICE_MODEL_REFERENCE,
+            provider,
+            regions: [],
+          },
+        ],
+      },
+      200,
+      { 'Cache-Control': 'no-store' },
+    );
   };
   return { fetchImpl, calls };
 }
@@ -965,9 +1067,10 @@ function realtimeFetch(publicKey, { snapshotId = 'snap-live-exact', provider = '
 /** An unmasked server frame. */
 function serverFrame(opcode, payload) {
   const length = payload.length;
-  const header = length < 126
-    ? Buffer.from([0x80 | opcode, length])
-    : Buffer.from([0x80 | opcode, 126, length >> 8, length & 0xff]);
+  const header =
+    length < 126
+      ? Buffer.from([0x80 | opcode, length])
+      : Buffer.from([0x80 | opcode, 126, length >> 8, length & 0xff]);
   return Buffer.concat([header, payload]);
 }
 
@@ -1016,7 +1119,9 @@ async function startFakeRealtimeKaana(publicKey, script, { refuseUpgrade } = {})
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
     if (refuseUpgrade !== undefined) {
-      socket.end(`HTTP/1.1 ${refuseUpgrade} Refused\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`);
+      socket.end(
+        `HTTP/1.1 ${refuseUpgrade} Refused\r\nContent-Length: 0\r\nConnection: close\r\n\r\n`,
+      );
       return;
     }
     assert.equal(request.url, '/internal/v1/realtime');
@@ -1025,7 +1130,7 @@ async function startFakeRealtimeKaana(publicKey, script, { refuseUpgrade } = {})
       .digest('base64');
     socket.write(
       'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
-      `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+        `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
     );
     const commands = [];
     const waiters = [];
@@ -1035,27 +1140,29 @@ async function startFakeRealtimeKaana(publicKey, script, { refuseUpgrade } = {})
       headers: request.headers,
       commands,
       send: (payload) => socket.write(serverFrame(0x1, Buffer.from(JSON.stringify(payload)))),
-      event: (payload) => connection.send({
-        schemaVersion: 1,
-        requestId: session.attribution.requestId,
-        sequence: sequence++,
-        ...payload,
-      }),
+      event: (payload) =>
+        connection.send({
+          schemaVersion: 1,
+          requestId: session.attribution.requestId,
+          sequence: sequence++,
+          ...payload,
+        }),
       close: (code = 1000) => {
         const body = Buffer.alloc(2);
         body.writeUInt16BE(code, 0);
         socket.write(serverFrame(0x8, body));
         socket.end();
       },
-      nextCommand: () => new Promise((resolve) => {
-        const ready = commands.find((command) => !command.taken);
-        if (ready !== undefined) {
-          ready.taken = true;
-          resolve(ready.command);
-        } else {
-          waiters.push(resolve);
-        }
-      }),
+      nextCommand: () =>
+        new Promise((resolve) => {
+          const ready = commands.find((command) => !command.taken);
+          if (ready !== undefined) {
+            ready.taken = true;
+            resolve(ready.command);
+          } else {
+            waiters.push(resolve);
+          }
+        }),
     };
     clientFrameReader(socket, (opcode, payload) => {
       if (opcode !== 0x1) return;
@@ -1089,12 +1196,13 @@ async function startFakeRealtimeKaana(publicKey, script, { refuseUpgrade } = {})
       dialled.push(url);
       return openSignedWebSocket(`ws://127.0.0.1:${port}/internal/v1/realtime`, headers);
     },
-    close: () => new Promise((resolve) => {
-      // Upgraded sockets are detached from the HTTP server's bookkeeping.
-      for (const socket of sockets) socket.destroy();
-      server.closeAllConnections?.();
-      server.close(() => resolve());
-    }),
+    close: () =>
+      new Promise((resolve) => {
+        // Upgraded sockets are detached from the HTTP server's bookkeeping.
+        for (const socket of sockets) socket.destroy();
+        server.closeAllConnections?.();
+        server.close(() => resolve());
+      }),
   };
 }
 
@@ -1103,7 +1211,12 @@ function verifyUpgrade(publicKey, headers, body) {
   const timestamp = headers['x-oxy-kaana-timestamp'];
   const raw = headers['x-oxy-kaana-signature'];
   if (typeof raw !== 'string' || !raw.startsWith('v1=')) return false;
-  return verify(null, signingInput(keyId, timestamp, body), publicKey, Buffer.from(raw.slice(3), 'base64'));
+  return verify(
+    null,
+    signingInput(keyId, timestamp, body),
+    publicKey,
+    Buffer.from(raw.slice(3), 'base64'),
+  );
 }
 
 function report(connection, outcome, units) {
@@ -1184,7 +1297,13 @@ function kaanaScript(overrides = {}) {
       });
       return;
     }
-    connection.event({ type: 'text.delta', responseId: 'resp-1', itemId: 'item-2', contentIndex: 0, text: 'OK' });
+    connection.event({
+      type: 'text.delta',
+      responseId: 'resp-1',
+      itemId: 'item-2',
+      contentIndex: 0,
+      text: 'OK',
+    });
     connection.event({
       type: 'response.done',
       responseId: 'resp-1',
@@ -1226,10 +1345,10 @@ test('realtime: refuses an unknown route, then runs ONE signed push-to-talk text
     assert.equal(result.oxyLedgerWrites, 0);
     assert.equal(result.snapshotId, 'snap-live-exact');
     assert.equal(result.modelReference, VOICE_MODEL_REFERENCE);
-    assert.deepEqual(result.cases.map((entry) => entry.name), [
-      'realtime-unknown-deployment_rejected',
-      'realtime-push-to-talk-text',
-    ]);
+    assert.deepEqual(
+      result.cases.map((entry) => entry.name),
+      ['realtime-unknown-deployment_rejected', 'realtime-push-to-talk-text'],
+    );
     assert.deepEqual(result.cases[1].units, [{ unit: 'requests', quantity: 1 }]);
     assert.equal(result.cases[1].outcome, 'completed');
 
@@ -1237,15 +1356,20 @@ test('realtime: refuses an unknown route, then runs ONE signed push-to-talk text
     // Both first frames are signed over their exact bytes.
     assert.equal(refused.verified, true);
     assert.equal(served.verified, true);
-    assert.match(refused.request.authorizedRoutes[0].deploymentId, /^dep_canary_unknown_[0-9a-f]{32}$/);
+    assert.match(
+      refused.request.authorizedRoutes[0].deploymentId,
+      /^dep_canary_unknown_[0-9a-f]{32}$/,
+    );
     const request = served.request;
-    assert.deepEqual(request.authorizedRoutes, [{
-      substitution: 'same_model',
-      deploymentId: VOICE_DEPLOYMENT_ID,
-      modelReference: VOICE_MODEL_REFERENCE,
-      provider: 'xai-realtime',
-      regions: [],
-    }]);
+    assert.deepEqual(request.authorizedRoutes, [
+      {
+        substitution: 'same_model',
+        deploymentId: VOICE_DEPLOYMENT_ID,
+        modelReference: VOICE_MODEL_REFERENCE,
+        provider: 'xai-realtime',
+        regions: [],
+      },
+    ]);
     assert.equal(request.modelReference, VOICE_MODEL_REFERENCE);
     assert.equal(request.kind, 'conversation');
     assert.deepEqual(request.config.turnDetection, { type: 'none' });
@@ -1255,14 +1379,17 @@ test('realtime: refuses an unknown route, then runs ONE signed push-to-talk text
     assert.equal(request.limits.maxResponses, 1);
     assert.ok(request.limits.maxOutputAudioBytes <= 48_000);
     assert.equal(request.routingPolicy.policyVersion, 7);
-    assert.deepEqual(served.commands.map((entry) => entry.command.type), [
-      'conversation.item.create',
-      'response.create',
-      'session.close',
-    ]);
+    assert.deepEqual(
+      served.commands.map((entry) => entry.command.type),
+      ['conversation.item.create', 'response.create', 'session.close'],
+    );
     // A tampered frame does not verify: the check above is not vacuous.
     assert.equal(
-      verifyUpgrade(publicKey, served.headers, Buffer.from(served.firstFrame.toString('utf8').replace('OK', 'KO'))),
+      verifyUpgrade(
+        publicKey,
+        served.headers,
+        Buffer.from(served.firstFrame.toString('utf8').replace('OK', 'KO')),
+      ),
       false,
     );
   } finally {
@@ -1277,7 +1404,8 @@ test('realtime: a session that opens for an unknown deployment fails before the 
   try {
     await assert.rejects(
       () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
-      (error) => error instanceof KaanaCanaryError &&
+      (error) =>
+        error instanceof KaanaCanaryError &&
         error.code === 'realtime-unknown-deployment_reached_execution',
     );
     assert.equal(kaana.dialled.length, 1);
@@ -1293,7 +1421,8 @@ test('realtime: refuses a session.created that names another serving provider', 
   try {
     await assert.rejects(
       () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
-      (error) => error instanceof KaanaCanaryError &&
+      (error) =>
+        error instanceof KaanaCanaryError &&
         error.code === 'realtime-push-to-talk-text_session_provider_mismatch',
     );
   } finally {
@@ -1311,8 +1440,10 @@ test('realtime: projects only a closed error code when the session reports an er
       () => runKaanaRealtimeCanary(config, fetchImpl, kaana.dial),
       (error) => {
         captured = error;
-        return error instanceof KaanaCanaryError &&
-          error.code === 'realtime-push-to-talk-text_execution_error_event_present';
+        return (
+          error instanceof KaanaCanaryError &&
+          error.code === 'realtime-push-to-talk-text_execution_error_event_present'
+        );
       },
     );
     assert.deepEqual(realtimeCanaryFailureResult(captured), {
@@ -1333,7 +1464,12 @@ test('realtime: a changed snapshot or a refused upgrade fails without a provider
   const changed = await startFakeRealtimeKaana(publicKey, kaanaScript());
   try {
     await assert.rejects(
-      () => runKaanaRealtimeCanary(config, realtimeFetch(publicKey, { snapshotId: 'snap-moved' }).fetchImpl, changed.dial),
+      () =>
+        runKaanaRealtimeCanary(
+          config,
+          realtimeFetch(publicKey, { snapshotId: 'snap-moved' }).fetchImpl,
+          changed.dial,
+        ),
       (error) => error instanceof KaanaCanaryError && error.code === 'snapshot_id_mismatch',
     );
     assert.equal(changed.dialled.length, 0);
@@ -1355,9 +1491,13 @@ test('realtime: reads no routing profile and still refuses fuzzy inputs before a
   const { env } = realtimeRuntime();
   assert.equal('routingProfileId' in readKaanaRealtimeCanaryConfig(env), false);
   assert.throws(
-    () => readKaanaRealtimeCanaryConfig({ ...env, CANARY_DEPLOYMENT_ID: ` ${VOICE_DEPLOYMENT_ID}` }),
+    () =>
+      readKaanaRealtimeCanaryConfig({ ...env, CANARY_DEPLOYMENT_ID: ` ${VOICE_DEPLOYMENT_ID}` }),
     (error) => error instanceof KaanaCanaryError && error.code === 'invalid_canary_deployment_id',
   );
-  assert.equal(kaanaRealtimeUrl('http://10.21.2.34:8080'), 'ws://10.21.2.34:8080/internal/v1/realtime');
+  assert.equal(
+    kaanaRealtimeUrl('http://10.21.2.34:8080'),
+    'ws://10.21.2.34:8080/internal/v1/realtime',
+  );
   assert.equal(kaanaRealtimeUrl('https://kaana.ai'), 'wss://kaana.ai/internal/v1/realtime');
 });

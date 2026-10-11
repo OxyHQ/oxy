@@ -246,9 +246,11 @@ describe('HttpKaanaCredentialControl', () => {
   });
 
   it('refuses a mismatched outcome instead of inferring success', async () => {
-    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(applied('different_operation', 'rotate', 2)), { status: 200 }),
-    );
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify(applied('different_operation', 'rotate', 2)), { status: 200 }),
+      );
     await expect(
       new HttpKaanaCredentialControl(config).outcome({
         schemaVersion: 1,

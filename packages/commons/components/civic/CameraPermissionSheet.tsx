@@ -48,9 +48,7 @@ export function CameraPermissionSheet({
   const handleOpenSettings = useCallback(() => {
     leftForSettingsRef.current = true;
     const opening =
-      Platform.OS === 'ios'
-        ? Linking.openURL('app-settings:')
-        : Linking.openSettings();
+      Platform.OS === 'ios' ? Linking.openURL('app-settings:') : Linking.openSettings();
     void opening.catch(() => {
       leftForSettingsRef.current = false;
     });

@@ -62,7 +62,7 @@ See [Redis & Valkey](REDIS.md) for the rate-limiter and Socket.IO adapter wiring
 
 ## Secrets
 
-GitHub Actions repo secrets are the **source of truth**. The deploy workflow (`.github/workflows/deploy-aws.yml`) syncs them into SSM Parameter Store under the per-app parameter namespace and the shared parameter namespace on every run. ECS task definitions inject the SSM parameters at task launch.
+SSM Parameter Store is the **only source**: per-app secrets under `/oxy/oxy-api/*` (SecureString), shared ones under `/oxy/_shared/*` (owned by oxy-infra). ECS task definitions inject the SSM parameters at task launch. The deploy workflow (`.github/workflows/deploy-aws.yml`) writes no parameter and reads no repo secret; a value is set or rotated with `aws ssm put-parameter --overwrite` by its owner (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`). Until 2026-10-10 the deploy copied GitHub repo secrets into SSM on every run; that path is gone.
 
 Shared parameters (the shared parameter namespace) include AWS access-key variables (for app-level S3/SES access where IAM roles aren't used), shared runtime variables.
 

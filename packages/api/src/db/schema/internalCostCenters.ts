@@ -86,16 +86,13 @@ export const internalCostCenters = pgTable(
 
     check(
       'internal_cost_centers_status_check',
-      sql`${t.status} in (${sql.raw(inList(COST_CENTER_STATUS_VALUES))})`
+      sql`${t.status} in (${sql.raw(inList(COST_CENTER_STATUS_VALUES))})`,
     ),
     // The same grammar `costCenterSchema` declares on the wire, so a slug cannot
     // be storable and unserialisable.
     check('internal_cost_centers_slug_check', sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{0,62}$'`),
-    check(
-      'internal_cost_centers_label_check',
-      sql`length(${t.label}) between 1 and 120`
-    ),
-  ]
+    check('internal_cost_centers_label_check', sql`length(${t.label}) between 1 and 120`),
+  ],
 );
 
 export type InternalCostCenterRow = typeof internalCostCenters.$inferSelect;

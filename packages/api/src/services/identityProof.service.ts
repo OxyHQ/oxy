@@ -44,7 +44,10 @@ export function proofInvalid(message = 'Invalid or expired identity proof'): Api
 }
 
 /** The linked root, lowercase, or `null`. */
-export async function readLinkedRoot(db: DatabaseOrTransaction, userId: string): Promise<{ kind: string; publicKey: string | null } | null> {
+export async function readLinkedRoot(
+  db: DatabaseOrTransaction,
+  userId: string,
+): Promise<{ kind: string; publicKey: string | null } | null> {
   const [row] = await db
     .select({ kind: users.kind, publicKey: users.publicKey })
     .from(users)
@@ -73,13 +76,15 @@ export async function mintIdentityProofChallenge(
   }
   const challenge = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(now.getTime() + IDENTITY_PROOF_CHALLENGE_TTL_MS);
-  await getDb().insert(identityProofChallenges).values({
-    userId,
-    action,
-    challengeHash: sha256Hex(challenge),
-    rootPublicKey: account.publicKey,
-    expiresAt,
-  });
+  await getDb()
+    .insert(identityProofChallenges)
+    .values({
+      userId,
+      action,
+      challengeHash: sha256Hex(challenge),
+      rootPublicKey: account.publicKey,
+      expiresAt,
+    });
   return { challenge, expiresAt: expiresAt.getTime(), audience: IDENTITY_PROOF_AUDIENCE };
 }
 
@@ -104,9 +109,14 @@ export interface VerifyIdentityProofInput {
  * The signature is checked BEFORE the burn, so a forged proof cannot spend a
  * live challenge its owner is about to use.
  */
-export async function verifyIdentityProof(db: DatabaseOrTransaction, input: VerifyIdentityProofInput, now: Date = new Date()): Promise<void> {
+export async function verifyIdentityProof(
+  db: DatabaseOrTransaction,
+  input: VerifyIdentityProofInput,
+  now: Date = new Date(),
+): Promise<void> {
   const { proof } = input;
-  if (proof.expiresAt <= now.getTime()) throw proofInvalid('The identity proof expired — please try again');
+  if (proof.expiresAt <= now.getTime())
+    throw proofInvalid('The identity proof expired — please try again');
 
   let message: string;
   try {

@@ -32,10 +32,8 @@ import { BloomThemeProvider } from '@oxy.so/bloom/theme';
 // Your app's registered OAuth client id (the `ApplicationCredential` publicKey
 // from the Oxy Console). Public value — safe to commit; override via
 // `EXPO_PUBLIC_OXY_CLIENT_ID`.
-const OXY_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ?? 'oxy_dk_your_client_id';
-const OXY_API_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
+const OXY_CLIENT_ID = process.env.EXPO_PUBLIC_OXY_CLIENT_ID ?? 'oxy_dk_your_client_id';
+const OXY_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
 
 // ==================== 2. App root ====================
 
@@ -93,8 +91,8 @@ function WelcomeScreen() {
       <OxySignInButton variant="contained" />
 
       <Text style={styles.footer}>
-        Already signed into another Oxy app on this device? You'll be signed in
-        automatically via the shared keychain.
+        Already signed into another Oxy app on this device? You'll be signed in automatically via
+        the shared keychain.
       </Text>
     </View>
   );
@@ -117,8 +115,7 @@ function Dashboard({ user }: { user: User }) {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>You're signed in!</Text>
         <Text style={styles.cardText}>
-          Open any other Oxy app and the SDK restores this session — no
-          re-authentication needed.
+          Open any other Oxy app and the SDK restores this session — no re-authentication needed.
         </Text>
       </View>
 

@@ -2,14 +2,8 @@
  * Reputation LEDGER semantics (#217) and the derived snapshot (#219), against a
  * real Postgres.
  *
- * The suite this replaces shipped a ~300-line hand-written Mongo emulator: nine
- * in-memory document stores, a `matchesQuery` that re-implemented `$gt`/`$in`/
- * `$exists`/`$ne`, chainable `sort/skip/limit/session/select/lean` stubs, and a
- * fake `.save()`. Every assertion was therefore a statement about that
- * emulator's fidelity, and its `expect(txnStore.docs.length).toBe(1)` checks
- * read the emulator's array rather than a table.
- *
- * The ledger's invariants are exactly the ones an emulator cannot vouch for:
+ * An in-memory emulator would make every assertion a statement about the
+ * emulator's fidelity rather than a table. The ledger's invariants are exactly the ones an emulator cannot vouch for:
  *
  *  - **Transactions are NEVER deleted.** A correction is a `reversed` original
  *    plus a compensating `active` entry — so the history stays auditable and
@@ -19,8 +13,7 @@
  *    service after the write, and the reversal cases assert the pair nets to
  *    zero while BOTH rows survive in the table.
  *  - **The multi-write paths are atomic.** Postgres has real transactions in
- *    every deployment, so the Mongo `withTransaction` fallback that silently
- *    re-ran the work session-lessly is deleted rather than translated.
+ *    every deployment, so there is no non-transactional fallback.
  *
  * Award idempotency on `(application_id, source_action_id)` and the
  * transactional atomicity of the award are covered against the partial unique
@@ -80,7 +73,7 @@ function seedRule(
   actionType: string,
   points: number,
   category: ReputationCategory,
-  cooldownInMinutes = 0
+  cooldownInMinutes = 0,
 ): string {
   mockTestRules.set(actionType, {
     actionType,
@@ -191,7 +184,7 @@ describe('award moves the balance by the rule’s points', () => {
     const userId = await makeUser();
 
     await expect(
-      reputationService.award({ userId, actionType: actionKey('nope') })
+      reputationService.award({ userId, actionType: actionKey('nope') }),
     ).rejects.toThrow(/Unknown reputation action/);
     expect(await ledgerRows(userId)).toEqual([]);
   });
@@ -202,7 +195,7 @@ describe('award moves the balance by the rule’s points', () => {
 
     await reputationService.award({ userId, actionType: action });
     await expect(reputationService.award({ userId, actionType: action })).rejects.toThrow(
-      /cooldown/i
+      /cooldown/i,
     );
 
     // The refusal must not have banked a second point.
@@ -327,18 +320,18 @@ describe('recalculateBalance re-derives the total from the ACTIVE rows', () => {
           applicationId,
           sourceActionId: `c-${uniqueId()}`,
           sourceActionType: REPORT_CONFIRMED_ACTION,
-        })
+        }),
       );
     }
 
     expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
-      3
+      3,
     );
 
     await reputationService.reverseTransaction(awarded[0].id, {});
 
     expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
-      2
+      2,
     );
   });
 
@@ -416,8 +409,8 @@ describe('getInfluence', () => {
 
     const byContext = await Promise.all(
       (['default', 'report', 'moderation', 'ranking'] as const).map((context) =>
-        reputationService.getInfluence(userId, context)
-      )
+        reputationService.getInfluence(userId, context),
+      ),
     );
 
     for (const result of byContext) {
@@ -477,8 +470,8 @@ describe('the ledger row records what it was awarded for', () => {
       .where(
         and(
           eq(reputationTransactions.userId, userId),
-          eq(reputationTransactions.sourceActionId, sourceActionId)
-        )
+          eq(reputationTransactions.sourceActionId, sourceActionId),
+        ),
       );
 
     expect(row).toMatchObject({

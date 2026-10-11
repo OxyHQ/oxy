@@ -3,23 +3,20 @@
  * sessions.
  *
  * A "device" is not a row: it is the set of sessions sharing one `device_id`,
- * collapsed to the most recently active one. Mongo's `deviceInfo` subdocument is
- * flattened into columns here (`device_name`, `device_type`, `last_active_at`),
- * so the grouping reads the columns directly.
+ * collapsed to the most recently active one. The device fields are columns
+ * (`device_name`, `device_type`, `last_active_at`), so the grouping reads the
+ * columns directly.
  *
- * ## Why the "keep the more recent one" comparison is gone
+ * ## No "keep the more recent one" comparison
  *
- * The Mongo version sorted by `deviceInfo.lastActive` descending and THEN
- * re-compared each session against the one already in the map, because
- * `lastActive` was optional on the subdocument and a missing value sorts
- * unpredictably. `sessions.last_active_at` is `NOT NULL DEFAULT now()`, so
+ * `sessions.last_active_at` is `NOT NULL DEFAULT now()`, so
  * `order by last_active_at desc` is total: the first row seen for a device IS
- * the most recently active one, and the second pass could only ever confirm
- * that. It is dropped rather than transliterated.
+ * the most recently active one, and a second comparison could only ever
+ * confirm that.
  *
  * ## Expiry is filtered on the READ, not left to the sweep
  *
- * `expires_at > now()` travels verbatim from the Mongo query. The expiry sweep
+ * `expires_at > now()` is filtered here. The expiry sweep
  * (`db/expiry.ts`) lags by one interval, so dropping this filter would let an
  * expired session keep listing a device the user believes they signed out of.
  */
@@ -83,8 +80,8 @@ export class DevicesController {
           and(
             eq(sessions.userId, user._id),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .orderBy(desc(sessions.lastActiveAt));
 
@@ -108,9 +105,9 @@ export class DevicesController {
           continue;
         }
 
-        // `||` rather than `??`, deliberately: Mongoose stored these as free
-        // strings, so `''` is representable and has always rendered as the
-        // placeholder. `??` would start serving an empty name.
+        // `||` rather than `??`, deliberately: these are free strings, so `''`
+        // is representable and renders as the placeholder. `??` would serve an
+        // empty name.
         deviceMap.set(row.deviceId, {
           id: row.deviceId,
           deviceId: row.deviceId,
@@ -153,7 +150,8 @@ export class DevicesController {
       if (currentDeviceId && deviceId === currentDeviceId) {
         return res.status(400).json({
           error: 'Cannot remove current device',
-          message: 'You cannot remove your current device. Please use another device to remove this one.'
+          message:
+            'You cannot remove your current device. Please use another device to remove this one.',
         });
       }
 
@@ -166,8 +164,8 @@ export class DevicesController {
             eq(sessions.userId, user._id),
             eq(sessions.deviceId, deviceId),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         );
 
       if (userDeviceSessions.length === 0) {
@@ -187,12 +185,12 @@ export class DevicesController {
       emitSessionUpdate(user._id, {
         type: 'device_removed',
         deviceId: deviceId,
-        sessionIds: sessionIds
+        sessionIds: sessionIds,
       });
 
       res.json({
         success: true,
-        message: 'Device removed successfully'
+        message: 'Device removed successfully',
       });
     } catch (error) {
       logger.error('Remove device error:', error);

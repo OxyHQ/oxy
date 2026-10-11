@@ -13,7 +13,9 @@ jest.mock('../../services/deviceSession.service', () => ({
   },
 }));
 
-jest.mock('../logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
+jest.mock('../logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
 
 import { resolveSocketIdentity, type SocketHandshakeAuthInput } from '../socketAuth';
 import { socketRoomsFor } from '../socket';
@@ -37,7 +39,10 @@ beforeEach(() => {
 describe('resolveSocketIdentity', () => {
   it('resolves an authenticated user identity from a valid bearer', async () => {
     const id = await resolveSocketIdentity(handshake({ auth: { token: 'valid.jwt.here' } }));
-    expect(id).toEqual({ kind: 'user', user: expect.objectContaining({ id: 'u1', deviceId: 'd1' }) });
+    expect(id).toEqual({
+      kind: 'user',
+      user: expect.objectContaining({ id: 'u1', deviceId: 'd1' }),
+    });
     expect(mockVerify).toHaveBeenCalledWith('valid.jwt.here', SECRET);
   });
 
@@ -57,7 +62,9 @@ describe('resolveSocketIdentity', () => {
   });
 
   it('rejects (null) when the bearer is present but invalid', async () => {
-    mockVerify.mockImplementation(() => { throw new Error('invalid signature'); });
+    mockVerify.mockImplementation(() => {
+      throw new Error('invalid signature');
+    });
     const id = await resolveSocketIdentity(handshake({ auth: { token: 'not-a-jwt' } }));
     expect(id).toBeNull();
   });
@@ -84,7 +91,10 @@ describe('resolveSocketIdentity', () => {
 
 describe('socketRoomsFor', () => {
   it('an authenticated user joins BOTH the user and device rooms', () => {
-    expect(socketRoomsFor({ user: { id: 'u1', deviceId: 'd1' } })).toEqual(['user:u1', 'device:d1']);
+    expect(socketRoomsFor({ user: { id: 'u1', deviceId: 'd1' } })).toEqual([
+      'user:u1',
+      'device:d1',
+    ]);
   });
 
   it('a device-only socket joins only the device room', () => {

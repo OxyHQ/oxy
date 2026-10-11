@@ -10,11 +10,13 @@ import {
 
 describe('server telemetry primitives', () => {
   it('prefers a validated forwarded PoP and accepts Cloudflare ray fallback', () => {
-    expect(metadataFromHeaders({
-      'x-oxy-edge-region': 'MAD',
-      'cf-ray': 'deadbeef-CDG',
-      'x-oxy-activity-id': 'anonymous-runtime-a1',
-    })).toEqual({ edgePop: 'mad', activityId: 'anonymous-runtime-a1' });
+    expect(
+      metadataFromHeaders({
+        'x-oxy-edge-region': 'MAD',
+        'cf-ray': 'deadbeef-CDG',
+        'x-oxy-activity-id': 'anonymous-runtime-a1',
+      }),
+    ).toEqual({ edgePop: 'mad', activityId: 'anonymous-runtime-a1' });
     expect(metadataFromHeaders({ 'cf-ray': 'deadbeef-CDG' })).toEqual({ edgePop: 'cdg' });
   });
 

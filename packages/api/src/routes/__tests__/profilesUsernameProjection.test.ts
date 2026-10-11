@@ -2,12 +2,9 @@
  * `GET /profiles/username/:username` — protected-column leak guard, over a REAL
  * row that actually carries every protected value.
  *
- * The subject is unchanged from the Mongo era; the mechanism it guards is not.
- * Mongoose's `select: false` kept `phone` / `refreshToken` / the contact hashes
- * out of a query result unless a caller named them, and this suite used to
- * reproduce that by applying the route's `.select()` string with MongoDB's
- * semantics. Drizzle enumerates columns instead, so the guarantee now rests on
- * the route selecting `publicUserColumns` — an INCLUSION list — and nothing in a
+ * `phone` / `refreshToken` / the contact hashes must stay out of the response.
+ * Drizzle enumerates columns, so the guarantee rests on the route selecting
+ * `publicUserColumns` — an INCLUSION list — and nothing in a
  * type checker notices if a future edit spreads the whole table in beside it.
  *
  * So the assertion is driven by the registry (`USERS_PROTECTED_COLUMNS`) rather
@@ -24,7 +21,6 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
-
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -116,7 +112,9 @@ async function seedUserWithEverySecret(): Promise<SeededSecrets> {
   return { username, id: inserted.id, values };
 }
 
-function lookup(username: string): Promise<{ status: number; raw: string; body: { data?: Record<string, unknown> } }> {
+function lookup(
+  username: string,
+): Promise<{ status: number; raw: string; body: { data?: Record<string, unknown> } }> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -202,7 +200,11 @@ describe('GET /profiles/username/:username — protected columns', () => {
     expect(res.body.data?.username).toBe(seeded.username);
     expect(res.body.data?.avatar).toBe('file_public');
     expect(res.body.data?.bio).toBe('public bio');
-    expect(res.body.data?.name).toEqual({ displayName: 'Secretive', first: 'Secretive', full: 'Secretive' });
+    expect(res.body.data?.name).toEqual({
+      displayName: 'Secretive',
+      first: 'Secretive',
+      full: 'Secretive',
+    });
     expect(res.body.data?._count).toEqual({ followers: 0, following: 0 });
   });
 

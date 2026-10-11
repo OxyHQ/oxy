@@ -642,9 +642,7 @@ export function budgetScopeDescription(budget: Budget): string {
  * Reads `utilizationBps`, the server's own figure, so the badge and the
  * enforcement can never disagree about how full a budget is.
  */
-export function budgetUtilizationVariant(
-  budget: Budget
-): 'default' | 'secondary' | 'destructive' {
+export function budgetUtilizationVariant(budget: Budget): 'default' | 'secondary' | 'destructive' {
   if (budget.status === 'disabled') {
     return 'secondary';
   }

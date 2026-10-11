@@ -1,6 +1,6 @@
 /**
  * User Routes
- * 
+ *
  * RESTful API routes for user management, following enterprise-grade patterns:
  * - Separation of concerns (routes -> service -> model)
  * - Consistent error handling
@@ -16,11 +16,7 @@ import { users } from '../db/schema/users';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
-import {
-  FOLLOW_GRAPH_SORTS,
-  isFollowGraphSort,
-  type FollowGraphSort,
-} from '../types/user.types';
+import { FOLLOW_GRAPH_SORTS, isFollowGraphSort, type FollowGraphSort } from '../types/user.types';
 import {
   ApiError,
   NotFoundError,
@@ -29,7 +25,7 @@ import {
   ConflictError,
   BadRequestError,
 } from '../utils/error';
-import {readProfilePersonalization} from '../services/profilePersonalization.service';
+import { readProfilePersonalization } from '../services/profilePersonalization.service';
 import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { assetService } from '../services/assetServiceSingleton';
@@ -104,11 +100,6 @@ const usersController = new UsersController();
 // Middleware
 // ============================================================================
 
-/**
- * Resolves userId parameter (ObjectId or publicKey) to MongoDB ObjectId
- * Accepts both ObjectId strings and publicKey strings
- * Stores the resolved ObjectId back in req.params.userId
- */
 /** 404 when the target user is archived, restricted, or private — same gate as /similar. */
 async function assertDiscoverableTargetUser(userId: string): Promise<void> {
   const user = await userService.getPublicUserById(userId);
@@ -117,10 +108,14 @@ async function assertDiscoverableTargetUser(userId: string): Promise<void> {
   }
 }
 
+/**
+ * Resolves the userId parameter (account id or publicKey) to the account id and
+ * stores it back in req.params.userId.
+ */
 const resolveUserId = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { userId } = req.params;
-    
+
     if (!userId) {
       res.status(400).json({
         error: 'BAD_REQUEST',
@@ -131,10 +126,10 @@ const resolveUserId = async (req: Request, res: Response, next: NextFunction): P
 
     // Resolve userId (ObjectId or publicKey) to ObjectId
     const resolvedObjectId = await resolveUserIdToObjectId(userId);
-    
+
     // Store the resolved ObjectId back in params for route handlers
     req.params.userId = resolvedObjectId;
-    
+
     next();
   } catch (error) {
     if (error instanceof BadRequestError) {
@@ -151,7 +146,10 @@ const resolveUserId = async (req: Request, res: Response, next: NextFunction): P
       });
       return;
     }
-    logger.error('Error resolving user ID', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error resolving user ID',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     res.status(500).json({
       error: 'INTERNAL_SERVER_ERROR',
       message: 'Error resolving user ID',
@@ -218,7 +216,11 @@ const readFollowGraphSort = (req: Request): FollowGraphSort | undefined => {
  * Note: This middleware should be used after resolveUserId, so req.params.userId is already an ObjectId
  * We need to resolve req.user.id (which might be a publicKey) to ObjectId for comparison
  */
-const requireOwnership = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+const requireOwnership = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
   try {
     const userId = req.params.userId; // Already resolved to ObjectId by resolveUserId middleware
     const currentUserId = req.user?.id;
@@ -239,7 +241,10 @@ const requireOwnership = async (req: AuthRequest, res: Response, next: NextFunct
     if (error instanceof UnauthorizedError || error instanceof ForbiddenError) {
       throw error;
     }
-    logger.error('Error in requireOwnership middleware', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error in requireOwnership middleware',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new ForbiddenError('Error validating ownership');
   }
 };
@@ -304,13 +309,12 @@ router.get(
     }
 
     logger.debug('GET /users/me', { userId: req.user.id });
-    res.set('Cache-Control','no-store');
-    sendSuccess(
-      res,
-      {...userService.formatUserResponse(user, undefined, { includePrivateFields: true }),
-        personalization:await readProfilePersonalization(req.user.id)}
-    );
-  })
+    res.set('Cache-Control', 'no-store');
+    sendSuccess(res, {
+      ...userService.formatUserResponse(user, undefined, { includePrivateFields: true }),
+      personalization: await readProfilePersonalization(req.user.id),
+    });
+  }),
 );
 
 /**
@@ -408,11 +412,7 @@ router.put(
     });
 
     try {
-      const updatedUser = await userService.updateUserProfile(
-        req.user.id,
-        req.body,
-        req
-      );
+      const updatedUser = await userService.updateUserProfile(req.user.id, req.body, req);
 
       // Profile media (avatar/banner) must be publicly viewable: an <img> can't
       // send a bearer token, so a private asset renders as a 403 placeholder.
@@ -430,12 +430,11 @@ router.put(
         updatedFields: Object.keys(req.body),
       });
 
-      res.set('Cache-Control','no-store');
-      sendSuccess(
-        res,
-        {...userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true }),
-          personalization:await readProfilePersonalization(req.user.id)}
-      );
+      res.set('Cache-Control', 'no-store');
+      sendSuccess(res, {
+        ...userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true }),
+        personalization: await readProfilePersonalization(req.user.id),
+      });
     } catch (error) {
       // Handle known errors from service layer
       if (error instanceof Error) {
@@ -451,7 +450,7 @@ router.put(
       }
       throw error;
     }
-  })
+  }),
 );
 
 /**
@@ -504,7 +503,7 @@ router.post(
       results: result.results,
       followedCount: result.followedCount,
     });
-  })
+  }),
 );
 
 /**
@@ -558,7 +557,7 @@ router.post(
       results: result.results,
       unfollowedCount: result.unfollowedCount,
     });
-  })
+  }),
 );
 
 /**
@@ -595,7 +594,9 @@ router.post(
       throw new BadRequestError('userIds must not be empty');
     }
     if (userIds.length > MAX_BULK_FOLLOW) {
-      throw new BadRequestError(`Cannot request more than ${MAX_BULK_FOLLOW} follow statuses at once`);
+      throw new BadRequestError(
+        `Cannot request more than ${MAX_BULK_FOLLOW} follow statuses at once`,
+      );
     }
 
     const statuses = await userService.getFollowingStatuses(currentUserId, userIds);
@@ -606,7 +607,7 @@ router.post(
     });
 
     sendSuccess(res, { statuses });
-  })
+  }),
 );
 
 /**
@@ -641,7 +642,7 @@ router.post(
 
     logger.debug('POST /users/by-ids', { requested: ids.length, resolved: users.length });
     sendSuccess(res, users);
-  })
+  }),
 );
 
 /**
@@ -687,7 +688,7 @@ router.get(
     });
 
     sendSuccess(res, ids);
-  })
+  }),
 );
 
 /**
@@ -735,7 +736,7 @@ router.get(
     });
 
     sendSuccess(res, ids);
-  })
+  }),
 );
 
 /**
@@ -797,7 +798,7 @@ router.get(
     });
 
     sendSuccess(res, graph);
-  })
+  }),
 );
 
 /**
@@ -817,11 +818,7 @@ router.get(
 
     const user = await userService.getPublicUserById(userId);
 
-    if (
-      !user ||
-      user.accountStatus === 'archived' ||
-      user.reputationTier === 'restricted'
-    ) {
+    if (!user || user.accountStatus === 'archived' || user.reputationTier === 'restricted') {
       throw new NotFoundError('User not found');
     }
 
@@ -842,14 +839,14 @@ router.get(
 
     logger.debug('GET /users/:userId', { userId });
     sendSuccess(res, await userService.withExternalIdentities(response));
-  })
+  }),
 );
 
 /**
  * GET /users/:userId/followers
- * 
+ *
  * Get user's followers with pagination
- * 
+ *
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
@@ -888,14 +885,14 @@ router.get(
     });
 
     sendPaginated(res, result.data, result.total, result.limit, result.offset);
-  })
+  }),
 );
 
 /**
  * GET /users/:userId/following
- * 
+ *
  * Get users that this user is following with pagination
- * 
+ *
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
@@ -934,7 +931,7 @@ router.get(
     });
 
     sendPaginated(res, result.data, result.total, result.limit, result.offset);
-  })
+  }),
 );
 
 /**
@@ -995,7 +992,7 @@ router.get(
     });
 
     sendPaginated(res, result.data, result.total, result.limit, result.offset);
-  })
+  }),
 );
 
 /**
@@ -1027,14 +1024,14 @@ router.get(
     });
 
     sendSuccess(res, { isFollowing });
-  })
+  }),
 );
 
 /**
  * POST /users/:userId/follow
- * 
+ *
  * Toggle follow relationship (follow if not following, unfollow if following)
- * 
+ *
  * @param {string} userId - Target user ID to follow/unfollow
  * @returns {object} Action result with updated counts
  */
@@ -1075,14 +1072,14 @@ router.post(
       }
       throw error;
     }
-  })
+  }),
 );
 
 /**
  * DELETE /users/:userId/follow
- * 
+ *
  * Unfollow a user
- * 
+ *
  * @param {string} userId - Target user ID to unfollow
  * @returns {object} Action result with updated counts
  */
@@ -1118,14 +1115,14 @@ router.delete(
       action: result.action,
       counts: result.counts,
     });
-  })
+  }),
 );
 
 /**
  * PUT /users/:userId/privacy
- * 
+ *
  * Update user privacy settings (requires ownership)
- * 
+ *
  * @param {string} userId - User ID
  * @body {object} privacySettings - Privacy settings object
  * @returns {User} Updated user object
@@ -1144,8 +1141,7 @@ router.put(
     }
 
     // Merge only the provided fields. Replacing the whole settings object would
-    // wipe every toggle the client did not include, which is what Mongo's
-    // dot-path `$set` existed to avoid; the service owns that merge and the
+    // wipe every toggle the client did not include; the service owns that merge and the
     // userCache invalidation that keeps the next session read fresh.
     const incoming = req.body.privacySettings as Record<string, unknown>;
     const updatedSettings = await userService.updatePrivacySettings(userId, incoming);
@@ -1164,14 +1160,14 @@ router.put(
       res,
       userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true }),
     );
-  })
+  }),
 );
 
 /**
  * POST /users/search
- * 
+ *
  * Search for users by username or name
- * 
+ *
  * @body {string} query - Search query
  * @returns {User[]} Array of matching users
  */
@@ -1180,14 +1176,14 @@ router.post(
   validate({ body: searchUsersBodySchema }),
   asyncHandler(async (req: Request, res: Response) => {
     await usersController.searchUsers(req, res, () => {});
-  })
+  }),
 );
 
 /**
  * POST /users/verify/request
- * 
+ *
  * Request account verification
- * 
+ *
  * @body {string} reason - Reason for verification request
  * @body {string} [evidence] - Optional evidence/documentation
  * @returns {object} Confirmation with request ID
@@ -1209,7 +1205,7 @@ router.post(
 
     // Create verification request (in a real app, you'd save this to a database)
     const requestId = `VERIFY-${Date.now()}-${userId}`;
-    
+
     // For now, we'll just log it. In production, you'd save this to a VerificationRequest model
     logger.info('Account verification requested', {
       userId,
@@ -1223,7 +1219,7 @@ router.post(
       requestId,
       status: 'pending',
     });
-  })
+  }),
 );
 
 /**
@@ -1273,7 +1269,10 @@ router.get(
 
     if (format === 'ndjson') {
       res.setHeader('Content-Type', 'application/x-ndjson');
-      res.setHeader('Content-Disposition', `attachment; filename="oxy-identity-export-${stamp}.ndjson"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="oxy-identity-export-${stamp}.ndjson"`,
+      );
       const writeLine = (obj: unknown) => res.write(`${JSON.stringify(obj)}\n`);
       writeLine({
         kind: 'meta',
@@ -1311,10 +1310,13 @@ router.get(
     exportBundleSchema.parse(bundle);
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="oxy-identity-export-${stamp}.json"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="oxy-identity-export-${stamp}.json"`,
+    );
     res.json(bundle);
     logger.info('Signed identity export generated', { userId, format, attestationMissing });
-  })
+  }),
 );
 
 /**
@@ -1445,10 +1447,18 @@ router.delete(
       // …and, if it ever has an authenticator, its code too.
       if (await isTotpEnabled(userId)) {
         if (!totpCode) {
-          throw new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired);
+          throw new ApiError(
+            401,
+            'Enter the code from your authenticator app too.',
+            SIGN_IN_ERROR_CODES.totpRequired,
+          );
         }
         if (!(await verifySecondFactor(userId, totpCode))) {
-          throw new ApiError(401, 'That authenticator code is not right.', SIGN_IN_ERROR_CODES.secondFactorInvalid);
+          throw new ApiError(
+            401,
+            'That authenticator code is not right.',
+            SIGN_IN_ERROR_CODES.secondFactorInvalid,
+          );
         }
       }
     } else {
@@ -1479,7 +1489,7 @@ router.delete(
       message: 'Account deleted successfully',
       retained: false,
     });
-  })
+  }),
 );
 
 /**
@@ -1555,8 +1565,13 @@ router.put(
       throw new BadRequestError('type must be "federated", "agent", or "automated"');
     }
     if (type === 'federated') {
-      if (typeof actorUri !== 'string' || !actorUri) throw new BadRequestError('actorUri is required');
-      const result = await federationService.resolveExternalActorIdentity(actorUri, typeof username === 'string' ? username : undefined, { forceAvatarRefresh });
+      if (typeof actorUri !== 'string' || !actorUri)
+        throw new BadRequestError('actorUri is required');
+      const result = await federationService.resolveExternalActorIdentity(
+        actorUri,
+        typeof username === 'string' ? username : undefined,
+        { forceAvatarRefresh },
+      );
       if (!result) throw new BadRequestError('External actor could not be verified');
       return sendSuccess(res, result.user);
     }
@@ -1570,8 +1585,8 @@ router.put(
     }
 
     // Build the row predicate and the column payload — never touch auth fields.
-    // `existingPredicate` is what Mongo expressed as an upsert FILTER; it stays a
-    // predicate because the two branches key on different unique indexes.
+    // `existingPredicate` stays a predicate because the two branches key on
+    // different unique indexes.
     const setFields: Record<string, unknown> = { username };
 
     // For agent / automated, refuse to clobber a username already taken
@@ -1587,17 +1602,18 @@ router.put(
       .where(
         and(
           sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-          sql`${users.type} not in ('agent', 'automated')`
-        )
+          sql`${users.type} not in ('agent', 'automated')`,
+        ),
       )
       .limit(1);
     if (localCollision) {
       throw new ConflictError('Username is already taken by a non-automated user');
     }
-    const existingPredicate = and(
-      sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-      inArray(users.type, ['agent', 'automated'])
-    ) ?? sql`false`;
+    const existingPredicate =
+      and(
+        sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+        inArray(users.type, ['agent', 'automated']),
+      ) ?? sql`false`;
     if (typeof ownerId === 'string') {
       setFields.automationOwnerId = ownerId;
     }
@@ -1605,8 +1621,8 @@ router.put(
     // Type immutability check: if a user already exists, its `type` must
     // match what the caller is asserting. We never allow a federated user
     // to be silently re-typed as an agent, or vice versa. The same read also
-    // supplies the existing avatar file id below, so the two Mongo round trips
-    // that asked the same question collapse into one.
+    // supplies the existing avatar file id below, so one round trip answers
+    // both.
     const [existingByFilter] = await getDb()
       .select({ id: users.id, type: users.type, avatar: users.avatar })
       .from(users)
@@ -1627,10 +1643,10 @@ router.put(
       // Strip disallowed characters (emoji/symbols/shortcodes) from federated
       // names. cleanDisplayName's output can never contain an XSS vector and is
       // already clean, so it owns the name field here.
-      // The COLUMN PROPERTY, not Mongo's `name.first` dot path: drizzle keys
+      // The COLUMN PROPERTY, not a `name.first` dot path: drizzle keys
       // `set()`/`values()` by property name and SILENTLY IGNORES a key that
-      // names no column, so the dot path stored nothing at all and every
-      // federated actor resolved through here landed with a null display name.
+      // names no column, so a dot path would store nothing and every federated
+      // actor resolved through here would land with a null display name.
       setFields.nameFirst = cleanDisplayName(displayName);
     }
     if (typeof bio === 'string') {
@@ -1658,7 +1674,7 @@ router.put(
     // `type` is written only on INSERT, never on update — the immutability
     // check above already rejected a mismatched update, and re-writing it would
     // make that check the only thing standing between a caller and a silent
-    // re-type. Column DEFAULTs replace Mongoose's `setDefaultsOnInsert`.
+    // re-type. Column DEFAULTs apply on insert.
     let resolvedUserId: string;
     if (existingByFilter) {
       await getDb().update(users).set(setFields).where(eq(users.id, existingByFilter.id));
@@ -1704,7 +1720,7 @@ router.put(
     logger.info('External user resolved', { type, username, userId: resolvedUserId });
 
     sendSuccess(res, user);
-  })
+  }),
 );
 
 export default router;

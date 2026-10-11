@@ -11,10 +11,9 @@
  * every failure path leaves the previous snapshot standing rather than
  * publishing a narrower one.
  *
- * The suite this replaces mocked `mongoose.connection.readyState` and
- * `Application.find`, so the "trusted vs third-party" routing was decided over
- * literals a test author typed — it could not have caught a `where` clause that
- * failed to filter `status`, because no row ever had a status.
+ * The suite runs against real rows rather than mocked lookups, so the
+ * "trusted vs third-party" routing is decided by the real `where` clause — a
+ * mocked lookup could not catch one that failed to filter `status`.
  *
  * Every test registers its own applications under UNIQUE hosts and asserts only
  * on those, so rows another test (or another suite sharing this database)
@@ -85,7 +84,7 @@ async function account(): Promise<string> {
  * origins nothing here looks at.
  */
 async function registerApp(
-  fields: Partial<typeof applications.$inferInsert> & { redirectUris: string[] }
+  fields: Partial<typeof applications.$inferInsert> & { redirectUris: string[] },
 ): Promise<string> {
   const { getDb } = jest.requireActual<typeof import('../postgres')>('../postgres');
   const [row] = await getDb()
@@ -135,7 +134,10 @@ describe('refresh() — trusted vs third-party routing', () => {
   it('routes trusted apps to the credentialed lane and third-party apps to the bearer lane', async () => {
     await registerApp({ type: 'third_party', redirectUris: ['https://third.example.com/cb'] });
     await registerApp({ isOfficial: true, redirectUris: ['https://official.example.com/cb'] });
-    await registerApp({ type: 'internal', redirectUris: ['https://internal.example.com/callback'] });
+    await registerApp({
+      type: 'internal',
+      redirectUris: ['https://internal.example.com/callback'],
+    });
     await registerApp({ type: 'first_party', redirectUris: ['https://first.example.com/x'] });
     await registerApp({ type: 'system', redirectUris: ['https://system.example.com/x'] });
 
@@ -158,7 +160,6 @@ describe('refresh() — trusted vs third-party routing', () => {
       expect(isTrustedOrigin(origin)).toBe(true);
       expect(getCorsDecision(origin)).toEqual({ allow: true, credentials: true });
     }
-
   });
 
   it('ignores an application that is not active', async () => {

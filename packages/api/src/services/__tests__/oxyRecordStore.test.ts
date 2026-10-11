@@ -1,11 +1,8 @@
 /**
  * The Oxy `RecordStore` adapter's own reads, against a REAL Postgres.
  *
- * The suite this replaces mocked `SignedRecord.findOne` and asserted that the
- * store BUILT a particular Mongo filter object
- * (`{ userId: {$eq}, nsid: {$eq}, rkey: {$eq} }`). The model is gone, the mock was
- * inert, and a filter-shape assertion answers a narrower question than the one
- * that matters: what the store RETURNS for the row it finds. Each case below
+ * A filter-shape assertion answers a narrower question than the one that
+ * matters: what the store RETURNS for the row it finds. Each case below
  * seeds rows and asserts the answer.
  *
  * The headline is `latestIssuedAtForKey`, the monotonicity frontier the engine's
@@ -112,7 +109,7 @@ async function seedRows(userId: string, specs: RowSpec[]): Promise<string[]> {
 /** A well-formed v2 envelope for a subject — the shape the frontier is asked about. */
 function v2Envelope(
   subjectDid: string,
-  overrides: Partial<SignedRecordEnvelope> = {}
+  overrides: Partial<SignedRecordEnvelope> = {},
 ): SignedRecordEnvelope {
   return {
     version: 2,
@@ -133,10 +130,7 @@ function v2Envelope(
 }
 
 /** The same envelope with one required chain-key field genuinely ABSENT. */
-function v2EnvelopeMissing(
-  subjectDid: string,
-  omit: 'collection' | 'rkey'
-): SignedRecordEnvelope {
+function v2EnvelopeMissing(subjectDid: string, omit: 'collection' | 'rkey'): SignedRecordEnvelope {
   const { collection, rkey, ...rest } = v2Envelope(subjectDid);
   return omit === 'collection' ? { ...rest, rkey } : { ...rest, collection };
 }
@@ -202,7 +196,7 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
 
     const frontier = await oxyRecordStore.latestIssuedAtForKey(
       subject,
-      v2Envelope(subject, { collection: 'app.oxy.credential', rkey: 'wanted' })
+      v2Envelope(subject, { collection: 'app.oxy.credential', rkey: 'wanted' }),
     );
     expect(frontier).toBe(T0);
   });
@@ -230,8 +224,8 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
     expect(
       await oxyRecordStore.latestIssuedAtForKey(
         subject,
-        v2Envelope(subject, { collection: 'app.oxy.profile', rkey: 'self' })
-      )
+        v2Envelope(subject, { collection: 'app.oxy.profile', rkey: 'self' }),
+      ),
     ).toBe(T0 + 5_000);
   });
 
@@ -245,8 +239,8 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
     expect(
       await oxyRecordStore.latestIssuedAtForKey(
         subject,
-        v2Envelope(subject, { collection: 'app.oxy.credential', rkey: 'fresh' })
-      )
+        v2Envelope(subject, { collection: 'app.oxy.credential', rkey: 'fresh' }),
+      ),
     ).toBeNull();
   });
 
@@ -259,9 +253,9 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
       await seedRows(userId, [{ seq: 0, issuedAt: T0 + 10_000 }]);
 
       expect(
-        await oxyRecordStore.latestIssuedAtForKey(subject, v2EnvelopeMissing(subject, omitted))
+        await oxyRecordStore.latestIssuedAtForKey(subject, v2EnvelopeMissing(subject, omitted)),
       ).toBeNull();
-    }
+    },
   );
 
   it('answers null when the subject DID does not belong to this server', async () => {
@@ -284,10 +278,10 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
     ]);
 
     expect(
-      await oxyRecordStore.latestIssuedAtForKey(subject, v1Envelope(subject, 'identity', T0 + 1))
+      await oxyRecordStore.latestIssuedAtForKey(subject, v1Envelope(subject, 'identity', T0 + 1)),
     ).toBe(T0);
     expect(
-      await oxyRecordStore.latestIssuedAtForKey(subject, v1Envelope(subject, 'profile', T0 + 1))
+      await oxyRecordStore.latestIssuedAtForKey(subject, v1Envelope(subject, 'profile', T0 + 1)),
     ).toBe(T0 + 10_000);
   });
 
@@ -300,7 +294,10 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
     // category, so no stored row can carry THIS — the column's CHECK forbids it
     // — and there is no frontier, certainly not the account's newest record.
     expect(
-      await oxyRecordStore.latestIssuedAtForKey(subject, v1Envelope(subject, 'app.syra.listen', T0))
+      await oxyRecordStore.latestIssuedAtForKey(
+        subject,
+        v1Envelope(subject, 'app.syra.listen', T0),
+      ),
     ).toBeNull();
   });
 
@@ -315,8 +312,8 @@ describe('latestIssuedAtForKey — the frontier is scoped to the logical record 
     expect(
       await oxyRecordStore.latestIssuedAtForKey(
         subject,
-        v2Envelope(subject, { collection: 'app.oxy.profile', rkey: 'self' })
-      )
+        v2Envelope(subject, { collection: 'app.oxy.profile', rkey: 'self' }),
+      ),
     ).toBeNull();
   });
 });
@@ -355,13 +352,15 @@ describe('the subject DID gates every read and the append', () => {
   it('returns no head for a foreign spelling of an account that HAS one', async () => {
     const userId = await account();
     const [recordId] = await seedRows(userId, [{ seq: 0, issuedAt: T0 }]);
-    await getDb().insert(repoHeads).values({
-      userId,
-      subjectDid: buildUserDid(userId),
-      seq: 0,
-      headRecordId: recordId,
-      recordCount: 1,
-    });
+    await getDb()
+      .insert(repoHeads)
+      .values({
+        userId,
+        subjectDid: buildUserDid(userId),
+        seq: 0,
+        headRecordId: recordId,
+        recordCount: 1,
+      });
 
     expect(await oxyRecordStore.getHead(subjectKeyForUser(userId))).toEqual({
       headRecordId: recordId,
@@ -382,10 +381,12 @@ describe('the subject DID gates every read and the append', () => {
     const foreign = `did:web:evil.com:u:${userId}`;
     const envelope = v2Envelope(foreign);
 
-    expect(await oxyRecordStore.append(foreign, envelope, await computeRecordId(envelope))).toEqual({
-      ok: false,
-      reason: 'chain_gap',
-    });
+    expect(await oxyRecordStore.append(foreign, envelope, await computeRecordId(envelope))).toEqual(
+      {
+        ok: false,
+        reason: 'chain_gap',
+      },
+    );
     expect(await countRecords(userId)).toBe(0);
   });
 
@@ -398,10 +399,12 @@ describe('the subject DID gates every read and the append', () => {
 
     // The re-narrowing carries `oxyStorePolicy`'s guarantee into the INSERT, so
     // the store stays correct even when driven by another caller.
-    expect(await oxyRecordStore.append(subject, envelope, await computeRecordId(envelope))).toEqual({
-      ok: false,
-      reason: 'invalid_envelope',
-    });
+    expect(await oxyRecordStore.append(subject, envelope, await computeRecordId(envelope))).toEqual(
+      {
+        ok: false,
+        reason: 'invalid_envelope',
+      },
+    );
     expect(await countRecords(userId)).toBe(0);
   });
 
@@ -478,7 +481,10 @@ describe('listRecordsByAuthors', () => {
       { seq: 1, collection: OTHER, issuedAt: T0, createdAt: new Date(T0 + 2000) },
     ]);
 
-    const page = await oxyRecordStore.listRecordsByAuthors({ userIds: [userId], collections: [FEED] });
+    const page = await oxyRecordStore.listRecordsByAuthors({
+      userIds: [userId],
+      collections: [FEED],
+    });
 
     expect(page.records.map((r) => r.recordId)).toEqual([`${userId}-0`]);
   });
@@ -493,7 +499,10 @@ describe('listRecordsByAuthors', () => {
       { seq: 1, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 3000) },
     ]);
 
-    const page = await oxyRecordStore.listRecordsByAuthors({ userIds: [userId], collections: [FEED] });
+    const page = await oxyRecordStore.listRecordsByAuthors({
+      userIds: [userId],
+      collections: [FEED],
+    });
 
     expect(page.records.map((r) => r.recordId)).toEqual([`${userId}-1`]);
   });
@@ -542,9 +551,14 @@ describe('listRecordsByAuthors', () => {
 
   it('reports no cursor once the stream is exhausted', async () => {
     const userId = await account();
-    await seedRows(userId, [{ seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) }]);
+    await seedRows(userId, [
+      { seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) },
+    ]);
 
-    const page = await oxyRecordStore.listRecordsByAuthors({ userIds: [userId], collections: [FEED] });
+    const page = await oxyRecordStore.listRecordsByAuthors({
+      userIds: [userId],
+      collections: [FEED],
+    });
 
     expect(page.records).toHaveLength(1);
     expect(page.nextCursor).toBeNull();
@@ -557,13 +571,19 @@ describe('listRecordsByAuthors', () => {
    */
   it('answers an empty author or collection list with an empty page', async () => {
     const userId = await account();
-    await seedRows(userId, [{ seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) }]);
+    await seedRows(userId, [
+      { seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) },
+    ]);
 
-    expect(await oxyRecordStore.listRecordsByAuthors({ userIds: [], collections: [FEED] })).toEqual({
-      records: [],
-      nextCursor: null,
-    });
-    expect(await oxyRecordStore.listRecordsByAuthors({ userIds: [userId], collections: [] })).toEqual({
+    expect(await oxyRecordStore.listRecordsByAuthors({ userIds: [], collections: [FEED] })).toEqual(
+      {
+        records: [],
+        nextCursor: null,
+      },
+    );
+    expect(
+      await oxyRecordStore.listRecordsByAuthors({ userIds: [userId], collections: [] }),
+    ).toEqual({
       records: [],
       nextCursor: null,
     });
@@ -589,7 +609,9 @@ describe('listRecordsByAuthors', () => {
 
   it('counts a repeated author once against the cap', async () => {
     const userId = await account();
-    await seedRows(userId, [{ seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) }]);
+    await seedRows(userId, [
+      { seq: 0, collection: FEED, issuedAt: T0, createdAt: new Date(T0 + 1000) },
+    ]);
 
     // 400 entries, one distinct id: deduping happens BEFORE the cap, so a
     // caller that repeats an author is not punished for it.

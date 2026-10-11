@@ -5,9 +5,9 @@
  *
  * ## Two renames, both deliberate
  *
- * - The Mongo collection is `analytics`, a mass noun that says nothing about
- *   what a row holds. Every row is one ACCOUNT's aggregate for one period, so
- *   the table is named for that and sits beside `user_locations`,
+ * - Not `analytics`, a mass noun that says nothing about what a row holds.
+ *   Every row is one ACCOUNT's aggregate for one period, so the table is named
+ *   for that and sits beside `user_locations`,
  *   `user_app_data` and the rest of the user-scoped set.
  * - **`userID` becomes `user_id`.** The capital-D spelling is unique to this one
  *   model — every other model in the package, ported or not, spells it `userId`
@@ -35,7 +35,7 @@ import { check, integer, jsonb, pgTable, text, unique } from 'drizzle-orm/pg-cor
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import { users } from './users';
 
-/** The aggregation window a row covers. Mongo's `period` enum, unchanged. */
+/** The aggregation window a row covers. */
 export const ANALYTICS_PERIODS = ['daily', 'weekly', 'monthly', 'yearly'] as const;
 
 /** Hours in a day — the range `peak_activity_hour` must fall in. */
@@ -84,28 +84,27 @@ export const userAnalytics = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    // Mongo's `{userID, period, date}` unique — one aggregate per account per
-    // window. It leads with `user_id`, so it also answers every "this account's
-    // analytics" read; no second index.
+    // One aggregate per account per window. It leads with `user_id`, so it also
+    // answers every "this account's analytics" read; no second index.
     unique('user_analytics_user_id_period_date_key').on(t.userId, t.period, t.date),
 
     check(
       'user_analytics_period_check',
-      sql`${t.period} in (${sql.raw(inList(ANALYTICS_PERIODS))})`
+      sql`${t.period} in (${sql.raw(inList(ANALYTICS_PERIODS))})`,
     ),
     // An hour outside the day is not a datum to store, it is a bug in whatever
     // computed it.
     check(
       'user_analytics_peak_activity_hour_check',
-      sql`${t.peakActivityHour} >= 0 and ${t.peakActivityHour} < ${sql.raw(String(HOURS_PER_DAY))}`
+      sql`${t.peakActivityHour} >= 0 and ${t.peakActivityHour} < ${sql.raw(String(HOURS_PER_DAY))}`,
     ),
     check(
       'user_analytics_demographics_countries_object_check',
-      sql`jsonb_typeof(${t.demographicsCountries}) = 'object'`
+      sql`jsonb_typeof(${t.demographicsCountries}) = 'object'`,
     ),
     check(
       'user_analytics_demographics_languages_object_check',
-      sql`jsonb_typeof(${t.demographicsLanguages}) = 'object'`
+      sql`jsonb_typeof(${t.demographicsLanguages}) = 'object'`,
     ),
-  ]
+  ],
 );

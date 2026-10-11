@@ -53,7 +53,11 @@ import SignatureService from './signature.service';
 import sessionService from './session.service';
 import { readSessionAgentBinding, type AgentKeyBinding } from './agentKeyAuthority.service';
 import { AUTH_CODE_TTL_MS } from './oauthCode.service';
-import { decideOAuthConsent, persistOAuthAuthorization, resolveOAuthScopes } from './oauthConsent.service';
+import {
+  decideOAuthConsent,
+  persistOAuthAuthorization,
+  resolveOAuthScopes,
+} from './oauthConsent.service';
 import { isAllowedRedirectUri } from '../utils/oauthRedirect';
 import type { AccountRole } from '../utils/accountRoles';
 import { logger } from '../utils/logger';
@@ -114,7 +118,13 @@ export type ClaimAuthSessionOutcome =
   | { ok: true; authSession: PublicAuthSession }
   | {
       ok: false;
-      reason: 'not_found' | 'expired' | 'cancelled' | 'pending' | 'already_consumed' | 'wrong_purpose';
+      reason:
+        | 'not_found'
+        | 'expired'
+        | 'cancelled'
+        | 'pending'
+        | 'already_consumed'
+        | 'wrong_purpose';
     };
 
 /**
@@ -124,11 +134,11 @@ export type ClaimAuthSessionOutcome =
  *
  * `auth_sessions_oauth_binding_check` and `auth_sessions_oauth_purpose_check`
  * make an incomplete binding unrepresentable in the database, so the null
- * checks below are now a TYPE-level narrowing of nullable columns rather than
- * the only line of defence they were under Mongo.
+ * checks below are a TYPE-level narrowing of nullable columns rather than the
+ * only line of defence.
  */
 export function resolveOAuthContext(
-  authSession: OAuthBindingSource
+  authSession: OAuthBindingSource,
 ): AuthSessionOAuthBinding | null {
   if (authSession.purpose !== 'oauth_authorization') {
     return null;
@@ -180,15 +190,14 @@ export type DelegatedSubjectOutcome =
  * without one.
  *
  * A malformed `subjectAccountId` simply matches no row and comes back
- * `not_found` — the old `isValidObjectId` guard existed only to keep Mongoose
- * from throwing a CastError and has no Postgres counterpart.
+ * `not_found`; no id-shape guard is needed.
  *
  * `account.service` is imported LAZILY (mirroring `session.service`) so this
  * module's graph does not statically load the Account* models.
  */
 export async function verifyDelegatedSubject(
   identityUserId: string,
-  subjectAccountId: string
+  subjectAccountId: string,
 ): Promise<DelegatedSubjectOutcome> {
   const [account] = await getDb()
     .select({ kind: users.kind, accountStatus: users.accountStatus })
@@ -198,8 +207,7 @@ export async function verifyDelegatedSubject(
   if (!account || account.accountStatus === 'archived') {
     return { ok: false, reason: 'not_found' };
   }
-  // `kind` is NOT NULL DEFAULT 'personal' here, so the Mongo-era `!account.kind`
-  // branch for documents predating the field does not travel.
+  // `kind` is NOT NULL DEFAULT 'personal', so there is no missing-kind branch.
   if (!isDelegatedActAsEligibleKind(account.kind)) {
     return {
       ok: false,
@@ -222,7 +230,7 @@ export async function verifyDelegatedSubject(
  */
 async function gateApprovalDelegation(
   authSession: OAuthBindingSource,
-  approvingUserId: string
+  approvingUserId: string,
 ): Promise<{ ok: true } | { ok: false; reason: DelegatedSubjectRejection }> {
   const subjectAccountId = resolveOAuthContext(authSession)?.subjectAccountId;
   if (!subjectAccountId) {
@@ -285,14 +293,26 @@ export async function resolveApprovalOperator(
   const [approving] = await db
     .select({ userId: sessions.userId, operatedByUserId: sessions.operatedByUserId })
     .from(sessions)
-    .where(and(eq(sessions.sessionId, approvingSessionId), eq(sessions.isActive, true), gt(sessions.expiresAt, new Date())))
+    .where(
+      and(
+        eq(sessions.sessionId, approvingSessionId),
+        eq(sessions.isActive, true),
+        gt(sessions.expiresAt, new Date()),
+      ),
+    )
     .limit(1);
   if (!approving || approving.userId !== subjectAccountId) {
     return { ok: false, reason: 'approving_session_unreadable' };
   }
   let authMethod: AgentKeyBinding | undefined;
-  try { authMethod = await readSessionAgentBinding(approvingSessionId, approving.operatedByUserId ?? approving.userId); }
-  catch { return { ok: false, reason: 'approving_session_unreadable' }; }
+  try {
+    authMethod = await readSessionAgentBinding(
+      approvingSessionId,
+      approving.operatedByUserId ?? approving.userId,
+    );
+  } catch {
+    return { ok: false, reason: 'approving_session_unreadable' };
+  }
   if (!approving.operatedByUserId) {
     return { ok: true, operatedByUserId: null, ...(authMethod ? { authMethod } : {}) };
   }
@@ -301,14 +321,21 @@ export async function resolveApprovalOperator(
     .from(users)
     .where(eq(users.id, subjectAccountId))
     .limit(1);
-  if (!subject || !(options.delegatedOAuth
-    ? isDelegatedActAsEligibleKind(subject.kind as AccountKind)
-    : isOperatorSwitchTargetKind(subject.kind as AccountKind))) {
+  if (
+    !subject ||
+    !(options.delegatedOAuth
+      ? isDelegatedActAsEligibleKind(subject.kind as AccountKind)
+      : isOperatorSwitchTargetKind(subject.kind as AccountKind))
+  ) {
     return { ok: false, reason: 'seat_not_assumable' };
   }
   const delegation = await verifyDelegatedSubject(approving.operatedByUserId, subjectAccountId);
   if (!delegation.ok) return { ok: false, reason: 'approving_session_unreadable' };
-  return { ok: true, operatedByUserId: approving.operatedByUserId, ...(authMethod ? { authMethod } : {}) };
+  return {
+    ok: true,
+    operatedByUserId: approving.operatedByUserId,
+    ...(authMethod ? { authMethod } : {}),
+  };
 }
 
 /**
@@ -322,7 +349,7 @@ export async function resolveApprovalOperator(
  * 404 for not found, etc).
  */
 export async function claimAuthSession(
-  options: ClaimAuthSessionOptions
+  options: ClaimAuthSessionOptions,
 ): Promise<ClaimAuthSessionOutcome> {
   const { sessionToken } = options;
   const db = getDb();
@@ -419,16 +446,25 @@ export type AuthorizeSignedOutcome =
  * place).
  */
 export async function authorizeSessionWithSignedChallenge(
-  options: AuthorizeSignedOptions
+  options: AuthorizeSignedOptions,
 ): Promise<AuthorizeSignedOutcome> {
-  const { authorizeCode, publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint, req } = options;
+  const {
+    authorizeCode,
+    publicKey,
+    challenge,
+    signature,
+    timestamp,
+    deviceName,
+    deviceFingerprint,
+    req,
+  } = options;
   const db = getDb();
 
   // 1. Validate + cryptographically verify + atomically burn the challenge.
   //    Scope to signin-purpose challenges so a `rotate_key` challenge can NOT be
   //    spent to mint a session — the symmetric invariant to the rotate flow's
-  //    purpose scoping. `purpose` is NOT NULL DEFAULT 'signin' here, so the
-  //    Mongo-era `{ $in: ['signin', null] }` legacy branch does not travel.
+  //    purpose scoping. `purpose` is NOT NULL DEFAULT 'signin', so there is no
+  //    missing-purpose branch.
   //    `expires_at > now()` is filtered HERE, not left to the expiry sweep: the
   //    sweep lags one interval, and a challenge spendable past its deadline is a
   //    live credential.
@@ -441,8 +477,8 @@ export async function authorizeSessionWithSignedChallenge(
         eq(authChallenges.challenge, challenge),
         eq(authChallenges.used, false),
         eq(authChallenges.purpose, 'signin'),
-        gt(authChallenges.expiresAt, new Date())
-      )
+        gt(authChallenges.expiresAt, new Date()),
+      ),
     )
     .limit(1);
   if (!authChallenge) {
@@ -602,7 +638,7 @@ export type AuthorizeBearerOutcome =
  * non-suppressible acknowledgement) is the primary defense.
  */
 export async function authorizeSessionWithBearer(
-  options: AuthorizeBearerOptions
+  options: AuthorizeBearerOptions,
 ): Promise<AuthorizeBearerOutcome> {
   const {
     authorizeCode,
@@ -636,7 +672,11 @@ export async function authorizeSessionWithBearer(
     delegatedOAuth: oauthApproval,
   });
   if (!operator.ok) {
-    return { ok: false, status: 403, message: 'This account cannot approve a sign-in from this session' };
+    return {
+      ok: false,
+      status: 403,
+      message: 'This account cannot approve a sign-in from this session',
+    };
   }
   const operatedByUserId = operator.operatedByUserId;
   const approvingActorId = operatedByUserId || authenticatedUserId;
@@ -655,15 +695,16 @@ export async function authorizeSessionWithBearer(
       authorizedUserId: oauthApproval ? approvingActorId : authenticatedUserId,
       ...(oauthApproval ? { approvedBySessionId: approvingSessionId } : {}),
       ...(oauthApproval && operatedByUserId && !existing.oauthSubjectAccountId
-        ? { oauthSubjectAccountId: authenticatedUserId } : {}),
+        ? { oauthSubjectAccountId: authenticatedUserId }
+        : {}),
       ...(authenticatedPublicKey ? { authorizedBy: authenticatedPublicKey } : {}),
     })
     .where(
       and(
         eq(authSessions.id, existing.id),
         eq(authSessions.status, 'pending'),
-        gt(authSessions.expiresAt, new Date())
-      )
+        gt(authSessions.expiresAt, new Date()),
+      ),
     )
     .returning({
       ...publicColumns(authSessions, PROTECTED_COLUMNS_BY_TABLE),
@@ -764,7 +805,7 @@ export type FinalizeOAuthOutcome =
  * and a delegated subject's `account:act_as` permission must still hold.
  */
 export async function finalizeOAuthAuthorization(
-  options: FinalizeOAuthAuthorizationOptions
+  options: FinalizeOAuthAuthorizationOptions,
 ): Promise<FinalizeOAuthOutcome> {
   const { sessionToken } = options;
   const db = getDb();
@@ -802,12 +843,20 @@ export async function finalizeOAuthAuthorization(
   // has no bearer; bot approval never falls back to that legacy personal lane.
   let authMethod: AgentKeyBinding | undefined;
   if (existing.approvedBySessionId) {
-    const live = await sessionService.validateSessionById(existing.approvedBySessionId, false, { useCache: false });
+    const live = await sessionService.validateSessionById(existing.approvedBySessionId, false, {
+      useCache: false,
+    });
     if (!live) return { ok: false, reason: 'not_authorized' };
-    try { authMethod = await readSessionAgentBinding(existing.approvedBySessionId, identityUserId); }
-    catch { return { ok: false, reason: 'not_authorized' }; }
+    try {
+      authMethod = await readSessionAgentBinding(existing.approvedBySessionId, identityUserId);
+    } catch {
+      return { ok: false, reason: 'not_authorized' };
+    }
   } else {
-    const [actor] = await db.select({ kind: users.kind }).from(users).where(eq(users.id, identityUserId));
+    const [actor] = await db
+      .select({ kind: users.kind })
+      .from(users)
+      .where(eq(users.id, identityUserId));
     if (!actor || actor.kind !== 'personal') return { ok: false, reason: 'not_authorized' };
   }
 
@@ -859,8 +908,8 @@ export async function finalizeOAuthAuthorization(
         eq(authSessions.id, existing.id),
         eq(authSessions.purpose, 'oauth_authorization'),
         eq(authSessions.status, 'authorized'),
-        sql`${authSessions.finalizedAuthCodeId} is null`
-      )
+        sql`${authSessions.finalizedAuthCodeId} is null`,
+      ),
     )
     .returning({ id: authSessions.id });
   if (claimed.length === 0) {
@@ -923,7 +972,7 @@ export async function finalizeOAuthAuthorization(
     logger.error(
       '[AuthSession] Authorization code mint failed after the request was spent',
       error instanceof Error ? error : new Error(String(error)),
-      { sessionToken: sessionToken.substring(0, 8) + '...', applicationId: app.id }
+      { sessionToken: sessionToken.substring(0, 8) + '...', applicationId: app.id },
     );
     return { ok: false, reason: 'issue_failed' };
   }

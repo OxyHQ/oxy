@@ -63,9 +63,7 @@ export function countStaleSessions(
 export function countSuspiciousActivity(securityActivities: SecurityActivity[]): number {
   if (!securityActivities) return 0;
   return securityActivities.filter(
-    (activity) =>
-      activity.severity === 'critical' ||
-      activity.eventType === 'suspicious_activity',
+    (activity) => activity.severity === 'critical' || activity.eventType === 'suspicious_activity',
   ).length;
 }
 

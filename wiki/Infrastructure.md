@@ -59,7 +59,7 @@ See [[Redis & Valkey]] for client wiring. Connection URL lives in SSM as a share
 
 ## Secrets
 
-GitHub Actions repo secrets are the **source of truth**. `.github/workflows/deploy-aws.yml` mirrors them to AWS SSM under the per-app parameter namespace and the shared parameter namespace on every run. ECS task definitions reference SSM parameters via `secrets` mappings, so the container only ever sees the resolved value at task launch.
+AWS SSM Parameter Store is the **only source**: per-app secrets under `/oxy/oxy-api/*` (SecureString), shared ones under `/oxy/_shared/*` (owned by oxy-infra). ECS task definitions reference SSM parameters via `secrets` mappings, so the container only ever sees the resolved value at task launch. `.github/workflows/deploy-aws.yml` writes no parameter and reads no repo secret; a value is set or rotated with `aws ssm put-parameter --overwrite` by its owner. Until 2026-10-10 the deploy mirrored GitHub repo secrets into SSM on every run; that path is gone.
 
 The shared parameter namespace covers AWS access-key variables (for SES / app-level S3 usage where IAM roles aren't applied), shared runtime variables.
 

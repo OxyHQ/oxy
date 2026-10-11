@@ -13,15 +13,14 @@
  *  - the v1 `{type}` vs v2 `{nsid, rkey}` monotonicity split, and
  *  - the `nsid` denormalization of the envelope's `collection` field.
  *
- * ## The session-less fallback is DELETED, not translated
+ * ## There is no non-transactional fallback
  *
- * The Mongo version string-matched "no replica set" on the transaction error and
- * silently RE-RAN the append and the head advance without a session. That made
- * the pair non-atomic on any deployment without a replica set, which is exactly
- * the failure the pair exists to prevent: a head pointing at a record that was
+ * Re-running the append and the head advance outside a transaction when the
+ * transaction fails would make the pair non-atomic, which is exactly the
+ * failure the pair exists to prevent: a head pointing at a record that was
  * never stored makes every later `prev` check fail, and a head left behind lets
  * a second device re-use a `seq` that is already taken. Postgres has real
- * transactions everywhere, so there is nothing to fall back FROM — `repoHeads.ts`
+ * transactions everywhere, so there is nothing to fall back to — `repoHeads.ts`
  * records the same decision on the schema side.
  *
  * ## `{user_id, seq}` is the multi-device write-race backstop
@@ -134,7 +133,11 @@ class OxyRecordStoreImpl implements RecordStore {
    * write that already took this `seq` — is surfaced as `chain_conflict` so the
    * caller re-reads the head and retries.
    */
-  async append(subject: string, env: SignedRecordEnvelope, recordId: string): Promise<AppendOutcome> {
+  async append(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+  ): Promise<AppendOutcome> {
     const userId = parseUserDid(subject);
     if (!userId) {
       // The subject DID does not belong to this issuer's domain — there is no
@@ -225,7 +228,11 @@ class OxyRecordStoreImpl implements RecordStore {
     return { ok: true, recordId, seq: -1 };
   }
 
-  async getLogSince(subject: string, sinceSeq: number, limit: number = DEFAULT_LOG_LIMIT): Promise<SignedRecordEnvelope[]> {
+  async getLogSince(
+    subject: string,
+    sinceSeq: number,
+    limit: number = DEFAULT_LOG_LIMIT,
+  ): Promise<SignedRecordEnvelope[]> {
     const userId = parseUserDid(subject);
     if (!userId) {
       return [];
@@ -252,7 +259,11 @@ class OxyRecordStoreImpl implements RecordStore {
     return row?.seq ?? null;
   }
 
-  async materializeCurrent(subject: string, collection: string, rkey: string): Promise<SignedRecordEnvelope | null> {
+  async materializeCurrent(
+    subject: string,
+    collection: string,
+    rkey: string,
+  ): Promise<SignedRecordEnvelope | null> {
     const userId = parseUserDid(subject);
     if (!userId) {
       return null;
@@ -379,8 +390,8 @@ class OxyRecordStoreImpl implements RecordStore {
    * here specifically because a record is content-addressed (`record_id` is
    * unique) and projection is idempotent, so re-delivering one costs bytes while
    * skipping one costs a post that never appears. `id` breaks ties within a
-   * timestamp: it is a total order, though not a chronological one (pre-cutover
-   * ids are ObjectId hex, post-cutover ones uuid v7, and the two do not sort
+   * timestamp: it is a total order, though not a chronological one (legacy
+   * 24-hex ids and uuid v7 ids do not sort
    * against each other) — which is exactly why it is the TIEBREAKER and
    * `created_at` is the axis.
    *
@@ -418,7 +429,9 @@ class OxyRecordStoreImpl implements RecordStore {
     const collections = [...new Set(params.collections)];
 
     if (userIds.length > MAX_RECORD_AUTHORS) {
-      throw new Error(`listRecordsByAuthors: ${userIds.length} authors exceeds the ${MAX_RECORD_AUTHORS} cap`);
+      throw new Error(
+        `listRecordsByAuthors: ${userIds.length} authors exceeds the ${MAX_RECORD_AUTHORS} cap`,
+      );
     }
     if (collections.length > MAX_RECORD_COLLECTIONS) {
       throw new Error(
@@ -486,7 +499,8 @@ class OxyRecordStoreImpl implements RecordStore {
       records,
       // A full page means there may be more; a short one is the end of the
       // stream as of this snapshot. Either way the caller re-polls with overlap.
-      nextCursor: last && records.length === limit ? { createdAt: last.createdAt, id: last.id } : null,
+      nextCursor:
+        last && records.length === limit ? { createdAt: last.createdAt, id: last.id } : null,
     };
   }
 

@@ -39,11 +39,8 @@ export const appGrants = pgTable(
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
     /** Union of every scope the user has granted this application. */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
-    /** First authorization. `NOT NULL` — Mongoose defaulted it, so every row has one. */
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
+    /** First authorization. `NOT NULL`, defaulting to now, so every row has one. */
     firstGrantedAt: timestamptz().notNull().defaultNow(),
     /** Refreshed on each authorize. What the "Connected apps" UI sorts by. */
     lastUsedAt: timestamptz().notNull().defaultNow(),
@@ -52,12 +49,12 @@ export const appGrants = pgTable(
   },
   (t) => [
     // One grant per (user, application) — the authorize upsert relies on this to
-    // union scopes rather than insert a duplicate. Mongo's standalone
-    // `{userId}` is dropped: a btree serves any leading prefix.
+    // union scopes rather than insert a duplicate. No standalone `(user_id)`
+    // index: a btree serves any leading prefix.
     unique('app_grants_user_id_application_id_key').on(t.userId, t.applicationId),
     // The reverse direction, which the unique above cannot serve: "who has
     // granted this app", and the index Postgres needs to cascade an application
     // delete without scanning the table.
     index('app_grants_application_id_idx').on(t.applicationId),
-  ]
+  ],
 );

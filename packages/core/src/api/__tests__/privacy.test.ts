@@ -130,7 +130,8 @@ describe('privacy cache invalidation', () => {
   it('invalidates the exact logical keys on block/restrict/settings writes', async () => {
     const invalidate = jest.spyOn(oxy.http, 'invalidateCache');
     const keys = (): string[] => invalidate.mock.calls.flatMap(([spec]) => [...(spec.keys ?? [])]);
-    const prefixes = (): string[] => invalidate.mock.calls.flatMap(([spec]) => [...(spec.prefixes ?? [])]);
+    const prefixes = (): string[] =>
+      invalidate.mock.calls.flatMap(([spec]) => [...(spec.prefixes ?? [])]);
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'ok' }));
     await oxy.privacy.block('u1');
@@ -143,13 +144,17 @@ describe('privacy cache invalidation', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ isPrivateAccount: true }));
     await oxy.privacy.updateSettings({ isPrivateAccount: true }, 'me');
     expect(keys()).toEqual(expect.arrayContaining(['GET:/privacy/me/privacy', 'GET:/users/me']));
-    expect(prefixes()).toEqual(expect.arrayContaining(['GET:/session/user/', 'GET:/users/me', 'GET:/profiles/username/']));
+    expect(prefixes()).toEqual(
+      expect.arrayContaining(['GET:/session/user/', 'GET:/users/me', 'GET:/profiles/username/']),
+    );
 
     invalidate.mockRestore();
   });
 
   it('isBlocked / isRestricted read the lists and fail closed to false', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ blockedId: 'u1' }, { blockedId: { _id: 'u3' } }]));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([{ blockedId: 'u1' }, { blockedId: { _id: 'u3' } }]),
+    );
     expect(await oxy.privacy.isBlocked('u3')).toBe(true);
     expect(await oxy.privacy.isBlocked('u2')).toBe(false);
 
@@ -163,5 +168,4 @@ describe('privacy cache invalidation', () => {
     await expect(oxy.privacy.unrestrict('')).rejects.toThrow('User ID is required');
     expect(fetchMock).not.toHaveBeenCalled();
   });
-
 });

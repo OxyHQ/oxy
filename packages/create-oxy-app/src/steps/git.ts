@@ -23,11 +23,14 @@ export function initGit(config: ResolvedConfig): void {
     return;
   }
 
-  const ok = run(config.targetDir, ['init', '-q'])
-    && run(config.targetDir, ['add', '-A'])
-    && run(config.targetDir, ['commit', '-q', '-m', 'Initial commit from create-oxy-app']);
+  const ok =
+    run(config.targetDir, ['init', '-q']) &&
+    run(config.targetDir, ['add', '-A']) &&
+    run(config.targetDir, ['commit', '-q', '-m', 'Initial commit from create-oxy-app']);
 
   if (!ok) {
-    p.log.warn(pc.yellow('Could not create the initial git commit — initialize the repo manually.'));
+    p.log.warn(
+      pc.yellow('Could not create the initial git commit — initialize the repo manually.'),
+    );
   }
 }

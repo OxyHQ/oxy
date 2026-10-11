@@ -1,12 +1,16 @@
 import { OxyServices } from '../../OxyServices';
 
 function jwt(claims: Record<string, unknown>): string {
-  const encode = (value: object): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: object): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(claims)}.`;
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify({ data }), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify({ data }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 describe('oxy.session', () => {
@@ -72,7 +76,10 @@ describe('oxy.session', () => {
   it('reads the device proof from the installed provider, and never throws', async () => {
     expect(await oxy.session.readDeviceProof()).toBeNull();
 
-    const dispose = oxy.session.setDeviceCredentialProvider(() => ({ deviceId: 'd1', deviceSecret: 's1' }));
+    const dispose = oxy.session.setDeviceCredentialProvider(() => ({
+      deviceId: 'd1',
+      deviceSecret: 's1',
+    }));
     expect(await oxy.session.readDeviceProof()).toEqual({ deviceId: 'd1', deviceSecret: 's1' });
 
     oxy.session.setDeviceCredentialProvider(async () => {

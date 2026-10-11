@@ -151,7 +151,7 @@ async function seed(): Promise<void> {
         label: shelf.label,
         description: shelf.description,
         order: shelf.order,
-      }))
+      })),
     )
     .onConflictDoNothing({ target: appCategories.slug })
     .returning({ slug: appCategories.slug });
@@ -167,7 +167,7 @@ async function seed(): Promise<void> {
 seed().catch(async (error: unknown) => {
   logger.error(
     'Store categories seed failed',
-    error instanceof Error ? error : new Error(String(error))
+    error instanceof Error ? error : new Error(String(error)),
   );
   await closePostgres().catch(() => undefined);
   process.exit(1);

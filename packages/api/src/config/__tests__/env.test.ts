@@ -24,8 +24,6 @@ const REQUIRED_BASE_ENV: Record<string, string> = {
   ACCESS_TOKEN_SECRET: 'a'.repeat(64),
   REFRESH_TOKEN_SECRET: 'b'.repeat(64),
   AWS_REGION: 'eu-west-1',
-  AWS_ACCESS_KEY_ID: 'test-access-key',
-  AWS_SECRET_ACCESS_KEY: 'test-secret-key',
   AWS_S3_BUCKET: 'test-bucket',
 };
 
@@ -95,7 +93,7 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
       expect(() => validateRequiredEnvVars()).not.toThrow();
       const warnCalls = JSON.stringify((logger.warn as jest.Mock).mock.calls);
       expect(warnCalls).not.toMatch(/DATABASE_URL/);
-    }
+    },
   );
 
   it('warns (but does not throw) when DATABASE_URL is not a Postgres URI', () => {
@@ -105,8 +103,10 @@ describe('validateRequiredEnvVars — DATABASE_URL', () => {
     expect(warnCalls).toMatch(/DATABASE_URL/);
   });
 
-  it('boots with no MONGODB_URI at all — Mongo left the serving path', () => {
-    delete process.env.MONGODB_URI;
+  it('boots in production with no static AWS keys — S3 uses the task role', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.AWS_ACCESS_KEY_ID;
+    delete process.env.AWS_SECRET_ACCESS_KEY;
     expect(() => validateRequiredEnvVars()).not.toThrow();
   });
 });
@@ -175,8 +175,8 @@ describe('validateRequiredEnvVars — DEVICE_ID_SALT (security review H1)', () =
     it('logs an explicit WARN when falling back to the dev placeholder', () => {
       validateRequiredEnvVars();
       const warnCalls = (logger.warn as jest.Mock).mock.calls;
-      const matched = warnCalls.some(([msg]) =>
-        typeof msg === 'string' && /development-only placeholder/.test(msg)
+      const matched = warnCalls.some(
+        ([msg]) => typeof msg === 'string' && /development-only placeholder/.test(msg),
       );
       expect(matched).toBe(true);
     });

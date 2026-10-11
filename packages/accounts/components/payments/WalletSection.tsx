@@ -19,22 +19,25 @@ export function WalletSection({ balance }: WalletSectionProps) {
   const colors = useColors();
   const { t } = useTranslation();
 
-  const items = useMemo<GroupedItem[]>(() => [
-    {
-      id: 'peable',
-      icon: 'wallet-outline',
-      iconColor: colors.sidebarIconPayments,
-      title: t('payments.wallet.peable'),
-      subtitle: t('payments.wallet.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
-    },
-    {
-      id: 'faircoin',
-      icon: 'qrcode-scan',
-      iconColor: colors.brandFairCoinScan,
-      title: t('payments.wallet.fairwallet'),
-      subtitle: t('payments.wallet.fairwalletSubtitle'),
-    },
-  ], [colors, balance, t]);
+  const items = useMemo<GroupedItem[]>(
+    () => [
+      {
+        id: 'peable',
+        icon: 'wallet-outline',
+        iconColor: colors.sidebarIconPayments,
+        title: t('payments.wallet.peable'),
+        subtitle: t('payments.wallet.peableSubtitle', { balance: formatFairCoinBalance(balance) }),
+      },
+      {
+        id: 'faircoin',
+        icon: 'qrcode-scan',
+        iconColor: colors.brandFairCoinScan,
+        title: t('payments.wallet.fairwallet'),
+        subtitle: t('payments.wallet.fairwalletSubtitle'),
+      },
+    ],
+    [colors, balance, t],
+  );
 
   return (
     <Section title={t('payments.sections.wallets')}>

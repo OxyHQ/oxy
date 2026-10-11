@@ -36,15 +36,12 @@ const service = new AssetService({} as unknown as S3Service);
 const sha = () => randomBytes(32).toString('hex');
 
 async function insertUser(): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   return row.id;
 }
 
 async function insertFile(
-  values: Partial<typeof files.$inferInsert> & { sha256: string; ownerUserId: string }
+  values: Partial<typeof files.$inferInsert> & { sha256: string; ownerUserId: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(files)
@@ -91,7 +88,7 @@ describe('getFilesByIds is lenient about ids it cannot resolve', () => {
     await expect(service.getFilesByIds([])).resolves.toEqual([]);
   });
 
-  it('carries each file\'s links and variants — a file is never returned bare', async () => {
+  it("carries each file's links and variants — a file is never returned bare", async () => {
     // `links.length` IS the usage count and decides whether an unlinked file
     // falls to `trash`, so a batch read that dropped the children would report
     // every file as unused.
@@ -113,9 +110,13 @@ describe('findActiveFilesBySha256 — one live record per hash', () => {
 
     // The guarantee the scoped `sha256 -> fileId` mapping rests on, created by
     // a migration (`files_sha256_owner_user_live_key`).
-    const error = await insertFile({ sha256: contentHash, ownerUserId: ownerId, storageKey: `content/${sha()}.png` }).then(
+    const error = await insertFile({
+      sha256: contentHash,
+      ownerUserId: ownerId,
+      storageKey: `content/${sha()}.png`,
+    }).then(
       () => null,
-      (thrown: unknown) => thrown
+      (thrown: unknown) => thrown,
     );
     expect(error).not.toBeNull();
 
@@ -132,7 +133,11 @@ describe('findActiveFilesBySha256 — one live record per hash', () => {
     const contentHash = sha();
     const first = await insertUser();
     const second = await insertUser();
-    const firstId = await insertFile({ sha256: contentHash, ownerUserId: first, createdAt: new Date(Date.now() - 60_000) });
+    const firstId = await insertFile({
+      sha256: contentHash,
+      ownerUserId: first,
+      createdAt: new Date(Date.now() - 60_000),
+    });
     await insertFile({ sha256: contentHash, ownerUserId: second });
 
     const once = await service.findActiveFilesBySha256([contentHash]);
@@ -142,18 +147,25 @@ describe('findActiveFilesBySha256 — one live record per hash', () => {
     expect(twice.map((f) => f.id)).toEqual([firstId]);
   });
 
-  it('scoped to an owner: that owner\'s row answers, never another owner\'s', async () => {
+  it("scoped to an owner: that owner's row answers, never another owner's", async () => {
     const contentHash = sha();
     const first = await insertUser();
     const second = await insertUser();
     const stranger = await insertUser();
-    await insertFile({ sha256: contentHash, ownerUserId: first, createdAt: new Date(Date.now() - 60_000) });
+    await insertFile({
+      sha256: contentHash,
+      ownerUserId: first,
+      createdAt: new Date(Date.now() - 60_000),
+    });
     const secondId = await insertFile({ sha256: contentHash, ownerUserId: second });
 
-    await expect(service.findActiveFilesBySha256([contentHash], { ownerUserId: second }))
-      .resolves.toEqual([expect.objectContaining({ id: secondId, ownerUserId: second })]);
+    await expect(
+      service.findActiveFilesBySha256([contentHash], { ownerUserId: second }),
+    ).resolves.toEqual([expect.objectContaining({ id: secondId, ownerUserId: second })]);
     // An owner holding nothing gets nothing — not the oldest row of somebody else.
-    await expect(service.findActiveFilesBySha256([contentHash], { ownerUserId: stranger })).resolves.toEqual([]);
+    await expect(
+      service.findActiveFilesBySha256([contentHash], { ownerUserId: stranger }),
+    ).resolves.toEqual([]);
   });
 
   it('resolves a hash to its live row while a tombstone for the same content exists', async () => {
@@ -208,7 +220,7 @@ describe('findActiveFilesBySha256 — one live record per hash', () => {
 });
 
 describe('listFilesByUser', () => {
-  it('pages one account\'s own live files, newest first, with a total', async () => {
+  it("pages one account's own live files, newest first, with a total", async () => {
     const ownerId = await insertUser();
     const other = await insertUser();
     await insertFile({ sha256: sha(), ownerUserId: ownerId });

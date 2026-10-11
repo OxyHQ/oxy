@@ -20,7 +20,9 @@ describe('SMTP delivery failure classification', () => {
    * retry, and nothing was ever sent while nothing looked broken.
    */
   it('treats a missing relay as permanent, not as a transient hiccup', () => {
-    expect(isRetryableSmtpFailure(new SmtpConfigurationError('SMTP_RELAY_HOST is unset'))).toBe(false);
+    expect(isRetryableSmtpFailure(new SmtpConfigurationError('SMTP_RELAY_HOST is unset'))).toBe(
+      false,
+    );
   });
 
   it('answers 503, not 500, for a missing relay', () => {

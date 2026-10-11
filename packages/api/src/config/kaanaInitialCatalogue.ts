@@ -23,16 +23,16 @@
  * `scripts/renew-kaana-routing-scores.ts` and only over the exact superseded row.
  */
 
-export const KAANA_INITIAL_REVIEWED_AT = "2026-09-02T00:00:00.000Z";
+export const KAANA_INITIAL_REVIEWED_AT = '2026-09-02T00:00:00.000Z';
 /**
  * Current expiry of every reviewed scorecard below. Runtime refuses the WHOLE
  * route set once any selectable route's balanced score is stale, so this date
  * is a production cliff: renew it through
  * `.github/workflows/renew-kaana-routing-scores.yml` well before it passes.
  */
-export const KAANA_INITIAL_SCORE_VALID_UNTIL = "2026-11-01T00:00:00.000Z";
+export const KAANA_INITIAL_SCORE_VALID_UNTIL = '2026-11-01T00:00:00.000Z';
 /** The expiry the first bootstrap wrote for Cerebras and Groq. */
-export const KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL = "2026-10-02T00:00:00.000Z";
+export const KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL = '2026-10-02T00:00:00.000Z';
 
 /**
  * One owner-approved, same-value validity renewal of the reviewed scorecards.
@@ -43,12 +43,12 @@ export const KAANA_INITIAL_FIRST_SCORE_VALID_UNTIL = "2026-10-02T00:00:00.000Z";
  * recorded at exactly `reviewedAt`.
  */
 export const KAANA_SCORE_RENEWAL_2026_09_24 = {
-  reviewedAt: "2026-09-24T00:00:00.000Z",
+  reviewedAt: '2026-09-24T00:00:00.000Z',
   validUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
   reason:
-    "Owner-approved same-value validity renewal on 2026-09-24: scores, sources, evidence and measurement windows unchanged; validity extended to 2026-11-01.",
+    'Owner-approved same-value validity renewal on 2026-09-24: scores, sources, evidence and measurement windows unchanged; validity extended to 2026-11-01.',
 } as const;
-export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
+export const KAANA_INITIAL_MODEL_ID = 'openai/gpt-oss-120b';
 export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /**
  * The snapshot the bootstrap accepted before the realtime voice route: the
@@ -56,7 +56,7 @@ export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed
  * carries the three reviewed gpt-oss deployments with byte-identical identity
  * facts and the reviewed xAI speech deployment.
  */
-export const KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID = "snap_37548e4f1f8ec610";
+export const KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID = 'snap_37548e4f1f8ec610';
 
 /**
  * The two production facts only Kaana's publisher can supply for the xAI
@@ -80,25 +80,23 @@ export interface KaanaVoiceObservation {
   readonly inventorySnapshotId: string;
 }
 export const KAANA_VOICE_OBSERVATION: KaanaVoiceObservation | null = {
-  deploymentId: "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30",
-  inventorySnapshotId: "snap_8801d0c4e843149f",
+  deploymentId: 'dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_09_30',
+  inventorySnapshotId: 'snap_8801d0c4e843149f',
 };
 
-
 export const KAANA_INITIAL_PUBLISHER = {
-  slug: "openai",
-  displayName: "OpenAI",
-  websiteUrl: "https://openai.com/",
+  slug: 'openai',
+  displayName: 'OpenAI',
+  websiteUrl: 'https://openai.com/',
 } as const;
 
 export const KAANA_INITIAL_MODEL = {
   publisherSlug: KAANA_INITIAL_PUBLISHER.slug,
-  slug: "gpt-oss-120b",
-  displayName: "GPT-OSS 120B",
-  description:
-    "Open-weight text reasoning model for agentic and tool-using workloads.",
-  inputModalities: ["text"],
-  outputModalities: ["text"],
+  slug: 'gpt-oss-120b',
+  displayName: 'GPT-OSS 120B',
+  description: 'Open-weight text reasoning model for agentic and tool-using workloads.',
+  inputModalities: ['text'],
+  outputModalities: ['text'],
   supportsTools: true,
   supportsParallelToolCalls: false,
   supportsStructuredOutput: true,
@@ -110,38 +108,38 @@ export const KAANA_INITIAL_MODEL = {
   // Conservative common route ceiling: Cerebras publishes 40,960 while Groq
   // publishes 65,536. A catalogue capability must work on every listed route.
   maxOutputTokens: 40_960,
-  licenseId: "Apache-2.0",
-  licenseDisplayName: "Apache License 2.0",
-  licenseUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+  licenseId: 'Apache-2.0',
+  licenseDisplayName: 'Apache License 2.0',
+  licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0',
   commercialUseAllowed: true,
   requiresAttribution: false,
   baseModelAttributionRequired: false,
-  acceptableUsePolicyUrl: "https://openai.com/policies/usage-policies/",
-  releaseKind: "open_weight",
-  trainingOrganization: "OpenAI",
-  knowledgeCutoff: "2024-06-01",
-  releasedOn: "2025-08-05",
-  deprecationStatus: "active",
+  acceptableUsePolicyUrl: 'https://openai.com/policies/usage-policies/',
+  releaseKind: 'open_weight',
+  trainingOrganization: 'OpenAI',
+  knowledgeCutoff: '2024-06-01',
+  releasedOn: '2025-08-05',
+  deprecationStatus: 'active',
 } as const;
 
 export const KAANA_INITIAL_REVISION = {
-  revision: "observed-2026-09-01",
+  revision: 'observed-2026-09-01',
   isCurrent: true,
-  releasedAt: "2025-08-05T00:00:00.000Z",
-  modelCardUrl: "https://openai.com/index/gpt-oss-model-card/",
+  releasedAt: '2025-08-05T00:00:00.000Z',
+  modelCardUrl: 'https://openai.com/index/gpt-oss-model-card/',
 } as const;
 
 export interface KaanaInitialUnitPrice {
   readonly unit:
-    | "input_tokens"
-    | "cached_input_tokens"
-    | "output_tokens"
-    | "reasoning_tokens"
-    | "characters"
-    | "audio_input_milliseconds"
-    | "audio_output_milliseconds"
-    | "session_milliseconds"
-    | "requests";
+    | 'input_tokens'
+    | 'cached_input_tokens'
+    | 'output_tokens'
+    | 'reasoning_tokens'
+    | 'characters'
+    | 'audio_input_milliseconds'
+    | 'audio_output_milliseconds'
+    | 'session_milliseconds'
+    | 'requests';
   readonly amount: string;
   readonly per: number;
 }
@@ -161,7 +159,7 @@ export interface KaanaScoreRenewal {
 }
 
 export interface KaanaInitialProvider {
-  readonly slug: "groq" | "cerebras" | "openrouter" | "xai" | "xai-realtime";
+  readonly slug: 'groq' | 'cerebras' | 'openrouter' | 'xai' | 'xai-realtime';
   readonly displayName: string;
   readonly websiteUrl: string;
   readonly statusPageUrl?: string;
@@ -198,36 +196,35 @@ export interface KaanaInitialProvider {
 }
 
 export const KAANA_INITIAL_SCORECARD_REASON =
-  "Initial primary-source price/throughput review with neutral unmeasured latency for the exact Kaana deployment identity.";
+  'Initial primary-source price/throughput review with neutral unmeasured latency for the exact Kaana deployment identity.';
 
 const KAANA_OPENROUTER_SCORECARD_REASON =
-  "Primary-source OpenRouter price review with neutral unmeasured exact-route latency and throughput; recovery ordering uses no provider performance claim.";
+  'Primary-source OpenRouter price review with neutral unmeasured exact-route latency and throughput; recovery ordering uses no provider performance claim.';
 
 /** Reviewed scorecard policy shared by every initial route. */
 export const KAANA_INITIAL_SCORE_POLICY = {
-  latencyEvidenceRef: "not-measured:exact-deployment-bootstrap-2026-09-02",
-  fundingClass: "standard_payg",
-  fundingState: "available",
-  fundingEvidenceSource: "provider.priceEvidenceRef",
+  latencyEvidenceRef: 'not-measured:exact-deployment-bootstrap-2026-09-02',
+  fundingClass: 'standard_payg',
+  fundingState: 'available',
+  fundingEvidenceSource: 'provider.priceEvidenceRef',
 } as const;
 
 export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
   {
-    slug: "cerebras",
-    displayName: "Cerebras",
-    websiteUrl: "https://www.cerebras.ai/",
+    slug: 'cerebras',
+    displayName: 'Cerebras',
+    websiteUrl: 'https://www.cerebras.ai/',
     retainsPayloads: false,
     retentionDays: 0,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    policyUrl: "https://cloud.cerebras.ai/privacy",
-    deploymentId: "dep_cerebras_gpt_oss_120b_observed_2026_09_01",
-    upstreamModelId: "gpt-oss-120b",
+    policyUrl: 'https://cloud.cerebras.ai/privacy',
+    deploymentId: 'dep_cerebras_gpt_oss_120b_observed_2026_09_01',
+    upstreamModelId: 'gpt-oss-120b',
     legalEvidenceRef:
-      "owner-review-2026-09-02:https://cloud.cerebras.ai/terms;https://openai.com/index/gpt-oss-model-card/",
-    priceEvidenceRef: "https://api.cerebras.ai/public/v1/models",
-    performanceEvidenceRef:
-      "https://inference-docs.cerebras.ai/models/overview",
+      'owner-review-2026-09-02:https://cloud.cerebras.ai/terms;https://openai.com/index/gpt-oss-model-card/',
+    priceEvidenceRef: 'https://api.cerebras.ai/public/v1/models',
+    performanceEvidenceRef: 'https://inference-docs.cerebras.ai/models/overview',
     scoreRenewal: {
       reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
       reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
@@ -238,11 +235,11 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
       },
     },
     unitPrices: [
-      { unit: "input_tokens", amount: "0.35", per: 1_000_000 },
-      { unit: "cached_input_tokens", amount: "0.35", per: 1_000_000 },
-      { unit: "output_tokens", amount: "0.75", per: 1_000_000 },
-      { unit: "reasoning_tokens", amount: "0.75", per: 1_000_000 },
-      { unit: "requests", amount: "0", per: 1 },
+      { unit: 'input_tokens', amount: '0.35', per: 1_000_000 },
+      { unit: 'cached_input_tokens', amount: '0.35', per: 1_000_000 },
+      { unit: 'output_tokens', amount: '0.75', per: 1_000_000 },
+      { unit: 'reasoning_tokens', amount: '0.75', per: 1_000_000 },
+      { unit: 'requests', amount: '0', per: 1 },
     ],
     // The provider publishes throughput, not a comparable end-to-end latency
     // measurement. The SAME reviewed neutral value on every route cannot create
@@ -250,24 +247,23 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
     scores: { price: 600, latency: 500, throughput: 1_000, balanced: 800 },
   },
   {
-    slug: "groq",
-    displayName: "Groq",
-    websiteUrl: "https://groq.com/",
-    statusPageUrl: "https://groqstatus.com/",
+    slug: 'groq',
+    displayName: 'Groq',
+    websiteUrl: 'https://groq.com/',
+    statusPageUrl: 'https://groqstatus.com/',
     // Groq documents no default inference retention, but allows temporary
     // reliability/abuse logs for up to 30 days unless ZDR is enabled.
     retainsPayloads: true,
     retentionDays: 30,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    policyUrl: "https://console.groq.com/docs/your-data",
-    deploymentId: "dep_groq_openai_gpt_oss_120b_observed_2026_09_01",
-    upstreamModelId: "openai/gpt-oss-120b",
+    policyUrl: 'https://console.groq.com/docs/your-data',
+    deploymentId: 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01',
+    upstreamModelId: 'openai/gpt-oss-120b',
     legalEvidenceRef:
-      "owner-review-2026-09-02:https://console.groq.com/docs/legal/services-agreement;https://openai.com/index/gpt-oss-model-card/",
-    priceEvidenceRef: "https://console.groq.com/docs/model/openai/gpt-oss-120b",
-    performanceEvidenceRef:
-      "https://console.groq.com/docs/model/openai/gpt-oss-120b",
+      'owner-review-2026-09-02:https://console.groq.com/docs/legal/services-agreement;https://openai.com/index/gpt-oss-model-card/',
+    priceEvidenceRef: 'https://console.groq.com/docs/model/openai/gpt-oss-120b',
+    performanceEvidenceRef: 'https://console.groq.com/docs/model/openai/gpt-oss-120b',
     scoreRenewal: {
       reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
       reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
@@ -278,19 +274,19 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
       },
     },
     unitPrices: [
-      { unit: "input_tokens", amount: "0.15", per: 1_000_000 },
-      { unit: "cached_input_tokens", amount: "0.075", per: 1_000_000 },
-      { unit: "output_tokens", amount: "0.60", per: 1_000_000 },
-      { unit: "reasoning_tokens", amount: "0.60", per: 1_000_000 },
-      { unit: "requests", amount: "0", per: 1 },
+      { unit: 'input_tokens', amount: '0.15', per: 1_000_000 },
+      { unit: 'cached_input_tokens', amount: '0.075', per: 1_000_000 },
+      { unit: 'output_tokens', amount: '0.60', per: 1_000_000 },
+      { unit: 'reasoning_tokens', amount: '0.60', per: 1_000_000 },
+      { unit: 'requests', amount: '0', per: 1 },
     ],
     scores: { price: 1_000, latency: 500, throughput: 600, balanced: 800 },
   },
   {
-    slug: "openrouter",
-    displayName: "OpenRouter",
-    websiteUrl: "https://openrouter.ai/",
-    statusPageUrl: "https://status.openrouter.ai/",
+    slug: 'openrouter',
+    displayName: 'OpenRouter',
+    websiteUrl: 'https://openrouter.ai/',
+    statusPageUrl: 'https://status.openrouter.ai/',
     // Kaana binds every OpenRouter request to `zdr: true` and
     // `data_collection: deny`; those controls can only narrow the account
     // policy and OpenRouter refuses the request when no compliant endpoint is
@@ -300,36 +296,34 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
     retentionDays: 0,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    policyUrl: "https://openrouter.ai/docs/guides/privacy/provider-logging",
-    deploymentId:
-      "dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01",
-    upstreamModelId: "openai/gpt-oss-120b",
+    policyUrl: 'https://openrouter.ai/docs/guides/privacy/provider-logging',
+    deploymentId: 'dep_openrouter_openai_gpt_oss_120b_observed_2026_09_01',
+    upstreamModelId: 'openai/gpt-oss-120b',
     legalEvidenceRef:
-      "owner-review-2026-09-11:https://openrouter.ai/terms;https://openai.com/index/gpt-oss-model-card/;scope=internal-alia-standard-application-use-not-api-resale",
-    priceEvidenceRef: "https://openrouter.ai/openai/gpt-oss-120b",
-    performanceEvidenceRef:
-      "not-measured:openrouter-exact-deployment-2026-09-11",
-    reviewedAt: "2026-09-11T00:00:00.000Z",
+      'owner-review-2026-09-11:https://openrouter.ai/terms;https://openai.com/index/gpt-oss-model-card/;scope=internal-alia-standard-application-use-not-api-resale',
+    priceEvidenceRef: 'https://openrouter.ai/openai/gpt-oss-120b',
+    performanceEvidenceRef: 'not-measured:openrouter-exact-deployment-2026-09-11',
+    reviewedAt: '2026-09-11T00:00:00.000Z',
     scoreValidUntil: KAANA_SCORE_RENEWAL_2026_09_24.validUntil,
-    priceEffectiveFrom: "2026-09-11T00:00:00.000Z",
+    priceEffectiveFrom: '2026-09-11T00:00:00.000Z',
     scorecardReason: KAANA_OPENROUTER_SCORECARD_REASON,
     scoreRenewal: {
       reviewedAt: KAANA_SCORE_RENEWAL_2026_09_24.reviewedAt,
       reason: KAANA_SCORE_RENEWAL_2026_09_24.reason,
       supersedes: {
-        changedAt: "2026-09-11T00:00:00.000Z",
-        validUntil: "2026-10-11T00:00:00.000Z",
+        changedAt: '2026-09-11T00:00:00.000Z',
+        validUntil: '2026-10-11T00:00:00.000Z',
         reason: KAANA_OPENROUTER_SCORECARD_REASON,
       },
     },
     permissionStateNote:
-      "Owner-approved internal Alia route; primary-source review 2026-09-11; not approved for API resale.",
+      'Owner-approved internal Alia route; primary-source review 2026-09-11; not approved for API resale.',
     unitPrices: [
-      { unit: "input_tokens", amount: "0.03", per: 1_000_000 },
-      { unit: "cached_input_tokens", amount: "0.03", per: 1_000_000 },
-      { unit: "output_tokens", amount: "0.17", per: 1_000_000 },
-      { unit: "reasoning_tokens", amount: "0.17", per: 1_000_000 },
-      { unit: "requests", amount: "0", per: 1 },
+      { unit: 'input_tokens', amount: '0.03', per: 1_000_000 },
+      { unit: 'cached_input_tokens', amount: '0.03', per: 1_000_000 },
+      { unit: 'output_tokens', amount: '0.17', per: 1_000_000 },
+      { unit: 'reasoning_tokens', amount: '0.17', per: 1_000_000 },
+      { unit: 'requests', amount: '0', per: 1 },
     ],
     scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
   },
@@ -353,22 +347,21 @@ export const KAANA_INITIAL_PROVIDERS: readonly KaanaInitialProvider[] = [
  * wrote are not deleted by this change, and a key is never reused.
  */
 export const KAANA_INITIAL_ROUTING_PROFILE_IDS = {
-  default: "01a06477-94f5-74f0-bc25-4c5c13b93ccd",
+  default: '01a06477-94f5-74f0-bc25-4c5c13b93ccd',
 } as const;
 
 /** The one text profile still owned by the reviewed bootstrap: Inbox's. */
 export const KAANA_INITIAL_ROUTING_PROFILES = [
   {
     id: KAANA_INITIAL_ROUTING_PROFILE_IDS.default,
-    slug: "kaana-v1",
-    displayName: "Kaana",
-    optimiseFor: "balanced",
+    slug: 'kaana-v1',
+    displayName: 'Kaana',
+    optimiseFor: 'balanced',
   },
 ] as const;
 
 export const KAANA_INITIAL_BALANCED_FORMULA_REF =
-  "reviewed-scorecard-v1:round((price+throughput)/2);latency-unmeasured";
-
+  'reviewed-scorecard-v1:round((price+throughput)/2);latency-unmeasured';
 
 /** Measurement windows stay at the original review; renewals never move them. */
 export function kaanaScoreMeasuredAt(provider: KaanaInitialProvider): string {
@@ -376,16 +369,12 @@ export function kaanaScoreMeasuredAt(provider: KaanaInitialProvider): string {
 }
 
 /** The scorecard state the database must hold for this provider now. */
-export function kaanaCurrentScorecardReview(
-  provider: KaanaInitialProvider,
-): KaanaScorecardReview {
+export function kaanaCurrentScorecardReview(provider: KaanaInitialProvider): KaanaScorecardReview {
   return {
     changedAt: provider.scoreRenewal?.reviewedAt ?? kaanaScoreMeasuredAt(provider),
     validUntil: provider.scoreValidUntil ?? KAANA_INITIAL_SCORE_VALID_UNTIL,
     reason:
-      provider.scoreRenewal?.reason ??
-      provider.scorecardReason ??
-      KAANA_INITIAL_SCORECARD_REASON,
+      provider.scoreRenewal?.reason ?? provider.scorecardReason ?? KAANA_INITIAL_SCORECARD_REASON,
   };
 }
 
@@ -417,8 +406,8 @@ export function requireSingleKaanaBootstrapScoreEvent<T>(
  * `x-ai/text-to-speech` with first-observation revision semantics. The
  * revision is therefore Kaana's observed identity, not a claim about weights.
  */
-export const KAANA_SPEECH_REVIEWED_AT = "2026-09-24T00:00:00.000Z";
-export const KAANA_SPEECH_MODEL_ID = "x-ai/text-to-speech";
+export const KAANA_SPEECH_REVIEWED_AT = '2026-09-24T00:00:00.000Z';
+export const KAANA_SPEECH_MODEL_ID = 'x-ai/text-to-speech';
 export const KAANA_SPEECH_MODEL_REFERENCE = `${KAANA_SPEECH_MODEL_ID}@observed-2026-09-24`;
 
 /**
@@ -432,18 +421,18 @@ export const KAANA_SPEECH_MODEL_REFERENCE = `${KAANA_SPEECH_MODEL_ID}@observed-2
 export const KAANA_SPEECH_MAX_INPUT_CHARACTERS = 15_000;
 
 export const KAANA_SPEECH_PUBLISHER = {
-  slug: "x-ai",
-  displayName: "xAI",
-  websiteUrl: "https://x.ai/",
+  slug: 'x-ai',
+  displayName: 'xAI',
+  websiteUrl: 'https://x.ai/',
 } as const;
 
 export const KAANA_SPEECH_MODEL = {
   publisherSlug: KAANA_SPEECH_PUBLISHER.slug,
-  slug: "text-to-speech",
-  displayName: "Text to Speech",
-  description: "Hosted text-to-speech endpoint that returns spoken audio.",
-  inputModalities: ["text"],
-  outputModalities: ["audio"],
+  slug: 'text-to-speech',
+  displayName: 'Text to Speech',
+  description: 'Hosted text-to-speech endpoint that returns spoken audio.',
+  inputModalities: ['text'],
+  outputModalities: ['audio'],
   supportsTools: false,
   supportsParallelToolCalls: false,
   supportsStructuredOutput: false,
@@ -458,44 +447,43 @@ export const KAANA_SPEECH_MODEL = {
   // The column requires a positive value; 1 is the smallest one and is never
   // used to size a hold for speech.
   maxOutputTokens: 1,
-  licenseId: "xAI-Enterprise-Terms",
-  licenseDisplayName: "xAI Enterprise Terms of Service",
-  licenseUrl: "https://x.ai/legal/terms-of-service-enterprise",
+  licenseId: 'xAI-Enterprise-Terms',
+  licenseDisplayName: 'xAI Enterprise Terms of Service',
+  licenseUrl: 'https://x.ai/legal/terms-of-service-enterprise',
   commercialUseAllowed: true,
   requiresAttribution: false,
   baseModelAttributionRequired: false,
   acceptableUsePolicyUrl: null,
-  releaseKind: "third_party_hosted",
-  trainingOrganization: "xAI",
+  releaseKind: 'third_party_hosted',
+  trainingOrganization: 'xAI',
   knowledgeCutoff: null,
   releasedOn: null,
-  deprecationStatus: "active",
+  deprecationStatus: 'active',
 } as const;
 
 export const KAANA_SPEECH_REVISION = {
-  revision: "observed-2026-09-24",
+  revision: 'observed-2026-09-24',
   isCurrent: true,
   // xAI publishes no release instant for the endpoint; this is the Kaana
   // observation that names the revision.
   releasedAt: KAANA_SPEECH_REVIEWED_AT,
-  modelCardUrl:
-    "https://docs.x.ai/developers/model-capabilities/audio/text-to-speech",
+  modelCardUrl: 'https://docs.x.ai/developers/model-capabilities/audio/text-to-speech',
   // A non-text model must declare its content provenance (migration 0050's
   // trigger refuses the revision otherwise). xAI's speech documentation
   // publishes no watermark or C2PA marking, and Kaana stamps none: `none` is
   // that declaration. Moderation is xAI's own default under its usage policy.
-  contentFilteringDefault: "provider_default",
-  provenanceMarking: "none",
+  contentFilteringDefault: 'provider_default',
+  provenanceMarking: 'none',
 } as const;
 
 const KAANA_SPEECH_SCORECARD_REASON =
-  "Primary-source xAI list-price review of the single exact speech route with neutral unmeasured latency and throughput; the speech profile ranks on price and makes no provider performance claim.";
+  'Primary-source xAI list-price review of the single exact speech route with neutral unmeasured latency and throughput; the speech profile ranks on price and makes no provider performance claim.';
 
 export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
   {
-    slug: "xai",
-    displayName: "xAI",
-    websiteUrl: "https://x.ai/",
+    slug: 'xai',
+    displayName: 'xAI',
+    websiteUrl: 'https://x.ai/',
     // xAI stores API requests and responses for 30 days for abuse auditing,
     // never trains on them, and offers team-wide ZDR. The default is recorded:
     // ZDR is not asserted for Oxy's xAI team.
@@ -503,24 +491,24 @@ export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
     retentionDays: 30,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    policyUrl: "https://docs.x.ai/developers/faq/security",
-    deploymentId: "dep_xai_tts_observed_2026_09_24",
-    upstreamModelId: "tts",
+    policyUrl: 'https://docs.x.ai/developers/faq/security',
+    deploymentId: 'dep_xai_tts_observed_2026_09_24',
+    upstreamModelId: 'tts',
     legalEvidenceRef:
-      "owner-approval-2026-09-24:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;scope=internal-alia-standard-application-use-not-api-resale",
+      'owner-approval-2026-09-24:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;scope=internal-alia-standard-application-use-not-api-resale',
     // Customer price is the provider list price with no markup, as for every
     // reviewed route: $15.00 per 1M characters, and an explicit free request.
-    priceEvidenceRef: "https://docs.x.ai/developers/pricing",
-    performanceEvidenceRef: "not-measured:xai-tts-exact-deployment-2026-09-24",
+    priceEvidenceRef: 'https://docs.x.ai/developers/pricing',
+    performanceEvidenceRef: 'not-measured:xai-tts-exact-deployment-2026-09-24',
     reviewedAt: KAANA_SPEECH_REVIEWED_AT,
     scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
     priceEffectiveFrom: KAANA_SPEECH_REVIEWED_AT,
     scorecardReason: KAANA_SPEECH_SCORECARD_REASON,
     permissionStateNote:
-      "Owner-approved internal Alia speech route; primary-source review 2026-09-24; not approved for API resale.",
+      'Owner-approved internal Alia speech route; primary-source review 2026-09-24; not approved for API resale.',
     unitPrices: [
-      { unit: "characters", amount: "15.00", per: 1_000_000 },
-      { unit: "requests", amount: "0", per: 1 },
+      { unit: 'characters', amount: '15.00', per: 1_000_000 },
+      { unit: 'requests', amount: '0', per: 1 },
     ],
     // One route: the price rank cannot reorder anything. Neutral 500s mirror
     // the unmeasured OpenRouter route; balanced follows the shared formula.
@@ -535,15 +523,14 @@ export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
  * adopted verbatim rather than generated: it is a v4 UUID, unlike the text
  * profile keys. It is never a stored agent or chat profile.
  */
-export const KAANA_SPEECH_ROUTING_PROFILE_ID =
-  "cc2471c8-807e-46ec-b5da-b6f3b39d2db5";
+export const KAANA_SPEECH_ROUTING_PROFILE_ID = 'cc2471c8-807e-46ec-b5da-b6f3b39d2db5';
 
 export const KAANA_SPEECH_ROUTING_PROFILES = [
   {
     id: KAANA_SPEECH_ROUTING_PROFILE_ID,
-    slug: "kaana-v1-speech",
-    displayName: "Kaana Speech",
-    optimiseFor: "price",
+    slug: 'kaana-v1-speech',
+    displayName: 'Kaana Speech',
+    optimiseFor: 'price',
   },
 ] as const;
 
@@ -565,9 +552,9 @@ export const KAANA_SPEECH_ROUTING_PROFILES = [
  * limits), https://x.ai/news/grok-voice-think-fast-2 ($0.08/min for 2.0),
  * https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech.
  */
-export const KAANA_VOICE_REVIEWED_AT = "2026-09-30T00:00:00.000Z";
-export const KAANA_VOICE_MODEL_ID = "x-ai/grok-voice-think-fast-2.0";
-export const KAANA_VOICE_UPSTREAM_MODEL_ID = "grok-voice-think-fast-2.0";
+export const KAANA_VOICE_REVIEWED_AT = '2026-09-30T00:00:00.000Z';
+export const KAANA_VOICE_MODEL_ID = 'x-ai/grok-voice-think-fast-2.0';
+export const KAANA_VOICE_UPSTREAM_MODEL_ID = 'grok-voice-think-fast-2.0';
 /** Kaana's published id: provider slug, upstream id, and the observation day. */
 export const KAANA_VOICE_DEPLOYMENT_ID_PATTERN =
   /^dep_xai_realtime_grok_voice_think_fast_2_0_observed_(\d{4})_(\d{2})_(\d{2})$/;
@@ -586,13 +573,13 @@ export const KAANA_VOICE_MAX_CONTEXT_TOKENS = 65_536 + 8 + 1;
 
 export const KAANA_VOICE_MODEL = {
   publisherSlug: KAANA_SPEECH_PUBLISHER.slug,
-  slug: "grok-voice-think-fast-2.0",
-  displayName: "Grok Voice Think Fast 2.0",
+  slug: 'grok-voice-think-fast-2.0',
+  displayName: 'Grok Voice Think Fast 2.0',
   description:
-    "Hosted speech-to-speech voice agent served as push-to-talk realtime conversation sessions.",
+    'Hosted speech-to-speech voice agent served as push-to-talk realtime conversation sessions.',
   // A session takes text items and audio, and answers in text and speech.
-  inputModalities: ["text", "audio"],
-  outputModalities: ["text", "audio"],
+  inputModalities: ['text', 'audio'],
+  outputModalities: ['text', 'audio'],
   // xAI documents function tools on the Voice Agent; Kaana relays them.
   supportsTools: true,
   supportsParallelToolCalls: false,
@@ -608,33 +595,33 @@ export const KAANA_VOICE_MODEL = {
   // duration-priced hold never reads it. The column requires a positive value;
   // 1 is the smallest, as for the speech route.
   maxOutputTokens: 1,
-  licenseId: "xAI-Enterprise-Terms",
-  licenseDisplayName: "xAI Enterprise Terms of Service",
-  licenseUrl: "https://x.ai/legal/terms-of-service-enterprise",
+  licenseId: 'xAI-Enterprise-Terms',
+  licenseDisplayName: 'xAI Enterprise Terms of Service',
+  licenseUrl: 'https://x.ai/legal/terms-of-service-enterprise',
   commercialUseAllowed: true,
   requiresAttribution: false,
   baseModelAttributionRequired: false,
   acceptableUsePolicyUrl: null,
-  releaseKind: "third_party_hosted",
-  trainingOrganization: "xAI",
+  releaseKind: 'third_party_hosted',
+  trainingOrganization: 'xAI',
   knowledgeCutoff: null,
   releasedOn: null,
-  deprecationStatus: "active",
+  deprecationStatus: 'active',
   // Migration 0126: the realtime pair (with audio among the input
   // modalities). `api_formats` stays NULL: its CHECK names no realtime dialect,
   // and a one-shot request to this model fails to quote (no token unit is
   // priced) and is refused before any hold.
-  realtimeTransports: ["websocket"],
-  realtimeSessionKinds: ["conversation"],
+  realtimeTransports: ['websocket'],
+  realtimeSessionKinds: ['conversation'],
 } as const;
 
 const KAANA_VOICE_SCORECARD_REASON =
-  "Primary-source xAI list-price review of the single exact realtime voice route with neutral unmeasured latency and throughput; sessions name the model and make no provider performance claim.";
+  'Primary-source xAI list-price review of the single exact realtime voice route with neutral unmeasured latency and throughput; sessions name the model and make no provider performance claim.';
 
 export type KaanaVoiceCatalogueStatus =
-  | { readonly status: "pending"; readonly reason: string }
+  | { readonly status: 'pending'; readonly reason: string }
   | {
-      readonly status: "ready";
+      readonly status: 'ready';
       readonly catalogue: KaanaReviewedModelCatalogue;
       readonly inventorySnapshotId: string;
     };
@@ -649,15 +636,15 @@ export function kaanaVoiceCatalogue(
 ): KaanaVoiceCatalogueStatus {
   if (observation === null) {
     return {
-      status: "pending",
+      status: 'pending',
       reason:
-        "The xAI realtime voice route is not enabled: Kaana has not yet published its deployment id and inventory snapshot (KAANA_VOICE_OBSERVATION is null).",
+        'The xAI realtime voice route is not enabled: Kaana has not yet published its deployment id and inventory snapshot (KAANA_VOICE_OBSERVATION is null).',
     };
   }
   const match = KAANA_VOICE_DEPLOYMENT_ID_PATTERN.exec(observation.deploymentId);
   if (match === null) {
     return {
-      status: "pending",
+      status: 'pending',
       reason: `${observation.deploymentId} is not a Kaana xai-realtime grok-voice-think-fast-2.0 deployment id`,
     };
   }
@@ -668,23 +655,23 @@ export function kaanaVoiceCatalogue(
     Number.isNaN(Date.parse(observedAt)) ||
     new Date(observedAt).toISOString().slice(0, 10) !== observedOn
   ) {
-    return { status: "pending", reason: `${observedOn} is not a calendar date` };
+    return { status: 'pending', reason: `${observedOn} is not a calendar date` };
   }
   if (observedAt < KAANA_VOICE_REVIEWED_AT) {
     return {
-      status: "pending",
+      status: 'pending',
       reason: `${observation.deploymentId} predates the ${KAANA_VOICE_REVIEWED_AT.slice(0, 10)} review; it cannot be the route that review priced`,
     };
   }
   if (!KAANA_INVENTORY_SNAPSHOT_ID_PATTERN.test(observation.inventorySnapshotId)) {
     return {
-      status: "pending",
+      status: 'pending',
       reason: `${observation.inventorySnapshotId} is not a Kaana inventory snapshot id`,
     };
   }
   if (observation.inventorySnapshotId === KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID) {
     return {
-      status: "pending",
+      status: 'pending',
       reason: `${KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID} predates the voice route and cannot carry it`,
     };
   }
@@ -695,53 +682,53 @@ export function kaanaVoiceCatalogue(
     // xAI publishes no release instant for this id; this is the Kaana
     // observation that names the revision, exactly as for the speech route.
     releasedAt: observedAt,
-    modelCardUrl: "https://docs.x.ai/developers/models/speech-to-speech",
+    modelCardUrl: 'https://docs.x.ai/developers/models/speech-to-speech',
     // Audio output must declare its provenance (migration 0050). xAI's Voice
     // Agent documentation publishes no watermark or C2PA marking and Kaana
     // stamps none; moderation is xAI's default under its usage policy.
-    contentFilteringDefault: "provider_default",
-    provenanceMarking: "none",
+    contentFilteringDefault: 'provider_default',
+    provenanceMarking: 'none',
   } as const;
   const provider: KaanaInitialProvider = {
-    slug: "xai-realtime",
-    displayName: "xAI Voice Agent",
-    websiteUrl: "https://x.ai/",
+    slug: 'xai-realtime',
+    displayName: 'xAI Voice Agent',
+    websiteUrl: 'https://x.ai/',
     // The same xAI team and data policy as the speech route: 30-day abuse
     // retention, no training, ZDR available but not asserted for Oxy's team.
     retainsPayloads: true,
     retentionDays: 30,
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
-    policyUrl: "https://docs.x.ai/developers/faq/security",
+    policyUrl: 'https://docs.x.ai/developers/faq/security',
     deploymentId: observation.deploymentId,
     upstreamModelId: KAANA_VOICE_UPSTREAM_MODEL_ID,
     legalEvidenceRef:
-      "primary-source-review-2026-09-30:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;https://docs.x.ai/developers/models/speech-to-speech;scope=internal-alia-standard-application-use-not-api-resale",
+      'primary-source-review-2026-09-30:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;https://docs.x.ai/developers/models/speech-to-speech;scope=internal-alia-standard-application-use-not-api-resale',
     // Customer price is the provider list price with no markup, as for every
     // reviewed route: $0.08 per minute of audio each way (per 60,000 ms, so no
     // rounding enters the rate) and $0.004 per billed text item (`requests`).
     // A `server_vad` session is billed for its wall clock instead of its audio
     // at the same $0.08/min (contract set 3.3.0 `session_milliseconds`); Kaana
     // reports one or the other for a session, never both for the same span.
-    priceEvidenceRef: "https://docs.x.ai/developers/models/speech-to-speech",
-    performanceEvidenceRef: "not-measured:xai-realtime-exact-deployment-2026-09-30",
+    priceEvidenceRef: 'https://docs.x.ai/developers/models/speech-to-speech',
+    performanceEvidenceRef: 'not-measured:xai-realtime-exact-deployment-2026-09-30',
     reviewedAt: KAANA_VOICE_REVIEWED_AT,
     scoreValidUntil: KAANA_INITIAL_SCORE_VALID_UNTIL,
     priceEffectiveFrom: KAANA_VOICE_REVIEWED_AT,
     scorecardReason: KAANA_VOICE_SCORECARD_REASON,
     permissionStateNote:
-      "Primary-source review 2026-09-30 of the single exact xAI realtime voice route; internal Alia use; not approved for API resale.",
+      'Primary-source review 2026-09-30 of the single exact xAI realtime voice route; internal Alia use; not approved for API resale.',
     unitPrices: [
-      { unit: "audio_input_milliseconds", amount: "0.08", per: 60_000 },
-      { unit: "audio_output_milliseconds", amount: "0.08", per: 60_000 },
-      { unit: "session_milliseconds", amount: "0.08", per: 60_000 },
-      { unit: "requests", amount: "0.004", per: 1 },
+      { unit: 'audio_input_milliseconds', amount: '0.08', per: 60_000 },
+      { unit: 'audio_output_milliseconds', amount: '0.08', per: 60_000 },
+      { unit: 'session_milliseconds', amount: '0.08', per: 60_000 },
+      { unit: 'requests', amount: '0.004', per: 1 },
     ],
     // One route: neutral 500s and the shared balanced formula, as for speech.
     scores: { price: 1_000, latency: 500, throughput: 500, balanced: 750 },
   };
   return {
-    status: "ready",
+    status: 'ready',
     inventorySnapshotId: observation.inventorySnapshotId,
     catalogue: {
       publisher: KAANA_SPEECH_PUBLISHER,
@@ -767,7 +754,7 @@ export const KAANA_VOICE_CATALOGUE_STATUS: KaanaVoiceCatalogueStatus =
  * the old pin and fails the catalogue tests, so it cannot merge.)
  */
 export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID: string =
-  KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+  KAANA_VOICE_CATALOGUE_STATUS.status === 'ready'
     ? KAANA_VOICE_CATALOGUE_STATUS.inventorySnapshotId
     : KAANA_PRE_VOICE_INVENTORY_SNAPSHOT_ID;
 
@@ -775,7 +762,7 @@ export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID: string =
 export function requireKaanaVoiceCatalogue(
   status: KaanaVoiceCatalogueStatus = KAANA_VOICE_CATALOGUE_STATUS,
 ): KaanaReviewedModelCatalogue {
-  if (status.status !== "ready") throw new Error(status.reason);
+  if (status.status !== 'ready') throw new Error(status.reason);
   return status.catalogue;
 }
 
@@ -789,8 +776,8 @@ export interface KaanaReviewedRevision {
   readonly isCurrent: boolean;
   readonly releasedAt: string;
   readonly modelCardUrl: string;
-  readonly contentFilteringDefault?: "provider_default";
-  readonly provenanceMarking?: "none";
+  readonly contentFilteringDefault?: 'provider_default';
+  readonly provenanceMarking?: 'none';
 }
 
 export interface KaanaReviewedModelCatalogue {
@@ -799,10 +786,7 @@ export interface KaanaReviewedModelCatalogue {
     readonly displayName: string;
     readonly websiteUrl: string;
   };
-  readonly model:
-    | typeof KAANA_INITIAL_MODEL
-    | typeof KAANA_SPEECH_MODEL
-    | typeof KAANA_VOICE_MODEL;
+  readonly model: typeof KAANA_INITIAL_MODEL | typeof KAANA_SPEECH_MODEL | typeof KAANA_VOICE_MODEL;
   readonly modelId: string;
   readonly modelReference: string;
   readonly revision: KaanaReviewedRevision;
@@ -811,7 +795,7 @@ export interface KaanaReviewedModelCatalogue {
     readonly id: string;
     readonly slug: string;
     readonly displayName: string;
-    readonly optimiseFor: "price" | "balanced";
+    readonly optimiseFor: 'price' | 'balanced';
   }[];
 }
 
@@ -842,7 +826,7 @@ export const KAANA_SPEECH_CATALOGUE: KaanaReviewedModelCatalogue = {
 export const KAANA_REVIEWED_CATALOGUES: readonly KaanaReviewedModelCatalogue[] = [
   KAANA_TEXT_CATALOGUE,
   KAANA_SPEECH_CATALOGUE,
-  ...(KAANA_VOICE_CATALOGUE_STATUS.status === "ready"
+  ...(KAANA_VOICE_CATALOGUE_STATUS.status === 'ready'
     ? [KAANA_VOICE_CATALOGUE_STATUS.catalogue]
     : []),
 ];
@@ -886,9 +870,7 @@ export function kaanaReviewedCatalogueProjection(
  * Every insert a first bootstrap of `catalogue` may perform, in write order.
  * The workflow allow-lists exactly these operation names.
  */
-export function kaanaReviewedCatalogueOperations(
-  catalogue: KaanaReviewedModelCatalogue,
-): string[] {
+export function kaanaReviewedCatalogueOperations(catalogue: KaanaReviewedModelCatalogue): string[] {
   return [
     `publisher:${catalogue.publisher.slug}`,
     `model:${catalogue.modelId}`,

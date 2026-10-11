@@ -50,7 +50,11 @@ export function createTokenTransport(
           return;
         }
       } catch (error) {
-        logger.warn('ensureActiveToken: bearer-account check threw', { component: 'TokenTransport' }, error);
+        logger.warn(
+          'ensureActiveToken: bearer-account check threw',
+          { component: 'TokenTransport' },
+          error,
+        );
       }
 
       try {

@@ -35,7 +35,7 @@ export function userIdFromDid(did: string): string | null {
   if (idx < 0) return null;
 
   const userId = trimmed.slice(idx + USER_SEGMENT.length);
-  // A real account id (Mongo `_id`) carries no `/`, `:`, `?` or `#`; reject a
+  // A real account id carries no `/`, `:`, `?` or `#`; reject a
   // trailing path/fragment or an empty tail rather than resolving a bogus id.
   if (userId.length === 0 || /[/:?#]/.test(userId)) return null;
   return userId;

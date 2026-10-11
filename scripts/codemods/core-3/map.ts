@@ -114,12 +114,18 @@ export const METHOD_MAP: Record<string, Entry> = {
   getSimilarProfiles: e('users.similar'),
   getProfileRecommendations: e('users.recommendations'),
   updateProfile: e('users.updateMe'),
-  updateNotificationPreferences: e('users.updateMe', '(prefs) → ({ notificationPreferences: prefs })'),
+  updateNotificationPreferences: e(
+    'users.updateMe',
+    '(prefs) → ({ notificationPreferences: prefs })',
+  ),
   updateUserPreferences: e('users.updateMe', '(prefs) → ({ preferences: prefs })'),
   updateThemePreference: e('users.updateMe', '(theme) → ({ themePreference: theme })'),
   requestAccountVerification: e('users.requestVerification'),
   deleteAccount: e('users.deleteMe', '(confirmText) → (confirmText, { deviceKey: true })'),
-  deleteAccountWithEmailCode: e('users.deleteMe', '(confirmText, reauth) → (confirmText, { reauth })'),
+  deleteAccountWithEmailCode: e(
+    'users.deleteMe',
+    '(confirmText, reauth) → (confirmText, { reauth })',
+  ),
   getAccountDeletionOptions: e(null),
   deleteAccountWithPasskey: e(null),
   downloadAccountData: e('identity.export', 'now the signed export (GET /users/me/export)'),
@@ -176,10 +182,22 @@ export const METHOD_MAP: Record<string, Entry> = {
   unregisterPushToken: e('notifications.unregisterPushToken'),
 
   // ── assets ───────────────────────────────────────────────────────────────
-  assetUpload: e('assets.upload', '(file, visibility, metadata, onProgress) → (file, { visibility, metadata, onProgress }); returns { file }'),
-  uploadRawFile: e('assets.upload', '(file, visibility, metadata) → (file, { visibility, metadata }); returns { file }'),
-  assetLink: e('assets.link', '(fileId, app, entityType, entityId, visibility, webhookUrl) → (fileId, { app, entityType, entityId }, { visibility, webhookUrl })'),
-  assetUnlink: e('assets.unlink', '(fileId, app, entityType, entityId) → (fileId, { app, entityType, entityId })'),
+  assetUpload: e(
+    'assets.upload',
+    '(file, visibility, metadata, onProgress) → (file, { visibility, metadata, onProgress }); returns { file }',
+  ),
+  uploadRawFile: e(
+    'assets.upload',
+    '(file, visibility, metadata) → (file, { visibility, metadata }); returns { file }',
+  ),
+  assetLink: e(
+    'assets.link',
+    '(fileId, app, entityType, entityId, visibility, webhookUrl) → (fileId, { app, entityType, entityId }, { visibility, webhookUrl })',
+  ),
+  assetUnlink: e(
+    'assets.unlink',
+    '(fileId, app, entityType, entityId) → (fileId, { app, entityType, entityId })',
+  ),
   assetGet: e('assets.get'),
   assetGetVariants: e('assets.get', 'variants are on the asset: (await assets.get(id)).variants'),
   assetGetUrl: e('assets.url', 'returns the URL string, not { url }'),
@@ -315,7 +333,10 @@ export const METHOD_MAP: Record<string, Entry> = {
   getCurrentUserSubscription: e('billing.subscription'),
   getWallet: e('billing.wallet'),
   getCurrentUserWallet: e('billing.wallet'),
-  getWalletTransactions: e('billing.walletTransactions', '(userId, options) → ({ userId, ...options })'),
+  getWalletTransactions: e(
+    'billing.walletTransactions',
+    '(userId, options) → ({ userId, ...options })',
+  ),
   getCurrentUserWalletTransactions: e('billing.walletTransactions', '(options) → (options)'),
   createPayment: e(null),
   getPayment: e(null),
@@ -325,7 +346,10 @@ export const METHOD_MAP: Record<string, Entry> = {
   getMyReputationBalance: e('reputation.balance', 'no userId = mine'),
   getReputationLeaderboard: e('reputation.leaderboard', '(limit, offset) → ({ limit, offset })'),
   getReputationRules: e('reputation.rules'),
-  getReputationTransactions: e('reputation.transactions', '(userId, limit, offset) → (userId, { limit, offset })'),
+  getReputationTransactions: e(
+    'reputation.transactions',
+    '(userId, limit, offset) → (userId, { limit, offset })',
+  ),
   getReputationInfluence: e('reputation.influence'),
   awardReputation: e('server:reputation.award'),
   createReputationDispute: e(null),
@@ -370,7 +394,10 @@ export const METHOD_MAP: Record<string, Entry> = {
   updateDeviceName: e('devices.rename'),
   getSecurityInfo: e('devices.securityInfo'),
   getSecurityActivity: e('devices.securityActivity'),
-  getRecentSecurityActivity: e('devices.securityActivity', '(limit) → (limit, 0); returns the page, read .data'),
+  getRecentSecurityActivity: e(
+    'devices.securityActivity',
+    '(limit) → (limit, 0); returns the page, read .data',
+  ),
   logPrivateKeyExported: e('devices.logPrivateKeyExported'),
   logBackupCreated: e('devices.logBackupCreated'),
   mintFromDeviceSecret: e('devices.mintToken'),

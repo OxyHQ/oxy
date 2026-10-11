@@ -101,7 +101,9 @@ function parseJournalEntries() {
   try {
     parsed = JSON.parse(read(JOURNAL_PATH));
   } catch (error) {
-    fail(`${JOURNAL_PATH} is not readable JSON (${error.message}); the gate cannot see any migration.`);
+    fail(
+      `${JOURNAL_PATH} is not readable JSON (${error.message}); the gate cannot see any migration.`,
+    );
     return [];
   }
 
@@ -122,7 +124,7 @@ function parseJournalEntries() {
       // with no `when` is not applied on a schedule anybody can reason about.
       fail(
         `${JOURNAL_PATH} entries[${position}] is missing a numeric \`idx\`, a numeric \`when\` or a ` +
-        'string `tag`, so its place in the apply order cannot be checked.'
+          'string `tag`, so its place in the apply order cannot be checked.',
       );
       continue;
     }
@@ -137,13 +139,13 @@ const entries = parseJournalEntries();
 if (entries.length > 0 && entries.length < MINIMUM_JOURNAL_ENTRIES) {
   fail(
     `Only ${entries.length} journal entr(y/ies) parsed out of ${JOURNAL_PATH} (expected at least ` +
-    `${MINIMUM_JOURNAL_ENTRIES}). The parse is broken, not the source.`
+      `${MINIMUM_JOURNAL_ENTRIES}). The parse is broken, not the source.`,
   );
 }
 if (entries.length > 0 && !entries.some((entry) => entry.tag === JOURNAL_SENTINEL)) {
   fail(
     `${JOURNAL_SENTINEL} was not among the parsed journal entries — the gate is reading the wrong ` +
-    `array in ${JOURNAL_PATH}.`
+      `array in ${JOURNAL_PATH}.`,
   );
 }
 
@@ -155,19 +157,19 @@ for (let position = 1; position < entries.length; position += 1) {
   if (previous.idx >= entry.idx) {
     fail(
       `${entry.tag} (idx=${entry.idx}) is listed after ${previous.tag} (idx=${previous.idx}), so the ` +
-      'journal is not in ascending `idx` order. Journal order is apply order; sort the entries before ' +
-      'anything else can be said about them.'
+        'journal is not in ascending `idx` order. Journal order is apply order; sort the entries before ' +
+        'anything else can be said about them.',
     );
   }
 
   if (previous.when >= entry.when) {
     fail(
       `${entry.tag} has when=${entry.when}, which is not newer than ${previous.tag}'s ` +
-      `when=${previous.when}. A migration is applied only when its \`when\` is strictly newer than ` +
-      'the newest already recorded, so once a database has applied ' +
-      `${previous.tag} this one is unreachable: raw drizzle steps over it in silence, and @oxy.so/db's ` +
-      'migrator refuses the whole run. Regenerate it (rename the file and its journal entry) with a ' +
-      '`when` above every entry before it — never edit the ledger.'
+        `when=${previous.when}. A migration is applied only when its \`when\` is strictly newer than ` +
+        'the newest already recorded, so once a database has applied ' +
+        `${previous.tag} this one is unreachable: raw drizzle steps over it in silence, and @oxy.so/db's ` +
+        'migrator refuses the whole run. Regenerate it (rename the file and its journal entry) with a ' +
+        '`when` above every entry before it — never edit the ledger.',
     );
   }
 }
@@ -188,8 +190,8 @@ for (const file of migrationFiles) {
   if (!journalTags.has(file)) {
     fail(
       `${join(DRIZZLE_FOLDER, `${file}.sql`)} has no entry in ${JOURNAL_PATH}, so nothing will ever ` +
-      'apply it — neither drizzle-kit nor the deploy migrator reads the directory. Add its journal ' +
-      'entry, or delete the file.'
+        'apply it — neither drizzle-kit nor the deploy migrator reads the directory. Add its journal ' +
+        'entry, or delete the file.',
     );
   }
 }
@@ -199,7 +201,7 @@ for (const entry of entries) {
   if (!filesOnDisk.has(entry.tag)) {
     fail(
       `${JOURNAL_PATH} names ${entry.tag} but ${join(DRIZZLE_FOLDER, `${entry.tag}.sql`)} does not ` +
-      'exist, so the migrator fails at apply time — in production, after the release has merged.'
+        'exist, so the migrator fails at apply time — in production, after the release has merged.',
     );
   }
 }
@@ -209,13 +211,13 @@ if (problems.length > 0) {
   for (const problem of problems) console.error(`- ${problem}`);
   console.error(
     '\nA migration whose `when` sits below one already applied is not run and not reported. On raw' +
-    '\ndrizzle the deploy is green and the tables simply never appear; here the pre-deploy migrator' +
-    '\nrefuses the entire run, which blocks the release in production rather than on this branch.'
+      '\ndrizzle the deploy is green and the tables simply never appear; here the pre-deploy migrator' +
+      '\nrefuses the entire run, which blocks the release in production rather than on this branch.',
   );
   process.exit(1);
 }
 
 console.log(
   `Migration journal order is sound: ${entries.length} entr(y/ies) ascend strictly by \`when\`, and ` +
-  `the journal and ${DRIZZLE_FOLDER} name the same ${migrationFiles.length} migration(s).`
+    `the journal and ${DRIZZLE_FOLDER} name the same ${migrationFiles.length} migration(s).`,
 );

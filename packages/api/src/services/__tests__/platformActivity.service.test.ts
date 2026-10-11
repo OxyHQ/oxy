@@ -53,7 +53,15 @@ describe('platform activity', () => {
         scope: 'external',
       }),
     );
-    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'outbound', sourceRegion: 'us-west-2', targetRegion: 'edge-cdg', requests: 5 }));
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.objectContaining({
+        direction: 'outbound',
+        sourceRegion: 'us-west-2',
+        targetRegion: 'edge-cdg',
+        requests: 5,
+      }),
+    );
     expect(JSON.stringify((namespace.emit as jest.Mock).mock.calls)).not.toContain('private-id');
   });
 
@@ -71,8 +79,14 @@ describe('platform activity', () => {
 
     jest.advanceTimersByTime(2_000);
 
-    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'inbound', requests: 1, activityType: 'media' }));
-    expect(namespace.emit).toHaveBeenCalledWith(PLATFORM_ACTIVITY_EVENT, expect.objectContaining({ direction: 'outbound', requests: 1, activityType: 'media' }));
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.objectContaining({ direction: 'inbound', requests: 1, activityType: 'media' }),
+    );
+    expect(namespace.emit).toHaveBeenCalledWith(
+      PLATFORM_ACTIVITY_EVENT,
+      expect.objectContaining({ direction: 'outbound', requests: 1, activityType: 'media' }),
+    );
   });
 
   it('uses the validated SDK edge region when the API is not behind Cloudflare', () => {

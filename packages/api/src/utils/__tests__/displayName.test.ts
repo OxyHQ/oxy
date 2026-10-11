@@ -1,6 +1,6 @@
 /**
- * Unit tests for the `name.displayName` composition (the logic backing the
- * `User.name.displayName` Mongoose virtual — see `models/User.ts`).
+ * Unit tests for the `name.displayName` composition (the logic behind the
+ * serialized `name.displayName`).
  *
  * The composition returns the user's REAL name only:
  *
@@ -10,9 +10,8 @@
  * When there is no real name the helper returns `undefined`, the serializer
  * omits `name.displayName`, and consumers fall back to the handle.
  *
- * The API jest setup mocks Mongoose wholesale, so the model's virtual getter
- * never runs under test; the rules are exercised here against the pure helper
- * the virtual delegates to.
+ * The rules are exercised here against the pure helper the serializer
+ * delegates to.
  */
 
 import {
@@ -30,7 +29,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
         name: { first: 'Jane', last: 'Doe' },
         username: 'janedoe',
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toBe('Jane Doe');
   });
 
@@ -39,7 +38,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { first: 'Cher' },
         username: 'mononym',
-      })
+      }),
     ).toBe('Cher');
   });
 
@@ -48,7 +47,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { last: 'Prince' },
         username: 'theartist',
-      })
+      }),
     ).toBe('Prince');
   });
 
@@ -56,7 +55,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
     expect(
       composeDisplayName({
         name: { first: 'Jane', last: 'Doe', displayName: '  Janey  ' },
-      })
+      }),
     ).toBe('Janey');
   });
 
@@ -66,7 +65,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
         name: { first: '', last: '' },
         username: 'fallbackuser',
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -78,7 +77,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
     expect(
       composeDisplayName({
         publicKey: '0x1234567890abcdef1234567890abcdef',
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -91,7 +90,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { first: 'Ada', last: 'Lovelace' },
         username: 'ada',
-      })
+      }),
     ).toBe('Ada Lovelace');
   });
 });
@@ -121,7 +120,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: 'Jane', last: 'Doe' },
         username: 'janedoe',
-      })
+      }),
     ).toEqual({
       first: 'Jane',
       last: 'Doe',
@@ -135,7 +134,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: '', last: '' },
         username: 'janedoe',
-      })
+      }),
     ).toEqual({});
   });
 
@@ -143,7 +142,7 @@ describe('formatUserNameResponse', () => {
     expect(
       formatUserNameResponse({
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toEqual({});
   });
 
@@ -152,7 +151,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: 'Cher' },
         username: 'mononym',
-      })
+      }),
     ).toEqual({ first: 'Cher', full: 'Cher', displayName: 'Cher' });
   });
 });

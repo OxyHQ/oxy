@@ -231,8 +231,9 @@ router.use(signInRouter);
  *       Create a passwordless account bound to a local secp256k1 identity.
  *       The client generates a key pair (see `KeyManager` in `@oxy.so/core`),
  *       signs `register:{publicKey}:{timestamp}`, and submits the
- *       signature. Username and email are optional but recommended for
- *       discoverability.
+ *       signature together with the account's username. The username is
+ *       required and written in the same insert as the key, so an account
+ *       never exists without one.
  *     requestBody:
  *       required: true
  *       content:
@@ -243,6 +244,7 @@ router.use(signInRouter);
  *               - publicKey
  *               - signature
  *               - timestamp
+ *               - username
  *             properties:
  *               publicKey:
  *                 type: string
@@ -253,9 +255,6 @@ router.use(signInRouter);
  *               timestamp:
  *                 type: integer
  *                 description: Unix ms when the signature was produced (max 5 minutes old).
- *               email:
- *                 type: string
- *                 format: email
  *               username:
  *                 type: string
  *                 minLength: 3
@@ -269,14 +268,18 @@ router.use(signInRouter);
  *                   and currently advisory — the server logs but does not yet
  *                   reject a missing or invalid one.
  *     responses:
- *       200:
- *         description: Account created and the first session issued.
+ *       201:
+ *         description: Account created with its username; sign in with a challenge next.
+ *       400:
+ *         description: Missing or invalid username, or a malformed key.
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/AuthSuccess'
- *       400:
- *         description: Invalid signature, malformed key, or duplicate username/email.
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Invalid registration signature.
+ *       409:
+ *         description: Identity already registered, or username already taken.
  *         content:
  *           application/json:
  *             schema:
@@ -523,8 +526,8 @@ router.get('/check-publickey/:publicKey', checkLimiter, validate({ params: check
     throw new BadRequestError('Invalid public key format');
   }
 
-  // Matched through `users_lower_public_key_key`. Mongoose lower-cased the key
-  // on write, so the stored values are already canonical; applying the same
+  // Matched through `users_lower_public_key_key`. Keys are stored lower-cased,
+  // so the stored values are already canonical; applying the same
   // expression on both sides is what lets the index serve the lookup.
   const [existingUser] = await getDb()
     .select({ id: users.id })
@@ -821,8 +824,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   // The OAuth binding is written as FLAT columns alongside `purpose` in ONE
   // insert, because `auth_sessions_oauth_binding_check` and
   // `auth_sessions_oauth_purpose_check` require the whole group and the purpose
-  // to agree. There is no half-bound row to write — the schema-level statement
-  // of what the Mongoose sub-schema achieved by staying `undefined`.
+  // to agree. There is no half-bound row to write.
   const [authSession] = await getDb()
     .insert(authSessions)
     .values({
@@ -1258,8 +1260,7 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
   }
 
   // Update auth session — including WHICH identity approved. `authorizedBy` is
-  // left untouched when the approver has no public key, matching the Mongoose
-  // path that only assigned the field when one existed.
+  // left untouched when the approver has no public key.
   await getDb()
     .update(authSessions)
     .set({
@@ -2368,9 +2369,9 @@ function registeredOriginsOf(app: Pick<ApplicationRow, 'redirectUris'>): Set<str
  * the serializer simply omits the attribution.
  *
  * `created_by_user_id` is NULLABLE here (`ON DELETE SET NULL`): it is pure
- * attribution, and Mongoose's `required` only ever guaranteed a creator was
- * recorded at INSERT — a deleted user left a dangling id with no error. A NULL
- * owner takes the same "no attribution" branch a deleted one already took.
+ * attribution: a creator is recorded at INSERT, and deleting that user leaves
+ * NULL rather than a dangling id. A NULL owner takes the "no attribution"
+ * branch.
  */
 async function resolveDeveloperName(
   app: Pick<ApplicationRow, 'isOfficial' | 'createdByUserId'>

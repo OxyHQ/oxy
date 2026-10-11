@@ -71,11 +71,11 @@ export const inferenceRoutingProfileCandidates = pgTable(
   (t) => [
     check(
       'inference_routing_profile_candidates_names_exactly_one',
-      sql`(${t.modelId} is null) <> (${t.modelRevisionId} is null)`
+      sql`(${t.modelId} is null) <> (${t.modelRevisionId} is null)`,
     ),
     check(
       'inference_routing_profile_candidates_priority_range',
-      sql`${t.priority} between 0 and 1000`
+      sql`${t.priority} between 0 and 1000`,
     ),
 
     /**
@@ -97,9 +97,9 @@ export const inferenceRoutingProfileCandidates = pgTable(
     /** The profile's own read: its candidates in preference order. */
     index('inference_routing_profile_candidates_profile_priority_idx').on(
       t.routingProfileId,
-      t.priority
+      t.priority,
     ),
-  ]
+  ],
 );
 
 export type InferenceRoutingProfileCandidateRow =

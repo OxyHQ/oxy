@@ -44,11 +44,16 @@ jest.mock('../../utils/socket', () => ({
   broadcastSessionAccountsChanged: jest.fn(),
 }));
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
-jest.mock('../../middleware/security', () => ({ idpServiceLimiter: (_req: unknown, _res: unknown, next: () => void) => next() }));
+jest.mock('../../middleware/security', () => ({
+  idpServiceLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
 
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
-  default: { logDeviceAdded: jest.fn().mockResolvedValue(undefined), logSignOut: jest.fn().mockResolvedValue(undefined) },
+  default: {
+    logDeviceAdded: jest.fn().mockResolvedValue(undefined),
+    logSignOut: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -71,33 +76,59 @@ import { sessions } from '../../db/schema/sessions';
 
 let server: http.Server;
 async function account(): Promise<string> {
-  const [row] = await getDb().insert(users).values({ username: `u-${randomUUID().slice(0, 12)}` }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `u-${randomUUID().slice(0, 12)}` })
+    .returning({ id: users.id });
   return row.id;
 }
-async function application(ownerAccountId: string): Promise<{ applicationId: string; clientId: string }> {
-  const [row] = await getDb().insert(applications).values({ name: `External ${randomUUID()}`, type: 'third_party', ownerAccountId, redirectUris: ['https://fixture.invalid/'] }).returning({ id: applications.id });
+async function application(
+  ownerAccountId: string,
+): Promise<{ applicationId: string; clientId: string }> {
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: `External ${randomUUID()}`,
+      type: 'third_party',
+      ownerAccountId,
+      redirectUris: ['https://fixture.invalid/'],
+    })
+    .returning({ id: applications.id });
   const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(applicationCredentials).values({ applicationId: row.id, name: 'public fixture', type: 'public', environment: 'production', publicKey: clientId });
+  await getDb().insert(applicationCredentials).values({
+    applicationId: row.id,
+    name: 'public fixture',
+    type: 'public',
+    environment: 'production',
+    publicKey: clientId,
+  });
   return { applicationId: row.id, clientId };
 }
 async function signIn(userId: string, app?: { applicationId: string; clientId: string }) {
-  const created = await sessionService.createSession(userId, { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never, {
-    deviceId: `fixture-device-${randomUUID()}`,
-    ...(app ? { application: { ...app, scopes: [] } } : {}),
-  });
+  const created = await sessionService.createSession(
+    userId,
+    { headers: { 'user-agent': 'jest', 'accept-language': 'en-US' } } as never,
+    {
+      deviceId: `fixture-device-${randomUUID()}`,
+      ...(app ? { application: { ...app, scopes: [] } } : {}),
+    },
+  );
   const minted = await sessionService.getAccessToken(created.sessionId);
   if (!minted) throw new Error('Fixture token mint failed');
   return { sessionId: created.sessionId, bearer: minted.accessToken };
 }
 async function active(sessionId: string): Promise<boolean> {
-  const [row] = await getDb().select({ active: sessions.isActive }).from(sessions).where(eq(sessions.sessionId, sessionId));
+  const [row] = await getDb()
+    .select({ active: sessions.isActive })
+    .from(sessions)
+    .where(eq(sessions.sessionId, sessionId));
   return row.active;
 }
 async function call(
   method: string,
   path: string,
   bearer: string,
-  payload?: unknown
+  payload?: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? '' : JSON.stringify(payload);
@@ -120,9 +151,9 @@ async function call(
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} })
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
         );
-      }
+      },
     );
     req.on('error', reject);
     if (body) req.write(body);
@@ -151,7 +182,8 @@ afterAll(async () => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
   await closePostgres();
-  if (originalAccessTokenV1Window === undefined) Reflect.deleteProperty(process.env, 'ACCESS_TOKEN_V1_WINDOW');
+  if (originalAccessTokenV1Window === undefined)
+    Reflect.deleteProperty(process.env, 'ACCESS_TOKEN_V1_WINDOW');
   else process.env.ACCESS_TOKEN_V1_WINDOW = originalAccessTokenV1Window;
 });
 
@@ -160,7 +192,6 @@ beforeEach(() => {
   userCache.clear();
   Reflect.deleteProperty(process.env, 'ACCESS_TOKEN_V1_WINDOW');
 });
-
 
 describe('isolated OAuth self-logout with real bearer validation and Postgres', () => {
   it('revokes only itself and preserves the same person in another app and the shared lane', async () => {
@@ -180,7 +211,10 @@ describe('isolated OAuth self-logout with real bearer validation and Postgres', 
     const owner = await account();
     const own = await signIn(owner, await application(owner));
     const other = await signIn(owner, await application(owner));
-    for (const path of [`/session/logout/${other.sessionId}`, `/session/logout/${own.sessionId}/${other.sessionId}`]) {
+    for (const path of [
+      `/session/logout/${other.sessionId}`,
+      `/session/logout/${own.sessionId}/${other.sessionId}`,
+    ]) {
       expect((await call('POST', path, own.bearer)).status).toBe(403);
     }
     expect(await active(own.sessionId)).toBe(true);
@@ -191,7 +225,10 @@ describe('isolated OAuth self-logout with real bearer validation and Postgres', 
     const owner = await account();
     const own = await signIn(owner, await application(owner));
     const shared = await signIn(owner);
-    for (const path of [`/session/logout-all/${own.sessionId}`, `/session/device/logout-all/${own.sessionId}`]) {
+    for (const path of [
+      `/session/logout-all/${own.sessionId}`,
+      `/session/device/logout-all/${own.sessionId}`,
+    ]) {
       expect((await call('POST', path, own.bearer)).status).toBe(403);
     }
     expect(await active(own.sessionId)).toBe(true);
@@ -202,7 +239,10 @@ describe('isolated OAuth self-logout with real bearer validation and Postgres', 
     const owner = await account();
     const own = await signIn(owner);
     const other = await signIn(owner);
-    expect((await call('POST', `/session/logout/${own.sessionId}/${other.sessionId}`, own.bearer)).status).toBe(200);
+    expect(
+      (await call('POST', `/session/logout/${own.sessionId}/${other.sessionId}`, own.bearer))
+        .status,
+    ).toBe(200);
     expect(await active(own.sessionId)).toBe(true);
     expect(await active(other.sessionId)).toBe(false);
   });
@@ -216,9 +256,14 @@ describe('device metadata isolation with real bearer validation', () => {
     const read = await call('GET', `/session/device/sessions/${shared.sessionId}`, own.bearer);
     expect(read.status).toBe(403);
     expect(JSON.stringify(read.body)).not.toContain(shared.sessionId);
-    const rename = await call('PUT', `/session/device/name/${shared.sessionId}`, own.bearer, { deviceName: 'cross-app-reproduction' });
+    const rename = await call('PUT', `/session/device/name/${shared.sessionId}`, own.bearer, {
+      deviceName: 'cross-app-reproduction',
+    });
     expect(rename.status).toBe(403);
-    const [changed] = await getDb().select({ name: sessions.deviceName }).from(sessions).where(eq(sessions.sessionId, shared.sessionId));
+    const [changed] = await getDb()
+      .select({ name: sessions.deviceName })
+      .from(sessions)
+      .where(eq(sessions.sessionId, shared.sessionId));
     expect(changed.name).not.toBe('cross-app-reproduction');
     expect(await active(own.sessionId)).toBe(true);
     expect(await active(shared.sessionId)).toBe(true);
@@ -226,9 +271,22 @@ describe('device metadata isolation with real bearer validation', () => {
 });
 
 it('unbound session preserves device metadata read and rename', async () => {
- const owner=await account(); const shared=await signIn(owner);
- expect((await call('GET',`/session/device/sessions/${shared.sessionId}`,shared.bearer)).status).toBe(200);
- expect((await call('PUT',`/session/device/name/${shared.sessionId}`,shared.bearer,{deviceName:'own-device'})).status).toBe(200);
- const [row]=await getDb().select({name:sessions.deviceName}).from(sessions).where(eq(sessions.sessionId,shared.sessionId));
- expect(row.name).toBe('own-device'); expect(await active(shared.sessionId)).toBe(true);
+  const owner = await account();
+  const shared = await signIn(owner);
+  expect(
+    (await call('GET', `/session/device/sessions/${shared.sessionId}`, shared.bearer)).status,
+  ).toBe(200);
+  expect(
+    (
+      await call('PUT', `/session/device/name/${shared.sessionId}`, shared.bearer, {
+        deviceName: 'own-device',
+      })
+    ).status,
+  ).toBe(200);
+  const [row] = await getDb()
+    .select({ name: sessions.deviceName })
+    .from(sessions)
+    .where(eq(sessions.sessionId, shared.sessionId));
+  expect(row.name).toBe('own-device');
+  expect(await active(shared.sessionId)).toBe(true);
 });

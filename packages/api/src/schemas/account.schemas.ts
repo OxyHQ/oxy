@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { accountCategoriesSchema, createAccountRequestSchema, usernameSchema } from '@oxy.so/contracts';
+import {
+  accountCategoriesSchema,
+  createAccountRequestSchema,
+  usernameSchema,
+} from '@oxy.so/contracts';
 import { ACCOUNT_PERMISSIONS, ACCOUNT_ROLES } from '../utils/accountRoles';
 
 /** Route params with :id (the account id). */
@@ -110,7 +114,7 @@ const assignableRoles = ACCOUNT_ROLES.filter((role) => role !== 'owner') as Excl
  */
 export const inviteAccountMemberSchema = z.object({
   usernameOrEmail: z.string().trim().min(1),
-  role: z.enum(assignableRoles as [typeof assignableRoles[number], ...typeof assignableRoles]),
+  role: z.enum(assignableRoles as [(typeof assignableRoles)[number], ...typeof assignableRoles]),
   inherit: z.boolean().optional(),
 });
 
@@ -128,9 +132,7 @@ export const inviteAccountMemberSchema = z.object({
  * duplicates or padding, and an unbounded array on a write endpoint is a free
  * row-size amplifier.
  */
-const permissionListSchema = z
-  .array(z.enum(ACCOUNT_PERMISSIONS))
-  .max(ACCOUNT_PERMISSIONS.length);
+const permissionListSchema = z.array(z.enum(ACCOUNT_PERMISSIONS)).max(ACCOUNT_PERMISSIONS.length);
 
 /**
  * PATCH /accounts/:id/members/:memberId — change a member's role, inheritance
@@ -148,7 +150,7 @@ const permissionListSchema = z
 export const updateAccountMemberSchema = z
   .object({
     role: z
-      .enum(assignableRoles as [typeof assignableRoles[number], ...typeof assignableRoles])
+      .enum(assignableRoles as [(typeof assignableRoles)[number], ...typeof assignableRoles])
       .optional(),
     inherit: z.boolean().optional(),
     permissionGrants: permissionListSchema.optional(),
@@ -156,8 +158,7 @@ export const updateAccountMemberSchema = z
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {
-    message:
-      'Provide at least one of: role, inherit, permissionGrants, permissionRevokes',
+    message: 'Provide at least one of: role, inherit, permissionGrants, permissionRevokes',
   });
 
 /** POST /accounts/:id/transfer-ownership. */

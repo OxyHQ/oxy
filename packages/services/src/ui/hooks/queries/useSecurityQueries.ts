@@ -6,22 +6,16 @@ import type { SecurityActivity, SecurityActivityResponse, SecurityEventType } fr
 /**
  * Get user's security activity with pagination
  */
-export const useSecurityActivity = (
-  options?: {
-    limit?: number;
-    offset?: number;
-    eventType?: SecurityEventType;
-    enabled?: boolean;
-  }
-) => {
+export const useSecurityActivity = (options?: {
+  limit?: number;
+  offset?: number;
+  eventType?: SecurityEventType;
+  enabled?: boolean;
+}) => {
   const { oxyServices, activeSessionId } = useOxy();
 
   return useQuery({
-    queryKey: queryKeys.security.activity(
-      options?.limit,
-      options?.offset,
-      options?.eventType
-    ),
+    queryKey: queryKeys.security.activity(options?.limit, options?.offset, options?.eventType),
     queryFn: async () => {
       if (!activeSessionId) {
         throw new Error('No active session');
@@ -30,12 +24,12 @@ export const useSecurityActivity = (
       const response = await oxyServices.devices.securityActivity(
         options?.limit,
         options?.offset,
-        options?.eventType
+        options?.eventType,
       );
 
       return response;
     },
-    enabled: (options?.enabled !== false) && !!activeSessionId,
+    enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -68,13 +62,11 @@ export const useRecentSecurityActivity = (limit = 10) => {
  * Each page returns up to `limit` events; `getNextPageParam` walks the
  * `offset` cursor until the API reports `hasMore: false`.
  */
-export const useInfiniteSecurityActivity = (
-  options?: {
-    limit?: number;
-    eventType?: SecurityEventType;
-    enabled?: boolean;
-  }
-) => {
+export const useInfiniteSecurityActivity = (options?: {
+  limit?: number;
+  eventType?: SecurityEventType;
+  enabled?: boolean;
+}) => {
   const { oxyServices, activeSessionId } = useOxy();
   const limit = options?.limit ?? 30;
 
@@ -86,20 +78,15 @@ export const useInfiniteSecurityActivity = (
       }
 
       const offset = typeof pageParam === 'number' ? pageParam : 0;
-      return await oxyServices.devices.securityActivity(
-        limit,
-        offset,
-        options?.eventType
-      );
+      return await oxyServices.devices.securityActivity(limit, offset, options?.eventType);
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => {
       if (!lastPage.hasMore) return undefined;
       return lastPage.offset + lastPage.limit;
     },
-    enabled: (options?.enabled !== false) && !!activeSessionId,
+    enabled: options?.enabled !== false && !!activeSessionId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 };
-

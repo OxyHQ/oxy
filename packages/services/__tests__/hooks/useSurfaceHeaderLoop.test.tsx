@@ -40,11 +40,7 @@ function renderWithLoopingHost(Screen: () => null): {
       }),
       [],
     );
-    return createElement(
-      SurfaceHeaderContext.Provider,
-      { value },
-      createElement(CountingScreen),
-    );
+    return createElement(SurfaceHeaderContext.Provider, { value }, createElement(CountingScreen));
   };
 
   render(createElement(Host));

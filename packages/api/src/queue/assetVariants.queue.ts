@@ -40,10 +40,7 @@ import { normalizeInfrastructureRegion } from '@oxy.so/telemetry/collector';
 import { observeAssetJob } from '../services/workerActivity.service';
 import { Queue, Worker, type Job } from 'bullmq';
 import { logger } from '../utils/logger';
-import {
-  getAssetVariantQueueConnectionOptions,
-  getAssetVariantQueueUrl,
-} from './connection';
+import { getAssetVariantQueueConnectionOptions, getAssetVariantQueueUrl } from './connection';
 import { COMPLETED_JOBS_RETENTION, FAILED_JOBS_RETENTION } from './constants';
 import { VariantService } from '../services/variantService';
 import { s3Service } from '../services/s3ServiceSingleton';

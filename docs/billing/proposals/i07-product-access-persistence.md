@@ -38,9 +38,9 @@ regenerates its own snapshot and compares DDL. Full focused regression passed
 first segment, all replay IDs existing, no extra entitlement on a new segment,
 and incomplete configuration refusing admission. Negative count is rejected by
 SQL. The diagnostic red run selected one test and left other tests unrun; the
-final green group runs all its cases without skips. [Followup proof and hashes](../evidence/i07-persistence-2026-10-02/sealed-offer-records.json)
-supersede the initial configuration-freezing claim; initial evidence is retained
-as historical evidence. Other commercial and adoption gates below remain open.
+final green group runs all its cases without skips. The followup proof and hashes
+superseded the initial configuration-freezing claim; that evidence bundle was
+retired from the tree and remains in git history at `7e9f1ed97`. Other commercial and adoption gates below remain open.
 
 ## Structure and boundary
 
@@ -146,8 +146,8 @@ award rights or infer a product from names or balances.
 
 ## Reproduction and evidence
 
-Records and SHA-256 hashes are in
-[`../evidence/i07-persistence-2026-10-02/records.json`](../evidence/i07-persistence-2026-10-02/records.json).
+Records and SHA-256 hashes were kept in an evidence bundle that was retired from
+the tree; it remains in git history at `7e9f1ed97`.
 The environment was Bun 1.4.2, Node 24.21.0 and the owned disposable PostgreSQL 17
 fixture on loopback port 5549. API Jest creates and drops a separate temporary test
 database; no application writes target the maintenance database.
@@ -175,7 +175,7 @@ integration. SDK billing passed 7/7 from `packages/core` with
 `bun run test --runInBand src/api/__tests__/billing.test.ts`.
 
 Root snapshot sync, migration phase/journal order, OpenAPI freshness, tracked
-no-flat-account-list/no-Mongo scans, scoped API ESLint and core Biome lint all
+no-flat-account-list and dependency scans, scoped API ESLint and core Biome lint all
 passed. Dependency builds and API compilation passed; the retained build excerpt
 is explicitly only its last 30 lines, with the original log hash in the record.
 Initial test fixtures needed a required credential name and a distinct segment

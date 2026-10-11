@@ -61,7 +61,7 @@ export const appUpdateAssets = pgTable(
     check('app_update_assets_ordinal_check', sql`${t.ordinal} >= 0`),
     check(
       'app_update_assets_sha256_check',
-      sql`${t.sha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`
+      sql`${t.sha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`,
     ),
-  ]
+  ],
 );

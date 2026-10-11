@@ -10,25 +10,16 @@
  *
  * ## The guarantee this file exists for
  *
- * **A dead federated actor must be erasable whichever side of the cutover its
- * account was created on, and a real account must never be erasable at all.**
+ * **A dead federated actor must be erasable whether its id is a legacy 24-hex
+ * id or a uuid v7, and a real account must never be erasable at all.**
  *
- * `federationActorDeleteSchema` validated `oxyUserId` with `/^[a-f0-9]{24}$/i`
- * inside `validate({ body })`, so a post-cutover account — whose id is the uuid
- * v7 `generatedId()` mints — was answered 400 before the handler ran; the ghost
- * identity and its follow edges stayed. Separately, the route's guard read
- * `User.findById` (Mongo) while the purge it gates,
- * `userService.deleteFederatedActor`, was already on Postgres — so the read that
- * decides whether the account is federated and the delete that acts on it lived
- * in different databases, and an account present in only one of them made the
- * two disagree.
- *
- * The previous suite mirrored every seeded row into an in-memory `guardUsers`
- * map, which made the two halves agree by construction and made every id 24-hex
- * by construction. It also had to hand-delete from that map to model the second
- * call in the idempotency case — the tell that the route's read was not looking
- * where the purge wrote. Here there is ONE store, so the repeat call converges
- * because the row is genuinely gone.
+ * A 24-hex pattern on `oxyUserId` in `federationActorDeleteSchema` would answer
+ * a uuid v7 account 400 before the handler ran, leaving the ghost identity and
+ * its follow edges in place. The route's guard and the purge it gates,
+ * `userService.deleteFederatedActor`, read the same store, so the read that
+ * decides whether the account is federated and the delete that acts on it
+ * cannot disagree. There is ONE store, so the repeat call in the idempotency
+ * case converges because the row is genuinely gone.
  *
  * The denormalized counterparty `_count` repair is GONE, not translated: those
  * columns were deliberately deleted, so there is no counter to repair. What

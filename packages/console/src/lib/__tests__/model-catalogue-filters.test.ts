@@ -134,9 +134,9 @@ const CATALOGUE: Array<ModelCatalogueEntry> = [
 describe('the catalogue contract fixture', () => {
   it('uses schema v3 and rejects a mutation back to the retired v2 entry', () => {
     expect(CATALOGUE.every((item) => item.schemaVersion === 3)).toBe(true);
-    expect(
-      modelCatalogueEntrySchema.safeParse({ ...CATALOGUE[0], schemaVersion: 2 }).success
-    ).toBe(false);
+    expect(modelCatalogueEntrySchema.safeParse({ ...CATALOGUE[0], schemaVersion: 2 }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -244,17 +244,17 @@ describe('the price cap', () => {
         filterCatalogue(PRICED_CATALOGUE, {
           ...EMPTY_CATALOGUE_FILTERS,
           maxPricePerMillionInputTokens: typed,
-        })
+        }),
       ).toEqual(PRICED_CATALOGUE);
       expect(
-        isEmptyFilterSet({ ...EMPTY_CATALOGUE_FILTERS, maxPricePerMillionInputTokens: typed })
+        isEmptyFilterSet({ ...EMPTY_CATALOGUE_FILTERS, maxPricePerMillionInputTokens: typed }),
       ).toBe(true);
     }
 
     // CONTROL: a parseable cap IS active, so the loop above is measuring
     // unparseability and not a filter that never engages at all.
     expect(
-      isEmptyFilterSet({ ...EMPTY_CATALOGUE_FILTERS, maxPricePerMillionInputTokens: '3.00' })
+      isEmptyFilterSet({ ...EMPTY_CATALOGUE_FILTERS, maxPricePerMillionInputTokens: '3.00' }),
     ).toBe(false);
   });
 
@@ -276,13 +276,13 @@ describe('the price cap', () => {
       filterCatalogue(catalogue, {
         ...EMPTY_CATALOGUE_FILTERS,
         maxPricePerMillionInputTokens: '3.00',
-      })
+      }),
     ).toHaveLength(1);
     expect(
       filterCatalogue(catalogue, {
         ...EMPTY_CATALOGUE_FILTERS,
         maxPricePerMillionInputTokens: '2.999999999999',
-      })
+      }),
     ).toHaveLength(0);
   });
 });
@@ -356,9 +356,15 @@ describe('filterCatalogue', () => {
     const entries = [...CATALOGUE, decision];
     expect(catalogueFacets(entries).outputModalities).toContain('decisions');
     expect(catalogueFacets(entries).inputModalities).not.toContain('decisions');
-    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'decisions' })).toEqual([decision]);
-    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, inputModality: 'text' })).toContain(decision);
-    expect(filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'text' })).not.toContain(decision);
+    expect(
+      filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'decisions' }),
+    ).toEqual([decision]);
+    expect(
+      filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, inputModality: 'text' }),
+    ).toContain(decision);
+    expect(
+      filterCatalogue(entries, { ...EMPTY_CATALOGUE_FILTERS, outputModality: 'text' }),
+    ).not.toContain(decision);
   });
 
   it('filters by tool support', () => {
@@ -400,10 +406,7 @@ describe('filterCatalogue', () => {
       ...EMPTY_CATALOGUE_FILTERS,
       noTrainingOnly: true,
     });
-    expect(noTraining.map((e) => e.modelId)).toEqual([
-      'anthropic/claude-sonnet',
-      'openai/gpt-5',
-    ]);
+    expect(noTraining.map((e) => e.modelId)).toEqual(['anthropic/claude-sonnet', 'openai/gpt-5']);
   });
 
   it('applies several filters conjunctively', () => {
@@ -443,7 +446,7 @@ describe('catalogueFacets', () => {
     expect(catalogueFacets(PRICED_CATALOGUE).hasInputTokenPricing).toBe(true);
 
     const embeddingsOnly = PRICED_CATALOGUE.filter(
-      (candidate) => candidate.modelId === 'acme/embeddings-only'
+      (candidate) => candidate.modelId === 'acme/embeddings-only',
     );
     // CONTROL on the fixture: this row IS priced, so a `false` below is about the
     // UNIT and not about a missing `pricing` field.

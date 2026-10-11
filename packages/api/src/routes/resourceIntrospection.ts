@@ -40,7 +40,11 @@ const inactive = (): Introspection => ({ active: false, scopes: [], permissions:
 /** A session's application, as the boundary sees it: one of Oxy's own, or not. */
 async function applicationTier(applicationId: string): Promise<ServiceTier> {
   const [app] = await getDb()
-    .select({ isOfficial: applications.isOfficial, isInternal: applications.isInternal, type: applications.type })
+    .select({
+      isOfficial: applications.isOfficial,
+      isInternal: applications.isInternal,
+      type: applications.type,
+    })
     .from(applications)
     .where(and(eq(applications.id, applicationId), eq(applications.status, 'active')))
     .limit(1);
@@ -50,7 +54,7 @@ async function applicationTier(applicationId: string): Promise<ServiceTier> {
 function requireCanonicalClarityBackend(
   request: ServiceAuthRequest,
   response: express.Response,
-  next: express.NextFunction
+  next: express.NextFunction,
 ): void {
   if (request.serviceApp?.appId === NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id) {
     next();
@@ -115,7 +119,7 @@ router.post(
       const access = await accountService.resolveEffectiveAccess(
         operatorId,
         identity.subjectAccountId,
-        session.session.sessionId
+        session.session.sessionId,
       );
       return response.json({
         active: true,
@@ -129,7 +133,7 @@ router.post(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 router.post(
@@ -153,27 +157,29 @@ router.post(
           and(
             eq(userVerifiedDomains.id, verifiedDomainId),
             eq(userVerifiedDomains.userId, accountId),
-            sql`lower(${userVerifiedDomains.domain}) = ${originHost}`
-          )
+            sql`lower(${userVerifiedDomains.domain}) = ${originHost}`,
+          ),
         )
         .limit(1);
 
-      response.json(resourceDomainOwnershipResponseSchema.parse({
-        verified: Boolean(domain),
-        accountId,
-        verifiedDomainId,
-        originHost,
-        ...(domain
-          ? {
-              verifiedAt: domain.verifiedAt.toISOString(),
-              method: domain.method,
-            }
-          : {}),
-      }));
+      response.json(
+        resourceDomainOwnershipResponseSchema.parse({
+          verified: Boolean(domain),
+          accountId,
+          verifiedDomainId,
+          originHost,
+          ...(domain
+            ? {
+                verifiedAt: domain.verifiedAt.toISOString(),
+                method: domain.method,
+              }
+            : {}),
+        }),
+      );
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 export default router;

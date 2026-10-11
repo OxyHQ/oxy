@@ -90,7 +90,7 @@ export function SidebarHeaderBrand() {
       if (avatar.startsWith('http')) return avatar;
       return oxyServices.assets.publicUrl(avatar, 'thumb');
     },
-    [oxyServices]
+    [oxyServices],
   );
 
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
@@ -100,7 +100,7 @@ export function SidebarHeaderBrand() {
 
   const { yourAccounts, sharedAccounts, childrenOf } = React.useMemo(
     () => buildWorkspaceTree(accounts),
-    [accounts]
+    [accounts],
   );
 
   const handleCreateAccount = async () => {
@@ -270,7 +270,11 @@ export function SidebarHeaderBrand() {
               <DropdownMenuSeparator />
               <DropdownMenuItem className="gap-2 p-2" asChild>
                 <Link to="/settings/account">
-                  <HugeiconsIcon icon={Settings01Icon} size={14} className="text-muted-foreground" />
+                  <HugeiconsIcon
+                    icon={Settings01Icon}
+                    size={14}
+                    className="text-muted-foreground"
+                  />
                   <span>Workspace settings</span>
                 </Link>
               </DropdownMenuItem>

@@ -56,7 +56,7 @@ export function ApplicationBudgetsSection({
   const balanceQuery = useLedgerBalance(application.ownerAccountId, canRead);
   const credentialsQuery = useApplicationCredentials(
     application._id,
-    canRead && access.can('credentials:read')
+    canRead && access.can('credentials:read'),
   );
   const createBudget = useCreateBudget();
   const updateBudget = useUpdateBudget();
@@ -65,7 +65,7 @@ export function ApplicationBudgetsSection({
 
   const credentialIds = useMemo(
     () => new Set((credentialsQuery.data ?? []).map((credential) => credential._id)),
-    [credentialsQuery.data]
+    [credentialsQuery.data],
   );
 
   const { own, inherited } = useMemo(() => {
@@ -75,7 +75,7 @@ export function ApplicationBudgetsSection({
         (budget) =>
           budget.scopeApplicationId === application._id ||
           (budget.scopeApplicationCredentialId !== undefined &&
-            credentialIds.has(budget.scopeApplicationCredentialId))
+            credentialIds.has(budget.scopeApplicationCredentialId)),
       ),
       inherited: rows.filter((budget) => budget.scope === 'account'),
     };
@@ -166,7 +166,13 @@ export function ApplicationBudgetsSection({
         ) : (
           <>
             {inherited.map((budget) => (
-              <BudgetRow key={budget.spendingLimitId} budget={budget} canManage={false} isPending={false} onToggle={handleToggle} />
+              <BudgetRow
+                key={budget.spendingLimitId}
+                budget={budget}
+                canManage={false}
+                isPending={false}
+                onToggle={handleToggle}
+              />
             ))}
             <p className="text-xs text-muted-foreground">
               These bound every application under the account. Change them in{' '}
@@ -209,7 +215,8 @@ function BudgetRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-foreground">
-              {budgetPeriodLabel(budget.period)} · {formatMoney(budget.limitAmount, budget.currency)}
+              {budgetPeriodLabel(budget.period)} ·{' '}
+              {formatMoney(budget.limitAmount, budget.currency)}
             </p>
             <Badge variant={budgetUtilizationVariant(budget)}>
               {budget.status === 'disabled'

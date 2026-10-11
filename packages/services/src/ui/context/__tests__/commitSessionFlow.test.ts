@@ -10,7 +10,7 @@ import {
 // (`setTimeout`) runs — so one tick flushes a detached reconcile task.
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-const makeUser = (id: string): User => ({ id, username: id } as unknown as User);
+const makeUser = (id: string): User => ({ id, username: id }) as unknown as User;
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -18,7 +18,7 @@ interface Deferred<T> {
   reject: (reason?: unknown) => void;
 }
 
-const deferred = <T,>(): Deferred<T> => {
+const deferred = <T>(): Deferred<T> => {
   let resolve: (value: T) => void = () => undefined;
   let reject: (reason?: unknown) => void = () => undefined;
   const promise = new Promise<T>((res, rej) => {
@@ -248,7 +248,12 @@ describe('isolated OAuth session commit', () => {
     const order: string[] = [];
     const deps = buildDeps(order, { activate: true, isolatedOAuth: true });
     await commitDeviceSetAndResolve(deps);
-    expect(order).toEqual(['getCurrentUser', 'loginSuccess', 'onAuthStateChange', 'markAuthResolved']);
+    expect(order).toEqual([
+      'getCurrentUser',
+      'loginSuccess',
+      'onAuthStateChange',
+      'markAuthResolved',
+    ]);
     expect(deps.registerAndActivate).not.toHaveBeenCalled();
     expect(deps.addCurrentAccount).not.toHaveBeenCalled();
     expect(deps.startSocket).not.toHaveBeenCalled();

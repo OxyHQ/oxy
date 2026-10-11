@@ -184,25 +184,25 @@ export const inferenceRouteSwitchEvents = pgTable(
 
     check(
       'inference_route_switch_events_scope_check',
-      sql`${t.scope} in (${sql.raw(inList(ROUTE_SWITCH_SCOPES))})`
+      sql`${t.scope} in (${sql.raw(inList(ROUTE_SWITCH_SCOPES))})`,
     ),
     check(
       'inference_route_switch_events_reason_check',
-      sql`${t.reason} in (${sql.raw(inList(ROUTE_SWITCH_REASONS))})`
+      sql`${t.reason} in (${sql.raw(inList(ROUTE_SWITCH_REASONS))})`,
     ),
     check(
       'inference_route_switch_events_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check('inference_route_switch_events_sequence_range', sql`${t.sequence} >= 0`),
 
     check(
       'inference_route_switch_events_from_format',
-      sql`${t.fromModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`
+      sql`${t.fromModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`,
     ),
     check(
       'inference_route_switch_events_to_format',
-      sql`${t.toModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`
+      sql`${t.toModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`,
     ),
 
     /**
@@ -213,7 +213,7 @@ export const inferenceRouteSwitchEvents = pgTable(
      */
     check(
       'inference_route_switch_events_requested_format',
-      sql`${t.requestedModelId} is null or ${t.requestedModelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`
+      sql`${t.requestedModelId} is null or ${t.requestedModelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`,
     ),
 
     check('inference_route_switch_events_request_id_check', sql`length(${t.requestId}) > 0`),
@@ -230,7 +230,7 @@ export const inferenceRouteSwitchEvents = pgTable(
         ${t.fromModelReference} = ${t.toModelReference}
         and ${t.requestedModelId} is null
         and ${t.authorizationId} is null
-      )`
+      )`,
     ),
 
     /**
@@ -246,7 +246,7 @@ export const inferenceRouteSwitchEvents = pgTable(
         ${t.requestedModelId} is not null
         and (${t.authorizationId} is not null or ${t.routingProfileId} is not null)
         and ${t.fromModelReference} <> ${t.toModelReference}
-      )`
+      )`,
     ),
 
     /**
@@ -259,21 +259,21 @@ export const inferenceRouteSwitchEvents = pgTable(
       'inference_route_switch_events_authority',
       sql`${t.routingPolicyVersionId} is not null
         or ${t.routingProfileId} is not null
-        or ${t.scope} = 'deployment'`
+        or ${t.scope} = 'deployment'`,
     ),
 
     /** "Every switch on this account, newest first" — the customer's own read. */
     index('inference_route_switch_events_account_id_occurred_at_idx').on(
       t.accountId,
-      t.occurredAt.desc()
+      t.occurredAt.desc(),
     ),
     index('inference_route_switch_events_application_id_occurred_at_idx').on(
       t.applicationId,
-      t.occurredAt.desc()
+      t.occurredAt.desc(),
     ),
     /** Correlating one request's switches with its receipt. */
     index('inference_route_switch_events_request_id_idx').on(t.requestId),
-  ]
+  ],
 );
 
 export type InferenceRouteSwitchEventRow = typeof inferenceRouteSwitchEvents.$inferSelect;

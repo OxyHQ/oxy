@@ -17,7 +17,6 @@ jest.mock(
   { virtual: true },
 );
 
-// eslint-disable-next-line import/first
 import { openAuthorizeUrlNative } from '../../src/ui/components/oauthNavigation';
 
 const AUTHORIZE_URL = 'https://auth.oxy.so/authorize?client_id=c&state=s';
@@ -29,7 +28,10 @@ describe('openAuthorizeUrlNative', () => {
   });
 
   it('returns the redirect URL when the auth session succeeds', async () => {
-    mockOpenAuthSessionAsync.mockResolvedValue({ type: 'success', url: 'myapp://cb?code=1&state=s' });
+    mockOpenAuthSessionAsync.mockResolvedValue({
+      type: 'success',
+      url: 'myapp://cb?code=1&state=s',
+    });
     const openURLSpy = jest.spyOn(Linking, 'openURL');
 
     const result = await openAuthorizeUrlNative(AUTHORIZE_URL, REDIRECT_URI);
@@ -87,7 +89,9 @@ describe('openAuthorizeUrlNative', () => {
   it('logs and returns null when the Linking fallback rejects (invalid scheme)', async () => {
     mockOpenAuthSessionAsync.mockRejectedValue(new Error('no browser'));
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
-    const openURLSpy = jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('no activity found'));
+    const openURLSpy = jest
+      .spyOn(Linking, 'openURL')
+      .mockRejectedValue(new Error('no activity found'));
 
     const result = await openAuthorizeUrlNative(AUTHORIZE_URL, REDIRECT_URI);
 

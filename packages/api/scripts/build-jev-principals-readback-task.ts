@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
-import { InboxPrincipalReadbackTaskError } from "../src/scripts/inboxPrincipalReadbackTask";
-import { buildJevPrincipalsReadbackTaskDefinition } from "../src/scripts/jevPrincipalsReadbackTask";
+import { readFileSync } from 'node:fs';
+import { InboxPrincipalReadbackTaskError } from '../src/scripts/inboxPrincipalReadbackTask';
+import { buildJevPrincipalsReadbackTaskDefinition } from '../src/scripts/jevPrincipalsReadbackTask';
 
 /**
  * Usage:
@@ -12,24 +12,21 @@ import { buildJevPrincipalsReadbackTaskDefinition } from "../src/scripts/jevPrin
  * input on stdout. Makes no AWS call.
  */
 function main(): void {
-  const [expectedTaskDefinitionArn, liveTaskDefinitionPath, ...extra] =
-    process.argv.slice(2);
+  const [expectedTaskDefinitionArn, liveTaskDefinitionPath, ...extra] = process.argv.slice(2);
   if (
     expectedTaskDefinitionArn === undefined ||
     liveTaskDefinitionPath === undefined ||
     extra.length > 0
   ) {
     throw new InboxPrincipalReadbackTaskError(
-      "Usage: build-jev-principals-readback-task.ts <live-task-definition-arn> <live-task-definition.json>",
+      'Usage: build-jev-principals-readback-task.ts <live-task-definition-arn> <live-task-definition.json>',
     );
   }
   let liveTaskDefinition: unknown;
   try {
-    liveTaskDefinition = JSON.parse(readFileSync(liveTaskDefinitionPath, "utf8"));
+    liveTaskDefinition = JSON.parse(readFileSync(liveTaskDefinitionPath, 'utf8'));
   } catch {
-    throw new InboxPrincipalReadbackTaskError(
-      "The live task definition file is not readable JSON",
-    );
+    throw new InboxPrincipalReadbackTaskError('The live task definition file is not readable JSON');
   }
   const taskDefinition = buildJevPrincipalsReadbackTaskDefinition({
     expectedTaskDefinitionArn,
@@ -44,7 +41,7 @@ try {
   const message =
     error instanceof InboxPrincipalReadbackTaskError
       ? error.message
-      : "Unexpected failure building the readback task definition";
+      : 'Unexpected failure building the readback task definition';
   process.stderr.write(`Jev principals readback task build failed: ${message}\n`);
   process.exitCode = 1;
 }

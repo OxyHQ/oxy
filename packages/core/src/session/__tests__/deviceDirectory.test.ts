@@ -389,8 +389,9 @@ describe('projectDevicePrincipals', () => {
 
 describe('directoryDisplayName / directoryHandle', () => {
   it('prefers the API displayName, then the handle, then the sentinel', () => {
-    expect(directoryDisplayName({ id: 'u', username: 'nate', name: { displayName: 'Nate I.' } }))
-      .toBe('Nate I.');
+    expect(
+      directoryDisplayName({ id: 'u', username: 'nate', name: { displayName: 'Nate I.' } }),
+    ).toBe('Nate I.');
     expect(directoryDisplayName({ id: 'u', username: 'nate' })).toBe('nate');
     // No displayName and no username: the localized unnamed sentinel, never an
     // account id and never a synthesized name.

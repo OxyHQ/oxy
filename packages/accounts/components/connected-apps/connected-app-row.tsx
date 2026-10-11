@@ -43,8 +43,7 @@ export function ConnectedAppRow({
   const handlePressIn = useHapticPress();
   const formatRelativeTime = useRelativeTime();
 
-  const scopesLabel =
-    app.scopes.length > 0 ? app.scopes.join(', ') : t('connectedApps.noScopes');
+  const scopesLabel = app.scopes.length > 0 ? app.scopes.join(', ') : t('connectedApps.noScopes');
   const lastUsedLabel = t('connectedApps.lastUsed', {
     time: formatRelativeTime(app.lastUsedAt, t('common.unknown')),
   });

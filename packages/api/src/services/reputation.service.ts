@@ -14,25 +14,21 @@
  *  - Awards are idempotent on (application_id, source_action_id).
  *  - Every constant lives in `reputation.constants.ts`.
  *
- * ## The transaction fallback is DELETED, not translated
+ * ## There is no non-transactional fallback
  *
- * The Mongo version wrapped every multi-write in a `withTransaction` that
- * string-matched "no replica set" on the failure and then RE-RAN the same work
- * SESSION-LESS. That made `award` and `reverseTransaction` non-atomic on any
- * deployment without a replica set: an interruption could leave a ledger row
+ * Re-running a multi-write outside a transaction would make `award` and
+ * `reverseTransaction` non-atomic: an interruption could leave a ledger row
  * with no balance recompute behind it, or a `reversed` original with no
- * compensating entry — a permanent, silent
- * mis-statement of someone's standing. Postgres has real transactions in every
- * deployment, so the fallback has nothing to fall back to and is gone; every
- * write below either commits whole or does not happen.
+ * compensating entry — a permanent, silent mis-statement of someone's
+ * standing. Postgres has real transactions in every deployment, so every write
+ * below either commits whole or does not happen.
  *
- * ## What that changes about duplicate-key recovery
+ * ## Duplicate-key recovery
  *
  * A `unique_violation` inside a Postgres transaction ABORTS it — no further
  * statement on that connection succeeds until it rolls back. So the
  * "return the winner of the idempotency race" read cannot live inside the
- * failing transaction the way `findOne` did inside the Mongo one. It runs
- * AFTER, on a fresh connection ({@link ReputationService.findBySourceAction}),
+ * failing transaction. It runs AFTER, on a fresh connection ({@link ReputationService.findBySourceAction}),
  * and only when this service owns the transaction — when a CALLER supplied one
  * (the moderation bridge), the abort belongs to them and the error is rethrown
  * so their own handler resolves the winner.
@@ -70,11 +66,12 @@ import {
 import { reputationTransactions } from '../db/schema/reputationTransactions';
 import { reviewerReputationProfiles } from '../db/schema/reviewerReputationProfiles';
 import { users } from '../db/schema/users';
+import { REPORT_CONFIRMED_ACTION, REPORT_REJECTED_ACTION } from '../utils/reputation.constants';
 import {
-  REPORT_CONFIRMED_ACTION,
-  REPORT_REJECTED_ACTION,
-} from '../utils/reputation.constants';
-import { findReputationRule, REPUTATION_RULES, type ReputationRuleDefinition } from './reputationRules';
+  findReputationRule,
+  REPUTATION_RULES,
+  type ReputationRuleDefinition,
+} from './reputationRules';
 import {
   CONDUCT_ACTION_TYPES,
   NEUTRAL_REVIEWER_RELIABILITY,
@@ -99,8 +96,7 @@ import userCache from '../utils/userCache';
  *
  * Exported because it is part of {@link AwardInput}: the moderation bridge opens
  * ONE transaction covering the ledger row, its strike and its effect record, and
- * hands it here so the three commit together or not at all. It replaces the
- * Mongo `ClientSession` in exactly that role.
+ * hands it here so the three commit together or not at all.
  */
 export type ReputationTransactionHandle = PostgresJsTransaction<
   typeof schema,
@@ -118,10 +114,9 @@ export type ReputationTransactionRow = typeof reputationTransactions.$inferSelec
 /**
  * The recomputed standing of one account.
  *
- * The Mongo document nested nine `{_id: false}` subdocuments; the table holds
- * them as prefixed columns plus one child table. This view re-assembles the
- * nested shape the wire contract and every consumer already speak, so the
- * storage change stops at this boundary.
+ * The table holds nine nested groups as prefixed columns plus one child table.
+ * This view re-assembles the nested shape the wire contract and every consumer
+ * speak, so the storage shape stops at this boundary.
  */
 export interface ReputationBalanceView {
   userId: string;
@@ -148,9 +143,7 @@ export interface ReputationBalanceView {
  * One leaderboard row: a balance plus the inline public projection of its
  * subject.
  *
- * The Mongo aggregate `$lookup`ed the user and projected it into `userId`, which
- * left the route serializer casting an id-typed field to a user object. The join
- * is a real join now, so the row NAMES the projection — a serializer that reads
+ * The user is a real join, and the row NAMES the projection — a serializer that reads
  * `row.user.username` cannot be handed an id by mistake.
  *
  * `user` is the FLAT users-row shape on purpose: `userIdentityFields`
@@ -291,11 +284,10 @@ class ReputationService {
    */
   async award(input: AwardInput): Promise<ReputationTransactionRow> {
     // Coerced once, here, because `award` has fourteen call sites and is
-    // exported: most of them never pass through an HTTP schema at all. `trim`
-    // is the Mongoose `trim: true` on `ReputationRule.actionType`, which was
-    // APPLICATION behaviour with no Postgres counterpart and is therefore
-    // re-applied at the call site (`CONVENTIONS.md`) — on the lookup as well as
-    // on the write, since Mongoose applied it to query filters too.
+    // exported: most of them never pass through an HTTP schema at all.
+    // `actionType` is stored trimmed; Postgres has no column-level trim, so it
+    // is applied at the call site (`CONVENTIONS.md`) — on the lookup as well as
+    // on the write.
     const actionType = String(input.actionType).trim();
     const sourceActionId =
       input.sourceActionId === undefined ? undefined : String(input.sourceActionId);
@@ -315,7 +307,7 @@ class ReputationService {
     // of the phase enforces.
     if (!input.ruleOverride && CONDUCT_ACTION_TYPES.has(actionType)) {
       throw new BadRequestError(
-        'Conduct action types are produced only by the moderation reputation bridge'
+        'Conduct action types are produced only by the moderation reputation bridge',
       );
     }
 
@@ -374,8 +366,8 @@ class ReputationService {
             eq(reputationTransactions.userId, input.userId),
             eq(reputationTransactions.actionType, actionType),
             eq(reputationTransactions.status, 'active'),
-            gt(reputationTransactions.createdAt, threshold)
-          )
+            gt(reputationTransactions.createdAt, threshold),
+          ),
         )
         .limit(1);
       if (recent) {
@@ -391,7 +383,7 @@ class ReputationService {
       : input.metadata;
 
     const writeTransaction = async (
-      handle: ReputationDbHandle
+      handle: ReputationDbHandle,
     ): Promise<ReputationTransactionRow> => {
       const [created] = await handle
         .insert(reputationTransactions)
@@ -469,7 +461,7 @@ class ReputationService {
    */
   private async findBySourceAction(
     applicationId: string,
-    sourceActionId: string
+    sourceActionId: string,
   ): Promise<ReputationTransactionRow | null> {
     const [existing] = await getDb()
       .select()
@@ -477,8 +469,8 @@ class ReputationService {
       .where(
         and(
           eq(reputationTransactions.applicationId, applicationId),
-          eq(reputationTransactions.sourceActionId, sourceActionId)
-        )
+          eq(reputationTransactions.sourceActionId, sourceActionId),
+        ),
       )
       .limit(1);
     return existing ?? null;
@@ -493,7 +485,7 @@ class ReputationService {
   async reverseTransaction(
     transactionId: string,
     review: ReviewInput,
-    tx?: ReputationTransactionHandle
+    tx?: ReputationTransactionHandle,
   ): Promise<{ original: ReputationTransactionRow; reversal: ReputationTransactionRow }> {
     const reviewedByUserId = review.reviewedByUserId;
     const handle: ReputationDbHandle = tx ?? getDb();
@@ -601,7 +593,7 @@ class ReputationService {
    */
   async recalculateBalance(
     userId: string,
-    handle: ReputationDbHandle = getDb()
+    handle: ReputationDbHandle = getDb(),
   ): Promise<ReputationBalanceView> {
     const transactions = await handle
       .select({
@@ -886,7 +878,7 @@ class ReputationService {
    */
   private async deriveConductSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationConductSnapshot> {
     const strikes = await handle
       .select({ riskPoints: conductStrikes.riskPoints, expiresAt: conductStrikes.expiresAt })
@@ -917,7 +909,7 @@ class ReputationService {
    */
   private async derivePersonhoodSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationPersonhoodSnapshot> {
     const [status] = await handle
       .select({ isRealPerson: personhoodStatuses.isRealPerson, score: personhoodStatuses.score })
@@ -942,7 +934,7 @@ class ReputationService {
    */
   private async deriveReportingSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationReportingSnapshot> {
     const [profile] = await handle
       .select({
@@ -966,7 +958,7 @@ class ReputationService {
    */
   private async deriveReviewingSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationReviewingSnapshot> {
     const [profile] = await handle
       .select({
@@ -1081,8 +1073,12 @@ class ReputationService {
    */
   async getInfluence(
     userId: string,
-    context: ReputationInfluenceContext
-  ): Promise<{ context: ReputationInfluenceContext; weight: number; influence: ReputationInfluence }> {
+    context: ReputationInfluenceContext,
+  ): Promise<{
+    context: ReputationInfluenceContext;
+    weight: number;
+    influence: ReputationInfluence;
+  }> {
     const balance = await this.getBalance(userId);
     const { influence } = balance;
     const weight =
@@ -1099,14 +1095,13 @@ class ReputationService {
   /** Leaderboard ordered by lifetime total descending. */
   async getLeaderboard(
     limit: number,
-    offset: number
+    offset: number,
   ): Promise<{ items: ReputationLeaderboardRow[]; total: number }> {
     // Archived accounts and restricted tiers are excluded from the public board.
-    // Both columns are `NOT NULL` with a default, so `<>` needs no NULL arm —
-    // unlike Mongo's `$ne`, which also matched a missing field.
+    // Both columns are `NOT NULL` with a default, so `<>` needs no NULL arm.
     const eligible = and(
       ne(users.accountStatus, 'archived'),
-      ne(users.reputationTier, 'restricted')
+      ne(users.reputationTier, 'restricted'),
     );
 
     const rows = await getDb()
@@ -1154,7 +1149,7 @@ class ReputationService {
   async listTransactions(
     userId: string,
     limit: number,
-    offset: number
+    offset: number,
   ): Promise<{ items: ReputationTransactionRow[]; total: number }> {
     const items = await getDb()
       .select()

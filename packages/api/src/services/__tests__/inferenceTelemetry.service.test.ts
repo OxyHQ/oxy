@@ -25,10 +25,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { inferenceUsageDailyRollups } from '../../db/schema/inferenceUsageDailyRollups';
-import {
-  inferenceUsageEvents,
-  UNROUTED_PROVIDER,
-} from '../../db/schema/inferenceUsageEvents';
+import { inferenceUsageEvents, UNROUTED_PROVIDER } from '../../db/schema/inferenceUsageEvents';
 import { users } from '../../db/schema/users';
 import {
   recordInferenceUsage,
@@ -209,7 +206,7 @@ describe('the daily rollup', () => {
     const day = new Date();
     await recordInferenceUsage(usage(f, { occurredAt: day }));
     await recordInferenceUsage(
-      usage(f, { occurredAt: day, statusCode: 502, outcome: 'failed', units: {} })
+      usage(f, { occurredAt: day, statusCode: 502, outcome: 'failed', units: {} }),
     );
 
     const rows = await getDb()
@@ -237,7 +234,7 @@ describe('the daily rollup', () => {
         resolvedModelReference: undefined,
         servingProvider: undefined,
         units: {},
-      })
+      }),
     );
 
     const [rollup] = await getDb()
@@ -256,9 +253,7 @@ describe('the daily rollup', () => {
     await recordInferenceUsage(usage(f, { occurredAt: yesterday }));
     await recordInferenceUsage(usage(f, { occurredAt: today }));
 
-    const from = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .slice(0, 10);
+    const from = new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const to = today.toISOString().slice(0, 10);
 
     const summary = await summarizeUsage({ accountId: f.accountId, from, to });
@@ -296,13 +291,16 @@ describe('the daily rollup', () => {
     await recordInferenceUsage(usage(f, { occurredAt: today }));
 
     const rows = await getDb()
-      .select({ day: inferenceUsageDailyRollups.day, requestCount: inferenceUsageDailyRollups.requestCount })
+      .select({
+        day: inferenceUsageDailyRollups.day,
+        requestCount: inferenceUsageDailyRollups.requestCount,
+      })
       .from(inferenceUsageDailyRollups)
       .where(
         and(
           eq(inferenceUsageDailyRollups.accountId, f.accountId),
-          eq(inferenceUsageDailyRollups.applicationId, f.applicationId)
-        )
+          eq(inferenceUsageDailyRollups.applicationId, f.applicationId),
+        ),
       );
 
     expect(rows.length).toBe(2);

@@ -34,7 +34,8 @@ const CLIENT_NAME = 'Oxy';
 const CLIENT_WEBSITE = 'https://oxy.so';
 
 /** A DNS hostname: labels of letters, digits and hyphens, at least one dot. */
-const HOSTNAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
+const HOSTNAME =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/;
 
 /**
  * The instance host from what a person would type: `mastodon.social`,
@@ -53,7 +54,8 @@ function parseInstanceHost(input: string): string | null {
     } catch {
       return null;
     }
-    if (url.username || url.password || url.port || (url.pathname !== '/' && url.pathname !== '')) return null;
+    if (url.username || url.password || url.port || (url.pathname !== '/' && url.pathname !== ''))
+      return null;
     value = url.hostname;
   } else if (value.includes('://')) {
     return null;
@@ -93,7 +95,8 @@ async function registerApp(host: string): Promise<AppRegistration> {
     .from(mastodonAppRegistrations)
     .where(eq(mastodonAppRegistrations.host, host))
     .limit(1);
-  if (existing && existing.redirectUri === redirectUri && existing.scopes === MASTODON_LINK_SCOPES) return existing;
+  if (existing && existing.redirectUri === redirectUri && existing.scopes === MASTODON_LINK_SCOPES)
+    return existing;
 
   const response = await linkedAccountTransport().fetch(`https://${host}/api/v1/apps`, {
     method: 'POST',
@@ -105,13 +108,23 @@ async function registerApp(host: string): Promise<AppRegistration> {
       website: CLIENT_WEBSITE,
     }),
   });
-  const body = (await readJson(response)) as { client_id?: unknown; client_secret?: unknown } | null;
-  if (!response.ok || typeof body?.client_id !== 'string' || typeof body.client_secret !== 'string') {
+  const body = (await readJson(response)) as {
+    client_id?: unknown;
+    client_secret?: unknown;
+  } | null;
+  if (
+    !response.ok ||
+    typeof body?.client_id !== 'string' ||
+    typeof body.client_secret !== 'string'
+  ) {
     // The server answered and did not register Oxy. A 5xx or 429 is the
     // server being down or busy; anything else (a 4xx, a 2xx that is not a
     // Mastodon app) is a refusal — often a server that is not Mastodon-API.
     const unavailable = response.status >= 500 || response.status === 429;
-    logger.warn('[LinkedAccounts] Mastodon app registration refused', { host, status: response.status });
+    logger.warn('[LinkedAccounts] Mastodon app registration refused', {
+      host,
+      status: response.status,
+    });
     throw new LinkedAccountStartRefusal(
       unavailable ? 'provider_unavailable' : 'provider_rejected',
       `the server did not accept an app registration (HTTP ${response.status}); is it a Mastodon-compatible server?`,
@@ -160,13 +173,22 @@ interface StartInput {
   returnTo: string;
 }
 
-export async function startMastodonLink(input: StartInput): Promise<{ authorizeUrl: string; expiresAt: Date }> {
+export async function startMastodonLink(
+  input: StartInput,
+): Promise<{ authorizeUrl: string; expiresAt: Date }> {
   const host = parseInstanceHost(input.instance);
-  if (!host) throw new LinkedAccountStartRefusal('instance_invalid', 'instance must be a server name such as mastodon.social');
+  if (!host)
+    throw new LinkedAccountStartRefusal(
+      'instance_invalid',
+      'instance must be a server name such as mastodon.social',
+    );
   try {
     await linkedAccountTransport().assertPublicHost(host);
   } catch {
-    throw new LinkedAccountStartRefusal('instance_unreachable', 'instance is not a reachable public server');
+    throw new LinkedAccountStartRefusal(
+      'instance_unreachable',
+      'instance is not a reachable public server',
+    );
   }
 
   let registration: AppRegistration;
@@ -222,14 +244,21 @@ function httpsUrl(value: unknown): string | null {
 }
 
 /** WebFinger `acct:<username>@<domain>` at `domain`: its subject and `self` actor link. */
-async function webfinger(domain: string, username: string): Promise<{ subject: string | null; self: string | null }> {
+async function webfinger(
+  domain: string,
+  username: string,
+): Promise<{ subject: string | null; self: string | null }> {
   const resource = encodeURIComponent(`acct:${username}@${domain}`);
-  const response = await linkedAccountTransport().fetch(`https://${domain}/.well-known/webfinger?resource=${resource}`, {
-    headers: { Accept: 'application/jrd+json, application/json' },
-  });
+  const response = await linkedAccountTransport().fetch(
+    `https://${domain}/.well-known/webfinger?resource=${resource}`,
+    {
+      headers: { Accept: 'application/jrd+json, application/json' },
+    },
+  );
   const jrd = (await readJson(response)) as { subject?: unknown; links?: unknown } | null;
   if (!response.ok || !jrd) return { subject: null, self: null };
-  const subject = typeof jrd.subject === 'string' ? jrd.subject.replace(/^acct:/i, '').toLowerCase() : null;
+  const subject =
+    typeof jrd.subject === 'string' ? jrd.subject.replace(/^acct:/i, '').toLowerCase() : null;
   const links = Array.isArray(jrd.links) ? (jrd.links as Array<Record<string, unknown>>) : [];
   const self = links.find((link) => {
     const type = typeof link?.type === 'string' ? link.type : '';
@@ -247,17 +276,24 @@ async function webfinger(domain: string, username: string): Promise<{ subject: s
  * domain (a split-domain server) AND that domain's own WebFinger resolves the
  * same address to the same actor.
  */
-async function resolveActor(host: string, username: string, account: MastodonAccount): Promise<{ accountKey: string; actorUri: string }> {
+async function resolveActor(
+  host: string,
+  username: string,
+  account: MastodonAccount,
+): Promise<{ accountKey: string; actorUri: string }> {
   const user = username.toLowerCase();
   let accountKey = `${user}@${host}`;
   let actorUri: string | null = null;
   try {
     const local = await webfinger(host, username);
     if (local.self && new URL(local.self).hostname === host) actorUri = local.self;
-    const domain = local.subject?.startsWith(`${user}@`) ? local.subject.slice(user.length + 1) : null;
+    const domain = local.subject?.startsWith(`${user}@`)
+      ? local.subject.slice(user.length + 1)
+      : null;
     if (actorUri && domain && domain !== host && parseInstanceHost(domain) === domain) {
       const remote = await webfinger(domain, username);
-      if (remote.subject === `${user}@${domain}` && remote.self === actorUri) accountKey = remote.subject;
+      if (remote.subject === `${user}@${domain}` && remote.self === actorUri)
+        accountKey = remote.subject;
     }
   } catch (error) {
     logger.debug('[LinkedAccounts] WebFinger lookup failed; falling back to account.uri', {
@@ -270,12 +306,19 @@ async function resolveActor(host: string, username: string, account: MastodonAcc
     if (uri && new URL(uri).hostname === host) actorUri = uri;
   }
   if (!actorUri) {
-    throw new LinkedAccountCallbackFailure('verification_failed', 'the instance did not publish an ActivityPub actor for the account');
+    throw new LinkedAccountCallbackFailure(
+      'verification_failed',
+      'the instance did not publish an ActivityPub actor for the account',
+    );
   }
   return { accountKey, actorUri };
 }
 
-async function revokeToken(host: string, registration: AppRegistration, token: string): Promise<void> {
+async function revokeToken(
+  host: string,
+  registration: AppRegistration,
+  token: string,
+): Promise<void> {
   try {
     const response = await linkedAccountTransport().fetch(`https://${host}/oauth/revoke`, {
       method: 'POST',
@@ -287,7 +330,10 @@ async function revokeToken(host: string, registration: AppRegistration, token: s
       }).toString(),
     });
     if (!response.ok) {
-      logger.warn('[LinkedAccounts] Mastodon token revoke refused', { host, status: response.status });
+      logger.warn('[LinkedAccounts] Mastodon token revoke refused', {
+        host,
+        status: response.status,
+      });
     }
   } catch (error) {
     // Best effort: the token is already out of scope and was never stored; the
@@ -301,10 +347,16 @@ async function revokeToken(host: string, registration: AppRegistration, token: s
 }
 
 /** Exchange, verify, revoke. Throws {@link LinkedAccountCallbackFailure}. */
-export async function completeMastodonLink(challenge: SpentChallenge, code: string): Promise<VerifiedExternalAccount> {
+export async function completeMastodonLink(
+  challenge: SpentChallenge,
+  code: string,
+): Promise<VerifiedExternalAccount> {
   const host = challenge.host;
   if (!host || !challenge.pkceVerifier) {
-    throw new LinkedAccountCallbackFailure('verification_failed', 'challenge is missing its instance or verifier');
+    throw new LinkedAccountCallbackFailure(
+      'verification_failed',
+      'challenge is missing its instance or verifier',
+    );
   }
   const [registration] = await getDb()
     .select({
@@ -316,7 +368,10 @@ export async function completeMastodonLink(challenge: SpentChallenge, code: stri
     .where(eq(mastodonAppRegistrations.host, host))
     .limit(1);
   if (!registration) {
-    throw new LinkedAccountCallbackFailure('provider_unavailable', 'no app registration for the instance');
+    throw new LinkedAccountCallbackFailure(
+      'provider_unavailable',
+      'no app registration for the instance',
+    );
   }
 
   const fetchJson = linkedAccountTransport().fetch;
@@ -337,7 +392,10 @@ export async function completeMastodonLink(challenge: SpentChallenge, code: stri
     });
     const tokenBody = (await readJson(tokenResponse)) as { access_token?: unknown } | null;
     if (!tokenResponse.ok || typeof tokenBody?.access_token !== 'string') {
-      throw new LinkedAccountCallbackFailure('verification_failed', `token exchange failed (${tokenResponse.status})`);
+      throw new LinkedAccountCallbackFailure(
+        'verification_failed',
+        `token exchange failed (${tokenResponse.status})`,
+      );
     }
     token = tokenBody.access_token;
 
@@ -345,8 +403,16 @@ export async function completeMastodonLink(challenge: SpentChallenge, code: stri
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     });
     const account = (await readJson(accountResponse)) as MastodonAccount | null;
-    if (!accountResponse.ok || !account || typeof account.username !== 'string' || !account.username) {
-      throw new LinkedAccountCallbackFailure('verification_failed', `verify_credentials failed (${accountResponse.status})`);
+    if (
+      !accountResponse.ok ||
+      !account ||
+      typeof account.username !== 'string' ||
+      !account.username
+    ) {
+      throw new LinkedAccountCallbackFailure(
+        'verification_failed',
+        `verify_credentials failed (${accountResponse.status})`,
+      );
     }
     const { accountKey, actorUri } = await resolveActor(host, account.username, account);
     return { network: 'activitypub', accountKey, actorUri, handle: `@${accountKey}`, host };

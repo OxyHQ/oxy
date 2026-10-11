@@ -57,7 +57,7 @@ export class FamilyService {
    */
   async createFamily(
     organizerUserId: string,
-    name?: string
+    name?: string,
   ): Promise<{ family: FamilyRow; membership: FamilyMemberRow }> {
     const db = getDb();
     const result = await db.transaction(async (tx) => {
@@ -128,7 +128,7 @@ export class FamilyService {
   /** The caller's own row on `familyId`, active, or a 404. */
   private async requireActiveMembership(
     familyId: string,
-    userId: string
+    userId: string,
   ): Promise<FamilyMemberRow> {
     const [row] = await getDb()
       .select()
@@ -137,8 +137,8 @@ export class FamilyService {
         and(
           eq(familyMembers.familyId, familyId),
           eq(familyMembers.memberUserId, userId),
-          eq(familyMembers.status, 'active')
-        )
+          eq(familyMembers.status, 'active'),
+        ),
       )
       .limit(1);
     if (!row) {
@@ -150,7 +150,7 @@ export class FamilyService {
   /** A membership row by (familyId, membershipId), any non-removed status, or a 404. */
   private async requireMembershipRow(
     familyId: string,
-    membershipId: string
+    membershipId: string,
   ): Promise<FamilyMemberRow> {
     const [row] = await getDb()
       .select()
@@ -177,7 +177,7 @@ export class FamilyService {
   async inviteMember(
     familyId: string,
     inviterUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<FamilyMemberRow> {
     const organizer = await this.requireActiveMembership(familyId, inviterUserId);
     if (organizer.role !== 'organizer') {
@@ -202,9 +202,7 @@ export class FamilyService {
     const [existing] = await getDb()
       .select({ status: familyMembers.status })
       .from(familyMembers)
-      .where(
-        and(eq(familyMembers.familyId, familyId), eq(familyMembers.memberUserId, target.id))
-      )
+      .where(and(eq(familyMembers.familyId, familyId), eq(familyMembers.memberUserId, target.id)))
       .limit(1);
     if (existing?.status === 'active') {
       throw new ConflictError('User is already a member of this family');
@@ -246,7 +244,7 @@ export class FamilyService {
   async acceptInvite(
     familyId: string,
     membershipId: string,
-    callerUserId: string
+    callerUserId: string,
   ): Promise<FamilyMemberRow> {
     const membership = await this.requireMembershipRow(familyId, membershipId);
     if (membership.memberUserId !== callerUserId) {
@@ -267,11 +265,7 @@ export class FamilyService {
   }
 
   /** Decline a pending invite. Only the invitee may decline their own invite. */
-  async declineInvite(
-    familyId: string,
-    membershipId: string,
-    callerUserId: string
-  ): Promise<void> {
+  async declineInvite(familyId: string, membershipId: string, callerUserId: string): Promise<void> {
     const membership = await this.requireMembershipRow(familyId, membershipId);
     if (membership.memberUserId !== callerUserId) {
       throw new ForbiddenError('This is not your invitation');
@@ -285,18 +279,18 @@ export class FamilyService {
       .set({ status: 'removed' })
       .where(eq(familyMembers.id, membershipId));
 
-    logger.info('Family invite declined', { familyId, memberId: membershipId, userId: callerUserId });
+    logger.info('Family invite declined', {
+      familyId,
+      memberId: membershipId,
+      userId: callerUserId,
+    });
   }
 
   /**
    * Remove another member. Organizer only, and never on oneself — the
    * organizer leaves via {@link leaveFamily} like everyone else.
    */
-  async removeMember(
-    familyId: string,
-    membershipId: string,
-    callerUserId: string
-  ): Promise<void> {
+  async removeMember(familyId: string, membershipId: string, callerUserId: string): Promise<void> {
     const organizer = await this.requireActiveMembership(familyId, callerUserId);
     if (organizer.role !== 'organizer') {
       throw new ForbiddenError('Only the family organizer may remove members');
@@ -338,12 +332,12 @@ export class FamilyService {
           and(
             eq(familyMembers.familyId, familyId),
             eq(familyMembers.status, 'active'),
-            ne(familyMembers.id, membership.id)
-          )
+            ne(familyMembers.id, membership.id),
+          ),
         );
       if (count > 0) {
         throw new BadRequestError(
-          'Remove the other members before leaving — there is no organizer transfer in this release'
+          'Remove the other members before leaving — there is no organizer transfer in this release',
         );
       }
     }

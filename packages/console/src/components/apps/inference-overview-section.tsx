@@ -27,10 +27,7 @@ interface InferenceOverviewSectionProps {
   access: CallerAccess;
 }
 
-export function InferenceOverviewSection({
-  application,
-  access,
-}: InferenceOverviewSectionProps) {
+export function InferenceOverviewSection({ application, access }: InferenceOverviewSectionProps) {
   const { accounts, canReadAccount } = useAccount();
   const ownerAccountId = application.ownerAccountId;
   const ownerAccount = accounts.find((account) => account.accountId === ownerAccountId);
@@ -42,18 +39,18 @@ export function InferenceOverviewSection({
   const { data: catalogue = [], isLoading: isCatalogueLoading } = useModelCatalogue();
   const { data: policy, isLoading: isPolicyLoading } = useEffectiveRoutingPolicy(
     application._id,
-    access.can('app:read')
+    access.can('app:read'),
   );
   const { data: connections = [] } = useAccountProviderConnections(
     ownerAccountId,
-    canReadOwnerAccount
+    canReadOwnerAccount,
   );
 
   const applicableConnections = connections.filter((connection) =>
-    connectionAppliesToApplication(connection, application._id, ownerAccountId)
+    connectionAppliesToApplication(connection, application._id, ownerAccountId),
   );
   const liveConnections = applicableConnections.filter(
-    (connection) => connection.status === 'active' || connection.status === 'pending_validation'
+    (connection) => connection.status === 'active' || connection.status === 'pending_validation',
   );
 
   return (
@@ -125,10 +122,10 @@ export function InferenceOverviewSection({
             <p className="text-sm text-foreground">No model is published</p>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Routing policy controls that name a model, a provider, a region or a licence are
-            offered from this catalogue, so most of them have nothing to select yet. The controls
-            that do not depend on it — optimisation, data handling, fallback posture, price
-            ceilings — are configurable today.
+            Routing policy controls that name a model, a provider, a region or a licence are offered
+            from this catalogue, so most of them have nothing to select yet. The controls that do
+            not depend on it — optimisation, data handling, fallback posture, price ceilings — are
+            configurable today.
           </p>
         </div>
       )}

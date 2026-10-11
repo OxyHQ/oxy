@@ -52,12 +52,17 @@ jest.mock('../../services/civic/credential.service', () => ({
   verifyCredential: jest.fn(),
   revokeCredential: jest.fn(),
 }));
-jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
+jest.mock('../../utils/validation', () => ({
+  isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id),
+}));
 
 import civicRoutes from '../civic';
 import { errorHandler } from '../../middleware/errorHandler';
 
-interface JsonResponse { status: number; body: Record<string, unknown>; }
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
+}
 
 async function post(server: http.Server, path: string, payload: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
@@ -65,13 +70,20 @@ async function post(server: http.Server, path: string, payload: unknown): Promis
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
-        method: 'POST', host: '127.0.0.1', port: address.port, path,
+        method: 'POST',
+        host: '127.0.0.1',
+        port: address.port,
+        path,
         headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
       },
       (res) => {
         let raw = '';
-        res.on('data', (c) => { raw += c; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
+        res.on('data', (c) => {
+          raw += c;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
       },
     );
     req.on('error', reject);
@@ -89,7 +101,9 @@ beforeAll((done) => {
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
-afterAll((done) => { server.close(done); });
+afterAll((done) => {
+  server.close(done);
+});
 beforeEach(() => {
   jest.clearAllMocks();
   mockEmit.mockClear();
@@ -99,14 +113,22 @@ beforeEach(() => {
 describe('POST /civic/attestations', () => {
   it('returns 201 with the attestation result on success', async () => {
     mockSubmit.mockResolvedValueOnce({
-      ok: true, recordId: 'rec-1', subjectUserId: 'a'.repeat(24), attestorUserId: B, points: 25,
+      ok: true,
+      recordId: 'rec-1',
+      subjectUserId: 'a'.repeat(24),
+      attestorUserId: B,
+      points: 25,
     });
 
     const res = await post(server, '/civic/attestations', { type: 'real_life_attestation' });
 
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
-      accepted: true, recordId: 'rec-1', subjectUserId: 'a'.repeat(24), attestorUserId: B, points: 25,
+      accepted: true,
+      recordId: 'rec-1',
+      subjectUserId: 'a'.repeat(24),
+      attestorUserId: B,
+      points: 25,
     });
   });
 
@@ -136,20 +158,27 @@ describe('POST /civic/attestations', () => {
 
   it('emits civic:attested to the subject user room on success', async () => {
     mockSubmit.mockResolvedValueOnce({
-      ok: true, recordId: 'rec-1', subjectUserId: 'a'.repeat(24), attestorUserId: B, points: 25,
+      ok: true,
+      recordId: 'rec-1',
+      subjectUserId: 'a'.repeat(24),
+      attestorUserId: B,
+      points: 25,
     });
 
     const res = await post(server, '/civic/attestations', { type: 'real_life_attestation' });
 
     expect(res.status).toBe(201);
     expect(mockTo).toHaveBeenCalledWith(`user:${'a'.repeat(24)}`);
-    expect(mockEmit).toHaveBeenCalledWith('civic:attested', expect.objectContaining({
-      subjectUserId: 'a'.repeat(24),
-      byUserId: B,
-      recordId: 'rec-1',
-      points: 25,
-      at: expect.any(String),
-    }));
+    expect(mockEmit).toHaveBeenCalledWith(
+      'civic:attested',
+      expect.objectContaining({
+        subjectUserId: 'a'.repeat(24),
+        byUserId: B,
+        recordId: 'rec-1',
+        points: 25,
+        at: expect.any(String),
+      }),
+    );
   });
 
   it('does NOT emit civic:attested when the attestation is rejected', async () => {

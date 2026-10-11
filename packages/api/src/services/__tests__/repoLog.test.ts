@@ -135,7 +135,7 @@ describe('getLogSince', () => {
     bulkUserId = await account();
     await seedRows(
       bulkUserId,
-      Array.from({ length: MAX_LIMIT + 1 }, (_unused, seq) => ({ seq }))
+      Array.from({ length: MAX_LIMIT + 1 }, (_unused, seq) => ({ seq })),
     );
   });
 
@@ -204,7 +204,7 @@ describe('getPublicLogSince', () => {
     // and the unverified row are both present on the chain the ordinary log
     // returns in full.
     expect(seqsOf(await getLogSince(userId, -1, 50))).toEqual(
-      Array.from({ length: unverifiedSeq + 1 }, (_unused, seq) => seq)
+      Array.from({ length: unverifiedSeq + 1 }, (_unused, seq) => seq),
     );
   });
 
@@ -226,13 +226,15 @@ describe('getHead', () => {
   it('returns the O(1) head pointer', async () => {
     const userId = await account();
     const [genesisId, secondId] = await seedRows(userId, [{ seq: 0 }, { seq: 1 }]);
-    await getDb().insert(repoHeads).values({
-      userId,
-      subjectDid: buildUserDid(userId),
-      seq: 1,
-      headRecordId: secondId,
-      recordCount: 2,
-    });
+    await getDb()
+      .insert(repoHeads)
+      .values({
+        userId,
+        subjectDid: buildUserDid(userId),
+        seq: 1,
+        headRecordId: secondId,
+        recordCount: 2,
+      });
 
     expect(await getHead(userId)).toEqual({ headRecordId: secondId, seq: 1, recordCount: 2 });
     // Not merely "a head came back": it names the LATEST record, not the first.

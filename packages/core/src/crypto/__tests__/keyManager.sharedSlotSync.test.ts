@@ -20,9 +20,13 @@ jest.mock(
       __esModule: true,
       WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'WHEN_UNLOCKED_THIS_DEVICE_ONLY',
       WHEN_UNLOCKED: 'WHEN_UNLOCKED',
-      setItemAsync: jest.fn(async (k: string, v: string) => { store.set(k, v); }),
+      setItemAsync: jest.fn(async (k: string, v: string) => {
+        store.set(k, v);
+      }),
       getItemAsync: jest.fn(async (k: string) => store.get(k) ?? null),
-      deleteItemAsync: jest.fn(async (k: string) => { store.delete(k); }),
+      deleteItemAsync: jest.fn(async (k: string) => {
+        store.delete(k);
+      }),
       __resetStore__: () => store.clear(),
     };
   },

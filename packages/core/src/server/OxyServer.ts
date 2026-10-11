@@ -1,4 +1,9 @@
-import { subjectProductAccessQuerySchema, subjectProductGrantSnapshotSchema, type SubjectProductAccessQuery, type SubjectProductGrantSnapshot } from '@oxy.so/contracts';
+import {
+  subjectProductAccessQuerySchema,
+  subjectProductGrantSnapshotSchema,
+  type SubjectProductAccessQuery,
+  type SubjectProductGrantSnapshot,
+} from '@oxy.so/contracts';
 /**
  * `OxyServer` — the Oxy client for a backend.
  *
@@ -33,9 +38,14 @@ import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
 function reusableServiceToken(token: string): boolean {
   try {
     const claims = jwtDecode<{ iat?: number; exp?: number }>(token);
-    return hasBoundedServiceTokenLifetime(claims) && typeof claims.exp === 'number'
-      && claims.exp > Math.floor(Date.now() / 1000);
-  } catch { return false; }
+    return (
+      hasBoundedServiceTokenLifetime(claims) &&
+      typeof claims.exp === 'number' &&
+      claims.exp > Math.floor(Date.now() / 1000)
+    );
+  } catch {
+    return false;
+  }
 }
 
 import { loadNodeCrypto } from '@oxy.so/protocol';
@@ -128,7 +138,9 @@ export interface ServiceTokenResponse {
  */
 export class ServiceCredentialMismatchError extends Error {
   constructor() {
-    super('Service credential mismatch: provided secret does not match the secret stored for this apiKey');
+    super(
+      'Service credential mismatch: provided secret does not match the secret stored for this apiKey',
+    );
     this.name = 'ServiceCredentialMismatchError';
   }
 }
@@ -164,11 +176,18 @@ export class OxyServer extends OxyServices {
   private readonly serviceTokens = new Map<string, ServiceTokenCacheEntry>();
   private serviceApiKey: string | null = null;
   private serviceApiSecret: string | null = null;
-  private readonly actingAs = new Map<string, { result: ServiceActingAsVerification | null; expiresAt: number }>();
+  private readonly actingAs = new Map<
+    string,
+    { result: ServiceActingAsVerification | null; expiresAt: number }
+  >();
   private readonly actingAsPending = new Map<string, Promise<ServiceActingAsVerification | null>>();
   private readonly actingAsGenerations = new Map<string, ActingAsGeneration>();
   /** Public keys only; never private material. */
-  private readonly jwksCache: ServiceTokenJwksCache = { keys: new Map(), expiresAt: 0, lastAttemptAt: 0 };
+  private readonly jwksCache: ServiceTokenJwksCache = {
+    keys: new Map(),
+    expiresAt: 0,
+    lastAttemptAt: 0,
+  };
   /**
    * Before this instant a request without a user session does not try to mint
    * a service token and goes out anonymous. Set after a failed mint.
@@ -229,12 +248,14 @@ export class OxyServer extends OxyServices {
   }
   /** The inbox and push tokens, plus `create`. */
   override get notifications(): ServerNotificationsApi {
-    if (!this._serverNotifications) this._serverNotifications = new ServerNotificationsApi(this.context);
+    if (!this._serverNotifications)
+      this._serverNotifications = new ServerNotificationsApi(this.context);
     return this._serverNotifications;
   }
   /** Linked external accounts, plus `forUser`. */
   override get linkedAccounts(): ServerLinkedAccountsApi {
-    if (!this._serverLinkedAccounts) this._serverLinkedAccounts = new ServerLinkedAccountsApi(this.context);
+    if (!this._serverLinkedAccounts)
+      this._serverLinkedAccounts = new ServerLinkedAccountsApi(this.context);
     return this._serverLinkedAccounts;
   }
   /** Delegated capabilities, plus `introspectRequesterAssertion`. */
@@ -286,7 +307,9 @@ export class OxyServer extends OxyServices {
       if (canAttestWorkloadIdentity()) {
         return this.workloadServiceToken();
       }
-      throw new Error('Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.');
+      throw new Error(
+        'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
+      );
     }
 
     // The apiKey is the credential's PUBLIC id (`oxy_dk_…`, the OAuth
@@ -312,7 +335,11 @@ export class OxyServer extends OxyServices {
         });
         throw new ServiceCredentialMismatchError();
       }
-      if (entry.token && reusableServiceToken(entry.token) && entry.expiresAt > now + TOKEN_REUSE_MARGIN_MS) {
+      if (
+        entry.token &&
+        reusableServiceToken(entry.token) &&
+        entry.expiresAt > now + TOKEN_REUSE_MARGIN_MS
+      ) {
         return entry.token;
       }
       if (entry.pending) {
@@ -364,26 +391,43 @@ export class OxyServer extends OxyServices {
    * Never cached unless `cache` says so. Rejects with `OxyApiError`.
    */
   /** Validated request's user session only; never changes the shared client's token. */
-  async productGrantSnapshotForUser(query: SubjectProductAccessQuery, accessToken: string): Promise<SubjectProductGrantSnapshot> {
+  async productGrantSnapshotForUser(
+    query: SubjectProductAccessQuery,
+    accessToken: string,
+  ): Promise<SubjectProductGrantSnapshot> {
     const parsed = subjectProductAccessQuerySchema.parse(query);
     if (!accessToken || /[\r\n]/.test(accessToken)) throw new Error('A user session is required');
-    const answer = await this.request<unknown>('GET',
+    const answer = await this.request<unknown>(
+      'GET',
       `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}/grants`,
-      undefined, { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } });
+      undefined,
+      { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } },
+    );
     const snapshot = subjectProductGrantSnapshotSchema.parse(answer);
-    if(snapshot.access.subjectAccountId !== parsed.subjectAccountId || snapshot.access.productId !== parsed.productId)
+    if (
+      snapshot.access.subjectAccountId !== parsed.subjectAccountId ||
+      snapshot.access.productId !== parsed.productId
+    )
       throw new Error('Product grant response attribution differs');
     return snapshot;
   }
 
   /** Offline metering read: the API requires this app's live consent for this exact subject. */
-  async productGrantSnapshotForService(query: SubjectProductAccessQuery): Promise<SubjectProductGrantSnapshot> {
+  async productGrantSnapshotForService(
+    query: SubjectProductAccessQuery,
+  ): Promise<SubjectProductGrantSnapshot> {
     const parsed = subjectProductAccessQuerySchema.parse(query);
-    const answer = await this.serviceRequest<unknown>('GET',
+    const answer = await this.serviceRequest<unknown>(
+      'GET',
       `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}/service-grants`,
-      undefined, { cache: false, retry: false });
+      undefined,
+      { cache: false, retry: false },
+    );
     const snapshot = subjectProductGrantSnapshotSchema.parse(answer);
-    if (snapshot.access.subjectAccountId !== parsed.subjectAccountId || snapshot.access.productId !== parsed.productId)
+    if (
+      snapshot.access.subjectAccountId !== parsed.subjectAccountId ||
+      snapshot.access.productId !== parsed.productId
+    )
       throw new Error('Product grant response attribution differs');
     return snapshot;
   }
@@ -411,10 +455,18 @@ export class OxyServer extends OxyServices {
    * newer refusal even when app/credential revocation leaves epoch unchanged.
    */
   async verifyActingAs(
-    appId: string, userId: string, options: ActingAsVerificationOptions = {},
+    appId: string,
+    userId: string,
+    options: ActingAsVerificationOptions = {},
   ): Promise<ServiceActingAsVerification | null> {
     const pair = JSON.stringify([appId, userId]);
-    const cacheKey = JSON.stringify([appId, userId, options.credentialId, options.ownerAccountId, options.environment]);
+    const cacheKey = JSON.stringify([
+      appId,
+      userId,
+      options.credentialId,
+      options.ownerAccountId,
+      options.environment,
+    ]);
     if (options.cache === true) {
       const cached = this.actingAs.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
@@ -436,11 +488,21 @@ export class OxyServer extends OxyServices {
     }
     const serial = ++generation.issued;
     const startedAt = Date.now();
-    const lookup = this.lookupActingAs(appId, userId, options, pair, cacheKey, generation, serial, startedAt);
+    const lookup = this.lookupActingAs(
+      appId,
+      userId,
+      options,
+      pair,
+      cacheKey,
+      generation,
+      serial,
+      startedAt,
+    );
     if (options.cache !== true) return lookup;
     this.actingAsPending.set(cacheKey, lookup);
-    try { return await lookup; }
-    finally {
+    try {
+      return await lookup;
+    } finally {
       if (this.actingAsPending.get(cacheKey) === lookup) this.actingAsPending.delete(cacheKey);
     }
   }
@@ -463,7 +525,9 @@ export class OxyServer extends OxyServices {
      * One page of account events for this application, oldest first — the pull
      * feed behind the webhook. Verify each entry's `token` before acting on it.
      */
-    list: async (options: { after?: string; limit?: number } = {}): Promise<OxyAccountEventFeedPage> => {
+    list: async (
+      options: { after?: string; limit?: number } = {},
+    ): Promise<OxyAccountEventFeedPage> => {
       const query: Record<string, string> = {};
       if (options.after) query.after = options.after;
       if (options.limit !== undefined) query.limit = String(options.limit);
@@ -494,12 +558,15 @@ export class OxyServer extends OxyServices {
       return await this.serviceToken();
     } catch (error) {
       this.anonymousServiceTokenRetryAt = Date.now() + ANONYMOUS_SERVICE_TOKEN_RETRY_MS;
-      logger.warn('[oxy.auth] No service token for a request without a session; sending it anonymous', {
-        component: 'auth',
-        method: 'serviceTokenForAnonymousRequest',
-        retryInMs: ANONYMOUS_SERVICE_TOKEN_RETRY_MS,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn(
+        '[oxy.auth] No service token for a request without a session; sending it anonymous',
+        {
+          component: 'auth',
+          method: 'serviceTokenForAnonymousRequest',
+          retryInMs: ANONYMOUS_SERVICE_TOKEN_RETRY_MS,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return null;
     }
   }
@@ -508,7 +575,12 @@ export class OxyServer extends OxyServices {
     return Boolean(this.serviceApiKey && this.serviceApiSecret) || canAttestWorkloadIdentity();
   }
 
-  private async mintServiceToken(key: string, secret: string, cacheKey: string, secretBuf: Buffer): Promise<string> {
+  private async mintServiceToken(
+    key: string,
+    secret: string,
+    cacheKey: string,
+    secretBuf: Buffer,
+  ): Promise<string> {
     const response = await this.request<ServiceTokenResponse>(
       'POST',
       '/auth/service-token',
@@ -522,7 +594,13 @@ export class OxyServer extends OxyServices {
       entry.expiresAt = expiresAt;
       entry.secretBuf = secretBuf;
     } else {
-      this.serviceTokens.set(cacheKey, { token: response.token, expiresAt, secretBuf, pending: null, apiKey: key });
+      this.serviceTokens.set(cacheKey, {
+        token: response.token,
+        expiresAt,
+        secretBuf,
+        pending: null,
+        apiKey: key,
+      });
     }
     return response.token;
   }
@@ -530,10 +608,21 @@ export class OxyServer extends OxyServices {
   /** A token obtained by attestation, cached like a credential's (one identity per process). */
   private async workloadServiceToken(): Promise<string> {
     const entry = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-    if (entry?.token && reusableServiceToken(entry.token) && entry.expiresAt > Date.now() + TOKEN_REUSE_MARGIN_MS) return entry.token;
+    if (
+      entry?.token &&
+      reusableServiceToken(entry.token) &&
+      entry.expiresAt > Date.now() + TOKEN_REUSE_MARGIN_MS
+    )
+      return entry.token;
     if (entry?.pending) return entry.pending;
 
-    const seeded = entry ?? { token: '', expiresAt: 0, secretBuf: Buffer.alloc(0), pending: null, apiKey: WORKLOAD_CACHE_KEY };
+    const seeded = entry ?? {
+      token: '',
+      expiresAt: 0,
+      secretBuf: Buffer.alloc(0),
+      pending: null,
+      apiKey: WORKLOAD_CACHE_KEY,
+    };
     this.serviceTokens.set(WORKLOAD_CACHE_KEY, seeded);
 
     const pending = (async () => {
@@ -551,7 +640,8 @@ export class OxyServer extends OxyServices {
       return await pending;
     } catch (error) {
       const failed = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-      if (failed?.pending === pending && !failed.token) this.serviceTokens.delete(WORKLOAD_CACHE_KEY);
+      if (failed?.pending === pending && !failed.token)
+        this.serviceTokens.delete(WORKLOAD_CACHE_KEY);
       throw error;
     } finally {
       const settled = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
@@ -560,20 +650,42 @@ export class OxyServer extends OxyServices {
   }
 
   private async lookupActingAs(
-    appId: string, userId: string, options: ActingAsVerificationOptions,
-    pair: string, cacheKey: string, generation: ActingAsGeneration, serial: number, startedAt: number,
+    appId: string,
+    userId: string,
+    options: ActingAsVerificationOptions,
+    pair: string,
+    cacheKey: string,
+    generation: ActingAsGeneration,
+    serial: number,
+    startedAt: number,
   ): Promise<ServiceActingAsVerification | null> {
     try {
       const serviceToken = await this.serviceToken();
       const result = await this.request<ServiceActingAsVerification>(
-        'GET', '/internal/service-acting-as/verify',
-        { appId, userId, ...(options.credentialId ? { credentialId: options.credentialId,
-          ownerAccountId: options.ownerAccountId, environment: options.environment } : {}) },
-        { cache: false, retry: false, timeout: 5000, headers: { Authorization: `Bearer ${serviceToken}` } },
+        'GET',
+        '/internal/service-acting-as/verify',
+        {
+          appId,
+          userId,
+          ...(options.credentialId
+            ? {
+                credentialId: options.credentialId,
+                ownerAccountId: options.ownerAccountId,
+                environment: options.environment,
+              }
+            : {}),
+        },
+        {
+          cache: false,
+          retry: false,
+          timeout: 5000,
+          headers: { Authorization: `Bearer ${serviceToken}` },
+        },
       );
       // A deadline bounds how long an already old response can authorize. It
       // is not by itself a measurement of end-to-end revocation latency.
-      if (this.actingAsGenerations.get(pair) !== generation || serial < generation.completed) return null;
+      if (this.actingAsGenerations.get(pair) !== generation || serial < generation.completed)
+        return null;
       generation.completed = serial;
       this.clearActingAsPair(appId, userId);
       if (Date.now() - startedAt >= 5000) return null;
@@ -581,26 +693,45 @@ export class OxyServer extends OxyServices {
       if (typeof rawEpoch !== 'string' || !/^(?:0|[1-9][0-9]{0,18})$/.test(rawEpoch)) return null;
       const epoch = BigInt(rawEpoch);
       if (epoch > 9223372036854775807n) return null;
-      if (typeof result.authorized !== 'boolean' || !Array.isArray(result.scopes)
-        || !result.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope.trim() === scope)
-        || new Set(result.scopes).size !== result.scopes.length
-        || (!result.authorized && result.scopes.length !== 0)) return null;
+      if (
+        typeof result.authorized !== 'boolean' ||
+        !Array.isArray(result.scopes) ||
+        !result.scopes.every(
+          (scope) => typeof scope === 'string' && scope.length > 0 && scope.trim() === scope,
+        ) ||
+        new Set(result.scopes).size !== result.scopes.length ||
+        (!result.authorized && result.scopes.length !== 0)
+      )
+        return null;
       const older = epoch < generation.epoch;
       if (epoch > generation.epoch) generation.epoch = epoch;
       if (result.authorized && older) return null;
-      const verified: ServiceActingAsVerification | null = result.authorized === true
-        ? { authorized: true, scopes: result.scopes, epoch: rawEpoch } : null;
-      if (options.cache === true) this.rememberActingAs(cacheKey, verified,
-        startedAt + (verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS));
+      const verified: ServiceActingAsVerification | null =
+        result.authorized === true
+          ? { authorized: true, scopes: result.scopes, epoch: rawEpoch }
+          : null;
+      if (options.cache === true)
+        this.rememberActingAs(
+          cacheKey,
+          verified,
+          startedAt + (verified ? ACTING_AS_GRANT_TTL_MS : ACTING_AS_DENIAL_TTL_MS),
+        );
       return verified;
     } catch (error) {
       if (this.actingAsGenerations.get(pair) === generation && serial >= generation.completed) {
         generation.completed = serial;
         this.clearActingAsPair(appId, userId);
       }
-      logger.warn('[oxy.auth] verifyActingAs lookup failed — not cached', {
-        component: 'auth', method: 'verifyActingAs', appId, userId,
-      }, error);
+      logger.warn(
+        '[oxy.auth] verifyActingAs lookup failed — not cached',
+        {
+          component: 'auth',
+          method: 'verifyActingAs',
+          appId,
+          userId,
+        },
+        error,
+      );
       return null;
     }
   }
@@ -612,7 +743,11 @@ export class OxyServer extends OxyServices {
     }
   }
 
-  private rememberActingAs(cacheKey: string, result: ServiceActingAsVerification | null, expiresAt: number): void {
+  private rememberActingAs(
+    cacheKey: string,
+    result: ServiceActingAsVerification | null,
+    expiresAt: number,
+  ): void {
     this.actingAs.delete(cacheKey);
     this.actingAs.set(cacheKey, { result, expiresAt });
     if (this.actingAs.size > ACTING_AS_CACHE_MAX) {
@@ -621,7 +756,10 @@ export class OxyServer extends OxyServices {
     }
   }
 
-  private async verifyAccountEvent(token: string, options: VerifyAccountEventOptions): Promise<OxyAccountEvent> {
+  private async verifyAccountEvent(
+    token: string,
+    options: VerifyAccountEventOptions,
+  ): Promise<OxyAccountEvent> {
     if (typeof token !== 'string' || token.length === 0 || token.length > 16 * 1024) {
       throw new OxyAccountEventError('Account event token is missing or oversized');
     }
@@ -639,11 +777,11 @@ export class OxyServer extends OxyServices {
       throw new OxyAccountEventError('Account event token is malformed');
     }
     if (
-      Object.keys(header).length !== 3
-      || header.alg !== 'EdDSA'
-      || header.typ !== 'secevent+jwt'
-      || typeof header.kid !== 'string'
-      || !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
+      Object.keys(header).length !== 3 ||
+      header.alg !== 'EdDSA' ||
+      header.typ !== 'secevent+jwt' ||
+      typeof header.kid !== 'string' ||
+      !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
     ) {
       throw new OxyAccountEventError('Account event token header is not supported');
     }
@@ -658,7 +796,9 @@ export class OxyServer extends OxyServices {
       );
     } catch (error) {
       throw new OxyAccountEventError(
-        error instanceof Error ? error.message.replace('Service token', 'Account event') : 'Signing key is unavailable',
+        error instanceof Error
+          ? error.message.replace('Service token', 'Account event')
+          : 'Signing key is unavailable',
       );
     }
     const signature = Buffer.from(signatureB64, 'base64url');
@@ -667,8 +807,16 @@ export class OxyServer extends OxyServices {
     }
     let verified = false;
     try {
-      const publicKey = nodeCrypto.createPublicKey({ key: jwk as unknown as import('node:crypto').JsonWebKey, format: 'jwk' });
-      verified = nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature);
+      const publicKey = nodeCrypto.createPublicKey({
+        key: jwk as unknown as import('node:crypto').JsonWebKey,
+        format: 'jwk',
+      });
+      verified = nodeCrypto.verify(
+        null,
+        Buffer.from(`${headerB64}.${payloadB64}`),
+        publicKey,
+        signature,
+      );
     } catch {
       verified = false;
     }
@@ -677,7 +825,7 @@ export class OxyServer extends OxyServices {
     if (payload.iss !== OXY_JWT_ISSUER) {
       throw new OxyAccountEventError('Account event token issuer is not Oxy');
     }
-    const audience = options.audience ?? await this.configuredServiceAppId();
+    const audience = options.audience ?? (await this.configuredServiceAppId());
     if (typeof payload.aud !== 'string' || payload.aud !== audience) {
       throw new OxyAccountEventError('Account event token is addressed to another application');
     }
@@ -693,7 +841,12 @@ export class OxyServer extends OxyServices {
     }
     const entries = Object.entries(events as Record<string, unknown>);
     const deleted = (events as Record<string, unknown>)[OXY_ACCOUNT_DELETED_EVENT_URI];
-    if (entries.length !== 1 || typeof deleted !== 'object' || deleted === null || Array.isArray(deleted)) {
+    if (
+      entries.length !== 1 ||
+      typeof deleted !== 'object' ||
+      deleted === null ||
+      Array.isArray(deleted)
+    ) {
       throw new OxyAccountEventError('Account event token carries an unknown event');
     }
     const body = deleted as Record<string, unknown>;
@@ -703,7 +856,11 @@ export class OxyServer extends OxyServices {
     if (typeof body.occurredAt !== 'string' || Number.isNaN(Date.parse(body.occurredAt))) {
       throw new OxyAccountEventError('Account event has no occurrence time');
     }
-    if (body.username !== undefined && body.username !== null && typeof body.username !== 'string') {
+    if (
+      body.username !== undefined &&
+      body.username !== null &&
+      typeof body.username !== 'string'
+    ) {
       throw new OxyAccountEventError('Account event username is malformed');
     }
     return {
@@ -723,7 +880,9 @@ export class OxyServer extends OxyServices {
     const serviceToken = await this.serviceToken();
     const appId = jwtDecode<{ appId?: unknown }>(serviceToken).appId;
     if (typeof appId !== 'string' || appId.length === 0) {
-      throw new OxyAccountEventError('No audience given and the service credential names no application');
+      throw new OxyAccountEventError(
+        'No audience given and the service credential names no application',
+      );
     }
     return appId;
   }

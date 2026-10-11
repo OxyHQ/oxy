@@ -20,22 +20,21 @@
  * until a bot self-authentication lane exists that cannot be confused with a
  * degraded session read — see `accountsCreateAsOperatedAccount.test.ts`.
  *
- * ## What the Postgres port changed
+ * ## Storage decisions
  *
  * - **`ancestors` is `user_ancestors`, not an embedded array.** Each edge is a
  *   row with a real foreign key and an explicit `depth`, so the ROOT-FIRST order
- *   the Mongo array carried implicitly is now stated (`db/schema/userAncestors.ts`).
- * - **`account_members.permissions` does not travel.** Every write site set it
- *   to exactly `permissionsForAccountRole(role)`; it is a derivation of `role`,
+ *   is stated rather than implied (`db/schema/userAncestors.ts`).
+ * - **`account_members` stores no `permissions` column.** Every write site would
+ *   set it to exactly `permissionsForAccountRole(role)`; it is a derivation of `role`,
  *   not data, and the serializer keeps emitting it. What the table stores
  *   instead is the per-member ADJUSTMENT — `permission_grants` /
  *   `permission_revokes` — which a role name genuinely cannot express;
  *   `effectivePermissionsForMember` combines the three.
- * - **The session-less transaction fallback is DELETED, not translated.** The
- *   Mongoose helper string-matched a "no replica set" error and re-ran the work
- *   WITHOUT a transaction, so a subtree move on a standalone deployment ran
- *   non-atomically — a half-rewritten materialised path, silently. Postgres has
- *   no such mode, so there is nothing to fall back to.
+ * - **There is no non-transactional fallback.** Re-running the work WITHOUT a
+ *   transaction would let a subtree move run non-atomically — a half-rewritten
+ *   materialised path, silently. Postgres always has transactions, so there is
+ *   nothing to fall back to.
  *
  * Pure tree/inheritance helpers are exported separately so they can be unit
  * tested without a database.
@@ -47,10 +46,7 @@ import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
 import { publicColumns } from '@oxy.so/db/assert';
-import {
-  PROTECTED_COLUMNS_BY_TABLE,
-  USERS_PROTECTED_COLUMNS,
-} from '../db/schema/protectedColumns';
+import { PROTECTED_COLUMNS_BY_TABLE, USERS_PROTECTED_COLUMNS } from '../db/schema/protectedColumns';
 import type { AccountKind } from '../db/schema/users';
 import {
   CHILD_ACCOUNT_KINDS,
@@ -68,12 +64,7 @@ import {
   type AccountPermission,
   type AccountRole,
 } from '../utils/accountRoles';
-import {
-  BadRequestError,
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-} from '../utils/error';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/error';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxy.so/core';
 import {
   assertColorNotReserved,
@@ -133,7 +124,7 @@ function usernameTakenError(username: string): ConflictError {
  * policy is only enforced on whichever path the caller happens to pick.
  */
 function assertValidAccountName(
-  name: { first?: string; last?: string; displayName?: string } | undefined
+  name: { first?: string; last?: string; displayName?: string } | undefined,
 ): void {
   if (!name || typeof name !== 'object') return;
   // `displayName` is validated by the SAME policy as the human halves. It is a
@@ -181,10 +172,7 @@ export type AccountMemberRow = typeof accountMembers.$inferSelect;
  * it scans `src/` for bare `select()` against a protected table and names the
  * `file:line`. It caught all eight sites in this batch.
  */
-export type AccountRow = Omit<
-  typeof users.$inferSelect,
-  (typeof USERS_PROTECTED_COLUMNS)[number]
->;
+export type AccountRow = Omit<typeof users.$inferSelect, (typeof USERS_PROTECTED_COLUMNS)[number]>;
 
 /**
  * An account plus its materialised path, which is the shape every tree
@@ -300,7 +288,7 @@ export function childRootOf(parent: AccountWithAncestors): string {
  */
 export function channelCannotParentChannel(
   parentKind: AccountKind | string | null | undefined,
-  childKind: AccountKind | string | null | undefined
+  childKind: AccountKind | string | null | undefined,
 ): boolean {
   return parentKind === 'channel' && childKind === 'channel';
 }
@@ -310,10 +298,7 @@ export function channelCannotParentChannel(
  * new parent IS the account itself, or the account is already an ancestor of the
  * new parent (i.e. the new parent is a descendant of the account).
  */
-export function wouldCreateCycle(
-  accountId: string,
-  newParent: AccountWithAncestors
-): boolean {
+export function wouldCreateCycle(accountId: string, newParent: AccountWithAncestors): boolean {
   if (newParent.account.id === accountId) {
     return true;
   }
@@ -329,7 +314,7 @@ export function wouldCreateCycle(
 export function rewriteDescendantAncestors(
   oldSelfAncestors: string[],
   newSelfAncestors: string[],
-  descendantAncestors: string[]
+  descendantAncestors: string[],
 ): string[] {
   const suffix = descendantAncestors.slice(oldSelfAncestors.length);
   return [...newSelfAncestors, ...suffix];
@@ -348,7 +333,7 @@ export function rewriteDescendantAncestors(
 export function resolveEffectiveMembership<T extends MembershipLike>(
   rows: T[],
   accountId: string,
-  ancestors: string[]
+  ancestors: string[],
 ): { row: T; source: 'direct' | 'inherited' } | null {
   const byAccount = new Map<string, T>();
   for (const row of rows) {
@@ -376,11 +361,12 @@ export function resolveEffectiveMembership<T extends MembershipLike>(
 // ===========================================================================
 
 /** Load an account with its materialised path, or null. */
-async function loadAccount(
-  db: Database,
-  accountId: string
-): Promise<AccountWithAncestors | null> {
-  const [account] = await db.select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users).where(eq(users.id, accountId)).limit(1);
+async function loadAccount(db: Database, accountId: string): Promise<AccountWithAncestors | null> {
+  const [account] = await db
+    .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+    .from(users)
+    .where(eq(users.id, accountId))
+    .limit(1);
   if (!account) return null;
   return { account, ancestors: await loadAncestors(db, accountId) };
 }
@@ -402,16 +388,12 @@ async function loadAncestors(db: Database, accountId: string): Promise<string[]>
  * `(user_id, depth)` and a move changes its LENGTH, so an in-place update would
  * leave the tail of a shortened path behind.
  */
-async function writeAncestors(
-  tx: Database,
-  accountId: string,
-  ancestors: string[]
-): Promise<void> {
+async function writeAncestors(tx: Database, accountId: string, ancestors: string[]): Promise<void> {
   await tx.delete(userAncestors).where(eq(userAncestors.userId, accountId));
   if (ancestors.length === 0) return;
-  await tx.insert(userAncestors).values(
-    ancestors.map((ancestorId, depth) => ({ userId: accountId, depth, ancestorId }))
-  );
+  await tx
+    .insert(userAncestors)
+    .values(ancestors.map((ancestorId, depth) => ({ userId: accountId, depth, ancestorId })));
 }
 
 export class AccountService {
@@ -430,11 +412,11 @@ export class AccountService {
   async createChildAccount(
     parentAccountId: string,
     creatorUserId: string,
-    input: CreateChildAccountInput
+    input: CreateChildAccountInput,
   ): Promise<{ account: AccountRow; membership: AccountMemberRow }> {
     if (!CHILD_ACCOUNT_KINDS.includes(input.kind)) {
       throw new BadRequestError(
-        `A child account kind must be one of: ${CHILD_ACCOUNT_KINDS.join(', ')}`
+        `A child account kind must be one of: ${CHILD_ACCOUNT_KINDS.join(', ')}`,
       );
     }
     // No kind check for `accountCategories` here: `CHILD_ACCOUNT_KINDS` is
@@ -449,9 +431,7 @@ export class AccountService {
     }
 
     if (parent.ancestors.length + 1 > MAX_ACCOUNT_DEPTH) {
-      throw new BadRequestError(
-        `Maximum account nesting depth (${MAX_ACCOUNT_DEPTH}) exceeded`
-      );
+      throw new BadRequestError(`Maximum account nesting depth (${MAX_ACCOUNT_DEPTH}) exceeded`);
     }
     if (channelCannotParentChannel(parent.account.kind, input.kind)) {
       throw new BadRequestError('A channel cannot own another channel');
@@ -481,51 +461,51 @@ export class AccountService {
     // client cannot act on.
     const { account, membership } = await this.rejectingTakenUsername(username, () =>
       db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(users)
-        .values({
-          username,
-          nameFirst: input.name?.first,
-          nameLast: input.name?.last,
-          nameDisplay: input.name?.displayName,
-          bio: input.bio,
-          description: input.description,
-          avatar: input.avatar,
-          // `undefined` leaves the column to its `$defaultFn` (a random
-          // non-reserved preset), which is what every account got before this
-          // field existed.
-          color,
-          verified: true,
-          type: 'local',
-          kind: input.kind,
-          accountCategories: input.accountCategories,
-          // `undefined` leaves the column to its `false` default, so a caller
-          // that says nothing gets exactly today's behaviour. Only an explicit
-          // `true` opts the new account out of discovery.
-          privacyIsPrivateAccount: input.isPrivateAccount,
-          parentAccountId: parent.account.id,
-          rootAccountId,
-          accountStatus: 'active',
-        })
-        .returning();
+        const [created] = await tx
+          .insert(users)
+          .values({
+            username,
+            nameFirst: input.name?.first,
+            nameLast: input.name?.last,
+            nameDisplay: input.name?.displayName,
+            bio: input.bio,
+            description: input.description,
+            avatar: input.avatar,
+            // `undefined` leaves the column to its `$defaultFn` (a random
+            // non-reserved preset), which is what every account got before this
+            // field existed.
+            color,
+            verified: true,
+            type: 'local',
+            kind: input.kind,
+            accountCategories: input.accountCategories,
+            // `undefined` leaves the column to its `false` default, so a caller
+            // that says nothing gets exactly today's behaviour. Only an explicit
+            // `true` opts the new account out of discovery.
+            privacyIsPrivateAccount: input.isPrivateAccount,
+            parentAccountId: parent.account.id,
+            rootAccountId,
+            accountStatus: 'active',
+          })
+          .returning();
 
-      await writeAncestors(tx, created.id, ancestors);
+        await writeAncestors(tx, created.id, ancestors);
 
-      const [member] = await tx
-        .insert(accountMembers)
-        .values({
-          accountId: created.id,
-          memberUserId: creatorUserId,
-          role: 'owner',
-          inherit: true,
-          status: 'active',
-          invitedByUserId: creatorUserId,
-          joinedAt: new Date(),
-        })
-        .returning();
+        const [member] = await tx
+          .insert(accountMembers)
+          .values({
+            accountId: created.id,
+            memberUserId: creatorUserId,
+            role: 'owner',
+            inherit: true,
+            status: 'active',
+            invitedByUserId: creatorUserId,
+            joinedAt: new Date(),
+          })
+          .returning();
 
-      return { account: created, membership: member };
-      })
+        return { account: created, membership: member };
+      }),
     );
 
     logger.info('Account created', {
@@ -601,7 +581,7 @@ export class AccountService {
       const subtreeRelativeDepth = maxDescDepth - oldSelfAncestors.length;
       if (newSelfAncestors.length + subtreeRelativeDepth > MAX_ACCOUNT_DEPTH) {
         throw new BadRequestError(
-          `Move would exceed the maximum account nesting depth (${MAX_ACCOUNT_DEPTH})`
+          `Move would exceed the maximum account nesting depth (${MAX_ACCOUNT_DEPTH})`,
         );
       }
 
@@ -616,12 +596,9 @@ export class AccountService {
         await writeAncestors(
           tx,
           descendantId,
-          rewriteDescendantAncestors(oldSelfAncestors, newSelfAncestors, path)
+          rewriteDescendantAncestors(oldSelfAncestors, newSelfAncestors, path),
         );
-        await tx
-          .update(users)
-          .set({ rootAccountId: newRoot })
-          .where(eq(users.id, descendantId));
+        await tx.update(users).set({ rootAccountId: newRoot }).where(eq(users.id, descendantId));
         affectedIds.push(descendantId);
       }
 
@@ -657,10 +634,14 @@ export class AccountService {
       color?: string;
       links?: string[];
       accountCategories?: AccountCategoryId[];
-    }
+    },
   ): Promise<AccountRow> {
     const db = getDb();
-    const [account] = await db.select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users).where(eq(users.id, accountId)).limit(1);
+    const [account] = await db
+      .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+      .from(users)
+      .where(eq(users.id, accountId))
+      .limit(1);
     if (!account) {
       throw new NotFoundError('Account not found');
     }
@@ -672,9 +653,7 @@ export class AccountService {
       // kind_check` refuses the row anyway, so this exists to answer with a 400
       // that names the rule instead of a 500 from the driver.
       if (!kindAcceptsAccountCategories(account.kind)) {
-        throw new BadRequestError(
-          `An account of kind "${account.kind}" cannot carry categories`
-        );
+        throw new BadRequestError(`An account of kind "${account.kind}" cannot carry categories`);
       }
       // A WITHDRAWN category may be kept, re-ordered or dropped, but not newly
       // added — which is the whole difference between withdrawing a category
@@ -685,11 +664,11 @@ export class AccountService {
       const newlyRetired = newlyAddedRetiredCategories(
         input.accountCategories,
         account.accountCategories,
-        RETIRED_ACCOUNT_CATEGORY_IDS
+        RETIRED_ACCOUNT_CATEGORY_IDS,
       );
       if (newlyRetired.length > 0) {
         throw new BadRequestError(
-          `These account categories are no longer available: ${newlyRetired.join(', ')}`
+          `These account categories are no longer available: ${newlyRetired.join(', ')}`,
         );
       }
       // Assigned WHOLE and in the order given. Nothing sorts or de-duplicates
@@ -703,8 +682,7 @@ export class AccountService {
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name);
-      // Mongo merged the supplied halves over the stored subdocument; the two
-      // columns are independent, so only the supplied half is written.
+      // The two columns are independent, so only the supplied half is written.
       if (input.name.first !== undefined) set.nameFirst = input.name.first;
       if (input.name.last !== undefined) set.nameLast = input.name.last;
       // An empty string CLEARS the explicit name and falls back to the composed
@@ -745,7 +723,7 @@ export class AccountService {
       Object.keys(set).length > 0
         ? (
             await this.rejectingTakenUsername(set.username, () =>
-              db.update(users).set(set).where(eq(users.id, accountId)).returning()
+              db.update(users).set(set).where(eq(users.id, accountId)).returning(),
             )
           )[0]
         : account;
@@ -778,7 +756,11 @@ export class AccountService {
    */
   async archiveAccount(accountId: string): Promise<AccountRow> {
     const db = getDb();
-    const [account] = await db.select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users).where(eq(users.id, accountId)).limit(1);
+    const [account] = await db
+      .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+      .from(users)
+      .where(eq(users.id, accountId))
+      .limit(1);
     if (!account) {
       throw new NotFoundError('Account not found');
     }
@@ -834,8 +816,8 @@ export class AccountService {
             where ${userAncestors.userId} = ${users.id}
               and ${userAncestors.ancestorId} = ${accountId}
           ))`,
-          ne(users.accountStatus, 'archived')
-        )
+          ne(users.accountStatus, 'archived'),
+        ),
       )
       .orderBy(asc(users.createdAt));
     return this.annotateAccounts(userId, subtree);
@@ -905,19 +887,29 @@ export class AccountService {
         and(
           eq(accountMembers.memberUserId, userId),
           inArray(accountMembers.accountId, pathIds),
-          eq(accountMembers.status, 'active')
-        )
+          eq(accountMembers.status, 'active'),
+        ),
       );
 
     const resolved = resolveEffectiveMembership(rows, accountId, ancestors);
-    if (accountId === userId && account.kind === 'bot' && sessionId
-      && await liveAgentSessionOwns(sessionId, userId)) {
+    if (
+      accountId === userId &&
+      account.kind === 'bot' &&
+      sessionId &&
+      (await liveAgentSessionOwns(sessionId, userId))
+    ) {
       // Self operation owns resources/funds. Only explicit current membership
       // adds governance; possession of a runtime key never appoints an owner.
-      const governed = resolved && (resolved.row.role === 'owner' || resolved.row.role === 'admin')
-        ? effectivePermissionsForMember(resolved.row) : [];
-      return { role: resolved?.row.role ?? 'viewer', source: 'self', membership: resolved?.row ?? null,
-        permissions: [...new Set([...autonomousOperationalPermissions(), ...governed])] };
+      const governed =
+        resolved && (resolved.row.role === 'owner' || resolved.row.role === 'admin')
+          ? effectivePermissionsForMember(resolved.row)
+          : [];
+      return {
+        role: resolved?.row.role ?? 'viewer',
+        source: 'self',
+        membership: resolved?.row ?? null,
+        permissions: [...new Set([...autonomousOperationalPermissions(), ...governed])],
+      };
     }
     if (!resolved) {
       return null;
@@ -1064,9 +1056,7 @@ export class AccountService {
     const directRows = await db
       .select()
       .from(accountMembers)
-      .where(
-        and(eq(accountMembers.memberUserId, userId), eq(accountMembers.status, 'active'))
-      );
+      .where(and(eq(accountMembers.memberUserId, userId), eq(accountMembers.status, 'active')));
     const directAccountIds = directRows.map((row) => row.accountId);
 
     // `inArray`, never `= any(${jsArray})`: interpolating a JS array into `sql`
@@ -1085,7 +1075,7 @@ export class AccountService {
               select 1 from ${userAncestors}
               where ${userAncestors.userId} = ${users.id}
                 and ${inArray(userAncestors.ancestorId, directAccountIds)}
-            )`
+            )`,
           )
         : eq(users.id, userId);
 
@@ -1109,7 +1099,7 @@ export class AccountService {
   private async annotateAccounts(
     userId: string,
     accounts: AccountRow[],
-    directRowsArg?: AccountMemberRow[]
+    directRowsArg?: AccountMemberRow[],
   ): Promise<AccountNode[]> {
     const db = getDb();
     const directRows =
@@ -1117,9 +1107,7 @@ export class AccountService {
       (await db
         .select()
         .from(accountMembers)
-        .where(
-          and(eq(accountMembers.memberUserId, userId), eq(accountMembers.status, 'active'))
-        ));
+        .where(and(eq(accountMembers.memberUserId, userId), eq(accountMembers.status, 'active'))));
 
     const accountIds = accounts.map((account) => account.id);
 
@@ -1157,10 +1145,10 @@ export class AccountService {
           and(
             inArray(
               users.parentAccountId,
-              needsCount.map((a) => a.id)
+              needsCount.map((a) => a.id),
             ),
-            ne(users.accountStatus, 'archived')
-          )
+            ne(users.accountStatus, 'archived'),
+          ),
         )
         .groupBy(users.parentAccountId);
       for (const row of rows) {
@@ -1269,9 +1257,7 @@ export class AccountService {
     const direct = await db
       .select()
       .from(accountMembers)
-      .where(
-        and(eq(accountMembers.accountId, accountId), ne(accountMembers.status, 'removed'))
-      )
+      .where(and(eq(accountMembers.accountId, accountId), ne(accountMembers.status, 'removed')))
       .orderBy(asc(accountMembers.createdAt));
 
     const entries: EffectiveMember[] = direct.map((row) => ({ row, source: 'direct' }));
@@ -1289,8 +1275,8 @@ export class AccountService {
         and(
           inArray(accountMembers.accountId, ancestors),
           eq(accountMembers.status, 'active'),
-          eq(accountMembers.inherit, true)
-        )
+          eq(accountMembers.inherit, true),
+        ),
       )
       .orderBy(asc(accountMembers.createdAt));
     if (cascading.length === 0) {
@@ -1298,7 +1284,7 @@ export class AccountService {
     }
 
     const withActiveDirectRow = new Set(
-      direct.filter((row) => row.status === 'active').map((row) => row.memberUserId)
+      direct.filter((row) => row.status === 'active').map((row) => row.memberUserId),
     );
 
     const byMember = new Map<string, AccountMemberRow[]>();
@@ -1327,15 +1313,15 @@ export class AccountService {
    * assignable here — ownership is granted only via {@link transferOwnership}.
    *
    * ONE statement: the compound unique on `(account_id, member_user_id)` is what
-   * decides between inserting and reactivating, so the read-then-branch the
-   * Mongo version ran cannot race with a concurrent invitation.
+   * decides between inserting and reactivating, so there is no read-then-branch
+   * to race with a concurrent invitation.
    */
   async addMember(
     accountId: string,
     callerUserId: string,
     targetUserId: string,
     role: Exclude<AccountRole, 'owner'>,
-    inherit = true
+    inherit = true,
   ): Promise<AccountMemberRow> {
     const db = getDb();
 
@@ -1343,10 +1329,7 @@ export class AccountService {
       .select({ status: accountMembers.status })
       .from(accountMembers)
       .where(
-        and(
-          eq(accountMembers.accountId, accountId),
-          eq(accountMembers.memberUserId, targetUserId)
-        )
+        and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, targetUserId)),
       )
       .limit(1);
     if (existing?.status === 'active') {
@@ -1420,13 +1403,11 @@ export class AccountService {
       inherit?: boolean;
       permissionGrants?: AccountPermission[];
       permissionRevokes?: AccountPermission[];
-    }
+    },
   ): Promise<AccountMemberRow> {
     const member = await this.requireDirectMember(accountId, memberId);
     if (member.role === 'owner') {
-      throw new ForbiddenError(
-        "An owner's membership can only be changed via transfer-ownership"
-      );
+      throw new ForbiddenError("An owner's membership can only be changed via transfer-ownership");
     }
 
     const set: Partial<typeof accountMembers.$inferInsert> = {};
@@ -1462,11 +1443,7 @@ export class AccountService {
    * Remove a member. The last active owner can never be removed; an owner may
    * only be removed by another owner (enforced by the caller via `callerIsOwner`).
    */
-  async removeMember(
-    accountId: string,
-    memberId: string,
-    callerIsOwner: boolean
-  ): Promise<void> {
+  async removeMember(accountId: string, memberId: string, callerIsOwner: boolean): Promise<void> {
     const db = getDb();
     const member = await this.requireDirectMember(accountId, memberId);
 
@@ -1481,8 +1458,8 @@ export class AccountService {
           and(
             eq(accountMembers.accountId, accountId),
             eq(accountMembers.role, 'owner'),
-            eq(accountMembers.status, 'active')
-          )
+            eq(accountMembers.status, 'active'),
+          ),
         );
       if (n <= 1) {
         throw new BadRequestError('Cannot remove the last owner of an account');
@@ -1508,7 +1485,7 @@ export class AccountService {
   async transferOwnership(
     accountId: string,
     callerUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<void> {
     const db = getDb();
     const [account] = await db
@@ -1540,8 +1517,8 @@ export class AccountService {
           and(
             eq(accountMembers.accountId, accountId),
             eq(accountMembers.memberUserId, targetUserId),
-            eq(accountMembers.status, 'active')
-          )
+            eq(accountMembers.status, 'active'),
+          ),
         )
         .returning({ id: accountMembers.id });
       if (promoted.length === 0) {
@@ -1556,8 +1533,8 @@ export class AccountService {
             eq(accountMembers.accountId, accountId),
             eq(accountMembers.memberUserId, callerUserId),
             eq(accountMembers.status, 'active'),
-            eq(accountMembers.role, 'owner')
-          )
+            eq(accountMembers.role, 'owner'),
+          ),
         );
     });
 
@@ -1580,10 +1557,7 @@ export class AccountService {
    * target row to compare against — with the same 404 for a member of another
    * account that every other member operation gives.
    */
-  async requireDirectMember(
-    accountId: string,
-    memberId: string
-  ): Promise<AccountMemberRow> {
+  async requireDirectMember(accountId: string, memberId: string): Promise<AccountMemberRow> {
     const [member] = await getDb()
       .select()
       .from(accountMembers)
@@ -1591,8 +1565,8 @@ export class AccountService {
         and(
           eq(accountMembers.id, memberId),
           eq(accountMembers.accountId, accountId),
-          ne(accountMembers.status, 'removed')
-        )
+          ne(accountMembers.status, 'removed'),
+        ),
       )
       .limit(1);
     if (!member) {
@@ -1669,7 +1643,7 @@ export class AccountService {
    */
   private async rejectingTakenUsername<T>(
     username: string | null | undefined,
-    write: () => Promise<T>
+    write: () => Promise<T>,
   ): Promise<T> {
     try {
       return await write();
@@ -1684,7 +1658,7 @@ export class AccountService {
   private async assertUsernameAvailable(
     requested: string,
     kind: AccountKind | null | undefined,
-    excludeId?: string
+    excludeId?: string,
   ): Promise<string> {
     const parsed = usernameSchemaForAccountKind(kind).safeParse(requested);
     if (!parsed.success) {

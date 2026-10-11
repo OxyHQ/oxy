@@ -315,9 +315,7 @@ export type InferenceStreamToolCallEvent = z.infer<typeof inferenceStreamToolCal
 export type InferenceStreamUsageEvent = z.infer<typeof inferenceStreamUsageEventSchema>;
 export type InferenceRouteSwitchDetail = z.infer<typeof inferenceRouteSwitchDetailSchema>;
 export type InferenceRouteSwitchReason = z.infer<typeof inferenceRouteSwitchReasonSchema>;
-export type InferenceStreamRouteSwitchEvent = z.infer<
-  typeof inferenceStreamRouteSwitchEventSchema
->;
+export type InferenceStreamRouteSwitchEvent = z.infer<typeof inferenceStreamRouteSwitchEventSchema>;
 export type InferenceStreamErrorEvent = z.infer<typeof inferenceStreamErrorEventSchema>;
 export type InferenceFinishReason = z.infer<typeof inferenceFinishReasonSchema>;
 export type InferenceStreamDoneEvent = z.infer<typeof inferenceStreamDoneEventSchema>;

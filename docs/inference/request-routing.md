@@ -155,11 +155,9 @@ or an authenticated provider API and must pass Kaana's onboarding gates.
 
 ## PostgreSQL-only invariant
 
-Oxy, Kaana and Alia production state use PostgreSQL. New work must not add
-MongoDB, Mongoose, `MONGO_*` or `MONGODB_*` configuration, a localhost Mongo
-fallback or a parallel Mongo read/write path. A remaining Mongo reference in an
-older app is migration debt to remove, not an approved architecture and not a
-reason to copy Mongo into another component.
+Oxy, Kaana and Alia production state use PostgreSQL. New work must not add a
+second database, a localhost database fallback or a parallel read/write path
+beside PostgreSQL.
 
 ## A cutover is complete only when measured
 

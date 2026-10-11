@@ -17,11 +17,7 @@
 
 import { Queue, Worker, type Processor, type RepeatOptions } from 'bullmq';
 import { logger } from '../utils/logger';
-import {
-  COMPLETED_JOBS_RETENTION,
-  FAILED_JOBS_RETENTION,
-  type QueueName,
-} from './constants';
+import { COMPLETED_JOBS_RETENTION, FAILED_JOBS_RETENTION, type QueueName } from './constants';
 import { getQueueConnectionOptions } from './connection';
 
 /**
@@ -71,7 +67,7 @@ export function getQueue(name: QueueName): Queue<MaintenanceJobData, Maintenance
   });
 
   queue.on('error', (err: Error) =>
-    logger.error('BullMQ queue error', { queue: name, error: err.message })
+    logger.error('BullMQ queue error', { queue: name, error: err.message }),
   );
 
   queues.set(name, queue);
@@ -88,7 +84,7 @@ export function getQueue(name: QueueName): Queue<MaintenanceJobData, Maintenance
  */
 export function startWorker(
   name: QueueName,
-  processor: Processor<MaintenanceJobData, MaintenanceJobResult>
+  processor: Processor<MaintenanceJobData, MaintenanceJobResult>,
 ): Worker<MaintenanceJobData, MaintenanceJobResult> {
   if (!isQueueEnabled()) {
     throw new Error('startWorker called while queues are disabled (REDIS_URL unset)');
@@ -104,10 +100,10 @@ export function startWorker(
       jobName: job?.name,
       jobId: job?.id,
       error: err.message,
-    })
+    }),
   );
   worker.on('error', (err: Error) =>
-    logger.error('BullMQ worker error', { queue: name, error: err.message })
+    logger.error('BullMQ worker error', { queue: name, error: err.message }),
   );
 
   workers.add(worker);
@@ -128,12 +124,10 @@ export async function registerRepeatableJob(
   queueName: QueueName,
   schedulerId: string,
   repeat: Omit<RepeatOptions, 'key'>,
-  jobName: string
+  jobName: string,
 ): Promise<void> {
   if (!isQueueEnabled()) {
-    throw new Error(
-      'registerRepeatableJob called while queues are disabled (REDIS_URL unset)'
-    );
+    throw new Error('registerRepeatableJob called while queues are disabled (REDIS_URL unset)');
   }
 
   const queue = getQueue(queueName);
@@ -165,7 +159,7 @@ export async function closeQueues(): Promise<void> {
           error: err instanceof Error ? err.message : String(err),
         });
       }
-    })
+    }),
   );
 
   const openQueues = Array.from(queues.values());
@@ -179,6 +173,6 @@ export async function closeQueues(): Promise<void> {
           error: err instanceof Error ? err.message : String(err),
         });
       }
-    })
+    }),
   );
 }

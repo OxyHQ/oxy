@@ -65,28 +65,48 @@ function world(): World {
   const now = new Date('2026-09-17T12:00:00.000Z');
   return {
     now,
-    principals: new Map([[`${APP}:${CREDENTIAL}`, {
-      applicationId: APP,
-      credentialId: CREDENTIAL,
-      scopes: ['inference:invoke', 'acting-as:offline'],
-    }]]),
-    workloads: new Map([[`${APP}:aws-iam:${HOMIIO_ROLE}`, {
-      applicationId: APP,
-      handle: HANDLE,
-      scopes: ['inference:invoke', 'acting-as:offline'],
-    }]]),
-    bearers: new Map([[HUMAN_BEARER, {
-      sessionId: SESSION,
-      subjectAccountId: USER,
-      applicationId: null,
-      accountStatus: 'active',
-    }]]),
-    sessions: new Map([[SESSION, {
-      sessionId: SESSION,
-      accountId: USER,
-      applicationId: null,
-      accountStatus: 'active',
-    }]]),
+    principals: new Map([
+      [
+        `${APP}:${CREDENTIAL}`,
+        {
+          applicationId: APP,
+          credentialId: CREDENTIAL,
+          scopes: ['inference:invoke', 'acting-as:offline'],
+        },
+      ],
+    ]),
+    workloads: new Map([
+      [
+        `${APP}:aws-iam:${HOMIIO_ROLE}`,
+        {
+          applicationId: APP,
+          handle: HANDLE,
+          scopes: ['inference:invoke', 'acting-as:offline'],
+        },
+      ],
+    ]),
+    bearers: new Map([
+      [
+        HUMAN_BEARER,
+        {
+          sessionId: SESSION,
+          subjectAccountId: USER,
+          applicationId: null,
+          accountStatus: 'active',
+        },
+      ],
+    ]),
+    sessions: new Map([
+      [
+        SESSION,
+        {
+          sessionId: SESSION,
+          accountId: USER,
+          applicationId: null,
+          accountStatus: 'active',
+        },
+      ],
+    ]),
     store: createMemoryRequesterAssertionStore(() => now.getTime()),
     signingBroken: false,
   };
@@ -97,28 +117,47 @@ function deps(state: World): RequesterAssertionDependencies {
     issuer: ISSUER,
     now: () => state.now,
     signing: () => {
-      if (state.signingBroken) throw new Error('CAPABILITY_TICKET_SIGNING_KEY_ID is not configured');
+      if (state.signingBroken)
+        throw new Error('CAPABILITY_TICKET_SIGNING_KEY_ID is not configured');
       return { keyId: KEY_ID, privateKey: KEY.privateKey, publicKey: KEY.publicKey };
     },
-    resolvePrincipal: async (applicationId, credentialId) => state.principals.get(`${applicationId}:${credentialId}`) ?? null,
-    resolveWorkloadPrincipal: async (applicationId, provider, subject) => state.workloads.get(`${applicationId}:${provider}:${subject}`) ?? null,
+    resolvePrincipal: async (applicationId, credentialId) =>
+      state.principals.get(`${applicationId}:${credentialId}`) ?? null,
+    resolveWorkloadPrincipal: async (applicationId, provider, subject) =>
+      state.workloads.get(`${applicationId}:${provider}:${subject}`) ?? null,
     validateSubjectToken: async (token) => state.bearers.get(token) ?? null,
     loadLiveSession: async (sessionId) => state.sessions.get(sessionId) ?? null,
     store: state.store,
   };
 }
 
-const caller = { applicationId: APP, credentialId: CREDENTIAL, scopes: ['inference:invoke', 'acting-as:offline'] };
+const caller = {
+  applicationId: APP,
+  credentialId: CREDENTIAL,
+  scopes: ['inference:invoke', 'acting-as:offline'],
+};
 const presenter = { applicationId: APP, credentialId: CREDENTIAL };
 /** What Homiio's service token carries once the key pair comes off its task definition. */
 const attestedCaller = { ...caller, credentialId: HANDLE };
 const attestedPresenter = { applicationId: APP, credentialId: HANDLE };
 
-async function mint(state: World, overrides: Partial<Parameters<typeof mintRequesterAssertion>[1]> = {}) {
-  return mintRequesterAssertion(deps(state), { caller, agentId: AGENT, subjectToken: HUMAN_BEARER, ...overrides });
+async function mint(
+  state: World,
+  overrides: Partial<Parameters<typeof mintRequesterAssertion>[1]> = {},
+) {
+  return mintRequesterAssertion(deps(state), {
+    caller,
+    agentId: AGENT,
+    subjectToken: HUMAN_BEARER,
+    ...overrides,
+  });
 }
 
-async function introspect(state: World, assertion: string, overrides: Partial<Parameters<typeof introspectRequesterAssertion>[1]> = {}) {
+async function introspect(
+  state: World,
+  assertion: string,
+  overrides: Partial<Parameters<typeof introspectRequesterAssertion>[1]> = {},
+) {
   return introspectRequesterAssertion(deps(state), {
     callerApplicationId: ALIA_RESOURCE_SERVER_APPLICATION_ID,
     audienceApplicationId: ALIA_RESOURCE_SERVER_APPLICATION_ID,
@@ -140,8 +179,17 @@ describe('mintRequesterAssertion', () => {
     const result = await mint(state);
     expect(result).toMatchObject({ ok: true, requesterAccountId: USER, agentId: AGENT });
     if (!result.ok) return;
-    const payload = JSON.parse(Buffer.from(result.assertion.split('.')[1] as string, 'base64url').toString('utf8'));
-    expect(payload).toMatchObject({ iss: ISSUER, aud: 'alia', sub: USER, azp: APP, cid: CREDENTIAL, agentId: AGENT });
+    const payload = JSON.parse(
+      Buffer.from(result.assertion.split('.')[1] as string, 'base64url').toString('utf8'),
+    );
+    expect(payload).toMatchObject({
+      iss: ISSUER,
+      aud: 'alia',
+      sub: USER,
+      azp: APP,
+      cid: CREDENTIAL,
+      agentId: AGENT,
+    });
     expect(payload.exp - payload.iat).toBe(120);
     expect(result.assertion).not.toContain(SESSION);
     expect(JSON.stringify(payload)).not.toContain(HUMAN_BEARER);
@@ -156,24 +204,40 @@ describe('mintRequesterAssertion', () => {
   });
 
   it.each([
-    ['another official application', { applicationId: '6a2f851751b784a86fd0e934', credentialId: CREDENTIAL }],
-    ['another credential of the same application', { applicationId: APP, credentialId: 'other-credential' }],
+    [
+      'another official application',
+      { applicationId: '6a2f851751b784a86fd0e934', credentialId: CREDENTIAL },
+    ],
+    [
+      'another credential of the same application',
+      { applicationId: APP, credentialId: 'other-credential' },
+    ],
   ])('refuses %s: only the pinned entry point may mint', async (_label, identity) => {
     const state = world();
-    expect(await mint(state, { caller: { ...caller, ...identity } })).toEqual({ ok: false, reason: 'unknown_entry_point' });
+    expect(await mint(state, { caller: { ...caller, ...identity } })).toEqual({
+      ok: false,
+      reason: 'unknown_entry_point',
+    });
   });
 
-  it('refuses an agent that is not the entry point\'s own agent', async () => {
+  it("refuses an agent that is not the entry point's own agent", async () => {
     const state = world();
-    expect(await mint(state, { agentId: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.id }))
-      .toEqual({ ok: false, reason: 'unknown_entry_point' });
+    expect(
+      await mint(state, { agentId: NATIVE_PRODUCT_AGENTS.products.clarity.aliaAgent.id }),
+    ).toEqual({ ok: false, reason: 'unknown_entry_point' });
   });
 
   it('refuses when the service token or the live credential lacks inference:invoke', async () => {
     const state = world();
-    expect(await mint(state, { caller: { ...caller, scopes: ['acting-as:offline'] } }))
-      .toEqual({ ok: false, reason: 'missing_inference_scope' });
-    state.principals.set(`${APP}:${CREDENTIAL}`, { applicationId: APP, credentialId: CREDENTIAL, scopes: ['user:read'] });
+    expect(await mint(state, { caller: { ...caller, scopes: ['acting-as:offline'] } })).toEqual({
+      ok: false,
+      reason: 'missing_inference_scope',
+    });
+    state.principals.set(`${APP}:${CREDENTIAL}`, {
+      applicationId: APP,
+      credentialId: CREDENTIAL,
+      scopes: ['user:read'],
+    });
     expect(await mint(state)).toEqual({ ok: false, reason: 'missing_inference_scope' });
   });
 
@@ -185,7 +249,10 @@ describe('mintRequesterAssertion', () => {
 
   it('refuses a forged, expired or unknown bearer', async () => {
     const state = world();
-    expect(await mint(state, { subjectToken: 'forged.jwt.value' })).toEqual({ ok: false, reason: 'subject_session_invalid' });
+    expect(await mint(state, { subjectToken: 'forged.jwt.value' })).toEqual({
+      ok: false,
+      reason: 'subject_session_invalid',
+    });
   });
 
   it('refuses a session that was revoked after the per-task cache last saw it', async () => {
@@ -196,13 +263,19 @@ describe('mintRequesterAssertion', () => {
 
   it('refuses a session another application owns (a third-party OAuth bearer)', async () => {
     const state = world();
-    state.bearers.set(HUMAN_BEARER, { ...state.bearers.get(HUMAN_BEARER)!, applicationId: 'third-party-app' });
+    state.bearers.set(HUMAN_BEARER, {
+      ...state.bearers.get(HUMAN_BEARER)!,
+      applicationId: 'third-party-app',
+    });
     expect(await mint(state)).toEqual({ ok: false, reason: 'subject_session_other_application' });
   });
 
   it('refuses an archived account', async () => {
     const state = world();
-    state.bearers.set(HUMAN_BEARER, { ...state.bearers.get(HUMAN_BEARER)!, accountStatus: 'archived' });
+    state.bearers.set(HUMAN_BEARER, {
+      ...state.bearers.get(HUMAN_BEARER)!,
+      accountStatus: 'archived',
+    });
     expect(await mint(state)).toEqual({ ok: false, reason: 'subject_account_inactive' });
   });
 
@@ -217,7 +290,9 @@ describe('mintRequesterAssertion', () => {
     const result = await mint(state, { caller: attestedCaller });
     expect(result).toMatchObject({ ok: true, requesterAccountId: USER, agentId: AGENT });
     if (!result.ok) return;
-    const payload = JSON.parse(Buffer.from(result.assertion.split('.')[1] as string, 'base64url').toString('utf8'));
+    const payload = JSON.parse(
+      Buffer.from(result.assertion.split('.')[1] as string, 'base64url').toString('utf8'),
+    );
     // The credential that did NOT call is not named: `cid` is what called.
     expect(payload.cid).toBe(HANDLE);
     expect(payload.cid).not.toBe(CREDENTIAL);
@@ -235,8 +310,10 @@ describe('mintRequesterAssertion', () => {
     ['the Homiio handle one character off', `${HANDLE.slice(0, -1)}0`],
   ])('refuses an attested caller that is %s', async (_label, credentialId) => {
     const state = world();
-    expect(await mint(state, { caller: { ...attestedCaller, credentialId } }))
-      .toEqual({ ok: false, reason: 'unknown_entry_point' });
+    expect(await mint(state, { caller: { ...attestedCaller, credentialId } })).toEqual({
+      ok: false,
+      reason: 'unknown_entry_point',
+    });
   });
 
   /**
@@ -247,8 +324,10 @@ describe('mintRequesterAssertion', () => {
   it('refuses an attested caller whose binding was deleted, expired or re-pointed', async () => {
     const state = world();
     state.workloads.clear();
-    expect(await mint(state, { caller: attestedCaller }))
-      .toEqual({ ok: false, reason: 'service_principal_not_live' });
+    expect(await mint(state, { caller: attestedCaller })).toEqual({
+      ok: false,
+      reason: 'service_principal_not_live',
+    });
   });
 
   it('refuses an attested caller whose binding no longer names inference:invoke', async () => {
@@ -258,8 +337,10 @@ describe('mintRequesterAssertion', () => {
       handle: HANDLE,
       scopes: ['acting-as:offline'],
     });
-    expect(await mint(state, { caller: attestedCaller }))
-      .toEqual({ ok: false, reason: 'missing_inference_scope' });
+    expect(await mint(state, { caller: attestedCaller })).toEqual({
+      ok: false,
+      reason: 'missing_inference_scope',
+    });
   });
 
   /**
@@ -270,8 +351,10 @@ describe('mintRequesterAssertion', () => {
     const state = world();
     state.workloads.clear();
     expect(state.principals.has(`${APP}:${CREDENTIAL}`)).toBe(true);
-    expect(await mint(state, { caller: attestedCaller }))
-      .toEqual({ ok: false, reason: 'service_principal_not_live' });
+    expect(await mint(state, { caller: attestedCaller })).toEqual({
+      ok: false,
+      reason: 'service_principal_not_live',
+    });
   });
 
   it('does not let a live binding cover for a credential-minted caller', async () => {
@@ -306,14 +389,19 @@ describe('introspectRequesterAssertion', () => {
       applicationId: APP,
       credentialId: CREDENTIAL,
     });
-    expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'not_found_or_replayed' });
+    expect(await introspect(state, assertion)).toEqual({
+      active: false,
+      reason: 'not_found_or_replayed',
+    });
   });
 
   it('lets only the audience application consume', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
-    expect(await introspect(state, assertion, { callerApplicationId: APP }))
-      .toEqual({ active: false, reason: 'caller_not_audience' });
+    expect(await introspect(state, assertion, { callerApplicationId: APP })).toEqual({
+      active: false,
+      reason: 'caller_not_audience',
+    });
     // Not spent by the refused caller.
     expect((await introspect(state, assertion)).active).toBe(true);
   });
@@ -321,10 +409,16 @@ describe('introspectRequesterAssertion', () => {
   it('refuses a presenter other than the application and credential it was minted for, without spending it', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
-    expect(await introspect(state, assertion, { presenter: { applicationId: 'other-app', credentialId: CREDENTIAL } }))
-      .toEqual({ active: false, reason: 'presenter_mismatch' });
-    expect(await introspect(state, assertion, { presenter: { applicationId: APP, credentialId: 'other-credential' } }))
-      .toEqual({ active: false, reason: 'presenter_mismatch' });
+    expect(
+      await introspect(state, assertion, {
+        presenter: { applicationId: 'other-app', credentialId: CREDENTIAL },
+      }),
+    ).toEqual({ active: false, reason: 'presenter_mismatch' });
+    expect(
+      await introspect(state, assertion, {
+        presenter: { applicationId: APP, credentialId: 'other-credential' },
+      }),
+    ).toEqual({ active: false, reason: 'presenter_mismatch' });
     expect((await introspect(state, assertion)).active).toBe(true);
   });
 
@@ -332,25 +426,59 @@ describe('introspectRequesterAssertion', () => {
     const state = world();
     const assertion = await mintedAssertion(state);
     const other = generateKeyPairSync('ed25519');
-    const payload = JSON.parse(Buffer.from(assertion.split('.')[1] as string, 'base64url').toString('utf8'));
-    const forged = signOxyRequesterAssertion(payload, { keyId: KEY_ID, privateKey: other.privateKey });
+    const payload = JSON.parse(
+      Buffer.from(assertion.split('.')[1] as string, 'base64url').toString('utf8'),
+    );
+    const forged = signOxyRequesterAssertion(payload, {
+      keyId: KEY_ID,
+      privateKey: other.privateKey,
+    });
     expect(await introspect(state, forged)).toEqual({ active: false, reason: 'invalid_signature' });
-    const foreignKid = signOxyRequesterAssertion(payload, { keyId: 'someone-elses-kid', privateKey: KEY.privateKey });
+    const foreignKid = signOxyRequesterAssertion(payload, {
+      keyId: 'someone-elses-kid',
+      privateKey: KEY.privateKey,
+    });
     expect(await introspect(state, foreignKid)).toEqual({ active: false, reason: 'unknown_key' });
     const [header, , signature] = assertion.split('.');
-    const tampered = Buffer.from(JSON.stringify({ ...payload, sub: 'victim' })).toString('base64url');
-    expect(await introspect(state, `${header}.${tampered}.${signature}`)).toEqual({ active: false, reason: 'invalid_signature' });
+    const tampered = Buffer.from(JSON.stringify({ ...payload, sub: 'victim' })).toString(
+      'base64url',
+    );
+    expect(await introspect(state, `${header}.${tampered}.${signature}`)).toEqual({
+      active: false,
+      reason: 'invalid_signature',
+    });
   });
 
   it('refuses an assertion signed for another audience or with no server-side record', async () => {
     const state = world();
     const iat = Math.floor(state.now.getTime() / 1000);
-    const base = { iss: ISSUER, sub: USER, jti: randomUUID(), iat, exp: iat + 120, azp: APP, cid: CREDENTIAL, agentId: AGENT };
-    const wrongAudience = signOxyRequesterAssertion({ ...base, aud: 'syra' }, { keyId: KEY_ID, privateKey: KEY.privateKey });
-    expect(await introspect(state, wrongAudience)).toEqual({ active: false, reason: 'wrong_audience' });
+    const base = {
+      iss: ISSUER,
+      sub: USER,
+      jti: randomUUID(),
+      iat,
+      exp: iat + 120,
+      azp: APP,
+      cid: CREDENTIAL,
+      agentId: AGENT,
+    };
+    const wrongAudience = signOxyRequesterAssertion(
+      { ...base, aud: 'syra' },
+      { keyId: KEY_ID, privateKey: KEY.privateKey },
+    );
+    expect(await introspect(state, wrongAudience)).toEqual({
+      active: false,
+      reason: 'wrong_audience',
+    });
     // Validly signed (a leaked signing key, say) but never minted: no record.
-    const neverMinted = signOxyRequesterAssertion({ ...base, aud: 'alia' }, { keyId: KEY_ID, privateKey: KEY.privateKey });
-    expect(await introspect(state, neverMinted)).toEqual({ active: false, reason: 'not_found_or_replayed' });
+    const neverMinted = signOxyRequesterAssertion(
+      { ...base, aud: 'alia' },
+      { keyId: KEY_ID, privateKey: KEY.privateKey },
+    );
+    expect(await introspect(state, neverMinted)).toEqual({
+      active: false,
+      reason: 'not_found_or_replayed',
+    });
   });
 
   it('refuses an expired assertion', async () => {
@@ -364,31 +492,53 @@ describe('introspectRequesterAssertion', () => {
     const state = world();
     const iat = Math.floor(state.now.getTime() / 1000);
     const otherAgent = signOxyRequesterAssertion(
-      { iss: ISSUER, aud: 'alia', sub: USER, jti: randomUUID(), iat, exp: iat + 120, azp: APP, cid: CREDENTIAL, agentId: 'not-sindi' },
+      {
+        iss: ISSUER,
+        aud: 'alia',
+        sub: USER,
+        jti: randomUUID(),
+        iat,
+        exp: iat + 120,
+        azp: APP,
+        cid: CREDENTIAL,
+        agentId: 'not-sindi',
+      },
       { keyId: KEY_ID, privateKey: KEY.privateKey },
     );
-    expect(await introspect(state, otherAgent)).toEqual({ active: false, reason: 'unknown_entry_point' });
+    expect(await introspect(state, otherAgent)).toEqual({
+      active: false,
+      reason: 'unknown_entry_point',
+    });
   });
 
   it('refuses when the person signed out or the session was revoked between mint and use', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
     state.sessions.delete(SESSION);
-    expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'session_not_live' });
+    expect(await introspect(state, assertion)).toEqual({
+      active: false,
+      reason: 'session_not_live',
+    });
   });
 
   it('refuses when the account was archived between mint and use', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
     state.sessions.set(SESSION, { ...state.sessions.get(SESSION)!, accountStatus: 'archived' });
-    expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'account_inactive' });
+    expect(await introspect(state, assertion)).toEqual({
+      active: false,
+      reason: 'account_inactive',
+    });
   });
 
   it('refuses when the product credential lost its authority between mint and use', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
     state.principals.clear();
-    expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'service_principal_not_live' });
+    expect(await introspect(state, assertion)).toEqual({
+      active: false,
+      reason: 'service_principal_not_live',
+    });
   });
 
   /**
@@ -409,20 +559,26 @@ describe('introspectRequesterAssertion', () => {
       applicationId: APP,
       credentialId: HANDLE,
     });
-    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter }))
-      .toEqual({ active: false, reason: 'not_found_or_replayed' });
+    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter })).toEqual({
+      active: false,
+      reason: 'not_found_or_replayed',
+    });
   });
 
   it('refuses an attested assertion presented under the credential id, and the reverse', async () => {
     const state = world();
     const attested = await mint(state, { caller: attestedCaller });
     if (!attested.ok) throw new Error(`mint refused: ${attested.reason}`);
-    expect(await introspect(state, attested.assertion, { presenter }))
-      .toEqual({ active: false, reason: 'presenter_mismatch' });
+    expect(await introspect(state, attested.assertion, { presenter })).toEqual({
+      active: false,
+      reason: 'presenter_mismatch',
+    });
 
     const credentialMinted = await mintedAssertion(world());
-    expect(await introspect(state, credentialMinted, { presenter: attestedPresenter }))
-      .toEqual({ active: false, reason: 'presenter_mismatch' });
+    expect(await introspect(state, credentialMinted, { presenter: attestedPresenter })).toEqual({
+      active: false,
+      reason: 'presenter_mismatch',
+    });
   });
 
   it('refuses an attested assertion when the binding lost its authority between mint and use', async () => {
@@ -430,15 +586,20 @@ describe('introspectRequesterAssertion', () => {
     const minted = await mint(state, { caller: attestedCaller });
     if (!minted.ok) throw new Error(`mint refused: ${minted.reason}`);
     state.workloads.clear();
-    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter }))
-      .toEqual({ active: false, reason: 'service_principal_not_live' });
+    expect(await introspect(state, minted.assertion, { presenter: attestedPresenter })).toEqual({
+      active: false,
+      reason: 'service_principal_not_live',
+    });
   });
 
   it('fails closed when the replay store cannot answer', async () => {
     const state = world();
     const assertion = await mintedAssertion(state);
     state.store = { put: state.store.put, take: async () => ({ status: 'unavailable' }) };
-    expect(await introspect(state, assertion)).toEqual({ active: false, reason: 'replay_store_unavailable' });
+    expect(await introspect(state, assertion)).toEqual({
+      active: false,
+      reason: 'replay_store_unavailable',
+    });
   });
 
   it('lets only one of two concurrent presentations through', async () => {

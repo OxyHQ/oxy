@@ -32,7 +32,12 @@ jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 const mockLogDeviceAdded = jest.fn();
 const mockVerifyActingAs = jest.fn();
 
-let authenticatedUser: { _id: string; username?: string; publicKey?: string; sessionId?: string } | null = null;
+let authenticatedUser: {
+  _id: string;
+  username?: string;
+  publicKey?: string;
+  sessionId?: string;
+} | null = null;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
@@ -122,7 +127,11 @@ async function storedSession(sessionId: string) {
  * writes AFTER the session exists — which is the state every second sign-in on
  * a device starts from.
  */
-async function signedInOnDevice(): Promise<{ userId: string; deviceId: string; sessionId: string }> {
+async function signedInOnDevice(): Promise<{
+  userId: string;
+  deviceId: string;
+  sessionId: string;
+}> {
   const [user] = await getDb()
     .insert(users)
     .values({ username: `u${randomUUID().replace(/-/g, '').slice(0, 20)}` })
@@ -155,14 +164,16 @@ async function pendingRequest(deviceId: string): Promise<string> {
     .values({ name: `App ${randomUUID()}`, ownerAccountId: owner.id })
     .returning({ id: applications.id });
   const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(authSessions).values({
-    sessionToken,
-    authorizeCode: randomUUID().replace(/-/g, ''),
-    applicationId: app.id,
-    deviceId,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-    status: 'pending',
-  });
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      authorizeCode: randomUUID().replace(/-/g, ''),
+      applicationId: app.id,
+      deviceId,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      status: 'pending',
+    });
   return sessionToken;
 }
 

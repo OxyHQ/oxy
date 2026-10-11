@@ -14,15 +14,15 @@ const HEALTHY_COLUMNS = Array.from({ length: 400 }, (_, i) => ({
 /**
  * One predicate per query `findSchemaInvariantViolations` issues, each
  * keyed to the ONE clause unique to that query — not a bare substring like
- * `'information_schema.columns'`, which every one of the four
+ * `'information_schema.columns'`, which every one of the three
  * columns-based queries below contains. A generic substring match answers
  * more than one query at once: the unfiltered "every column" query would
- * also serve as the canned answer for the timestamp/default/mongoose
+ * also serve as the canned answer for the timestamp/default
  * checks, so their "no violations" fixtures would instead hand back 400
  * rows shaped like ordinary columns and get reported as 400 violations —
  * breaking the "healthy schema" case outright, not passing it vacuously.
  * Each predicate here tests for the one fragment that appears in exactly
- * one of the six queries and none of the others (verified by inspection of
+ * one of the five queries and none of the others (verified by inspection of
  * the literal query text in `schemaInvariants.ts`).
  */
 const MATCHERS = {
@@ -31,7 +31,6 @@ const MATCHERS = {
   timestamp: (text: string) => text.includes('timestamp without time zone'),
   emptyDefault: (text: string) => text.includes('column_default ~'),
   missingPrimaryKey: (text: string) => text.includes('not exists'),
-  mongooseArtifact: (text: string) => text.includes("'__v'"),
 } as const;
 
 type CheckName = keyof typeof MATCHERS;
@@ -60,7 +59,6 @@ function catalogue(overrides: Partial<Record<CheckName, readonly unknown[]>> = {
     timestamp: [],
     emptyDefault: [],
     missingPrimaryKey: [],
-    mongooseArtifact: [],
     ...overrides,
   };
 
@@ -85,7 +83,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a vacuity violation when the traversal finds too few tables', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ tables: [{ table_name: 'only_one' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'vacuity', subject: 'tables', detail: 'found 1, expected at least 27' },
@@ -95,7 +93,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a vacuity violation when the traversal finds too few columns', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ allColumns: [{ table_name: 't_0', column_name: 'c_0' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'vacuity', subject: 'columns', detail: 'found 1, expected at least 356' },
@@ -105,7 +103,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a table name that is not snake_case', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ tables: [...HEALTHY_TABLES, { table_name: 'CamelCase' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'snake_case_table', subject: 'CamelCase' }]);
   });
@@ -115,7 +113,7 @@ describe('findSchemaInvariantViolations', () => {
       catalogue({
         allColumns: [...HEALTHY_COLUMNS, { table_name: 't_0', column_name: 'camelCase' }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'snake_case_column', subject: 't_0.camelCase' }]);
   });
@@ -123,7 +121,7 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a timestamp column stored without a time zone', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ timestamp: [{ table_name: 'posts', column_name: 'created_at' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'timestamp_without_time_zone', subject: 'posts.created_at' },
@@ -135,7 +133,7 @@ describe('findSchemaInvariantViolations', () => {
       catalogue({
         emptyDefault: [{ table_name: 'posts', column_name: 'slug', column_default: "''::text" }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([
       { check: 'empty_string_default', subject: 'posts.slug', detail: "''::text" },
@@ -145,22 +143,25 @@ describe('findSchemaInvariantViolations', () => {
   it('reports a table with no primary key', async () => {
     const violations = await findSchemaInvariantViolations(
       catalogue({ missingPrimaryKey: [{ table_name: 'posts' }] }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual([{ check: 'missing_primary_key', subject: 'posts' }]);
   });
 
   it('names the offending table and column, not just the rule', async () => {
     const violations = await findSchemaInvariantViolations(
-      catalogue({ mongooseArtifact: [{ table_name: 'posts', column_name: '_id' }] }),
-      OPTIONS
+      catalogue({ timestamp: [{ table_name: 'posts', column_name: 'published_at' }] }),
+      OPTIONS,
     );
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'mongoose_artifact', subject: 'posts._id' })
+      expect.objectContaining({
+        check: 'timestamp_without_time_zone',
+        subject: 'posts.published_at',
+      }),
     );
   });
 
-  // The six mandated checks above each break ONE fixture entry in isolation,
+  // The five mandated checks above each break ONE fixture entry in isolation,
   // so an implementation that only ever reports the FIRST violation it finds
   // (returns early, or overwrites a single-slot result instead of pushing to
   // an array) would still pass every one of them. This drives three
@@ -171,16 +172,16 @@ describe('findSchemaInvariantViolations', () => {
       catalogue({
         tables: [...HEALTHY_TABLES, { table_name: 'BadTable' }],
         missingPrimaryKey: [{ table_name: 'posts' }],
-        mongooseArtifact: [{ table_name: 'posts', column_name: '__v' }],
+        timestamp: [{ table_name: 'posts', column_name: 'created_at' }],
       }),
-      OPTIONS
+      OPTIONS,
     );
     expect(violations).toEqual(
       expect.arrayContaining([
         { check: 'snake_case_table', subject: 'BadTable' },
         { check: 'missing_primary_key', subject: 'posts' },
-        { check: 'mongoose_artifact', subject: 'posts.__v' },
-      ])
+        { check: 'timestamp_without_time_zone', subject: 'posts.created_at' },
+      ]),
     );
     expect(violations).toHaveLength(3);
   });

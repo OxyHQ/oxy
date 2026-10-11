@@ -135,7 +135,12 @@ describe('findSuppressed', () => {
     const userId = await account();
     const bad = addr();
     const good = addr();
-    await recordSuppression({ address: bad, reason: 'bounce_permanent', source: 'ses', userId: null });
+    await recordSuppression({
+      address: bad,
+      reason: 'bounce_permanent',
+      source: 'ses',
+      userId: null,
+    });
 
     const hits = await findSuppressed(userId, [bad.toUpperCase(), good, `  ${bad}  `]);
     expect(hits.map((h) => h.address)).toEqual([bad]);

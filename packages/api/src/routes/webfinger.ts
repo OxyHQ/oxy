@@ -1,4 +1,8 @@
-import { createUrlBuilders, INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '@oxy.so/federation';
+import {
+  createUrlBuilders,
+  INSTANCE_ACTOR_USERNAME,
+  normalizeActorUsername,
+} from '@oxy.so/federation';
 import type { Request, Response } from 'express';
 
 export interface WebfingerDependencies<User> {
@@ -11,8 +15,16 @@ export interface WebfingerDependencies<User> {
 }
 
 function jrdFor(username: string, domain: string) {
-  const self = { rel: 'self', type: 'application/activity+json', href: createUrlBuilders(domain).actor(username) };
-  const profilePage = { rel: 'http://webfinger.net/rel/profile-page', type: 'text/html', href: `https://${domain}/@${username}` };
+  const self = {
+    rel: 'self',
+    type: 'application/activity+json',
+    href: createUrlBuilders(domain).actor(username),
+  };
+  const profilePage = {
+    rel: 'http://webfinger.net/rel/profile-page',
+    type: 'text/html',
+    href: `https://${domain}/@${username}`,
+  };
   return {
     subject: `acct:${username}@${domain}`,
     // The instance actor is a signing identity, not a person: it has no profile page.
@@ -36,13 +48,15 @@ export function createWebfingerHandler<User>(deps: WebfingerDependencies<User>) 
       const canonicalUsername = normalizeActorUsername(acct.substring(0, atIndex));
       const domain = acct.substring(atIndex + 1);
 
-      if (!deps.isOwnFederationDomain(domain)) return res.status(404).json({ error: 'Domain not served here' });
+      if (!deps.isOwnFederationDomain(domain))
+        return res.status(404).json({ error: 'Domain not served here' });
 
       // Mastodon WebFingers a signing key's owner before trusting the key, so the
       // instance actor must resolve here as it does at `/ap/users/:username`.
       if (canonicalUsername !== INSTANCE_ACTOR_USERNAME) {
         const user = await deps.findUserByUsername(canonicalUsername);
-        if (!user || !deps.isFederatableUser(user)) return res.status(404).json({ error: 'User not found' });
+        if (!user || !deps.isFederatableUser(user))
+          return res.status(404).json({ error: 'User not found' });
       }
 
       res.setHeader('Content-Type', 'application/jrd+json');

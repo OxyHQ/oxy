@@ -74,17 +74,17 @@ export const userNodes = pgTable(
     check('user_nodes_mode_check', sql`${t.mode} in (${sql.raw(inList(USER_NODE_MODES))})`),
     check(
       'user_nodes_controller_check',
-      sql`${t.controller} in (${sql.raw(inList(USER_NODE_CONTROLLERS))})`
+      sql`${t.controller} in (${sql.raw(inList(USER_NODE_CONTROLLERS))})`,
     ),
     check('user_nodes_status_check', sql`${t.status} in (${sql.raw(inList(USER_NODE_STATUSES))})`),
     check('user_nodes_cursor_check', sql`${t.cursor} is null or ${t.cursor} >= 0`),
     // `managed` and `controller` are two spellings of one fact and every writer
-    // sets them together (`provisionManagedVault`). Mongo could store the
-    // contradiction "managed by nobody"; the CHECK makes it unrepresentable
+    // sets them together (`provisionManagedVault`). The contradiction "managed
+    // by nobody" must not be storable; the CHECK makes it unrepresentable
     // rather than leaving two readers to disagree about which field wins.
     check(
       'user_nodes_managed_controller_check',
-      sql`(${t.managed} = true and ${t.controller} = 'oxy') or (${t.managed} = false and ${t.controller} = 'self')`
+      sql`(${t.managed} = true and ${t.controller} = 'oxy') or (${t.managed} = false and ${t.controller} = 'self')`,
     ),
-  ]
+  ],
 );

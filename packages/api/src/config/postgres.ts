@@ -5,8 +5,8 @@
  * the same code path serves the Node production server, `bun --watch` in dev,
  * and jest.
  *
- * Shape mirrors the Mongo setup in `server.ts`: connect once at boot, then read
- * the handle synchronously from anywhere via `getDb()`.
+ * Connect once at boot, then read the handle synchronously from anywhere via
+ * `getDb()`.
  */
 
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -18,8 +18,8 @@ import * as schema from '../db/schema';
 import { assertPersistedBillingNamespace, readPersistedBillingNamespace } from './billingNamespace';
 
 /**
- * Connection-pool defaults, overridable per deployment. Sized well below the
- * Mongo pool in `server.ts`: a Postgres connection is a server-side PROCESS,
+ * Connection-pool defaults, overridable per deployment. Kept deliberately
+ * small: a Postgres connection is a server-side PROCESS,
  * not a thread, so an oversized pool costs the database real memory. Raise
  * deliberately, against a measurement.
  */
@@ -67,13 +67,16 @@ let billingDeclaration: string | null = null;
  *   misconfiguration; fail fast and loudly rather than degrade.
  */
 export async function connectPostgres(): Promise<Database> {
-  if (db) { assertPersistedBillingNamespace(billingDeclaration); return db; }
+  if (db) {
+    assertPersistedBillingNamespace(billingDeclaration);
+    return db;
+  }
 
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new ConfigurationError(
       'DATABASE_URL is not set. See .env.example, or start a local Postgres ' +
-      'with: docker compose -f docker-compose.dev.yml up -d postgres'
+        'with: docker compose -f docker-compose.dev.yml up -d postgres',
     );
   }
 
@@ -128,7 +131,7 @@ export function getDb(): Database {
   if (!db) {
     throw new ConfigurationError(
       'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before issuing queries.'
+        'before issuing queries.',
     );
   }
   assertPersistedBillingNamespace(billingDeclaration);

@@ -109,7 +109,7 @@ async function requestJson(
   method: string,
   path: string,
   payload: unknown,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload ?? {});
@@ -128,7 +128,9 @@ async function requestJson(
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
@@ -137,7 +139,7 @@ async function requestJson(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -168,7 +170,7 @@ function authenticateAs(userId: string, over: Record<string, unknown> = {}) {
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: { toString: () => userId }, username: 'someone', ...over };
       next();
-    }
+    },
   );
 }
 
@@ -176,8 +178,11 @@ describe('POST /auth/session/authorize-code/:authorizeCode', () => {
   it('returns 401 when no Authorization header is present — the service is never invoked', async () => {
     mockAuthMiddleware.mockImplementationOnce(
       (_req: unknown, res: { status: (n: number) => { json: (v: unknown) => unknown } }) => {
-        res.status(401).json({ error: 'Authentication required', message: 'Invalid or missing authorization header' });
-      }
+        res.status(401).json({
+          error: 'Authentication required',
+          message: 'Invalid or missing authorization header',
+        });
+      },
     );
 
     const res = await requestJson(server, 'POST', '/auth/session/authorize-code/code-abc', {});

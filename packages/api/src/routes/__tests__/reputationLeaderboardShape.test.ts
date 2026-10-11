@@ -1,15 +1,13 @@
 /**
  * `GET /reputation/leaderboard` wire shape, against a REAL Postgres.
  *
- * The leaderboard used to hand `sendPaginated` the raw aggregate projection, so
- * each row's `user` carried Mongo's `_id` and the user's RAW stored name
- * subdocument. The SDK type promised `user.id` and the canonical composed
- * `name`, which meant `entry.user.id` was `undefined` for every row — the
- * `@oxy.so/services` leaderboard screen's `keyExtractor` silently fell through to
- * its index fallback, and `name.displayName` did not mean what it means on every
- * other user DTO.
+ * The SDK type promises `user.id` and the canonical composed `name`. A raw row
+ * carrying only `_id` and the stored name parts would leave `entry.user.id`
+ * `undefined` for every row — the `@oxy.so/services` leaderboard screen's
+ * `keyExtractor` would silently fall through to its index fallback, and
+ * `name.displayName` would not mean what it means on every other user DTO.
  *
- * The row now goes through `serializeLeaderboardEntry`, annotated against
+ * The row goes through `serializeLeaderboardEntry`, annotated against
  * `ReputationLeaderboardEntry` from `@oxy.so/contracts`. These tests lock what a
  * consumer actually receives, over real `reputation_balances` rows joined to
  * real `users` rows — the previous version fed a mocked service a hand-built
@@ -260,9 +258,15 @@ describe('GET /reputation/leaderboard — ordering and eligibility', () => {
     // from the page offset, and `rank` continuing across a page boundary rather
     // than restarting. They are asserted relative to where the rows actually
     // land, which no concurrent writer can move.
-    const first = await account({ username: `first${randomUUID().replace(/-/g, '').slice(0, 10)}` });
-    const second = await account({ username: `second${randomUUID().replace(/-/g, '').slice(0, 10)}` });
-    const third = await account({ username: `third${randomUUID().replace(/-/g, '').slice(0, 10)}` });
+    const first = await account({
+      username: `first${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
+    const second = await account({
+      username: `second${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
+    const third = await account({
+      username: `third${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
     await balance(first, TOP_TOTAL);
     await balance(second, TOP_TOTAL - 1);
     await balance(third, TOP_TOTAL - 2);
@@ -289,7 +293,9 @@ describe('GET /reputation/leaderboard — ordering and eligibility', () => {
   });
 
   it('excludes archived accounts and restricted tiers from the public board', async () => {
-    const visible = await account({ username: `vis${randomUUID().replace(/-/g, '').slice(0, 12)}` });
+    const visible = await account({
+      username: `vis${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    });
     const archived = await account({
       username: `arc${randomUUID().replace(/-/g, '').slice(0, 12)}`,
       accountStatus: 'archived',

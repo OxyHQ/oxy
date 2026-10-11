@@ -179,22 +179,20 @@ describe('the schema mirrors the contract it was built from', () => {
       expect(modelDistributionMethodSchema.safeParse(value).success).toBe(true);
     }
     expect(modelDistributionMethodSchema.options.slice().sort()).toEqual(
-      [...MODEL_DISTRIBUTION_METHODS].sort()
+      [...MODEL_DISTRIBUTION_METHODS].sort(),
     );
   });
 
   it('carries the same systemic-risk tiers', () => {
     expect(modelSystemicRiskTierSchema.options.slice().sort()).toEqual(
-      [...MODEL_SYSTEMIC_RISK_TIERS].sort()
+      [...MODEL_SYSTEMIC_RISK_TIERS].sort(),
     );
   });
 
   it('reads Article 51(2) as the same number the contract does', () => {
     // The SQL literal and the JS constant are two spellings of one threshold. If
     // they diverge, a record the contract refuses is one the database admits.
-    expect(Number(SYSTEMIC_RISK_COMPUTE_THRESHOLD_SQL)).toBe(
-      SYSTEMIC_RISK_COMPUTE_THRESHOLD_FLOPS
-    );
+    expect(Number(SYSTEMIC_RISK_COMPUTE_THRESHOLD_SQL)).toBe(SYSTEMIC_RISK_COMPUTE_THRESHOLD_FLOPS);
   });
 
   it('accepts exactly the compute figures the contract accepts', async () => {
@@ -257,7 +255,7 @@ describe('inference_model_gpai_documentation constraints', () => {
       const error = await rejection(
         getDb()
           .insert(inferenceModelGpaiDocumentation)
-          .values({ ...documentationValues(revisionId), [field]: null })
+          .values({ ...documentationValues(revisionId), [field]: null }),
       );
       expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     }
@@ -300,7 +298,7 @@ describe('inference_model_gpai_documentation constraints', () => {
           adversarialTestingReportUrl: 'https://example.test/red-team',
           freeAndOpenSourceRelease: true,
           recordedAt: new Date(),
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -310,7 +308,7 @@ describe('inference_model_gpai_documentation constraints', () => {
     const error = await rejection(
       getDb()
         .insert(inferenceModelGpaiDocumentation)
-        .values({ ...documentationValues(revisionId), trainingComputeFlops: null })
+        .values({ ...documentationValues(revisionId), trainingComputeFlops: null }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -335,7 +333,7 @@ describe('inference_model_gpai_documentation constraints', () => {
           systemicRisk: 'not_designated',
           trainingComputeFlops: '1e25',
           adversarialTestingReportUrl: null,
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -350,7 +348,7 @@ describe('inference_model_gpai_documentation constraints', () => {
             ...documentationValues(revisionId),
             systemicRisk: tier,
             adversarialTestingReportUrl: null,
-          })
+          }),
       );
       expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
     }
@@ -365,9 +363,9 @@ describe('inference_model_gpai_documentation constraints', () => {
         await rejection(
           getDb()
             .insert(inferenceModelGpaiDocumentation)
-            .values({ ...documentationValues(empty), distributionMethods: [] })
-        )
-      )
+            .values({ ...documentationValues(empty), distributionMethods: [] }),
+        ),
+      ),
     ).toBe(CHECK_VIOLATION);
 
     const unknown = await insertRevision();
@@ -376,9 +374,9 @@ describe('inference_model_gpai_documentation constraints', () => {
         await rejection(
           getDb()
             .insert(inferenceModelGpaiDocumentation)
-            .values({ ...documentationValues(unknown), distributionMethods: ['torrent'] })
-        )
-      )
+            .values({ ...documentationValues(unknown), distributionMethods: ['torrent'] }),
+        ),
+      ),
     ).toBe(CHECK_VIOLATION);
   });
 
@@ -386,7 +384,7 @@ describe('inference_model_gpai_documentation constraints', () => {
     const revisionId = await insertRevision();
     await getDb().insert(inferenceModelGpaiDocumentation).values(documentationValues(revisionId));
     const error = await rejection(
-      getDb().insert(inferenceModelGpaiDocumentation).values(documentationValues(revisionId))
+      getDb().insert(inferenceModelGpaiDocumentation).values(documentationValues(revisionId)),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -421,8 +419,8 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     const rows = await getDb().execute<{ tgname: string }>(
       sql`select tgname from pg_trigger where tgname in (${sql.join(
         names.map((name) => sql`${name}`),
-        sql`, `
-      )})`
+        sql`, `,
+      )})`,
     );
     expect([...rows].map((row) => row.tgname).sort()).toEqual([...names].sort());
   });
@@ -440,7 +438,10 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     // DRIVER, which throws an error carrying no SQLSTATE — indistinguishable
     // here from a trigger that did not fire. Postgres infers the parameter type
     // from the target column, so an ISO string reaches `timestamptz` intact.
-    const replacements: Record<(typeof INFERENCE_RELEASE_IMMUTABLE_COLUMNS)[number], string | number> = {
+    const replacements: Record<
+      (typeof INFERENCE_RELEASE_IMMUTABLE_COLUMNS)[number],
+      string | number
+    > = {
       release_id: `arel_${suffix()}`,
       model_revision_id: otherRevisionId,
       manifest_schema_version: 2,
@@ -451,8 +452,8 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     for (const column of INFERENCE_RELEASE_IMMUTABLE_COLUMNS) {
       const error = await rejection(
         getDb().execute(
-          sql`update inference_model_releases set ${sql.raw(column)} = ${replacements[column]} where id = ${releaseRowId}`
-        )
+          sql`update inference_model_releases set ${sql.raw(column)} = ${replacements[column]} where id = ${releaseRowId}`,
+        ),
       );
       expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
       expect(String(error)).toContain(column);
@@ -467,7 +468,7 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     const releaseRowId = await insertRelease(revisionId);
 
     await getDb().execute(
-      sql`update inference_model_releases set ingested_by_user_id = null where id = ${releaseRowId}`
+      sql`update inference_model_releases set ingested_by_user_id = null where id = ${releaseRowId}`,
     );
 
     const [row] = await getDb()
@@ -481,26 +482,30 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     const revisionId = await insertRevision();
     const releaseRowId = await insertRelease(revisionId);
 
-    await getDb().insert(inferenceModelReleaseArtifacts).values({
-      releaseId: releaseRowId,
-      path: 'model.safetensors',
-      digest: `sha256:${'b'.repeat(64)}`,
-      sizeBytes: 1024,
-    });
-    await getDb().insert(inferenceModelReleaseSignatures).values({
-      releaseId: releaseRowId,
-      algorithm: 'ed25519',
-      canonicalization: 'jcs',
-      keyId: `key-${suffix()}`,
-      signature: 'A'.repeat(86),
-      signedAt: new Date(),
-    });
+    await getDb()
+      .insert(inferenceModelReleaseArtifacts)
+      .values({
+        releaseId: releaseRowId,
+        path: 'model.safetensors',
+        digest: `sha256:${'b'.repeat(64)}`,
+        sizeBytes: 1024,
+      });
+    await getDb()
+      .insert(inferenceModelReleaseSignatures)
+      .values({
+        releaseId: releaseRowId,
+        algorithm: 'ed25519',
+        canonicalization: 'jcs',
+        keyId: `key-${suffix()}`,
+        signature: 'A'.repeat(86),
+        signedAt: new Date(),
+      });
 
     const artifactError = await rejection(
       getDb()
         .update(inferenceModelReleaseArtifacts)
         .set({ sizeBytes: 2048 })
-        .where(eq(inferenceModelReleaseArtifacts.releaseId, releaseRowId))
+        .where(eq(inferenceModelReleaseArtifacts.releaseId, releaseRowId)),
     );
     expect(pgErrorCode(artifactError)).toBe(CHECK_VIOLATION);
     expect(String(artifactError)).toContain('inference_model_release_artifacts');
@@ -509,7 +514,7 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
       getDb()
         .update(inferenceModelReleaseSignatures)
         .set({ keyId: 'somebody-else' })
-        .where(eq(inferenceModelReleaseSignatures.releaseId, releaseRowId))
+        .where(eq(inferenceModelReleaseSignatures.releaseId, releaseRowId)),
     );
     expect(pgErrorCode(signatureError)).toBe(CHECK_VIOLATION);
     expect(String(signatureError)).toContain('inference_model_release_signatures');
@@ -518,12 +523,14 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
   it('still CASCADES a delete, which is why the guard is UPDATE-only', async () => {
     const revisionId = await insertRevision();
     const releaseRowId = await insertRelease(revisionId);
-    await getDb().insert(inferenceModelReleaseArtifacts).values({
-      releaseId: releaseRowId,
-      path: 'model.safetensors',
-      digest: `sha256:${'c'.repeat(64)}`,
-      sizeBytes: 1024,
-    });
+    await getDb()
+      .insert(inferenceModelReleaseArtifacts)
+      .values({
+        releaseId: releaseRowId,
+        path: 'model.safetensors',
+        digest: `sha256:${'c'.repeat(64)}`,
+        sizeBytes: 1024,
+      });
 
     await getDb().delete(inferenceModelRevisions).where(eq(inferenceModelRevisions.id, revisionId));
 
@@ -548,7 +555,7 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
     const error = await rejection(
       getDb()
         .insert(inferenceModelReleases)
-        .values({ ...values, modelRevisionId: await insertRevision() })
+        .values({ ...values, modelRevisionId: await insertRevision() }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -557,7 +564,7 @@ describe('an ingested release is evidence, so it cannot be edited', () => {
 describe('the Annex XI Section 2 columns are registered as protected', () => {
   it('registers exactly the four the public projection withholds', () => {
     expect(PROTECTED_COLUMNS_BY_TABLE.inference_model_gpai_documentation).toEqual(
-      GPAI_DOCUMENTATION_INTERNAL_COLUMNS
+      GPAI_DOCUMENTATION_INTERNAL_COLUMNS,
     );
     expect(GPAI_DOCUMENTATION_INTERNAL_COLUMNS).toEqual([
       'trainingComputeFlops',
@@ -579,7 +586,7 @@ describe('the Annex XI Section 2 columns are registered as protected', () => {
 describe(`${RELEASE_MIGRATION} carries the DDL the schema declares authoritative`, () => {
   const migration = readFileSync(
     join(__dirname, '..', '..', '..', '..', 'drizzle', RELEASE_MIGRATION),
-    'utf8'
+    'utf8',
   );
 
   it('carries both function texts', () => {

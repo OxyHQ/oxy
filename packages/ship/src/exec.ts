@@ -10,7 +10,7 @@ import type { ShipPlatform } from './metadata';
 export function runExpoExport(
   projectDir: string,
   platforms: ShipPlatform[],
-  distDir: string
+  distDir: string,
 ): void {
   const args = ['expo', 'export', '--output-dir', distDir];
   for (const platform of platforms) {
@@ -39,7 +39,7 @@ export function readExpoPublicConfig(projectDir: string): Record<string, unknown
   });
   if (result.status !== 0) {
     throw new Error(
-      `expo config failed (exit ${result.status ?? 'unknown'}): ${(result.stderr || '').slice(0, 300)}`
+      `expo config failed (exit ${result.status ?? 'unknown'}): ${(result.stderr || '').slice(0, 300)}`,
     );
   }
   let parsed: Record<string, unknown>;

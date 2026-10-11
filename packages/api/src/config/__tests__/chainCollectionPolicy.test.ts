@@ -48,7 +48,9 @@ describe('chainCollectionPolicy', () => {
   });
 
   it('derives the public list from the policy instead of repeating it', () => {
-    const declaredPublic = CHAIN_COLLECTION_POLICY.filter((e) => e.visibility === 'public').map((e) => e.nsid);
+    const declaredPublic = CHAIN_COLLECTION_POLICY.filter((e) => e.visibility === 'public').map(
+      (e) => e.nsid,
+    );
     expect([...PUBLIC_CHAIN_COLLECTIONS].sort()).toEqual([...declaredPublic].sort());
     // Vacuity floor: an empty or truncated policy would satisfy the equality above.
     expect(PUBLIC_CHAIN_COLLECTIONS.length).toBeGreaterThanOrEqual(7);
@@ -93,7 +95,10 @@ describe('chainCollectionPolicy', () => {
 
     it('preserves the caller order and does not invent entries', () => {
       const requested = ['app.mention.feed.like', 'app.syra.listen', 'app.oxy.profile'];
-      expect(publicCollectionsAmong(requested)).toEqual(['app.mention.feed.like', 'app.oxy.profile']);
+      expect(publicCollectionsAmong(requested)).toEqual([
+        'app.mention.feed.like',
+        'app.oxy.profile',
+      ]);
     });
   });
 });

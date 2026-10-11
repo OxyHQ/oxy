@@ -1,9 +1,9 @@
 /**
  * Environment Configuration Validation
- * 
+ *
  * Validates required environment variables on startup to fail fast
  * with clear error messages rather than failing at runtime.
- * 
+ *
  * Big tech practice: Validate configuration early and provide actionable errors.
  */
 
@@ -16,10 +16,11 @@ export interface RequiredEnvVars {
   // PostgreSQL connection string, consumed by `config/postgres.ts` (Drizzle
   // over postgres.js) and by the migrator (`db/migrate.ts`). The live store.
   //
-  // Every name in the `required` list below must reach the ECS task, which
-  // means being synced to SSM by `.github/workflows/deploy-aws.yml`. CI job
-  // "Deploy Secrets Sync" reads THIS array and fails the build on any entry
-  // that is neither synced nor recorded as a non-secret.
+  // Every name in the `required` list below must reach the ECS task. A secret
+  // lives only in SSM (`/oxy/oxy-api/<NAME>`, SecureString), bound by the task
+  // definition; nothing copies it there from GitHub. CI step "Deploy Secrets
+  // (SSM only)" (`scripts/check-deploy-secrets-sync.mjs`) reads THIS array and
+  // fails the build on any entry with no recorded SSM home or non-secret reason.
   DATABASE_URL: string;
 
   // Authentication
@@ -31,12 +32,12 @@ export interface RequiredEnvVars {
   // refuse every remaining v1 bearer — safe once one refresh-token lifetime
   // (7 days) has passed since deploy, because by then no v1 token can still be
   // live. Absent/anything else keeps the window open. Read per request in
-  // `utils/sessionUtils.ts`; NOT a secret, so it is not synced to SSM.
+  // `utils/sessionUtils.ts`; NOT a secret, so it is not stored in SSM.
   ACCESS_TOKEN_V1_WINDOW?: string;
 
   // Legacy cross-domain SSO secret (FedCM / POST /sso/code removed in wave 2).
-  // Still synced from GitHub → SSM for environments that haven't dropped it yet;
-  // no live route reads it. Safe to omit in new deployments.
+  // Still in SSM and bound for environments that haven't dropped it yet; no
+  // live route reads it. Safe to omit in new deployments.
   SSO_INTERNAL_SECRET?: string;
 
   // Device-id derivation salt (security review H1). Required in production
@@ -46,8 +47,10 @@ export interface RequiredEnvVars {
 
   // AWS/S3 Configuration
   AWS_REGION: string;
-  AWS_ACCESS_KEY_ID: string;
-  AWS_SECRET_ACCESS_KEY: string;
+  // Optional static credentials (local dev). Unset, the AWS SDK's default
+  // provider chain resolves the ECS task role, which is how production runs.
+  AWS_ACCESS_KEY_ID?: string;
+  AWS_SECRET_ACCESS_KEY?: string;
   AWS_S3_BUCKET: string;
   AWS_ENDPOINT_URL?: string; // Optional for S3-compatible services
 
@@ -72,7 +75,7 @@ export interface RequiredEnvVars {
   // accounts when the kilogram bridge fails. Runs whenever the token AND a
   // numeric business account id are set, inert otherwise; read per call by
   // `services/federation/instagramGraph.ts`, which pins the Graph version in
-  // code. Both are SSM-synced and bound into the oxy-api task definition.
+  // code. Both live in SSM and are bound into the oxy-api task definition.
   META_GRAPH_ACCESS_TOKEN?: string;
   META_IG_BUSINESS_ACCOUNT_ID?: string;
 
@@ -145,12 +148,11 @@ export interface RequiredEnvVars {
   //    the data plane parses its key set as `kid:base64,kid:base64`.
   KAANA_EDGE_SIGNING_KEY_ID?: string;
   //  - the Ed25519 PRIVATE key, as PEM or that PEM base64-encoded. THIS ONE IS A
-  //    SECRET: it belongs in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
-  //    which means adding it to BOTH allowlists in `deploy-aws.yml` (the
-  //    `SYNC_<NAME>` env block and `API_SECRETS`) when a data plane is first
-  //    deployed — `scripts/check-deploy-secrets-sync.mjs` guards that the two
-  //    agree. Absent from the `required` list below on purpose: unset means no
-  //    data plane, not a broken boot. The data plane holds only the matching
+  //    SECRET: it lives only in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
+  //    bound by `TASK_SECRET_OVERRIDES_JSON` in `deploy-aws.yml`, whose exact
+  //    ARN `scripts/check-deploy-secrets-sync.mjs` holds. Absent from the
+  //    `required` list below on purpose: unset means no data plane, not a
+  //    broken boot. The data plane holds only the matching
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
   KAANA_EDGE_SIGNING_PRIVATE_KEY?: string;
 
@@ -254,7 +256,7 @@ export function isValidHostname(value: string): boolean {
 
 /**
  * Validate that required environment variables are set
- * 
+ *
  * @throws {ConfigurationError} If required variables are missing
  */
 export function validateRequiredEnvVars(): void {
@@ -263,8 +265,6 @@ export function validateRequiredEnvVars(): void {
     'ACCESS_TOKEN_SECRET',
     'REFRESH_TOKEN_SECRET',
     'AWS_REGION',
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
     'AWS_S3_BUCKET',
   ];
 
@@ -277,7 +277,10 @@ export function validateRequiredEnvVars(): void {
     }
   }
 
-  if (process.env.DATABASE_URL && !POSTGRES_URL_SCHEMES.some(scheme => process.env.DATABASE_URL?.startsWith(scheme))) {
+  if (
+    process.env.DATABASE_URL &&
+    !POSTGRES_URL_SCHEMES.some((scheme) => process.env.DATABASE_URL?.startsWith(scheme))
+  ) {
     warnings.push('DATABASE_URL should start with "postgres://" or "postgresql://"');
   }
 
@@ -293,10 +296,14 @@ export function validateRequiredEnvVars(): void {
     try {
       const parsed = new URL(assetCdnUrl);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-        missing.push('ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")');
+        missing.push(
+          'ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")',
+        );
       }
     } catch {
-      missing.push('ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")');
+      missing.push(
+        'ASSET_CDN_URL (invalid: must be an absolute http(s) URL like "https://cloud.oxy.so")',
+      );
     }
   }
 
@@ -312,7 +319,9 @@ export function validateRequiredEnvVars(): void {
     for (const key of ['ACCESS_TOKEN_SECRET', 'REFRESH_TOKEN_SECRET'] as const) {
       const val = process.env[key];
       if (val && (WEAK_SECRETS.includes(val) || val.length < 32)) {
-        missing.push(`${key} (insecure: must be at least 32 characters and not a default placeholder)`);
+        missing.push(
+          `${key} (insecure: must be at least 32 characters and not a default placeholder)`,
+        );
       }
     }
   } else {
@@ -320,7 +329,9 @@ export function validateRequiredEnvVars(): void {
     for (const key of ['ACCESS_TOKEN_SECRET', 'REFRESH_TOKEN_SECRET'] as const) {
       const val = process.env[key];
       if (val && WEAK_SECRETS.includes(val)) {
-        warnings.push(`${key} is set to a default placeholder — generate a strong secret with: openssl rand -base64 64`);
+        warnings.push(
+          `${key} is set to a default placeholder — generate a strong secret with: openssl rand -base64 64`,
+        );
       }
     }
   }
@@ -341,8 +352,8 @@ export function validateRequiredEnvVars(): void {
     if (isProduction()) {
       missing.push(
         'DEVICE_ID_SALT (required: generate with `openssl rand -base64 48` — ' +
-        'scopes the derived deviceId hash; without it, two users behind the ' +
-        'same NAT on the same browser collide on the same deviceId)'
+          'scopes the derived deviceId hash; without it, two users behind the ' +
+          'same NAT on the same browser collide on the same deviceId)',
       );
     } else {
       // Dev-mode: install the placeholder so the derivation works in tests
@@ -350,9 +361,9 @@ export function validateRequiredEnvVars(): void {
       process.env.DEVICE_ID_SALT = DEV_DEVICE_ID_SALT_DEFAULT;
       logger.warn(
         'DEVICE_ID_SALT is unset — using a development-only placeholder. ' +
-        'Set DEVICE_ID_SALT to a strong random value (≥32 chars) before ' +
-        'deploying. Generate one with: openssl rand -base64 48',
-        { component: 'env', placeholder: DEV_DEVICE_ID_SALT_DEFAULT }
+          'Set DEVICE_ID_SALT to a strong random value (≥32 chars) before ' +
+          'deploying. Generate one with: openssl rand -base64 48',
+        { component: 'env', placeholder: DEV_DEVICE_ID_SALT_DEFAULT },
       );
     }
   } else if (isProduction() && deviceIdSalt === DEV_DEVICE_ID_SALT_DEFAULT) {
@@ -362,7 +373,7 @@ export function validateRequiredEnvVars(): void {
     missing.push('DEVICE_ID_SALT (the development placeholder is not allowed in production)');
   } else if (deviceIdSalt.length < MIN_DEVICE_ID_SALT_LENGTH) {
     missing.push(
-      `DEVICE_ID_SALT (insecure: must be at least ${MIN_DEVICE_ID_SALT_LENGTH} characters; got ${deviceIdSalt.length})`
+      `DEVICE_ID_SALT (insecure: must be at least ${MIN_DEVICE_ID_SALT_LENGTH} characters; got ${deviceIdSalt.length})`,
     );
   }
 
@@ -375,7 +386,7 @@ export function validateRequiredEnvVars(): void {
   if (missing.length > 0) {
     const errorMessage = [
       'Missing required environment variables:',
-      ...missing.map(key => `  - ${key}`),
+      ...missing.map((key) => `  - ${key}`),
       '',
       'Please set these variables in your .env file or environment.',
       'See .env.example for reference.',
@@ -387,7 +398,7 @@ export function validateRequiredEnvVars(): void {
 
 /**
  * Get environment variable with default fallback
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set
  * @returns Environment variable value or default
@@ -398,7 +409,7 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 
 /**
  * Get environment variable as number
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set or invalid
  * @returns Parsed number or default
@@ -406,14 +417,14 @@ export function getEnvVar(key: string, defaultValue?: string): string {
 export function getEnvNumber(key: string, defaultValue: number): number {
   const value = process.env[key];
   if (!value) return defaultValue;
-  
+
   const parsed = Number.parseInt(value, 10);
   return isNaN(parsed) ? defaultValue : parsed;
 }
 
 /**
  * Get environment variable as boolean
- * 
+ *
  * @param key - Environment variable key
  * @param defaultValue - Default value if not set
  * @returns Boolean value
@@ -421,7 +432,7 @@ export function getEnvNumber(key: string, defaultValue: number): number {
 export function getEnvBoolean(key: string, defaultValue: boolean): boolean {
   const value = process.env[key];
   if (!value) return defaultValue;
-  
+
   return ['true', '1', 'yes'].includes(value.toLowerCase());
 }
 
@@ -467,7 +478,7 @@ export function getSanitizedConfig(): Record<string, string> {
 
 /**
  * Mask sensitive parts of connection strings for logging
- * 
+ *
  * @param connectionString - Connection string to mask
  * @returns Masked connection string
  */

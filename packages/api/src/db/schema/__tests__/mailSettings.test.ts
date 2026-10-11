@@ -6,9 +6,9 @@
  * Four decisions here are the kind that look identical whether they are right
  * or wrong, so each has a check that can only pass one way:
  *
- *   1. `bundles` is now case-INSENSITIVE unique, which Mongo's index was not.
+ *   1. `bundles` is case-INSENSITIVE unique, like its sibling tables.
  *   2. A filter with no conditions or no actions is REPRESENTABLE in SQL —
- *      Mongoose's two `length > 0` validators have no constraint counterpart —
+ *      "at least one condition and one action" has no constraint counterpart —
  *      so `incompleteEmailFilters()` is the enforcement point and it has to
  *      actually find one.
  *   3. `contacts.search_vector` must populate from BOTH indexed fields.
@@ -72,7 +72,7 @@ afterAll(async () => {
   await closePostgres();
 });
 
-describe('email_templates — case-insensitive unique, as Mongo`s collation was', () => {
+describe('email_templates — case-insensitive unique', () => {
   it('refuses a second template differing only by case', async () => {
     const userId = await owner();
     await getDb()
@@ -82,7 +82,7 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
     const error = await rejection(
       getDb()
         .insert(emailTemplates)
-        .values({ userId, name: 'OUT OF OFFICE', subject: 'Away', body: 'away' })
+        .values({ userId, name: 'OUT OF OFFICE', subject: 'Away', body: 'away' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -102,7 +102,7 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
     expect(row.subject).toBe('');
   });
 
-  it('refuses a template with no subject supplied — Mongoose`s `default: \'\'` was application-side', async () => {
+  it("refuses a template with no subject supplied — `''` is supplied by the writer, not a default", async () => {
     // `''` is not available as a column default in this schema
     // (`schemaInvariants.test.ts`), so the writer supplies it. An insert that
     // forgets fails loudly rather than inventing a value.
@@ -111,7 +111,7 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
       getDb().execute(sql`
         insert into email_templates (id, user_id, name, body)
         values (${unique()}, ${userId}, ${`T-${unique()}`}, 'x')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(NOT_NULL_VIOLATION);
@@ -123,28 +123,26 @@ describe('email_templates — case-insensitive unique, as Mongo`s collation was'
       .insert(emailTemplates)
       .values({ userId: await owner(), name, subject: '', body: 'x' });
     await expect(
-      getDb().insert(emailTemplates).values({ userId: await owner(), name, subject: '', body: 'x' })
+      getDb()
+        .insert(emailTemplates)
+        .values({ userId: await owner(), name, subject: '', body: 'x' }),
     ).resolves.toBeDefined();
   });
 });
 
-describe('bundles — the case-sensitivity Mongo left inconsistent', () => {
+describe('bundles — case-insensitive unique, like its siblings', () => {
   it('refuses a second bundle differing only by case', async () => {
-    // Mongo's `{userId, name}` unique index carried NO collation, while the two
-    // sibling models naming the same kind of thing (`Label`, `EmailTemplate`)
-    // both did. That was an omission, not a decision: nothing in the product
-    // treats a bundle name as case-sensitive. Replicating it would carry the
-    // typo into a schema designed from scratch.
+    // The two sibling tables naming the same kind of thing (`labels`,
+    // `email_templates`) are case-insensitive unique, and nothing in the
+    // product treats a bundle name as case-sensitive.
     const userId = await owner();
     await getDb().insert(bundles).values({ userId, name: 'Promotions' });
 
-    const error = await rejection(
-      getDb().insert(bundles).values({ userId, name: 'promotions' })
-    );
+    const error = await rejection(getDb().insert(bundles).values({ userId, name: 'promotions' }));
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
-  it('applies the same defaults Mongo declared', async () => {
+  it('applies the declared defaults', async () => {
     const userId = await owner();
     const [row] = await getDb()
       .insert(bundles)
@@ -166,7 +164,9 @@ describe('bundles — the case-sensitivity Mongo left inconsistent', () => {
       .insert(mailboxes)
       .values({ userId, name: 'Inbox', path: `INBOX-${unique()}` })
       .returning({ id: mailboxes.id });
-    await getDb().insert(bundles).values({ userId, name: `Promos-${unique()}`, matchLabels: [label] });
+    await getDb()
+      .insert(bundles)
+      .values({ userId, name: `Promos-${unique()}`, matchLabels: [label] });
     const [message] = await getDb()
       .insert(messages)
       .values({
@@ -198,10 +198,18 @@ describe('email_filters — ordered rule lists and the invariant SQL cannot hold
       .values({ userId, name: `Rule-${unique()}` })
       .returning({ id: emailFilters.id });
 
-    await getDb().insert(emailFilterConditions).values([
-      { filterId: filter.id, ord: 0, field: 'from', operator: 'contains', value: '@example.com' },
-      { filterId: filter.id, ord: 1, field: 'subject', operator: 'starts-with', value: '[ALERT]' },
-    ]);
+    await getDb()
+      .insert(emailFilterConditions)
+      .values([
+        { filterId: filter.id, ord: 0, field: 'from', operator: 'contains', value: '@example.com' },
+        {
+          filterId: filter.id,
+          ord: 1,
+          field: 'subject',
+          operator: 'starts-with',
+          value: '[ALERT]',
+        },
+      ]);
     await getDb()
       .insert(emailFilterActions)
       .values({ filterId: filter.id, ord: 0, type: 'label', value: 'Alerts' });
@@ -227,12 +235,10 @@ describe('email_filters — ordered rule lists and the invariant SQL cannot hold
       .insert(emailFilters)
       .values({ userId, name: `Rule-${unique()}` })
       .returning({ id: emailFilters.id });
-    await getDb()
-      .insert(emailFilterActions)
-      .values({ filterId: filter.id, ord: 0, type: 'star' });
+    await getDb().insert(emailFilterActions).values({ filterId: filter.id, ord: 0, type: 'star' });
 
     const error = await rejection(
-      getDb().insert(emailFilterActions).values({ filterId: filter.id, ord: 0, type: 'archive' })
+      getDb().insert(emailFilterActions).values({ filterId: filter.id, ord: 0, type: 'archive' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -248,19 +254,19 @@ describe('email_filters — ordered rule lists and the invariant SQL cannot hold
       getDb().execute(sql`
         insert into email_filter_conditions (id, filter_id, ord, field, operator, value)
         values (${unique()}, ${filter.id}, 0, 'reply-to', 'contains', 'x')
-      `)
+      `),
     );
     const badOperator = await rejection(
       getDb().execute(sql`
         insert into email_filter_conditions (id, filter_id, ord, field, operator, value)
         values (${unique()}, ${filter.id}, 1, 'from', 'matches-regex', 'x')
-      `)
+      `),
     );
     const badAction = await rejection(
       getDb().execute(sql`
         insert into email_filter_actions (id, filter_id, ord, type)
         values (${unique()}, ${filter.id}, 0, 'shred')
-      `)
+      `),
     );
 
     expect(pgErrorCode(badField)).toBe(CHECK_VIOLATION);
@@ -269,11 +275,11 @@ describe('email_filters — ordered rule lists and the invariant SQL cannot hold
   });
 
   it('finds a filter with no actions — the state a CHECK cannot forbid', async () => {
-    // Mongoose declared `validate: [(v) => v.length > 0]` on both arrays.
+    // A rule needs at least one condition and one action.
     // Postgres cannot express "this row must have a child" in a CHECK, and the
     // only declarative alternative is hand-written trigger DDL drizzle-kit
     // cannot emit. So the invariant is a PREDICATE, and this is the proof it
-    // catches what the validator caught: a rule that matches mail and does
+    // catches the violation: a rule that matches mail and does
     // nothing with it.
     const userId = await owner();
     const [conditionsOnly] = await getDb()
@@ -351,17 +357,19 @@ describe('contacts', () => {
     await getDb().insert(contacts).values({ userId, name: 'Ada', email });
 
     const error = await rejection(
-      getDb().insert(contacts).values({ userId, name: 'Ada again', email })
+      getDb().insert(contacts).values({ userId, name: 'Ada again', email }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     await expect(
-      getDb().insert(contacts).values({ userId: await owner(), name: 'Ada', email })
+      getDb()
+        .insert(contacts)
+        .values({ userId: await owner(), name: 'Ada', email }),
     ).resolves.toBeDefined();
   });
 
   it('builds the search vector from BOTH indexed fields', async () => {
-    // Mongo's index covered `name` and `email`. A vector built from only one
+    // The search covers `name` and `email`. A vector built from only one
     // would still satisfy a single-term match, so both are asserted together.
     const userId = await owner();
     const nameTerm = `Zylophant${unique().slice(0, 8)}`;
@@ -464,29 +472,30 @@ describe('reminders', () => {
 
 describe('sender_avatars — the table whose correctness depended on a job', () => {
   const target = EXPIRY_SWEEP_TARGETS.find(
-    (entry) => getTableName(entry.table) === 'sender_avatars'
+    (entry) => getTableName(entry.table) === 'sender_avatars',
   );
 
-  it('is registered for sweeping with the deadline shape Mongo declared', () => {
-    // Mongo hid the TTL as a FIELD option — `expiresAt: { index: { expires: 0 } }`
-    // — rather than a `schema.index()` call, which is exactly how it gets missed.
+  it('is registered for sweeping with the deadline shape', () => {
+    // `expires_at` IS the deadline, so the retention is zero.
     expect(target).toBeDefined();
     expect(target?.retentionSeconds).toBe(0);
   });
 
   it('is unique per address', async () => {
     const email = `sender-${unique()}@example.com`;
-    await getDb().insert(senderAvatars).values({
-      email,
-      source: 'gravatar',
-      avatarPath: '/email/proxy?url=x',
-      expiresAt: new Date(Date.now() + 86_400_000),
-    });
+    await getDb()
+      .insert(senderAvatars)
+      .values({
+        email,
+        source: 'gravatar',
+        avatarPath: '/email/proxy?url=x',
+        expiresAt: new Date(Date.now() + 86_400_000),
+      });
 
     const error = await rejection(
       getDb()
         .insert(senderAvatars)
-        .values({ email, source: 'none', expiresAt: new Date(Date.now() + 86_400_000) })
+        .values({ email, source: 'none', expiresAt: new Date(Date.now() + 86_400_000) }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -500,20 +509,22 @@ describe('sender_avatars — the table whose correctness depended on a job', () 
     // housekeeping.
     const fresh = `fresh-${unique()}@example.com`;
     const stale = `stale-${unique()}@example.com`;
-    await getDb().insert(senderAvatars).values([
-      {
-        email: fresh,
-        source: 'oxy',
-        avatarPath: '/api/assets/1/stream',
-        expiresAt: new Date(Date.now() + 86_400_000),
-      },
-      {
-        email: stale,
-        source: 'favicon',
-        avatarPath: '/email/proxy?url=old',
-        expiresAt: new Date(Date.now() - 1_000),
-      },
-    ]);
+    await getDb()
+      .insert(senderAvatars)
+      .values([
+        {
+          email: fresh,
+          source: 'oxy',
+          avatarPath: '/api/assets/1/stream',
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
+        {
+          email: stale,
+          source: 'favicon',
+          avatarPath: '/email/proxy?url=old',
+          expiresAt: new Date(Date.now() - 1_000),
+        },
+      ]);
 
     const visible = await getDb()
       .select({ email: senderAvatars.email })
@@ -552,7 +563,7 @@ describe('sender_avatars — the table whose correctness depended on a job', () 
       getDb().execute(sql`
         insert into sender_avatars (id, email, source, expires_at)
         values (${unique()}, ${`x-${unique()}@example.com`}, 'clearbit', now() + interval '1 day')
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });

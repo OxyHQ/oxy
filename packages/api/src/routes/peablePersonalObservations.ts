@@ -6,7 +6,8 @@ import { assertPeablePersonalReconciliationComplete } from '../services/peablePe
 const router = Router();
 export async function receivePeablePersonalObservation(req: Request, res: Response) {
   const runtime = getPeablePersonalRuntime();
-  if (!runtime?.configuration.observationsEnabled) return res.status(503).json({ error: 'PEABLE_OBSERVATIONS_DISABLED' });
+  if (!runtime?.configuration.observationsEnabled)
+    return res.status(503).json({ error: 'PEABLE_OBSERVATIONS_DISABLED' });
   const rawSourceId: unknown = req.params.sourceId;
   if (typeof rawSourceId !== 'string')
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
@@ -15,7 +16,12 @@ export async function receivePeablePersonalObservation(req: Request, res: Respon
   const body: unknown = req.body;
   if (typeof body !== 'object' || body === null || Array.isArray(body) || !Buffer.isBuffer(body))
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
-  if (!sourceId.success || typeof signature !== 'string' || signature.length === 0 || body.length > 1_048_576)
+  if (
+    !sourceId.success ||
+    typeof signature !== 'string' ||
+    signature.length === 0 ||
+    body.length > 1_048_576
+  )
     return res.status(400).json({ error: 'INVALID_PEABLE_OBSERVATION' });
   try {
     const result = await runtime.observe(sourceId.data, body.toString('utf8'), signature);

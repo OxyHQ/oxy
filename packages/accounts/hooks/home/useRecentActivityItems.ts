@@ -37,29 +37,33 @@ export function useRecentActivityItems({
   return useMemo<RecentActivityItem[]>(() => {
     if (!securityActivities || securityActivities.length === 0) {
       // Show placeholder if no activities
-      return [{
-        id: 'no-activity',
-        icon: 'shield-check-outline',
-        iconColor: colors.sidebarIconSecurity,
-        title: t('home.activity.noActivity'),
-        subtitle: t('home.activity.noActivitySubtitle'),
-        onPress: handleSecurity,
-      }];
+      return [
+        {
+          id: 'no-activity',
+          icon: 'shield-check-outline',
+          iconColor: colors.sidebarIconSecurity,
+          title: t('home.activity.noActivity'),
+          subtitle: t('home.activity.noActivitySubtitle'),
+          onPress: handleSecurity,
+        },
+      ];
     }
 
-    return securityActivities.slice(0, MAX_HOME_ACTIVITY_CARDS).map((activity: SecurityActivity) => {
-      const eventIcon = getEventIcon(activity.eventType);
-      const eventColor = getSeverityColor(activity.severity || 'low', mode);
-      const description = formatEventDescription(activity);
+    return securityActivities
+      .slice(0, MAX_HOME_ACTIVITY_CARDS)
+      .map((activity: SecurityActivity) => {
+        const eventIcon = getEventIcon(activity.eventType);
+        const eventColor = getSeverityColor(activity.severity || 'low', mode);
+        const description = formatEventDescription(activity);
 
-      return {
-        id: `activity-${activity.id}`,
-        icon: eventIcon,
-        iconColor: eventColor,
-        title: description,
-        subtitle: formatRelativeTime(activity.timestamp),
-        onPress: handleSecurity,
-      };
-    });
+        return {
+          id: `activity-${activity.id}`,
+          icon: eventIcon,
+          iconColor: eventColor,
+          title: description,
+          subtitle: formatRelativeTime(activity.timestamp),
+          onPress: handleSecurity,
+        };
+      });
   }, [securityActivities, colors.sidebarIconSecurity, mode, formatRelativeTime, handleSecurity, t]);
 }

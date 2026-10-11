@@ -5,14 +5,14 @@ import { Text } from '@oxy.so/bloom/typography';
 import Ionicons from '../../icons/Ionicons';
 
 export interface FileLibraryErrorProps {
-    title: string;
-    description: string;
-    retryLabel: string;
-    onRetry: () => void;
-    /** Failure icon tint. */
-    iconColor: string;
-    titleColor: string;
-    descriptionColor: string;
+  title: string;
+  description: string;
+  retryLabel: string;
+  onRetry: () => void;
+  /** Failure icon tint. */
+  iconColor: string;
+  titleColor: string;
+  descriptionColor: string;
 }
 
 /**
@@ -23,26 +23,32 @@ export interface FileLibraryErrorProps {
  * color props so it fits both the browse chrome and the dark picker backdrop.
  */
 const FileLibraryError: React.FC<FileLibraryErrorProps> = ({
-    title,
-    description,
-    retryLabel,
-    onRetry,
-    iconColor,
-    titleColor,
-    descriptionColor,
+  title,
+  description,
+  retryLabel,
+  onRetry,
+  iconColor,
+  titleColor,
+  descriptionColor,
 }) => (
-    <View className="items-center py-[40px] px-[24px]">
-        <Ionicons name="cloud-offline-outline" size={64} color={iconColor} />
-        <Text className="text-[24px] font-bold mt-[16px] mb-[8px] text-center" style={{ color: titleColor }}>
-            {title}
-        </Text>
-        <Text className="text-[16px] text-center leading-[24px] mb-[32px]" style={{ color: descriptionColor }}>
-            {description}
-        </Text>
-        <Button onPress={onRetry} accessibilityLabel={retryLabel}>
-            {retryLabel}
-        </Button>
-    </View>
+  <View className="items-center py-[40px] px-[24px]">
+    <Ionicons name="cloud-offline-outline" size={64} color={iconColor} />
+    <Text
+      className="text-[24px] font-bold mt-[16px] mb-[8px] text-center"
+      style={{ color: titleColor }}
+    >
+      {title}
+    </Text>
+    <Text
+      className="text-[16px] text-center leading-[24px] mb-[32px]"
+      style={{ color: descriptionColor }}
+    >
+      {description}
+    </Text>
+    <Button onPress={onRetry} accessibilityLabel={retryLabel}>
+      {retryLabel}
+    </Button>
+  </View>
 );
 
 export default FileLibraryError;

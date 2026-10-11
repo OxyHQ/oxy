@@ -46,7 +46,7 @@ export class PerformanceMonitor {
    */
   startTimer(operation: string): (metadata?: Record<string, unknown>) => void {
     const startTime = Date.now();
-    
+
     return (metadata?: Record<string, any>) => {
       const duration = Date.now() - startTime;
       this.recordMetric(operation, duration, metadata);
@@ -61,7 +61,7 @@ export class PerformanceMonitor {
       operation,
       duration,
       timestamp: Date.now(),
-      metadata
+      metadata,
     };
 
     this.metrics[this.metricsNext] = metric;
@@ -85,9 +85,8 @@ export class PerformanceMonitor {
   }
 
   private updateStats(rawOperation: string, duration: number): void {
-    const operation = this.stats.has(rawOperation) || this.stats.size < this.maxOperations
-      ? rawOperation
-      : 'other';
+    const operation =
+      this.stats.has(rawOperation) || this.stats.size < this.maxOperations ? rawOperation : 'other';
     let window = this.durations.get(operation);
     if (!window) {
       window = { values: new Array(this.maxDurations), next: 0, count: 0 };
@@ -125,8 +124,9 @@ export class PerformanceMonitor {
    * Get performance statistics
    */
   getStats(): PerformanceStats[] {
-    return Array.from(this.stats.values(), (stats) => this.withPercentiles(stats))
-      .sort((a, b) => b.count - a.count);
+    return Array.from(this.stats.values(), (stats) => this.withPercentiles(stats)).sort(
+      (a, b) => b.count - a.count,
+    );
   }
 
   private withPercentiles(stats: PerformanceStats): PerformanceStats {
@@ -168,7 +168,7 @@ export class PerformanceMonitor {
    */
   getOperationMetrics(operation: string, limit = 50): PerformanceMetric[] {
     return this.getRecentMetrics(this.metricsCount)
-      .filter(m => m.operation === operation)
+      .filter((m) => m.operation === operation)
       .slice(-limit);
   }
 
@@ -192,15 +192,17 @@ export class PerformanceMonitor {
    * Get slow operations
    */
   getSlowOperations(threshold = 1000): PerformanceStats[] {
-    return this.getStats().filter(stats => stats.avgDuration > threshold);
+    return this.getStats().filter((stats) => stats.avgDuration > threshold);
   }
 
   /**
    * Clear old metrics
    */
   private cleanup(): void {
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    const recent = this.getRecentMetrics(this.metricsCount).filter((metric) => metric.timestamp > oneHourAgo);
+    const oneHourAgo = Date.now() - 60 * 60 * 1000;
+    const recent = this.getRecentMetrics(this.metricsCount).filter(
+      (metric) => metric.timestamp > oneHourAgo,
+    );
     this.metrics = new Array(this.maxMetrics);
     this.metricsNext = 0;
     this.metricsCount = 0;
@@ -209,7 +211,7 @@ export class PerformanceMonitor {
       this.metricsNext = (this.metricsNext + 1) % this.maxMetrics;
       this.metricsCount += 1;
     }
-    
+
     for (const [operation, stats] of this.stats.entries()) {
       if (stats.lastUpdated < oneHourAgo) {
         this.stats.delete(operation);
@@ -222,9 +224,12 @@ export class PerformanceMonitor {
    * Start cleanup timer
    */
   private startCleanupTimer(): void {
-    this.cleanupInterval = setInterval(() => {
-      this.cleanup();
-    }, 30 * 60 * 1000); // Clean up every 30 minutes
+    this.cleanupInterval = setInterval(
+      () => {
+        this.cleanup();
+      },
+      30 * 60 * 1000,
+    ); // Clean up every 30 minutes
     this.cleanupInterval.unref?.();
   }
 
@@ -264,15 +269,13 @@ export class PerformanceMonitor {
     const slowOperations = stats.filter((stat) => stat.avgDuration > 1000).length;
     const requestCount = stats.reduce((sum, stat) => sum + stat.count, 0);
     const totalDuration = stats.reduce((sum, stat) => sum + stat.totalDuration, 0);
-    const averageResponseTime = requestCount > 0
-      ? totalDuration / requestCount
-      : 0;
+    const averageResponseTime = requestCount > 0 ? totalDuration / requestCount : 0;
 
     return {
       totalMetrics: this.metricsCount,
       totalOperations,
       slowOperations,
-      averageResponseTime
+      averageResponseTime,
     };
   }
 }

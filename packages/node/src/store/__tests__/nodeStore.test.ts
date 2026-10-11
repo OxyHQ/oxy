@@ -10,7 +10,12 @@
 import { createHash } from 'node:crypto';
 import { BlobHashMismatchError } from '@oxy.so/protocol/node';
 import { NodeStore } from '../nodeStore';
-import { buildSignedEnvelope, generateTestKeyPair, recordIdOf, type TestKeyPair } from '../../__tests__/helpers/signEnvelope';
+import {
+  buildSignedEnvelope,
+  generateTestKeyPair,
+  recordIdOf,
+  type TestKeyPair,
+} from '../../__tests__/helpers/signEnvelope';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 
 // A node holds one subject's repo; the store keys a single global chain and
@@ -31,7 +36,9 @@ describe('NodeStore', () => {
   });
 
   /** Append the genesis record and return [envelope, recordId]. */
-  async function appendGenesis(over: Partial<Parameters<typeof buildSignedEnvelope>[0]> = {}): Promise<{
+  async function appendGenesis(
+    over: Partial<Parameters<typeof buildSignedEnvelope>[0]> = {},
+  ): Promise<{
     envelope: SignedRecordEnvelope;
     recordId: string;
   }> {
@@ -71,7 +78,11 @@ describe('NodeStore', () => {
     const outcome = await store.append(SUBJECT, second, secondId);
 
     expect(outcome).toEqual({ ok: true, recordId: secondId, seq: 1 });
-    expect(await store.getHead(SUBJECT)).toEqual({ headRecordId: secondId, seq: 1, recordCount: 2 });
+    expect(await store.getHead(SUBJECT)).toEqual({
+      headRecordId: secondId,
+      seq: 1,
+      recordCount: 2,
+    });
   });
 
   it('rejects a chain GAP (first record is not genesis)', async () => {
@@ -83,7 +94,10 @@ describe('NodeStore', () => {
     });
     const recordId = await recordIdOf(envelope);
 
-    expect(await store.append(SUBJECT, envelope, recordId)).toEqual({ ok: false, reason: 'chain_gap' });
+    expect(await store.append(SUBJECT, envelope, recordId)).toEqual({
+      ok: false,
+      reason: 'chain_gap',
+    });
     expect(await store.getHead(SUBJECT)).toBeNull();
   });
 
@@ -153,7 +167,11 @@ describe('NodeStore', () => {
   });
 
   it('materializes the latest version of a record key + its freshness frontier', async () => {
-    const { recordId: v0 } = await appendGenesis({ collection: 'app.oxy.profile', rkey: 'self', record: { bio: 'v0' } });
+    const { recordId: v0 } = await appendGenesis({
+      collection: 'app.oxy.profile',
+      rkey: 'self',
+      record: { bio: 'v0' },
+    });
 
     const v1 = await buildSignedEnvelope({
       privateKey: owner.privateKey,
@@ -211,7 +229,7 @@ describe('NodeStore', () => {
 
     for (const notBytes of ['hello blob world', 42, null, undefined, { length: 16 }, ['a', 'b']]) {
       await expect(store.putBlob(hash, notBytes as unknown as Uint8Array)).rejects.toThrow(
-        'invalid_blob_bytes'
+        'invalid_blob_bytes',
       );
     }
     // Nothing was written under that address by any of them.
@@ -227,7 +245,7 @@ describe('NodeStore', () => {
 
     for (const notAHash of [42, null, undefined, ['a'], { toLowerCase: () => 'x' }]) {
       await expect(store.putBlob(notAHash as unknown as string, bytes)).rejects.toThrow(
-        'invalid_blob_hash'
+        'invalid_blob_hash',
       );
     }
   });

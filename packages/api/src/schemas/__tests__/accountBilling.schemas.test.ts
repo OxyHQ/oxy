@@ -68,7 +68,7 @@ describe('the money-moving bodies are strict', () => {
         amount: 20,
         successUrl: 'https://console.oxy.so/ok',
         cancelUrl: 'https://console.oxy.so/no',
-      }).success
+      }).success,
     ).toBe(false);
   });
 
@@ -78,7 +78,7 @@ describe('the money-moving bodies are strict', () => {
         amount: '20.000000000000',
         successUrl: 'https://console.oxy.so/ok',
         cancelUrl: 'https://console.oxy.so/no',
-      }).success
+      }).success,
     ).toBe(true);
   });
 
@@ -88,7 +88,7 @@ describe('the money-moving bodies are strict', () => {
     // have, and a stripped field survives in whatever proxied the request.
     expect(
       updateBillingProfileBody.safeParse({ creditLimit: '100', creditLimitOverride: '999' })
-        .success
+        .success,
     ).toBe(false);
   });
 
@@ -100,8 +100,7 @@ describe('the money-moving bodies are strict', () => {
       promotionalGrantBody.safeParse({
         amount: '10.000000000000',
         idempotencyKey: 'campaign-2026-08',
-      }).success
+      }).success,
     ).toBe(true);
   });
-
 });

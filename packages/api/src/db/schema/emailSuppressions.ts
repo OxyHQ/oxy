@@ -81,9 +81,7 @@ export const emailSuppressions = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    unique('email_suppressions_scope_address_key')
-      .on(t.userId, t.address)
-      .nullsNotDistinct(),
+    unique('email_suppressions_scope_address_key').on(t.userId, t.address).nullsNotDistinct(),
     index('email_suppressions_address_idx').on(t.address),
     index('email_suppressions_expires_idx').on(t.expiresAt),
     check(

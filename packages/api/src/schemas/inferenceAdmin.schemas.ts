@@ -82,9 +82,8 @@ export const metricsQuery = z
   })
   .refine(
     (value) =>
-      (dayStart(value.to) - dayStart(value.from)) / (24 * 60 * 60 * 1000) <
-      METRICS_MAX_WINDOW_DAYS,
-    { message: `the window may span at most ${METRICS_MAX_WINDOW_DAYS} days`, path: ['to'] }
+      (dayStart(value.to) - dayStart(value.from)) / (24 * 60 * 60 * 1000) < METRICS_MAX_WINDOW_DAYS,
+    { message: `the window may span at most ${METRICS_MAX_WINDOW_DAYS} days`, path: ['to'] },
   );
 
 /**
@@ -189,7 +188,10 @@ export const routingScoresBody = z
         fundingClass: z.enum(INFERENCE_FUNDING_CLASSES),
         state: z.enum(INFERENCE_FUNDING_STATES),
         evidenceRef,
-        remaining: z.string().regex(/^\d+(?:\.\d{1,12})?$/).nullable(),
+        remaining: z
+          .string()
+          .regex(/^\d+(?:\.\d{1,12})?$/)
+          .nullable(),
         remainingUnit: z.string().trim().min(1).max(64).nullable(),
         observedAt: instant.nullable(),
         validUntil: instant.nullable(),

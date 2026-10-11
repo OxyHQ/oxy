@@ -92,7 +92,7 @@ describe('creating a bot account', () => {
     const username = unique('gardenhelper');
 
     await expect(
-      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username })
+      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username }),
     ).rejects.toMatchObject({
       statusCode: 400,
       message: BOT_USERNAME_INVALID_MESSAGE,
@@ -109,7 +109,7 @@ describe('creating a bot account', () => {
     const username = unique('gardenhelper');
 
     await expect(
-      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username })
+      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username }),
     ).rejects.toMatchObject({ statusCode: 400 });
 
     const [found] = await getDb()
@@ -159,7 +159,7 @@ describe('creating a bot account', () => {
     const ownerId = await seedOwner();
 
     await expect(
-      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username: 'a.b' })
+      accountService.createChildAccount(ownerId, ownerId, { kind: 'bot', username: 'a.b' }),
     ).rejects.toMatchObject({
       statusCode: 400,
       message: USERNAME_INVALID_MESSAGE,
@@ -180,7 +180,7 @@ describe('and the rule reaches no other kind', () => {
       });
 
       expect(await storedUsername(account.id)).toBe(username);
-    }
+    },
   );
 
   it('a personal account signs up under a handle that carries no label', async () => {
@@ -218,7 +218,7 @@ describe('renaming through PATCH /accounts/:id', () => {
     const before = await storedUsername(account.id);
 
     await expect(
-      accountService.updateAccount(account.id, { username: unique('garden') })
+      accountService.updateAccount(account.id, { username: unique('garden') }),
     ).rejects.toMatchObject({
       statusCode: 400,
       message: BOT_USERNAME_INVALID_MESSAGE,
@@ -258,7 +258,7 @@ describe('renaming through PATCH /accounts/:id', () => {
       await accountService.updateAccount(account.id, { username: next });
 
       expect(await storedUsername(account.id)).toBe(next);
-    }
+    },
   );
 });
 
@@ -272,7 +272,7 @@ describe('renaming through PUT /users/:userId', () => {
     const before = await storedUsername(account.id);
 
     await expect(
-      userService.updateUserProfile(account.id, { username: unique('garden') })
+      userService.updateUserProfile(account.id, { username: unique('garden') }),
     ).rejects.toMatchObject({
       statusCode: 400,
       message: BOT_USERNAME_INVALID_MESSAGE,

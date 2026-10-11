@@ -84,7 +84,9 @@ async function getJson(server: http.Server, path: string): Promise<JsonResponse>
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};
@@ -165,7 +167,7 @@ describe.each([
     ['alphabetical', 'an ordering we do not implement'],
     ['RECENT', 'the right word in the wrong case'],
     ['', 'an empty value'],
-    ['createdAt', 'a raw Mongo field name'],
+    ['createdAt', 'a raw field name'],
   ])('rejects sort=%s (%s) with 400 INVALID_SORT', async (sort) => {
     const mock = getMock();
     const res = await getJson(server, `/users/${TARGET}${suffix}?sort=${encodeURIComponent(sort)}`);

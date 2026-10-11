@@ -2,14 +2,16 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyManager, IdentityAlreadyExistsError, IdentityUnavailableError } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  IdentityAlreadyExistsError,
+  IdentityUnavailableError,
+} from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { Fonts } from '@/constants/theme';
 import { withAlpha } from '@oxy.so/bloom/theme';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useIdentityStore } from '@/hooks/identity/identityStore';
@@ -25,8 +27,9 @@ import { usePreventScreenCapture } from '@/hooks/usePreventScreenCapture';
  * Identity "Private Key Export") but does NOT have their recovery phrase — the
  * phrase cannot be re-derived from the key (the key is the one-way PBKDF2 output
  * of the seed), but the key alone is full control of the account. Delegates the
- * store + register-if-needed + sign-in to `importIdentityFromPrivateKey`, which
- * mirrors the phrase importer minus the mnemonic steps.
+ * store + sign-in (for a key that has an account) to
+ * `importIdentityFromPrivateKey`, which mirrors the phrase importer minus the
+ * mnemonic steps. A key without an account is registered at the username step.
  *
  * The key typed or pasted here is full control of the account, so the window
  * refuses screenshots and screen recording while this screen is mounted.
@@ -66,9 +69,9 @@ export default function ImportPrivateKeyScreen() {
       const offline = await checkIfOffline();
       const result = await importIdentityFromPrivateKey(key, { skipSync: offline });
 
-      // Online but server sync failed: do not advance — username would call
-      // authenticated APIs with no session (same guard as the phrase importer).
-      if (!offline && !result.synced) {
+      // Online but the server could not be reached: do not advance (same guard
+      // as the phrase importer). A key with no account goes to the username step.
+      if (!offline && !result.synced && !result.needsUsername) {
         setError(t('importPrivateKey.syncFailed'));
         return;
       }
@@ -78,11 +81,7 @@ export default function ImportPrivateKeyScreen() {
       // nudges them to create a proper phrase backup.
       setRecoveryPhraseAcknowledgedPersisted(false);
 
-      router.replace(
-        offline
-          ? '/(auth)/import-identity/notifications'
-          : '/(auth)/import-identity/username',
-      );
+      router.replace('/(auth)/import-identity/username');
     } catch (err: unknown) {
       if (err instanceof IdentityMayExistError) {
         router.replace('/(auth)/recover-identity');
@@ -103,7 +102,9 @@ export default function ImportPrivateKeyScreen() {
   }, [privateKey, importIdentityFromPrivateKey, router, setRecoveryPhraseAcknowledgedPersisted, t]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}
+    >
       <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.title, { color: colors.text }]}>{t('importPrivateKey.title')}</Text>
         <Text style={[styles.subtitle, { color: colors.text, opacity: 0.6 }]}>
@@ -122,13 +123,26 @@ export default function ImportPrivateKeyScreen() {
           spellCheck={false}
           style={[
             styles.input,
-            { color: colors.text, borderColor: withAlpha(colors.text, 0.2), backgroundColor: colors.card },
+            {
+              color: colors.text,
+              borderColor: withAlpha(colors.text, 0.2),
+              backgroundColor: colors.card,
+            },
           ]}
         />
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleImport} disabled={isLoading} loading={isLoading} className="mt-space-32">{isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={handleImport}
+          disabled={isLoading}
+          loading={isLoading}
+          className="mt-space-32"
+        >
+          {isLoading ? t('importPrivateKey.importing') : t('importPrivateKey.import')}
+        </Button>
 
         <Button appearance="subtle" onPress={() => router.back()} disabled={isLoading}>
           {t('common.back')}

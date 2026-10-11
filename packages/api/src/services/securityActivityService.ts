@@ -2,35 +2,24 @@
  * The account's own audit trail — the write and read halves of
  * `GET /security/activity`.
  *
- * ## The cutover bug this port removes
+ * ## No id-shape guard
  *
- * `logSecurityEvent` opened with
- *
- * ```ts
- * if (!Types.ObjectId.isValid(userId)) {
- *   logger.error('Invalid userId provided to logSecurityEvent', …);
- *   throw new Error('Invalid userId');
- * }
- * ```
- *
- * and `getUserSecurityActivity` / `getRecentSecurityActivity` carried the same
- * test. That regex rejects the **uuid v7 every account created after the
- * Postgres cutover carries** (`@oxy.so/db`'s `generatedId()`), so for such
- * an account the trail stopped being written at all: sign-in, sign-out, email
- * change, device added, profile update — every one of them threw before
- * touching a table. Most callers `await` the helper inside a `try` that swallows
- * (`session.controller.ts`, `user.service.ts`), so the visible
- * symptom was an audit history that simply stayed empty; on
+ * Ids are either legacy 24-hex ids or **uuid v7** (`@oxy.so/db`'s
+ * `generatedId()`). A 24-hex format check on `userId` in `logSecurityEvent`,
+ * `getUserSecurityActivity` or `getRecentSecurityActivity` would reject every
+ * uuid-id account, and the trail would stop being written at all: sign-in,
+ * sign-out, email change, device added, profile update — every one would throw
+ * before touching a table. Most callers `await` the helper inside a `try` that
+ * swallows (`session.controller.ts`, `user.service.ts`), so the visible symptom
+ * would be an audit history that simply stays empty; on
  * `POST /security/activity/{private-key-exported,backup-created}` the same throw
- * surfaced as an HTTP 500.
+ * would surface as an HTTP 500.
  *
- * The guards are DELETED, not widened. They only ever existed to stop a
- * malformed string reaching Mongoose as a `CastError`; `security_activities.
- * user_id` is now a `text` column with a real foreign key to `users.id`, so a
- * read for an unknown id returns no rows — exactly what a malformed one always
- * produced — and a WRITE for one is refused by the FK rather than by a regex
- * guessing at the id's shape. `__tests__/securityActivityService.test.ts` pins
- * this: reinstate the guard and the post-cutover-account cases go red.
+ * `security_activities.user_id` is a `text` column with a real foreign key to
+ * `users.id`, so a read for an unknown id returns no rows and a WRITE for one is
+ * refused by the FK rather than by a regex guessing at the id's shape.
+ * `__tests__/securityActivityService.test.ts` pins this: add such a guard and
+ * the uuid-account cases go red.
  *
  * ## No IP, anywhere
  *
@@ -205,27 +194,29 @@ class SecurityActivityService {
    * Returns the STORED row rather than a boolean: it is what
    * {@link SecurityActivityService.logSecurityEvent} hands back for a suppressed
    * duplicate, so the caller receives a real row instead of the fabricated one
-   * the Mongo version invented (`_id: new Types.ObjectId()`) for an event that
-   * was never written.
+   * a fabricated id for an event that was never written would give.
    */
   private async findDuplicateEvent(
     userId: string,
     eventType: SecurityEventType,
     deviceId?: string,
-    windowMs: number = DEDUPLICATION_WINDOW_MS
+    windowMs: number = DEDUPLICATION_WINDOW_MS,
   ): Promise<SecurityActivityRecord | null> {
     try {
       const windowStart = new Date(Date.now() - windowMs);
       const filters = [
         eq(securityActivities.userId, userId),
         eq(securityActivities.eventType, eventType),
-        // `>=` on the EVENT time, matching the Mongo `$gte` on `timestamp` this
-        // replaces — not on `created_at`, which is the row's write time.
+        // `>=` on the EVENT time — not on `created_at`, which is the row's
+        // write time.
         gte(securityActivities.occurredAt, windowStart),
       ];
 
       // For device-specific events, also check deviceId
-      if (deviceId && (eventType === 'sign_in' || eventType === 'device_added' || eventType === 'device_removed')) {
+      if (
+        deviceId &&
+        (eventType === 'sign_in' || eventType === 'device_added' || eventType === 'device_removed')
+      ) {
         filters.push(eq(securityActivities.deviceId, deviceId));
       }
 
@@ -254,11 +245,10 @@ class SecurityActivityService {
    * Log a security event.
    *
    * Returns the stored row, or `null` when nothing was stored. `null` is the
-   * honest answer the Mongo version could not give: it swallowed a failed write
-   * and returned an unsaved document carrying an `_id` that named no record
-   * anywhere. Audit logging must never break the operation it describes, so a
-   * write failure is still logged and swallowed rather than thrown — the change
-   * is that the caller can now tell.
+   * honest answer: never an unsaved row carrying an id that names no record.
+   * Audit logging must never break the operation it describes, so a write
+   * failure is logged and swallowed rather than thrown — but the caller can
+   * tell.
    */
   async logSecurityEvent(options: LogSecurityEventOptions): Promise<SecurityActivityRecord | null> {
     const {
@@ -285,7 +275,9 @@ class SecurityActivityService {
 
     // Extract and sanitize user agent
     const rawUserAgent = req?.headers['user-agent'];
-    const userAgent = rawUserAgent ? this.sanitizeString(rawUserAgent, MAX_USER_AGENT_LENGTH) : undefined;
+    const userAgent = rawUserAgent
+      ? this.sanitizeString(rawUserAgent, MAX_USER_AGENT_LENGTH)
+      : undefined;
 
     // Sanitize metadata
     const sanitizedMetadata = this.sanitizeMetadata(metadata);
@@ -350,18 +342,22 @@ class SecurityActivityService {
     } catch (error) {
       // Log error but don't throw - security logging should never break main operations
       // However, for critical events, we should be more aggressive about retrying
-      logger.error('Failed to log security event', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SecurityActivityService',
-        method: 'logSecurityEvent',
-        userId,
-        eventType,
-        severity,
-      });
+      logger.error(
+        'Failed to log security event',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SecurityActivityService',
+          method: 'logSecurityEvent',
+          userId,
+          eventType,
+          severity,
+        },
+      );
 
       // For critical events, attempt one retry after a short delay
       if (severity === 'critical') {
         try {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+          await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
           const retried = await this.insertActivity(values);
           logger.info('Critical security event logged on retry', {
             component: 'SecurityActivityService',
@@ -371,11 +367,15 @@ class SecurityActivityService {
           });
           return retried;
         } catch (retryError) {
-          logger.error('Retry failed for critical security event', retryError instanceof Error ? retryError : new Error(String(retryError)), {
-            component: 'SecurityActivityService',
-            userId,
-            eventType,
-          });
+          logger.error(
+            'Retry failed for critical security event',
+            retryError instanceof Error ? retryError : new Error(String(retryError)),
+            {
+              component: 'SecurityActivityService',
+              userId,
+              eventType,
+            },
+          );
         }
       }
 
@@ -387,7 +387,7 @@ class SecurityActivityService {
 
   /** Insert one event and read back exactly the columns a reader sees. */
   private async insertActivity(
-    values: typeof securityActivities.$inferInsert
+    values: typeof securityActivities.$inferInsert,
   ): Promise<SecurityActivityRecord> {
     const [row] = await getDb()
       .insert(securityActivities)
@@ -409,14 +409,14 @@ class SecurityActivityService {
       limit?: number;
       offset?: number;
       eventType?: SecurityEventType;
-    } = {}
+    } = {},
   ): Promise<{ activities: SecurityActivityRecord[]; total: number; hasMore: boolean }> {
     // Use shared validation utility for pagination
     const { limit, offset } = validatePagination(
       options.limit,
       options.offset,
       100, // maxLimit
-      50   // defaultLimit
+      50, // defaultLimit
     );
 
     const { eventType } = options;
@@ -448,10 +448,7 @@ class SecurityActivityService {
   /**
    * Get recent security activity (last N events)
    */
-  async getRecentSecurityActivity(
-    userId: string,
-    limit = 10
-  ): Promise<SecurityActivityRecord[]> {
+  async getRecentSecurityActivity(userId: string, limit = 10): Promise<SecurityActivityRecord[]> {
     // Validate and clamp limit
     const validatedLimit = Math.min(Math.max(1, limit), 100);
 
@@ -479,7 +476,7 @@ class SecurityActivityService {
     userId: string,
     req: Request,
     deviceId?: string,
-    metadata?: SecurityEventMetadata
+    metadata?: SecurityEventMetadata,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -498,7 +495,7 @@ class SecurityActivityService {
   async logSignOut(
     userId: string,
     req: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -517,7 +514,7 @@ class SecurityActivityService {
     userId: string,
     oldEmail: string,
     newEmail: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -538,7 +535,7 @@ class SecurityActivityService {
   async logProfileUpdate(
     userId: string,
     updatedFields: string[],
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -559,7 +556,7 @@ class SecurityActivityService {
     userId: string,
     deviceId: string,
     deviceName: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -581,7 +578,7 @@ class SecurityActivityService {
     userId: string,
     deviceId: string,
     deviceName: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -602,7 +599,7 @@ class SecurityActivityService {
   async logAccountRecovery(
     userId: string,
     recoveryMethod: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -624,7 +621,7 @@ class SecurityActivityService {
     settingName: string,
     oldValue: unknown,
     newValue: unknown,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -647,7 +644,7 @@ class SecurityActivityService {
     userId: string,
     description: string,
     metadata?: SecurityEventMetadata,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -665,7 +662,7 @@ class SecurityActivityService {
   async logPrivateKeyExported(
     userId: string,
     req?: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -686,7 +683,7 @@ class SecurityActivityService {
   async logBackupCreated(
     userId: string,
     req?: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,

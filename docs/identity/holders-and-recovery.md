@@ -10,7 +10,7 @@ unbuilt. Update the row when the code changes — a stale row here is a bug.
 
 | | Email account | Commons account (self-custody) |
 |---|---|---|
-| Created | in any app's dialog (`OxySignUpPanel`): username → email, confirmed with a 6-digit code → signed in | in Commons: a key and its recovery phrase (`/auth/register`) |
+| Created | in any app's dialog (`OxySignUpPanel`): username → email, confirmed with a 6-digit code → signed in | in Commons: a key and its recovery phrase, made on the device (offline too); the account is created at the username step — `/auth/register` with the key AND the username in one insert, never a key alone |
 | `users.public_key` | `NULL` | the root |
 | `users.email` | the confirmed email | `NULL` — none is stored |
 | Signs in with | an emailed code or link, an optional password, plus the authenticator when it has one (`/auth/signin/*`) | Commons (QR, deep link, shared keychain) |
@@ -115,7 +115,7 @@ challenge, plus a fresh email code for `link_commons`):
 
 | Caller | Uses |
 |---|---|
-| `packages/commons` | Commons sign-up (`/auth/register`, key included, no email), backup, deletion, linking a web account (`app/(auth)/link-account/`) |
+| `packages/commons` | Commons sign-up (`/auth/register`: key + required username, no email; offline, the chosen username waits in secure storage and the reconnect sync registers with it), backup, deletion, linking a web account (`app/(auth)/link-account/`) |
 | `packages/services` | `OxySignInPanel`, `OxySignUpPanel`, `OxyPasswordPanel`, `OxyAuthenticatorPanel`, `OxyDeleteAccountPanel`, `OxyLinkCommonsPanel` — in every app's dialog and account menu |
 | `packages/auth` (`auth.oxy.so`) | `/login` renders `OxySignInPanel` (and sign-up with `?screen=signup`); `/email-signin` approves the link |
 | `packages/accounts` | `GET /identity/root-status` and `/users/me/sign-in-methods` for the sign-in method rows (email, password, authenticator, "Link Commons") and the recommendation |
@@ -125,7 +125,9 @@ challenge, plus a fresh email code for `link_commons`):
 `packages/api/src/scripts/delete-accounts.ts` runs the same deletion workflow
 (`services/accountDeletion.service.ts`) for named accounts: usernames or ids,
 a dry run unless `--confirm`, and only `type = 'local'` and `kind = 'personal'`
-accounts. In production it runs as a one-off ECS task on the API's task
+accounts with no email. An account with a key is refused unless `--allow-key`,
+which is only for identities Oxy itself created (test, emulator and E2E keys, and
+key registrations abandoned before a username), never a person's account. In production it runs as a one-off ECS task on the API's task
 definition (`node packages/api/dist/scripts/delete-accounts.js …`).
 
 ## Mail

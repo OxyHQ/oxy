@@ -15,7 +15,7 @@
  *
  * `session.service`, the socket emitters and the auth middleware ARE mocked:
  * they are collaborators, not the subject. `validate` and `serializeApplication`
- * are REAL, so the wire shape stays pinned. Nothing about MongoDB is mocked.
+ * are REAL, so the wire shape stays pinned. The database is not mocked.
  *
  * Every test mints its own users, applications and credentials with unique
  * values, so no assertion depends on a table being empty.
@@ -499,8 +499,9 @@ describe('the opaque-origin guard', () => {
     expect(matchesRegisteredOrigin(new Set(['null']), 'null')).toBe(false);
     expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'null')).toBe(false);
     // Positive control: an ordinary origin in that same set still matches.
-    expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'https://rp.example'))
-      .toBe(true);
+    expect(
+      matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'https://rp.example'),
+    ).toBe(true);
   });
 });
 
@@ -674,8 +675,7 @@ describe('GET /auth/oauth/client/:clientId — public metadata lookup', () => {
 
   it('removes legacy credential query parameters from the public icon projection', async () => {
     const app = await application({
-      icon:
-        'https://cdn.example.test/homiio.svg?size=64&token=secret-marker&access_token=second-marker&authorization=third-marker#app',
+      icon: 'https://cdn.example.test/homiio.svg?size=64&token=secret-marker&access_token=second-marker&authorization=third-marker#app',
     });
     const clientId = await credential(app.id);
 

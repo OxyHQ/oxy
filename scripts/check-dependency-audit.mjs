@@ -109,22 +109,23 @@ const ACKNOWLEDGED_PACKAGES = [
   {
     package: 'braces',
     advisories: ['GHSA-vfj7-8cjw-p6xm'],
-    reachedBy: '@oxy.so/api -> @oxy.so/protocol -> expo-modules-core -> react-native -> Metro -> micromatch; also development tooling',
+    reachedBy:
+      '@oxy.so/api -> @oxy.so/protocol -> expo-modules-core -> react-native -> Metro -> micromatch; also development tooling',
     reason:
-      'GHSA-vfj7-8cjw-p6xm has no patched release. Native peers materialize Metro/micromatch '
-      + 'in the production closure, so this is not a dev-only dependency. The inspected protocol '
-      + 'Node export selects platform/crypto.ts (node:crypto), not its native entry; no inspected '
-      + 'API/core/contracts/protocol runtime source imports Metro/micromatch/braces. Tooling '
-      + 'patterns come from repository inputs. This is reachability evidence, not a complete '
-      + 'transitive request-path proof; reject untrusted nested tooling patterns and revisit '
-      + 'on any graph/entrypoint change or upstream fix. See docs/security/issuer-braces-review-2026-10-03.md.',
+      'GHSA-vfj7-8cjw-p6xm has no patched release. Native peers materialize Metro/micromatch ' +
+      'in the production closure, so this is not a dev-only dependency. The inspected protocol ' +
+      'Node export selects platform/crypto.ts (node:crypto), not its native entry; no inspected ' +
+      'API/core/contracts/protocol runtime source imports Metro/micromatch/braces. Tooling ' +
+      'patterns come from repository inputs. This is reachability evidence, not a complete ' +
+      'transitive request-path proof; reject untrusted nested tooling patterns and revisit ' +
+      'on any graph/entrypoint change or upstream fix. See docs/security/issuer-braces-review-2026-10-03.md.',
   },
   {
     package: 'undici',
     reachedBy: 'release-it (dev)',
     reason:
-      "release-it's HTTP client, used to talk to GitHub and npm during a release. The advisories "
-      + 'are WebSocket and multi-user proxy issues; release-it opens neither.',
+      "release-it's HTTP client, used to talk to GitHub and npm during a release. The advisories " +
+      'are WebSocket and multi-user proxy issues; release-it opens neither.',
   },
 ];
 
@@ -145,7 +146,12 @@ if (process.env.DEPENDENCY_AUDIT_EMIT_ACKNOWLEDGEMENTS === '1') {
   console.log(
     JSON.stringify({
       packages: ACKNOWLEDGED_PACKAGES.map((entry) => entry.package),
-      advisoryConstraints: Object.fromEntries(ACKNOWLEDGED_PACKAGES.filter(entry => entry.advisories).map(entry => [entry.package, entry.advisories])),
+      advisoryConstraints: Object.fromEntries(
+        ACKNOWLEDGED_PACKAGES.filter((entry) => entry.advisories).map((entry) => [
+          entry.package,
+          entry.advisories,
+        ]),
+      ),
       criticals: ACKNOWLEDGED_CRITICAL.map((entry) => ({
         package: entry.package,
         advisory: entry.advisory,
@@ -187,10 +193,10 @@ function auditPayload() {
   const stdout = audit.stdout.toString().trim();
   if (stdout.length === 0) {
     console.error(
-      'bun audit produced no JSON on stdout, so no advisory could be read. Treating that as a\n'
-      + 'pass is the `|| true` this gate replaced: an audit that did not happen and an audit that\n'
-      + 'found nothing are the same output. stderr was:\n'
-      + `${audit.stderr.toString().trim() || '(empty)'}`,
+      'bun audit produced no JSON on stdout, so no advisory could be read. Treating that as a\n' +
+        'pass is the `|| true` this gate replaced: an audit that did not happen and an audit that\n' +
+        'found nothing are the same output. stderr was:\n' +
+        `${audit.stderr.toString().trim() || '(empty)'}`,
     );
     process.exit(1);
   }
@@ -241,16 +247,23 @@ const scopedPolicy = inspectForgeAuditPolicy(payload);
 if (scopedPolicy.configurationInvalid || (scopedPolicy.policyActive && !scopedPolicy.remediated)) {
   problems.push(`Scoped Forge policy fails closed: ${scopedPolicy.reason}`);
 }
-const unacknowledged = gated.filter((entry) => (!acknowledgedEntries.has(entry.package)
-  || (acknowledgedEntries.get(entry.package).advisories
-    && !acknowledgedEntries.get(entry.package).advisories.includes(entry.advisory)))
-  && !(scopedPolicy.remediated && entry.package === 'node-forge'
-    && entry.advisory === 'GHSA-86w9-cpqp-85rv' && entry.severity === 'high'));
+const unacknowledged = gated.filter(
+  (entry) =>
+    (!acknowledgedEntries.has(entry.package) ||
+      (acknowledgedEntries.get(entry.package).advisories &&
+        !acknowledgedEntries.get(entry.package).advisories.includes(entry.advisory))) &&
+    !(
+      scopedPolicy.remediated &&
+      entry.package === 'node-forge' &&
+      entry.advisory === 'GHSA-86w9-cpqp-85rv' &&
+      entry.severity === 'high'
+    ),
+);
 
 for (const entry of unacknowledged) {
   problems.push(
-    `${entry.package} carries a ${entry.severity} advisory nobody has acknowledged: `
-    + `${entry.advisory} — ${entry.title}.`,
+    `${entry.package} carries a ${entry.severity} advisory nobody has acknowledged: ` +
+      `${entry.advisory} — ${entry.title}.`,
   );
 }
 
@@ -262,8 +275,8 @@ for (const entry of gated) {
   if (entry.severity !== 'critical') continue;
   if (acknowledgedCritical.has(`${entry.package} ${entry.advisory}`)) continue;
   problems.push(
-    `${entry.package} ${entry.advisory} is CRITICAL and is not named in ACKNOWLEDGED_CRITICAL `
-    + `— ${entry.title}. A package-level acknowledgement deliberately does not cover a critical.`,
+    `${entry.package} ${entry.advisory} is CRITICAL and is not named in ACKNOWLEDGED_CRITICAL ` +
+      `— ${entry.title}. A package-level acknowledgement deliberately does not cover a critical.`,
   );
 }
 
@@ -272,9 +285,9 @@ const gatedPackages = new Set(gated.map((entry) => entry.package));
 for (const entry of ACKNOWLEDGED_PACKAGES) {
   if (gatedPackages.has(entry.package)) continue;
   problems.push(
-    `ACKNOWLEDGED_PACKAGES still excuses ${entry.package}, which no longer has any high or `
-    + 'critical advisory. Delete the entry — the list has to keep describing the tree, and a '
-    + 'stale entry reads exactly like a live one.',
+    `ACKNOWLEDGED_PACKAGES still excuses ${entry.package}, which no longer has any high or ` +
+      'critical advisory. Delete the entry — the list has to keep describing the tree, and a ' +
+      'stale entry reads exactly like a live one.',
   );
 }
 
@@ -282,8 +295,8 @@ const gatedPairs = new Set(gated.map((entry) => `${entry.package} ${entry.adviso
 for (const entry of ACKNOWLEDGED_CRITICAL) {
   if (gatedPairs.has(`${entry.package} ${entry.advisory}`)) continue;
   problems.push(
-    `ACKNOWLEDGED_CRITICAL still names ${entry.package} ${entry.advisory}, which the audit no `
-    + 'longer reports. Delete the entry.',
+    `ACKNOWLEDGED_CRITICAL still names ${entry.package} ${entry.advisory}, which the audit no ` +
+      'longer reports. Delete the entry.',
   );
 }
 
@@ -297,18 +310,18 @@ if (problems.length > 0) {
   console.error('Dependency audit FAILED:\n');
   for (const problem of problems) console.error(`  - ${problem}\n`);
   console.error(
-    `  Audit reported ${gated.length} advisor${gated.length === 1 ? 'y' : 'ies'} at high or above `
-    + `(${summary || 'nothing'} in total).\n\n`
-    + '  If a dependency you added or widened is named above: raise it past the advisory, or\n'
-    + '  drop it. If it cannot be raised from here, add an ACKNOWLEDGED_PACKAGES entry stating\n'
-    + '  the `bun why` path and why the advisory does not reach a served request — in the same\n'
-    + '  commit as the dependency change.\n',
+    `  Audit reported ${gated.length} advisor${gated.length === 1 ? 'y' : 'ies'} at high or above ` +
+      `(${summary || 'nothing'} in total).\n\n` +
+      '  If a dependency you added or widened is named above: raise it past the advisory, or\n' +
+      '  drop it. If it cannot be raised from here, add an ACKNOWLEDGED_PACKAGES entry stating\n' +
+      '  the `bun why` path and why the advisory does not reach a served request — in the same\n' +
+      '  commit as the dependency change.\n',
   );
   process.exit(1);
 }
 
 console.log(
-  `Dependency audit passed — ${gated.length} advisor${gated.length === 1 ? 'y' : 'ies'} at high or `
-  + `above, all inside ${ACKNOWLEDGED_PACKAGES.length} acknowledged package(s) with `
-  + `${ACKNOWLEDGED_CRITICAL.length} critical(s) named individually; ${summary || 'nothing'} in total.`,
+  `Dependency audit passed — ${gated.length} advisor${gated.length === 1 ? 'y' : 'ies'} at high or ` +
+    `above, all inside ${ACKNOWLEDGED_PACKAGES.length} acknowledged package(s) with ` +
+    `${ACKNOWLEDGED_CRITICAL.length} critical(s) named individually; ${summary || 'nothing'} in total.`,
 );

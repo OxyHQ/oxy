@@ -33,7 +33,13 @@ function createFixture() {
   const root = mkdtempSync(join(tmpdir(), 'oxy-ci-build-cache-'));
   fixtures.push(root);
   const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
-  for (const path of [CI, WRITER, TURBO, 'package.json', ...manifest.workspaces.packages.map((dir) => join(dir, 'package.json'))]) {
+  for (const path of [
+    CI,
+    WRITER,
+    TURBO,
+    'package.json',
+    ...manifest.workspaces.packages.map((dir) => join(dir, 'package.json')),
+  ]) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     cpSync(join(repoRoot, path), join(root, path));
   }
@@ -55,7 +61,11 @@ function expectCheck(name, mutations, expectedCode, fragment) {
   let code = 0;
   let output = '';
   try {
-    output = execFileSync('bun', [checkScript], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    output = execFileSync('bun', [checkScript], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (error) {
     code = error.status ?? 1;
     output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
@@ -83,30 +93,93 @@ const RESTORE = 'actions/cache/restore@';
 expectCheck('the-real-tree-passes', [], 0, 'only `build` is cacheable');
 
 // ── A. A hit skips a compile, never a test, never a missing input ──────────
-expectCheck('a-cacheable-test-task-fails', [turboJson((t) => { delete t.tasks.test.cache; })], 1, 'task `test` is cacheable');
-expectCheck('a-new-cacheable-task-fails', [turboJson((t) => { t.tasks.typecheck = {}; })], 1, 'task `typecheck` is cacheable');
-expectCheck('narrowed-build-inputs-fail', [turboJson((t) => { t.tasks.build.inputs = ['src/**']; })], 1, 'narrows `build.inputs`');
-expectCheck('empty-build-outputs-fail', [turboJson((t) => { t.tasks.build.outputs = []; })], 1, '`build.outputs` is empty');
+expectCheck(
+  'a-cacheable-test-task-fails',
+  [
+    turboJson((t) => {
+      delete t.tasks.test.cache;
+    }),
+  ],
+  1,
+  'task `test` is cacheable',
+);
+expectCheck(
+  'a-new-cacheable-task-fails',
+  [
+    turboJson((t) => {
+      t.tasks.typecheck = {};
+    }),
+  ],
+  1,
+  'task `typecheck` is cacheable',
+);
+expectCheck(
+  'narrowed-build-inputs-fail',
+  [
+    turboJson((t) => {
+      t.tasks.build.inputs = ['src/**'];
+    }),
+  ],
+  1,
+  'narrows `build.inputs`',
+);
+expectCheck(
+  'empty-build-outputs-fail',
+  [
+    turboJson((t) => {
+      t.tasks.build.outputs = [];
+    }),
+  ],
+  1,
+  '`build.outputs` is empty',
+);
 for (const file of ['bun.lock', 'package.json', 'bunfig.toml', 'tsconfig.json']) {
   expectCheck(
     `the-lockfile-family-${file}-must-be-hashed`,
-    [turboJson((t) => { t.globalDependencies = t.globalDependencies.filter((f) => f !== file); })],
+    [
+      turboJson((t) => {
+        t.globalDependencies = t.globalDependencies.filter((f) => f !== file);
+      }),
+    ],
     1,
-    `does not name ${file}`
+    `does not name ${file}`,
   );
 }
-expectCheck('loose-env-mode-fails', [turboJson((t) => { t.envMode = 'loose'; })], 1, 'envMode: loose');
+expectCheck(
+  'loose-env-mode-fails',
+  [
+    turboJson((t) => {
+      t.envMode = 'loose';
+    }),
+  ],
+  1,
+  'envMode: loose',
+);
 expectCheck(
   'turbo-running-tests-fails',
-  [ci((y) => y.replace('run: bunx turbo run build --filter=oxy-console...', 'run: bunx turbo run test --filter=oxy-console...'))],
+  [
+    ci((y) =>
+      y.replace(
+        'run: bunx turbo run build --filter=oxy-console...',
+        'run: bunx turbo run test --filter=oxy-console...',
+      ),
+    ),
+  ],
   1,
-  'runs `turbo test`'
+  'runs `turbo test`',
 );
 expectCheck(
   'the-root-test-script-fails',
-  [ci((y) => y.replace("      - name: 'Console Tests: typecheck'\n", "      - name: all tests\n        run: bun run test\n      - name: 'Console Tests: typecheck'\n"))],
+  [
+    ci((y) =>
+      y.replace(
+        "      - name: 'Console Tests: typecheck'\n",
+        "      - name: all tests\n        run: bun run test\n      - name: 'Console Tests: typecheck'\n",
+      ),
+    ),
+  ],
   1,
-  'runs the ROOT `test` script'
+  'runs the ROOT `test` script',
 );
 
 // ── B. Nothing a pull request or queue run executes can write ──────────────
@@ -114,45 +187,58 @@ expectCheck(
   'a-saving-cache-action-in-ci-fails',
   [ci((y) => y.replace(RESTORE, 'actions/cache@'))],
   1,
-  'which SAVES a cache'
+  'which SAVES a cache',
 );
 expectCheck(
   'a-save-step-in-ci-fails',
   [ci((y) => y.replace(RESTORE, 'actions/cache/save@'))],
   1,
-  'which SAVES a cache'
+  'which SAVES a cache',
 );
 expectCheck(
   'a-remote-cache-in-ci-fails',
-  [ci((y) => y.replace('name: CI/CD Pipeline\n', 'name: CI/CD Pipeline\n\nenv:\n  TURBO_TOKEN: x\n'))],
+  [
+    ci((y) =>
+      y.replace('name: CI/CD Pipeline\n', 'name: CI/CD Pipeline\n\nenv:\n  TURBO_TOKEN: x\n'),
+    ),
+  ],
   1,
-  'mentions TURBO_TOKEN'
+  'mentions TURBO_TOKEN',
 );
 expectCheck(
   'a-turbo-remote-cache-action-in-ci-fails',
   [ci((y) => y.replace(RESTORE, 'rharkor/caching-for-turbo@'))],
   1,
-  'mentions caching-for-turbo'
+  'mentions caching-for-turbo',
 );
-for (const trigger of ['pull_request:\n', 'merge_group:\n', 'workflow_dispatch:\n', "pull_request_target:\n    branches: [main]\n"]) {
+for (const trigger of [
+  'pull_request:\n',
+  'merge_group:\n',
+  'workflow_dispatch:\n',
+  'pull_request_target:\n    branches: [main]\n',
+]) {
   expectCheck(
     `the-writer-on-${trigger.split(':')[0]}-fails`,
     [writer((y) => y.replace('on:\n  push:\n', `on:\n  ${trigger}  push:\n`))],
     1,
-    'must trigger on `push` to `main` and nothing else'
+    'must trigger on `push` to `main` and nothing else',
   );
 }
 expectCheck(
   'the-writer-on-another-branch-fails',
   [writer((y) => y.replace('    branches: [main]\n', '    branches: [main, develop]\n'))],
   1,
-  'must trigger on `push` to `main` and nothing else'
+  'must trigger on `push` to `main` and nothing else',
 );
 expectCheck(
   'the-writer-with-write-permissions-fails',
-  [writer((y) => y.replace('permissions:\n  contents: read\n', 'permissions:\n  contents: write\n'))],
+  [
+    writer((y) =>
+      y.replace('permissions:\n  contents: read\n', 'permissions:\n  contents: write\n'),
+    ),
+  ],
   1,
-  'must declare exactly `permissions: contents: read`'
+  'must declare exactly `permissions: contents: read`',
 );
 expectCheck(
   'the-writer-restoring-first-fails',
@@ -160,18 +246,18 @@ expectCheck(
     writer((y) =>
       y.replace(
         '      - name: Install dependencies\n',
-        '      - uses: actions/cache/restore@x\n        with:\n          path: .turbo/cache\n          key: k\n      - name: Install dependencies\n'
-      )
+        '      - uses: actions/cache/restore@x\n        with:\n          path: .turbo/cache\n          key: k\n      - name: Install dependencies\n',
+      ),
     ),
   ],
   1,
-  'restores a cache before building'
+  'restores a cache before building',
 );
 expectCheck(
   'the-writer-saving-something-else-fails',
   [writer((y) => y.replace('          path: .turbo/cache\n', '          path: node_modules\n'))],
   1,
-  'must save exactly one cache, `.turbo/cache`'
+  'must save exactly one cache, `.turbo/cache`',
 );
 
 // ── Wiring: a cache that would silently never hit ──────────────────────────
@@ -186,25 +272,32 @@ expectCheck(
     }),
   ],
   1,
-  'job `packages-apps` runs Turbo before restoring'
+  'job `packages-apps` runs Turbo before restoring',
 );
 expectCheck(
   'a-mismatched-key-prefix-fails',
   [writer((y) => y.replace('key: turbo-build-', 'key: turbo-other-'))],
   1,
-  'never matches'
+  'never matches',
 );
 expectCheck(
   'the-writer-not-building-console-fails',
   [writer((y) => y.replace(' --filter=oxy-console...', ''))],
   1,
-  'asks Turbo to build oxy-console'
+  'asks Turbo to build oxy-console',
 );
 expectCheck(
   'ci-building-something-the-writer-does-not-fails',
-  [ci((y) => y.replace('run: bunx turbo run build --filter=@oxy.so/contracts\n', 'run: bunx turbo run build --filter=@oxy.so/ship\n'))],
+  [
+    ci((y) =>
+      y.replace(
+        'run: bunx turbo run build --filter=@oxy.so/contracts\n',
+        'run: bunx turbo run build --filter=@oxy.so/ship\n',
+      ),
+    ),
+  ],
   1,
-  'asks Turbo to build @oxy.so/ship'
+  'asks Turbo to build @oxy.so/ship',
 );
 
 for (const root of fixtures) rmSync(root, { recursive: true, force: true });
@@ -216,5 +309,5 @@ if (failures.length > 0) {
 }
 console.log(
   `check-ci-build-cache.mjs behaves: ${cases} cases — cacheable tasks, hash inputs, env mode, every ci.yml write ` +
-    'path, the writer\'s triggers, permissions and fresh build, and the restore/save wiring.'
+    "path, the writer's triggers, permissions and fresh build, and the restore/save wiring.",
 );

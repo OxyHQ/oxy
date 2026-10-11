@@ -33,9 +33,9 @@ describe('inference routing readiness decision', () => {
     expect(assessInferenceRoutingReadiness([], now, minimumValidUntil)).toEqual({
       status: 'empty',
     });
-    expect(
-      assessInferenceRoutingReadiness([completeRow()], now, minimumValidUntil)
-    ).toEqual({ status: 'ready' });
+    expect(assessInferenceRoutingReadiness([completeRow()], now, minimumValidUntil)).toEqual({
+      status: 'ready',
+    });
   });
 
   it('refuses duplicate exact identities before considering evidence', () => {
@@ -43,8 +43,8 @@ describe('inference routing readiness decision', () => {
       assessInferenceRoutingReadiness(
         [completeRow(), completeRow({ balanced: null })],
         now,
-        minimumValidUntil
-      )
+        minimumValidUntil,
+      ),
     ).toEqual({ status: 'collision', collisions: [['dep_ready', 2]] });
   });
 
@@ -53,18 +53,9 @@ describe('inference routing readiness decision', () => {
     ['a null score', { balanced: null }],
     ['a stale price version', { scorePriceVersionId: 'price_old' }],
     ['a missing request unit price', { requestUnitPriceVersionId: null }],
-    [
-      'expired latency evidence',
-      { latencyValidUntil: new Date('2026-09-02T01:59:59.999Z') },
-    ],
-    [
-      'expired throughput evidence',
-      { throughputValidUntil: new Date('2026-09-02T01:59:59.999Z') },
-    ],
-    [
-      'expired balanced evidence',
-      { balancedValidUntil: new Date('2026-09-02T01:59:59.999Z') },
-    ],
+    ['expired latency evidence', { latencyValidUntil: new Date('2026-09-02T01:59:59.999Z') }],
+    ['expired throughput evidence', { throughputValidUntil: new Date('2026-09-02T01:59:59.999Z') }],
+    ['expired balanced evidence', { balancedValidUntil: new Date('2026-09-02T01:59:59.999Z') }],
     [
       'a future latency measurement',
       { latencyMeasurementWindowEnd: new Date('2026-09-02T00:00:00.001Z') },
@@ -75,7 +66,7 @@ describe('inference routing readiness decision', () => {
     ],
   ] as const)('refuses %s', (_label, overrides) => {
     expect(
-      assessInferenceRoutingReadiness([completeRow(overrides)], now, minimumValidUntil)
+      assessInferenceRoutingReadiness([completeRow(overrides)], now, minimumValidUntil),
     ).toMatchObject({ status: 'incomplete' });
   });
 });
@@ -105,8 +96,8 @@ describe('synced price-only routes', () => {
       assessInferenceRoutingReadiness(
         [completeRow(), syncedPriceOnlyRow()],
         now,
-        minimumValidUntil
-      )
+        minimumValidUntil,
+      ),
     ).toEqual({ status: 'ready' });
   });
 
@@ -117,11 +108,7 @@ describe('synced price-only routes', () => {
     ['an unmapped row', { deploymentId: null }],
   ] as const)('still refuse %s', (_label, overrides) => {
     expect(
-      assessInferenceRoutingReadiness(
-        [syncedPriceOnlyRow(overrides)],
-        now,
-        minimumValidUntil
-      )
+      assessInferenceRoutingReadiness([syncedPriceOnlyRow(overrides)], now, minimumValidUntil),
     ).toMatchObject({ status: 'incomplete' });
   });
 
@@ -130,8 +117,8 @@ describe('synced price-only routes', () => {
       assessInferenceRoutingReadiness(
         [completeRow(), syncedPriceOnlyRow({ modelRevisionId: 'rev_reviewed' })],
         now,
-        minimumValidUntil
-      )
+        minimumValidUntil,
+      ),
     ).toMatchObject({ status: 'incomplete', routes: [{ deploymentId: 'dep_synced' }] });
   });
 
@@ -140,8 +127,8 @@ describe('synced price-only routes', () => {
       assessInferenceRoutingReadiness(
         [syncedPriceOnlyRow({ synced: false })],
         now,
-        minimumValidUntil
-      )
+        minimumValidUntil,
+      ),
     ).toMatchObject({ status: 'incomplete' });
   });
 
@@ -150,8 +137,8 @@ describe('synced price-only routes', () => {
       assessInferenceRoutingReadiness(
         [syncedPriceOnlyRow({ balanced: 100 })],
         now,
-        minimumValidUntil
-      )
+        minimumValidUntil,
+      ),
     ).toMatchObject({ status: 'incomplete' });
   });
 });
@@ -169,7 +156,7 @@ describe('earliest inference routing evidence expiry', () => {
         completeRow({ deploymentId: 'dep_cliff', balancedValidUntil: cliff }),
         completeRow({ deploymentId: 'dep_unscored', latencyValidUntil: null }),
         syncedPriceOnlyRow(),
-      ])
+      ]),
     ).toEqual({ deploymentId: 'dep_cliff', validUntil: cliff });
   });
 
@@ -184,14 +171,14 @@ describe('earliest inference routing evidence expiry', () => {
       balancedValidUntil: new Date('2026-10-01T23:59:59.999Z'),
     });
     expect(assessInferenceRoutingReadiness([cliff], warningNow, sevenDays).status).toBe(
-      'incomplete'
+      'incomplete',
     );
     expect(
       assessInferenceRoutingReadiness(
         [cliff],
         warningNow,
-        new Date(warningNow.getTime() + 3_600_000)
-      )
+        new Date(warningNow.getTime() + 3_600_000),
+      ),
     ).toEqual({ status: 'ready' });
   });
 });

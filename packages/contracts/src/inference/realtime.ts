@@ -84,13 +84,10 @@
  * Decided in: OxyHQ/Kaana#90.
  */
 
-import { z } from "zod";
-import { inferenceAttributionSchema } from "./attribution";
-import {
-  realtimeSessionKindSchema,
-  realtimeSessionTransportSchema,
-} from "./catalogue";
-import { inferenceErrorSchema } from "./errors";
+import { z } from 'zod';
+import { inferenceAttributionSchema } from './attribution';
+import { realtimeSessionKindSchema, realtimeSessionTransportSchema } from './catalogue';
+import { inferenceErrorSchema } from './errors';
 import {
   deploymentIdSchema,
   inferenceProviderSlugSchema,
@@ -98,14 +95,11 @@ import {
   modelReferenceSchema,
   PADDED_BASE64_PATTERN,
   requestIdSchema,
-} from "./identifiers";
-import { usageQuantitySchema, usageSourceSchema } from "./money";
-import { toolChoiceSchema, toolDefinitionSchema } from "./request";
-import {
-  authorizedRouteSchema,
-  routingPolicyReferenceSchema,
-} from "./routingPolicy";
-import { inferenceFinishReasonSchema } from "./streamEvents";
+} from './identifiers';
+import { usageQuantitySchema, usageSourceSchema } from './money';
+import { toolChoiceSchema, toolDefinitionSchema } from './request';
+import { authorizedRouteSchema, routingPolicyReferenceSchema } from './routingPolicy';
+import { inferenceFinishReasonSchema } from './streamEvents';
 
 /* -------------------------------------------------------------------------- */
 /*  Bounds                                                                    */
@@ -149,14 +143,10 @@ export const realtimeResponseIdSchema = z.string().min(1).max(128);
  * The audio encodings a session carries, in both directions. Named by what they
  * ARE (sample format, rate) because a realtime stream has no container to say so.
  */
-export const realtimeAudioFormatSchema = z.enum([
-  "pcm16_24khz",
-  "g711_ulaw",
-  "g711_alaw",
-]);
+export const realtimeAudioFormatSchema = z.enum(['pcm16_24khz', 'g711_ulaw', 'g711_alaw']);
 
 /** What a session's responses produce. */
-export const realtimeOutputModalitySchema = z.enum(["text", "audio"]);
+export const realtimeOutputModalitySchema = z.enum(['text', 'audio']);
 
 const audioFrameSchema = z
   .string()
@@ -180,11 +170,11 @@ const milliseconds = z.number().int().nonnegative().safe();
  * off, are the two behaviours a caller most needs to have chosen, and a default
  * would choose them silently — and differently per provider.
  */
-export const realtimeTurnDetectionSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("none") }).strict(),
+export const realtimeTurnDetectionSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('none') }).strict(),
   z
     .object({
-      type: z.literal("server_vad"),
+      type: z.literal('server_vad'),
       threshold: z.number().min(0).max(1).optional(),
       prefixPaddingMs: z.number().int().min(0).max(5_000).optional(),
       silenceDurationMs: z.number().int().min(0).max(10_000).optional(),
@@ -194,8 +184,8 @@ export const realtimeTurnDetectionSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
-      type: z.literal("semantic_vad"),
-      eagerness: z.enum(["low", "medium", "high", "auto"]),
+      type: z.literal('semantic_vad'),
+      eagerness: z.enum(['low', 'medium', 'high', 'auto']),
       createResponse: z.boolean(),
       interruptResponse: z.boolean(),
     })
@@ -274,7 +264,7 @@ export const realtimeSessionConfigUpdateSchema = z
     if (Object.keys(update).length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "a session update changes at least one field",
+        message: 'a session update changes at least one field',
       });
     }
   });
@@ -314,7 +304,7 @@ export const realtimeClientMetadataSchema = z
 /* -------------------------------------------------------------------------- */
 
 const modelLineOf = (reference: string): string => {
-  const at = reference.indexOf("@");
+  const at = reference.indexOf('@');
   return at === -1 ? reference : reference.slice(0, at);
 };
 
@@ -342,75 +332,107 @@ export const realtimeSessionRequestSchema = z
       ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
 
     if (request.limits.idleTimeoutMs > request.limits.maxDurationMs) {
-      issue(["limits", "idleTimeoutMs"], "an idle timeout cannot outlast the session");
+      issue(['limits', 'idleTimeoutMs'], 'an idle timeout cannot outlast the session');
     }
 
-    const producesAudio = config.outputModalities?.includes("audio") === true;
+    const producesAudio = config.outputModalities?.includes('audio') === true;
     const hasTools = config.tools !== undefined && config.tools.length > 0;
     switch (request.kind) {
-      case "conversation":
+      case 'conversation':
         if (config.outputModalities === undefined) {
-          issue(["config", "outputModalities"], "a conversation names what its responses produce");
+          issue(['config', 'outputModalities'], 'a conversation names what its responses produce');
         }
-        if (producesAudio && (config.voice === undefined || config.outputAudioFormat === undefined)) {
-          issue(["config"], "spoken responses need a voice and an output audio format");
+        if (
+          producesAudio &&
+          (config.voice === undefined || config.outputAudioFormat === undefined)
+        ) {
+          issue(['config'], 'spoken responses need a voice and an output audio format');
         }
         if (config.translation !== undefined) {
-          issue(["config", "translation"], "only a translation session translates");
+          issue(['config', 'translation'], 'only a translation session translates');
         }
         break;
-      case "transcription":
+      case 'transcription':
         if (config.inputAudioTranscription === undefined) {
-          issue(["config", "inputAudioTranscription"], "a transcription session transcribes its input");
+          issue(
+            ['config', 'inputAudioTranscription'],
+            'a transcription session transcribes its input',
+          );
         }
-        for (const field of ["outputModalities", "voice", "outputAudioFormat", "translation", "tools", "toolChoice", "maxOutputTokens"] as const) {
+        for (const field of [
+          'outputModalities',
+          'voice',
+          'outputAudioFormat',
+          'translation',
+          'tools',
+          'toolChoice',
+          'maxOutputTokens',
+        ] as const) {
           if (config[field] !== undefined) {
-            issue(["config", field], "a transcription session never responds");
+            issue(['config', field], 'a transcription session never responds');
           }
         }
-        if (config.turnDetection.type !== "none" && (config.turnDetection.createResponse || config.turnDetection.interruptResponse)) {
-          issue(["config", "turnDetection"], "a transcription session has no response to create or interrupt");
+        if (
+          config.turnDetection.type !== 'none' &&
+          (config.turnDetection.createResponse || config.turnDetection.interruptResponse)
+        ) {
+          issue(
+            ['config', 'turnDetection'],
+            'a transcription session has no response to create or interrupt',
+          );
         }
         break;
-      case "translation":
+      case 'translation':
         if (config.translation === undefined || config.outputAudioFormat === undefined) {
-          issue(["config"], "a translation session names its target language and output audio format");
+          issue(
+            ['config'],
+            'a translation session names its target language and output audio format',
+          );
         }
         if (config.tools !== undefined || config.toolChoice !== undefined) {
-          issue(["config", "tools"], "a translation session calls no tools");
+          issue(['config', 'tools'], 'a translation session calls no tools');
         }
         break;
     }
 
     if (config.toolChoice !== undefined && !hasTools) {
-      issue(["config", "toolChoice"], "a tool choice requires at least one tool definition");
+      issue(['config', 'toolChoice'], 'a tool choice requires at least one tool definition');
     }
     if (config.tools !== undefined) {
       const names = config.tools.map((tool) => tool.name);
       if (new Set(names).size !== names.length) {
-        issue(["config", "tools"], "tool names must be unique within one session");
+        issue(['config', 'tools'], 'tool names must be unique within one session');
       }
     }
-    if (config.outputModalities !== undefined && new Set(config.outputModalities).size !== config.outputModalities.length) {
-      issue(["config", "outputModalities"], "each output modality is named at most once");
+    if (
+      config.outputModalities !== undefined &&
+      new Set(config.outputModalities).size !== config.outputModalities.length
+    ) {
+      issue(['config', 'outputModalities'], 'each output modality is named at most once');
     }
 
     // A session is never substituted: the conversation it holds belongs to one
     // model, so every route serves the line the caller named, and a pinned
     // request is served on exactly the revision it pinned.
     const line = modelLineOf(request.modelReference);
-    const pinned = request.modelReference.includes("@");
+    const pinned = request.modelReference.includes('@');
     for (const [index, route] of request.authorizedRoutes.entries()) {
-      if (route.substitution !== "same_model" || modelLineOf(route.modelReference) !== line) {
-        issue(["authorizedRoutes", index], "every route of a session serves the model it named");
+      if (route.substitution !== 'same_model' || modelLineOf(route.modelReference) !== line) {
+        issue(['authorizedRoutes', index], 'every route of a session serves the model it named');
       }
       if (pinned && route.modelReference !== request.modelReference) {
-        issue(["authorizedRoutes", index, "modelReference"], "a pinned session is served on exactly the revision it pinned");
+        issue(
+          ['authorizedRoutes', index, 'modelReference'],
+          'a pinned session is served on exactly the revision it pinned',
+        );
       }
     }
     const deployments = request.authorizedRoutes.map((route) => route.deploymentId);
     if (new Set(deployments).size !== deployments.length) {
-      issue(["authorizedRoutes"], "each deployment appears at most once in the authorized route list");
+      issue(
+        ['authorizedRoutes'],
+        'each deployment appears at most once in the authorized route list',
+      );
     }
   });
 
@@ -425,27 +447,27 @@ export const realtimeSessionRequestSchema = z
  * never does — spoken output arrives as `output_audio.delta` events, and an
  * item echoing it carries only the format and, once known, the transcript.
  */
-export const realtimeContentPartSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("input_text"), text: z.string().max(1_048_576) }).strict(),
+export const realtimeContentPartSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('input_text'), text: z.string().max(1_048_576) }).strict(),
   z
     .object({
-      type: z.literal("input_audio"),
+      type: z.literal('input_audio'),
       format: realtimeAudioFormatSchema,
       data: audioFrameSchema.optional(),
       transcript: z.string().optional(),
     })
     .strict(),
-  z.object({ type: z.literal("output_text"), text: z.string() }).strict(),
+  z.object({ type: z.literal('output_text'), text: z.string() }).strict(),
   z
     .object({
-      type: z.literal("output_audio"),
+      type: z.literal('output_audio'),
       format: realtimeAudioFormatSchema,
       transcript: z.string().optional(),
     })
     .strict(),
 ]);
 
-const INPUT_PARTS = new Set(["input_text", "input_audio"]);
+const INPUT_PARTS = new Set(['input_text', 'input_audio']);
 
 /**
  * One item of the conversation a session holds.
@@ -454,18 +476,18 @@ const INPUT_PARTS = new Set(["input_text", "input_audio"]);
  * is always stated by the server on the events that carry an item.
  */
 export const realtimeConversationItemSchema = z
-  .discriminatedUnion("type", [
+  .discriminatedUnion('type', [
     z
       .object({
-        type: z.literal("message"),
+        type: z.literal('message'),
         itemId: realtimeItemIdSchema.optional(),
-        role: z.enum(["system", "user", "assistant"]),
+        role: z.enum(['system', 'user', 'assistant']),
         content: z.array(realtimeContentPartSchema).min(1).max(64),
       })
       .strict(),
     z
       .object({
-        type: z.literal("function_call"),
+        type: z.literal('function_call'),
         itemId: realtimeItemIdSchema.optional(),
         callId: z.string().min(1).max(128),
         name: z.string().min(1).max(128),
@@ -474,7 +496,7 @@ export const realtimeConversationItemSchema = z
       .strict(),
     z
       .object({
-        type: z.literal("function_call_output"),
+        type: z.literal('function_call_output'),
         itemId: realtimeItemIdSchema.optional(),
         callId: z.string().min(1).max(128),
         output: z.string().max(1_048_576),
@@ -482,23 +504,23 @@ export const realtimeConversationItemSchema = z
       .strict(),
   ])
   .superRefine((item, ctx) => {
-    if (item.type !== "message") return;
+    if (item.type !== 'message') return;
     for (const [index, part] of item.content.entries()) {
       const isInput = INPUT_PARTS.has(part.type);
       // A user or system turn is input; an assistant turn is output. A part on
       // the wrong side is one every provider would silently ignore.
-      if (item.role === "assistant" ? isInput : !isInput) {
+      if (item.role === 'assistant' ? isInput : !isInput) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["content", index, "type"],
+          path: ['content', index, 'type'],
           message: `a ${item.role} message cannot carry ${part.type}`,
         });
       }
-      if (item.role === "system" && part.type !== "input_text") {
+      if (item.role === 'system' && part.type !== 'input_text') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["content", index, "type"],
-          message: "a system message is text",
+          path: ['content', index, 'type'],
+          message: 'a system message is text',
         });
       }
     }
@@ -527,13 +549,13 @@ const commandBase = {
 
 export const realtimeSessionUpdateCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("session.update"),
+  type: z.literal('session.update'),
   config: realtimeSessionConfigUpdateSchema,
 });
 
 export const realtimeItemCreateCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("conversation.item.create"),
+  type: z.literal('conversation.item.create'),
   /** Insert after this item; absent appends. */
   previousItemId: realtimeItemIdSchema.optional(),
   item: realtimeConversationItemSchema,
@@ -541,7 +563,7 @@ export const realtimeItemCreateCommandSchema = z.object({
 
 export const realtimeItemDeleteCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("conversation.item.delete"),
+  type: z.literal('conversation.item.delete'),
   itemId: realtimeItemIdSchema,
 });
 
@@ -552,7 +574,7 @@ export const realtimeItemDeleteCommandSchema = z.object({
  */
 export const realtimeItemTruncateCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("conversation.item.truncate"),
+  type: z.literal('conversation.item.truncate'),
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
   audioEndMs: milliseconds,
@@ -560,30 +582,30 @@ export const realtimeItemTruncateCommandSchema = z.object({
 
 export const realtimeInputAudioAppendCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("input_audio.append"),
+  type: z.literal('input_audio.append'),
   /** One bounded frame in the session's `inputAudioFormat`. */
   data: audioFrameSchema,
 });
 
 export const realtimeInputAudioCommitCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("input_audio.commit"),
+  type: z.literal('input_audio.commit'),
 });
 
 export const realtimeInputAudioClearCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("input_audio.clear"),
+  type: z.literal('input_audio.clear'),
 });
 
 export const realtimeResponseCreateCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("response.create"),
+  type: z.literal('response.create'),
   response: realtimeResponseParametersSchema.optional(),
 });
 
 export const realtimeResponseCancelCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("response.cancel"),
+  type: z.literal('response.cancel'),
   /** Absent cancels the response in progress, if any. */
   responseId: realtimeResponseIdSchema.optional(),
 });
@@ -594,17 +616,17 @@ export const realtimeResponseCancelCommandSchema = z.object({
  */
 export const realtimeSessionResumeCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("session.resume"),
+  type: z.literal('session.resume'),
   afterSequence: z.number().int().min(-1).safe(),
 });
 
 export const realtimeSessionCloseCommandSchema = z.object({
   ...commandBase,
-  type: z.literal("session.close"),
+  type: z.literal('session.close'),
 });
 
 /** Every command a client can send. */
-export const realtimeClientCommandSchema = z.discriminatedUnion("type", [
+export const realtimeClientCommandSchema = z.discriminatedUnion('type', [
   realtimeSessionUpdateCommandSchema,
   realtimeItemCreateCommandSchema,
   realtimeItemDeleteCommandSchema,
@@ -640,7 +662,7 @@ const eventBase = {
  */
 export const realtimeSessionCreatedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("session.created"),
+  type: z.literal('session.created'),
   resolvedModelReference: modelReferenceSchema,
   servingProvider: inferenceProviderSlugSchema,
   deploymentId: deploymentIdSchema,
@@ -654,27 +676,27 @@ export const realtimeSessionCreatedEventSchema = z.object({
 
 export const realtimeSessionUpdatedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("session.updated"),
+  type: z.literal('session.updated'),
   config: realtimeSessionConfigSchema,
 });
 
 export const realtimeSessionResumedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("session.resumed"),
+  type: z.literal('session.resumed'),
   afterSequence: z.number().int().min(-1).safe(),
 });
 
 /** Sent before a command is applied. `duplicate` means it was not applied again. */
 export const realtimeCommandAcceptedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("command.accepted"),
+  type: z.literal('command.accepted'),
   commandId: realtimeCommandIdSchema,
   duplicate: z.boolean(),
 });
 
 export const realtimeItemAddedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("conversation.item.added"),
+  type: z.literal('conversation.item.added'),
   itemId: realtimeItemIdSchema,
   previousItemId: realtimeItemIdSchema.optional(),
   item: realtimeConversationItemSchema,
@@ -682,20 +704,20 @@ export const realtimeItemAddedEventSchema = z.object({
 
 export const realtimeItemDoneEventSchema = z.object({
   ...eventBase,
-  type: z.literal("conversation.item.done"),
+  type: z.literal('conversation.item.done'),
   itemId: realtimeItemIdSchema,
   item: realtimeConversationItemSchema,
 });
 
 export const realtimeItemDeletedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("conversation.item.deleted"),
+  type: z.literal('conversation.item.deleted'),
   itemId: realtimeItemIdSchema,
 });
 
 export const realtimeItemTruncatedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("conversation.item.truncated"),
+  type: z.literal('conversation.item.truncated'),
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
   audioEndMs: milliseconds,
@@ -708,40 +730,40 @@ export const realtimeItemTruncatedEventSchema = z.object({
  */
 export const realtimeSpeechStartedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("input_audio.speech_started"),
+  type: z.literal('input_audio.speech_started'),
   itemId: realtimeItemIdSchema,
   audioStartMs: milliseconds,
 });
 
 export const realtimeSpeechStoppedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("input_audio.speech_stopped"),
+  type: z.literal('input_audio.speech_stopped'),
   itemId: realtimeItemIdSchema,
   audioEndMs: milliseconds,
 });
 
 export const realtimeInputAudioCommittedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("input_audio.committed"),
+  type: z.literal('input_audio.committed'),
   itemId: realtimeItemIdSchema,
   previousItemId: realtimeItemIdSchema.optional(),
 });
 
 export const realtimeInputAudioClearedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("input_audio.cleared"),
+  type: z.literal('input_audio.cleared'),
 });
 
 export const realtimeResponseCreatedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("response.created"),
+  type: z.literal('response.created'),
   responseId: realtimeResponseIdSchema,
 });
 
 /** One bounded frame of spoken output, in the session's `outputAudioFormat`. */
 export const realtimeOutputAudioDeltaEventSchema = z.object({
   ...eventBase,
-  type: z.literal("output_audio.delta"),
+  type: z.literal('output_audio.delta'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
@@ -751,7 +773,7 @@ export const realtimeOutputAudioDeltaEventSchema = z.object({
 
 export const realtimeOutputAudioDoneEventSchema = z.object({
   ...eventBase,
-  type: z.literal("output_audio.done"),
+  type: z.literal('output_audio.done'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
@@ -761,11 +783,11 @@ export const realtimeOutputAudioDoneEventSchema = z.object({
  * Which audio a transcript describes: the caller's (`input_audio`) or the
  * model's own speech (`output_audio`). Neither is answer text.
  */
-export const realtimeTranscriptSourceSchema = z.enum(["input_audio", "output_audio"]);
+export const realtimeTranscriptSourceSchema = z.enum(['input_audio', 'output_audio']);
 
 export const realtimeTranscriptDeltaEventSchema = z.object({
   ...eventBase,
-  type: z.literal("transcript.delta"),
+  type: z.literal('transcript.delta'),
   source: realtimeTranscriptSourceSchema,
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
@@ -776,7 +798,7 @@ export const realtimeTranscriptDeltaEventSchema = z.object({
 
 export const realtimeTranscriptDoneEventSchema = z.object({
   ...eventBase,
-  type: z.literal("transcript.done"),
+  type: z.literal('transcript.done'),
   source: realtimeTranscriptSourceSchema,
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
@@ -787,7 +809,7 @@ export const realtimeTranscriptDoneEventSchema = z.object({
 /** Written output of a response (`outputModalities` including `text`). */
 export const realtimeTextDeltaEventSchema = z.object({
   ...eventBase,
-  type: z.literal("text.delta"),
+  type: z.literal('text.delta'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
   contentIndex: z.number().int().nonnegative().safe(),
@@ -797,7 +819,7 @@ export const realtimeTextDeltaEventSchema = z.object({
 /** A tool call being streamed; same accumulation rules as the one-shot event. */
 export const realtimeToolCallEventSchema = z.object({
   ...eventBase,
-  type: z.literal("tool_call"),
+  type: z.literal('tool_call'),
   responseId: realtimeResponseIdSchema,
   itemId: realtimeItemIdSchema,
   toolCallId: z.string().min(1).max(128),
@@ -808,10 +830,10 @@ export const realtimeToolCallEventSchema = z.object({
 
 /** How a response ended. */
 export const realtimeResponseStatusSchema = z.enum([
-  "completed",
-  "cancelled",
-  "incomplete",
-  "failed",
+  'completed',
+  'cancelled',
+  'incomplete',
+  'failed',
 ]);
 
 /**
@@ -821,7 +843,7 @@ export const realtimeResponseStatusSchema = z.enum([
  */
 export const realtimeResponseDoneEventSchema = z.object({
   ...eventBase,
-  type: z.literal("response.done"),
+  type: z.literal('response.done'),
   responseId: realtimeResponseIdSchema,
   status: realtimeResponseStatusSchema,
   finishReason: inferenceFinishReasonSchema.optional(),
@@ -836,22 +858,22 @@ export const realtimeResponseDoneEventSchema = z.object({
  */
 export const realtimeErrorEventSchema = z.object({
   ...eventBase,
-  type: z.literal("error"),
+  type: z.literal('error'),
   fatal: z.boolean(),
   error: inferenceErrorSchema,
 });
 
 /** Why a session ended. */
 export const realtimeSessionCloseReasonSchema = z.enum([
-  "client_closed",
-  "max_duration",
-  "idle_timeout",
-  "limit_exceeded",
-  "resume_expired",
-  "upstream_closed",
-  "upstream_error",
-  "no_route_available",
-  "server_shutdown",
+  'client_closed',
+  'max_duration',
+  'idle_timeout',
+  'limit_exceeded',
+  'resume_expired',
+  'upstream_closed',
+  'upstream_error',
+  'no_route_available',
+  'server_shutdown',
 ]);
 
 /**
@@ -860,7 +882,7 @@ export const realtimeSessionCloseReasonSchema = z.enum([
  */
 export const realtimeSessionClosedEventSchema = z.object({
   ...eventBase,
-  type: z.literal("session.closed"),
+  type: z.literal('session.closed'),
   reason: realtimeSessionCloseReasonSchema,
   deploymentId: deploymentIdSchema.optional(),
   units: z.array(usageQuantitySchema),
@@ -870,7 +892,7 @@ export const realtimeSessionClosedEventSchema = z.object({
 
 /** Every event a session can emit. */
 export const realtimeServerEventSchema = z
-  .discriminatedUnion("type", [
+  .discriminatedUnion('type', [
     realtimeSessionCreatedEventSchema,
     realtimeSessionUpdatedEventSchema,
     realtimeSessionResumedEventSchema,
@@ -898,13 +920,13 @@ export const realtimeServerEventSchema = z
     // Each unit is reported once, as a total — the rule every usage record in
     // this contract holds. Checked on the union because a discriminated union's
     // options must stay plain objects.
-    if (event.type !== "response.done" && event.type !== "session.closed") return;
+    if (event.type !== 'response.done' && event.type !== 'session.closed') return;
     const units = event.units.map((quantity) => quantity.unit);
     if (new Set(units).size !== units.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["units"],
-        message: "each unit is reported at most once",
+        path: ['units'],
+        message: 'each unit is reported at most once',
       });
     }
   });

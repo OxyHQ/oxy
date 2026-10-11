@@ -252,7 +252,9 @@ export async function updateIdentityMarker(
   }
 
   const nextOnboarding =
-    partial.onboardingComplete !== undefined ? partial.onboardingComplete : existing.onboardingComplete;
+    partial.onboardingComplete !== undefined
+      ? partial.onboardingComplete
+      : existing.onboardingComplete;
   const next: IdentityMarker = {
     v: 1,
     publicKey: partial.publicKey ?? existing.publicKey,

@@ -92,9 +92,9 @@ async function get(path: string, token?: string): Promise<RawResponse> {
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') })
+          resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
         );
-      }
+      },
     );
     req.on('error', reject);
     req.end();
@@ -166,18 +166,18 @@ async function seed(): Promise<void> {
 
   const internalTokenIssuedAt = Math.floor(Date.now() / 1_000);
   internalToken = signServiceTokenEd25519({
-      type: 'service',
-      appId: internalApplication.id,
-      appName: `Internal ${tag}`,
-      credentialId: credential.id,
-      ownerAccountId: account.id,
-      environment: 'production',
-      scopes: ['inference:invoke'],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: internalTokenIssuedAt,
-      exp: internalTokenIssuedAt + 300,
-    });
+    type: 'service',
+    appId: internalApplication.id,
+    appName: `Internal ${tag}`,
+    credentialId: credential.id,
+    ownerAccountId: account.id,
+    environment: 'production',
+    scopes: ['inference:invoke'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: internalTokenIssuedAt,
+    exp: internalTokenIssuedAt + 300,
+  });
 
   const [attestedApplication] = await db
     .insert(applications)
@@ -217,20 +217,20 @@ async function seed(): Promise<void> {
 
   const attestedInternalTokenIssuedAt = Math.floor(Date.now() / 1_000);
   attestedInternalToken = signServiceTokenEd25519({
-      type: 'service',
-      appId: attestedApplication.id,
-      appName: `Attested Internal ${tag}`,
-      // Derived, never a literal: the mint's own definition, so this fixture
-      // cannot keep passing after the derivation moves.
-      credentialId: workloadAttestationHandle(attestedSubject),
-      ownerAccountId: account.id,
-      environment: 'production',
-      scopes: ['inference:invoke'],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: attestedInternalTokenIssuedAt,
-      exp: attestedInternalTokenIssuedAt + 300,
-    });
+    type: 'service',
+    appId: attestedApplication.id,
+    appName: `Attested Internal ${tag}`,
+    // Derived, never a literal: the mint's own definition, so this fixture
+    // cannot keep passing after the derivation moves.
+    credentialId: workloadAttestationHandle(attestedSubject),
+    ownerAccountId: account.id,
+    environment: 'production',
+    scopes: ['inference:invoke'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: attestedInternalTokenIssuedAt,
+    exp: attestedInternalTokenIssuedAt + 300,
+  });
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: `Pub ${tag}` });
 
@@ -344,7 +344,7 @@ afterAll(async () => {
   if (ORIGINAL_ACCESS_TOKEN_SECRET === undefined) delete process.env.ACCESS_TOKEN_SECRET;
   else process.env.ACCESS_TOKEN_SECRET = ORIGINAL_ACCESS_TOKEN_SECRET;
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -412,7 +412,9 @@ describe('an unpublished catalogue is the default', () => {
   it('withholds them again from the same attested token once its binding expires', async () => {
     // The control: it is served first, so the withholding below is the binding's
     // expiry and not a fixture that never worked.
-    expect(Number(json(await get('/routing-profiles', attestedInternalToken)).count)).toBeGreaterThan(0);
+    expect(
+      Number(json(await get('/routing-profiles', attestedInternalToken)).count),
+    ).toBeGreaterThan(0);
 
     await getDb()
       .update(applicationWorkloadIdentities)
@@ -455,8 +457,6 @@ describe('publishing the catalogue serves the same route to everyone', () => {
     process.env[CATALOGUE_AUDIENCE_VARIABLE] = 'everyone';
 
     expect(entryIds(json(await get('/')), 'data')).not.toContain(modelId);
-    expect(entryIds(json(await get('/')), 'data')).toEqual(
-      expect.not.arrayContaining([modelId])
-    );
+    expect(entryIds(json(await get('/')), 'data')).toEqual(expect.not.arrayContaining([modelId]));
   });
 });

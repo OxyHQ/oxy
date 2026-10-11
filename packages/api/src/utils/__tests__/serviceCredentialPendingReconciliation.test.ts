@@ -1,17 +1,17 @@
-import { reconcilePendingCredentials } from "../serviceCredentialPendingReconciliation";
+import { reconcilePendingCredentials } from '../serviceCredentialPendingReconciliation';
 
-describe("reconcilePendingCredentials", () => {
-  it("performs zero writes and emits zero audit events on dry-run with a pending row", async () => {
+describe('reconcilePendingCredentials', () => {
+  it('performs zero writes and emits zero audit events on dry-run with a pending row', async () => {
     const writes: string[] = [];
     const events: string[] = [];
-    const pendingCredentialIds = ["pending-credential"];
+    const pendingCredentialIds = ['pending-credential'];
 
     await reconcilePendingCredentials({
       dryRun: true,
       rotateScopeMismatch: true,
       pendingCredentialIds,
-      appName: "Alia",
-      environment: "production",
+      appName: 'Alia',
+      environment: 'production',
       revokeCredential: async (credentialId) => {
         writes.push(credentialId);
       },
@@ -22,18 +22,18 @@ describe("reconcilePendingCredentials", () => {
 
     expect(writes).toEqual([]);
     expect(events).toEqual([]);
-    expect(pendingCredentialIds).toEqual(["pending-credential"]);
+    expect(pendingCredentialIds).toEqual(['pending-credential']);
   });
 
-  it("revokes and audits each abandoned pending row on apply", async () => {
+  it('revokes and audits each abandoned pending row on apply', async () => {
     const effects: string[] = [];
 
     await reconcilePendingCredentials({
       dryRun: false,
       rotateScopeMismatch: true,
-      pendingCredentialIds: ["pending-a", "pending-b"],
-      appName: "Alia",
-      environment: "production",
+      pendingCredentialIds: ['pending-a', 'pending-b'],
+      appName: 'Alia',
+      environment: 'production',
       revokeCredential: async (credentialId) => {
         effects.push(`write:${credentialId}`);
       },
@@ -43,10 +43,10 @@ describe("reconcilePendingCredentials", () => {
     });
 
     expect(effects).toEqual([
-      "write:pending-a",
-      "event:pending-a",
-      "write:pending-b",
-      "event:pending-b",
+      'write:pending-a',
+      'event:pending-a',
+      'write:pending-b',
+      'event:pending-b',
     ]);
   });
 });

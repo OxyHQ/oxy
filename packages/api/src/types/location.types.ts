@@ -1,6 +1,6 @@
 /**
  * Location Service Types
- * 
+ *
  * Centralized type definitions for location-related operations.
  */
 
@@ -69,4 +69,3 @@ export interface LocationSearchOptions {
   viewbox?: [number, number, number, number];
   cacheTTL?: number;
 }
-

@@ -40,7 +40,7 @@ export function useHomeHandlers(): HomeHandlers {
   const handleEditName = useCallback(() => {
     showBottomSheet?.({
       screen: 'EditProfileField',
-      props: { fieldType: 'displayName' }
+      props: { fieldType: 'displayName' },
     });
   }, [showBottomSheet]);
 
@@ -64,13 +64,16 @@ export function useHomeHandlers(): HomeHandlers {
     router.push('/(tabs)/sharing');
   }, [router]);
 
-  const handleSearch = useCallback((query?: string) => {
-    if (query) {
-      router.push({ pathname: '/(tabs)/search', params: { q: query } });
-    } else {
-      router.push('/(tabs)/search');
-    }
-  }, [router]);
+  const handleSearch = useCallback(
+    (query?: string) => {
+      if (query) {
+        router.push({ pathname: '/(tabs)/search', params: { q: query } });
+      } else {
+        router.push('/(tabs)/search');
+      }
+    },
+    [router],
+  );
 
   const handlePayments = useCallback(() => {
     router.push('/(tabs)/payments');
@@ -99,7 +102,7 @@ export function useHomeHandlers(): HomeHandlers {
   const handleSetUsername = useCallback(() => {
     showBottomSheet?.({
       screen: 'EditProfileField',
-      props: { fieldType: 'username' }
+      props: { fieldType: 'username' },
     });
   }, [showBottomSheet]);
 

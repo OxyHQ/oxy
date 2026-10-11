@@ -3,7 +3,12 @@ import { SessionController } from '../controllers/session.controller';
 import { authMiddleware } from '../middleware/auth';
 import { idpServiceLimiter } from '../middleware/security';
 import { validate } from '../middleware/validate';
-import { sessionIdParams, logoutTargetParams, updateDeviceNameSchema, batchUsersSchema } from '../schemas/session.schemas';
+import {
+  sessionIdParams,
+  logoutTargetParams,
+  updateDeviceNameSchema,
+  batchUsersSchema,
+} from '../schemas/session.schemas';
 
 const router = express.Router();
 
@@ -51,7 +56,12 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/user/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.getUserBySession);
+router.get(
+  '/user/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.getUserBySession,
+);
 
 /**
  * @openapi
@@ -82,7 +92,12 @@ router.get('/user/:sessionId', authMiddleware, validate({ params: sessionIdParam
  *       404:
  *         description: Session not found or expired.
  */
-router.get('/sessions/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.getUserSessions);
+router.get(
+  '/sessions/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.getUserSessions,
+);
 
 // ============================================
 // Session management
@@ -111,7 +126,12 @@ router.get('/sessions/:sessionId', authMiddleware, validate({ params: sessionIdP
  *       401:
  *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/logout/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutSession);
+router.post(
+  '/logout/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.logoutSession,
+);
 
 /**
  * @openapi
@@ -143,7 +163,12 @@ router.post('/logout/:sessionId', authMiddleware, validate({ params: sessionIdPa
  *       404:
  *         description: Target session not found, or not reachable from the acting one.
  */
-router.post('/logout/:sessionId/:targetSessionId', authMiddleware, validate({ params: logoutTargetParams }), SessionController.logoutSession);
+router.post(
+  '/logout/:sessionId/:targetSessionId',
+  authMiddleware,
+  validate({ params: logoutTargetParams }),
+  SessionController.logoutSession,
+);
 
 /**
  * @openapi
@@ -168,7 +193,12 @@ router.post('/logout/:sessionId/:targetSessionId', authMiddleware, validate({ pa
  *       401:
  *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/logout-all/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutAllSessions);
+router.post(
+  '/logout-all/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.logoutAllSessions,
+);
 
 /**
  * @openapi
@@ -225,7 +255,12 @@ router.post('/logout-all/:sessionId', authMiddleware, validate({ params: session
  */
 // Excluded from rl:general (IdP worker server-to-server session resolution; see
 // isIdpServiceToServicePath). idpServiceLimiter is this route's sole per-IP cap.
-router.get('/validate/:sessionId', idpServiceLimiter, validate({ params: sessionIdParams }), SessionController.validateSession);
+router.get(
+  '/validate/:sessionId',
+  idpServiceLimiter,
+  validate({ params: sessionIdParams }),
+  SessionController.validateSession,
+);
 
 /**
  * @openapi
@@ -252,7 +287,11 @@ router.get('/validate/:sessionId', idpServiceLimiter, validate({ params: session
  *       404:
  *         description: Session not found.
  */
-router.get('/validate-header/:sessionId', validate({ params: sessionIdParams }), SessionController.validateSessionFromHeader);
+router.get(
+  '/validate-header/:sessionId',
+  validate({ params: sessionIdParams }),
+  SessionController.validateSessionFromHeader,
+);
 
 // ============================================
 // Device management
@@ -287,7 +326,12 @@ router.get('/validate-header/:sessionId', validate({ params: sessionIdParams }),
  *       401:
  *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.get('/device/sessions/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.getDeviceSessions);
+router.get(
+  '/device/sessions/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.getDeviceSessions,
+);
 
 /**
  * @openapi
@@ -312,7 +356,12 @@ router.get('/device/sessions/:sessionId', authMiddleware, validate({ params: ses
  *       401:
  *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.post('/device/logout-all/:sessionId', authMiddleware, validate({ params: sessionIdParams }), SessionController.logoutAllDeviceSessions);
+router.post(
+  '/device/logout-all/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams }),
+  SessionController.logoutAllDeviceSessions,
+);
 
 /**
  * @openapi
@@ -351,7 +400,12 @@ router.post('/device/logout-all/:sessionId', authMiddleware, validate({ params: 
  *       401:
  *         description: No bearer, or the session is not live or not the bearer's.
  */
-router.put('/device/name/:sessionId', authMiddleware, validate({ params: sessionIdParams, body: updateDeviceNameSchema }), SessionController.updateDeviceName);
+router.put(
+  '/device/name/:sessionId',
+  authMiddleware,
+  validate({ params: sessionIdParams, body: updateDeviceNameSchema }),
+  SessionController.updateDeviceName,
+);
 
 // ============================================
 // Batch operations
@@ -401,6 +455,10 @@ router.put('/device/name/:sessionId', authMiddleware, validate({ params: session
  *       400:
  *         description: Validation failed.
  */
-router.post('/users/batch', validate({ body: batchUsersSchema }), SessionController.getUsersBySessions);
+router.post(
+  '/users/batch',
+  validate({ body: batchUsersSchema }),
+  SessionController.getUsersBySessions,
+);
 
 export default router;

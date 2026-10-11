@@ -34,7 +34,9 @@ describe('createSessionClientHost', () => {
     const oxy = fakeOxy();
     const host = createSessionClientHost(oxy as never);
     await host.makeRequest('GET', '/session/device/state', undefined, { cache: false });
-    expect(oxy.request).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(oxy.request).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     expect(host.getBaseURL()).toBe('https://api.oxy.so');
     expect(host.getAccessToken()).toBe('tok');
     host.setTokens('new');
@@ -208,6 +210,8 @@ describe('createSessionClient', () => {
     const { client } = createSessionClient(oxy as never, transport);
     await client.bootstrap();
 
-    expect(transport.ensureActiveToken).toHaveBeenCalledWith(expect.objectContaining({ revision: state.revision }));
+    expect(transport.ensureActiveToken).toHaveBeenCalledWith(
+      expect.objectContaining({ revision: state.revision }),
+    );
   });
 });

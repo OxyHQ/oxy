@@ -5,8 +5,8 @@
 -- INSERT issued by the previous image (which does not name it) still
 -- succeeds unchanged.
 --
--- `users.birthday` is free-form text ported verbatim from Mongo (see its own
--- comment in `db/schema/users.ts`) — never validated, never parsed, and real
+-- `users.birthday` is free-form text (see its own comment in
+-- `db/schema/users.ts`) — never validated, never parsed, and real
 -- rows can hold anything from a clean ISO date to a typo to an empty string.
 -- `users.date_of_birth` is the new structured `date` column every write path
 -- should prefer going forward (`user.service.ts`'s `updateUserProfile`).

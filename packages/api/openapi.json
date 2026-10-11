@@ -8181,7 +8181,7 @@
         ],
         "security": [],
         "summary": "Register a new account with a public key",
-        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature. Username and email are optional but recommended for discoverability.\n",
+        "description": "Create a passwordless account bound to a local secp256k1 identity. The client generates a key pair (see `KeyManager` in `@oxy.so/core`), signs `register:{publicKey}:{timestamp}`, and submits the signature together with the account's username. The username is required and written in the same insert as the key, so an account never exists without one.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -8191,7 +8191,8 @@
                 "required": [
                   "publicKey",
                   "signature",
-                  "timestamp"
+                  "timestamp",
+                  "username"
                 ],
                 "properties": {
                   "publicKey": {
@@ -8205,10 +8206,6 @@
                   "timestamp": {
                     "type": "integer",
                     "description": "Unix ms when the signature was produced (max 5 minutes old)."
-                  },
-                  "email": {
-                    "type": "string",
-                    "format": "email"
                   },
                   "username": {
                     "type": "string",
@@ -8226,18 +8223,24 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Account created and the first session issued.",
+          "201": {
+            "description": "Account created with its username; sign in with a challenge next."
+          },
+          "400": {
+            "description": "Missing or invalid username, or a malformed key.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSuccess"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid signature, malformed key, or duplicate username/email.",
+          "401": {
+            "description": "Invalid registration signature."
+          },
+          "409": {
+            "description": "Identity already registered, or username already taken.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13534,8 +13537,10 @@
                     "type": "string",
                     "format": "date-time"
                   },
-                  "stream": {
-                    "type": "boolean"
+                  "locale": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$",
+                    "maxLength": 35
                   }
                 },
                 "required": [
@@ -15017,8 +15022,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "POST /email/labels",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Create a label.",
+        "description": "Names are unique per user, ignoring case, and may not reuse\na system label's name.",
         "parameters": [],
         "responses": {
           "200": {
@@ -15036,6 +15041,16 @@
           },
           "401": {
             "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A label with this name (in any case) already exists.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15090,8 +15105,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "PUT /email/labels/{labelId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Rename and/or recolour a label.",
+        "description": "A rename is applied to every message\ncarrying the label, to bundles matching it, to filter rules that apply it\nand to saved searches naming it, all in one transaction.",
         "parameters": [
           {
             "name": "labelId",
@@ -15129,6 +15144,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Another label with this name (in any case) already exists.",
             "content": {
               "application/json": {
                 "schema": {
@@ -15373,8 +15398,8 @@
         "tags": [
           "Email"
         ],
-        "summary": "DELETE /email/mailboxes/{mailboxId}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Delete a user-created folder, keeping its messages.",
+        "description": "Its messages are kept: they move to Archive\n(Inbox when there is no Archive) before the folder is removed. System\nfolders cannot be deleted.",
         "parameters": [
           {
             "name": "mailboxId",
@@ -15675,6 +15700,10 @@
                   },
                   "requestReadReceipt": {
                     "type": "boolean"
+                  },
+                  "draftId": {
+                    "type": "string",
+                    "minLength": 1
                   }
                 },
                 "required": [
@@ -17086,8 +17115,7 @@
                     "minLength": 1
                   },
                   "remindAt": {
-                    "type": "string",
-                    "minLength": 1
+                    "type": "string"
                   },
                   "relatedMessageId": {
                     "type": "string"
@@ -17288,17 +17316,22 @@
                 "type": "object",
                 "properties": {
                   "text": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 1
                   },
                   "remindAt": {
                     "type": "string"
                   },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "pending",
-                      "completed",
-                      "dismissed"
+                  "completed": {
+                    "type": "boolean"
+                  },
+                  "pinned": {
+                    "type": "boolean"
+                  },
+                  "snoozedUntil": {
+                    "type": [
+                      "string",
+                      "null"
                     ]
                   }
                 }
@@ -17765,11 +17798,55 @@
                 "type": "object",
                 "properties": {
                   "signature": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 10000
                   },
-                  "autoReply": {},
+                  "autoReply": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "subject": {
+                        "type": "string",
+                        "maxLength": 998
+                      },
+                      "body": {
+                        "type": "string",
+                        "maxLength": 10000
+                      },
+                      "startDate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "endDate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "enabled",
+                      "startDate",
+                      "endDate"
+                    ]
+                  },
                   "autoForwardTo": {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          ""
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "format": "email"
+                      }
+                    ]
                   },
                   "autoForwardKeepCopy": {
                     "type": "boolean"
@@ -17787,12 +17864,119 @@
         "tags": [
           "Email"
         ],
-        "summary": "GET /email/subscriptions",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "List the senders the user receives regular mail from.",
+        "description": "Senders with three or more received messages (Inbox and Archive), most\nfrequent first, offset-paginated with `limit` (default 50, max 100) and\n`offset`. A sender the user already unsubscribed from stays listed with\n`unsubscribed: true` and the time in `unsubscribedAt`.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+            "description": "One page of senders, with the total.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "messageCount": {
+                            "type": "integer"
+                          },
+                          "readCount": {
+                            "type": "integer"
+                          },
+                          "latestDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "oldestDate": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "latestMessageId": {
+                            "type": "string"
+                          },
+                          "hasListUnsubscribe": {
+                            "type": "boolean"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "list-unsubscribe",
+                              "pattern-match",
+                              "frequent"
+                            ]
+                          },
+                          "senderAvatarPath": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "unsubscribed": {
+                            "type": "boolean"
+                          },
+                          "unsubscribedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          }
+                        },
+                        "required": [
+                          "_id",
+                          "name",
+                          "messageCount",
+                          "readCount",
+                          "latestDate",
+                          "oldestDate",
+                          "latestMessageId",
+                          "hasListUnsubscribe",
+                          "type",
+                          "unsubscribed",
+                          "unsubscribedAt"
+                        ]
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "offset": {
+                          "type": "integer"
+                        },
+                        "hasMore": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "limit",
+                        "offset",
+                        "hasMore"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "pagination"
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Authentication required",
@@ -17828,12 +18012,57 @@
         "tags": [
           "Email"
         ],
-        "summary": "POST /email/subscriptions/unsubscribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "summary": "Unsubscribe from a sender, or block it.",
+        "description": "Unsubscribes through the sender's List-Unsubscribe header (one-click\nPOST, then GET, then mailto), falling back to moving its mail to Spam; or\nblock it outright with `method: \"block\"`. Idempotent: a sender already\nunsubscribed is answered from the stored result with\n`alreadyUnsubscribed: true` and nothing is sent to it again. A `block`\nalways runs, since it only moves mail locally.",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+            "description": "How the unsubscribe was carried out, and when.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "method": {
+                          "type": "string",
+                          "enum": [
+                            "one-click",
+                            "http",
+                            "mailto",
+                            "blocked"
+                          ]
+                        },
+                        "unsubscribedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "alreadyUnsubscribed": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "success",
+                        "method",
+                        "unsubscribedAt",
+                        "alreadyUnsubscribed"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "description": "Validation failed",
@@ -32128,7 +32357,7 @@
           "System"
         ],
         "summary": "has new records. The target is resolved server-side from the path param ONLY;",
-        "description": "the request body is never read or trusted. If the named user has a registered\n(non-revoked) node, a background ingest is enqueued — deduped per user, then\nfully re-verified by the worker (a notify can never inject data). Always\nanswers 202: it is a fire-and-forget hint, not a probe.\n\nUnauthenticated by design (it only re-pulls the user's OWN node and changes\nnothing without cryptographic verification), but rate-limited hard by IP. The\nread path is untouched — this only schedules background work.\n\nThe `isValidObjectId` pre-filter is DELETED, not ported. It existed to keep a\nnon-ObjectId path param out of a Mongoose `CastError`; here `user_id` is\n`text`, so an unknown or malformed id simply selects no row. Keeping it would\nhave been worse than useless: every account minted since the cutover carries a\nuuid v7, which the 24-hex predicate rejects — the notify would have silently\nenqueued nothing for exactly those accounts, with a 202 either way. Same trap\nthe chain-head route hit (`routes/__tests__/chainHead.test.ts`).",
+        "description": "the request body is never read or trusted. If the named user has a registered\n(non-revoked) node, a background ingest is enqueued — deduped per user, then\nfully re-verified by the worker (a notify can never inject data). Always\nanswers 202: it is a fire-and-forget hint, not a probe.\n\nUnauthenticated by design (it only re-pulls the user's OWN node and changes\nnothing without cryptographic verification), but rate-limited hard by IP. The\nread path is untouched — this only schedules background work.\n\nThere is no id-shape pre-filter. `user_id` is `text`, so an unknown or\nmalformed id simply selects no row. A 24-hex pre-filter would be worse than\nuseless: it rejects every uuid v7 account, so the notify would silently\nenqueue nothing for exactly those accounts, with a 202 either way. Same trap\nthe chain-head route hit (`routes/__tests__/chainHead.test.ts`).",
         "parameters": [
           {
             "name": "userId",

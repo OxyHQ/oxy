@@ -33,12 +33,17 @@ const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: t
 const NOT_CONFIGURED: DeploymentLiveness = { status: 'not-configured' };
 
 function published(...ids: string[]): DeploymentLiveness {
-  return { status: 'observed', snapshotId: 'snap', deploymentIds: new Set(ids), observedAt: Date.now() };
+  return {
+    status: 'observed',
+    snapshotId: 'snap',
+    deploymentIds: new Set(ids),
+    observedAt: Date.now(),
+  };
 }
 
 async function listedIds(liveness: DeploymentLiveness): Promise<string[]> {
   return (await listCatalogueForViewer(INTERNAL_VIEWER, { kind: 'servable', liveness })).map(
-    (entry) => entry.modelId
+    (entry) => entry.modelId,
   );
 }
 
@@ -135,7 +140,7 @@ describe('the deployment publication cache', () => {
     const listPublishedDeployments = jest.fn(async () => snapshot(reads.shift() ?? []));
     const cache = createDeploymentPublicationCache(
       { listPublishedDeployments },
-      { ttlMs: 100, maxStaleMs: 1_000, now: () => clock }
+      { ttlMs: 100, maxStaleMs: 1_000, now: () => clock },
     );
 
     const first = await cache.current();
@@ -159,7 +164,7 @@ describe('the deployment publication cache', () => {
           return snapshot(['a']);
         },
       },
-      { ttlMs: 10, maxStaleMs: 100, now: () => clock }
+      { ttlMs: 10, maxStaleMs: 100, now: () => clock },
     );
     expect((await cache.current()).status).toBe('observed');
 

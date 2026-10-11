@@ -3,7 +3,11 @@ import { SessionClient, type SessionClientHost } from '../SessionClient';
 import { logger } from '../../logger';
 
 const STATE = (rev: number): DeviceSessionState => ({
-  deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: rev, updatedAt: 1720000000000,
+  deviceId: 'd1',
+  accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+  activeAccountId: 'a1',
+  revision: rev,
+  updatedAt: 1720000000000,
 });
 
 function makeHost(makeRequest: jest.Mock): SessionClientHost {
@@ -50,7 +54,9 @@ describe('SessionClient sync diagnostics', () => {
       ]),
     );
     // invalid_type issues carry TYPE names (safe), not values.
-    const authuserIssue = context.issues.find((i: { path: string }) => i.path === 'state.accounts.0.authuser');
+    const authuserIssue = context.issues.find(
+      (i: { path: string }) => i.path === 'state.accounts.0.authuser',
+    );
     expect(authuserIssue.received).toBe('string');
     expect(authuserIssue.expected).toBe('number');
     // Top-level envelope keys are summarized to catch drift.
@@ -84,7 +90,12 @@ describe('SessionClient sync diagnostics', () => {
     expect(context.keys).toEqual([]);
     expect(context.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ path: '', code: 'invalid_type', expected: 'object', received: 'undefined' }),
+        expect.objectContaining({
+          path: '',
+          code: 'invalid_type',
+          expected: 'object',
+          received: 'undefined',
+        }),
       ]),
     );
   });

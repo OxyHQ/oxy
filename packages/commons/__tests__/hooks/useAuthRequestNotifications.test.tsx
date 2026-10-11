@@ -60,7 +60,9 @@ describe('useAuthRequestNotifications', () => {
     });
 
     expect(router.push).toHaveBeenCalledTimes(1);
-    const [target] = router.push.mock.calls[0] as [{ pathname: string; params: Record<string, string> }];
+    const [target] = router.push.mock.calls[0] as [
+      { pathname: string; params: Record<string, string> },
+    ];
     expect(target.pathname).toBe('/approve');
     expect(target.params).toEqual({ code: 'warm-1' });
     // Nothing from the payload rides along — not the app name, not the origin.
@@ -111,7 +113,9 @@ describe('useAuthRequestNotifications', () => {
 
 describe('coldLaunchApprovalCode', () => {
   it('resolves the code carried by the launching notification', () => {
-    expect(coldLaunchApprovalCode(pushPayload('oxycommons://approve?v=1&code=cold-1'))).toBe('cold-1');
+    expect(coldLaunchApprovalCode(pushPayload('oxycommons://approve?v=1&code=cold-1'))).toBe(
+      'cold-1',
+    );
   });
 
   it('claims the code so the warm listener cannot route the same tap twice', () => {

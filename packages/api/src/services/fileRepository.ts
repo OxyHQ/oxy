@@ -2,10 +2,8 @@
  * Persistence for the stored-asset aggregate: `files` + `file_links` +
  * `file_variants`.
  *
- * In Mongo those three were ONE document, so "load a file" and "load its links
- * and variants" were the same statement and every caller got the whole thing for
- * free. In Postgres they are three tables, and the assembly has to happen
- * somewhere. It happens HERE, once — not in `assetService` and again in
+ * They are three tables, so loading a file with its links and variants takes
+ * an assembly step, and that has to happen somewhere. It happens HERE, once — not in `assetService` and again in
  * `variantService`, which is how the two would drift on ordering, on which
  * child rows count, and on whether a write is atomic.
  *
@@ -35,12 +33,27 @@ import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/p
 import { fileLinks, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
-import type { FileLinkRecord, FileOwner, FileRecord, FileVariantRecord, NewFileVariant } from '../types/file.types';
+import type {
+  FileLinkRecord,
+  FileOwner,
+  FileRecord,
+  FileVariantRecord,
+  NewFileVariant,
+} from '../types/file.types';
 
 /** Account locks precede this row lock on every quota-checked update. */
-async function assertStableFileOwner(tx: DatabaseOrTransaction, fileId: string, expected: string | null | undefined): Promise<void> {
-  const [current] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId)).for('update');
-  if (current?.owner !== expected) throw new ConflictError('File ownership changed during admission; retry');
+async function assertStableFileOwner(
+  tx: DatabaseOrTransaction,
+  fileId: string,
+  expected: string | null | undefined,
+): Promise<void> {
+  const [current] = await tx
+    .select({ owner: files.ownerUserId })
+    .from(files)
+    .where(eq(files.id, fileId))
+    .for('update');
+  if (current?.owner !== expected)
+    throw new ConflictError('File ownership changed during admission; retry');
 }
 
 /** Columns a caller may set when creating a file row. */
@@ -59,7 +72,7 @@ export type NewFileLink = Omit<typeof fileLinks.$inferInsert, 'fileId'>;
  * (`files_sha256_owner_user_live_key`, `files_sha256_system_owner_live_key`)
  * that make per-owner dedup a database invariant rather than a hope: two
  * concurrent uploads of identical bytes BY ONE OWNER race, one inserts, the
- * other lands here and re-reads the winner. Mongo's equivalent was `E11000`/`code: 11000`.
+ * other lands here and re-reads the winner.
  *
  * **The cause chain is not optional.** Drizzle does not surface the driver's
  * error: it throws its own `Failed query: …` `Error` with the postgres.js error
@@ -73,7 +86,11 @@ export function isUniqueViolation(error: unknown): boolean {
   // `Reflect.get` for BOTH hops: this package's `lib` predates `Error.cause`, so
   // reading `.cause` off an `Error` is a type error rather than a value that
   // happens to be there at runtime.
-  for (let current: unknown = error; current instanceof Error; current = Reflect.get(current, 'cause')) {
+  for (
+    let current: unknown = error;
+    current instanceof Error;
+    current = Reflect.get(current, 'cause')
+  ) {
     if (Reflect.get(current, 'code') === '23505') {
       return true;
     }
@@ -227,12 +244,14 @@ export async function isStorageKeyUsedByOtherLiveRow(
   const [hit] = await db
     .select({ id: files.id })
     .from(files)
-    .where(and(
-      eq(files.sha256, sha256),
-      ne(files.status, 'deleted'),
-      ne(files.id, excludeFileId),
-      eq(files.storageKey, storageKey),
-    ))
+    .where(
+      and(
+        eq(files.sha256, sha256),
+        ne(files.status, 'deleted'),
+        ne(files.id, excludeFileId),
+        eq(files.storageKey, storageKey),
+      ),
+    )
     .limit(1);
   return hit !== undefined;
 }
@@ -261,11 +280,13 @@ export async function findLiveFilesBySha256(
   const rows = await getDb()
     .select()
     .from(files)
-    .where(and(
-      inArray(files.sha256, sha256s),
-      ne(files.status, 'deleted'),
-      options.ownerUserId === undefined ? undefined : eq(files.ownerUserId, options.ownerUserId),
-    ))
+    .where(
+      and(
+        inArray(files.sha256, sha256s),
+        ne(files.status, 'deleted'),
+        options.ownerUserId === undefined ? undefined : eq(files.ownerUserId, options.ownerUserId),
+      ),
+    )
     .orderBy(asc(files.createdAt), asc(files.id));
 
   const oldestBySha = new Map<string, typeof files.$inferSelect>();
@@ -282,7 +303,7 @@ export async function findLiveFilesBySha256(
 export async function listFilesByOwner(
   ownerUserId: string,
   limit: number,
-  offset: number
+  offset: number,
 ): Promise<{ files: FileRecord[]; total: number }> {
   const db = getDb();
   const where = and(eq(files.ownerUserId, ownerUserId), ne(files.status, 'deleted'));
@@ -325,34 +346,51 @@ export async function findVariantTwin(
 
   const wantPublic = visibility === 'public';
   const candidates = await withChildren(rows.map((row) => row.file));
-  return candidates.find((candidate) =>
-    candidate.variants.length > 0 &&
-    candidate.variants.every((variant) => isPublicSpelling(variant.key) === wantPublic),
-  ) ?? null;
+  return (
+    candidates.find(
+      (candidate) =>
+        candidate.variants.length > 0 &&
+        candidate.variants.every((variant) => isPublicSpelling(variant.key) === wantPublic),
+    ) ?? null
+  );
 }
 
 /** Twins examined per lookup: one per spelling is the realistic need; a few spare for mixed sets. */
 const TWIN_CANDIDATES = 5;
 
 /**
- * Live rows for this content, other than `excludeFileId`, with NO renditions
- * yet and the same visibility spelling — the rows a finished generation can
- * hand its set to, so concurrent owners of one upload do not each encode it.
+ * Live rows for this content, other than `excludeFileId`, with the same
+ * visibility spelling — the rows a finished generation can hand its set to.
+ *
+ * `variantless` (the upload path) narrows them to rows with NO renditions yet,
+ * so concurrent owners of one upload do not each encode it. A re-encode passes
+ * `false`: twins name the same content-addressed objects, so when those are
+ * lost every twin is broken with them and every twin gets the new set.
  */
-export async function findVariantlessTwins(
+export async function findSameSpellingTwins(
   sha256: string,
   excludeFileId: string,
   visibility: FileRecord['visibility'],
+  { variantless }: { variantless: boolean },
 ): Promise<FileRecord[]> {
   const rows = await getDb()
     .select()
     .from(files)
-    .where(and(
-      eq(files.sha256, sha256),
-      ne(files.id, excludeFileId),
-      ne(files.status, 'deleted'),
-      notExists(getDb().select({ one: sql`1` }).from(fileVariants).where(eq(fileVariants.fileId, files.id))),
-    ));
+    .where(
+      and(
+        eq(files.sha256, sha256),
+        ne(files.id, excludeFileId),
+        ne(files.status, 'deleted'),
+        variantless
+          ? notExists(
+              getDb()
+                .select({ one: sql`1` })
+                .from(fileVariants)
+                .where(eq(fileVariants.fileId, files.id)),
+            )
+          : undefined,
+      ),
+    );
   const wantPublic = visibility === 'public';
   return (await withChildren(rows)).filter((row) => (row.visibility === 'public') === wantPublic);
 }
@@ -363,8 +401,11 @@ export async function findVariantlessTwins(
  * @throws when the content hash is already claimed by a live row — see
  *   {@link isUniqueViolation}, which the caller uses to fall back to a re-read.
  */
-export async function insertFile(values: NewFile, db: DatabaseOrTransaction = getDb()): Promise<FileRecord> {
-  if (db === getDb()) return getDb().transaction(tx => insertFile(values, tx));
+export async function insertFile(
+  values: NewFile,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<FileRecord> {
+  if (db === getDb()) return getDb().transaction((tx) => insertFile(values, tx));
   return withStorageQuota(db, [values.ownerUserId], async () => {
     const [row] = await db.insert(files).values(values).returning();
     return { ...row, links: [], variants: [] };
@@ -373,8 +414,11 @@ export async function insertFile(values: NewFile, db: DatabaseOrTransaction = ge
 
 /** Apply a column patch and return the file as it now stands, or `null` if it is gone. */
 export async function updateFile(fileId: string, patch: FilePatch): Promise<FileRecord | null> {
-  return getDb().transaction(async tx => {
-    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+  return getDb().transaction(async (tx) => {
+    const [old] = await tx
+      .select({ owner: files.ownerUserId })
+      .from(files)
+      .where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, patch.ownerUserId], async () => {
       await assertStableFileOwner(tx, fileId, old?.owner);
       const rows = await tx.update(files).set(patch).where(eq(files.id, fileId)).returning();
@@ -402,7 +446,10 @@ export async function updateFile(fileId: string, patch: FilePatch): Promise<File
  *    verified token, so neither can be forged.
  */
 function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
-  const federatedOwners = db.select({ id: users.id }).from(users).where(eq(users.type, 'federated'));
+  const federatedOwners = db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.type, 'federated'));
   return and(
     eq(files.purpose, 'user'),
     inArray(files.ownerUserId, federatedOwners),
@@ -437,13 +484,25 @@ function heldByOthers(db: DatabaseOrTransaction) {
       db
         .select({ one: sql`1` })
         .from(fileLinks)
-        .where(and(
-          eq(fileLinks.fileId, files.id),
-          sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
-        )),
+        .where(
+          and(
+            eq(fileLinks.fileId, files.id),
+            sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
+          ),
+        ),
     ),
-    exists(db.select({ one: sql`1` }).from(messageAttachments).where(eq(messageAttachments.fileId, files.id))),
-    exists(db.select({ one: sql`1` }).from(appListingScreenshots).where(eq(appListingScreenshots.fileId, files.id))),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(messageAttachments)
+        .where(eq(messageAttachments.fileId, files.id)),
+    ),
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(appListingScreenshots)
+        .where(eq(appListingScreenshots.fileId, files.id)),
+    ),
   );
 }
 
@@ -545,7 +604,7 @@ export async function deleteFileLink(
   fileId: string,
   app: string,
   entityType: string,
-  entityId: string
+  entityId: string,
 ): Promise<boolean> {
   const removed = await getDb()
     .delete(fileLinks)
@@ -554,8 +613,8 @@ export async function deleteFileLink(
         eq(fileLinks.fileId, fileId),
         eq(fileLinks.app, app),
         eq(fileLinks.entityType, entityType),
-        eq(fileLinks.entityId, entityId)
-      )
+        eq(fileLinks.entityId, entityId),
+      ),
     )
     .returning({ id: fileLinks.id });
 
@@ -567,8 +626,7 @@ export async function deleteFileLink(
  * in ONE transaction — replacing any existing row of the SAME `type` and
  * leaving rows of every other type untouched.
  *
- * Mongoose wrote variants and metadata in a single `$set` because they were
- * fields of one document; the transaction is what keeps that indivisible.
+ * The transaction keeps variants and metadata indivisible.
  * Intrinsic metadata (dimensions, duration) is derived from the same decode pass
  * that produced the renditions, so a state with one and not the other never
  * existed and must not become reachable.
@@ -585,10 +643,13 @@ export async function deleteFileLink(
 export async function upsertVariantSet(
   fileId: string,
   variants: NewFileVariant[],
-  patch?: FilePatch
+  patch?: FilePatch,
 ): Promise<FileVariantRecord[]> {
   return getDb().transaction(async (tx) => {
-    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+    const [old] = await tx
+      .select({ owner: files.ownerUserId })
+      .from(files)
+      .where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, patch?.ownerUserId], async () => {
       await assertStableFileOwner(tx, fileId, old?.owner);
       const types = variants.map((variant) => variant.type);
@@ -625,10 +686,13 @@ export async function upsertVariantSet(
  */
 export async function upsertVariant(
   fileId: string,
-  variant: NewFileVariant
+  variant: NewFileVariant,
 ): Promise<FileVariantRecord> {
   return getDb().transaction(async (tx) => {
-    const [old] = await tx.select({ owner: files.ownerUserId }).from(files).where(eq(files.id, fileId));
+    const [old] = await tx
+      .select({ owner: files.ownerUserId })
+      .from(files)
+      .where(eq(files.id, fileId));
     return withStorageQuota(tx, [old?.owner, null], async () => {
       await assertStableFileOwner(tx, fileId, old?.owner);
       await tx
@@ -653,7 +717,7 @@ export async function deleteVariant(fileId: string, type: string, key: string): 
   await getDb()
     .delete(fileVariants)
     .where(
-      and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, type), eq(fileVariants.key, key))
+      and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, type), eq(fileVariants.key, key)),
     );
 }
 

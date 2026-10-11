@@ -17,7 +17,12 @@
   },
   "faircoinRenewal": {
     "customerChoices": ["manual_monthly", "automatic_revocable"],
-    "automaticRequirements": ["express_consent", "amount_limit", "periodicity_limit", "verifiable_revocation"],
+    "automaticRequirements": [
+      "express_consent",
+      "amount_limit",
+      "periodicity_limit",
+      "verifiable_revocation"
+    ],
     "mandatesEnabled": false
   },
   "unresolved": [

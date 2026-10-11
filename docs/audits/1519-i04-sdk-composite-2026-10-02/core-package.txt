@@ -1,1 +1,0 @@
-$ node scripts/verify-package-formats.mjs

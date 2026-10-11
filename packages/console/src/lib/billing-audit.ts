@@ -1,4 +1,8 @@
-import type { BillingAuditActorKind, BillingAuditEntry, BillingAuditKind } from '@/hooks/use-account-audit';
+import type {
+  BillingAuditActorKind,
+  BillingAuditEntry,
+  BillingAuditKind,
+} from '@/hooks/use-account-audit';
 import { formatMoney } from '@/lib/money';
 
 /**
@@ -53,7 +57,7 @@ export type BillingAuditDirectionView = {
  * compile error rather than a row silently rendering as `none`.
  */
 export function billingAuditDirection(
-  entry: Pick<BillingAuditEntry, 'direction'>
+  entry: Pick<BillingAuditEntry, 'direction'>,
 ): BillingAuditDirectionView {
   switch (entry.direction) {
     case 'in':
@@ -77,7 +81,7 @@ export function billingAuditDirection(
  * true on this side of the wire as well.
  */
 export function billingAuditAmount(
-  entry: Pick<BillingAuditEntry, 'amount' | 'currency' | 'direction'>
+  entry: Pick<BillingAuditEntry, 'amount' | 'currency' | 'direction'>,
 ): string {
   return `${billingAuditDirection(entry).sign}${formatMoney(entry.amount, entry.currency)}`;
 }
@@ -141,7 +145,7 @@ export interface BillingAuditReference {
  * dressed up as one.
  */
 export function billingAuditReferences(
-  entry: Pick<BillingAuditEntry, 'receiptId' | 'refundId' | 'invoiceId'>
+  entry: Pick<BillingAuditEntry, 'receiptId' | 'refundId' | 'invoiceId'>,
 ): ReadonlyArray<BillingAuditReference> {
   const references: Array<BillingAuditReference> = [];
   if (entry.receiptId !== null) {

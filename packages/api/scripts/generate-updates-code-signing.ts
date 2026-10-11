@@ -59,17 +59,21 @@ async function main(): Promise<void> {
   process.stdout.write('=== Oxy Updates code-signing keypair generated ===\n\n');
   process.stdout.write(`Public certificate written to: ${certOutputPath}\n`);
   process.stdout.write('  → commit this certificate into each app that receives updates.\n\n');
-  process.stdout.write('UPDATES_CODE_SIGNING_PRIVATE_KEY (base64 PEM — set as a secret, never commit):\n\n');
+  process.stdout.write(
+    'UPDATES_CODE_SIGNING_PRIVATE_KEY (base64 PEM — set as a secret, never commit):\n\n',
+  );
   process.stdout.write(`${privateKeyBase64}\n\n`);
   process.stdout.write(
-    'Store the value above in GitHub Actions secrets → SSM /oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY.\n'
+    'Store the value above in GitHub Actions secrets → SSM /oxy/oxy-api/UPDATES_CODE_SIGNING_PRIVATE_KEY.\n',
   );
-  process.stdout.write('The private key was NOT written to disk. Clear your terminal scrollback.\n');
+  process.stdout.write(
+    'The private key was NOT written to disk. Clear your terminal scrollback.\n',
+  );
 }
 
 main().catch((error: unknown) => {
   process.stderr.write(
-    `Failed to generate code-signing keypair: ${error instanceof Error ? error.message : String(error)}\n`
+    `Failed to generate code-signing keypair: ${error instanceof Error ? error.message : String(error)}\n`,
   );
   process.exit(1);
 });

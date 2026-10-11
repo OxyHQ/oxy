@@ -1,36 +1,38 @@
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
+import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk';
+import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
+import { SocketIoInstrumentation } from '@opentelemetry/instrumentation-socket.io';
+import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { shouldSuppressHttpTrace } from './utils/telemetryRedaction.js';
 
-const enabled = process.env.OTEL_SDK_DISABLED !== 'true'
-  && Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+const enabled =
+  process.env.OTEL_SDK_DISABLED !== 'true' && Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
 
 const sdk = enabled
   ? new NodeSDK({
       serviceName: process.env.OTEL_SERVICE_NAME ?? 'oxy-api',
+      // Traces only, sampled by OTEL_TRACES_SAMPLER/_ARG from the task definition.
+      // Metrics are Oxy ecosystem telemetry's job, not CloudWatch's.
       traceExporter: new OTLPTraceExporter(),
-      metricReaders: [
-        new PeriodicExportingMetricReader({
-          exporter: new OTLPMetricExporter(),
-          exportIntervalMillis: 30_000,
-        }),
-      ],
-      instrumentations: [getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-fs': { enabled: false },
-        '@opentelemetry/instrumentation-dns': { enabled: false },
-        // Session cache values contain bearer and refresh tokens. Redis spans
-        // must never copy command arguments into the telemetry trust boundary.
-        '@opentelemetry/instrumentation-ioredis': { enabled: false },
-        '@opentelemetry/instrumentation-http': {
+      // Only the libraries this API runs on. Redis stays uninstrumented: session
+      // cache values contain bearer and refresh tokens, and Redis spans must never
+      // copy command arguments into the telemetry trust boundary.
+      instrumentations: [
+        new HttpInstrumentation({
           // HTTP instrumentation records the raw target before Express can
           // replace parameters with its route template. Do not create spans
           // when that target can contain credentials.
-          ignoreIncomingRequestHook: request => shouldSuppressHttpTrace(request.url),
-        },
-      })],
+          ignoreIncomingRequestHook: (request) => shouldSuppressHttpTrace(request.url),
+        }),
+        new ExpressInstrumentation(),
+        new UndiciInstrumentation(),
+        new SocketIoInstrumentation(),
+        new AwsInstrumentation(),
+        new PinoInstrumentation(),
+      ],
     })
   : null;
 

@@ -73,7 +73,14 @@ export function ListRow({
       title={title}
       subtitle={subtitle}
       trailing={tail}
-      onPress={onPress ? () => { haptics('light'); onPress(); } : undefined}
+      onPress={
+        onPress
+          ? () => {
+              haptics('light');
+              onPress();
+            }
+          : undefined
+      }
       disabled={disabled}
       destructive={destructive}
       accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}

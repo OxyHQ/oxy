@@ -124,6 +124,8 @@ export const sendMessageSchema = z.object({
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   scheduledAt: z.string().optional(),
   requestReadReceipt: z.boolean().optional(),
+  // Row id of the draft being sent; the server removes it after the send.
+  draftId: z.string().trim().min(1).optional(),
 });
 
 // POST /email/drafts
@@ -141,19 +143,21 @@ export const saveDraftSchema = z.object({
   expectedRevision: z.number().int().min(1).optional(),
 });
 
-const savedSearchFiltersSchema = z.object({
-  q: z.string().max(500).optional(),
-  from: z.string().max(128).optional(),
-  to: z.string().max(128).optional(),
-  subject: z.string().max(128).optional(),
-  hasAttachment: z.boolean().optional(),
-  dateAfter: z.string().max(40).optional(),
-  dateBefore: z.string().max(40).optional(),
-  mailbox: z.string().max(255).optional(),
-  starred: z.boolean().optional(),
-  unread: z.boolean().optional(),
-  label: z.string().max(255).optional(),
-}).strict();
+const savedSearchFiltersSchema = z
+  .object({
+    q: z.string().max(500).optional(),
+    from: z.string().max(128).optional(),
+    to: z.string().max(128).optional(),
+    subject: z.string().max(128).optional(),
+    hasAttachment: z.boolean().optional(),
+    dateAfter: z.string().max(40).optional(),
+    dateBefore: z.string().max(40).optional(),
+    mailbox: z.string().max(255).optional(),
+    starred: z.boolean().optional(),
+    unread: z.boolean().optional(),
+    label: z.string().max(255).optional(),
+  })
+  .strict();
 
 export const createSavedSearchSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -176,6 +180,52 @@ export const unsubscribeSchema = z.object({
   method: z.enum(['list-unsubscribe', 'block']).optional(),
 });
 
+/** How an unsubscribe was carried out. `blocked` = the sender's mail moved to Spam. */
+const unsubscribeMethodSchema = z.enum(['one-click', 'http', 'mailto', 'blocked']);
+
+const offsetPaginationSchema = z.object({
+  total: z.number().int(),
+  limit: z.number().int(),
+  offset: z.number().int(),
+  hasMore: z.boolean(),
+});
+
+// GET /email/subscriptions — response
+export const subscriptionSenderSchema = z.object({
+  /** The sender address, lower-cased. Not a row id. */
+  _id: z.string(),
+  name: z.string(),
+  messageCount: z.number().int(),
+  readCount: z.number().int(),
+  latestDate: z.date(),
+  oldestDate: z.date(),
+  latestMessageId: z.string(),
+  hasListUnsubscribe: z.boolean(),
+  type: z.enum(['list-unsubscribe', 'pattern-match', 'frequent']),
+  senderAvatarPath: z.string().nullable().optional(),
+  /** The user already unsubscribed from this sender. */
+  unsubscribed: z.boolean(),
+  /** When the user first unsubscribed; null when they have not. */
+  unsubscribedAt: z.date().nullable(),
+});
+
+export const listSubscriptionsResponseSchema = z.object({
+  data: z.array(subscriptionSenderSchema),
+  pagination: offsetPaginationSchema,
+});
+
+// POST /email/subscriptions/unsubscribe — response
+export const unsubscribeResponseSchema = z.object({
+  data: z.object({
+    success: z.literal(true),
+    method: unsubscribeMethodSchema,
+    /** When the user first unsubscribed from this sender. */
+    unsubscribedAt: z.date(),
+    /** True when the sender was already unsubscribed and nothing was sent to it again. */
+    alreadyUnsubscribed: z.boolean(),
+  }),
+});
+
 // PUT /email/bundles/:bundleId
 export const bundleIdParams = z.object({
   bundleId: z.string().trim().min(1),
@@ -189,17 +239,42 @@ export const updateBundleSchema = z.object({
 });
 
 // PUT /email/settings
+// `autoReply` was `z.any()`: a date arrived as a string where the service
+// stores a Date, and anything at all could be written. The forwarding address
+// was unchecked too — mail was then forwarded to whatever was typed.
+const optionalInstant = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  .refine(
+    (value) => value == null || value === '' || !Number.isNaN(Date.parse(value)),
+    'Must be a valid date',
+  )
+  .transform((value) => (value ? new Date(value) : undefined));
+
 export const updateEmailSettingsSchema = z.object({
-  signature: z.string().optional(),
-  autoReply: z.any().optional(),
-  autoForwardTo: z.string().optional(),
+  signature: z.string().max(10_000).optional(),
+  autoReply: z
+    .object({
+      enabled: z.boolean(),
+      subject: z.string().max(998).optional(),
+      body: z.string().max(10_000).optional(),
+      startDate: optionalInstant,
+      endDate: optionalInstant,
+    })
+    .optional(),
+  autoForwardTo: z.union([z.literal(''), z.string().trim().email()]).optional(),
   autoForwardKeepCopy: z.boolean().optional(),
 });
 
 // POST /email/reminders
 export const createReminderSchema = z.object({
   text: z.string().trim().min(1),
-  remindAt: z.string().trim().min(1),
+  remindAt: z
+    .string()
+    .trim()
+    .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be a valid date'),
   relatedMessageId: z.string().optional(),
 });
 
@@ -209,10 +284,22 @@ export const reminderIdParams = z.object({
 });
 
 // PUT /email/reminders/:reminderId
+// The fields the reminder actually has. This schema used to accept only a
+// `status` that nothing read, and — because validation replaces the body with
+// its parsed result — stripped the `completed`, `pinned` and `snoozedUntil`
+// the controller and the Inbox client both use: ticking a reminder off
+// answered 200 and changed nothing.
+const instantSchema = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be a valid date');
+
 export const updateReminderSchema = z.object({
-  text: z.string().trim().optional(),
-  remindAt: z.string().trim().optional(),
-  status: z.enum(['pending', 'completed', 'dismissed']).optional(),
+  text: z.string().trim().min(1).optional(),
+  remindAt: instantSchema.optional(),
+  completed: z.boolean().optional(),
+  pinned: z.boolean().optional(),
+  snoozedUntil: instantSchema.nullable().optional(),
 });
 
 // ─── Contacts ──────────────────────────────────────────────────────
@@ -244,7 +331,15 @@ export const updateContactSchema = z.object({
 
 const filterConditionSchema = z.object({
   field: z.enum(['from', 'to', 'subject', 'has-attachment', 'size']),
-  operator: z.enum(['contains', 'equals', 'not-contains', 'starts-with', 'ends-with', 'greater-than', 'less-than']),
+  operator: z.enum([
+    'contains',
+    'equals',
+    'not-contains',
+    'starts-with',
+    'ends-with',
+    'greater-than',
+    'less-than',
+  ]),
   value: z.string().min(1),
 });
 

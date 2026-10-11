@@ -55,7 +55,11 @@ describe('webhookPatch', () => {
    * receiving events.
    */
   it('sends an empty string — not an absent key — to clear an endpoint', () => {
-    const patch = webhookPatch(STORED, { webhookUrl: '', devWebhookUrl: STORED.devWebhookUrl }, true);
+    const patch = webhookPatch(
+      STORED,
+      { webhookUrl: '', devWebhookUrl: STORED.devWebhookUrl },
+      true,
+    );
     expect(patch).toEqual({ webhookUrl: '' });
     expect('webhookUrl' in patch).toBe(true);
     expect(patch.webhookUrl).toBe('');
@@ -66,7 +70,7 @@ describe('webhookPatch', () => {
     const patch = webhookPatch(
       STORED,
       { webhookUrl: STORED.webhookUrl, devWebhookUrl: 'https://staging.example.com/oxy' },
-      true
+      true,
     );
     expect(patch).toEqual({ devWebhookUrl: 'https://staging.example.com/oxy' });
     expect('webhookUrl' in patch).toBe(false);
@@ -82,7 +86,7 @@ describe('webhookPatch', () => {
     const patch = webhookPatch(
       STORED,
       { webhookUrl: `  ${STORED.webhookUrl}  `, devWebhookUrl: `\t${STORED.devWebhookUrl}` },
-      true
+      true,
     );
     expect(patch).toEqual({});
     expect(rotatesSigningSecret(patch)).toBe(false);
@@ -93,7 +97,7 @@ describe('webhookPatch', () => {
     const patch = webhookPatch(
       STORED,
       { webhookUrl: '  https://new.example.com/oxy  ', devWebhookUrl: STORED.devWebhookUrl },
-      true
+      true,
     );
     expect(patch).toEqual({ webhookUrl: 'https://new.example.com/oxy' });
   });
@@ -105,7 +109,11 @@ describe('webhookPatch', () => {
    * enforced, not the `disabled` attribute.
    */
   it('sends nothing at all when the caller may not edit webhooks', () => {
-    const patch = webhookPatch(STORED, { webhookUrl: 'https://evil.example.com/oxy', devWebhookUrl: '' }, false);
+    const patch = webhookPatch(
+      STORED,
+      { webhookUrl: 'https://evil.example.com/oxy', devWebhookUrl: '' },
+      false,
+    );
     expect(patch).toEqual({});
     expect(hasWebhookChanges(patch)).toBe(false);
   });
@@ -119,13 +127,13 @@ describe('rotatesSigningSecret', () => {
    * cause, or stay silent about one it does.
    */
   it('is true for every production change, clearing included', () => {
-    expect(
-      rotatesSigningSecret(webhookPatch(STORED, { ...STORED, webhookUrl: '' }, true))
-    ).toBe(true);
+    expect(rotatesSigningSecret(webhookPatch(STORED, { ...STORED, webhookUrl: '' }, true))).toBe(
+      true,
+    );
     expect(
       rotatesSigningSecret(
-        webhookPatch(STORED, { ...STORED, webhookUrl: 'https://new.example.com/oxy' }, true)
-      )
+        webhookPatch(STORED, { ...STORED, webhookUrl: 'https://new.example.com/oxy' }, true),
+      ),
     ).toBe(true);
   });
 

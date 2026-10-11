@@ -17,83 +17,83 @@ import AvatarCameraBadge from './AvatarCameraBadge';
  * badge overlay.
  */
 export interface ProfileSummaryCardProps {
-    /** Primary display name shown under the avatar. */
-    displayName: string;
-    /** Resolved avatar thumbnail URL (undefined → initials fallback). */
-    avatarUri?: string;
-    /** Avatar diameter in px. Defaults to 72. */
-    avatarSize?: number;
-    /**
-     * Secondary lines rendered beneath the name (e.g. `@handle`, email).
-     * Falsy entries are skipped so callers can pass conditional values inline.
-     */
-    lines?: Array<string | null | undefined | false>;
-    /** When provided, the avatar is pressable (e.g. opens the avatar picker). */
-    onAvatarPress?: () => void;
-    /** Render the camera badge overlay. Only meaningful with `onAvatarPress`. */
-    showCameraBadge?: boolean;
-    /** Accessibility label for the pressable avatar. */
-    avatarAccessibilityLabel?: string;
+  /** Primary display name shown under the avatar. */
+  displayName: string;
+  /** Resolved avatar thumbnail URL (undefined → initials fallback). */
+  avatarUri?: string;
+  /** Avatar diameter in px. Defaults to 72. */
+  avatarSize?: number;
+  /**
+   * Secondary lines rendered beneath the name (e.g. `@handle`, email).
+   * Falsy entries are skipped so callers can pass conditional values inline.
+   */
+  lines?: Array<string | null | undefined | false>;
+  /** When provided, the avatar is pressable (e.g. opens the avatar picker). */
+  onAvatarPress?: () => void;
+  /** Render the camera badge overlay. Only meaningful with `onAvatarPress`. */
+  showCameraBadge?: boolean;
+  /** Accessibility label for the pressable avatar. */
+  avatarAccessibilityLabel?: string;
 }
 
 const cardStyle: ViewStyle = {
-    marginBottom: 16,
+  marginBottom: 16,
 };
 
 const pressableStyle: ViewStyle = {
-    position: 'relative',
+  position: 'relative',
 };
 
 const ProfileSummaryCard: React.FC<ProfileSummaryCardProps> = ({
-    displayName,
-    avatarUri,
-    avatarSize = 72,
-    lines,
-    onAvatarPress,
-    showCameraBadge = false,
-    avatarAccessibilityLabel,
+  displayName,
+  avatarUri,
+  avatarSize = 72,
+  lines,
+  onAvatarPress,
+  showCameraBadge = false,
+  avatarAccessibilityLabel,
 }) => {
-    const avatar = <Avatar source={avatarUri} name={displayName} size={avatarSize} />;
+  const avatar = <Avatar source={avatarUri} name={displayName} size={avatarSize} />;
 
-    const avatarNode = onAvatarPress ? (
-        <PressableScale
-            onPress={onAvatarPress}
-            accessibilityRole="button"
-            accessibilityLabel={avatarAccessibilityLabel}
-            style={pressableStyle}
-            className="mb-space-12"
-        >
-            {avatar}
-            {showCameraBadge ? <AvatarCameraBadge /> : null}
-        </PressableScale>
-    ) : (
-        <View className="mb-space-12">{avatar}</View>
-    );
+  const avatarNode = onAvatarPress ? (
+    <PressableScale
+      onPress={onAvatarPress}
+      accessibilityRole="button"
+      accessibilityLabel={avatarAccessibilityLabel}
+      style={pressableStyle}
+      className="mb-space-12"
+    >
+      {avatar}
+      {showCameraBadge ? <AvatarCameraBadge /> : null}
+    </PressableScale>
+  ) : (
+    <View className="mb-space-12">{avatar}</View>
+  );
 
-    const subtitleLines = (lines ?? []).filter(
-        (line): line is string => typeof line === 'string' && line.length > 0,
-    );
+  const subtitleLines = (lines ?? []).filter(
+    (line): line is string => typeof line === 'string' && line.length > 0,
+  );
 
-    return (
-        <Card appearance="subtle" radius="radius-20" style={cardStyle}>
-            <View className="items-center px-space-20 py-space-24">
-                {avatarNode}
-                <H4 className="text-text" numberOfLines={1}>
-                    {displayName}
-                </H4>
-                {subtitleLines.map((line, index) => (
-                    <Text
-                        // Subtitle order is stable within a render; index keys are safe here.
-                        key={`${index}-${line}`}
-                        className="text-text-secondary text-sm mt-space-2"
-                        numberOfLines={1}
-                    >
-                        {line}
-                    </Text>
-                ))}
-            </View>
-        </Card>
-    );
+  return (
+    <Card appearance="subtle" radius="radius-20" style={cardStyle}>
+      <View className="items-center px-space-20 py-space-24">
+        {avatarNode}
+        <H4 className="text-text" numberOfLines={1}>
+          {displayName}
+        </H4>
+        {subtitleLines.map((line, index) => (
+          <Text
+            // biome-ignore lint/suspicious/noArrayIndexKey: subtitle order is stable within a render; index keys are safe here.
+            key={`${index}-${line}`}
+            className="text-text-secondary text-sm mt-space-2"
+            numberOfLines={1}
+          >
+            {line}
+          </Text>
+        ))}
+      </View>
+    </Card>
+  );
 };
 
 export default ProfileSummaryCard;

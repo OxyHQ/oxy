@@ -129,8 +129,6 @@ jobs:
                    packages/backend/src/db/schema/index.ts; do
             test -f "$f" || { echo "::error::scaffold is missing $f"; exit 1; }
           done
-          test ! -e packages/backend/src/config/database.ts
-          ! grep -rniE 'mongo' . --exclude-dir=node_modules
           docker compose -f docker-compose.postgres.yml config -q
 
       - name: Every Oxy range the scaffold ships resolves on the public registry

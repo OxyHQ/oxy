@@ -19,57 +19,57 @@
  * perform a real navigation, and a fake funnel would prove nothing about the
  * relay-vs-redirect decision.
  */
-import { afterEach, beforeEach, describe, expect, jest, mock, test } from "bun:test"
-import React, { act } from "react"
-import { createRoot, type Root } from "react-dom/client"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { COMMONS_OAUTH_POLL_INTERVAL_MS } from "@/lib/commons-oauth-request"
-import { stubAuthScreens } from "@/lib/__tests__/setup-services-mock"
+import { afterEach, beforeEach, describe, expect, jest, mock, test } from 'bun:test';
+import React, { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { COMMONS_OAUTH_POLL_INTERVAL_MS } from '@/lib/commons-oauth-request';
+import { stubAuthScreens } from '@/lib/__tests__/setup-services-mock';
 
-const CLIENT_ID = "oxy_dk_test_client"
-const REDIRECT_URI = "https://app.example.com/callback"
-const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
-const STATE = "rp-owned-state"
-const SESSION_TOKEN = "secret-session-token-never-leaves-this-page"
-const AUTHORIZE_CODE = "public-authorize-code"
+const CLIENT_ID = 'oxy_dk_test_client';
+const REDIRECT_URI = 'https://app.example.com/callback';
+const CODE_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const STATE = 'rp-owned-state';
+const SESSION_TOKEN = 'secret-session-token-never-leaves-this-page';
+const AUTHORIZE_CODE = 'public-authorize-code';
 /**
  * The `app` / `origin` values are deliberately distinctive: the anti-phishing
  * assertions below require that NOTHING the visitor reads is derived from the
  * payload — the application identity on screen is the server-resolved one.
  */
-const PAYLOAD_APP = "payload-derived-app-name"
-const PAYLOAD_ORIGIN = "https://payload-derived-origin.example"
-const QR_PAYLOAD = `oxycommons://approve?v=1&code=${AUTHORIZE_CODE}&app=${PAYLOAD_APP}&origin=${encodeURIComponent(PAYLOAD_ORIGIN)}&nonce=n&exp=1`
-const MINTED_CODE = "minted-authorization-code"
+const PAYLOAD_APP = 'payload-derived-app-name';
+const PAYLOAD_ORIGIN = 'https://payload-derived-origin.example';
+const QR_PAYLOAD = `oxycommons://approve?v=1&code=${AUTHORIZE_CODE}&app=${PAYLOAD_APP}&origin=${encodeURIComponent(PAYLOAD_ORIGIN)}&nonce=n&exp=1`;
+const MINTED_CODE = 'minted-authorization-code';
 
 // ---------------------------------------------------------------------------
 // Delivery funnel — real implementation, harness window
 // ---------------------------------------------------------------------------
 
-const webMessageModule = await import("@/lib/oauth-web-message")
+const webMessageModule = await import('@/lib/oauth-web-message');
 /** Captured BEFORE the module is mocked, so the forwarder can never recurse. */
-const realExports = { ...webMessageModule }
-const realDeliverOAuthResult = webMessageModule.deliverOAuthResult
+const realExports = { ...webMessageModule };
+const realDeliverOAuthResult = webMessageModule.deliverOAuthResult;
 
-type DeliverInput = Parameters<typeof realDeliverOAuthResult>[0]
+type DeliverInput = Parameters<typeof realDeliverOAuthResult>[0];
 
 interface RelayTarget {
-  postMessage: ReturnType<typeof mock>
+  postMessage: ReturnType<typeof mock>;
 }
 
 const harness: {
-  opener: RelayTarget | null
-  location: { href: string }
-  closed: boolean
-  close(): void
+  opener: RelayTarget | null;
+  location: { href: string };
+  closed: boolean;
+  close(): void;
 } = {
   opener: null,
-  location: { href: "" },
+  location: { href: '' },
   closed: false,
   close() {
-    this.closed = true
+    this.closed = true;
   },
-}
+};
 
 const deliverOAuthResult = mock((input: DeliverInput) =>
   realDeliverOAuthResult(
@@ -79,7 +79,7 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
     // untouched, so this process-global mock cannot leak into sibling suites.
     input.window === globalThis.window ? { ...input, window: harness } : input,
   ),
-)
+);
 
 // ---------------------------------------------------------------------------
 // The shared request surface
@@ -99,74 +99,74 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
  * surface (behind "Having trouble?" upstream) until the route could not deliver.
  */
 interface SurfaceAction {
-  key: string
-  label: string
-  onPress: () => void
-  disabled?: boolean
+  key: string;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
 }
 
 interface SurfaceProps {
-  route: string | null
-  progress: string
-  qrPayload?: string | null
-  routeFailed?: boolean
-  failed?: boolean
-  onRetry?: () => void
-  onAcquireCommons?: () => void
-  subordinate?: readonly SurfaceAction[]
-  alternatives?: readonly SurfaceAction[]
+  route: string | null;
+  progress: string;
+  qrPayload?: string | null;
+  routeFailed?: boolean;
+  failed?: boolean;
+  onRetry?: () => void;
+  onAcquireCommons?: () => void;
+  subordinate?: readonly SurfaceAction[];
+  alternatives?: readonly SurfaceAction[];
 }
 
-let surfaceProps: SurfaceProps | null = null
+let surfaceProps: SurfaceProps | null = null;
 
 function renderAction(action: SurfaceAction) {
   return React.createElement(
-    "button",
+    'button',
     {
       key: action.key,
-      type: "button",
-      "data-testid": action.key,
+      type: 'button',
+      'data-testid': action.key,
       disabled: action.disabled,
       onClick: action.onPress,
     },
     action.label,
-  )
+  );
 }
 
 function SignInRequestSurfaceDouble(props: SurfaceProps) {
-  surfaceProps = props
-  const failed = props.failed === true
-  const revealed = failed || props.routeFailed === true
+  surfaceProps = props;
+  const failed = props.failed === true;
+  const revealed = failed || props.routeFailed === true;
   return React.createElement(
-    "div",
-    { "data-testid": "signin-request-surface" },
-    !failed && props.route === "qr" && props.qrPayload
-      ? React.createElement("div", {
-          key: "qr",
-          "data-testid": "qr-code",
-          "data-qr-value": props.qrPayload,
+    'div',
+    { 'data-testid': 'signin-request-surface' },
+    !failed && props.route === 'qr' && props.qrPayload
+      ? React.createElement('div', {
+          key: 'qr',
+          'data-testid': 'qr-code',
+          'data-qr-value': props.qrPayload,
         })
       : null,
     failed && props.onRetry
       ? React.createElement(
-          "button",
+          'button',
           {
-            key: "retry",
-            type: "button",
-            "data-testid": "signin-retry",
+            key: 'retry',
+            type: 'button',
+            'data-testid': 'signin-retry',
             onClick: props.onRetry,
           },
-          "Try again",
+          'Try again',
         )
       : null,
     (props.subordinate ?? []).map(renderAction),
     revealed ? (props.alternatives ?? []).map(renderAction) : null,
-  )
+  );
 }
 
 /** The action keys the lane put in a given band, in order. */
 function keysOf(actions: readonly SurfaceAction[] | undefined): string[] {
-  return (actions ?? []).map((action) => action.key)
+  return (actions ?? []).map((action) => action.key);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,11 +174,11 @@ function keysOf(actions: readonly SurfaceAction[] | undefined): string[] {
 // ---------------------------------------------------------------------------
 
 interface PollResult {
-  authorized: boolean
-  sessionId?: string
-  status: string
-  pushSentAt: string | null
-  openedAt: string | null
+  authorized: boolean;
+  sessionId?: string;
+  status: string;
+  pushSentAt: string | null;
+  openedAt: string | null;
 }
 
 const commons = {
@@ -187,7 +187,7 @@ const commons = {
     authorizeCode: AUTHORIZE_CODE,
     qrPayload: QR_PAYLOAD,
     expiresAt: Date.now() + 5 * 60 * 1000,
-    status: "pending",
+    status: 'pending',
   })),
   poll: mock(async (): Promise<PollResult> => pollResult),
   finalizeOAuth: mock(async () => ({
@@ -196,23 +196,23 @@ const commons = {
     expiresIn: 600,
   })),
   deny: mock(async () => ({ success: true })),
-}
+};
 
 const oxyServices = {
   auth: { commons },
   session: {
     get accessToken() {
-      return sessionState.accessToken
+      return sessionState.accessToken;
     },
   },
-}
+};
 
 let pollResult: PollResult = {
   authorized: false,
-  status: "pending",
+  status: 'pending',
   pushSentAt: null,
   openedAt: null,
-}
+};
 
 /**
  * One `principal acting as account` row, in the shape `useDeviceSwitcher`
@@ -220,7 +220,12 @@ let pollResult: PollResult = {
  * of these suites is what the PAGE does with the rows, and a hand-built row is
  * exactly what a hand-built directory would have produced.
  */
-function contextRow(over: { contextId: string; displayName: string; handle: string; isActive: boolean }) {
+function contextRow(over: {
+  contextId: string;
+  displayName: string;
+  handle: string;
+  isActive: boolean;
+}) {
   return {
     contextId: over.contextId,
     accountId: over.contextId,
@@ -232,7 +237,7 @@ function contextRow(over: { contextId: string; displayName: string; handle: stri
     isActive: over.isActive,
     isDelegated: false,
     canActivate: true,
-  }
+  };
 }
 
 /** One person holding one account. */
@@ -245,31 +250,31 @@ function personWith(row: ReturnType<typeof contextRow>) {
     color: null,
     isActive: row.isActive,
     contexts: [row],
-  }
+  };
 }
 
 let sessionState: {
-  isAuthenticated: boolean
-  activeContext: ReturnType<typeof contextRow> | null
-  principals: ReturnType<typeof personWith>[]
-  accessToken: string | null
+  isAuthenticated: boolean;
+  activeContext: ReturnType<typeof contextRow> | null;
+  principals: ReturnType<typeof personWith>[];
+  accessToken: string | null;
 } = {
   isAuthenticated: false,
   activeContext: null,
   principals: [],
   accessToken: null,
-}
+};
 
 /**
  * `mock.module` is process-global and last-writer-wins, so every mock this file
  * relies on is (re-)asserted before each test rather than only at load time.
  */
 function installMocks(): void {
-  mock.module("@/lib/oauth-web-message", () => ({
+  mock.module('@/lib/oauth-web-message', () => ({
     ...realExports,
     deliverOAuthResult,
-  }))
-  mock.module("@oxy.so/services", () => ({
+  }));
+  mock.module('@oxy.so/services', () => ({
     ...stubAuthScreens,
     useOxy: () => ({
       user: null,
@@ -289,15 +294,14 @@ function installMocks(): void {
       signOutContext: async () => false,
       signOutPrincipal: async () => false,
     }),
-    OxyConsentScreen: () =>
-      React.createElement("div", { "data-testid": "consent-screen" }),
+    OxyConsentScreen: () => React.createElement('div', { 'data-testid': 'consent-screen' }),
     OxySignInRequestSurface: SignInRequestSurfaceDouble,
-  }))
+  }));
 }
 
-installMocks()
+installMocks();
 
-const { AuthorizePage } = await import("@/src/pages/authorize")
+const { AuthorizePage } = await import('@/src/pages/authorize');
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -309,87 +313,84 @@ let applicationResponse: { status: number; body: unknown } = {
   body: {
     data: {
       application: {
-        id: "app-1",
-        name: "Example App",
-        type: "third_party",
+        id: 'app-1',
+        name: 'Example App',
+        type: 'third_party',
         isOfficial: false,
         isInternal: false,
         scopes: [],
       },
     },
   },
-}
+};
 
 const fetchMock = mock(async (input: RequestInfo | URL) => {
-  const url = String(input)
-  if (url.includes("/auth/oauth/client/")) {
+  const url = String(input);
+  if (url.includes('/auth/oauth/client/')) {
     return new Response(JSON.stringify(applicationResponse.body), {
       status: applicationResponse.status,
-      headers: { "content-type": "application/json" },
-    })
+      headers: { 'content-type': 'application/json' },
+    });
   }
-  if (url.includes("/auth/oauth/consent")) {
+  if (url.includes('/auth/oauth/consent')) {
     return new Response(JSON.stringify({ data: { consentRequired: true } }), {
       status: 200,
-      headers: { "content-type": "application/json" },
-    })
+      headers: { 'content-type': 'application/json' },
+    });
   }
-  return new Response("{}", { status: 404 })
-})
+  return new Response('{}', { status: 404 });
+});
 
 async function flush(): Promise<void> {
-  for (let i = 0; i < 25; i += 1) await Promise.resolve()
+  for (let i = 0; i < 25; i += 1) await Promise.resolve();
 }
 
 function buildSearch(params: Record<string, string | undefined>): string {
-  const search = new URLSearchParams()
+  const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value) search.set(key, value)
+    if (value) search.set(key, value);
   }
-  return `?${search.toString()}`
+  return `?${search.toString()}`;
 }
 
 async function renderAuthorize(params: Record<string, string | undefined>) {
-  const container = document.createElement("div")
-  document.body.appendChild(container)
-  const root: Root = createRoot(container)
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root: Root = createRoot(container);
   await act(async () => {
     root.render(
-        <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
-          <Routes>
-            <Route path="/authorize" element={<AuthorizePage />} />
-            <Route
-              path="/login"
-              element={<div data-testid="login-page" />}
-            />
-          </Routes>
-        </MemoryRouter>
-    )
-  })
+      <MemoryRouter initialEntries={[`/authorize${buildSearch(params)}`]}>
+        <Routes>
+          <Route path="/authorize" element={<AuthorizePage />} />
+          <Route path="/login" element={<div data-testid="login-page" />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  });
   await act(async () => {
-    await flush()
-  })
+    await flush();
+  });
   return {
     container,
     unmount: () => {
-      act(() => root.unmount())
-      container.remove()
+      act(() => root.unmount());
+      container.remove();
     },
-  }
+  };
 }
 
 /** Fire the lane's next poll and let the resulting work settle. */
 async function advancePoll(): Promise<void> {
   await act(async () => {
-    jest.advanceTimersByTime(COMMONS_OAUTH_POLL_INTERVAL_MS + 1)
-    await flush()
-  })
+    jest.advanceTimersByTime(COMMONS_OAUTH_POLL_INTERVAL_MS + 1);
+    await flush();
+  });
 }
 
 function click(element: Element | null | undefined): void {
   act(() => {
-    element?.dispatchEvent(new window.MouseEvent("click", { bubbles: true }))
-  })
+    element?.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
 }
 
 const OAUTH_PARAMS = {
@@ -397,410 +398,414 @@ const OAUTH_PARAMS = {
   redirect_uri: REDIRECT_URI,
   state: STATE,
   code_challenge: CODE_CHALLENGE,
-  code_challenge_method: "S256",
-  scope: "openid profile",
-}
+  code_challenge_method: 'S256',
+  scope: 'openid profile',
+};
 
-describe("AuthorizePage — Commons lane for a visitor with no session here", () => {
+describe('AuthorizePage — Commons lane for a visitor with no session here', () => {
   beforeEach(() => {
-    installMocks()
-    jest.useFakeTimers()
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    fetchMock.mockClear()
+    installMocks();
+    jest.useFakeTimers();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockClear();
     applicationResponse = {
       status: 200,
       body: {
         data: {
           application: {
-            id: "app-1",
-            name: "Example App",
-            type: "third_party",
+            id: 'app-1',
+            name: 'Example App',
+            type: 'third_party',
             isOfficial: false,
             isInternal: false,
             scopes: [],
           },
         },
       },
-    }
-    pollResult = { authorized: false, status: "pending", pushSentAt: null, openedAt: null }
+    };
+    pollResult = { authorized: false, status: 'pending', pushSentAt: null, openedAt: null };
     sessionState = {
       isAuthenticated: false,
       activeContext: null,
       principals: [],
       accessToken: null,
-    }
-    surfaceProps = null
-    harness.opener = null
-    harness.location = { href: "" }
-    harness.closed = false
-    deliverOAuthResult.mockClear()
-    oxyServices.auth.commons.start.mockClear()
-    oxyServices.auth.commons.poll.mockClear()
-    oxyServices.auth.commons.finalizeOAuth.mockClear()
-    oxyServices.auth.commons.deny.mockClear()
-  })
+    };
+    surfaceProps = null;
+    harness.opener = null;
+    harness.location = { href: '' };
+    harness.closed = false;
+    deliverOAuthResult.mockClear();
+    oxyServices.auth.commons.start.mockClear();
+    oxyServices.auth.commons.poll.mockClear();
+    oxyServices.auth.commons.finalizeOAuth.mockClear();
+    oxyServices.auth.commons.deny.mockClear();
+  });
 
   afterEach(() => {
-    jest.useRealTimers()
-  })
+    jest.useRealTimers();
+  });
 
-  test("creates the request with the OAuth context already bound", async () => {
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+  test('creates the request with the OAuth context already bound', async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
-    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1);
     expect(oxyServices.auth.commons.start).toHaveBeenCalledWith({
       clientId: CLIENT_ID,
       oauth: {
         redirectUri: REDIRECT_URI,
         codeChallenge: CODE_CHALLENGE,
-        codeChallengeMethod: "S256",
-        scope: "openid profile",
+        codeChallengeMethod: 'S256',
+        scope: 'openid profile',
       },
-    })
+    });
 
     // The lane drives the shared surface down its QR route, carrying the PUBLIC
     // approval payload and nothing else.
-    expect(surfaceProps?.route).toBe("qr")
-    expect(surfaceProps?.qrPayload).toBe(QR_PAYLOAD)
-    expect(surfaceProps?.failed).toBe(false)
+    expect(surfaceProps?.route).toBe('qr');
+    expect(surfaceProps?.qrPayload).toBe(QR_PAYLOAD);
+    expect(surfaceProps?.failed).toBe(false);
     // Progress is DERIVED from what the lane observed — the request exists and
     // nobody has approved it yet.
-    expect(surfaceProps?.progress).toBe("awaiting-approval")
-    const qr = container.querySelector("[data-testid='qr-code']")
-    expect(qr?.getAttribute("data-qr-value")).toBe(QR_PAYLOAD)
-    expect(container.querySelector("[data-testid='login-page']")).toBeNull()
-    expect(container.innerHTML).not.toContain(SESSION_TOKEN)
+    expect(surfaceProps?.progress).toBe('awaiting-approval');
+    const qr = container.querySelector("[data-testid='qr-code']");
+    expect(qr?.getAttribute('data-qr-value')).toBe(QR_PAYLOAD);
+    expect(container.querySelector("[data-testid='login-page']")).toBeNull();
+    expect(container.innerHTML).not.toContain(SESSION_TOKEN);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("renders the server-resolved application, never anything read out of the payload", async () => {
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+  test('renders the server-resolved application, never anything read out of the payload', async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
     // The identity on screen is the one `GET /auth/oauth/client/:clientId`
     // resolved. The payload's own `app` / `origin` are encoded into the QR and
     // are never read back out of it.
-    const text = container.textContent ?? ""
-    expect(text).toContain("Example App")
-    expect(text).not.toContain(PAYLOAD_APP)
-    expect(text).not.toContain(PAYLOAD_ORIGIN)
-    expect(text).not.toContain(AUTHORIZE_CODE)
-    expect(text).not.toContain(SESSION_TOKEN)
+    const text = container.textContent ?? '';
+    expect(text).toContain('Example App');
+    expect(text).not.toContain(PAYLOAD_APP);
+    expect(text).not.toContain(PAYLOAD_ORIGIN);
+    expect(text).not.toContain(AUTHORIZE_CODE);
+    expect(text).not.toContain(SESSION_TOKEN);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("keeps the alternatives out of the always-visible band", async () => {
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+  test('keeps the alternatives out of the always-visible band', async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
     // Cancelling is the one subordinate way out and is always on screen; every
     // alternative WAY TO AUTHENTICATE is handed to the surface's "Having
     // trouble?" disclosure, so none of them competes with the QR.
-    expect(keysOf(surfaceProps?.subordinate)).toEqual(["commons-cancel"])
+    expect(keysOf(surfaceProps?.subordinate)).toEqual(['commons-cancel']);
     expect(keysOf(surfaceProps?.alternatives)).toEqual([
-      "commons-open-on-this-device",
-      "commons-sign-in-here",
-    ])
-    expect(container.querySelector("[data-testid='commons-cancel']")).not.toBeNull()
-    expect(container.querySelector("[data-testid='commons-sign-in-here']")).toBeNull()
+      'commons-open-on-this-device',
+      'commons-sign-in-here',
+    ]);
+    expect(container.querySelector("[data-testid='commons-cancel']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='commons-sign-in-here']")).toBeNull();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("delivers the minted code through the shared funnel — redirect with no opener", async () => {
+  test('delivers the minted code through the shared funnel — redirect with no opener', async () => {
     pollResult = {
       authorized: true,
-      sessionId: "sess-1",
-      status: "authorized",
+      sessionId: 'sess-1',
+      status: 'authorized',
       pushSentAt: null,
       openedAt: null,
-    }
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+    };
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
-    await advancePoll()
+    await advancePoll();
 
     // Finalized ONCE, authenticated by the secret token the page never exposes.
-    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
-    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledWith(SESSION_TOKEN)
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1);
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledWith(SESSION_TOKEN);
 
-    expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
-    const delivered = deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput
-    expect(delivered.result).toEqual({ kind: "code", code: MINTED_CODE, state: STATE })
-    expect(delivered.safeRedirectUri).toBe(REDIRECT_URI)
+    expect(deliverOAuthResult).toHaveBeenCalledTimes(1);
+    const delivered = deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput;
+    expect(delivered.result).toEqual({ kind: 'code', code: MINTED_CODE, state: STATE });
+    expect(delivered.safeRedirectUri).toBe(REDIRECT_URI);
 
     // No opener -> the funnel's redirect branch, exactly as the session-bearing
     // path behaves.
-    const url = new URL(harness.location.href)
-    expect(`${url.origin}${url.pathname}`).toBe(REDIRECT_URI)
-    expect(url.searchParams.get("code")).toBe(MINTED_CODE)
-    expect(url.searchParams.get("state")).toBe(STATE)
-    expect(harness.location.href).not.toContain(SESSION_TOKEN)
-    expect(container.innerHTML).not.toContain(SESSION_TOKEN)
+    const url = new URL(harness.location.href);
+    expect(`${url.origin}${url.pathname}`).toBe(REDIRECT_URI);
+    expect(url.searchParams.get('code')).toBe(MINTED_CODE);
+    expect(url.searchParams.get('state')).toBe(STATE);
+    expect(harness.location.href).not.toContain(SESSION_TOKEN);
+    expect(container.innerHTML).not.toContain(SESSION_TOKEN);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("relays the minted code to the opener when the request asked for popup mode", async () => {
+  test('relays the minted code to the opener when the request asked for popup mode', async () => {
     pollResult = {
       authorized: true,
-      sessionId: "sess-1",
-      status: "authorized",
+      sessionId: 'sess-1',
+      status: 'authorized',
       pushSentAt: null,
       openedAt: null,
-    }
-    const postMessage = mock(() => undefined)
-    harness.opener = { postMessage }
+    };
+    const postMessage = mock(() => undefined);
+    harness.opener = { postMessage };
 
     const { unmount } = await renderAuthorize({
       ...OAUTH_PARAMS,
-      response_mode: "web_message",
-    })
+      response_mode: 'web_message',
+    });
 
-    await advancePoll()
+    await advancePoll();
 
-    expect(postMessage).toHaveBeenCalledTimes(1)
-    const [message, targetOrigin] = postMessage.mock.calls[0] as [
-      Record<string, unknown>,
-      string,
-    ]
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    const [message, targetOrigin] = postMessage.mock.calls[0] as [Record<string, unknown>, string];
     expect(message).toEqual({
-      type: "oxy:oauth:code",
+      type: 'oxy:oauth:code',
       code: MINTED_CODE,
       state: STATE,
-    })
-    expect(targetOrigin).toBe("https://app.example.com")
-    expect(JSON.stringify(message)).not.toContain(SESSION_TOKEN)
+    });
+    expect(targetOrigin).toBe('https://app.example.com');
+    expect(JSON.stringify(message)).not.toContain(SESSION_TOKEN);
     // Popup delivery never navigates this window.
-    expect(harness.location.href).toBe("")
-    expect(harness.closed).toBe(true)
+    expect(harness.location.href).toBe('');
+    expect(harness.closed).toBe(true);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("a finalize failure fails closed: nothing delivered, nothing retried", async () => {
+  test('a finalize failure fails closed: nothing delivered, nothing retried', async () => {
     pollResult = {
       authorized: true,
-      sessionId: "sess-1",
-      status: "authorized",
+      sessionId: 'sess-1',
+      status: 'authorized',
       pushSentAt: null,
       openedAt: null,
-    }
+    };
     oxyServices.auth.commons.finalizeOAuth.mockImplementationOnce(async () => {
-      throw new Error("finalize refused")
-    })
+      throw new Error('finalize refused');
+    });
 
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
-    await advancePoll()
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
+    await advancePoll();
 
-    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
-    expect(deliverOAuthResult).not.toHaveBeenCalled()
-    expect(harness.location.href).toBe("")
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1);
+    expect(deliverOAuthResult).not.toHaveBeenCalled();
+    expect(harness.location.href).toBe('');
     // The reason is the page's own banner (the shared surface reports only THAT
     // the request failed); the way forward is the surface's retry primary.
-    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
-    expect(surfaceProps?.failed).toBe(true)
-    expect(surfaceProps?.onRetry).toBeDefined()
+    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull();
+    expect(surfaceProps?.failed).toBe(true);
+    expect(surfaceProps?.onRetry).toBeDefined();
     // A dead request has nothing honest left to report on, so no status line.
-    expect(surfaceProps?.progress).toBe("idle")
+    expect(surfaceProps?.progress).toBe('idle');
 
     // Letting time pass does not resurrect the spent request.
     await act(async () => {
-      jest.advanceTimersByTime(COMMONS_OAUTH_POLL_INTERVAL_MS * 10)
-      await flush()
-    })
-    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
-    expect(deliverOAuthResult).not.toHaveBeenCalled()
+      jest.advanceTimersByTime(COMMONS_OAUTH_POLL_INTERVAL_MS * 10);
+      await flush();
+    });
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1);
+    expect(deliverOAuthResult).not.toHaveBeenCalled();
 
     // "Try again" is a BRAND-NEW request, never a second finalize of the spent
     // one — the credential for that one is gone and the server already spent it.
-    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1);
     await act(async () => {
-      click(container.querySelector("[data-testid='signin-retry']"))
-      await flush()
-    })
-    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(2)
-    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1)
-    expect(deliverOAuthResult).not.toHaveBeenCalled()
+      click(container.querySelector("[data-testid='signin-retry']"));
+      await flush();
+    });
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(2);
+    expect(oxyServices.auth.commons.finalizeOAuth).toHaveBeenCalledTimes(1);
+    expect(deliverOAuthResult).not.toHaveBeenCalled();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("a redirect mismatch offers no retry — a fresh request would fail identically", async () => {
+  test('a redirect mismatch offers no retry — a fresh request would fail identically', async () => {
     pollResult = {
       authorized: true,
-      sessionId: "sess-1",
-      status: "authorized",
+      sessionId: 'sess-1',
+      status: 'authorized',
       pushSentAt: null,
       openedAt: null,
-    }
+    };
     oxyServices.auth.commons.finalizeOAuth.mockImplementationOnce(async () => ({
       code: MINTED_CODE,
-      redirectUri: "https://not-the-bound-target.example/callback",
+      redirectUri: 'https://not-the-bound-target.example/callback',
       expiresIn: 600,
-    }))
+    }));
 
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
-    await advancePoll()
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
+    await advancePoll();
 
     // Fails closed: the code is bound to a target this request never asked for,
     // so it is dropped rather than delivered anywhere.
-    expect(deliverOAuthResult).not.toHaveBeenCalled()
-    expect(harness.location.href).toBe("")
-    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
-    expect(surfaceProps?.failed).toBe(true)
-    expect(surfaceProps?.onRetry).toBeUndefined()
-    expect(container.querySelector("[data-testid='signin-retry']")).toBeNull()
+    expect(deliverOAuthResult).not.toHaveBeenCalled();
+    expect(harness.location.href).toBe('');
+    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull();
+    expect(surfaceProps?.failed).toBe(true);
+    expect(surfaceProps?.onRetry).toBeUndefined();
+    expect(container.querySelector("[data-testid='signin-retry']")).toBeNull();
 
     // Only the alternatives are left, and they are on screen without asking —
     // minus the same-device deep link, whose approval handle is now spent.
-    expect(keysOf(surfaceProps?.alternatives)).toEqual(["commons-sign-in-here"])
-    expect(container.querySelector("[data-testid='commons-sign-in-here']")).not.toBeNull()
-    expect(container.querySelector("[data-testid='commons-open-on-this-device']")).toBeNull()
+    expect(keysOf(surfaceProps?.alternatives)).toEqual(['commons-sign-in-here']);
+    expect(container.querySelector("[data-testid='commons-sign-in-here']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='commons-open-on-this-device']")).toBeNull();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("cancelling withdraws the request and reports access_denied through the same funnel", async () => {
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+  test('cancelling withdraws the request and reports access_denied through the same funnel', async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
     await act(async () => {
-      click(container.querySelector("[data-testid='commons-cancel']"))
-      await flush()
-    })
+      click(container.querySelector("[data-testid='commons-cancel']"));
+      await flush();
+    });
 
     // Withdrawn with the PUBLIC handle — never the finalize credential.
-    expect(oxyServices.auth.commons.deny).toHaveBeenCalledWith(AUTHORIZE_CODE)
-    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled()
-    expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
-    const url = new URL(harness.location.href)
-    expect(url.searchParams.get("error")).toBe("access_denied")
-    expect(url.searchParams.get("state")).toBe(STATE)
-    expect(harness.location.href).not.toContain(SESSION_TOKEN)
+    expect(oxyServices.auth.commons.deny).toHaveBeenCalledWith(AUTHORIZE_CODE);
+    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled();
+    expect(deliverOAuthResult).toHaveBeenCalledTimes(1);
+    const url = new URL(harness.location.href);
+    expect(url.searchParams.get('error')).toBe('access_denied');
+    expect(url.searchParams.get('state')).toBe(STATE);
+    expect(harness.location.href).not.toContain(SESSION_TOKEN);
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("an expired request ends the lane without delivering anything", async () => {
+  test('an expired request ends the lane without delivering anything', async () => {
     pollResult = {
       authorized: false,
-      status: "expired",
+      status: 'expired',
       pushSentAt: null,
       openedAt: null,
-    }
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+    };
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
-    await advancePoll()
+    await advancePoll();
 
-    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
-    expect(deliverOAuthResult).not.toHaveBeenCalled()
-    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled()
+    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull();
+    expect(deliverOAuthResult).not.toHaveBeenCalled();
+    expect(oxyServices.auth.commons.finalizeOAuth).not.toHaveBeenCalled();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("a request without PKCE keeps the unchanged redirect to sign in on this origin", async () => {
+  test('a request without PKCE keeps the unchanged redirect to sign in on this origin', async () => {
     const { container, unmount } = await renderAuthorize({
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
       state: STATE,
-    })
+    });
 
-    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
-    expect(container.querySelector("[data-testid='login-page']")).not.toBeNull()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-testid='login-page']")).not.toBeNull();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("an unresolved application never starts a Commons request", async () => {
-    applicationResponse = { status: 404, body: {} }
+  test('an unresolved application never starts a Commons request', async () => {
+    applicationResponse = { status: 404, body: {} };
 
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
-    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
-    expect(container.querySelector("[data-testid='login-page']")).not.toBeNull()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-testid='login-page']")).not.toBeNull();
 
-    unmount()
-  })
+    unmount();
+  });
 
-  test("stale device accounts without a bearer still open the Commons lane", async () => {
+  test('stale device accounts without a bearer still open the Commons lane', async () => {
     sessionState = {
       isAuthenticated: false,
       // Rows, but nothing ACTIVE — what a failed mint leaves behind.
       activeContext: null,
       principals: [
-        personWith(contextRow({ contextId: "ctx-1", displayName: "Stale", handle: "stale", isActive: false })),
+        personWith(
+          contextRow({
+            contextId: 'ctx-1',
+            displayName: 'Stale',
+            handle: 'stale',
+            isActive: false,
+          }),
+        ),
       ],
       accessToken: null,
-    }
+    };
 
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
-    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1)
-    expect(container.querySelector("[data-testid='login-page']")).toBeNull()
+    expect(oxyServices.auth.commons.start).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-testid='login-page']")).toBeNull();
 
-    unmount()
-  })
-})
+    unmount();
+  });
+});
 
-describe("AuthorizePage — a visitor who already has a session here", () => {
+describe('AuthorizePage — a visitor who already has a session here', () => {
   beforeEach(() => {
-    installMocks()
-    jest.useFakeTimers()
-    globalThis.fetch = fetchMock as unknown as typeof fetch
-    fetchMock.mockClear()
+    installMocks();
+    jest.useFakeTimers();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockClear();
     applicationResponse = {
       status: 200,
       body: {
         data: {
           application: {
-            id: "app-1",
-            name: "Example App",
-            type: "third_party",
+            id: 'app-1',
+            name: 'Example App',
+            type: 'third_party',
             isOfficial: false,
             isInternal: false,
             scopes: [],
           },
         },
       },
-    }
+    };
     const nate = contextRow({
-      contextId: "ctx-1",
-      displayName: "Nate",
-      handle: "nate",
+      contextId: 'ctx-1',
+      displayName: 'Nate',
+      handle: 'nate',
       isActive: true,
-    })
+    });
     sessionState = {
       isAuthenticated: true,
       activeContext: nate,
       principals: [personWith(nate)],
-      accessToken: "bearer-token",
-    }
-    harness.opener = null
-    harness.location = { href: "" }
-    deliverOAuthResult.mockClear()
-    oxyServices.auth.commons.start.mockClear()
-  })
+      accessToken: 'bearer-token',
+    };
+    harness.opener = null;
+    harness.location = { href: '' };
+    deliverOAuthResult.mockClear();
+    oxyServices.auth.commons.start.mockClear();
+  });
 
   afterEach(() => {
-    jest.useRealTimers()
-  })
+    jest.useRealTimers();
+  });
 
-  test("still takes the original bearer-authenticated path", async () => {
-    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+  test('still takes the original bearer-authenticated path', async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS);
 
     // No Commons request is created, and no redirect to sign in here.
-    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled()
-    expect(container.querySelector("[data-testid='qr-code']")).toBeNull()
-    expect(container.querySelector("[data-testid='login-page']")).toBeNull()
+    expect(oxyServices.auth.commons.start).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-testid='qr-code']")).toBeNull();
+    expect(container.querySelector("[data-testid='login-page']")).toBeNull();
 
     // The unchanged consent probe ran with the SDK's active-account bearer, and
     // the shared consent surface is what the visitor sees.
     const consentCall = fetchMock.mock.calls.find(([url]) =>
-      String(url).includes("/auth/oauth/consent"),
-    )
-    expect(consentCall).toBeDefined()
-    expect(container.querySelector("[data-testid='consent-screen']")).not.toBeNull()
+      String(url).includes('/auth/oauth/consent'),
+    );
+    expect(consentCall).toBeDefined();
+    expect(container.querySelector("[data-testid='consent-screen']")).not.toBeNull();
 
-    unmount()
-  })
-})
+    unmount();
+  });
+});

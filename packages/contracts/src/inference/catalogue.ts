@@ -1,4 +1,4 @@
-import { scopedExecutionAudienceSchema } from "./scopedExecution";
+import { scopedExecutionAudienceSchema } from './scopedExecution';
 /**
  * The canonical model catalogue.
  *
@@ -53,13 +53,7 @@ import { priceSnapshotSchema } from './priceVersion';
 /* -------------------------------------------------------------------------- */
 
 /** Input/request modalities; structured decisions are an output, never an input. */
-export const inferenceModalitySchema = z.enum([
-  'text',
-  'image',
-  'audio',
-  'video',
-  'embedding',
-]);
+export const inferenceModalitySchema = z.enum(['text', 'image', 'audio', 'video', 'embedding']);
 
 /** Declared model outputs, separate from request/input modalities. */
 export const inferenceOutputModalitySchema = z.enum([
@@ -142,11 +136,7 @@ export const inferenceApiFormatSchema = z.enum([
  *    transcribes committed input audio.
  *  - `translation` — live speech-to-speech translation into one target language.
  */
-export const realtimeSessionKindSchema = z.enum([
-  'conversation',
-  'transcription',
-  'translation',
-]);
+export const realtimeSessionKindSchema = z.enum(['conversation', 'transcription', 'translation']);
 
 /**
  * How a realtime session is carried. One member today: a WebSocket, whose every
@@ -760,7 +750,5 @@ export type ModelDeployment = z.infer<typeof modelDeploymentSchema>;
 export type RoutingProfileCandidate = z.infer<typeof routingProfileCandidateSchema>;
 export type RoutingProfile = z.infer<typeof routingProfileSchema>;
 export type CataloguePublisherSummary = z.infer<typeof cataloguePublisherSummarySchema>;
-export type CatalogueServingProviderSummary = z.infer<
-  typeof catalogueServingProviderSummarySchema
->;
+export type CatalogueServingProviderSummary = z.infer<typeof catalogueServingProviderSummarySchema>;
 export type ModelCatalogueEntry = z.infer<typeof modelCatalogueEntrySchema>;

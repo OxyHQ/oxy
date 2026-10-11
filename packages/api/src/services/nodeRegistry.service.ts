@@ -18,26 +18,24 @@
  * `sweepNodeLiveness` NEVER throw into a caller. Reading a node row is an
  * Oxy-DB read, so a node being down can never break a DID document.
  *
- * ## What the Postgres port changed, and why
+ * ## Storage decisions, and why
  *
  * **`managed` and `controller` are ONE fact, so the option is one field.**
  * `user_nodes_managed_controller_check` refuses `(managed, controller)` pairs
- * that disagree, which Mongo could store happily. The old
- * `{ managed?: boolean; controller?: UserNodeController }` option could express
- * exactly the contradiction the CHECK now rejects — and since materialization is
- * deliberately non-throwing, a caller that passed `{ managed: true }` alone would
- * have had its vault silently not materialize. {@link MaterializeNodeOptions}
+ * that disagree. A `{ managed?: boolean; controller?: UserNodeController }`
+ * option could express exactly the contradiction the CHECK rejects — and since
+ * materialization is deliberately non-throwing, a caller that passed
+ * `{ managed: true }` alone would have its vault silently not materialize. {@link MaterializeNodeOptions}
  * therefore carries a single `operator`, and both columns are derived from it.
  *
  * **Absent optionals are OMITTED, never `null`.** Drizzle hands back `null` for
- * an unset nullable column where a lean Mongoose document handed back
- * `undefined`, and `JSON.stringify` drops an `undefined` property while emitting
+ * an unset nullable column, and `JSON.stringify` drops an `undefined` property while emitting
  * `"nodeDid": null` for a null. `GET /nodes/me` serializes these fields
  * directly, so {@link toUserNodeRecord} restores the absent-means-omitted shape
- * at the service boundary and the wire format is unchanged.
+ * at the service boundary.
  *
- * **The sweep orders `NULLS FIRST`.** Mongo sorts a missing `lastProbeAt` ahead
- * of every date on an ascending sort; Postgres puts NULLs LAST by default. A
+ * **The sweep orders `NULLS FIRST`.** Postgres puts NULLs LAST by default on an
+ * ascending sort. A
  * never-probed node IS the least-recently-probed one, so without the explicit
  * `nulls first` a freshly registered node would be starved by the sweep forever.
  */
@@ -255,8 +253,7 @@ export async function materializeNodeFromRecord(
   const managed = controller === 'oxy';
 
   // Written on both the insert and the conflict path. `nodeDid` is conditional:
-  // a record that omits it leaves whatever the row already advertised, exactly
-  // as the Mongo `$set` did.
+  // a record that omits it leaves whatever the row already advertised.
   const projection = {
     endpoint,
     nodePublicKey: parsed.data.nodePublicKey,
@@ -358,7 +355,11 @@ export async function probeLiveness(userId: string): Promise<void> {
         lastProbeAt: probeAt,
         lastError: message.slice(0, NODE_LAST_ERROR_MAX_LEN),
       };
-      logger.debug('node liveness probe failed', { component: 'nodeRegistry', userId, error: message });
+      logger.debug('node liveness probe failed', {
+        component: 'nodeRegistry',
+        userId,
+        error: message,
+      });
     }
 
     await getDb()
@@ -399,11 +400,7 @@ export async function sweepNodeLiveness(): Promise<void> {
 
 /** The cached node row for a user (any status), or `null`. */
 export async function getUserNode(userId: string): Promise<UserNodeRecord | null> {
-  const [row] = await getDb()
-    .select()
-    .from(userNodes)
-    .where(eq(userNodes.userId, userId))
-    .limit(1);
+  const [row] = await getDb().select().from(userNodes).where(eq(userNodes.userId, userId)).limit(1);
   return row ? toUserNodeRecord(row) : null;
 }
 
@@ -522,7 +519,11 @@ export async function provisionManagedVault(userId: string): Promise<ProvisionMa
     return { ok: false, reason: 'oxy_key_unconfigured' };
   }
 
-  const [user] = await getDb().select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+  const [user] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!user) {
     return { ok: false, reason: 'user_not_found' };
   }
@@ -589,7 +590,11 @@ export async function provisionManagedVault(userId: string): Promise<ProvisionMa
 
     // A concurrent writer advanced the chain head between our read and write —
     // re-read the head and retry. Anything else is a hard failure.
-    if (result.reason === 'chain_conflict' || result.reason === 'bad_seq' || result.reason === 'chain_fork') {
+    if (
+      result.reason === 'chain_conflict' ||
+      result.reason === 'bad_seq' ||
+      result.reason === 'chain_fork'
+    ) {
       continue;
     }
 

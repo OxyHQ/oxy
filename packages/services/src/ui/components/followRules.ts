@@ -102,12 +102,16 @@ export function buildFollowMenuItems(input: {
 
   items.push(
     input.applicationMode === 'disabled'
-      ? { key: 'enable-here', label: `Show in ${input.applicationName}`, action: { type: 'enable-here' } }
+      ? {
+          key: 'enable-here',
+          label: `Show in ${input.applicationName}`,
+          action: { type: 'enable-here' },
+        }
       : {
           key: 'disable-here',
           label: `Don’t show in ${input.applicationName}`,
           action: { type: 'disable-here' },
-        }
+        },
   );
   items.push({
     // Named for what it does. "Unfollow" beside "don't show here" would read as

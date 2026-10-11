@@ -53,9 +53,9 @@ describe('inferenceStreamEventSchema', () => {
   });
 
   it('rejects an unknown event type rather than defaulting it to output', () => {
-    expect(
-      inferenceStreamEventSchema.safeParse({ ...delta, type: 'partial_result' }).success,
-    ).toBe(false);
+    expect(inferenceStreamEventSchema.safeParse({ ...delta, type: 'partial_result' }).success).toBe(
+      false,
+    );
   });
 
   it('puts the request id on every event, not just the first', () => {
@@ -237,9 +237,9 @@ describe('inferenceStreamUsageEventSchema', () => {
     expect(parsed.usageSource).toBe('provider_reported');
 
     // A progress signal reporting no units is not progress.
-    expect(
-      inferenceStreamUsageEventSchema.safeParse({ ...usageEvent, units: [] }).success,
-    ).toBe(false);
+    expect(inferenceStreamUsageEventSchema.safeParse({ ...usageEvent, units: [] }).success).toBe(
+      false,
+    );
   });
 
   it('is NOT widenable into a settleable usage report', () => {
@@ -273,18 +273,30 @@ describe('inferenceStreamUsageEventSchema', () => {
   });
 });
 
-
 describe('audio stream events', () => {
-  const audio = { schemaVersion: 1, type: 'audio', requestId: 'req_audio', sequence: 1,
-    outputIndex: 0, mediaType: 'audio/mpeg', data: 'SUQz' };
+  const audio = {
+    schemaVersion: 1,
+    type: 'audio',
+    requestId: 'req_audio',
+    sequence: 1,
+    outputIndex: 0,
+    mediaType: 'audio/mpeg',
+    data: 'SUQz',
+  };
   it('preserves binary chunks including padded base64', () => {
     expect(inferenceStreamEventSchema.parse(audio)).toEqual(audio);
     expect(inferenceStreamEventSchema.safeParse({ ...audio, data: 'YQ==' }).success).toBe(true);
   });
-  it.each(['', 'hello', 'YQ=', 'YQ==YQ==', 'a'.repeat(65540)])('rejects malformed or oversized chunks', (data) => {
-    expect(inferenceStreamEventSchema.safeParse({ ...audio, data }).success).toBe(false);
-  });
-  it.each([{ mediaType: 'text/html' }, { sequence: -1 }, { outputIndex: -1 }])('rejects invalid audio metadata', (patch) => {
-    expect(inferenceStreamEventSchema.safeParse({ ...audio, ...patch }).success).toBe(false);
-  });
+  it.each(['', 'hello', 'YQ=', 'YQ==YQ==', 'a'.repeat(65540)])(
+    'rejects malformed or oversized chunks',
+    (data) => {
+      expect(inferenceStreamEventSchema.safeParse({ ...audio, data }).success).toBe(false);
+    },
+  );
+  it.each([{ mediaType: 'text/html' }, { sequence: -1 }, { outputIndex: -1 }])(
+    'rejects invalid audio metadata',
+    (patch) => {
+      expect(inferenceStreamEventSchema.safeParse({ ...audio, ...patch }).success).toBe(false);
+    },
+  );
 });

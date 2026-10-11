@@ -1,16 +1,12 @@
 /**
  * `session.service` against a REAL Postgres.
  *
- * This replaces two suites that mocked the Mongoose model wholesale
- * (`session.service.test.ts` and `session.service.managedSwitch.test.ts`) and
- * therefore asserted on `$set` payload SHAPES — proving the call was BUILT as
- * expected, never that the stored row was correct. Every case below runs the
+ * Asserting on payload SHAPES would prove the call was BUILT as expected, never
+ * that the stored row was correct. Every case below runs the
  * real service against the throwaway database and reads the row back.
  *
- * Three collaborators stay mocked, and none of them is the subject:
- *  - `models/User` — the user half of `getSessionWithUser` is the one remaining
- *    Mongoose read in the service (see the note at its import).
- *  - `securityActivityService` — a different batch, still on Mongoose.
+ * Two collaborators stay mocked, and neither is the subject:
+ *  - `securityActivityService` — audit logging is covered by its own suite.
  *  - `account.service` — the `account:act_as` membership oracle, imported
  *    lazily; mocking it is what lets a test revoke membership deterministically.
  *
@@ -153,7 +149,7 @@ describe('createSession', () => {
     expect(session.userId).toBe(user);
 
     const stored = await storedSession(session.sessionId);
-    // `deviceInfo` was a nested subdocument in Mongo; these are real columns.
+    // The device info is stored as real columns.
     expect(stored.deviceName).toBe('My Laptop');
     expect(stored.deviceType).toBe('desktop');
     expect(stored.browser).toBe('Chrome');
@@ -546,19 +542,27 @@ describe('getAccessToken — the mint chokepoint', () => {
   });
 
   /** Rewrite the session's stored access token to expire `expiresInSeconds` from now. */
-  async function storeTokenExpiringIn(sessionId: string, expiresInSeconds: number): Promise<string> {
+  async function storeTokenExpiringIn(
+    sessionId: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
     const stored = await storedSession(sessionId);
     const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
     const claims = jwt.decode(stored.accessToken) as Record<string, unknown>;
     delete claims.iat;
     delete claims.exp;
-    const token = jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: expiresInSeconds });
-    await getDb().update(sessions).set({ accessToken: token }).where(eq(sessions.sessionId, sessionId));
+    const token = jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, {
+      expiresIn: expiresInSeconds,
+    });
+    await getDb()
+      .update(sessions)
+      .set({ accessToken: token })
+      .where(eq(sessions.sessionId, sessionId));
     sessionCache.clear();
     return token;
   }
 
-  it('rotates a stored token inside the clients\' refresh lead window instead of handing it back', async () => {
+  it("rotates a stored token inside the clients' refresh lead window instead of handing it back", async () => {
     // Clients re-mint 60s before `exp`. Answering that with the same token made
     // them re-mint on every request until the 30/min budget ran out, and the 429
     // outlived the token (OxyHQ/Mention#1140).
@@ -577,7 +581,10 @@ describe('getAccessToken — the mint chokepoint', () => {
   it('hands back a stored token with comfortable lifetime left, without rotating', async () => {
     const user = await account();
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
-    const healthy = await storeTokenExpiringIn(created.sessionId, MINT_ROTATES_WITHIN_SECONDS + 300);
+    const healthy = await storeTokenExpiringIn(
+      created.sessionId,
+      MINT_ROTATES_WITHIN_SECONDS + 300,
+    );
 
     expect((await sessionService.getAccessToken(created.sessionId))?.accessToken).toBe(healthy);
   });
@@ -637,7 +644,9 @@ describe('getAccessToken — the mint chokepoint', () => {
     delete claims.exp;
     sessionCache.set(created.sessionId, {
       ...beforeRotation,
-      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '-1s' }),
+      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, {
+        expiresIn: '-1s',
+      }),
     });
 
     const minted = await sessionService.getAccessToken(created.sessionId);
@@ -726,17 +735,19 @@ describe('validateSession / getSessionWithUser', () => {
     const result = await sessionService.validateSession(created.accessToken);
 
     expect(result?.session.sessionId).toBe(created.sessionId);
-    // `session.userId` stays the id it is declared to be — Mongo replaced it
-    // with the populated user document here; that swap does not travel.
+    // `session.userId` stays the id it is declared to be, never the populated
+    // user document.
     expect(result?.session.userId).toBe(user);
     // The user half is the REAL account document, hydrated through
     // `userService.readAccountDocument` — the same serializer
     // `PUT /users/resolve` returns. `_id` is the account id, which is the field
     // `middleware/auth.ts` puts on `req.user`.
     expect(result?.user._id).toBe(user);
-    expect(result?.user.privacySettings).toEqual(expect.objectContaining({
-      isPrivateAccount: expect.any(Boolean),
-    }));
+    expect(result?.user.privacySettings).toEqual(
+      expect.objectContaining({
+        isPrivateAccount: expect.any(Boolean),
+      }),
+    );
   });
 
   it('withholds every protected column from the user it hands the request path', async () => {
@@ -887,7 +898,7 @@ describe('access token v2 binding', () => {
     const legacy = jwt.sign(
       { userId: user, sessionId: created.sessionId, deviceId: created.deviceId, type: 'access' },
       process.env.ACCESS_TOKEN_SECRET as string,
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
     await getDb()
       .update(sessions)
@@ -949,7 +960,10 @@ describe('createSession reuse preserves the binding the row already carries', ()
     const created = await sessionService.createSession(user, request(), { deviceId: device });
     // The login lane's ordering: the context row exists only after the session,
     // so the binding is written afterwards.
-    await deviceSessionService.addAccount(device, { accountId: user, sessionId: created.sessionId });
+    await deviceSessionService.addAccount(device, {
+      accountId: user,
+      sessionId: created.sessionId,
+    });
     await deviceSessionService.bindSessionToContext(device, created.sessionId);
     const before = await storedSession(created.sessionId);
     expect(before.deviceSessionId).not.toBeNull();
@@ -1095,7 +1109,11 @@ describe('createSession reuse preserves the binding the row already carries', ()
     const app = await applicationRow();
     const created = await sessionService.createSession(user, request(), {
       deviceId: device,
-      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read', 'mail:read'] },
+      application: {
+        applicationId: app.id,
+        clientId: app.clientId,
+        scopes: ['profile:read', 'mail:read'],
+      },
     });
     const regranted = await sessionService.createSession(user, request(), {
       deviceId: device,

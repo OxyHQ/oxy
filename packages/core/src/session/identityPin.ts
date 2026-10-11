@@ -135,7 +135,10 @@ function serialize(pin: IdentityPin): string | null {
  * definitive "no identity here" and therefore never a match — the caller clears
  * the pin rather than binding to an account whose key is gone.
  */
-export function identityPinMatches(pin: IdentityPin | null, localPublicKey: string | null): boolean {
+export function identityPinMatches(
+  pin: IdentityPin | null,
+  localPublicKey: string | null,
+): boolean {
   if (!pin || !localPublicKey) {
     return false;
   }
@@ -208,11 +211,9 @@ export function createWebIdentityPinStore(): IdentityPinStore {
     save: async (pin) => {
       const json = serialize(pin);
       if (!json) {
-        logger.error(
-          '[identityPin] refusing to persist a malformed identity pin',
-          undefined,
-          { component: 'identityPin' },
-        );
+        logger.error('[identityPin] refusing to persist a malformed identity pin', undefined, {
+          component: 'identityPin',
+        });
         return false;
       }
       sessionMirror = { publicKey: pin.publicKey.toLowerCase(), accountId: pin.accountId };
@@ -268,11 +269,9 @@ export function createNativeIdentityPinStore(storage: NativeKeyValueStorage): Id
     save: async (pin) => {
       const json = serialize(pin);
       if (!json) {
-        logger.error(
-          '[identityPin] refusing to persist a malformed identity pin',
-          undefined,
-          { component: 'identityPin' },
-        );
+        logger.error('[identityPin] refusing to persist a malformed identity pin', undefined, {
+          component: 'identityPin',
+        });
         return false;
       }
       sessionMirror = { publicKey: pin.publicKey.toLowerCase(), accountId: pin.accountId };

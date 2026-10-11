@@ -15,9 +15,9 @@
  * in `@oxy.so/services`), so the conversion happens here, at the serialization
  * boundary, and nowhere else — nothing in this file computes with the value.
  *
- * **Drizzle returns `null` for an unset optional column where Mongoose returned
- * `undefined`.** `JSON.stringify` OMITS an `undefined` property and EMITS a
- * `null` one, so a naive port silently adds `"description": null`,
+ * **Drizzle returns `null` for an unset optional column.** `JSON.stringify`
+ * OMITS an `undefined` property and EMITS a `null` one, so passing it through
+ * silently adds `"description": null`,
  * `"itemId": null`, `"itemType": null` and `"completedAt": null` to every
  * payment — a wire change against a published contract whose fields are all
  * `?:`. Each optional is therefore spread in only when it has a value.
@@ -103,7 +103,10 @@ export const getUserPayments = async (req: AuthRequest, res: Response): Promise<
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error fetching user payments', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching user payments',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Server error when fetching user payments');
   }
 };

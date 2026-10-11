@@ -9,10 +9,8 @@
  *
  * ## The dedup constraint moves back into the database
  *
- * `ValidationRequest.ts:83-84` says the open-request dedup "is enforced in the
- * service — partialFilterExpression does not portably support `$in`". That is a
- * MongoDB limitation, not a design decision, and Postgres has no such
- * limitation:
+ * The open-request dedup is a partial unique index — Postgres can state a
+ * partial uniqueness over a set of statuses:
  *
  *     UNIQUE (source_action_id) WHERE status IN ('pending', 'quorum_met')
  *
@@ -30,8 +28,8 @@
  *
  * It is an array of user ids with a multikey index driving the juror-inbox
  * query, which is the exact shape `CONVENTIONS.md` requires to become a real
- * junction with real foreign keys. Mongo could hold a juror id that no longer
- * names an account; here it cannot.
+ * junction with real foreign keys, so a juror id can never outlive the account
+ * it names.
  *
  * ## `candidate_snapshot` stays `jsonb`, and `payload` too
  *
@@ -95,8 +93,7 @@ export const validationRequests = pgTable(
     /** What is being validated. Drives the award and the slash. */
     actionType: text().notNull(),
     /** The opening application. Constraint deferred until `applications` lands. */
-    applicationId: text()
-      .references(() => applications.id, { onDelete: 'set null' }),
+    applicationId: text().references(() => applications.id, { onDelete: 'set null' }),
     /** Idempotency / dedup key for the underlying action. */
     sourceActionId: text().notNull(),
     /** The claim body the jurors inspect. */
@@ -112,10 +109,7 @@ export const validationRequests = pgTable(
     /** Hex RNG seed of the weighted-reservoir selection. Audit only. */
     rngSeed: text().notNull(),
     /** `{userId, weight}` of the candidate pool at selection time. Audit only. */
-    candidateSnapshot: jsonb()
-      .$type<ValidationCandidateSnapshotEntry[]>()
-      .notNull()
-      .default([]),
+    candidateSnapshot: jsonb().$type<ValidationCandidateSnapshotEntry[]>().notNull().default([]),
     expiresAt: timestamptz().notNull(),
     outcome: text({ enum: VALIDATION_OUTCOMES }),
     /**
@@ -134,35 +128,35 @@ export const validationRequests = pgTable(
   (t) => [
     index('validation_requests_subject_user_id_idx').on(t.subjectUserId),
     // The expiry sweep: pending requests past their deadline. NOT an
-    // `EXPIRY_SWEEP_TARGETS` entry — Mongo had no TTL index here either, and the
-    // sweep TRANSITIONS a request to `expired` rather than deleting it. The row
-    // is the audit record of a jury that failed to reach quorum.
+    // `EXPIRY_SWEEP_TARGETS` entry — the sweep TRANSITIONS a request to
+    // `expired` rather than deleting it. The row is the audit record of a jury
+    // that failed to reach quorum.
     index('validation_requests_status_expires_at_idx').on(t.status, t.expiresAt),
-    // The dedup constraint Mongo could not express. See the header.
+    // The open-request dedup constraint. See the header.
     uniqueIndex('validation_requests_open_source_action_key')
       .on(t.sourceActionId)
       .where(sql`${t.status} in (${sql.raw(inList(OPEN_VALIDATION_REQUEST_STATUSES))})`),
 
     check(
       'validation_requests_status_check',
-      sql`${t.status} in (${sql.raw(inList(VALIDATION_REQUEST_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(VALIDATION_REQUEST_STATUSES))})`,
     ),
     check(
       'validation_requests_outcome_check',
-      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(VALIDATION_OUTCOMES))})`
+      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(VALIDATION_OUTCOMES))})`,
     ),
     check('validation_requests_quorum_check', sql`${t.quorum} > 0`),
     // The winning side needs at least a quorum's worth of agreement; a
     // supermajority raises it further. A threshold below the quorum would let a
     // request resolve on fewer votes than it required to tally at all.
     check('validation_requests_threshold_check', sql`${t.threshold} >= ${t.quorum}`),
-    // A terminal verdict and a terminal status arrive together. Mongo could
-    // store `validated` with no outcome, which the tally reader cannot show.
+    // A terminal verdict and a terminal status arrive together: `validated`
+    // with no outcome is something the tally reader cannot show.
     check(
       'validation_requests_terminal_check',
-      sql`(${t.status} in ('validated', 'rejected') and ${t.outcome} is not null and ${t.status} = ${t.outcome}) or (${t.status} in ('pending', 'quorum_met', 'expired') and ${t.outcome} is null)`
+      sql`(${t.status} in ('validated', 'rejected') and ${t.outcome} is not null and ${t.status} = ${t.outcome}) or (${t.status} in ('pending', 'quorum_met', 'expired') and ${t.outcome} is null)`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -205,5 +199,5 @@ export const validationRequestValidators = pgTable(
     index('validation_request_validators_user_id_idx').on(t.userId),
     uniqueIndex('validation_request_validators_position_key').on(t.requestId, t.position),
     check('validation_request_validators_position_check', sql`${t.position} >= 0`),
-  ]
+  ],
 );

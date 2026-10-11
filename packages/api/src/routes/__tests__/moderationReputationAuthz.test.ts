@@ -77,7 +77,12 @@ async function post(server: http.Server, path: string, payload: unknown): Promis
   return send(server, 'POST', path, payload);
 }
 
-async function send(server: http.Server, method: 'GET' | 'POST', path: string, payload?: unknown): Promise<JsonResponse> {
+async function send(
+  server: http.Server,
+  method: 'GET' | 'POST',
+  path: string,
+  payload?: unknown,
+): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = method === 'GET' ? '' : JSON.stringify(payload ?? {});
   return new Promise((resolve, reject) => {
@@ -102,12 +107,15 @@ async function send(server: http.Server, method: 'GET' | 'POST', path: string, p
         res.on('end', () => {
           const json = (res.headers['content-type'] ?? '').includes('application/json');
           try {
-            resolve({ status: res.statusCode ?? 0, body: json && raw.length > 0 ? JSON.parse(raw) : {} });
+            resolve({
+              status: res.statusCode ?? 0,
+              body: json && raw.length > 0 ? JSON.parse(raw) : {},
+            });
           } catch (err) {
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -127,7 +135,7 @@ function withServiceScopes(scopes: string[]): void {
         scopes,
       };
       next();
-    }
+    },
   );
 }
 
@@ -180,14 +188,18 @@ afterAll((done) => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockApply.mockResolvedValue({ applied: false, skipReason: 'no_binding_proof', idempotent: false });
+  mockApply.mockResolvedValue({
+    applied: false,
+    skipReason: 'no_binding_proof',
+    idempotent: false,
+  });
   mockReverse.mockResolvedValue({ reversed: [], idempotent: true });
   mockFinalize.mockResolvedValue([]);
   mockAuthMiddleware.mockImplementation(
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: { toString: () => '64dddddddddddddddddddddd' }, isStaff: false };
       next();
-    }
+    },
   );
 });
 
@@ -236,13 +248,10 @@ describe('POST /reputation/moderation/effects — the scope gate', () => {
       emitterApplicationId: 'spoofed',
       emitterCredentialId: 'spoofed',
     });
-    expect(mockApply).toHaveBeenCalledWith(
-      expect.anything(),
-      {
-        emitterApplicationId: '64aaaaaaaaaaaaaaaaaaaaaa',
-        emitterCredentialId: '64bbbbbbbbbbbbbbbbbbbbbb',
-      }
-    );
+    expect(mockApply).toHaveBeenCalledWith(expect.anything(), {
+      emitterApplicationId: '64aaaaaaaaaaaaaaaaaaaaaa',
+      emitterCredentialId: '64bbbbbbbbbbbbbbbbbbbbbb',
+    });
   });
 
   it('a skip is a 200, so an emitter stops retrying something that will never change', async () => {
@@ -254,7 +263,10 @@ describe('POST /reputation/moderation/effects — the scope gate', () => {
     });
     const res = await post(server, '/reputation/moderation/effects', VALID_EVENT);
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ applied: false, skipReason: 'application_not_permitted' });
+    expect(res.body.data).toMatchObject({
+      applied: false,
+      skipReason: 'application_not_permitted',
+    });
   });
 });
 
@@ -330,7 +342,7 @@ describe('POST /reputation/moderation/effects/reverse', () => {
       'dec_1',
       1,
       'Appeal accepted',
-      '64bbbbbbbbbbbbbbbbbbbbbb'
+      '64bbbbbbbbbbbbbbbbbbbbbb',
     );
   });
 
@@ -424,7 +436,7 @@ describe('a user session can never satisfy a bridge route', () => {
         req.serviceApp = undefined;
         req.user = { _id: { toString: () => 'staff1' }, isStaff: true };
         next();
-      }
+      },
     );
     const res = await post(server, '/reputation/moderation/effects', VALID_EVENT);
     expect(res.status).toBe(401);
@@ -432,14 +444,14 @@ describe('a user session can never satisfy a bridge route', () => {
   });
 });
 
-describe('no person has a hand on anyone else\'s standing', () => {
+describe("no person has a hand on anyone else's standing", () => {
   function asStaff(): void {
     withServiceScopes([]);
     mockAuthMiddleware.mockImplementation(
       (req: { user?: unknown }, _res: unknown, next: () => void) => {
         req.user = { _id: { toString: () => '64eeeeeeeeeeeeeeeeeeeeee' }, isStaff: true };
         next();
-      }
+      },
     );
   }
 
@@ -449,16 +461,20 @@ describe('no person has a hand on anyone else\'s standing', () => {
     expect(res.status).toBe(404);
   });
 
-  it('there is no route to read an incident\'s effects, staff or not', async () => {
+  it("there is no route to read an incident's effects, staff or not", async () => {
     asStaff();
     const res = await send(server, 'GET', '/reputation/moderation/incidents/inc_1/effects');
     expect(res.status).toBe(404);
   });
 
-  it('a staff session cannot read another person\'s conduct standing', async () => {
+  it("a staff session cannot read another person's conduct standing", async () => {
     asStaff();
     mockResolveUserIdToObjectId.mockResolvedValue('64dddddddddddddddddddddd');
-    const res = await send(server, 'GET', '/reputation/moderation/standing/64dddddddddddddddddddddd');
+    const res = await send(
+      server,
+      'GET',
+      '/reputation/moderation/standing/64dddddddddddddddddddddd',
+    );
     expect(res.status).toBe(403);
   });
 });

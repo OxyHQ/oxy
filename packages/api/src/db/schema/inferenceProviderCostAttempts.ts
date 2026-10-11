@@ -41,15 +41,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import {
-  boolean,
-  check,
-  index,
-  integer,
-  pgTable,
-  primaryKey,
-  text,
-} from 'drizzle-orm/pg-core';
+import { boolean, check, index, integer, pgTable, primaryKey, text } from 'drizzle-orm/pg-core';
 import { createdAt, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { PROVIDER_COST_SOURCES } from '@oxy.so/contracts';
 import {
@@ -98,34 +90,37 @@ export const inferenceProviderCostAttempts = pgTable(
     ingestedAt: createdAt(),
   },
   (t) => [
-    primaryKey({ name: 'inference_provider_cost_attempts_pkey', columns: [t.requestId, t.attemptIndex] }),
+    primaryKey({
+      name: 'inference_provider_cost_attempts_pkey',
+      columns: [t.requestId, t.attemptIndex],
+    }),
     index('inference_provider_cost_attempts_occurred_idx').on(t.occurredAt),
     check('inference_provider_cost_attempts_index_check', sql`${t.attemptIndex} >= 0`),
     check(
       'inference_provider_cost_attempts_source_check',
-      sql`${t.costSource} in (${sql.raw(inList(PROVIDER_COST_SOURCE_VALUES))})`
+      sql`${t.costSource} in (${sql.raw(inList(PROVIDER_COST_SOURCE_VALUES))})`,
     ),
     // Known source ⇔ amount and currency present. `unknown` can never be summed.
     check(
       'inference_provider_cost_attempts_amount_check',
       sql`(${t.costSource} <> 'unknown') = (${t.costAmount} is not null and ${t.costCurrency} is not null)
-        and (${t.costSource} <> 'unknown' or (${t.costAmount} is null and ${t.costCurrency} is null))`
+        and (${t.costSource} <> 'unknown' or (${t.costAmount} is null and ${t.costCurrency} is null))`,
     ),
     check(
       'inference_provider_cost_attempts_currency_check',
-      sql`${t.costCurrency} is null or ${currencyCodeCheck(t.costCurrency)}`
+      sql`${t.costCurrency} is null or ${currencyCodeCheck(t.costCurrency)}`,
     ),
     usageUnitsNonNegativeCheck('inference_provider_cost_attempts_units_check', t),
     // Unmeasured is not a measured zero: an unmeasured attempt carries no quantity.
     check(
       'inference_provider_cost_attempts_unmeasured_check',
-      sql`${t.unitsMeasured} or (${totalUsageUnitsExpression(t)}) = 0`
+      sql`${t.unitsMeasured} or (${totalUsageUnitsExpression(t)}) = 0`,
     ),
     check(
       'inference_provider_cost_attempts_latency_check',
-      sql`${t.latencyMs} is null or ${t.latencyMs} >= 0`
+      sql`${t.latencyMs} is null or ${t.latencyMs} >= 0`,
     ),
-  ]
+  ],
 );
 
 /**

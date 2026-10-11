@@ -113,7 +113,7 @@ async function application(fields: AppKind): Promise<{ applicationId: string; cl
 async function signIn(
   deviceId: string,
   userId: string,
-  app?: { applicationId: string; clientId: string }
+  app?: { applicationId: string; clientId: string },
 ): Promise<string> {
   const session = await sessionService.createSession(
     userId,
@@ -123,7 +123,7 @@ async function signIn(
       ...(app
         ? { application: { applicationId: app.applicationId, clientId: app.clientId, scopes: [] } }
         : {}),
-    }
+    },
   );
   await deviceSessionService.addAccount(deviceId, {
     accountId: userId,
@@ -155,7 +155,7 @@ async function call(
   method: string,
   path: string,
   bearer: string,
-  payload?: unknown
+  payload?: unknown,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const address = server.address() as AddressInfo;
   const body = payload === undefined ? '' : JSON.stringify(payload);
@@ -178,9 +178,9 @@ async function call(
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} })
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
         );
-      }
+      },
     );
     req.on('error', reject);
     if (body) req.write(body);
@@ -356,7 +356,7 @@ describe('a v1 bearer is governed by the row, not by what it claims', () => {
         type: 'access',
       },
       process.env.ACCESS_TOKEN_SECRET as string,
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
 
     const res = await call('GET', '/session/device/directory', legacy);
@@ -384,7 +384,7 @@ describe('a v1 bearer is governed by the row, not by what it claims', () => {
         type: 'access',
       },
       process.env.ACCESS_TOKEN_SECRET as string,
-      { expiresIn: '15m' }
+      { expiresIn: '15m' },
     );
     // Open window: the legacy bearer works.
     expect((await call('GET', '/session/device/directory', legacy)).status).toBe(200);

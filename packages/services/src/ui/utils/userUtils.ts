@@ -39,9 +39,7 @@ function readDisplayName(user: DisplayNameUserShape | null | undefined): string 
  *
  * Prefers API `name.displayName`, then the normalized handle.
  */
-export const getDisplayName = (
-  user: DisplayNameUserShape | null | undefined,
-): string => {
+export const getDisplayName = (user: DisplayNameUserShape | null | undefined): string => {
   const displayName = readDisplayName(user);
   if (displayName) return displayName;
   return getNormalizedUserHandle(user) ?? '';
@@ -50,9 +48,7 @@ export const getDisplayName = (
 /**
  * Gets a short display name (first token) for compact UI.
  */
-export const getShortDisplayName = (
-  user: DisplayNameUserShape | null | undefined,
-): string => {
+export const getShortDisplayName = (user: DisplayNameUserShape | null | undefined): string => {
   const displayName = readDisplayName(user);
   if (displayName) {
     const firstToken = displayName.split(/\s+/).find(Boolean);

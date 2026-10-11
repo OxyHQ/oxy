@@ -11,7 +11,10 @@ describe('parseApprovalLink', () => {
     });
 
     it('accepts the commons:// app scheme', () => {
-      expect(parseApprovalLink('commons://approve?code=XYZ&v=1')).toEqual({ ok: true, code: 'XYZ' });
+      expect(parseApprovalLink('commons://approve?code=XYZ&v=1')).toEqual({
+        ok: true,
+        code: 'XYZ',
+      });
     });
 
     it('accepts the https://commons.oxy.so universal link', () => {

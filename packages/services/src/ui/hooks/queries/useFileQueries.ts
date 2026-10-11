@@ -9,11 +9,7 @@
  * infinite scroll, pull-to-refresh, and optimistic upload reconciliation.
  */
 
-import {
-    useInfiniteQuery,
-    type InfiniteData,
-    type QueryClient,
-} from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import type { FileMetadata } from '@oxy.so/core';
 import { useOxy } from '../../context/OxyContext';
 import { queryKeys } from './queryKeys';
@@ -23,38 +19,38 @@ export const FILES_PAGE_SIZE = 40;
 
 /** Raw file record as returned by `oxyServices.assets.list` / `assetUpload`. */
 export interface RawUserFile {
-    id: string;
-    originalName?: string;
-    sha256?: string;
-    mime?: string;
-    size?: number;
-    createdAt?: string;
-    metadata?: Record<string, unknown>;
-    variants?: unknown[];
+  id: string;
+  originalName?: string;
+  sha256?: string;
+  mime?: string;
+  size?: number;
+  createdAt?: string;
+  metadata?: Record<string, unknown>;
+  variants?: unknown[];
 }
 
 /** One page of the infinite file list. */
 export interface UserFilesPage {
-    files: FileMetadata[];
-    total: number;
-    hasMore: boolean;
-    nextOffset: number;
+  files: FileMetadata[];
+  total: number;
+  hasMore: boolean;
+  nextOffset: number;
 }
 
 export type UserFilesInfinite = InfiniteData<UserFilesPage>;
 
 /** Normalize a raw API file record into the client `FileMetadata` shape. */
 export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
-    return {
-        id: raw.id,
-        filename: raw.originalName ?? raw.sha256 ?? '',
-        contentType: raw.mime ?? '',
-        length: raw.size ?? 0,
-        chunkSize: 0,
-        uploadDate: raw.createdAt ?? '',
-        metadata: raw.metadata ?? {},
-        variants: (raw.variants ?? []) as FileMetadata['variants'],
-    };
+  return {
+    id: raw.id,
+    filename: raw.originalName ?? raw.sha256 ?? '',
+    contentType: raw.mime ?? '',
+    length: raw.size ?? 0,
+    chunkSize: 0,
+    uploadDate: raw.createdAt ?? '',
+    metadata: raw.metadata ?? {},
+    variants: (raw.variants ?? []) as FileMetadata['variants'],
+  };
 }
 
 /**
@@ -63,27 +59,27 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
  * rendered list is `data.pages.flatMap(p => p.files)`.
  */
 export const useUserFilesInfinite = (ownerId?: string) => {
-    const { oxyServices } = useOxy();
-    return useInfiniteQuery<UserFilesPage, Error>({
-        queryKey: queryKeys.files.list(ownerId),
-        queryFn: async ({ pageParam }) => {
-            const offset = typeof pageParam === 'number' ? pageParam : 0;
-            const response = await oxyServices.assets.list({ limit: FILES_PAGE_SIZE, offset });
-            const raw = (response.files ?? []) as RawUserFile[];
-            const files = raw.map(mapRawFileToMetadata);
-            return {
-                files,
-                total: response.total ?? offset + files.length,
-                hasMore: Boolean(response.hasMore),
-                nextOffset: offset + FILES_PAGE_SIZE,
-            };
-        },
-        initialPageParam: 0,
-        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
-        enabled: Boolean(ownerId),
-        staleTime: 0,
-        refetchOnWindowFocus: false,
-    });
+  const { oxyServices } = useOxy();
+  return useInfiniteQuery<UserFilesPage, Error>({
+    queryKey: queryKeys.files.list(ownerId),
+    queryFn: async ({ pageParam }) => {
+      const offset = typeof pageParam === 'number' ? pageParam : 0;
+      const response = await oxyServices.assets.list({ limit: FILES_PAGE_SIZE, offset });
+      const raw = (response.files ?? []) as RawUserFile[];
+      const files = raw.map(mapRawFileToMetadata);
+      return {
+        files,
+        total: response.total ?? offset + files.length,
+        hasMore: Boolean(response.hasMore),
+        nextOffset: offset + FILES_PAGE_SIZE,
+      };
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
+    enabled: Boolean(ownerId),
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
 };
 
 // --- Pure cache transforms (optimistic updates) -----------------------------
@@ -94,69 +90,69 @@ export const useUserFilesInfinite = (ownerId?: string) => {
 const fileListKey = (ownerId?: string) => queryKeys.files.list(ownerId);
 
 const mapPages = (
-    data: UserFilesInfinite,
-    fn: (files: FileMetadata[]) => FileMetadata[],
+  data: UserFilesInfinite,
+  fn: (files: FileMetadata[]) => FileMetadata[],
 ): UserFilesInfinite => ({
-    ...data,
-    pages: data.pages.map((page) => ({ ...page, files: fn(page.files) })),
+  ...data,
+  pages: data.pages.map((page) => ({ ...page, files: fn(page.files) })),
 });
 
 /** Prepend an (optimistic) file to the first page. */
 export function prependFileToCache(
-    queryClient: QueryClient,
-    ownerId: string | undefined,
-    file: FileMetadata,
+  queryClient: QueryClient,
+  ownerId: string | undefined,
+  file: FileMetadata,
 ): void {
-    queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) => {
-        if (!data || data.pages.length === 0) return data;
-        return {
-            ...data,
-            pages: data.pages.map((page, index) =>
-                index === 0 ? { ...page, files: [file, ...page.files] } : page,
-            ),
-        };
-    });
+  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) => {
+    if (!data || data.pages.length === 0) return data;
+    return {
+      ...data,
+      pages: data.pages.map((page, index) =>
+        index === 0 ? { ...page, files: [file, ...page.files] } : page,
+      ),
+    };
+  });
 }
 
 /** Remove a file (by id) from every page. */
 export function removeFileFromCache(
-    queryClient: QueryClient,
-    ownerId: string | undefined,
-    fileId: string,
+  queryClient: QueryClient,
+  ownerId: string | undefined,
+  fileId: string,
 ): void {
-    queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
-        data ? mapPages(data, (files) => files.filter((f) => f.id !== fileId)) : data,
-    );
+  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
+    data ? mapPages(data, (files) => files.filter((f) => f.id !== fileId)) : data,
+  );
 }
 
 /** Swap an optimistic file (by id) for its persisted counterpart. */
 export function replaceFileInCache(
-    queryClient: QueryClient,
-    ownerId: string | undefined,
-    oldId: string,
-    newFile: FileMetadata,
+  queryClient: QueryClient,
+  ownerId: string | undefined,
+  oldId: string,
+  newFile: FileMetadata,
 ): void {
-    queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
-        data ? mapPages(data, (files) => files.map((f) => (f.id === oldId ? newFile : f))) : data,
-    );
+  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
+    data ? mapPages(data, (files) => files.map((f) => (f.id === oldId ? newFile : f))) : data,
+  );
 }
 
 /** Shallow-merge a metadata patch into a cached file (e.g. visibility change). */
 export function patchFileMetadataInCache(
-    queryClient: QueryClient,
-    ownerId: string | undefined,
-    fileId: string,
-    metadataPatch: Record<string, unknown>,
+  queryClient: QueryClient,
+  ownerId: string | undefined,
+  fileId: string,
+  metadataPatch: Record<string, unknown>,
 ): void {
-    queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
-        data
-            ? mapPages(data, (files) =>
-                files.map((f) =>
-                    f.id === fileId
-                        ? { ...f, metadata: { ...f.metadata, ...metadataPatch } as FileMetadata['metadata'] }
-                        : f,
-                ),
-            )
-            : data,
-    );
+  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
+    data
+      ? mapPages(data, (files) =>
+          files.map((f) =>
+            f.id === fileId
+              ? { ...f, metadata: { ...f.metadata, ...metadataPatch } as FileMetadata['metadata'] }
+              : f,
+          ),
+        )
+      : data,
+  );
 }

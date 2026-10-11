@@ -15,7 +15,7 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 export default function CreateIdentityNotificationsScreen() {
   const colors = useColors();
   const { signIn, oxyServices, isAuthenticated } = useOxy();
-  const { error, isSigningIn, setAuthError, setSigningIn, usernameRef } = useAuthFlowContext();
+  const { error, isSigningIn, setAuthError, setSigningIn } = useAuthFlowContext();
 
   const backgroundColor = colors.background;
   const textColor = colors.text;
@@ -23,14 +23,16 @@ export default function CreateIdentityNotificationsScreen() {
   const { handleRequestNotifications, isRequestingNotifications } = useAuthHandlers({
     signIn,
     oxyServices,
-    usernameRef,
     setAuthError,
     setSigningIn,
     isAuthenticated,
   });
 
   return (
-    <View style={[styles.container, { backgroundColor }]} pointerEvents={isSigningIn ? 'none' : 'auto'}>
+    <View
+      style={[styles.container, { backgroundColor }]}
+      pointerEvents={isSigningIn ? 'none' : 'auto'}
+    >
       <NotificationsStep
         error={error}
         onRequestNotifications={handleRequestNotifications}

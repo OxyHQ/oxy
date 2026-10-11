@@ -29,17 +29,16 @@
  * `moderation_policies.policy_version` with `ON DELETE RESTRICT`, so a version
  * cannot be deleted while an effect was derived under it.
  *
- * ## Indexes that changed on port, with the query that decided each
+ * ## Indexes, with the query that decided each
  *
- * - Mongo's `{incidentId, createdAt: 1}` becomes `(incident_id,
- *   decision_revision)`. Both readers — `routes/moderationReputation.routes.ts:403`
- *   and `moderationReputation.service.ts:567` — sort by `decisionRevision`, which
- *   the Mongo index could not serve; it answered the equality and then sorted in
- *   memory.
- * - Mongo's standalone `{principalId}` becomes `(principal_id, applied_at desc)`.
- *   The one reader (`routes/moderationReputation.routes.ts:366`) sorts by
- *   `appliedAt desc` with a limit of 100.
- * - Mongo's `{status}` and `{applicationId}` are DROPPED. Every
+ * - `(incident_id, decision_revision)`. Both readers —
+ *   `routes/moderationReputation.routes.ts` and
+ *   `moderationReputation.service.ts` — filter by incident and sort by
+ *   `decisionRevision`, so one index answers the equality and the sort.
+ * - `(principal_id, applied_at desc)`. The one reader
+ *   (`routes/moderationReputation.routes.ts`) sorts by `appliedAt desc` with a
+ *   limit of 100.
+ * - No index on `status` or `application_id`. Every
  *   `ModerationEffect` query in the package is listed above plus the two unique
  *   keys; none filters on either column, and an index nobody uses still costs
  *   every write.
@@ -113,9 +112,8 @@ export const moderationEffects = pgTable(
      * `conduct_strikes.application_id` during repair, and both sibling columns
      * document the same meaning — "Reporting application" on the ledger,
      * "Which application's report started the incident" on the strike. The
-     * emitter sentence was wrong from the original Mongo model and survived the
-     * port; it is corrected rather than deleted because acting on it is a
-     * mistake worth naming.
+     * emitter sentence was wrong from the original model; it is corrected
+     * rather than deleted because acting on it is a mistake worth naming.
      *
      * Body-supplied and therefore not authority on its own. What makes it
      * trustworthy is the BINDING PROOF checked beside it: `resolveBindingProof`
@@ -231,46 +229,43 @@ export const moderationEffects = pgTable(
       t.incidentId,
       t.principalId,
       t.effectType,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     unique('moderation_effects_event_id_key').on(t.eventId),
 
     // Reversal resolves every effect a decision revision produced.
     index('moderation_effects_decision_id_decision_revision_idx').on(
       t.decisionId,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     // Reconciliation walks an incident's effects across revisions, in revision
     // order — see the header for why this is not `(incident_id, created_at)`.
     index('moderation_effects_incident_id_decision_revision_idx').on(
       t.incidentId,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     // "My own consequences", newest first.
-    index('moderation_effects_principal_id_applied_at_idx').on(
-      t.principalId,
-      t.appliedAt.desc()
-    ),
+    index('moderation_effects_principal_id_applied_at_idx').on(t.principalId, t.appliedAt.desc()),
 
     check(
       'moderation_effects_effect_type_check',
-      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`
+      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`,
     ),
     check(
       'moderation_effects_status_check',
-      sql`${t.status} in (${sql.raw(inList(MODERATION_EFFECT_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MODERATION_EFFECT_STATUSES))})`,
     ),
     check(
       'moderation_effects_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`,
     ),
     check('moderation_effects_decision_revision_check', sql`${t.decisionRevision} >= 0`),
     // A reversal is whole or absent: `status = 'reversed'` and a `reversed_at`
-    // cannot exist without each other. Mongo permitted either half alone, and
-    // every reader had to guard for it.
+    // cannot exist without each other, so no reader has to guard for either
+    // half alone.
     check(
       'moderation_effects_reversal_complete_check',
-      sql`(${t.status} = 'reversed') = (${t.reversedAt} is not null)`
+      sql`(${t.status} = 'reversed') = (${t.reversedAt} is not null)`,
     ),
-  ]
+  ],
 );

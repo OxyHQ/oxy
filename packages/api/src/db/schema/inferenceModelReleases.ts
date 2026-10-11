@@ -120,7 +120,7 @@ export const inferenceModelReleases = pgTable(
      */
     createdAt: createdAt(),
   },
-  (t) => [unique('inference_model_releases_release_id_key').on(t.releaseId)]
+  (t) => [unique('inference_model_releases_release_id_key').on(t.releaseId)],
 );
 
 export type InferenceModelReleaseRow = typeof inferenceModelReleases.$inferSelect;

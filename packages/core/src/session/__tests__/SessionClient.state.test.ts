@@ -13,11 +13,19 @@ function makeHost(): SessionClientHost {
   };
 }
 const STATE = (rev: number, active: string | null = 'a1'): DeviceSessionState => ({
-  deviceId: 'd1', accounts: active ? [{ accountId: 'a1', sessionId: 's1', authuser: 0 }] : [], activeAccountId: active, revision: rev, updatedAt: 1720000000000,
+  deviceId: 'd1',
+  accounts: active ? [{ accountId: 'a1', sessionId: 's1', authuser: 0 }] : [],
+  activeAccountId: active,
+  revision: rev,
+  updatedAt: 1720000000000,
 });
 
 // SessionClient.applyState is protected; a tiny subclass exposes it for the unit test.
-class TestClient extends SessionClient { public apply(raw: unknown): boolean { return this.applyState(raw); } }
+class TestClient extends SessionClient {
+  public apply(raw: unknown): boolean {
+    return this.applyState(raw);
+  }
+}
 
 describe('SessionClient state', () => {
   it('starts with null state', () => {
@@ -64,7 +72,9 @@ describe('SessionClient state', () => {
     const transport: TokenTransport = { ensureActiveToken: jest.fn().mockResolvedValue(undefined) };
     const c = new TestClient(makeHost(), { transport });
     c.apply(STATE(1));
-    expect(transport.ensureActiveToken).toHaveBeenCalledWith(expect.objectContaining({ revision: 1 }));
+    expect(transport.ensureActiveToken).toHaveBeenCalledWith(
+      expect.objectContaining({ revision: 1 }),
+    );
   });
 
   // ADR 0029 D2: every official web app shares the browser's DeviceSession, so
@@ -75,7 +85,11 @@ describe('SessionClient state', () => {
     const c = new TestClient(makeHost(), { transport, onUnauthenticated });
     const two = (rev: number, accounts: string[], active: string | null): DeviceSessionState => ({
       deviceId: 'd1',
-      accounts: accounts.map((accountId, authuser) => ({ accountId, sessionId: `s-${accountId}`, authuser })),
+      accounts: accounts.map((accountId, authuser) => ({
+        accountId,
+        sessionId: `s-${accountId}`,
+        authuser,
+      })),
       activeAccountId: active,
       revision: rev,
       updatedAt: 1720000000000,
@@ -86,7 +100,9 @@ describe('SessionClient state', () => {
 
     expect(c.apply(two(2, ['a2'], 'a2'))).toBe(true);
     // The bearer is minted for the new active account BEFORE anyone is told.
-    expect(transport.ensureActiveToken).toHaveBeenLastCalledWith(expect.objectContaining({ activeAccountId: 'a2' }));
+    expect(transport.ensureActiveToken).toHaveBeenLastCalledWith(
+      expect.objectContaining({ activeAccountId: 'a2' }),
+    );
     await Promise.resolve();
     await Promise.resolve();
     expect(seen.at(-1)?.activeAccountId).toBe('a2');

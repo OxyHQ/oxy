@@ -171,14 +171,12 @@ describe('buildSwitcherRows', () => {
   });
 
   it('marks the person the active context belongs to, and only them', () => {
-    expect(rowsFor(sharedDirectory('ctx-alice-org'), 'ctx-alice-org').map((r) => r.isActive)).toEqual([
-      false,
-      true,
-    ]);
-    expect(rowsFor(sharedDirectory('ctx-nate-org'), 'ctx-nate-org').map((r) => r.isActive)).toEqual([
-      true,
-      false,
-    ]);
+    expect(
+      rowsFor(sharedDirectory('ctx-alice-org'), 'ctx-alice-org').map((r) => r.isActive),
+    ).toEqual([false, true]);
+    expect(rowsFor(sharedDirectory('ctx-nate-org'), 'ctx-nate-org').map((r) => r.isActive)).toEqual(
+      [true, false],
+    );
   });
 });
 

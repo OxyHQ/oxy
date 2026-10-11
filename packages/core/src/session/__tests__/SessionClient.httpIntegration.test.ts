@@ -38,11 +38,12 @@ describe('SessionClient over a real HttpService (unwrap contract)', () => {
   });
 
   it('bootstrap() applies the server state and plants the active token through the real unwrap path', async () => {
-    const fetchMock = jest.fn(async () =>
-      new Response(JSON.stringify(ROUTE_BODY), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchMock = jest.fn(
+      async () =>
+        new Response(JSON.stringify(ROUTE_BODY), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 

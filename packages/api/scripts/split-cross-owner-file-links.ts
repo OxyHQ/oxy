@@ -39,7 +39,8 @@ function positiveInt(name: string, fallback: number | undefined, max: number): n
 function mode(): FileOwnerSplitMode {
   const apply = flag('apply');
   if (apply === undefined) {
-    if (process.argv.includes('--apply')) throw new Error('--apply needs a value: create-rows or repoint-links');
+    if (process.argv.includes('--apply'))
+      throw new Error('--apply needs a value: create-rows or repoint-links');
     return 'report';
   }
   if (apply === 'create-rows' || apply === 'repoint-links') return apply;
@@ -60,7 +61,8 @@ async function main(): Promise<void> {
       maxBatches,
       emit: (record) => console.log(JSON.stringify(record)),
     });
-    const crossOwnerMessageAttachments = selected === 'report' ? await countCrossOwnerMessageAttachments() : undefined;
+    const crossOwnerMessageAttachments =
+      selected === 'report' ? await countCrossOwnerMessageAttachments() : undefined;
     console.log(JSON.stringify({ summary: { ...summary, crossOwnerMessageAttachments } }));
   } finally {
     await closePostgres();

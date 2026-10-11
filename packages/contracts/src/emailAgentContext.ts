@@ -1,19 +1,24 @@
 import { z } from 'zod';
 
-export const emailContextAddressSchema = z.object({
+export const emailContextAddressSchema = z
+  .object({
     name: z.string().optional(),
     address: z.string().email(),
-}).strict();
+  })
+  .strict();
 
-export const emailContextMailboxSchema = z.object({
+export const emailContextMailboxSchema = z
+  .object({
     mailboxId: z.string().min(1),
     name: z.string(),
     path: z.string(),
     totalMessages: z.number().int().nonnegative(),
     unseenMessages: z.number().int().nonnegative(),
-}).strict();
+  })
+  .strict();
 
-export const emailContextMessageSchema = z.object({
+export const emailContextMessageSchema = z
+  .object({
     messageId: z.string().min(1),
     mailboxId: z.string().min(1),
     from: emailContextAddressSchema,
@@ -21,16 +26,19 @@ export const emailContextMessageSchema = z.object({
     receivedAt: z.string().datetime(),
     seen: z.boolean(),
     answered: z.boolean(),
-}).strict();
+  })
+  .strict();
 
-export const emailAgentContextSchema = z.object({
+export const emailAgentContextSchema = z
+  .object({
     accountId: z.string().min(1),
     resourceMailboxId: z.string().min(1).nullable(),
     generatedAt: z.string().datetime(),
     mailboxes: z.array(emailContextMailboxSchema),
     recentUnread: z.array(emailContextMessageSchema),
     needsResponse: z.array(emailContextMessageSchema),
-}).strict();
+  })
+  .strict();
 
 export type EmailContextAddress = z.infer<typeof emailContextAddressSchema>;
 export type EmailContextMailbox = z.infer<typeof emailContextMailboxSchema>;

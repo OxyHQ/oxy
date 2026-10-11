@@ -8,7 +8,10 @@ async function main(): Promise<void> {
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}/capabilities/catalogs/register`, {
     method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ catalog: INBOX_CAPABILITY_CATALOG, deployedAt: new Date().toISOString() }),
+    body: JSON.stringify({
+      catalog: INBOX_CAPABILITY_CATALOG,
+      deployedAt: new Date().toISOString(),
+    }),
   });
   if (!response.ok) {
     throw new Error(`Catalog registration failed (${response.status}): ${await response.text()}`);

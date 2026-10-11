@@ -42,9 +42,8 @@ function deepMerge(base, override) {
   }
   const result = { ...base };
   for (const [key, value] of Object.entries(override)) {
-    result[key] = isPlainObject(value) && isPlainObject(result[key])
-      ? deepMerge(result[key], value)
-      : value;
+    result[key] =
+      isPlainObject(value) && isPlainObject(result[key]) ? deepMerge(result[key], value) : value;
   }
   return result;
 }
@@ -55,9 +54,9 @@ function resolveBuildPropertiesPlugin(projectRoot) {
     mod = requireFromProject('expo-build-properties', projectRoot);
   } catch (error) {
     throw new Error(
-      "[@oxy.so/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. "
-        + "Install it with `npx expo install expo-build-properties`, or disable it by passing "
-        + '`{ ios: false, android: false }` to the preset.',
+      "[@oxy.so/app-preset] withOxyBuildProperties requires the peer dependency 'expo-build-properties'. " +
+        'Install it with `npx expo install expo-build-properties`, or disable it by passing ' +
+        '`{ ios: false, android: false }` to the preset.',
     );
   }
   const plugin = typeof mod === 'function' ? mod : mod.withBuildProperties || mod.default;

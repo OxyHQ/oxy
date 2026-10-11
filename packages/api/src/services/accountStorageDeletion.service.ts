@@ -108,18 +108,28 @@ export function storageTargetsForAsset(
  */
 export async function recordFileStorageDeletion(
   tx: Transaction,
-  asset: { sha256: string; storageKey: string; ownerUserId: string | null; systemOwner: string | null },
+  asset: {
+    sha256: string;
+    storageKey: string;
+    ownerUserId: string | null;
+    systemOwner: string | null;
+  },
   variantKeys: readonly string[],
 ): Promise<string[]> {
-  return armStorageTargets(tx, 'file.deleted', assetAccountId(asset), storageTargetsForAsset(asset, variantKeys));
+  return armStorageTargets(
+    tx,
+    'file.deleted',
+    assetAccountId(asset),
+    storageTargetsForAsset(asset, variantKeys),
+  );
 }
 
 /**
  * Record the keys ONE asset stopped using when a visibility change copied its
  * objects to the other spelling (`public/` or not), inside the transaction that
  * repointed the row. Each old key is an OBJECT target — never its directory:
- * the directory also holds HLS segments the relocation did not move, and other
- * owners' renditions. The worker then deletes each spelling no live row uses,
+ * the directory also holds HLS segments, which the relocation copies but never
+ * deletes, and other owners' renditions. The worker then deletes each spelling no live row uses,
  * so a key another owner's row shares is kept.
  */
 export async function recordFileStorageRelocation(
@@ -150,7 +160,11 @@ async function armStorageTargets(
     .insert(storageObjectDeletions)
     .values(targets.map((target) => ({ reason, accountId, ...target })))
     .onConflictDoUpdate({
-      target: [storageObjectDeletions.accountId, storageObjectDeletions.kind, storageObjectDeletions.target],
+      target: [
+        storageObjectDeletions.accountId,
+        storageObjectDeletions.kind,
+        storageObjectDeletions.target,
+      ],
       set: {
         reason: sql`excluded.reason`,
         sha256: sql`excluded.sha256`,
@@ -175,20 +189,31 @@ export async function recordAccountStorageDeletion(
   const owned = await tx
     .select({ id: files.id, sha256: files.sha256, storageKey: files.storageKey })
     .from(files)
-    .where(and(
-      eq(files.ownerUserId, accountId),
-      notExists(
-        tx.select({ one: sql`1` }).from(appListingScreenshots).where(eq(appListingScreenshots.fileId, files.id)),
+    .where(
+      and(
+        eq(files.ownerUserId, accountId),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(appListingScreenshots)
+            .where(eq(appListingScreenshots.fileId, files.id)),
+        ),
+        notExists(
+          tx
+            .select({ one: sql`1` })
+            .from(messageAttachments)
+            .where(eq(messageAttachments.fileId, files.id)),
+        ),
       ),
-      notExists(
-        tx.select({ one: sql`1` }).from(messageAttachments).where(eq(messageAttachments.fileId, files.id)),
-      ),
-    ));
+    );
 
   if (owned.length === 0) return { fileIds: [], targets: 0 };
 
   const variantKeys = new Map<string, string[]>();
-  for (const ids of chunks(owned.map((asset) => asset.id), CHUNK_SIZE)) {
+  for (const ids of chunks(
+    owned.map((asset) => asset.id),
+    CHUNK_SIZE,
+  )) {
     const rows = await tx
       .select({ fileId: fileVariants.fileId, key: fileVariants.key })
       .from(fileVariants)

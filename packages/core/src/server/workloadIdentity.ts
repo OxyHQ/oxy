@@ -67,7 +67,9 @@ interface ContainerCredentials {
  * checkout has no attestation to offer and must fall back to a credential.
  */
 export function canAttestWorkloadIdentity(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || env.AWS_CONTAINER_CREDENTIALS_FULL_URI);
+  return Boolean(
+    env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI || env.AWS_CONTAINER_CREDENTIALS_FULL_URI,
+  );
 }
 
 async function containerCredentials(fetchImpl: typeof fetch): Promise<ContainerCredentials> {
@@ -108,8 +110,15 @@ function sha256Hex(value: string): string {
  * attestation whose signature does not cover it, because a nonce the signature
  * does not cover can be swapped by whoever captured the attestation.
  */
-function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string, now: Date): Record<string, string> {
-  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+function signGetCallerIdentity(
+  credentials: ContainerCredentials,
+  nonce: string,
+  now: Date,
+): Record<string, string> {
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
   const dateStamp = amzDate.slice(0, 8);
 
   const headers: Record<string, string> = {
@@ -135,7 +144,10 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
   const scope = `${dateStamp}/${STS_REGION}/sts/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
 
-  const signingKey = hmac(hmac(hmac(hmac(`AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'), 'aws4_request');
+  const signingKey = hmac(
+    hmac(hmac(hmac(`AWS4${credentials.SecretAccessKey}`, dateStamp), STS_REGION), 'sts'),
+    'aws4_request',
+  );
   const signature = createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
 
   return {
@@ -147,9 +159,44 @@ function signGetCallerIdentity(credentials: ContainerCredentials, nonce: string,
 }
 
 /** The AWS attestation: signed headers, and nothing else. */
-async function awsContainerAttestation(fetchImpl: typeof fetch, nonce: string): Promise<{ headers: Record<string, string> }> {
+async function awsContainerAttestation(
+  fetchImpl: typeof fetch,
+  nonce: string,
+): Promise<{ headers: Record<string, string> }> {
   const credentials = await containerCredentials(fetchImpl);
   return { headers: signGetCallerIdentity(credentials, nonce, new Date()) };
+}
+
+/** A proof of this process's identity, exactly as `POST /auth/service-token/workload` takes it. */
+export interface WorkloadAttestation {
+  provider: 'aws-iam';
+  attestation: { headers: Record<string, string> };
+}
+
+/**
+ * Signs this process's identity proof over a nonce the CALLER chose, and sends
+ * it nowhere.
+ *
+ * {@link requestWorkloadServiceToken} is the ordinary consumer: Oxy issues the
+ * nonce and replays the proof. This exists for the one host that is its own
+ * verifier — Oxy's API acting as an application it hosts (Inbox) needs to learn
+ * which role it runs as, and the honest way to learn that is the way it learns
+ * anyone else's: sign `GetCallerIdentity` and let STS say whose signature it is.
+ * Reading a role name out of configuration would be the process's own word for
+ * what it is, which is what ADR 0026 refuses from every other caller.
+ *
+ * The same signer, so the two can never disagree about the shape the verifier
+ * accepts. Throws exactly as the token path does when there is no identity here.
+ */
+export async function attestWorkloadIdentity(options: {
+  nonce: string;
+  fetch?: typeof fetch;
+}): Promise<WorkloadAttestation> {
+  if (!options.nonce) throw new Error('A workload attestation needs a nonce to sign.');
+  return {
+    provider: 'aws-iam',
+    attestation: await awsContainerAttestation(options.fetch ?? fetch, options.nonce),
+  };
 }
 
 /**

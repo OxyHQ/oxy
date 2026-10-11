@@ -260,7 +260,12 @@ export function OxyConsentScreen({
             <View style={[styles.dot, { backgroundColor: theme.colors.border }]} />
             <View style={[styles.dot, { backgroundColor: theme.colors.border }]} />
           </View>
-          <View style={[styles.logoBadge, { backgroundColor: theme.colors.backgroundSecondary ?? theme.colors.card }]}>
+          <View
+            style={[
+              styles.logoBadge,
+              { backgroundColor: theme.colors.backgroundSecondary ?? theme.colors.card },
+            ]}
+          >
             <LogoIcon height={30} color={theme.colors.primary} />
           </View>
         </View>
@@ -273,7 +278,12 @@ export function OxyConsentScreen({
       </View>
 
       {/* Provenance */}
-      <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+      <View
+        style={[
+          styles.card,
+          { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+        ]}
+      >
         <Text testID="consent-provenance" style={[styles.provenance, { color: theme.colors.text }]}>
           {provenanceLabel}
         </Text>
@@ -294,7 +304,10 @@ export function OxyConsentScreen({
           </Text>
           <View
             testID="consent-resource"
-            style={[styles.resourceCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+            style={[
+              styles.resourceCard,
+              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+            ]}
           >
             <Avatar
               source={resource.application.iconUrl}
@@ -326,7 +339,12 @@ export function OxyConsentScreen({
         <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
           {t('consent.permissions.title')}
         </Text>
-        <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+        <View
+          style={[
+            styles.card,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+          ]}
+        >
           {permissionRows.length > 0 ? (
             permissionRows.map((row) => (
               <View key={row.scope} testID={`consent-scope-${row.scope}`} style={styles.row}>
@@ -352,12 +370,25 @@ export function OxyConsentScreen({
           <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
             {t('consent.writeActions.title')}
           </Text>
-          <View style={[styles.card, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}>
+          <View
+            style={[
+              styles.card,
+              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+            ]}
+          >
             {resource.writeActions.map((action) => (
-              <View key={`${action.name}:${action.version}`} testID={`consent-write-action-${action.name}`} style={styles.actionRow}>
+              <View
+                key={`${action.name}:${action.version}`}
+                testID={`consent-write-action-${action.name}`}
+                style={styles.actionRow}
+              >
                 <View style={styles.actionCopy}>
-                  <Text style={[styles.rowText, { color: theme.colors.text }]}>{action.description}</Text>
-                  <Text style={[styles.actionName, { color: theme.colors.textSecondary }]}>{action.name}</Text>
+                  <Text style={[styles.rowText, { color: theme.colors.text }]}>
+                    {action.description}
+                  </Text>
+                  <Text style={[styles.actionName, { color: theme.colors.textSecondary }]}>
+                    {action.name}
+                  </Text>
                 </View>
                 <View style={[styles.effectBadge, { borderColor: theme.colors.border }]}>
                   <Text style={[styles.effectText, { color: theme.colors.textSecondary }]}>
@@ -374,7 +405,10 @@ export function OxyConsentScreen({
       {user ? (
         <View
           testID="consent-account"
-          style={[styles.accountRow, { borderColor: theme.colors.border, backgroundColor: theme.colors.card }]}
+          style={[
+            styles.accountRow,
+            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+          ]}
         >
           <Avatar source={user.avatarUri} name={accountName} size={40} />
           <View style={styles.accountText}>
@@ -386,7 +420,10 @@ export function OxyConsentScreen({
               {accountName}
             </Text>
             {user.handle && user.handle !== accountName ? (
-              <Text numberOfLines={1} style={[styles.accountHandle, { color: theme.colors.textSecondary }]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.accountHandle, { color: theme.colors.textSecondary }]}
+              >
                 {user.handle}
               </Text>
             ) : null}
@@ -439,7 +476,8 @@ export function OxyConsentScreen({
       <View style={styles.actions}>
         <Button
           testID="consent-allow"
-          appearance="solid" tone="accent"
+          appearance="solid"
+          tone="accent"
           onPress={handleAllow}
           disabled={busy || allowDisabled}
           loading={busy}
@@ -449,7 +487,8 @@ export function OxyConsentScreen({
         </Button>
         <Button
           testID="consent-deny"
-          appearance="plain" tone="neutral"
+          appearance="plain"
+          tone="neutral"
           onPress={onDeny}
           disabled={busy}
           style={styles.actionButton}

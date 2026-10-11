@@ -2,12 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { authenticatedApiCall } from '@oxy.so/core';
 import { queryKeys } from './queryKeys';
 import { useOxy } from '../../context/OxyContext';
-import type {
-  Subscription,
-  Payment,
-  Wallet,
-  WalletTransactionsResponse,
-} from './paymentTypes';
+import type { Subscription, Payment, Wallet, WalletTransactionsResponse } from './paymentTypes';
 
 /**
  * Payment / wallet / subscription query hooks.
@@ -40,13 +35,11 @@ export const useUserSubscription = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.payments.subscription(user?.id),
     queryFn: async () => {
-      return authenticatedApiCall<Subscription>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.billing.subscription(),
+      return authenticatedApiCall<Subscription>(oxyServices, activeSessionId, () =>
+        oxyServices.billing.subscription(),
       );
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
+    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
     // Subscription state changes rarely; tolerate a longer fresh window.
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
@@ -65,13 +58,11 @@ export const useUserPayments = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.payments.history(user?.id),
     queryFn: async () => {
-      return authenticatedApiCall<Payment[]>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.billing.payments(),
+      return authenticatedApiCall<Payment[]>(oxyServices, activeSessionId, () =>
+        oxyServices.billing.payments(),
       );
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
+    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
     // Billing history is append-mostly; a short fresh window is fine.
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
@@ -90,13 +81,11 @@ export const useUserWallet = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: queryKeys.payments.wallet(user?.id),
     queryFn: async () => {
-      return authenticatedApiCall<Wallet>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.billing.wallet(),
+      return authenticatedApiCall<Wallet>(oxyServices, activeSessionId, () =>
+        oxyServices.billing.wallet(),
       );
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
+    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
     staleTime: 60 * 1000, // 1 minute (balance moves often)
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
@@ -124,13 +113,11 @@ export const useUserWalletTransactions = (
   return useQuery({
     queryKey: queryKeys.payments.walletTransactions(limit, offset, user?.id),
     queryFn: async () => {
-      return authenticatedApiCall<WalletTransactionsResponse>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.billing.walletTransactions({ limit, offset }),
+      return authenticatedApiCall<WalletTransactionsResponse>(oxyServices, activeSessionId, () =>
+        oxyServices.billing.walletTransactions({ limit, offset }),
       );
     },
-    enabled: (options?.enabled !== false) && isAuthenticated && !!user?.id,
+    enabled: options?.enabled !== false && isAuthenticated && !!user?.id,
     staleTime: 60 * 1000, // 1 minute (ledger updates frequently)
     gcTime: 10 * 60 * 1000, // 10 minutes
   });

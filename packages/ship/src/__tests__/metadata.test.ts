@@ -34,7 +34,7 @@ beforeAll(() => {
           assets: [{ path: 'assets/logo', ext: 'png' }],
         },
       },
-    })
+    }),
   );
 });
 
@@ -74,16 +74,16 @@ describe('resolveRuntimeVersion', () => {
     expect(resolveRuntimeVersion({ runtimeVersion: '7' })).toBe('7');
   });
   test('appVersion policy resolves to version', () => {
-    expect(resolveRuntimeVersion({ runtimeVersion: { policy: 'appVersion' }, version: '1.2.3' })).toBe(
-      '1.2.3'
-    );
+    expect(
+      resolveRuntimeVersion({ runtimeVersion: { policy: 'appVersion' }, version: '1.2.3' }),
+    ).toBe('1.2.3');
   });
   test('absent runtimeVersion falls back to version', () => {
     expect(resolveRuntimeVersion({ version: '3.0.0' })).toBe('3.0.0');
   });
   test('non-appVersion policy requires an explicit override', () => {
     expect(() => resolveRuntimeVersion({ runtimeVersion: { policy: 'fingerprint' } })).toThrow(
-      /fingerprint/
+      /fingerprint/,
     );
   });
 });

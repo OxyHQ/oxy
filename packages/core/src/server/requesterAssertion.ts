@@ -37,21 +37,23 @@ const MAX_ASSERTION_BYTES = 4096;
 
 const identifier = z.string().min(1).max(128);
 
-export const oxyRequesterAssertionClaimsSchema = z.object({
-  iss: z.string().min(1).max(256),
-  aud: identifier,
-  /** The requester account. */
-  sub: identifier,
-  jti: z.string().uuid(),
-  iat: z.number().int().nonnegative(),
-  exp: z.number().int().positive(),
-  /** The application the assertion was minted for, and the only valid presenter. */
-  azp: identifier,
-  /** The exact credential of that application. */
-  cid: identifier,
-  /** The one native agent this requester may reach with it. */
-  agentId: identifier,
-}).strict();
+export const oxyRequesterAssertionClaimsSchema = z
+  .object({
+    iss: z.string().min(1).max(256),
+    aud: identifier,
+    /** The requester account. */
+    sub: identifier,
+    jti: z.string().uuid(),
+    iat: z.number().int().nonnegative(),
+    exp: z.number().int().positive(),
+    /** The application the assertion was minted for, and the only valid presenter. */
+    azp: identifier,
+    /** The exact credential of that application. */
+    cid: identifier,
+    /** The one native agent this requester may reach with it. */
+    agentId: identifier,
+  })
+  .strict();
 
 export type OxyRequesterAssertionClaims = z.infer<typeof oxyRequesterAssertionClaimsSchema>;
 
@@ -99,7 +101,10 @@ export function signOxyRequesterAssertion(
   signing: { readonly keyId: string; readonly privateKey: KeyObject },
 ): string {
   const parsed = oxyRequesterAssertionClaimsSchema.parse(claims);
-  if (parsed.exp <= parsed.iat || parsed.exp - parsed.iat > OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS) {
+  if (
+    parsed.exp <= parsed.iat ||
+    parsed.exp - parsed.iat > OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS
+  ) {
     throw new OxyRequesterAssertionError('ttl_exceeded');
   }
   if (!KEY_ID_PATTERN.test(signing.keyId)) throw new OxyRequesterAssertionError('malformed');
@@ -120,11 +125,11 @@ export function readOxyRequesterAssertionKeyId(token: string): string {
   }
   const header = decodeObject(segments[0] as string);
   if (
-    Object.keys(header).length !== 3
-    || header.alg !== ALGORITHM
-    || header.typ !== OXY_REQUESTER_ASSERTION_TYPE
-    || typeof header.kid !== 'string'
-    || !KEY_ID_PATTERN.test(header.kid)
+    Object.keys(header).length !== 3 ||
+    header.alg !== ALGORITHM ||
+    header.typ !== OXY_REQUESTER_ASSERTION_TYPE ||
+    typeof header.kid !== 'string' ||
+    !KEY_ID_PATTERN.test(header.kid)
   ) {
     throw new OxyRequesterAssertionError('malformed');
   }
@@ -148,7 +153,11 @@ export function verifyOxyRequesterAssertion(
   options: OxyRequesterAssertionVerificationOptions,
 ): OxyRequesterAssertionClaims {
   readOxyRequesterAssertionKeyId(token);
-  const [encodedHeader, encodedPayload, encodedSignature] = token.split('.') as [string, string, string];
+  const [encodedHeader, encodedPayload, encodedSignature] = token.split('.') as [
+    string,
+    string,
+    string,
+  ];
   const publicKey = options.publicKey;
   if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') {
     throw new OxyRequesterAssertionError('unknown_key');
@@ -170,7 +179,10 @@ export function verifyOxyRequesterAssertion(
   if (claims.aud !== options.audience) throw new OxyRequesterAssertionError('wrong_audience');
   if (claims.iat > now + CLOCK_SKEW_SECONDS) throw new OxyRequesterAssertionError('not_yet_valid');
   if (claims.exp <= now) throw new OxyRequesterAssertionError('expired');
-  if (claims.exp <= claims.iat || claims.exp - claims.iat > OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS) {
+  if (
+    claims.exp <= claims.iat ||
+    claims.exp - claims.iat > OXY_REQUESTER_ASSERTION_MAX_TTL_SECONDS
+  ) {
     throw new OxyRequesterAssertionError('ttl_exceeded');
   }
   return claims;
@@ -187,27 +199,35 @@ const JWKS_MAX_BYTES = 64 * 1024;
 const JWKS_MAX_KEYS = 20;
 
 function parseJwks(value: unknown): Map<string, KeyObject> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('JWKS is malformed');
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new Error('JWKS is malformed');
   const keys = (value as { keys?: unknown }).keys;
-  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS) throw new Error('JWKS has an invalid key set');
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS)
+    throw new Error('JWKS has an invalid key set');
   const result = new Map<string, KeyObject>();
   for (const entry of keys) {
-    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) throw new Error('JWKS key is malformed');
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry))
+      throw new Error('JWKS key is malformed');
     const key = entry as Record<string, unknown>;
     if (
-      key.kty !== 'OKP'
-      || key.crv !== 'Ed25519'
-      || key.alg !== 'EdDSA'
-      || key.use !== 'sig'
-      || typeof key.x !== 'string'
-      || typeof key.kid !== 'string'
-      || !KEY_ID_PATTERN.test(key.kid)
-      || Object.prototype.hasOwnProperty.call(key, 'd')
-      || result.has(key.kid)
-    ) throw new Error('JWKS key is unsupported');
+      key.kty !== 'OKP' ||
+      key.crv !== 'Ed25519' ||
+      key.alg !== 'EdDSA' ||
+      key.use !== 'sig' ||
+      typeof key.x !== 'string' ||
+      typeof key.kid !== 'string' ||
+      !KEY_ID_PATTERN.test(key.kid) ||
+      Object.prototype.hasOwnProperty.call(key, 'd') ||
+      result.has(key.kid)
+    )
+      throw new Error('JWKS key is unsupported');
     const x = Buffer.from(key.x, 'base64url');
-    if (x.length !== 32 || x.toString('base64url') !== key.x) throw new Error('JWKS key is not Ed25519');
-    result.set(key.kid, createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: key.x }, format: 'jwk' }));
+    if (x.length !== 32 || x.toString('base64url') !== key.x)
+      throw new Error('JWKS key is not Ed25519');
+    result.set(
+      key.kid,
+      createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: key.x }, format: 'jwk' }),
+    );
   }
   return result;
 }
@@ -248,7 +268,8 @@ export function createOxyJwksKeyResolver(
         });
         if (!response.ok) throw new Error(`JWKS returned HTTP ${response.status}`);
         const body = await response.text();
-        if (Buffer.byteLength(body, 'utf8') > JWKS_MAX_BYTES) throw new Error('JWKS exceeds the size limit');
+        if (Buffer.byteLength(body, 'utf8') > JWKS_MAX_BYTES)
+          throw new Error('JWKS exceeds the size limit');
         keys = parseJwks(JSON.parse(body) as unknown);
         expiresAt = clock() + JWKS_CACHE_MS;
       } finally {
@@ -346,13 +367,16 @@ function reject(
     status,
     applicationId: (req as OxyAuthRequest).serviceApp?.appId ?? null,
   });
-  res.status(status).json({ error, code, message: 'The requester assertion was not accepted', status });
+  res
+    .status(status)
+    .json({ error, code, message: 'The requester assertion was not accepted', status });
 }
 
 function singleHeader(req: Request, name: string): string | null | 'invalid' {
   const value = req.headers[name];
   if (value === undefined) return null;
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ASSERTION_BYTES) return 'invalid';
+  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ASSERTION_BYTES)
+    return 'invalid';
   return value;
 }
 
@@ -373,8 +397,9 @@ export function createOxyRequesterAssertionAuth(
   let resolvePublicKey = options.resolvePublicKey;
   const resolver = (): ((keyId: string) => Promise<KeyObject | undefined>) => {
     resolvePublicKey ??= createOxyJwksKeyResolver({
-      jwksUrl: options.jwksUrl
-        ?? new URL('/capabilities/.well-known/jwks.json', introspector.baseURL).toString(),
+      jwksUrl:
+        options.jwksUrl ??
+        new URL('/capabilities/.well-known/jwks.json', introspector.baseURL).toString(),
     });
     return resolvePublicKey;
   };
@@ -393,16 +418,23 @@ export function createOxyRequesterAssertionAuth(
     const request = req as OxyRequesterAssertionRequest;
     const serviceApp: OxyServiceAppContext | undefined = request.serviceApp;
     if (!serviceApp) {
-      reject(req, res, options, 401, 'REQUESTER_ASSERTION_REQUIRES_SERVICE_TOKEN', 'service_token_required');
+      reject(
+        req,
+        res,
+        options,
+        401,
+        'REQUESTER_ASSERTION_REQUIRES_SERVICE_TOKEN',
+        'service_token_required',
+      );
       return;
     }
     // One identity channel per request. An offline delegation header or an
     // identity some earlier middleware attached must never be combined with, or
     // silently replaced by, a present-requester assertion.
     if (
-      req.headers['x-oxy-user-id'] !== undefined
-      || request.serviceActingAs !== undefined
-      || (request.userId !== undefined && request.userId !== null)
+      req.headers['x-oxy-user-id'] !== undefined ||
+      request.serviceActingAs !== undefined ||
+      (request.userId !== undefined && request.userId !== null)
     ) {
       reject(req, res, options, 400, 'REQUESTER_ASSERTION_CONFLICT', 'identity_conflict');
       return;
@@ -437,17 +469,24 @@ export function createOxyRequesterAssertionAuth(
         presenter: { applicationId: serviceApp.appId, credentialId: serviceApp.credentialId },
       });
     } catch {
-      reject(req, res, options, 503, 'REQUESTER_ASSERTION_UNAVAILABLE', 'introspection_unavailable');
+      reject(
+        req,
+        res,
+        options,
+        503,
+        'REQUESTER_ASSERTION_UNAVAILABLE',
+        'introspection_unavailable',
+      );
       return;
     }
 
     if (
-      introspection.active !== true
-      || introspection.requesterAccountId !== claims.sub
-      || introspection.agentId !== claims.agentId
-      || introspection.applicationId !== claims.azp
-      || introspection.credentialId !== claims.cid
-      || introspection.jti !== claims.jti
+      introspection.active !== true ||
+      introspection.requesterAccountId !== claims.sub ||
+      introspection.agentId !== claims.agentId ||
+      introspection.applicationId !== claims.azp ||
+      introspection.credentialId !== claims.cid ||
+      introspection.jti !== claims.jti
     ) {
       reject(req, res, options, 401, 'REQUESTER_ASSERTION_INACTIVE', 'inactive');
       return;

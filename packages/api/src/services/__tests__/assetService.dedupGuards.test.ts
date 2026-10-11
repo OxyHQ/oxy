@@ -5,9 +5,8 @@
  * 1. [CRITICAL] Content-addressed dedup MUST exclude `deleted` tombstones. A
  *    prior change matched tombstones globally and revived them under the next
  *    uploader's ownership — a cross-tenant ownership takeover via SHA-256
- *    collision. The previous version of this file asserted the QUERY carried
- *    `status: { $ne: 'deleted' }`; that is a statement about a Mongo filter, not
- *    about who ends up owning the bytes. Here the tombstone is a real row and
+ *    collision. Asserting the QUERY's filter would be a statement about a
+ *    filter, not about who ends up owning the bytes. Here the tombstone is a real row and
  *    the assertion is on the OUTCOME: the uploader gets a brand-new row, and the
  *    victim's tombstone is untouched.
  *
@@ -59,10 +58,7 @@ const sha = () => randomBytes(32).toString('hex');
  * is a table-wide constraint.
  */
 const png = () =>
-  Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    randomBytes(16),
-  ]);
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(16)]);
 
 async function insertUser(): Promise<string> {
   const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
@@ -195,7 +191,7 @@ describe('getPublicCdnUrl status gate (trashed/deleted CDN exposure regression)'
       });
 
       expect(url).toBeNull();
-    }
+    },
   );
 
   it('serves an ACTIVE public asset, so the gate is not vacuous', async () => {

@@ -39,7 +39,9 @@ describe('federated avatar origin backpressure', () => {
 
   it('serializes requests by origin while allowing a different origin', async () => {
     expect(await acquireAvatarOriginLease('https://media.one.example/a.png')).toBe(0);
-    expect(await acquireAvatarOriginLease('https://media.one.example/b.png')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
+    expect(await acquireAvatarOriginLease('https://media.one.example/b.png')).toBe(
+      AVATAR_ORIGIN_REQUEST_GAP_MS,
+    );
     expect(await acquireAvatarOriginLease('https://media.two.example/a.png')).toBe(0);
 
     jest.advanceTimersByTime(AVATAR_ORIGIN_REQUEST_GAP_MS + 1);
@@ -54,7 +56,9 @@ describe('federated avatar origin backpressure', () => {
   it('keeps source-profile fetches and picture downloads in separate gaps', async () => {
     expect(await acquireAvatarOriginLease('https://shared.example/a.png')).toBe(0);
     expect(await acquireAvatarOriginLease('https://shared.example/users/a', 'actor')).toBe(0);
-    expect(await acquireAvatarOriginLease('https://shared.example/users/b', 'actor')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
+    expect(await acquireAvatarOriginLease('https://shared.example/users/b', 'actor')).toBe(
+      AVATAR_ORIGIN_REQUEST_GAP_MS,
+    );
   });
 
   it('honours Retry-After and applies exponential backoff to repeated 429s', async () => {
@@ -86,7 +90,9 @@ describe('federated avatar origin backpressure', () => {
     expect(await acquireAvatarOriginLease(url)).toBe(0);
     await clearAvatarOriginFailures(url);
 
-    expect(await acquireAvatarOriginLease('https://fast.example/another.png')).toBe(AVATAR_ORIGIN_REQUEST_GAP_MS);
+    expect(await acquireAvatarOriginLease('https://fast.example/another.png')).toBe(
+      AVATAR_ORIGIN_REQUEST_GAP_MS,
+    );
   });
 
   it('coordinates leases and 429 cooldowns through Redis across replicas', async () => {
@@ -109,8 +115,6 @@ describe('federated avatar origin backpressure', () => {
     );
 
     await clearAvatarOriginFailures(url);
-    expect(redisHandle.del).toHaveBeenCalledWith(
-      expect.stringMatching(/:rate-limit-failures$/),
-    );
+    expect(redisHandle.del).toHaveBeenCalledWith(expect.stringMatching(/:rate-limit-failures$/));
   });
 });

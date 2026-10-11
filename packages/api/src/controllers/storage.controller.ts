@@ -29,10 +29,8 @@ const getPlanStorageLimitBytes = (plan: string | undefined): number => {
 /**
  * Which bucket a file counts towards, from its MIME type.
  *
- * The Mongo original was a `$switch` over three `$regexMatch` branches with a
- * `default`; this is the same ladder as a `CASE`, in the same order (the order
- * matters — `application/` must not shadow `video/`). `~` is case-sensitive, as
- * `$regexMatch` was with these patterns.
+ * A `CASE` ladder whose order matters — `application/` must not shadow
+ * `video/`. `~` is case-sensitive.
  */
 const CATEGORY = sql<StorageCategory>`case
   when ${files.mime} ~ '^(image|video)/' then 'photosVideos'
@@ -44,10 +42,8 @@ end`;
 /**
  * Bytes a file occupies INCLUDING its renditions.
  *
- * Mongo summed a nested array inside the same document
- * (`$add: ['$size', { $ifNull: [{ $sum: '$variants.size' }, 0] }]`); the
- * renditions are their own table now, so the inner sum is a correlated
- * subquery. `coalesce` reproduces `$ifNull` exactly: `sum` over no rows — or
+ * The renditions are their own table, so the inner sum is a correlated
+ * subquery. `coalesce` matters: `sum` over no rows — or
  * over rows whose `size` is NULL, which a still-encoding rendition has — is
  * NULL, not 0, and `bigint + NULL` would make the whole file's contribution
  * vanish rather than count its original bytes.
@@ -79,8 +75,11 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
     const subscriptionPlan = await resolveUserSubscriptionPlan(userId);
     const catalogue = await loadProductBillingCatalogue();
     const totalLimitBytes = catalogue.storageAdapter
-      ? await storageCapacity(getDb(), userId, catalogue) : getPlanStorageLimitBytes(subscriptionPlan);
-    const reservedBytes = catalogue.storageAdapter ? (await reservedStorageBytes(getDb(), userId)).toString() : null;
+      ? await storageCapacity(getDb(), userId, catalogue)
+      : getPlanStorageLimitBytes(subscriptionPlan);
+    const reservedBytes = catalogue.storageAdapter
+      ? (await reservedStorageBytes(getDb(), userId)).toString()
+      : null;
 
     // `sum`/`count` over `bigint` come back as strings from postgres.js — a byte
     // total can exceed 2^53, so the driver refuses to guess. Parse once, here.
@@ -129,7 +128,10 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    logger.error('Error computing storage usage', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error computing storage usage',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({
       message: 'Error computing storage usage',
       error: error instanceof Error ? error.message : 'Unknown error',

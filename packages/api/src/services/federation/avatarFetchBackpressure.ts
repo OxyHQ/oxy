@@ -15,7 +15,9 @@ import { logger } from '../../utils/logger';
  */
 export const AVATAR_ORIGIN_REQUEST_GAP_MS = (() => {
   const configured = Number.parseInt(process.env.FEDERATION_AVATAR_ORIGIN_GAP_MS ?? '', 10);
-  return Number.isInteger(configured) && configured >= 100 && configured <= 60_000 ? configured : 1_000;
+  return Number.isInteger(configured) && configured >= 100 && configured <= 60_000
+    ? configured
+    : 1_000;
 })();
 const ORIGIN_REQUEST_LEASE_MS = AVATAR_ORIGIN_REQUEST_GAP_MS;
 const DEFAULT_RATE_LIMIT_BACKOFF_MS = 30_000;
@@ -27,7 +29,10 @@ const localFailures = new Map<string, { count: number; expiresAt: number }>();
 
 function originKey(rawUrl: string, namespace = 'avatar'): string {
   const origin = new URL(rawUrl).origin;
-  return crypto.createHash('sha256').update(namespace === 'avatar' ? origin : `${namespace}:${origin}`).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(namespace === 'avatar' ? origin : `${namespace}:${origin}`)
+    .digest('hex');
 }
 
 function cooldownKey(key: string): string {
@@ -53,7 +58,10 @@ function localRemainingMs(key: string, now: number): number {
  * lease effective across API replicas; the local map preserves the same
  * behaviour when Redis is intentionally unavailable in development.
  */
-export async function acquireAvatarOriginLease(rawUrl: string, namespace: 'avatar' | 'actor' = 'avatar'): Promise<number> {
+export async function acquireAvatarOriginLease(
+  rawUrl: string,
+  namespace: 'avatar' | 'actor' = 'avatar',
+): Promise<number> {
   const key = originKey(rawUrl, namespace);
   const now = Date.now();
   const redis = getRedisClient();

@@ -336,7 +336,7 @@ export function isAccountPermission(value: string): value is AccountPermission {
 export function resolveEffectivePermissions(
   role: AccountRole,
   grants: readonly string[],
-  revokes: readonly string[]
+  revokes: readonly string[],
 ): AccountPermission[] {
   const held = new Set<string>(ROLE_PERMISSIONS[role]);
   for (const permission of grants) held.add(permission);
@@ -370,7 +370,7 @@ export function effectivePermissionsForMember(member: {
   return resolveEffectivePermissions(
     member.role,
     member.permissionGrants,
-    member.permissionRevokes
+    member.permissionRevokes,
   );
 }
 
@@ -561,12 +561,17 @@ export function appPermissionsForAccountAccess(access: {
   });
 }
 
-
 /** Governance is explicit membership; a runtime key grants only self operation. */
 export const ACCOUNT_GOVERNANCE_PERMISSIONS: ReadonlySet<AccountPermission> = new Set([
-  'account:delete', 'members:invite', 'members:update', 'members:remove',
-  'ownership:transfer', 'credentials:manage',
+  'account:delete',
+  'members:invite',
+  'members:update',
+  'members:remove',
+  'ownership:transfer',
+  'credentials:manage',
 ]);
 export function autonomousOperationalPermissions(): AccountPermission[] {
-  return ACCOUNT_PERMISSIONS.filter((permission) => !ACCOUNT_GOVERNANCE_PERMISSIONS.has(permission));
+  return ACCOUNT_PERMISSIONS.filter(
+    (permission) => !ACCOUNT_GOVERNANCE_PERMISSIONS.has(permission),
+  );
 }

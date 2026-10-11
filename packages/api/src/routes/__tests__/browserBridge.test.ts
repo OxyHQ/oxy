@@ -53,7 +53,10 @@ jest.mock('../../services/loginLockout.service', () => ({
 }));
 jest.mock('../../services/securityActivityService', () => ({
   __esModule: true,
-  default: { logDeviceAdded: jest.fn().mockResolvedValue(undefined), logSignIn: jest.fn().mockResolvedValue(undefined) },
+  default: {
+    logDeviceAdded: jest.fn().mockResolvedValue(undefined),
+    logSignIn: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 jest.mock('../../utils/authSessionSocket', () => ({
   emitAuthSessionUpdate: jest.fn(),
@@ -143,12 +146,19 @@ function pkce(): { verifier: string; challenge: string } {
 }
 
 async function registerOnAuth(): Promise<{ deviceId: string; deviceSecret: string }> {
-  const res = await request(app).post('/session/device/register').set('origin', AUTH_ORIGIN).send({});
+  const res = await request(app)
+    .post('/session/device/register')
+    .set('origin', AUTH_ORIGIN)
+    .send({});
   expect(res.status).toBe(201);
   return res.body.data;
 }
 
-async function joinCode(auth: { deviceId: string; deviceSecret: string }, target: OfficialApp, challenge: string) {
+async function joinCode(
+  auth: { deviceId: string; deviceSecret: string },
+  target: OfficialApp,
+  challenge: string,
+) {
   return request(app)
     .post('/session/device/join-code')
     .set('origin', AUTH_ORIGIN)
@@ -162,10 +172,12 @@ async function joinCode(auth: { deviceId: string; deviceSecret: string }, target
 }
 
 function redeem(target: OfficialApp, code: string, verifier: string, origin = target.origin) {
-  return request(app)
-    .post('/session/device/join')
-    .set('origin', origin)
-    .send({ code, codeVerifier: verifier, clientId: target.clientId, redirectUri: target.redirectUri });
+  return request(app).post('/session/device/join').set('origin', origin).send({
+    code,
+    codeVerifier: verifier,
+    clientId: target.clientId,
+    redirectUri: target.redirectUri,
+  });
 }
 
 /** The whole bridge run for one app: a code from auth.oxy.so, redeemed by the app. */
@@ -190,14 +202,20 @@ async function qrSignIn(
   device?: { deviceId: string; deviceSecret: string },
 ) {
   const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
-  await getDb().insert(authSessions).values({
-    sessionToken,
-    authorizeCode: randomUUID().replace(/-/g, ''),
-    applicationId: target.id,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-    status: 'pending',
-  });
-  authenticatedUser = { _id: signer.id, username: signer.username, sessionId: await insertBearerSession(signer.id) };
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      authorizeCode: randomUUID().replace(/-/g, ''),
+      applicationId: target.id,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      status: 'pending',
+    });
+  authenticatedUser = {
+    _id: signer.id,
+    username: signer.username,
+    sessionId: await insertBearerSession(signer.id),
+  };
   const approved = await request(app)
     .post(`/auth/session/authorize/${sessionToken}`)
     .set('user-agent', USER_AGENT)
@@ -209,7 +227,12 @@ async function qrSignIn(
     .set('user-agent', USER_AGENT)
     .send({ sessionToken, ...(device ? { device } : {}) });
   expect(claimed.status).toBe(200);
-  return claimed.body.data as { accessToken: string; deviceId: string; deviceSecret?: string; sessionId: string };
+  return claimed.body.data as {
+    accessToken: string;
+    deviceId: string;
+    deviceSecret?: string;
+    sessionId: string;
+  };
 }
 
 function tokenDeviceId(accessToken: string): unknown {
@@ -228,14 +251,25 @@ beforeAll(async () => {
   app.use('/auth', authRouter);
   app.use('/session/device', sessionDeviceRouter);
   // The first factor itself is `signIn.test.ts`'s; this is the session tail every sign-in shares.
-  app.post('/test/signin-mint', rateLimit({ prefix: 'rl:test:signin-mint:', windowMs: 60_000, max: 100 }), (req: Request, res: Response, next) => {
-    const { account, device } = req.body as { account: { id: string; username: string }; device?: unknown };
-    mintSignInSession(req, { id: account.id, username: account.username, avatar: null }, {
-      ...(device ? { device: device as { deviceId: string; deviceSecret: string } } : {}),
-    })
-      .then((result) => res.json(result))
-      .catch(next);
-  });
+  app.post(
+    '/test/signin-mint',
+    rateLimit({ prefix: 'rl:test:signin-mint:', windowMs: 60_000, max: 100 }),
+    (req: Request, res: Response, next) => {
+      const { account, device } = req.body as {
+        account: { id: string; username: string };
+        device?: unknown;
+      };
+      mintSignInSession(
+        req,
+        { id: account.id, username: account.username, avatar: null },
+        {
+          ...(device ? { device: device as { deviceId: string; deviceSecret: string } } : {}),
+        },
+      )
+        .then((result) => res.json(result))
+        .catch(next);
+    },
+  );
   app.use(errorHandler);
 });
 
@@ -257,10 +291,20 @@ describe('POST /session/device/register', () => {
     expect(minted.body.error).toBe('no_active_session');
 
     expect((await request(app).post('/session/device/register').send({})).status).toBe(403);
-    const foreign = await request(app).post('/session/device/register').set('origin', 'https://evil.example').send({});
+    const foreign = await request(app)
+      .post('/session/device/register')
+      .set('origin', 'https://evil.example')
+      .send({});
     expect(foreign.status).toBe(403);
     // Loopback is the auth web origin in every environment.
-    expect((await request(app).post('/session/device/register').set('origin', 'http://localhost:3000').send({})).status).toBe(201);
+    expect(
+      (
+        await request(app)
+          .post('/session/device/register')
+          .set('origin', 'http://localhost:3000')
+          .send({})
+      ).status,
+    ).toBe(201);
   });
 });
 
@@ -274,10 +318,20 @@ describe('POST /session/device/join-code and /join', () => {
     const fromApp = await request(app)
       .post('/session/device/join-code')
       .set('origin', official.origin)
-      .send({ ...auth, clientId: official.clientId, redirectUri: official.redirectUri, codeChallenge: challenge, codeChallengeMethod: 'S256' });
+      .send({
+        ...auth,
+        clientId: official.clientId,
+        redirectUri: official.redirectUri,
+        codeChallenge: challenge,
+        codeChallengeMethod: 'S256',
+      });
     expect(fromApp.status).toBe(403);
 
-    const wrongSecret = await joinCode({ deviceId: auth.deviceId, deviceSecret: 'nope' }, official, challenge);
+    const wrongSecret = await joinCode(
+      { deviceId: auth.deviceId, deviceSecret: 'nope' },
+      official,
+      challenge,
+    );
     expect(wrongSecret.status).toBe(401);
     expect(wrongSecret.body.error).toBe('invalid_device_secret');
 
@@ -285,14 +339,24 @@ describe('POST /session/device/join-code and /join', () => {
     expect(notOfficial.status).toBe(400);
     expect(notOfficial.body.error).toBe('invalid_client');
 
-    const unregistered = await joinCode(auth, { ...official, redirectUri: `${official.origin}/other` }, challenge);
+    const unregistered = await joinCode(
+      auth,
+      { ...official, redirectUri: `${official.origin}/other` },
+      challenge,
+    );
     expect(unregistered.status).toBe(400);
     expect(unregistered.body.error).toBe('invalid_redirect_uri');
 
     const plain = await request(app)
       .post('/session/device/join-code')
       .set('origin', AUTH_ORIGIN)
-      .send({ ...auth, clientId: official.clientId, redirectUri: official.redirectUri, codeChallenge: challenge, codeChallengeMethod: 'plain' });
+      .send({
+        ...auth,
+        clientId: official.clientId,
+        redirectUri: official.redirectUri,
+        codeChallenge: challenge,
+        codeChallengeMethod: 'plain',
+      });
     expect(plain.status).toBe(400);
   });
 
@@ -323,11 +387,19 @@ describe('POST /session/device/join-code and /join', () => {
     const stolen = await request(app)
       .post('/session/device/join')
       .set('origin', other.origin)
-      .send({ code, codeVerifier: verifier, clientId: other.clientId, redirectUri: target.redirectUri });
+      .send({
+        code,
+        codeVerifier: verifier,
+        clientId: other.clientId,
+        redirectUri: target.redirectUri,
+      });
     expect(stolen.status).toBe(403);
-    const stolenNoOrigin = await request(app)
-      .post('/session/device/join')
-      .send({ code, codeVerifier: verifier, clientId: other.clientId, redirectUri: target.redirectUri });
+    const stolenNoOrigin = await request(app).post('/session/device/join').send({
+      code,
+      codeVerifier: verifier,
+      clientId: other.clientId,
+      redirectUri: target.redirectUri,
+    });
     expect(stolenNoOrigin.status).toBe(400);
     expect(stolenNoOrigin.body.error).toBe('invalid_client');
 
@@ -406,7 +478,9 @@ describe('one browser, one session through the bridge', () => {
 
     const res = await mint(inA);
     expect(res.status).toBe(200);
-    const accounts = (res.body.data.state.accounts as { accountId: string }[]).map((a) => a.accountId).sort();
+    const accounts = (res.body.data.state.accounts as { accountId: string }[])
+      .map((a) => a.accountId)
+      .sort();
     expect(accounts).toEqual([alice.id, bob.id].sort());
     // Add-only: a second sign-in never steals the device's active account.
     expect(res.body.data.state.activeAccountId).toBe(alice.id);
@@ -447,27 +521,38 @@ describe('one browser, one session through the bridge', () => {
 describe('device token while another holder signs out the active organization', () => {
   async function sharedOrganization() {
     const person = await user();
-    const [org] = await getDb().insert(users).values({
-      username: `org${randomUUID().replace(/-/g, '').slice(0, 20)}`,
-      kind: 'organization',
-    }).returning({ id: users.id });
+    const [org] = await getDb()
+      .insert(users)
+      .values({
+        username: `org${randomUUID().replace(/-/g, '').slice(0, 20)}`,
+        kind: 'organization',
+      })
+      .returning({ id: users.id });
     await getDb().insert(accountMembers).values({
-      accountId: org.id, memberUserId: person.id, role: 'admin', status: 'active',
+      accountId: org.id,
+      memberUserId: person.id,
+      role: 'admin',
+      status: 'active',
     });
     const auth = await registerOnAuth();
     const target = await registeredApp(true);
     const holder = await bridge(auth, target);
     await qrSignIn(target, person, holder);
     const directory = await deviceSessionService.getDirectory(auth.deviceId);
-    const context = directory.principals.flatMap((principal) => principal.contexts)
+    const context = directory.principals
+      .flatMap((principal) => principal.contexts)
       .find((entry) => entry.accountId === org.id);
     expect(context).toBeDefined();
     if (!context) throw new Error('Organization context absent');
     const activated = await deviceSessionService.activateContext(auth.deviceId, context.id, {
-      headers: { 'user-agent': USER_AGENT }, get: (name: string) => name === 'user-agent' ? USER_AGENT : undefined,
+      headers: { 'user-agent': USER_AGENT },
+      get: (name: string) => (name === 'user-agent' ? USER_AGENT : undefined),
     } as Request);
     expect(activated.ok).toBe(true);
-    const before = await deviceSessionService.getStateBySecret(holder.deviceId, holder.deviceSecret);
+    const before = await deviceSessionService.getStateBySecret(
+      holder.deviceId,
+      holder.deviceSecret,
+    );
     expect(before?.activeAccountId).toBe(org.id);
     return { person, org, holder, before };
   }
@@ -492,7 +577,9 @@ describe('device token while another holder signs out the active organization', 
       expect(claims.userId).toBe(person.id);
       expect(tokenDeviceId(result.body.data.accessToken)).toBe(holder.deviceId);
       expect(stateRead).toHaveBeenCalledTimes(2);
-    } finally { stateRead.mockRestore(); }
+    } finally {
+      stateRead.mockRestore();
+    }
   });
   it('keeps a removed explicit pin rejected instead of returning the personal fallback', async () => {
     const { org, holder } = await sharedOrganization();
@@ -504,12 +591,16 @@ describe('device token while another holder signs out the active organization', 
       return snapshot;
     });
     try {
-      const result = await request(app).post('/session/device/token').send({ ...holder, accountId: org.id });
+      const result = await request(app)
+        .post('/session/device/token')
+        .send({ ...holder, accountId: org.id });
       expect(result.status).toBe(401);
       expect(result.body.error).toBe('account_not_on_device');
       expect(result.body.data).toBeUndefined();
       expect(read).toHaveBeenCalledTimes(1);
-    } finally { read.mockRestore(); }
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it('rejects a holder revoked by final sign-out before attempting a fallback mint', async () => {
@@ -527,7 +618,9 @@ describe('device token while another holder signs out the active organization', 
       expect(result.body.error).toBe('invalid_device_secret');
       expect(result.body.data).toBeUndefined();
       expect(read).toHaveBeenCalledTimes(2);
-    } finally { read.mockRestore(); }
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it('does not retry the token resolver for an unchanged empty device', async () => {
@@ -538,29 +631,34 @@ describe('device token while another holder signs out the active organization', 
       expect(result.status).toBe(401);
       expect(result.body.error).toBe('no_active_session');
       expect(resolve).toHaveBeenCalledTimes(1);
-    } finally { resolve.mockRestore(); }
+    } finally {
+      resolve.mockRestore();
+    }
   });
 
   it('fails closed with no further retry if the authenticated fallback revision changes again', async () => {
     const { org, holder } = await sharedOrganization();
     const original = deviceSessionService.getStateBySecret.bind(deviceSessionService);
     const read = jest.spyOn(deviceSessionService, 'getStateBySecret');
-    read.mockImplementationOnce(async (id, secret) => {
-      const snapshot = await original(id, secret);
-      await deviceSessionService.signout(id, { accountId: org.id });
-      return snapshot;
-    }).mockImplementationOnce(async (id, secret) => {
-      const snapshot = await original(id, secret);
-      await deviceSessionService.signout(id, { all: true });
-      return snapshot;
-    });
+    read
+      .mockImplementationOnce(async (id, secret) => {
+        const snapshot = await original(id, secret);
+        await deviceSessionService.signout(id, { accountId: org.id });
+        return snapshot;
+      })
+      .mockImplementationOnce(async (id, secret) => {
+        const snapshot = await original(id, secret);
+        await deviceSessionService.signout(id, { all: true });
+        return snapshot;
+      });
     try {
       const result = await mint(holder);
       expect(result.status).toBe(401);
       expect(result.body.error).toBe('no_active_session');
       expect(result.body.data).toBeUndefined();
       expect(read).toHaveBeenCalledTimes(2);
-    } finally { read.mockRestore(); }
+    } finally {
+      read.mockRestore();
+    }
   });
-
 });

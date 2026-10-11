@@ -10,7 +10,6 @@ import { generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { buildUserDid, buildDidDocument, buildOxyDidDocument, OXY_DID } from '../did.service';
 import { didDocumentSchema } from '@oxy.so/contracts';
 
-
 function newPublicKey(): string {
   return generateSecp256k1KeyPair().publicKey;
 }
@@ -27,7 +26,9 @@ afterEach(() => {
 
 describe('buildUserDid', () => {
   it('anchors the DID on the account id, not the keypair', () => {
-    expect(buildUserDid('507f1f77bcf86cd799439011')).toBe('did:web:oxy.so:u:507f1f77bcf86cd799439011');
+    expect(buildUserDid('507f1f77bcf86cd799439011')).toBe(
+      'did:web:oxy.so:u:507f1f77bcf86cd799439011',
+    );
   });
 });
 
@@ -247,9 +248,14 @@ describe('DID_WEB_DOMAIN override', () => {
     // Another account's DID, a foreign domain, or issuer ≠ subject all fail.
     expect(fresh.isSelfIssuedByUser({ subject: sdkDid, issuer: sdkDid }, other)).toBe(false);
     expect(
-      fresh.isSelfIssuedByUser({ subject: `did:web:evil.com:u:${me}`, issuer: `did:web:evil.com:u:${me}` }, me),
+      fresh.isSelfIssuedByUser(
+        { subject: `did:web:evil.com:u:${me}`, issuer: `did:web:evil.com:u:${me}` },
+        me,
+      ),
     ).toBe(false);
-    expect(fresh.isSelfIssuedByUser({ subject: sdkDid, issuer: `did:web:oxy.so:u:${other}` }, me)).toBe(false);
+    expect(
+      fresh.isSelfIssuedByUser({ subject: sdkDid, issuer: `did:web:oxy.so:u:${other}` }, me),
+    ).toBe(false);
   });
 });
 
@@ -343,7 +349,9 @@ describe('buildDidDocument — atproto BE-DISCOVERED seam (C4)', () => {
     expect(atprotoVm).toBeDefined();
     expect(atprotoVm).toMatchObject({ id: `${did}#atproto`, type: 'Multikey', controller: did });
     // secp256k1 Multikeys are the `zQ3sh…` did:key form.
-    expect(atprotoVm && 'publicKeyMultibase' in atprotoVm && atprotoVm.publicKeyMultibase).toMatch(/^zQ3sh/);
+    expect(atprotoVm && 'publicKeyMultibase' in atprotoVm && atprotoVm.publicKeyMultibase).toMatch(
+      /^zQ3sh/,
+    );
 
     // The atproto VM is referenced as an authentication + assertion method.
     expect(doc.authentication).toContain(`${did}#atproto`);

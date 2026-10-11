@@ -40,7 +40,7 @@ export interface PlatformBundle {
 function readAssetRef(
   distDir: string,
   relPath: string,
-  options: { isLaunch: true } | { isLaunch: false; ext: string }
+  options: { isLaunch: true } | { isLaunch: false; ext: string },
 ): ShipAssetRef {
   const absPath = path.resolve(distDir, relPath);
   const bytes = fs.readFileSync(absPath);
@@ -68,7 +68,7 @@ function readAssetRef(
 export function collectPlatformAssets(
   distDir: string,
   metadata: ExportMetadata,
-  platform: ShipPlatform
+  platform: ShipPlatform,
 ): PlatformBundle {
   const fileMetadata = metadata.fileMetadata?.[platform];
   if (!fileMetadata) {
@@ -80,7 +80,7 @@ export function collectPlatformAssets(
 
   const launchAsset = readAssetRef(distDir, fileMetadata.bundle, { isLaunch: true });
   const assets = (fileMetadata.assets ?? []).map((asset) =>
-    readAssetRef(distDir, asset.path, { isLaunch: false, ext: asset.ext })
+    readAssetRef(distDir, asset.path, { isLaunch: false, ext: asset.ext }),
   );
 
   return { platform, launchAsset, assets };
@@ -91,7 +91,7 @@ export function readExportMetadata(distDir: string): ExportMetadata {
   const metadataPath = path.resolve(distDir, 'metadata.json');
   if (!fs.existsSync(metadataPath)) {
     throw new Error(
-      `No metadata.json at ${metadataPath}. Run \`expo export\` first (or pass --dist-dir).`
+      `No metadata.json at ${metadataPath}. Run \`expo export\` first (or pass --dist-dir).`,
     );
   }
   return JSON.parse(fs.readFileSync(metadataPath, 'utf8')) as ExportMetadata;
@@ -118,10 +118,7 @@ export function normalizeExpoConfig(parsed: Record<string, unknown>): Record<str
  * resolves to `expo.version`. Non-appVersion policies cannot be resolved without
  * a build, so they require `--runtime-version`.
  */
-export function resolveRuntimeVersion(
-  config: Record<string, unknown>,
-  override?: string
-): string {
+export function resolveRuntimeVersion(config: Record<string, unknown>, override?: string): string {
   if (override) return override;
 
   const runtimeVersion = config.runtimeVersion;
@@ -135,7 +132,7 @@ export function resolveRuntimeVersion(
     (runtimeVersion as { policy?: string }).policy !== 'appVersion'
   ) {
     throw new Error(
-      `runtimeVersion policy "${(runtimeVersion as { policy?: string }).policy}" cannot be resolved by oxy-ship — pass --runtime-version`
+      `runtimeVersion policy "${(runtimeVersion as { policy?: string }).policy}" cannot be resolved by oxy-ship — pass --runtime-version`,
     );
   }
   if (typeof config.version === 'string') {

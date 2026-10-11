@@ -85,5 +85,9 @@ export function computeIdentityTag(accessToken: string | null): string {
   const decoded = decodeTokenClaims(accessToken);
   // An undecodable token is still partitioned away from anon and from other
   // tokens via a hash — never silently ANON_IDENTITY.
-  return (decoded?.userId as string | undefined) || (decoded?.id as string | undefined) || `t${fnv1a32(accessToken)}`;
+  return (
+    (decoded?.userId as string | undefined) ||
+    (decoded?.id as string | undefined) ||
+    `t${fnv1a32(accessToken)}`
+  );
 }

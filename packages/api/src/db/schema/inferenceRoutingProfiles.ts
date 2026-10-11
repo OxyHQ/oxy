@@ -111,25 +111,25 @@ export const inferenceRoutingProfiles = pgTable(
      */
     check(
       'inference_routing_profiles_slug_format',
-      sql`${t.slug} ~ ${sql.raw(SLUG_CHECK_PATTERN)}`
+      sql`${t.slug} ~ ${sql.raw(SLUG_CHECK_PATTERN)}`,
     ),
     check(
       'inference_routing_profiles_optimise_for_check',
-      sql`${t.optimiseFor} in (${sql.raw(inList(ROUTING_PROFILE_OPTIMISATIONS))})`
+      sql`${t.optimiseFor} in (${sql.raw(inList(ROUTING_PROFILE_OPTIMISATIONS))})`,
     ),
     check(
       'inference_routing_profiles_power_level_check',
-      sql`${t.powerLevel} is null or (${t.powerLevel} in (${sql.raw(inList(ROUTING_PROFILE_POWER_LEVELS))}) and ${t.isProductPreset})`
+      sql`${t.powerLevel} is null or (${t.powerLevel} in (${sql.raw(inList(ROUTING_PROFILE_POWER_LEVELS))}) and ${t.isProductPreset})`,
     ),
     check(
       'inference_routing_profiles_reasoning_effort_check',
-      sql`${t.reasoningEffort} is null or (${t.reasoningEffort} in (${sql.raw(inList(ROUTING_PROFILE_REASONING_EFFORTS))}) and ${t.powerLevel} is not null)`
+      sql`${t.reasoningEffort} is null or (${t.reasoningEffort} in (${sql.raw(inList(ROUTING_PROFILE_REASONING_EFFORTS))}) and ${t.powerLevel} is not null)`,
     ),
     /** One profile per power level. */
     uniqueIndex('inference_routing_profiles_power_level_key')
       .on(t.powerLevel)
       .where(sql`${t.powerLevel} is not null`),
-  ]
+  ],
 );
 
 export type InferenceRoutingProfileRow = typeof inferenceRoutingProfiles.$inferSelect;

@@ -30,7 +30,10 @@ import { simpleParser, type AddressObject, type Attachment, type ParsedMail } fr
  * Media types that are only ever an alternative rendering of the message body.
  * `text/x-amp-html` is AMP for Email; `text/watch-html` is Apple Watch's.
  */
-export const ALTERNATIVE_BODY_TYPES: ReadonlySet<string> = new Set(['text/x-amp-html', 'text/watch-html']);
+export const ALTERNATIVE_BODY_TYPES: ReadonlySet<string> = new Set([
+  'text/x-amp-html',
+  'text/watch-html',
+]);
 
 export interface InboundAddress {
   name: string;
@@ -53,6 +56,11 @@ export interface InboundAttachment {
 
 export interface InboundMime {
   from: InboundAddress | null;
+  /**
+   * The `Reply-To` header: where replies go. Support desks, mailing lists and
+   * no-reply senders rely on it; without it a reply goes to `From` and bounces.
+   */
+  replyTo: InboundAddress | null;
   to: InboundAddress[];
   cc: InboundAddress[];
   subject: string;
@@ -68,7 +76,9 @@ export interface InboundMime {
 }
 
 /** Whether a parsed part is an alternative rendering of the body, not a file. */
-export function isAlternativeBody(att: Pick<Attachment, 'contentType' | 'filename' | 'contentDisposition'>): boolean {
+export function isAlternativeBody(
+  att: Pick<Attachment, 'contentType' | 'filename' | 'contentDisposition'>,
+): boolean {
   if (att.filename) return false;
   if (att.contentDisposition === 'attachment') return false;
   return ALTERNATIVE_BODY_TYPES.has((att.contentType || '').toLowerCase());
@@ -107,17 +117,21 @@ export function fromParsedMail(parsed: ParsedMail): InboundMime {
 
   return {
     from: addresses(parsed.from)[0] ?? null,
+    replyTo: addresses(parsed.replyTo).find((a) => a.address) ?? null,
     to: addresses(parsed.to),
     cc: addresses(parsed.cc),
     subject: parsed.subject || '',
     text: parsed.text,
     html: typeof parsed.html === 'string' ? parsed.html : undefined,
     messageId: parsed.messageId || null,
-    inReplyTo: typeof parsed.inReplyTo === 'string' && parsed.inReplyTo ? parsed.inReplyTo : undefined,
+    inReplyTo:
+      typeof parsed.inReplyTo === 'string' && parsed.inReplyTo ? parsed.inReplyTo : undefined,
     references,
     date: parsed.date,
     headers,
-    attachments: (parsed.attachments || []).filter((att) => !isAlternativeBody(att)).map(toAttachment),
+    attachments: (parsed.attachments || [])
+      .filter((att) => !isAlternativeBody(att))
+      .map(toAttachment),
   };
 }
 

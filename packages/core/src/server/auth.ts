@@ -2,7 +2,10 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AuthMiddlewareOptions, OxyAuthRefusal, OxyMiddleware } from './middleware';
 import type { AccountActorChain } from '@oxy.so/contracts';
 import { logger } from '../logger';
-import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
+import {
+  OXY_SERVICE_ENVIRONMENTS,
+  type OxyServiceEnvironment,
+} from '../utils/oxyServiceEnvironment';
 
 export { OXY_SERVICE_ENVIRONMENTS };
 export type { OxyServiceEnvironment, OxyAuthRefusal };
@@ -96,9 +99,7 @@ function ensureUser(req: OxyAuthRequest, userId: string): OxyRequestUser {
 export function getOxyUserId(req: Request): string | null {
   const authReq = req as OxyAuthRequest;
   return (
-    normalizeId(authReq.userId) ??
-    normalizeId(authReq.user?.id) ??
-    normalizeId(authReq.user?._id)
+    normalizeId(authReq.userId) ?? normalizeId(authReq.user?.id) ?? normalizeId(authReq.user?._id)
   );
 }
 
@@ -297,7 +298,10 @@ export function createOptionalOxyAuth(
   oxy: OxyAuthHost,
   options: OxyAuthMiddlewareOptions = {},
 ): RequestHandler {
-  const resolveSession = oxy.middleware.auth({ ...options.auth, optional: true }) as unknown as RequestHandler;
+  const resolveSession = oxy.middleware.auth({
+    ...options.auth,
+    optional: true,
+  }) as unknown as RequestHandler;
 
   return (req, res, next) => {
     if (getOxyUserId(req)) {

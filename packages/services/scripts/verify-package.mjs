@@ -361,7 +361,9 @@ function main() {
   ];
 
   if (problems.length > 0) {
-    console.error(`[verify-package] FAILED for ${pkg.name}@${pkg.version}\n  ${problems.join('\n  ')}`);
+    console.error(
+      `[verify-package] FAILED for ${pkg.name}@${pkg.version}\n  ${problems.join('\n  ')}`,
+    );
     process.exit(1);
   }
 

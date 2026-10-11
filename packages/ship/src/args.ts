@@ -57,7 +57,7 @@ export function stringFlag(
   flags: ShipFlags,
   name: string,
   envVar?: string,
-  fallback?: string
+  fallback?: string,
 ): string | undefined {
   const value = flags[name];
   if (typeof value === 'string') return value;

@@ -20,11 +20,18 @@ export async function getSocketIO(): Promise<SocketIOFactory | null> {
   if (loadAttempted) return null;
   loadAttempted = true;
   try {
-    const mod = (await import('socket.io-client')) as { io?: SocketIOFactory; default?: SocketIOFactory };
+    const mod = (await import('socket.io-client')) as {
+      io?: SocketIOFactory;
+      default?: SocketIOFactory;
+    };
     cachedFactory = mod.io ?? mod.default ?? null;
     return cachedFactory;
   } catch (error) {
-    logger.warn('[SessionClient] socket.io-client import failed; realtime session sync disabled', { component: 'SessionClient' }, error);
+    logger.warn(
+      '[SessionClient] socket.io-client import failed; realtime session sync disabled',
+      { component: 'SessionClient' },
+      error,
+    );
     return null;
   }
 }

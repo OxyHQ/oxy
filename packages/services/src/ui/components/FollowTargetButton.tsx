@@ -25,7 +25,7 @@
  *
  * ## Relationship to the legacy `FollowButton`
  *
- * `FollowButton` follows a USER through the Mongo-backed social graph and
+ * `FollowButton` follows a USER through the user social graph and
  * remains the correct component for that until the user graph is migrated onto
  * `/v2/follows`. When it is, that component is deleted and this one takes the
  * name — not aliased, not deprecated in place.
@@ -204,7 +204,15 @@ export const FollowTargetButton = memo(function FollowTargetButton({
         if (await follow()) onChange?.(FOLLOW_ACTION_LEAVES_ACTIVE.follow);
         else reportMutationFailure();
     }
-  }, [isFollowing, status.applicationMode, follow, unfollow, enableHere, onChange, reportMutationFailure]);
+  }, [
+    isFollowing,
+    status.applicationMode,
+    follow,
+    unfollow,
+    enableHere,
+    onChange,
+    reportMutationFailure,
+  ]);
 
   const handleTimed = useCallback(
     async (seconds: number, durationLabel: string) => {
@@ -218,7 +226,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
       // Which is also why it must not appear when the promise was not made.
       toast.success(`Following for ${durationLabel.toLowerCase()}`);
     },
-    [follow, onChange, reportMutationFailure]
+    [follow, onChange, reportMutationFailure],
   );
 
   const menuItems = useMemo(
@@ -240,7 +248,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
       durations,
       text.idle,
       applicationName,
-    ]
+    ],
   );
 
   const runItem = useCallback(
@@ -273,7 +281,7 @@ export const FollowTargetButton = memo(function FollowTargetButton({
           });
       }
     },
-    [handleTimed, enableHere, disableHere, unfollow, onChange, reportMutationFailure]
+    [handleTimed, enableHere, disableHere, unfollow, onChange, reportMutationFailure],
   );
 
   const primary = (
@@ -308,7 +316,8 @@ export const FollowTargetButton = memo(function FollowTargetButton({
         */}
         <DropdownMenuTrigger asChild disabled={disabled || isUnknown}>
           <Button
-            appearance="subtle" tone="support"
+            appearance="subtle"
+            tone="support"
             size={size === 'lg' ? 'lg' : 'sm'}
             icon={<ChevronDown width={16} />}
             disabled={disabled || isUnknown}

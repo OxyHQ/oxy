@@ -1,12 +1,13 @@
 /**
  * S3 Service Types
- * 
+ *
  * Centralized type definitions for S3 storage operations.
  */
 
 export interface S3Config {
-  accessKeyId: string;
-  secretAccessKey: string;
+  /** With `secretAccessKey`, static credentials; absent, the default provider chain (the ECS task role). */
+  accessKeyId?: string;
+  secretAccessKey?: string;
   bucketName: string;
   region: string;
   endpointUrl?: string;

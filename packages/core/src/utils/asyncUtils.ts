@@ -88,7 +88,7 @@ export async function retryAsync<T>(
   operation: () => Promise<T>,
   maxRetriesOrOptions: number | RetryOptions = 3,
   baseDelayArg = 1000,
-  shouldRetryArg?: (error: unknown) => boolean
+  shouldRetryArg?: (error: unknown) => boolean,
 ): Promise<T> {
   // An options-object overload rather than a fifth positional parameter:
   // `retryOnError` below and other in-tree callers pass positionally, and a
@@ -163,7 +163,7 @@ export async function retryAsync<T>(
         break;
       }
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 

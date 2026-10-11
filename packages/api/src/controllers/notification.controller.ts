@@ -1,22 +1,19 @@
 /**
  * In-app notification endpoints.
  *
- * ## The wire shape is a serializer now, and it is deliberate
+ * ## The wire shape is a serializer, and it is deliberate
  *
- * Every handler used to hand a Mongoose document (or a `.lean()` result)
- * straight to `res.json()`, so the response shape was whatever the driver
- * happened to produce. It is written out here instead, following the same split
+ * The response shape is written out here rather than left to whatever the
+ * driver produces, following the same split
  * `utils/billingResponse.ts` settled on for the Stripe tables:
  *
  *   - **`_id` IS contract.** It is the row key every consumer addresses a
  *     notification by (`PUT /notifications/:id/read`), so it is emitted from the
  *     drizzle `id`.
- *   - **`__v` is NOT contract.** Mongoose's version counter has no Postgres
- *     counterpart and no consumer reads it. It does not travel.
- *   - **The populated actor keeps its shape**: `{_id, username, name, avatar}`,
- *     the exact projection `populate('actorId', 'username name avatar _id')`
- *     selected. Absent optionals are OMITTED rather than emitted as `null`,
- *     because that is what Mongo did and what the SDK's zod parses expect.
+ *   - **There is no `__v` version key.** No consumer reads one.
+ *   - **The actor keeps its shape**: `{_id, username, name, avatar}`. Absent
+ *     optionals are OMITTED rather than emitted as `null`, because that is what
+ *     the SDK's zod parses expect.
  *
  * ## `title` / `message` / `url` are stored for `system` only
  *
@@ -24,23 +21,18 @@
  * account) has no actor action for a client to render from, so its `title`
  * and `message` are required and stored, with an optional validated deep link
  * `url`; they appear in the 201 body, the list and the socket payload. For
- * every other type `title` / `message` / `data` are accepted and DISCARDED as
- * they always were (the Mongoose model declared none of them), and the table's
- * CHECKs keep those columns null.
+ * every other type `title` / `message` / `data` are accepted and DISCARDED,
+ * and the table's CHECKs keep those columns null.
  *
- * ## Two behaviours the port could not preserve, both flagged
+ * ## Two request rules worth stating
  *
- *   1. `markAsRead` and `deleteNotification` read `req.params.notificationId`,
- *      but the routes that reach them are `/:id/read` and `/:id` — so the value
- *      was ALWAYS `undefined`, Mongoose dropped the undefined key from the
- *      filter, and both endpoints operated on an ARBITRARY notification of the
- *      caller. Postgres cannot express "ignore this predicate", and reproducing
- *      the bug would mean deliberately targeting the wrong row, so both now read
- *      `req.params.id` — the parameter `notificationIdParams` validates.
- *   2. An out-of-enum `type` / `entityType` used to reach Mongoose and fail
- *      validation, surfacing as a 500 from the generic catch. The values are a
- *      CHECK-constrained closed set here, so the schema below names them and the
- *      request is rejected as a 400 through the SAME
+ *   1. `markAsRead` and `deleteNotification` read `req.params.id` — the
+ *      parameter `notificationIdParams` validates on the `/:id/read` and `/:id`
+ *      routes. Reading a parameter no route supplies would leave the id
+ *      `undefined` and target the wrong row.
+ *   2. `type` / `entityType` are a CHECK-constrained closed set, so the schema
+ *      below names them and an out-of-enum value is rejected as a 400 (not a
+ *      500 from the generic catch) through the SAME
  *      `BadRequestError('Invalid notification data', { errors })` envelope every
  *      other malformed field already used.
  */
@@ -56,7 +48,13 @@ import { users } from '../db/schema/users';
 import { isForeignKeyViolation } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import { sendSuccess } from '../utils/asyncHandler';
-import { UnauthorizedError, BadRequestError, NotFoundError, ConflictError, InternalServerError } from '../utils/error';
+import {
+  UnauthorizedError,
+  BadRequestError,
+  NotFoundError,
+  ConflictError,
+  InternalServerError,
+} from '../utils/error';
 import { PAGINATION } from '../utils/constants';
 import { createOxyNotificationRequestSchema } from '@oxy.so/contracts';
 import { applications } from '../db/schema/applications';
@@ -115,9 +113,9 @@ interface ActorColumns {
 }
 
 /**
- * Mongoose omitted an unset optional entirely rather than emitting `null`, and
- * the SDK's parses treat a `null` where a string is optional as a failure. A
- * drizzle nullable column reads back as `null`, so the two are reconciled here.
+ * The SDK's parses treat a `null` where a string is optional as a failure. A
+ * drizzle nullable column reads back as `null`, so an unset optional is omitted
+ * here.
  */
 function optional(value: string | null): string | undefined {
   return value ?? undefined;
@@ -129,8 +127,7 @@ function toActorResponse(actor: ActorColumns): NotificationActorResponse {
   if (username !== undefined) {
     response.username = username;
   }
-  // Mongoose's `NameSchema` defaulted both parts to `''`, so a user carrying a
-  // name sub-document always had two strings — never a missing half.
+  // A name on the wire always carries two strings — never a missing half.
   if (actor.nameFirst !== null || actor.nameLast !== null) {
     response.name = { first: actor.nameFirst ?? '', last: actor.nameLast ?? '' };
   }
@@ -143,7 +140,7 @@ function toActorResponse(actor: ActorColumns): NotificationActorResponse {
 
 function toNotificationResponse(
   row: NotificationRow,
-  actor?: ActorColumns | null
+  actor?: ActorColumns | null,
 ): NotificationResponse {
   return {
     _id: row.id,
@@ -177,10 +174,14 @@ async function assertAllowedNotificationUrl(url: string, appId: string | undefin
   try {
     parsed = new URL(url);
   } catch {
-    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url must be an absolute URL' }] });
+    throw new BadRequestError('Invalid notification data', {
+      errors: [{ path: ['url'], message: 'url must be an absolute URL' }],
+    });
   }
   if (parsed.username || parsed.password) {
-    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url cannot carry credentials' }] });
+    throw new BadRequestError('Invalid notification data', {
+      errors: [{ path: ['url'], message: 'url cannot carry credentials' }],
+    });
   }
   if (parsed.protocol === 'https:') return;
   if (parsed.protocol !== 'http:' && appId) {
@@ -202,7 +203,12 @@ async function assertAllowedNotificationUrl(url: string, appId: string | undefin
     if (registeredSchemes.has(parsed.protocol)) return;
   }
   throw new BadRequestError('Invalid notification data', {
-    errors: [{ path: ['url'], message: 'url must be https or a scheme registered by the calling application' }],
+    errors: [
+      {
+        path: ['url'],
+        message: 'url must be https or a scheme registered by the calling application',
+      },
+    ],
   });
 }
 
@@ -237,7 +243,10 @@ async function emitNotification(req: Request, notification: NotificationResponse
         createdAt: notification.createdAt,
       });
     }
-    logger.debug('Notification emitted', { type: notification.type, recipientId: notification.recipientId });
+    logger.debug('Notification emitted', {
+      type: notification.type,
+      recipientId: notification.recipientId,
+    });
   } catch (error) {
     logger.error('Error emitting notification:', error);
   }
@@ -306,7 +315,10 @@ export const getNotifications = async (req: AuthRequest, res: Response): Promise
     if (error instanceof UnauthorizedError || error instanceof BadRequestError) {
       throw error;
     }
-    logger.error('Error fetching notifications', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching notifications',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error fetching notifications');
   }
 };
@@ -324,10 +336,17 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     // discarded exactly as before (the contract refuses `url` elsewhere).
     const isSystem = type === 'system';
     if (isSystem && validatedData.url !== undefined) {
-      await assertAllowedNotificationUrl(validatedData.url, (req as ServiceAuthRequest).serviceApp?.appId);
+      await assertAllowedNotificationUrl(
+        validatedData.url,
+        (req as ServiceAuthRequest).serviceApp?.appId,
+      );
     }
     const text = isSystem
-      ? { title: validatedData.title ?? null, message: validatedData.message ?? null, url: validatedData.url ?? null }
+      ? {
+          title: validatedData.title ?? null,
+          message: validatedData.message ?? null,
+          url: validatedData.url ?? null,
+        }
       : {};
 
     // The duplicate check and the insert are ONE statement: the unique index
@@ -375,16 +394,19 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     if (error instanceof ConflictError || error instanceof BadRequestError) {
       throw error;
     }
-    // `recipient_id` and `actor_id` are real foreign keys now. Mongo let a
-    // notification name an account that does not exist; here the row is
-    // refused, and that is a bad REQUEST — the caller supplied both ids.
+    // `recipient_id` and `actor_id` are real foreign keys, so a notification
+    // naming an account that does not exist is refused, and that is a bad
+    // REQUEST — the caller supplied both ids.
     if (isForeignKeyViolation(error)) {
       throw new BadRequestError('Invalid notification data', {
         errors: [{ message: 'recipientId and actorId must name existing accounts' }],
       });
     }
 
-    logger.error('Error creating notification', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error creating notification',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error creating notification');
   }
 };
@@ -422,7 +444,10 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
     if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
       throw error;
     }
-    logger.error('Error marking notification as read', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error marking notification as read',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error marking notification as read');
   }
 };
@@ -454,7 +479,10 @@ export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<vo
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error marking all notifications as read', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error marking all notifications as read',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error marking all notifications as read');
   }
 };
@@ -490,7 +518,10 @@ export const deleteNotification = async (req: AuthRequest, res: Response): Promi
     if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
       throw error;
     }
-    logger.error('Error deleting notification', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error deleting notification',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error deleting notification');
   }
 };
@@ -518,7 +549,10 @@ export const getUnreadCount = async (req: AuthRequest, res: Response): Promise<v
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error fetching unread count', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching unread count',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error fetching unread count');
   }
 };

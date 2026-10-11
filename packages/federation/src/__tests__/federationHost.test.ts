@@ -49,7 +49,11 @@ const CASES: ReadonlyArray<{
 }> = [
   { name: 'exact host', actorUri: 'https://spam.example/users/bob', expectedBlocked: true },
   { name: 'uppercase host', actorUri: 'https://SPAM.EXAMPLE/users/bob', expectedBlocked: true },
-  { name: 'www. on the wire', actorUri: 'https://www.spam.example/users/bob', expectedBlocked: true },
+  {
+    name: 'www. on the wire',
+    actorUri: 'https://www.spam.example/users/bob',
+    expectedBlocked: true,
+  },
   {
     name: 'www. on the blocklist entry, bare on the wire',
     actorUri: 'https://spam.example/users/bob',
@@ -86,7 +90,11 @@ const CASES: ReadonlyArray<{
     entry: 'über.example',
     expectedBlocked: false,
   },
-  { name: 'unrelated host', actorUri: 'https://mastodon.social/users/alice', expectedBlocked: false },
+  {
+    name: 'unrelated host',
+    actorUri: 'https://mastodon.social/users/alice',
+    expectedBlocked: false,
+  },
   {
     name: 'blocked host as a subdomain prefix',
     actorUri: 'https://spam.example.evil.test/users/bob',
@@ -227,7 +235,9 @@ describe('canonicalFederationHost', () => {
 
   it('does not convert a unicode host to its punycode wire form', () => {
     expect(canonicalFederationHost('ÜBER.example')).toBe('über.example');
-    expect(canonicalFederationHost('über.example')).not.toBe(new URL('https://über.example').hostname);
+    expect(canonicalFederationHost('über.example')).not.toBe(
+      new URL('https://über.example').hostname,
+    );
   });
 });
 

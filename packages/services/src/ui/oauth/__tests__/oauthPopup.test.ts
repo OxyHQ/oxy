@@ -51,10 +51,7 @@ function codeMessage(source: unknown, state = STATE, origin = IDP_ORIGIN) {
 async function outcomeOrPending(
   promise: Promise<OAuthPopupOutcome>,
 ): Promise<OAuthPopupOutcome | 'pending'> {
-  return Promise.race([
-    promise,
-    Promise.resolve().then(() => 'pending' as const),
-  ]);
+  return Promise.race([promise, Promise.resolve().then(() => 'pending' as const)]);
 }
 
 describe('openOAuthPopup', () => {
@@ -64,9 +61,7 @@ describe('openOAuthPopup', () => {
 
   it('opens an empty, named window so a second press reuses it', () => {
     const handle = fakePopup();
-    const openSpy = jest
-      .spyOn(window, 'open')
-      .mockReturnValue(handle as unknown as Window);
+    const openSpy = jest.spyOn(window, 'open').mockReturnValue(handle as unknown as Window);
 
     expect(openOAuthPopup()).toBe(handle);
     expect(openSpy).toHaveBeenCalledWith('', OXY_OAUTH_POPUP_WINDOW_NAME, expect.any(String));

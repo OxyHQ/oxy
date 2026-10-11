@@ -1,6 +1,6 @@
 /**
  * Notification Routes
- * 
+ *
  * RESTful API routes for notification operations.
  * Uses asyncHandler for consistent error handling.
  */
@@ -12,7 +12,7 @@ import {
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  getUnreadCount
+  getUnreadCount,
 } from '../controllers/notification.controller';
 import {
   authMiddleware,
@@ -48,7 +48,11 @@ const NOTIFICATIONS_WRITE_SCOPE = 'notifications:write';
  * trusted services that staff explicitly granted the scope — never any
  * session-authenticated end user.
  */
-const requireNotificationsWriteScope = (req: ServiceAuthRequest, res: Response, next: NextFunction) => {
+const requireNotificationsWriteScope = (
+  req: ServiceAuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   const scopes = req.serviceApp?.scopes ?? [];
   if (!scopes.includes(NOTIFICATIONS_WRITE_SCOPE)) {
     return res.status(403).json({
@@ -67,7 +71,7 @@ router.post(
   serviceAuthMiddleware,
   requireNotificationsWriteScope,
   validate({ body: createNotificationSchema }),
-  asyncHandler(createNotification)
+  asyncHandler(createNotification),
 );
 
 // Apply user authentication middleware to all remaining routes
@@ -86,10 +90,8 @@ router.get('/unread-count', asyncHandler(getUnreadCount));
  *
  * `token` arrives already TRIMMED: `registerPushTokenSchema` declares
  * `z.string().trim()` and `validate` replaces `req.body` with the parsed value.
- * That is the port of Mongoose's `trim: true` on `PushToken.token`, which had no
- * Postgres counterpart and would otherwise have let `"tok "` and `"tok"` become
- * two rows under the `(user_id, token)` unique index (`CONVENTIONS.md`,
- * "Mongoose behaviour that has no schema counterpart"). The unregister schema
+ * Postgres has no column-level trim, so without it `"tok "` and `"tok"` would
+ * become two rows under the `(user_id, token)` unique index (`CONVENTIONS.md`). The unregister schema
  * trims identically, so a token registered from a padded string is still
  * deletable by the same padded string.
  */
@@ -135,8 +137,7 @@ router.post(
 
     // Only the fields the caller actually sent are updated on conflict, so
     // re-registering an existing install never silently drops a scope it
-    // already carries — the same guarantee Mongo's explicit `$set` of the
-    // whitelist gave. `updated_at` is bumped by drizzle's `$onUpdate`, which
+    // already carries. `updated_at` is bumped by drizzle's `$onUpdate`, which
     // applies to the `do update` branch too.
     const onConflict: Partial<PushTokenWrite> = { platform: write.platform };
     if (write.deviceId !== undefined) {
@@ -147,8 +148,8 @@ router.post(
     }
 
     try {
-      // ONE statement, so the concurrent-registration race Mongo answered with
-      // an `E11000` retry is now unrepresentable: `push_tokens_user_id_token_key`
+      // ONE statement, so a concurrent-registration race is unrepresentable:
+      // `push_tokens_user_id_token_key`
       // is the conflict target, and a duplicate takes the `do update` branch
       // rather than raising.
       await getDb()
@@ -161,8 +162,13 @@ router.post(
 
       return res.status(200).json({ data: { registered: true } });
     } catch (err: unknown) {
-      logger.error('Failed to register push token', err instanceof Error ? err : new Error(String(err)));
-      return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to register push token' });
+      logger.error(
+        'Failed to register push token',
+        err instanceof Error ? err : new Error(String(err)),
+      );
+      return res
+        .status(500)
+        .json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to register push token' });
     }
   }),
 );

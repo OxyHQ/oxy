@@ -26,12 +26,20 @@ let currentServiceAppId: string | undefined;
 const mockSendReauthCode = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { id: string }; oxyToken?: { applicationId?: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { id: string }; oxyToken?: { applicationId?: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     if (currentUserId) req.user = { id: currentUserId };
     if (currentApplicationId) req.oxyToken = { applicationId: currentApplicationId };
     next();
   },
-  serviceAuthMiddleware: (req: { serviceApp?: { appId: string } }, _res: unknown, next: () => void) => {
+  serviceAuthMiddleware: (
+    req: { serviceApp?: { appId: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     if (currentServiceAppId) req.serviceApp = { appId: currentServiceAppId };
     next();
   },
@@ -115,7 +123,11 @@ beforeEach(() => {
   _resetInMemoryStateForTests();
 });
 
-async function call(method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+async function call(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}${path}`, {
     method,
@@ -142,7 +154,10 @@ async function person(extra: { publicKey?: string } = {}) {
   return { id: row.id, username: row.username as string };
 }
 
-async function emailCode(userId: string, action: 'delete_account' | 'change_password' = 'delete_account') {
+async function emailCode(
+  userId: string,
+  action: 'delete_account' | 'change_password' = 'delete_account',
+) {
   const { verificationId } = await startReauthEmail(userId, action);
   const code = mockSendReauthCode.mock.calls[mockSendReauthCode.mock.calls.length - 1][1] as string;
   return { verificationId, code };
@@ -157,14 +172,22 @@ describe('deleting an account without a key', () => {
 
   it('deletes with a code sent to its email for this deletion', async () => {
     const me = await person();
-    const res = await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: await emailCode(me.id) } });
+    const res = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { emailCode: await emailCode(me.id) },
+    });
     expect(res.status).toBe(200);
     expect(await accountExists(me.id)).toBe(false);
   });
 
   it('refuses anything but the email code — a leftover assertion field included', async () => {
     const me = await person();
-    const assertion = { id: 'c'.repeat(20), rawId: 'c', type: 'public-key', response: { clientDataJSON: 'e30', authenticatorData: 'AA', signature: 'AA' } };
+    const assertion = {
+      id: 'c'.repeat(20),
+      rawId: 'c',
+      type: 'public-key',
+      response: { clientDataJSON: 'e30', authenticatorData: 'AA', signature: 'AA' },
+    };
     const res = await call('DELETE', '/users/me', { confirmText: me.username, assertion });
     expect(res.status).toBe(400);
     expect(await accountExists(me.id)).toBe(true);
@@ -174,10 +197,24 @@ describe('deleting an account without a key', () => {
   it('refuses a code asked for another change, and a wrong code', async () => {
     const me = await person();
     const other = await emailCode(me.id, 'change_password');
-    expect((await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: other } })).status).toBe(401);
+    expect(
+      (
+        await call('DELETE', '/users/me', {
+          confirmText: me.username,
+          reauth: { emailCode: other },
+        })
+      ).status,
+    ).toBe(401);
     const right = await emailCode(me.id);
     const wrong = { ...right, code: right.code === '000000' ? '111111' : '000000' };
-    expect((await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: wrong } })).status).toBe(401);
+    expect(
+      (
+        await call('DELETE', '/users/me', {
+          confirmText: me.username,
+          reauth: { emailCode: wrong },
+        })
+      ).status,
+    ).toBe(401);
     expect(await accountExists(me.id)).toBe(true);
   });
 
@@ -185,7 +222,10 @@ describe('deleting an account without a key', () => {
     const me = await person();
     const { secret } = await enrollTotp(me.id, 'x');
     await confirmTotp(me.id, totpCodeAt(secret, new Date(Date.now() - 30_000)));
-    const without = await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: await emailCode(me.id) } });
+    const without = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { emailCode: await emailCode(me.id) },
+    });
     expect(without.status).toBe(401);
     expect(without.body.error).toBe('TOTP_REQUIRED');
     const done = await call('DELETE', '/users/me', {
@@ -197,7 +237,10 @@ describe('deleting an account without a key', () => {
 
   it('checks the confirmation text first', async () => {
     const me = await person();
-    const res = await call('DELETE', '/users/me', { confirmText: 'someone-else', reauth: { emailCode: await emailCode(me.id) } });
+    const res = await call('DELETE', '/users/me', {
+      confirmText: 'someone-else',
+      reauth: { emailCode: await emailCode(me.id) },
+    });
     expect(res.status).toBe(400);
     expect(await accountExists(me.id)).toBe(true);
   });
@@ -214,7 +257,10 @@ describe('deleting an account with a key', () => {
     const without = await call('DELETE', '/users/me', body);
     expect(without.status).toBe(401);
     expect(without.body.error).toBe('TOTP_REQUIRED');
-    expect((await call('DELETE', '/users/me', { ...body, totpCode: totpCodeAt(secret, new Date()) })).status).toBe(200);
+    expect(
+      (await call('DELETE', '/users/me', { ...body, totpCode: totpCodeAt(secret, new Date()) }))
+        .status,
+    ).toBe(200);
   });
 });
 
@@ -223,10 +269,18 @@ describe('a third-party token', () => {
     const me = await person();
     const [app] = await getDb()
       .insert(applications)
-      .values({ name: 'Third party', type: 'third_party', ownerAccountId: me.id, createdByUserId: me.id })
+      .values({
+        name: 'Third party',
+        type: 'third_party',
+        ownerAccountId: me.id,
+        createdByUserId: me.id,
+      })
       .returning({ id: applications.id });
     currentApplicationId = app.id;
-    const res = await call('DELETE', '/users/me', { confirmText: me.username, reauth: { emailCode: await emailCode(me.id) } });
+    const res = await call('DELETE', '/users/me', {
+      confirmText: me.username,
+      reauth: { emailCode: await emailCode(me.id) },
+    });
     expect(res.status).toBe(403);
     expect(await accountExists(me.id)).toBe(true);
   });

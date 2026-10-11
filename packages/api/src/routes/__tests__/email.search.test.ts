@@ -52,12 +52,14 @@ function getJson(server: http.Server, path: string): Promise<JsonResponse> {
       },
       (res) => {
         let chunks = '';
-        res.on('data', (chunk) => { chunks += chunk; });
+        res.on('data', (chunk) => {
+          chunks += chunk;
+        });
         res.on('end', () => {
           try {
             resolve({
               status: res.statusCode ?? 0,
-              body: chunks.length > 0 ? JSON.parse(chunks) as Record<string, unknown> : {},
+              body: chunks.length > 0 ? (JSON.parse(chunks) as Record<string, unknown>) : {},
             });
           } catch (err) {
             reject(err);

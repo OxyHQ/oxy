@@ -23,33 +23,34 @@ import { useTilt } from './tilt-context';
 const PAD = 40;
 
 interface ShadowLayerProps {
-    width: number;
-    height: number;
-    radius?: number;
+  width: number;
+  height: number;
+  radius?: number;
 }
 
 export const ShadowLayer = ({ width, height, radius = 24 }: ShadowLayerProps) => {
-    const { isPressed } = useTilt();
+  const { isPressed } = useTilt();
 
-    // Pressed → the card sinks toward the surface: pull the shadow in (smaller
-    // offset + blur) and fade it (lower opacity) so it reads as less lift.
-    const dy = useDerivedValue(() => 13 - isPressed.value * 6);
-    const blur = useDerivedValue(() => 20 - isPressed.value * 8);
-    const shadowColor = useDerivedValue(() => `rgba(0,0,0,${0.34 - isPressed.value * 0.14})`);
+  // Pressed → the card sinks toward the surface: pull the shadow in (smaller
+  // offset + blur) and fade it (lower opacity) so it reads as less lift.
+  const dy = useDerivedValue(() => 13 - isPressed.value * 6);
+  const blur = useDerivedValue(() => 20 - isPressed.value * 8);
+  const shadowColor = useDerivedValue(() => `rgba(0,0,0,${0.34 - isPressed.value * 0.14})`);
 
-    return (
-        <Canvas
-            style={{
-                position: 'absolute',
-                left: -PAD,
-                top: -PAD,
-                width: width + PAD * 2,
-                height: height + PAD * 2,
-            }}
-            pointerEvents="none">
-            <RoundedRect x={PAD} y={PAD} width={width} height={height} r={radius} color="black">
-                <Shadow dx={0} dy={dy} blur={blur} color={shadowColor} shadowOnly />
-            </RoundedRect>
-        </Canvas>
-    );
+  return (
+    <Canvas
+      style={{
+        position: 'absolute',
+        left: -PAD,
+        top: -PAD,
+        width: width + PAD * 2,
+        height: height + PAD * 2,
+      }}
+      pointerEvents="none"
+    >
+      <RoundedRect x={PAD} y={PAD} width={width} height={height} r={radius} color="black">
+        <Shadow dx={0} dy={dy} blur={blur} color={shadowColor} shadowOnly />
+      </RoundedRect>
+    </Canvas>
+  );
 };

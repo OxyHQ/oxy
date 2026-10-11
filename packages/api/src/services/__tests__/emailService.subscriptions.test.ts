@@ -1,8 +1,8 @@
 /**
  * The subscriptions rollup, against a REAL Postgres.
  *
- * Mongo's `$group` + `$match` + `$sort` + `$facet` becomes one grouped CTE used
- * by two statements. The part that is easy to get wrong and impossible to see:
+ * The rollup is one grouped CTE used by two statements. The part that is easy
+ * to get wrong and impossible to see:
  *
  * **The `address asc` tiebreak is load-bearing.** `order by message_count desc`
  * alone is not a total order, so two senders with equal counts may land either
@@ -14,16 +14,26 @@
  * test paginates.
  */
 
+const mockSafeFetch = jest.fn();
+jest.mock('@oxy.so/core/server', () => ({
+  ...jest.requireActual('@oxy.so/core/server'),
+  safeFetch: (...args: unknown[]) => mockSafeFetch(...args),
+}));
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
 
 import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
@@ -32,7 +42,7 @@ import { emailService } from '../email.service';
 
 const unique = () => randomUUID().replace(/-/g, '');
 
-/** Mongo's `{ messageCount: { $gte: 3 } }` — a sender under this never appears. */
+/** The minimum message count — a sender under this never appears. */
 const SUBSCRIPTION_MIN_MESSAGES = 3;
 
 async function owner(): Promise<string> {
@@ -195,8 +205,8 @@ describe('getSubscriptions — the rollup', () => {
 
   it('reads the header off the LATEST message, not an arbitrary one', async () => {
     // `latest_message_id` is picked with an explicit `order by date desc, id desc`
-    // inside `array_agg`; Mongo's `$first` after a date-only sort was ambiguous
-    // on ties. An older message carrying the header must not classify the sender.
+    // inside `array_agg`; a date-only sort would be ambiguous on ties. An older
+    // message carrying the header must not classify the sender.
     const userId = await owner();
     const inbox = await folder(userId, '\\Inbox');
     const address = `switched-${unique()}@example.com`;
@@ -313,5 +323,99 @@ describe('getSubscriptions — the tiebreak that makes pagination stable', () =>
 
     const { data } = await emailService.getSubscriptions(userId);
     expect(data.map((s) => s._id)).toEqual([busiest, quieter]);
+  });
+});
+
+describe('unsubscribe — remembered, reported, and never repeated', () => {
+  beforeEach(() => {
+    mockSafeFetch.mockReset();
+    mockSafeFetch.mockResolvedValue({
+      status: 200,
+      headers: {},
+      finalUrl: 'https://list.example/unsub',
+      response: { destroy: jest.fn() },
+    });
+  });
+
+  it('lists the sender as unsubscribed, with when, after a successful unsubscribe', async () => {
+    const userId = await owner();
+    const inbox = await folder(userId, '\\Inbox');
+    const address = `news-${unique()}@example.com`;
+    const other = `other-${unique()}@example.com`;
+    await sender(userId, inbox, address, 3, {
+      headers: { 'list-unsubscribe': '<https://list.example/unsub>' },
+    });
+    await sender(userId, inbox, other, 3);
+
+    const before = (await emailService.getSubscriptions(userId)).data;
+    expect(before.find((s) => s._id === address)).toMatchObject({
+      unsubscribed: false,
+      unsubscribedAt: null,
+    });
+
+    const result = await emailService.unsubscribe(userId, address.toUpperCase());
+    expect(result).toEqual({
+      success: true,
+      method: 'http',
+      unsubscribedAt: expect.any(Date),
+      alreadyUnsubscribed: false,
+    });
+
+    // Still listed — the user can see it worked — and flagged.
+    const after = (await emailService.getSubscriptions(userId)).data;
+    expect(after.find((s) => s._id === address)).toMatchObject({
+      unsubscribed: true,
+      unsubscribedAt: result.unsubscribedAt,
+    });
+    expect(after.find((s) => s._id === other)).toMatchObject({
+      unsubscribed: false,
+      unsubscribedAt: null,
+    });
+  });
+
+  it('answers a repeat from the stored result without contacting the sender again', async () => {
+    const userId = await owner();
+    const inbox = await folder(userId, '\\Inbox');
+    const address = `news-${unique()}@example.com`;
+    await sender(userId, inbox, address, 3, {
+      headers: { 'list-unsubscribe': '<https://list.example/unsub>' },
+    });
+
+    const first = await emailService.unsubscribe(userId, address);
+    const second = await emailService.unsubscribe(userId, address);
+
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(second).toEqual({
+      success: true,
+      method: 'http',
+      unsubscribedAt: first.unsubscribedAt,
+      alreadyUnsubscribed: true,
+    });
+  });
+
+  it('still blocks an unsubscribed sender on request, keeping the first date', async () => {
+    const userId = await owner();
+    const inbox = await folder(userId, '\\Inbox');
+    const junk = await folder(userId, '\\Junk');
+    const address = `news-${unique()}@example.com`;
+    await sender(userId, inbox, address, 3, {
+      headers: { 'list-unsubscribe': '<https://list.example/unsub>' },
+    });
+
+    const first = await emailService.unsubscribe(userId, address);
+    const blocked = await emailService.unsubscribe(userId, address, 'block');
+
+    expect(mockSafeFetch).toHaveBeenCalledTimes(1);
+    expect(blocked).toEqual({
+      success: true,
+      method: 'blocked',
+      unsubscribedAt: first.unsubscribedAt,
+      alreadyUnsubscribed: true,
+    });
+    const rows = await getDb()
+      .select({ mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.fromAddress, address)));
+    expect(rows.map((r) => r.mailboxId)).toEqual([junk, junk, junk]);
   });
 });

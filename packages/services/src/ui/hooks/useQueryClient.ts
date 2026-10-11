@@ -7,11 +7,10 @@ import type { QueryClient } from '@tanstack/react-query';
  */
 export const useQueryClient = (): QueryClient => {
   const queryClient = useTanStackQueryClient();
-  
+
   if (!queryClient) {
     throw new Error('QueryClient is not available. Make sure OxyProvider is wrapping your app.');
   }
-  
+
   return queryClient;
 };
-

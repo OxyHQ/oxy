@@ -11,7 +11,8 @@
 
 import { createHmac, generateKeyPairSync, sign as signBytes, type KeyObject } from 'node:crypto';
 
-export const b64url = (value: string | Uint8Array): string => Buffer.from(value).toString('base64url');
+export const b64url = (value: string | Uint8Array): string =>
+  Buffer.from(value).toString('base64url');
 
 export interface ServiceTokenSigningKey {
   kid: string;

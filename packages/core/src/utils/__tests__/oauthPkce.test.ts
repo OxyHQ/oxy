@@ -125,7 +125,9 @@ describe('buildOAuthAuthorizeUrl', () => {
   it('names the IdP screen to land on only when asked', () => {
     expect(new URL(buildOAuthAuthorizeUrl(base)).searchParams.has('screen')).toBe(false);
     for (const screen of ['signin', 'signup', 'recover'] as const) {
-      expect(new URL(buildOAuthAuthorizeUrl({ ...base, screen })).searchParams.get('screen')).toBe(screen);
+      expect(new URL(buildOAuthAuthorizeUrl({ ...base, screen })).searchParams.get('screen')).toBe(
+        screen,
+      );
     }
   });
 

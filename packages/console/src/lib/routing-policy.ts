@@ -2,12 +2,8 @@ import {
   effectiveSameModelDeployment,
   powerLevelSchema,
   routingPolicySchema,
-} from '@oxy.so/contracts'
-import type {
-  RoutingPolicy,
-  RoutingProfile,
-  UsageUnit,
-} from '@oxy.so/contracts'
+} from '@oxy.so/contracts';
+import type { RoutingPolicy, RoutingProfile, UsageUnit } from '@oxy.so/contracts';
 
 /**
  * Routing policy, as Console reads and writes it.
@@ -38,10 +34,10 @@ import type {
 
 /** One stored version of a policy, as the routing-policy routes return it. */
 export interface StoredRoutingPolicy {
-  readonly routingPolicyId: string
-  readonly versionId: string
-  readonly status: 'active' | 'archived'
-  readonly policy: RoutingPolicy
+  readonly routingPolicyId: string;
+  readonly versionId: string;
+  readonly status: 'active' | 'archived';
+  readonly policy: RoutingPolicy;
 }
 
 /**
@@ -57,12 +53,10 @@ export interface StoredRoutingPolicy {
 export type RoutingPolicyControls = Omit<
   RoutingPolicy,
   'schemaVersion' | 'routingPolicyId' | 'policyVersion' | 'scope' | 'updatedAt'
->
+>;
 
 /** Read the editable controls off a stored policy. */
-export function controlsFromPolicy(
-  policy: RoutingPolicy,
-): RoutingPolicyControls {
+export function controlsFromPolicy(policy: RoutingPolicy): RoutingPolicyControls {
   return {
     defaultTarget: policy.defaultTarget,
     providerAllowlist: [...policy.providerAllowlist],
@@ -72,9 +66,7 @@ export function controlsFromPolicy(
     requireZeroDataRetention: policy.requireZeroDataRetention,
     prohibitTrainingOnCustomerData: policy.prohibitTrainingOnCustomerData,
     maxPricePerUnit: policy.maxPricePerUnit.map((ceiling) => ({ ...ceiling })),
-    maxPricePerRequest: policy.maxPricePerRequest
-      ? { ...policy.maxPricePerRequest }
-      : undefined,
+    maxPricePerRequest: policy.maxPricePerRequest ? { ...policy.maxPricePerRequest } : undefined,
     optimiseFor: policy.optimiseFor,
     oxyHostedOnly: policy.oxyHostedOnly,
     allowedLicenseIds: [...policy.allowedLicenseIds],
@@ -87,7 +79,7 @@ export function controlsFromPolicy(
     allowedRoutingProfileIds: [...policy.allowedRoutingProfileIds],
     byokPreference: policy.byokPreference,
     dedicatedCapacity: policy.dedicatedCapacity,
-  }
+  };
 }
 
 /**
@@ -123,11 +115,11 @@ export function defaultRoutingPolicyControls(): RoutingPolicyControls {
     allowedRoutingProfileIds: [],
     byokPreference: 'disabled',
     dedicatedCapacity: 'disabled',
-  }
+  };
 }
 
 /** Where the policy in force for an application came from. */
-export type EffectivePolicyOrigin = 'application' | 'account'
+export type EffectivePolicyOrigin = 'application' | 'account';
 
 /**
  * Which of the two a resolved policy is.
@@ -140,10 +132,8 @@ export type EffectivePolicyOrigin = 'application' | 'account'
  * scopes `routingPolicyScopeSchema` can hold — an application-scoped policy
  * always carries `kind: 'application'`.
  */
-export function effectivePolicyOrigin(
-  stored: StoredRoutingPolicy,
-): EffectivePolicyOrigin {
-  return stored.policy.scope.kind === 'application' ? 'application' : 'account'
+export function effectivePolicyOrigin(stored: StoredRoutingPolicy): EffectivePolicyOrigin {
+  return stored.policy.scope.kind === 'application' ? 'application' : 'account';
 }
 
 /** What to optimise for among the routes that qualify. */
@@ -152,21 +142,21 @@ export const OPTIMISE_FOR_OPTIONS = [
   { value: 'price', label: 'Price' },
   { value: 'latency', label: 'Latency' },
   { value: 'throughput', label: 'Throughput' },
-] as const
+] as const;
 
 /** Whether the customer's own provider credentials may or must be used. */
 export const BYOK_PREFERENCE_OPTIONS = [
   { value: 'disabled', label: 'Do not use my provider credentials' },
   { value: 'prefer', label: 'Prefer my provider credentials' },
   { value: 'require', label: 'Require my provider credentials' },
-] as const
+] as const;
 
 /** Enterprise reserved capacity rather than shared endpoints. */
 export const DEDICATED_CAPACITY_OPTIONS = [
   { value: 'disabled', label: 'Shared endpoints' },
   { value: 'prefer', label: 'Prefer dedicated capacity' },
   { value: 'require', label: 'Require dedicated capacity' },
-] as const
+] as const;
 
 /** Human labels for the metered units a price ceiling can be quoted against. */
 export const USAGE_UNIT_LABELS: Readonly<Record<UsageUnit, string>> = {
@@ -185,16 +175,16 @@ export const USAGE_UNIT_LABELS: Readonly<Record<UsageUnit, string>> = {
   cached_audio_input_tokens: 'Cached audio input tokens',
   audio_output_tokens: 'Audio output tokens',
   session_milliseconds: 'Session time (ms)',
-}
+};
 
 /** A short line per constraint, for the read-only summary on the overview. */
 export interface RoutingPolicyHighlight {
-  readonly label: string
-  readonly value: string
+  readonly label: string;
+  readonly value: string;
 }
 
 function listOrNone(values: ReadonlyArray<string>, none: string): string {
-  return values.length > 0 ? values.join(', ') : none
+  return values.length > 0 ? values.join(', ') : none;
 }
 
 /**
@@ -212,7 +202,7 @@ export function routingPolicyHighlights(
       ? 'Every request must name its own model'
       : policy.defaultTarget.kind === 'model'
         ? policy.defaultTarget.modelReference
-        : routingProfileLabel(policy.defaultTarget.routingProfileId, profiles)
+        : routingProfileLabel(policy.defaultTarget.routingProfileId, profiles);
 
   const fallback = policy.fallback.disabled
     ? 'Disabled — a request that cannot be served on its route fails'
@@ -223,7 +213,7 @@ export function routingPolicyHighlights(
         policy.fallback.authorizedCrossModel.length > 0
           ? `Cross-model authorised: ${policy.fallback.authorizedCrossModel.join(', ')}`
           : 'No cross-model substitution authorised',
-      ].join(' · ')
+      ].join(' · ');
 
   const ceilings = [
     ...policy.maxPricePerUnit.map(
@@ -231,11 +221,9 @@ export function routingPolicyHighlights(
         `${USAGE_UNIT_LABELS[ceiling.unit]}: ${ceiling.amount} ${ceiling.currency} per ${ceiling.per}`,
     ),
     ...(policy.maxPricePerRequest
-      ? [
-          `Per request: ${policy.maxPricePerRequest.amount} ${policy.maxPricePerRequest.currency}`,
-        ]
+      ? [`Per request: ${policy.maxPricePerRequest.amount} ${policy.maxPricePerRequest.currency}`]
       : []),
-  ]
+  ];
 
   return [
     { label: 'Default target', value: target },
@@ -271,9 +259,7 @@ export function routingPolicyHighlights(
     },
     {
       label: 'Training on customer data',
-      value: policy.prohibitTrainingOnCustomerData
-        ? 'Prohibited'
-        : 'Not prohibited',
+      value: policy.prohibitTrainingOnCustomerData ? 'Prohibited' : 'Not prohibited',
     },
     { label: 'Oxy-hosted only', value: policy.oxyHostedOnly ? 'Yes' : 'No' },
     {
@@ -288,7 +274,7 @@ export function routingPolicyHighlights(
     { label: 'Fallback', value: fallback },
     { label: 'Your provider credentials', value: policy.byokPreference },
     { label: 'Dedicated capacity', value: policy.dedicatedCapacity },
-  ]
+  ];
 }
 
 /**
@@ -301,16 +287,16 @@ export function routingPolicyHighlights(
  */
 export function catalogueLicences(
   entries: ReadonlyArray<{
-    license: { licenseId: string; displayName: string }
+    license: { licenseId: string; displayName: string };
   }>,
 ): Array<{ licenseId: string; displayName: string }> {
-  const licences = new Map<string, string>()
+  const licences = new Map<string, string>();
   for (const entry of entries) {
-    licences.set(entry.license.licenseId, entry.license.displayName)
+    licences.set(entry.license.licenseId, entry.license.displayName);
   }
   return [...licences.entries()]
     .map(([licenseId, displayName]) => ({ licenseId, displayName }))
-    .sort((left, right) => left.licenseId.localeCompare(right.licenseId))
+    .sort((left, right) => left.licenseId.localeCompare(right.licenseId));
 }
 
 /**
@@ -322,18 +308,18 @@ export function catalogueLicences(
  */
 export function catalogueModelReferences(
   entries: ReadonlyArray<{
-    modelId: string
-    availableRevisions: ReadonlyArray<string>
+    modelId: string;
+    availableRevisions: ReadonlyArray<string>;
   }>,
 ): Array<string> {
-  const references: Array<string> = []
+  const references: Array<string> = [];
   for (const entry of entries) {
-    references.push(entry.modelId)
+    references.push(entry.modelId);
     for (const revision of entry.availableRevisions) {
-      references.push(`${entry.modelId}@${revision}`)
+      references.push(`${entry.modelId}@${revision}`);
     }
   }
-  return references
+  return references;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -352,34 +338,31 @@ export function routingProfileLabel(
   routingProfileId: string,
   profiles: ReadonlyArray<RoutingProfile>,
 ): string {
-  const profile = profiles.find(
-    (candidate) => candidate.routingProfileId === routingProfileId,
-  )
-  if (profile === undefined) return `Routing profile ID: ${routingProfileId}`
-  const kind =
-    profile.powerLevel === undefined ? 'Routing profile' : 'Power level'
-  return `${kind}: ${profile.displayName} (${routingProfileId})`
+  const profile = profiles.find((candidate) => candidate.routingProfileId === routingProfileId);
+  if (profile === undefined) return `Routing profile ID: ${routingProfileId}`;
+  const kind = profile.powerLevel === undefined ? 'Routing profile' : 'Power level';
+  return `${kind}: ${profile.displayName} (${routingProfileId})`;
 }
 
 /** One checkbox in the "Power levels" control. */
 export interface RoutingProfileOption {
-  readonly routingProfileId: string
-  readonly label: string
-  readonly description?: string
+  readonly routingProfileId: string;
+  readonly label: string;
+  readonly description?: string;
   /** Present when the profile IS a power level. */
-  readonly powerLevel?: RoutingProfile['powerLevel']
+  readonly powerLevel?: RoutingProfile['powerLevel'];
   /**
    * False for an id the policy already names but `GET /models/routing-profiles`
    * does not list right now — a level whose models are all momentarily
    * unservable is omitted there. It is still offered, so saving a new version
    * never silently drops it.
    */
-  readonly listed: boolean
+  readonly listed: boolean;
 }
 
 function ladderRank(profile: { powerLevel?: RoutingProfile['powerLevel'] }) {
-  if (profile.powerLevel === undefined) return Number.MAX_SAFE_INTEGER
-  return powerLevelSchema.options.indexOf(profile.powerLevel)
+  if (profile.powerLevel === undefined) return Number.MAX_SAFE_INTEGER;
+  return powerLevelSchema.options.indexOf(profile.powerLevel);
 }
 
 /**
@@ -396,26 +379,28 @@ export function routingProfileOptions(
 ): Array<RoutingProfileOption> {
   const listed = [...profiles]
     .sort(
-      (left, right) =>
-        ladderRank(left) - ladderRank(right) ||
-        left.slug.localeCompare(right.slug),
+      (left, right) => ladderRank(left) - ladderRank(right) || left.slug.localeCompare(right.slug),
     )
-    .map((profile): RoutingProfileOption => ({
-      routingProfileId: profile.routingProfileId,
-      label: profile.displayName,
-      description: profile.description,
-      powerLevel: profile.powerLevel,
-      listed: true,
-    }))
-  const known = new Set(listed.map((option) => option.routingProfileId))
+    .map(
+      (profile): RoutingProfileOption => ({
+        routingProfileId: profile.routingProfileId,
+        label: profile.displayName,
+        description: profile.description,
+        powerLevel: profile.powerLevel,
+        listed: true,
+      }),
+    );
+  const known = new Set(listed.map((option) => option.routingProfileId));
   const unlisted = [...new Set(referenced)]
     .filter((id) => !known.has(id))
-    .map((id): RoutingProfileOption => ({
-      routingProfileId: id,
-      label: id,
-      listed: false,
-    }))
-  return [...listed, ...unlisted]
+    .map(
+      (id): RoutingProfileOption => ({
+        routingProfileId: id,
+        label: id,
+        listed: false,
+      }),
+    );
+  return [...listed, ...unlisted];
 }
 
 /**
@@ -428,14 +413,14 @@ export function toggleAllowedRoutingProfile(
   routingProfileId: string,
   order: ReadonlyArray<RoutingProfileOption>,
 ): Array<string> {
-  const next = new Set(allowed)
-  if (next.has(routingProfileId)) next.delete(routingProfileId)
-  else next.add(routingProfileId)
+  const next = new Set(allowed);
+  if (next.has(routingProfileId)) next.delete(routingProfileId);
+  else next.add(routingProfileId);
   const position = (id: string) => {
-    const index = order.findIndex((option) => option.routingProfileId === id)
-    return index === -1 ? Number.MAX_SAFE_INTEGER : index
-  }
-  return [...next].sort((left, right) => position(left) - position(right))
+    const index = order.findIndex((option) => option.routingProfileId === id);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return [...next].sort((left, right) => position(left) - position(right));
 }
 
 /**
@@ -447,13 +432,13 @@ export function isRoutingProfileAllowed(
   allowed: ReadonlyArray<string>,
   routingProfileId: string,
 ): boolean {
-  return allowed.length === 0 || allowed.includes(routingProfileId)
+  return allowed.length === 0 || allowed.includes(routingProfileId);
 }
 
 /** Human wording for the contract issues the editor can surface by path. */
 const ISSUE_WORDING: ReadonlyArray<{
-  readonly path: string
-  readonly message: string
+  readonly path: string;
+  readonly message: string;
 }> = [
   {
     path: 'defaultTarget.routingProfileId',
@@ -464,7 +449,7 @@ const ISSUE_WORDING: ReadonlyArray<{
     path: 'allowedRoutingProfileIds',
     message: 'Each power level can be allowed only once.',
   },
-]
+];
 
 /**
  * The contract's own verdict on a set of controls, as sentences.
@@ -476,9 +461,7 @@ const ISSUE_WORDING: ReadonlyArray<{
  * contract accepts the controls; the API may still refuse for reasons only it
  * can know (an id it does not serve, a permission).
  */
-export function routingPolicyControlIssues(
-  controls: RoutingPolicyControls,
-): Array<string> {
+export function routingPolicyControlIssues(controls: RoutingPolicyControls): Array<string> {
   const result = routingPolicySchema.safeParse({
     ...controls,
     schemaVersion: 2,
@@ -486,14 +469,14 @@ export function routingPolicyControlIssues(
     policyVersion: 1,
     scope: { kind: 'account', accountId: 'draft' },
     updatedAt: new Date(0).toISOString(),
-  })
-  if (result.success) return []
+  });
+  if (result.success) return [];
   const messages = result.error.issues.map((issue) => {
-    const path = issue.path.join('.')
+    const path = issue.path.join('.');
     const worded = ISSUE_WORDING.find(
       (entry) => path === entry.path || path.startsWith(`${entry.path}.`),
-    )
-    return worded ? worded.message : `${path || 'policy'}: ${issue.message}`
-  })
-  return [...new Set(messages)]
+    );
+    return worded ? worded.message : `${path || 'policy'}: ${issue.message}`;
+  });
+  return [...new Set(messages)];
 }

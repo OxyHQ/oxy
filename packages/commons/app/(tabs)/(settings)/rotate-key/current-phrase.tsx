@@ -4,10 +4,7 @@ import { useRouter } from 'expo-router';
 import { RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  KeyboardAwareScrollViewWrapper,
-  StackHeader,
-} from '@/components/ui';
+import { KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
@@ -24,8 +21,8 @@ export default function RotateKeyCurrentPhraseScreen() {
   const { t } = useTranslation();
   const { currentPhraseRef } = useRotateKeyFlow();
 
-  const [phraseWords, setPhraseWords] = useState<string[]>(
-    () => new Array(RECOVERY_PHRASE_LENGTH).fill(''),
+  const [phraseWords, setPhraseWords] = useState<string[]>(() =>
+    new Array(RECOVERY_PHRASE_LENGTH).fill(''),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +53,11 @@ export default function RotateKeyCurrentPhraseScreen() {
   }, [phraseWords, currentPhraseRef, router, t]);
 
   return (
-    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper
+      reserveTabBarFootprint
+      reserveTopInset
+      contentContainerStyle={styles.content}
+    >
       <StackHeader
         title={t('rotateKey.currentPhrase.title')}
         subtitle={t('rotateKey.currentPhrase.subtitle')}
@@ -64,11 +65,7 @@ export default function RotateKeyCurrentPhraseScreen() {
         backAccessibilityLabel={t('common.back')}
       />
 
-      <PhraseInputGrid
-        words={phraseWords}
-        onWordChange={handleWordChange}
-        onPaste={handlePaste}
-      />
+      <PhraseInputGrid words={phraseWords} onWordChange={handleWordChange} onPaste={handlePaste} />
 
       {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 

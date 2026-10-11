@@ -39,7 +39,11 @@ import type {
   Secp256k1VerificationMethod,
 } from '@oxy.so/contracts';
 import { credentialRecordSchema } from '@oxy.so/contracts';
-import { signedRecordSigningInput, verifyEnvelopeSignature, type RejectionReason } from '@oxy.so/protocol';
+import {
+  signedRecordSigningInput,
+  verifyEnvelopeSignature,
+  type RejectionReason,
+} from '@oxy.so/protocol';
 import SignatureService from '../signature.service';
 import {
   buildUserDid,
@@ -169,7 +173,9 @@ interface PersistCredentialInput {
  * this signed record already exists (a retried write after the SignedRecord was
  * stored), the existing row is returned rather than throwing.
  */
-async function persistCredentialRow(input: PersistCredentialInput): Promise<VerifiableCredentialResponse> {
+async function persistCredentialRow(
+  input: PersistCredentialInput,
+): Promise<VerifiableCredentialResponse> {
   try {
     const [created] = await getDb()
       .insert(verifiableCredentials)
@@ -318,7 +324,9 @@ export interface IssueOrgCredentialInput {
  * This is NOT exposed on the public route — only the server can produce an
  * Oxy-signed envelope. It is the clean seam for verified org/app credentials.
  */
-export async function issueOrgCredential(input: IssueOrgCredentialInput): Promise<CredentialIssueResult> {
+export async function issueOrgCredential(
+  input: IssueOrgCredentialInput,
+): Promise<CredentialIssueResult> {
   const privateKey = process.env.OXY_PRIVATE_KEY;
   const publicKey = process.env.OXY_PUBLIC_KEY;
   if (!privateKey || !publicKey) {
@@ -397,7 +405,11 @@ export async function issueOrgCredential(input: IssueOrgCredentialInput): Promis
     }
 
     // A concurrent writer advanced the holder's chain head — re-read + retry.
-    if (stored.reason === 'chain_conflict' || stored.reason === 'bad_seq' || stored.reason === 'chain_fork') {
+    if (
+      stored.reason === 'chain_conflict' ||
+      stored.reason === 'bad_seq' ||
+      stored.reason === 'chain_fork'
+    ) {
       continue;
     }
     return { ok: false, reason: stored.reason };
@@ -409,8 +421,8 @@ export async function issueOrgCredential(input: IssueOrgCredentialInput): Promis
 /**
  * Assemble the {@link DidUserInput} `buildDidDocument` needs for an account.
  *
- * The Mongoose document carried `authMethods[]` and `verifiedDomains[]` as
- * embedded arrays; both are child tables now, so the three reads are explicit.
+ * `authMethods[]` and `verifiedDomains[]` are child tables, so the three reads
+ * are explicit.
  * Only the fields the DID document is built from are selected — the rest of the
  * users row (including its protected columns) never enters this path.
  */
@@ -514,7 +526,9 @@ async function resolveIssuerVmKeys(issuerDid: string): Promise<string[] | null> 
  */
 function secp256k1KeysOf(document: DidDocument): string[] {
   return document.verificationMethod
-    .filter((vm): vm is Secp256k1VerificationMethod => vm.type === 'EcdsaSecp256k1VerificationKey2019')
+    .filter(
+      (vm): vm is Secp256k1VerificationMethod => vm.type === 'EcdsaSecp256k1VerificationKey2019',
+    )
     .map((vm) => vm.publicKeyHex);
 }
 
@@ -524,9 +538,7 @@ async function markExpired(id: string): Promise<void> {
     await getDb()
       .update(verifiableCredentials)
       .set({ status: 'expired' })
-      .where(
-        and(eq(verifiableCredentials.id, id), eq(verifiableCredentials.status, 'active')),
-      );
+      .where(and(eq(verifiableCredentials.id, id), eq(verifiableCredentials.status, 'active')));
   } catch (error) {
     logger.warn('Credential lazy-expire failed (non-fatal)', {
       component: 'civic.credential',
@@ -547,8 +559,8 @@ async function markExpired(id: string): Promise<void> {
  */
 export async function verifyCredential(idOrRecordId: string): Promise<CredentialVerification> {
   // Two lookups because the argument is EITHER a content address or a row id;
-  // the Mongo version needed an `isValidObjectId` guard before the second so
-  // Mongoose would not throw a `CastError`, and a text id simply matches no row.
+  // no id-shape guard is needed, since a text id that names no row simply
+  // matches no row.
   const [byRecordId] = await getDb()
     .select()
     .from(verifiableCredentials)
@@ -607,7 +619,10 @@ export async function verifyCredential(idOrRecordId: string): Promise<Credential
  * `issuerUserId`) are not revocable via this user path — that is a separate
  * admin concern owned by the org seam.
  */
-export async function revokeCredential(id: string, issuerUserId: string): Promise<CredentialRevokeResult> {
+export async function revokeCredential(
+  id: string,
+  issuerUserId: string,
+): Promise<CredentialRevokeResult> {
   const [vc] = await getDb()
     .select()
     .from(verifiableCredentials)
@@ -624,14 +639,12 @@ export async function revokeCredential(id: string, issuerUserId: string): Promis
   }
 
   // `status` and `revoked_at` move in ONE statement because the table's
-  // revocation CHECK requires them to agree — Mongo could store a revocation
-  // date on an active credential, and `verifyCredential` reads only the status.
+  // revocation CHECK requires them to agree — `verifyCredential` reads only the
+  // status, so a revocation date on an active credential would mislead.
   const [revoked] = await getDb()
     .update(verifiableCredentials)
     .set({ status: 'revoked', revokedAt: new Date() })
-    .where(
-      and(eq(verifiableCredentials.id, vc.id), eq(verifiableCredentials.status, vc.status)),
-    )
+    .where(and(eq(verifiableCredentials.id, vc.id), eq(verifiableCredentials.status, vc.status)))
     .returning();
   if (!revoked) {
     return { ok: false, reason: 'already_revoked' };

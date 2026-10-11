@@ -192,12 +192,12 @@ describe('SignatureService.signRecordV2 / verifyEnvelopeSignature (v2 hash chain
     );
 
     await expect(verifyEnvelopeSignature({ ...envelope, seq: 1 })).resolves.toBe(false);
-    await expect(
-      verifyEnvelopeSignature({ ...envelope, prev: 'b'.repeat(64) }),
-    ).resolves.toBe(false);
-    await expect(
-      verifyEnvelopeSignature({ ...envelope, collection: 'app.evil' }),
-    ).resolves.toBe(false);
+    await expect(verifyEnvelopeSignature({ ...envelope, prev: 'b'.repeat(64) })).resolves.toBe(
+      false,
+    );
+    await expect(verifyEnvelopeSignature({ ...envelope, collection: 'app.evil' })).resolves.toBe(
+      false,
+    );
     await expect(verifyEnvelopeSignature({ ...envelope, rkey: 'other' })).resolves.toBe(false);
   });
 

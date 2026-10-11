@@ -157,7 +157,7 @@ describe('personhood_vouches — the active-only partial unique', () => {
     const error = await rejection(
       getDb()
         .insert(personhoodVouches)
-        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId })
+        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -185,7 +185,7 @@ describe('personhood_vouches — the active-only partial unique', () => {
     await expect(
       getDb()
         .insert(personhoodVouches)
-        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId })
+        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId }),
     ).resolves.toBeDefined();
 
     const rows = await getDb()
@@ -213,7 +213,7 @@ describe('personhood_vouches — the active-only partial unique', () => {
     await expect(
       getDb()
         .insert(personhoodVouches)
-        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId })
+        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId }),
     ).resolves.toBeDefined();
   });
 
@@ -224,7 +224,7 @@ describe('personhood_vouches — the active-only partial unique', () => {
     const error = await rejection(
       getDb()
         .insert(personhoodVouches)
-        .values({ voucherUserId: userId, subjectUserId: userId, stakeAmount: 5, recordId })
+        .values({ voucherUserId: userId, subjectUserId: userId, stakeAmount: 5, recordId }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -232,42 +232,43 @@ describe('personhood_vouches — the active-only partial unique', () => {
   });
 
   it("refuses the `?? ''` dangling record id the service can still produce", async () => {
-    // `personhood.service.ts` writes `stored.record.recordId ?? ''`. Under Mongo
-    // that was a silently dangling reference; the foreign key now makes it a
-    // loud failure the call-site port has to fix.
+    // `personhood.service.ts` writes `stored.record.recordId ?? ''`. Without the
+    // foreign key that would be a silently dangling reference; the key makes it
+    // a loud failure the call site has to fix.
     const voucherUserId = await owner();
     const subjectUserId = await owner();
 
     const error = await rejection(
       getDb()
         .insert(personhoodVouches)
-        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId: '' })
+        .values({ voucherUserId, subjectUserId, stakeAmount: 5, recordId: '' }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
 });
 
-describe('validation_requests — the dedup constraint Mongo could not express', () => {
+describe('validation_requests — the open-request dedup constraint', () => {
   async function openRequest(sourceActionId: string, status: 'pending' | 'quorum_met') {
-    return getDb().insert(validationRequests).values({
-      subjectUserId: await owner(),
-      actionType: 'real_life_attested',
-      sourceActionId,
-      payload: {},
-      payloadHash: 'h',
-      status,
-      quorum: 3,
-      threshold: 3,
-      rngSeed: 'seed',
-      expiresAt: new Date(Date.now() + 86_400_000),
-    });
+    return getDb()
+      .insert(validationRequests)
+      .values({
+        subjectUserId: await owner(),
+        actionType: 'real_life_attested',
+        sourceActionId,
+        payload: {},
+        payloadHash: 'h',
+        status,
+        quorum: 3,
+        threshold: 3,
+        rngSeed: 'seed',
+        expiresAt: new Date(Date.now() + 86_400_000),
+      });
   }
 
   it('allows only one OPEN request per source action, across BOTH open statuses', async () => {
-    // Mongo's `partialFilterExpression` cannot express `status $in [...]`, which
-    // is why this lived in `openValidationRequest`'s check-then-create. Postgres
-    // can, so the check-then-create race is closed.
+    // A partial unique index over `status in (...)` closes the race a
+    // check-then-create in `openValidationRequest` would leave open.
     const sourceActionId = `src-${randomUUID()}`;
     await openRequest(sourceActionId, 'pending');
 
@@ -316,7 +317,7 @@ describe('validation_requests — the dedup constraint Mongo could not express',
     const missing = await rejection(
       getDb()
         .insert(validationRequests)
-        .values({ ...base, sourceActionId: `src-${randomUUID()}`, status: 'validated' })
+        .values({ ...base, sourceActionId: `src-${randomUUID()}`, status: 'validated' }),
     );
     expect(pgErrorCode(missing)).toBe(CHECK_VIOLATION);
 
@@ -328,24 +329,26 @@ describe('validation_requests — the dedup constraint Mongo could not express',
           sourceActionId: `src-${randomUUID()}`,
           status: 'validated',
           outcome: 'rejected',
-        })
+        }),
     );
     expect(pgErrorCode(mismatched)).toBe(CHECK_VIOLATION);
   });
 
   it('refuses a threshold below the quorum', async () => {
     const error = await rejection(
-      getDb().insert(validationRequests).values({
-        subjectUserId: await owner(),
-        actionType: 'real_life_attested',
-        sourceActionId: `src-${randomUUID()}`,
-        payload: {},
-        payloadHash: 'h',
-        quorum: 3,
-        threshold: 2,
-        rngSeed: 'seed',
-        expiresAt: new Date(Date.now() + 86_400_000),
-      })
+      getDb()
+        .insert(validationRequests)
+        .values({
+          subjectUserId: await owner(),
+          actionType: 'real_life_attested',
+          sourceActionId: `src-${randomUUID()}`,
+          payload: {},
+          payloadHash: 'h',
+          quorum: 3,
+          threshold: 2,
+          rngSeed: 'seed',
+          expiresAt: new Date(Date.now() + 86_400_000),
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -379,16 +382,16 @@ describe('the jury junction table', () => {
       .from(validationRequestValidators)
       .innerJoin(
         validationRequests,
-        eq(validationRequests.id, validationRequestValidators.requestId)
+        eq(validationRequests.id, validationRequestValidators.requestId),
       )
       .where(
-        sql`${validationRequestValidators.userId} = ${juror} and ${validationRequests.status} in ('pending', 'quorum_met') and ${validationRequests.expiresAt} > now()`
+        sql`${validationRequestValidators.userId} = ${juror} and ${validationRequests.status} in ('pending', 'quorum_met') and ${validationRequests.expiresAt} > now()`,
       );
 
     expect(inbox).toEqual([{ id: request.id }]);
   });
 
-  it('refuses a juror who is not an account — which Mongo\'s id array could not', async () => {
+  it('refuses a juror who is not an account', async () => {
     const [request] = await getDb()
       .insert(validationRequests)
       .values({
@@ -407,7 +410,7 @@ describe('the jury junction table', () => {
     const error = await rejection(
       getDb()
         .insert(validationRequestValidators)
-        .values({ requestId: request.id, userId: `ghost-${randomUUID()}`, position: 1 })
+        .values({ requestId: request.id, userId: `ghost-${randomUUID()}`, position: 1 }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -463,7 +466,7 @@ describe('the jury junction table', () => {
 });
 
 describe('validator_affinities — the canonical pair', () => {
-  it('refuses the reversed pair, which Mongo stored as a second invisible row', async () => {
+  it('refuses the reversed pair, which would be a second invisible row', async () => {
     const a = await owner();
     const b = await owner();
     const [smaller, larger] = a < b ? [a, b] : [b, a];
@@ -475,7 +478,7 @@ describe('validator_affinities — the canonical pair', () => {
     const error = await rejection(
       getDb()
         .insert(validatorAffinities)
-        .values({ validatorA: larger, validatorB: smaller, coVoteCount: 1 })
+        .values({ validatorA: larger, validatorB: smaller, coVoteCount: 1 }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -485,7 +488,7 @@ describe('validator_affinities — the canonical pair', () => {
   it('refuses an account paired with itself', async () => {
     const a = await owner();
     const error = await rejection(
-      getDb().insert(validatorAffinities).values({ validatorA: a, validatorB: a, coVoteCount: 1 })
+      getDb().insert(validatorAffinities).values({ validatorA: a, validatorB: a, coVoteCount: 1 }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -517,24 +520,33 @@ describe('reputation_transactions — idempotency without a partial index', () =
     const applicationId = application.id;
     const sourceActionId = `act-${randomUUID()}`;
 
-    await getDb()
-      .insert(reputationTransactions)
-      .values({ userId, points: 5, actionType: 'x', category: 'trust', applicationId, sourceActionId });
+    await getDb().insert(reputationTransactions).values({
+      userId,
+      points: 5,
+      actionType: 'x',
+      category: 'trust',
+      applicationId,
+      sourceActionId,
+    });
 
     const error = await rejection(
-      getDb()
-        .insert(reputationTransactions)
-        .values({ userId, points: 5, actionType: 'x', category: 'trust', applicationId, sourceActionId })
+      getDb().insert(reputationTransactions).values({
+        userId,
+        points: 5,
+        actionType: 'x',
+        category: 'trust',
+        applicationId,
+        sourceActionId,
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
 
   it('exempts a row with no application — NULLS DISTINCT does what the partial filter did', async () => {
-    // Mongo needed `partialFilterExpression: { $exists: true }` on both fields
-    // because a missing field reads as null and every staff/civic award would
-    // collide. Postgres gives that for free, which is the whole reason this is a
-    // plain UNIQUE — and the case that would break if someone "tidied" the
+    // Rows with no application must not collide, or every staff/civic award
+    // would. Postgres treats NULLs as distinct, which is the whole reason this
+    // is a plain UNIQUE — and the case that would break if someone "tidied" the
     // column to NOT NULL DEFAULT ''.
     const userId = await owner();
     const sourceActionId = `act-${randomUUID()}`;
@@ -545,7 +557,7 @@ describe('reputation_transactions — idempotency without a partial index', () =
         .values([
           { userId, points: 5, actionType: 'x', category: 'trust', sourceActionId },
           { userId, points: 5, actionType: 'x', category: 'trust', sourceActionId },
-        ])
+        ]),
     ).resolves.toBeDefined();
   });
 
@@ -560,13 +572,13 @@ describe('reputation_transactions — idempotency without a partial index', () =
       getDb()
         .update(reputationTransactions)
         .set({ reversedTransactionId: row.id })
-        .where(eq(reputationTransactions.id, row.id))
+        .where(eq(reputationTransactions.id, row.id)),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
 
-  it('keeps a third party\'s ledger entry when the ACTOR is erased', async () => {
+  it("keeps a third party's ledger entry when the ACTOR is erased", async () => {
     // `created_by_user_id` is SET NULL rather than CASCADE: deleting the liker
     // or the moderator must not delete the subject's earned points.
     const userId = await owner();
@@ -588,9 +600,8 @@ describe('reputation_transactions — idempotency without a partial index', () =
 });
 
 describe('reputation_balances — nine subdocuments as columns', () => {
-  it('reproduces every Mongoose default from a row with only a user id', async () => {
-    // Each subdocument defaulted to `() => ({})`, which Mongoose expanded to the
-    // per-field defaults. The neutral 0.5 on the two reliability estimates is
+  it('applies every per-field default from a row with only a user id', async () => {
+    // Every column has its own default. The neutral 0.5 on the two reliability estimates is
     // the one that matters: "no history" is not "a terrible record".
     const userId = await owner();
     const [row] = await getDb().insert(reputationBalances).values({ userId }).returning();
@@ -611,7 +622,7 @@ describe('reputation_balances — nine subdocuments as columns', () => {
   it('refuses a probability outside [0, 1]', async () => {
     const userId = await owner();
     const error = await rejection(
-      getDb().insert(reputationBalances).values({ userId, reportingReliability: 1.4 })
+      getDb().insert(reputationBalances).values({ userId, reportingReliability: 1.4 }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -620,12 +631,16 @@ describe('reputation_balances — nine subdocuments as columns', () => {
 
   it('refuses a positive sum that is negative, and vice versa', async () => {
     const positive = await rejection(
-      getDb().insert(reputationBalances).values({ userId: await owner(), positive: -1 })
+      getDb()
+        .insert(reputationBalances)
+        .values({ userId: await owner(), positive: -1 }),
     );
     expect(pgErrorCode(positive)).toBe(CHECK_VIOLATION);
 
     const negative = await rejection(
-      getDb().insert(reputationBalances).values({ userId: await owner(), negative: 1 })
+      getDb()
+        .insert(reputationBalances)
+        .values({ userId: await owner(), negative: 1 }),
     );
     expect(pgErrorCode(negative)).toBe(CHECK_VIOLATION);
   });
@@ -637,17 +652,19 @@ describe('reputation_balances — nine subdocuments as columns', () => {
       .values({ userId })
       .returning({ id: reputationBalances.id });
 
-    await getDb().insert(reputationReviewingReliability).values([
-      { balanceId: balance.id, scope: 'category', key: 'harassment', reliability: 0.9 },
-      { balanceId: balance.id, scope: 'language', key: 'es-ES', reliability: 0.7 },
-    ]);
+    await getDb()
+      .insert(reputationReviewingReliability)
+      .values([
+        { balanceId: balance.id, scope: 'category', key: 'harassment', reliability: 0.9 },
+        { balanceId: balance.id, scope: 'language', key: 'es-ES', reliability: 0.7 },
+      ]);
 
     // The query a `jsonb` blob could not answer without deserializing every row.
     const strong = await getDb()
       .select()
       .from(reputationReviewingReliability)
       .where(
-        sql`${reputationReviewingReliability.balanceId} = ${balance.id} and ${reputationReviewingReliability.scope} = 'category' and ${reputationReviewingReliability.reliability} >= 0.8`
+        sql`${reputationReviewingReliability.balanceId} = ${balance.id} and ${reputationReviewingReliability.scope} = 'category' and ${reputationReviewingReliability.reliability} >= 0.8`,
       );
     expect(strong.map((row) => row.key)).toEqual(['harassment']);
 
@@ -655,7 +672,7 @@ describe('reputation_balances — nine subdocuments as columns', () => {
     const duplicate = await rejection(
       getDb()
         .insert(reputationReviewingReliability)
-        .values({ balanceId: balance.id, scope: 'category', key: 'harassment', reliability: 0.1 })
+        .values({ balanceId: balance.id, scope: 'category', key: 'harassment', reliability: 0.1 }),
     );
     expect(pgErrorCode(duplicate)).toBe(UNIQUE_VIOLATION);
   });
@@ -667,17 +684,19 @@ describe('verifiable_credentials — revocation coherence', () => {
     const recordId = await storedRecord(holderUserId);
 
     const error = await rejection(
-      getDb().insert(verifiableCredentials).values({
-        holderUserId,
-        holderDid: `did:web:oxy.so:u:${holderUserId}`,
-        issuerDid: 'did:web:oxy.so',
-        types: ['VerifiableCredential'],
-        claims: {},
-        recordId,
-        status: 'active',
-        issuedAt: new Date(),
-        revokedAt: new Date(),
-      })
+      getDb()
+        .insert(verifiableCredentials)
+        .values({
+          holderUserId,
+          holderDid: `did:web:oxy.so:u:${holderUserId}`,
+          issuerDid: 'did:web:oxy.so',
+          types: ['VerifiableCredential'],
+          claims: {},
+          recordId,
+          status: 'active',
+          issuedAt: new Date(),
+          revokedAt: new Date(),
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -688,22 +707,24 @@ describe('verifiable_credentials — revocation coherence', () => {
     const recordId = await storedRecord(holderUserId);
 
     const error = await rejection(
-      getDb().insert(verifiableCredentials).values({
-        holderUserId,
-        holderDid: `did:web:oxy.so:u:${holderUserId}`,
-        issuerDid: 'did:web:oxy.so',
-        types: ['VerifiableCredential'],
-        claims: {},
-        recordId,
-        issuedAt: new Date(1_700_000_000_000),
-        expiresAt: new Date(1_600_000_000_000),
-      })
+      getDb()
+        .insert(verifiableCredentials)
+        .values({
+          holderUserId,
+          holderDid: `did:web:oxy.so:u:${holderUserId}`,
+          issuerDid: 'did:web:oxy.so',
+          types: ['VerifiableCredential'],
+          claims: {},
+          recordId,
+          issuedAt: new Date(1_700_000_000_000),
+          expiresAt: new Date(1_600_000_000_000),
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
 
-  it('keeps a holder\'s credential when the ISSUING account is erased', async () => {
+  it("keeps a holder's credential when the ISSUING account is erased", async () => {
     // `issuer_user_id` is SET NULL: an issuer's own erasure must not silently
     // delete a third party's credential row.
     const holderUserId = await owner();

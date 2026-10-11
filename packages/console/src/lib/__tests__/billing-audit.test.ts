@@ -87,7 +87,7 @@ describe('billingAuditDirection', () => {
 
   it('gives the three directions three distinct readings', () => {
     const readings = (['in', 'out', 'none'] as const).map((direction) =>
-      billingAuditDirection({ direction })
+      billingAuditDirection({ direction }),
     );
 
     expect(readings.map((reading) => reading.sign)).toEqual(['+', '-', '']);
@@ -191,14 +191,14 @@ describe('billingAuditReferences', () => {
    * a "first non-null field" implementation loses one of them — and the one it
    * loses is the refund, which is the id a customer chasing their money quotes.
    */
-  it('carries both of a reversal\'s references, not the first', () => {
+  it("carries both of a reversal's references, not the first", () => {
     expect(billingAuditReferences(REVERSAL)).toEqual([
       { label: 'receipt', id: 'receipt_1' },
       { label: 'refund', id: 'refund_1' },
     ]);
   });
 
-  it('carries an invoice payment\'s invoice', () => {
+  it("carries an invoice payment's invoice", () => {
     expect(billingAuditReferences(INVOICE_PAYMENT)).toEqual([
       { label: 'invoice', id: 'invoice_1' },
     ]);

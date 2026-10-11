@@ -2,7 +2,11 @@
 
 import * as React from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ArtificialIntelligence01Icon, Settings01Icon, SourceCodeIcon } from '@hugeicons/core-free-icons';
+import {
+  ArtificialIntelligence01Icon,
+  Settings01Icon,
+  SourceCodeIcon,
+} from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -34,7 +38,10 @@ function AgentHeader({ name, model, className, ...props }: AgentHeaderProps) {
       {...props}
     >
       <div className="flex items-center gap-2">
-        <HugeiconsIcon icon={ArtificialIntelligence01Icon} className="size-5 text-muted-foreground" />
+        <HugeiconsIcon
+          icon={ArtificialIntelligence01Icon}
+          className="size-5 text-muted-foreground"
+        />
         <h3 className="text-sm font-medium">{name}</h3>
       </div>
       {model && (
@@ -145,19 +152,9 @@ function AgentOutput({ schema, className, ...props }: AgentOutputProps) {
           Output Schema
         </span>
       </div>
-      <pre className="text-xs font-mono bg-muted/50 rounded-md p-3 overflow-x-auto">
-        {schema}
-      </pre>
+      <pre className="text-xs font-mono bg-muted/50 rounded-md p-3 overflow-x-auto">{schema}</pre>
     </div>
   );
 }
 
-export {
-  Agent,
-  AgentHeader,
-  AgentContent,
-  AgentInstructions,
-  AgentTools,
-  AgentTool,
-  AgentOutput,
-};
+export { Agent, AgentHeader, AgentContent, AgentInstructions, AgentTools, AgentTool, AgentOutput };

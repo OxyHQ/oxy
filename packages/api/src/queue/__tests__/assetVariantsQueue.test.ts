@@ -18,12 +18,15 @@ interface AddCall {
   attempts?: number;
 }
 
-type WorkerEventHandler = (job: {
-  id: string;
-  data: { fileId: string };
-  attemptsMade: number;
-  opts: { attempts?: number };
-}, error: Error) => void;
+type WorkerEventHandler = (
+  job: {
+    id: string;
+    data: { fileId: string };
+    attemptsMade: number;
+    opts: { attempts?: number };
+  },
+  error: Error,
+) => void;
 
 // MockQueue records every `add` so the test can assert on the job id that BullMQ
 // dedupes by. MockWorker records its construction options.
@@ -79,7 +82,9 @@ jest.mock('bullmq', () => {
 });
 
 const mockObserveAssetJob = jest.fn();
-jest.mock('../../services/workerActivity.service', () => ({ observeAssetJob: (region: unknown) => mockObserveAssetJob(region) }));
+jest.mock('../../services/workerActivity.service', () => ({
+  observeAssetJob: (region: unknown) => mockObserveAssetJob(region),
+}));
 
 const mockGenerateVariants = jest.fn(() => Promise.resolve());
 
@@ -238,7 +243,9 @@ describe('producer/worker separation', () => {
         _aws: expect.objectContaining({ CloudWatchMetrics: expect.any(Array) }),
       }),
     );
-    const metricContext = info.mock.calls.find(([message]) => message === 'Asset variant queue metrics')?.[1];
+    const metricContext = info.mock.calls.find(
+      ([message]) => message === 'Asset variant queue metrics',
+    )?.[1];
     expect(metricContext?.OldestWaitingJobAgeSeconds).toBeGreaterThanOrEqual(124);
     info.mockRestore();
   });
@@ -358,7 +365,6 @@ describe('no-Redis fallback', () => {
   });
 });
 
-
 describe('queue activity metadata', () => {
   it('adds only a valid producer region and leaves the file payload intact', async () => {
     const region = process.env.AWS_REGION;
@@ -370,13 +376,21 @@ describe('queue activity metadata', () => {
       process.env.AWS_REGION = 'private-host/path';
       enqueueAssetVariantGeneration('legacy-file');
       await settle();
-      expect(MockQueue.dataCalls).toEqual([{ fileId: 'private-file', activitySourceRegion: 'eu-west-1' }, { fileId: 'legacy-file' }]);
-    } finally { if (region === undefined) delete process.env.AWS_REGION; else process.env.AWS_REGION = region; }
+      expect(MockQueue.dataCalls).toEqual([
+        { fileId: 'private-file', activitySourceRegion: 'eu-west-1' },
+        { fileId: 'legacy-file' },
+      ]);
+    } finally {
+      if (region === undefined) delete process.env.AWS_REGION;
+      else process.env.AWS_REGION = region;
+    }
   });
   it('observes new and legacy jobs without passing file IDs and preserves processing failures', async () => {
     process.env.QUEUE_REDIS_URL = 'redis://queue.test:6379';
     await startAssetVariantWorker();
-    await MockWorker.processor({ data: { fileId: 'private-file', activitySourceRegion: 'eu-west-1' } });
+    await MockWorker.processor({
+      data: { fileId: 'private-file', activitySourceRegion: 'eu-west-1' },
+    });
     await MockWorker.processor({ data: { fileId: 'legacy-file' } });
     expect(mockObserveAssetJob.mock.calls).toEqual([['eu-west-1'], [undefined]]);
     expect(mockGenerateVariants).toHaveBeenNthCalledWith(1, 'private-file');

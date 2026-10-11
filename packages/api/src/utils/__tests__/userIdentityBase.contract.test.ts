@@ -18,7 +18,6 @@
  * this guard.
  */
 
-
 import { randomBytes } from 'node:crypto';
 import { formatUserResponse, userIdentityFields, deriveIsFederated } from '../userTransform';
 import { userService } from '../../services/user.service';
@@ -38,7 +37,6 @@ describe('shared identity base — all three user-DTO serializers agree', () => 
   // The single definer the three serializers delegate to.
   const base = userIdentityFields(input);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- cross-shape fixture; ts-jest does not type-check tests
   const self = formatUserResponse(input);
   const publicDto = userService.formatUserResponse(input as never);
   const privateDto = userService.formatUserResponse(input as never, undefined, {
@@ -75,7 +73,12 @@ describe('shared identity base — all three user-DTO serializers agree', () => 
   });
 
   it('all three serializers produce an identical (composed) name', () => {
-    expect(base.name).toEqual({ first: 'Nate', last: 'Rivera', full: 'Nate Rivera', displayName: 'Nate Rivera' });
+    expect(base.name).toEqual({
+      first: 'Nate',
+      last: 'Rivera',
+      full: 'Nate Rivera',
+      displayName: 'Nate Rivera',
+    });
     expect(self?.name).toEqual(base.name);
     expect(publicDto.name).toEqual(base.name);
     expect(privateDto.name).toEqual(base.name);
@@ -111,7 +114,11 @@ describe('shared deriveIsFederated — the public and recommendation serializers
   });
 
   it('both serializers that emit isFederated derive it identically', () => {
-    const federated = { _id: randomBytes(12).toString('hex'), username: 'remote', type: 'federated' };
+    const federated = {
+      _id: randomBytes(12).toString('hex'),
+      username: 'remote',
+      type: 'federated',
+    };
     const local = { _id: randomBytes(12).toString('hex'), username: 'local', type: 'local' };
 
     expect(userService.formatUserResponse(federated as never).isFederated).toBe(true);

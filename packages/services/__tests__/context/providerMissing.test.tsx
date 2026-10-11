@@ -18,11 +18,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { renderHook } from '@testing-library/react';
 
-import {
-  useOxy,
-  useOptionalOxy,
-  OxyProviderMissingError,
-} from '../../src/ui/context/OxyContext';
+import { useOxy, useOptionalOxy, OxyProviderMissingError } from '../../src/ui/context/OxyContext';
 import * as oxyContextModule from '../../src/ui/context/OxyContext';
 import { useI18n } from '../../src/ui/hooks/useI18n';
 

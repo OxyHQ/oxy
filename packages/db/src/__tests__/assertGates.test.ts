@@ -24,7 +24,7 @@ describe('findIdColumnViolations', () => {
       minimumTables: 2,
     });
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'unclassified_id_column', subject: 'posts.author_id' })
+      expect.objectContaining({ check: 'unclassified_id_column', subject: 'posts.author_id' }),
     );
   });
 
@@ -55,7 +55,7 @@ describe('findIdColumnViolations', () => {
       minimumTables: 2,
     });
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'deferred_foreign_key_now_owed' })
+      expect.objectContaining({ check: 'deferred_foreign_key_now_owed' }),
     );
   });
 
@@ -96,7 +96,7 @@ describe('findIdColumnViolations', () => {
       expect.objectContaining({
         check: 'incomplete_deferred_foreign_key',
         subject: 'posts.author_id',
-      })
+      }),
     );
   });
 
@@ -108,7 +108,7 @@ describe('findIdColumnViolations', () => {
       minimumTables: 2,
     });
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'stale_ledger_entry', subject: 'posts.deleted_column_id' })
+      expect.objectContaining({ check: 'stale_ledger_entry', subject: 'posts.deleted_column_id' }),
     );
   });
 });
@@ -143,14 +143,14 @@ describe('findImplicitWholeRowReads', () => {
     const violations = await findImplicitWholeRowReads({ sourceDir: dir, registry });
 
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'implicit_select_all', subject: 'repo.ts:1' })
+      expect.objectContaining({ check: 'implicit_select_all', subject: 'repo.ts:1' }),
     );
   });
 
   it('does not report a named select against the same table', async () => {
     writeFileSync(
       join(dir, 'repo.ts'),
-      'export const rows = db.select({ id: users.id }).from(users);\n'
+      'export const rows = db.select({ id: users.id }).from(users);\n',
     );
 
     const violations = await findImplicitWholeRowReads({ sourceDir: dir, registry });
@@ -164,7 +164,7 @@ describe('findImplicitWholeRowReads', () => {
     const violations = await findImplicitWholeRowReads({ sourceDir: dir, registry });
 
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'implicit_relational_query', subject: 'repo.ts:1' })
+      expect.objectContaining({ check: 'implicit_relational_query', subject: 'repo.ts:1' }),
     );
   });
 
@@ -179,14 +179,14 @@ describe('findImplicitWholeRowReads', () => {
     const violations = await findImplicitWholeRowReads({ sourceDir: dir, registry });
 
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'implicit_select_all', subject: 'repo.ts:1' })
+      expect.objectContaining({ check: 'implicit_select_all', subject: 'repo.ts:1' }),
     );
   });
 
   it('ignores a bare select() that only appears inside a comment', async () => {
     writeFileSync(
       join(dir, 'repo.ts'),
-      '// db.select().from(users) is exactly what this rule forbids\nexport const x = 1;\n'
+      '// db.select().from(users) is exactly what this rule forbids\nexport const x = 1;\n',
     );
 
     const violations = await findImplicitWholeRowReads({ sourceDir: dir, registry });
@@ -238,7 +238,9 @@ describe('findUnsupportedExpiryColumns', () => {
    * what makes this fixture trustworthy: a silent `[]` is exactly the
    * vacuous pass a mutated or misdirected query would otherwise hide.
    */
-  function catalogue(indexedRows: readonly { table_name: string; column_name: string }[]): SqlExecutor {
+  function catalogue(
+    indexedRows: readonly { table_name: string; column_name: string }[],
+  ): SqlExecutor {
     const dialect = new PgDialect();
     return {
       execute: async (query: SQL): Promise<Record<string, unknown>[]> => {
@@ -256,7 +258,7 @@ describe('findUnsupportedExpiryColumns', () => {
       { table: posts, column: posts.id, retentionSeconds: 60, reason: 'fixture' },
     ]);
     expect(violations).toContainEqual(
-      expect.objectContaining({ check: 'expiry_column_without_index', subject: 'posts.id' })
+      expect.objectContaining({ check: 'expiry_column_without_index', subject: 'posts.id' }),
     );
   });
 
@@ -270,7 +272,7 @@ describe('findUnsupportedExpiryColumns', () => {
   it('reports nothing when the swept column already has a supporting btree index', async () => {
     const violations = await findUnsupportedExpiryColumns(
       catalogue([{ table_name: 'posts', column_name: 'id' }]),
-      [{ table: posts, column: posts.id, retentionSeconds: 60, reason: 'fixture' }]
+      [{ table: posts, column: posts.id, retentionSeconds: 60, reason: 'fixture' }],
     );
     expect(violations).toEqual([]);
   });
@@ -281,10 +283,8 @@ describe('findUnsupportedExpiryColumns', () => {
       [
         { table: users, column: users.id, retentionSeconds: 60, reason: 'fixture: indexed' },
         { table: posts, column: posts.id, retentionSeconds: 60, reason: 'fixture: unindexed' },
-      ]
+      ],
     );
-    expect(violations).toEqual([
-      { check: 'expiry_column_without_index', subject: 'posts.id' },
-    ]);
+    expect(violations).toEqual([{ check: 'expiry_column_without_index', subject: 'posts.id' }]);
   });
 });

@@ -19,7 +19,7 @@ import {
   isValidFileType,
   sanitizeString,
   sanitizeHTML,
-  validateAndSanitizeUserInput
+  validateAndSanitizeUserInput,
 } from '../validationUtils';
 // Imported from the generated module rather than re-exported through
 // `validationUtils`: the broad letters class is an internal operand of the
@@ -167,7 +167,7 @@ describe('Validation Utils', () => {
       ['დავით', 'Georgian'],
       ['สมชาย', 'Thai'],
       ['ᏔᎳ', 'Cherokee'],
-      ['ᠮᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠮᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
     ])('should return true for allowlisted-script real name %p (%s)', (name) => {
       expect(isValidDisplayName(name)).toBe(true);
     });
@@ -277,7 +277,7 @@ describe('Validation Utils', () => {
       ['김철수', 'Hangul'],
       ['Αριστοτέλης', 'Greek'],
       ['ᏔᎳ', 'Cherokee'],
-      ['ᠮᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠮᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
     ])('range regexes ACCEPT allowlisted %p (%s)', (name) => {
       expect(passesPolicy(name)).toBe(true);
       // Parity with the public predicate.
@@ -353,7 +353,7 @@ describe('Validation Utils', () => {
       ['।', 'Devanagari danda (scx=Devanagari, GC=Po)'],
       ['،', 'Arabic comma (scx=Arabic, GC=Po)'],
       ['؜', 'ARABIC LETTER MARK - invisible bidi control (scx=Arabic, GC=Cf)'],
-      ['᠎', 'MONGOLIAN VOWEL SEPARATOR - invisible (scx=Mongolian, GC=Cf)'],
+      ['᠎', 'U+180E Mong-script vowel separator - invisible (scx=Mong, GC=Cf)'],
     ])('rejects %p, a non-letter from an allowlisted script (%s)', (ch) => {
       expect(isValidDisplayName(ch)).toBe(false);
     });
@@ -364,7 +364,7 @@ describe('Validation Utils', () => {
     it.each([
       ['مُحَمَد', 'Arabic letters + harakat survive'],
       ['नमस्ते', 'Devanagari'],
-      ['ᠰᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠰᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
       ['বাংলা', 'Bengali'],
     ])('still accepts %p (%s)', (name) => {
       expect(isValidDisplayName(name)).toBe(true);
@@ -429,11 +429,11 @@ describe('Validation Utils', () => {
 
     it('rejects every code point on the denylist', () => {
       const accepted = deniedCodePoints.filter((cp) =>
-        isValidDisplayName(String.fromCodePoint(cp))
+        isValidDisplayName(String.fromCodePoint(cp)),
       );
-      expect(
-        accepted.map((cp) => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`)
-      ).toEqual([]);
+      expect(accepted.map((cp) => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`)).toEqual(
+        [],
+      );
       // Vacuity floor: an empty denylist would satisfy the assertion above while
       // enforcing nothing.
       expect(deniedCodePoints.length).toBeGreaterThanOrEqual(2);
@@ -662,14 +662,18 @@ describe('Validation Utils', () => {
   describe('sanitizeString', () => {
     it('should trim whitespace and remove dangerous characters', () => {
       expect(sanitizeString('  hello  ')).toBe('hello');
-      expect(sanitizeString('hello<script>alert("xss")</script>world')).toBe('helloalert("xss")world');
+      expect(sanitizeString('hello<script>alert("xss")</script>world')).toBe(
+        'helloalert("xss")world',
+      );
       expect(sanitizeString('normal text')).toBe('normal text');
     });
   });
 
   describe('sanitizeHTML', () => {
     it('should escape HTML characters', () => {
-      expect(sanitizeHTML('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+      expect(sanitizeHTML('<script>alert("xss")</script>')).toBe(
+        '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;',
+      );
       expect(sanitizeHTML('Hello & Goodbye')).toBe('Hello &amp; Goodbye');
       expect(sanitizeHTML("It's a test")).toBe('It&#x27;s a test');
     });
@@ -677,7 +681,9 @@ describe('Validation Utils', () => {
 
   describe('validateAndSanitizeUserInput', () => {
     it('should validate and sanitize email input', () => {
-      expect(validateAndSanitizeUserInput('  test@example.com  ', 'email')).toBe('test@example.com');
+      expect(validateAndSanitizeUserInput('  test@example.com  ', 'email')).toBe(
+        'test@example.com',
+      );
       expect(validateAndSanitizeUserInput('invalid-email', 'email')).toBeNull();
       expect(validateAndSanitizeUserInput(123, 'email')).toBeNull();
     });

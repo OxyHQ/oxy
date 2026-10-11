@@ -27,7 +27,10 @@ const LOG_CONTEXT = { component: 'useSystemNotificationTaps' } as const;
  * @param launchNotificationId - The system notification whose tap launched the
  *   app, or `null`.
  */
-export function useSystemNotificationTaps(enabled: boolean, launchNotificationId: string | null): void {
+export function useSystemNotificationTaps(
+  enabled: boolean,
+  launchNotificationId: string | null,
+): void {
   const { canUsePrivateApi, oxyServices } = useOxy();
   const ready = enabled && canUsePrivateApi && Boolean(oxyServices);
 
@@ -36,9 +39,11 @@ export function useSystemNotificationTaps(enabled: boolean, launchNotificationId
 
     const open = (notificationId: string): void => {
       if (!claimSystemNotification(notificationId)) return;
-      openSystemNotification(oxyServices, notificationId, (url) => Linking.openURL(url)).catch((error: unknown) => {
-        logger.warn('[commons] could not open a system notification', LOG_CONTEXT, error);
-      });
+      openSystemNotification(oxyServices, notificationId, (url) => Linking.openURL(url)).catch(
+        (error: unknown) => {
+          logger.warn('[commons] could not open a system notification', LOG_CONTEXT, error);
+        },
+      );
     };
 
     if (launchNotificationId) {

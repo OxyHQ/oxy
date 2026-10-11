@@ -9,7 +9,6 @@
  *
  * ## `expires_at` is NOT a TTL, and must never be registered as one
  *
- * Mongo indexed it with a `partialFilterExpression`, not `expireAfterSeconds`.
  * A due strike is RESOLVED — `status` moves to `expired` and the ledger row
  * survives, because a minor error must not become a permanent condemnation and
  * must not become an erased one either. Adding this column to
@@ -19,10 +18,10 @@
  * ## `policy_version` is a foreign key now
  *
  * It names the Oxy Conduct Policy version the consequence was derived under, so
- * the consequence can be recomputed under it. In Mongo that was an unchecked
- * string; here it references `moderation_policies.policy_version` with
- * `ON DELETE RESTRICT` — a version may not be deleted while a strike was derived
- * under it. See `moderationPolicies.ts`.
+ * the consequence can be recomputed under it. It references
+ * `moderation_policies.policy_version` with `ON DELETE RESTRICT` — a version
+ * may not be deleted while a strike was derived under it. See
+ * `moderationPolicies.ts`.
  */
 
 import { sql } from 'drizzle-orm';
@@ -131,41 +130,37 @@ export const conductStrikes = pgTable(
       t.incidentId,
       t.userId,
       t.effectType,
-      t.decisionRevision
+      t.decisionRevision,
     ),
-    // Summing a user's active risk. Mongo also declared a standalone `{userId}`;
-    // dropped as redundant, since a btree serves any leading prefix.
+    // Summing a user's active risk. No standalone `(user_id)` index: a btree
+    // serves any leading prefix.
     index('conduct_strikes_user_id_status_idx').on(t.userId, t.status),
     // Repetition assessment: prior similar incidents for a subject, by family.
     index('conduct_strikes_user_id_family_created_at_idx').on(
       t.userId,
       t.family,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // Reversal resolves every strike a decision revision produced.
-    index('conduct_strikes_decision_id_decision_revision_idx').on(
-      t.decisionId,
-      t.decisionRevision
-    ),
-    // The resolution job: due active strikes, oldest first. Mongo's
-    // `partialFilterExpression: { status: 'active', expiresAt: { $exists: true } }`
-    // — partial here for the same reason, so the index holds only rows the job
-    // can act on.
+    index('conduct_strikes_decision_id_decision_revision_idx').on(t.decisionId, t.decisionRevision),
+    // The resolution job: due active strikes, oldest first. Partial
+    // (`status = 'active'` with an `expires_at`), so the index holds only rows
+    // the job can act on.
     index('conduct_strikes_expires_at_idx')
       .on(t.expiresAt)
       .where(sql`${t.status} = 'active' and ${t.expiresAt} is not null`),
 
     check(
       'conduct_strikes_effect_type_check',
-      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`
+      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`,
     ),
     check(
       'conduct_strikes_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`,
     ),
     check(
       'conduct_strikes_status_check',
-      sql`${t.status} in (${sql.raw(inList(CONDUCT_STRIKE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(CONDUCT_STRIKE_STATUSES))})`,
     ),
     // A revision is an ordinal, starting at the decision's first publication.
     check('conduct_strikes_decision_revision_check', sql`${t.decisionRevision} >= 0`),
@@ -176,7 +171,7 @@ export const conductStrikes = pgTable(
     // every reader had to guard for) becomes unrepresentable.
     check(
       'conduct_strikes_resolution_complete_check',
-      sql`(${t.status} = 'active') = (${t.resolvedAt} is null)`
+      sql`(${t.status} = 'active') = (${t.resolvedAt} is null)`,
     ),
-  ]
+  ],
 );

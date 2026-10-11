@@ -23,7 +23,9 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 
 jest.mock('../variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) { /* no-op */ }
+    constructor(_s3: unknown) {
+      /* no-op */
+    }
     generateVariants = jest.fn(() => Promise.resolve());
   },
 }));
@@ -37,11 +39,15 @@ import { files, fileVariants, storageObjectDeletions, users } from '../../db/sch
 import { AssetService } from '../assetService';
 import type { S3Service } from '../s3Service';
 import type { FileInfo } from '../../types/s3.types';
-import { runStorageDeletionBatch, type StorageDeletionStore } from '../accountStorageDeletion.worker';
+import {
+  runStorageDeletionBatch,
+  type StorageDeletionStore,
+} from '../accountStorageDeletion.worker';
 import { CONTENT_HASH_LOCK_NAMESPACE, withContentHashLock } from '../contentHashLock';
 import fileCache from '../../utils/fileCache';
 
-const png = () => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(24)]);
+const png = () =>
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), randomBytes(24)]);
 const hashOf = (content: Buffer) => createHash('sha256').update(content).digest('hex');
 
 /**
@@ -59,7 +65,9 @@ const inFlight: Array<Promise<unknown>> = [];
 
 function gate() {
   let open!: () => void;
-  const opened = new Promise<void>((resolve) => { open = resolve; });
+  const opened = new Promise<void>((resolve) => {
+    open = resolve;
+  });
   openGates.push(open);
   return { opened, open };
 }
@@ -80,13 +88,20 @@ async function reach(signal: Promise<void>, other: Promise<unknown>, what: strin
     signal.then(() => ({ kind: 'reached' as const })),
     other.then(
       (value) => ({ kind: 'settled' as const, detail: JSON.stringify(value) }),
-      (error: unknown) => ({ kind: 'settled' as const, detail: error instanceof Error ? error.message : String(error) }),
+      (error: unknown) => ({
+        kind: 'settled' as const,
+        detail: error instanceof Error ? error.message : String(error),
+      }),
     ),
-    new Promise<{ kind: 'timeout' }>((resolve) => { timer = setTimeout(() => resolve({ kind: 'timeout' }), STEP_TIMEOUT_MS); }),
+    new Promise<{ kind: 'timeout' }>((resolve) => {
+      timer = setTimeout(() => resolve({ kind: 'timeout' }), STEP_TIMEOUT_MS);
+    }),
   ]);
   clearTimeout(timer);
-  if (outcome.kind === 'settled') throw new Error(`${what}: the other side finished first (${outcome.detail})`);
-  if (outcome.kind === 'timeout') throw new Error(`${what}: not reached within ${STEP_TIMEOUT_MS}ms`);
+  if (outcome.kind === 'settled')
+    throw new Error(`${what}: the other side finished first (${outcome.detail})`);
+  if (outcome.kind === 'timeout')
+    throw new Error(`${what}: not reached within ${STEP_TIMEOUT_MS}ms`);
 }
 
 /**
@@ -94,11 +109,19 @@ async function reach(signal: Promise<void>, other: Promise<unknown>, what: strin
  * this database, so no other lock can satisfy it. Throws if `contender` settles
  * first (it never blocked) or if nothing blocks within the bound.
  */
-async function waitForLockWaiter(sha256: string, contender: Promise<unknown>, what: string): Promise<void> {
+async function waitForLockWaiter(
+  sha256: string,
+  contender: Promise<unknown>,
+  what: string,
+): Promise<void> {
   let settled: string | null = null;
   void contender.then(
-    (value) => { settled = `resolved ${JSON.stringify(value)}`; },
-    (error: unknown) => { settled = `rejected ${error instanceof Error ? error.message : String(error)}`; },
+    (value) => {
+      settled = `resolved ${JSON.stringify(value)}`;
+    },
+    (error: unknown) => {
+      settled = `rejected ${error instanceof Error ? error.message : String(error)}`;
+    },
   );
   const deadline = Date.now() + STEP_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -109,10 +132,13 @@ async function waitForLockWaiter(sha256: string, contender: Promise<unknown>, wh
         and ((classid::bigint << 32) | objid::bigint)
           = hashtextextended(${CONTENT_HASH_LOCK_NAMESPACE + sha256}, 0)`);
     if ((row as { n: number } | undefined)?.n) return;
-    if (settled !== null) throw new Error(`precondition failed (${what}): it never blocked on the lock — ${settled}`);
+    if (settled !== null)
+      throw new Error(`precondition failed (${what}): it never blocked on the lock — ${settled}`);
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`precondition failed (${what}): nothing waited on this hash's lock within ${STEP_TIMEOUT_MS}ms`);
+  throw new Error(
+    `precondition failed (${what}): nothing waited on this hash's lock within ${STEP_TIMEOUT_MS}ms`,
+  );
 }
 
 async function insertUser(): Promise<string> {
@@ -123,13 +149,22 @@ async function insertUser(): Promise<string> {
 async function oweObject(sha256: string, target: string): Promise<string> {
   const [row] = await getDb()
     .insert(storageObjectDeletions)
-    .values({ reason: 'file.deleted', accountId: `race-${randomBytes(4).toString('hex')}`, kind: 'object', target, sha256 })
+    .values({
+      reason: 'file.deleted',
+      accountId: `race-${randomBytes(4).toString('hex')}`,
+      kind: 'object',
+      target,
+      sha256,
+    })
     .returning({ id: storageObjectDeletions.id });
   return row.id;
 }
 
 async function liveRowsFor(sha256: string) {
-  return getDb().select({ id: files.id }).from(files).where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')));
+  return getDb()
+    .select({ id: files.id })
+    .from(files)
+    .where(and(eq(files.sha256, sha256), ne(files.status, 'deleted')));
 }
 
 beforeAll(async () => {
@@ -143,7 +178,9 @@ afterEach(async () => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   await Promise.race([
     Promise.all(inFlight.splice(0)),
-    new Promise((resolve) => { timer = setTimeout(resolve, STEP_TIMEOUT_MS); }),
+    new Promise((resolve) => {
+      timer = setTimeout(resolve, STEP_TIMEOUT_MS);
+    }),
   ]);
   clearTimeout(timer);
   fileCache.clear();
@@ -164,13 +201,21 @@ describe('the purge honours the lock and re-checks under it', () => {
 
     // An upload in flight: it holds the lock, and commits a live row on the
     // same key before letting go.
-    const upload = track(withContentHashLock(sha256, async (tx) => {
-      locked.open();
-      await release.opened;
-      await tx.insert(files).values({
-        sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: target, ownerUserId: owner, status: 'active',
-      });
-    }));
+    const upload = track(
+      withContentHashLock(sha256, async (tx) => {
+        locked.open();
+        await release.opened;
+        await tx.insert(files).values({
+          sha256,
+          size: 1,
+          mime: 'image/png',
+          ext: 'png',
+          storageKey: target,
+          ownerUserId: owner,
+          status: 'active',
+        });
+      }),
+    );
     await reach(locked.opened, upload, 'the upload took the lock');
 
     const deleteObject = jest.fn((_key: string): Promise<void> => Promise.resolve());
@@ -218,7 +263,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
   function fakeS3(events: string[]) {
     return {
       uploadStream: jest.fn(async (key: string, body: Readable): Promise<FileInfo> => {
-        for await (const _chunk of body) { /* drain */ }
+        for await (const _chunk of body) {
+          /* drain */
+        }
         return { key, size: 1, contentType: 'image/png' } as FileInfo;
       }),
       uploadBuffer: jest.fn(async (key: string): Promise<FileInfo> => {
@@ -244,7 +291,12 @@ describe('every path that creates a live row waits for a purge in progress', () 
     const s3 = fakeS3(events);
     const service = new AssetService(s3 as unknown as S3Service);
 
-    const source = new Readable({ read() { this.push(content); this.push(null); } });
+    const source = new Readable({
+      read() {
+        this.push(content);
+        this.push(null);
+      },
+    });
     const upload = track(service.uploadCachedMediaStream(source, 'image/png', 'x.png', 1_000_000));
 
     await waitForLockWaiter(sha256, upload, 'the streamed upload');
@@ -269,7 +321,9 @@ describe('every path that creates a live row waits for a purge in progress', () 
     const s3 = fakeS3(events);
     const service = new AssetService(s3 as unknown as S3Service);
 
-    const upload = track(service.uploadFileDirect(await insertUser(), content, 'image/png', 'x.png', 'public'));
+    const upload = track(
+      service.uploadFileDirect(await insertUser(), content, 'image/png', 'x.png', 'public'),
+    );
 
     await waitForLockWaiter(sha256, upload, 'the direct upload');
     expect(await liveRowsFor(sha256)).toEqual([]);
@@ -306,36 +360,76 @@ describe('deleteFile', () => {
   it('owes nothing for a row that is already deleted — its keys may belong to a newer live row', async () => {
     const sha256 = randomBytes(32).toString('hex');
     const owner = await insertUser();
-    const [tombstone] = await getDb().insert(files).values({
-      sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: `public/content/${sha256}.png`, ownerUserId: owner, status: 'deleted',
-    }).returning({ id: files.id });
-    const [live] = await getDb().insert(files).values({
-      sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: `public/content/${sha256}.png`, ownerUserId: owner, status: 'active',
-    }).returning({ id: files.id });
+    const [tombstone] = await getDb()
+      .insert(files)
+      .values({
+        sha256,
+        size: 1,
+        mime: 'image/png',
+        ext: 'png',
+        storageKey: `public/content/${sha256}.png`,
+        ownerUserId: owner,
+        status: 'deleted',
+      })
+      .returning({ id: files.id });
+    const [live] = await getDb()
+      .insert(files)
+      .values({
+        sha256,
+        size: 1,
+        mime: 'image/png',
+        ext: 'png',
+        storageKey: `public/content/${sha256}.png`,
+        ownerUserId: owner,
+        status: 'active',
+      })
+      .returning({ id: files.id });
     const s3 = { deleteFile: jest.fn(async () => undefined), listFiles: jest.fn(async () => []) };
     const service = new AssetService(s3 as unknown as S3Service);
 
     await service.deleteFile(tombstone.id, true);
 
     expect(s3.deleteFile).not.toHaveBeenCalled();
-    expect(await getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.sha256, sha256))).toEqual([]);
+    expect(
+      await getDb()
+        .select()
+        .from(storageObjectDeletions)
+        .where(eq(storageObjectDeletions.sha256, sha256)),
+    ).toEqual([]);
     expect((await liveRowsFor(sha256)).map((r) => r.id)).toEqual([live.id]);
   });
 
   it('records what it owes in the tombstone commit and purges it', async () => {
     const sha256 = randomBytes(32).toString('hex');
     const owner = await insertUser();
-    const [row] = await getDb().insert(files).values({
-      sha256, size: 1, mime: 'image/png', ext: 'png', storageKey: `public/content/${sha256}.png`, ownerUserId: owner, status: 'active',
-    }).returning({ id: files.id });
+    const [row] = await getDb()
+      .insert(files)
+      .values({
+        sha256,
+        size: 1,
+        mime: 'image/png',
+        ext: 'png',
+        storageKey: `public/content/${sha256}.png`,
+        ownerUserId: owner,
+        status: 'active',
+      })
+      .returning({ id: files.id });
     const s3 = { deleteFile: jest.fn(async () => undefined), listFiles: jest.fn(async () => []) };
     const service = new AssetService(s3 as unknown as S3Service);
 
     await service.deleteFile(row.id, true);
 
-    const ledger = await getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.sha256, sha256));
+    const ledger = await getDb()
+      .select()
+      .from(storageObjectDeletions)
+      .where(eq(storageObjectDeletions.sha256, sha256));
     expect(ledger).toHaveLength(1);
-    expect(ledger[0]).toMatchObject({ reason: 'file.deleted', kind: 'object', target: `content/${sha256}.png`, outcome: 'deleted' });
+    expect(ledger[0]).toMatchObject({
+      reason: 'file.deleted',
+      kind: 'object',
+      target: `content/${sha256}.png`,
+      outcome: 'deleted',
+    });
     expect(s3.deleteFile).toHaveBeenCalledWith(`public/content/${sha256}.png`);
   });
 });
@@ -344,24 +438,45 @@ describe('deleteCachedMedia', () => {
   it('owes the whole variant directory, so a cached video’s HLS segments go too', async () => {
     const sha256 = randomBytes(32).toString('hex');
     const variantDir = `variants/2026/09/${sha256.slice(0, 2)}/${sha256}/`;
-    const [row] = await getDb().insert(files).values({
-      sha256, size: 1, mime: 'video/mp4', ext: 'mp4', storageKey: `public/content/${sha256}.mp4`,
-      systemOwner: '__federation_media_cache__', purpose: 'federation-media-cache', status: 'active', visibility: 'public',
-    }).returning({ id: files.id });
-    await getDb().insert(fileVariants).values({ fileId: row.id, type: 'hls_720p', key: `public/${variantDir}hls_720p.m3u8`, readyAt: new Date() });
+    const [row] = await getDb()
+      .insert(files)
+      .values({
+        sha256,
+        size: 1,
+        mime: 'video/mp4',
+        ext: 'mp4',
+        storageKey: `public/content/${sha256}.mp4`,
+        systemOwner: '__federation_media_cache__',
+        purpose: 'federation-media-cache',
+        status: 'active',
+        visibility: 'public',
+      })
+      .returning({ id: files.id });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId: row.id,
+        type: 'hls_720p',
+        key: `public/${variantDir}hls_720p.m3u8`,
+        readyAt: new Date(),
+      });
     const segment = `public/${variantDir}hls_720p_segment_720p_000.ts.ts`;
     const s3 = {
       deleteFile: jest.fn(async () => undefined),
       listFiles: jest.fn(async (prefix: string) =>
         prefix === `public/${variantDir}` && !s3.deleteFile.mock.calls.some(([k]) => k === segment)
           ? [{ key: segment, size: 1, lastModified: new Date(), bucket: 'b' }]
-          : []),
+          : [],
+      ),
     };
     const service = new AssetService(s3 as unknown as S3Service);
 
     expect(await service.deleteCachedMedia(row.id)).toEqual({ deleted: true, outOfScope: false });
 
-    const ledger = await getDb().select().from(storageObjectDeletions).where(eq(storageObjectDeletions.sha256, sha256));
+    const ledger = await getDb()
+      .select()
+      .from(storageObjectDeletions)
+      .where(eq(storageObjectDeletions.sha256, sha256));
     expect(ledger.map((r) => [r.kind, r.target]).sort()).toEqual([
       ['object', `content/${sha256}.mp4`],
       ['prefix', variantDir],

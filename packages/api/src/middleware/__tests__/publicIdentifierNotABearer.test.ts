@@ -182,21 +182,21 @@ async function signIn(userId: string): Promise<string> {
 function serviceToken(): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: randomUUID(),
-      appName: 'Probe',
-      credentialId: randomUUID(),
-      // The full attribution tuple the real mint emits (ADR 0007). Omitting
-      // `ownerAccountId` makes `verifyServiceToken` answer `not_service`, which
-      // would quietly turn the positive control below into a second negative.
-      ownerAccountId: randomUUID(),
-      environment: 'production',
-      scopes: ['user:read'],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: randomUUID(),
+    appName: 'Probe',
+    credentialId: randomUUID(),
+    // The full attribution tuple the real mint emits (ADR 0007). Omitting
+    // `ownerAccountId` makes `verifyServiceToken` answer `not_service`, which
+    // would quietly turn the positive control below into a second negative.
+    ownerAccountId: randomUUID(),
+    environment: 'production',
+    scopes: ['user:read'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 beforeAll(async () => {

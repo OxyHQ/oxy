@@ -10,8 +10,8 @@
  * the same worker database; every reviewed FACT is the real one.
  */
 
-import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { randomUUID } from 'node:crypto';
+import { eq, inArray } from 'drizzle-orm';
 import {
   KAANA_SPEECH_CATALOGUE,
   KAANA_TEXT_CATALOGUE,
@@ -20,36 +20,34 @@ import {
   kaanaReviewedCatalogueOperations,
   kaanaVoiceCatalogue,
   requireKaanaVoiceCatalogue,
-} from "../../config/kaanaInitialCatalogue";
-import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
+} from '../../config/kaanaInitialCatalogue';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
   inferenceModels,
   priceVersionUnitPrices,
   users,
-} from "../../db/schema";
+} from '../../db/schema';
 
-type BootstrapWriter = typeof import("../../../scripts/bootstrap-kaana-catalogue");
-type Transaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
+type BootstrapWriter = typeof import('../../../scripts/bootstrap-kaana-catalogue');
+type Transaction = Parameters<Parameters<ReturnType<typeof getDb>['transaction']>[0]>[0];
 
 /** The bytes the 2026-09-02 bootstrap wrote on the Cerebras and Groq routes. */
 const PRODUCTION_TEXT_NOTE =
-  "Owner-approved initial internal Alia route; primary-source review 2026-09-02.";
+  'Owner-approved initial internal Alia route; primary-source review 2026-09-02.';
 
 const ENVIRONMENT = [
-  "KAANA_CATALOGUE_REVIEWER_USER_ID",
-  "INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS",
+  'KAANA_CATALOGUE_REVIEWER_USER_ID',
+  'INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS',
 ] as const;
-const ORIGINAL_ENVIRONMENT = Object.fromEntries(
-  ENVIRONMENT.map((key) => [key, process.env[key]]),
-);
+const ORIGINAL_ENVIRONMENT = Object.fromEntries(ENVIRONMENT.map((key) => [key, process.env[key]]));
 
 let writer: BootstrapWriter;
 
 class Rollback extends Error {}
 
 function suffix(): string {
-  return randomUUID().replace(/-/g, "").slice(0, 10);
+  return randomUUID().replace(/-/g, '').slice(0, 10);
 }
 
 /**
@@ -64,15 +62,15 @@ function synthetic(catalogue: KaanaReviewedModelCatalogue): KaanaReviewedModelCa
   return {
     ...catalogue,
     publisher: { ...catalogue.publisher, slug: publisherSlug },
-    model: { ...catalogue.model, publisherSlug } as KaanaReviewedModelCatalogue["model"],
+    model: { ...catalogue.model, publisherSlug } as KaanaReviewedModelCatalogue['model'],
     modelId,
     modelReference: `${modelId}@${catalogue.revision.revision}`,
     providers: catalogue.providers.map(
       (provider): KaanaInitialProvider => ({
         ...provider,
-        slug: `${provider.slug}-${id}` as KaanaInitialProvider["slug"],
+        slug: `${provider.slug}-${id}` as KaanaInitialProvider['slug'],
         deploymentId: `${provider.deploymentId}_${id}`,
-        scoreValidUntil: "2099-01-01T00:00:00.000Z",
+        scoreValidUntil: '2099-01-01T00:00:00.000Z',
       }),
     ),
     routingProfiles: catalogue.routingProfiles.map((profile) => ({
@@ -88,14 +86,14 @@ async function rolledBack(work: (tx: Transaction) => Promise<void>): Promise<voi
   try {
     await getDb().transaction(async (tx) => {
       await work(tx);
-      throw new Rollback("rollback");
+      throw new Rollback('rollback');
     });
   } catch (error) {
     // Anything but the deliberate rollback is the test's real failure.
     if (error instanceof Rollback) return;
     throw error;
   }
-  throw new Error("The test transaction committed instead of rolling back");
+  throw new Error('The test transaction committed instead of rolling back');
 }
 
 /** Write the text catalogue, then put it in the state production holds. */
@@ -109,7 +107,7 @@ async function seedProductionText(
       .update(inferenceDeployments)
       .set({
         // Legacy storage bytes; the contract type no longer names them.
-        availabilityScope: "internal_alia" as "platform_internal",
+        availabilityScope: 'internal_alia' as 'platform_internal',
         permissionStateNote: provider.permissionStateNote ?? PRODUCTION_TEXT_NOTE,
       })
       .where(eq(inferenceDeployments.internalRouteId, provider.deploymentId));
@@ -133,7 +131,7 @@ async function storedScopes(
       ),
     );
   return catalogue.providers.map(
-    (provider) => rows.find((row) => row.id === provider.deploymentId)?.scope ?? "absent",
+    (provider) => rows.find((row) => row.id === provider.deploymentId)?.scope ?? 'absent',
   );
 }
 
@@ -144,13 +142,13 @@ beforeAll(async () => {
     .values({
       username: `kaana-bootstrap-${suffix()}`,
       isStaff: true,
-      staffCapabilities: ["inference:catalogue:publish"],
+      staffCapabilities: ['inference:catalogue:publish'],
     })
     .returning({ id: users.id });
   process.env.KAANA_CATALOGUE_REVIEWER_USER_ID = reviewer.id;
-  process.env.INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS = "3600";
+  process.env.INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS = '3600';
   // The writer binds its reviewer when it loads, exactly as the one-shot does.
-  writer = await import("../../../scripts/bootstrap-kaana-catalogue");
+  writer = await import('../../../scripts/bootstrap-kaana-catalogue');
 });
 
 afterAll(async () => {
@@ -162,14 +160,12 @@ afterAll(async () => {
 });
 
 describe("the reviewed catalogue bootstrap over production's legacy-scope text routes", () => {
-  it("plans only the speech inserts and leaves every stored text route untouched", async () => {
+  it('plans only the speech inserts and leaves every stored text route untouched', async () => {
     const text = synthetic(KAANA_TEXT_CATALOGUE);
     const speech = synthetic(KAANA_SPEECH_CATALOGUE);
     await rolledBack(async (tx) => {
       await seedProductionText(tx, text);
-      expect(await storedScopes(tx, text)).toEqual(
-        text.providers.map(() => "internal_alia"),
-      );
+      expect(await storedScopes(tx, text)).toEqual(text.providers.map(() => 'internal_alia'));
 
       const inserted: string[] = [];
       await writer.requireReviewer(tx);
@@ -178,15 +174,13 @@ describe("the reviewed catalogue bootstrap over production's legacy-scope text r
 
       expect(inserted).toEqual(kaanaReviewedCatalogueOperations(speech));
       // Compared as the scope it means, never rewritten.
-      expect(await storedScopes(tx, text)).toEqual(
-        text.providers.map(() => "internal_alia"),
-      );
+      expect(await storedScopes(tx, text)).toEqual(text.providers.map(() => 'internal_alia'));
       // A new route is written in the current vocabulary only.
-      expect(await storedScopes(tx, speech)).toEqual(["platform_internal"]);
+      expect(await storedScopes(tx, speech)).toEqual(['platform_internal']);
     });
   });
 
-  it("is a no-op once the speech route exists beside the legacy text routes", async () => {
+  it('is a no-op once the speech route exists beside the legacy text routes', async () => {
     const text = synthetic(KAANA_TEXT_CATALOGUE);
     const speech = synthetic(KAANA_SPEECH_CATALOGUE);
     await rolledBack(async (tx) => {
@@ -200,14 +194,14 @@ describe("the reviewed catalogue bootstrap over production's legacy-scope text r
     });
   });
 
-  it("still refuses a text route stored under any other scope", async () => {
+  it('still refuses a text route stored under any other scope', async () => {
     const text = synthetic(KAANA_TEXT_CATALOGUE);
     const [first] = text.providers;
     await rolledBack(async (tx) => {
       await seedProductionText(tx, text);
       await tx
         .update(inferenceDeployments)
-        .set({ availabilityScope: "enterprise" })
+        .set({ availabilityScope: 'enterprise' })
         .where(eq(inferenceDeployments.internalRouteId, first.deploymentId));
 
       await expect(writer.ensureCatalogue(tx, text, [])).rejects.toThrow(
@@ -216,14 +210,14 @@ describe("the reviewed catalogue bootstrap over production's legacy-scope text r
     });
   });
 
-  it("still refuses a text route whose approval note drifted", async () => {
+  it('still refuses a text route whose approval note drifted', async () => {
     const text = synthetic(KAANA_TEXT_CATALOGUE);
     const [first] = text.providers;
     await rolledBack(async (tx) => {
       await seedProductionText(tx, text);
       await tx
         .update(inferenceDeployments)
-        .set({ permissionStateNote: "Owner-approved initial platform-internal route." })
+        .set({ permissionStateNote: 'Owner-approved initial platform-internal route.' })
         .where(eq(inferenceDeployments.internalRouteId, first.deploymentId));
 
       await expect(writer.ensureCatalogue(tx, text, [])).rejects.toThrow(
@@ -240,13 +234,13 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
     synthetic(
       requireKaanaVoiceCatalogue(
         kaanaVoiceCatalogue({
-          deploymentId: "dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02",
-          inventorySnapshotId: "snap_0123456789abcdef",
+          deploymentId: 'dep_xai_realtime_grok_voice_think_fast_2_0_observed_2026_10_02',
+          inventorySnapshotId: 'snap_0123456789abcdef',
         }),
       ),
     );
 
-  it("writes the realtime declarations and duration prices the 0126 and 0125 CHECKs accept, then is a no-op", async () => {
+  it('writes the realtime declarations and duration prices the 0126 and 0125 CHECKs accept, then is a no-op', async () => {
     const catalogue = voice();
     await rolledBack(async (tx) => {
       const inserted: string[] = [];
@@ -265,10 +259,10 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
         .where(eq(inferenceModels.modelId, catalogue.modelId));
       expect(model).toEqual({
         apiFormats: null,
-        realtimeTransports: ["websocket"],
-        realtimeSessionKinds: ["conversation"],
-        inputModalities: ["text", "audio"],
-        outputModalities: ["text", "audio"],
+        realtimeTransports: ['websocket'],
+        realtimeSessionKinds: ['conversation'],
+        inputModalities: ['text', 'audio'],
+        outputModalities: ['text', 'audio'],
       });
 
       const [deployment] = await tx
@@ -278,7 +272,7 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
         })
         .from(inferenceDeployments)
         .where(eq(inferenceDeployments.internalRouteId, catalogue.providers[0].deploymentId));
-      expect(deployment.scope).toBe("platform_internal");
+      expect(deployment.scope).toBe('platform_internal');
       const prices = await tx
         .select({
           unit: priceVersionUnitPrices.unit,
@@ -288,10 +282,10 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
         .from(priceVersionUnitPrices)
         .where(eq(priceVersionUnitPrices.priceVersionId, deployment.priceVersionId!));
       expect(prices.sort((a, b) => (a.unit < b.unit ? -1 : 1))).toEqual([
-        { unit: "audio_input_milliseconds", amount: "0.080000000000", per: 60_000 },
-        { unit: "audio_output_milliseconds", amount: "0.080000000000", per: 60_000 },
-        { unit: "requests", amount: "0.004000000000", per: 1 },
-        { unit: "session_milliseconds", amount: "0.080000000000", per: 60_000 },
+        { unit: 'audio_input_milliseconds', amount: '0.080000000000', per: 60_000 },
+        { unit: 'audio_output_milliseconds', amount: '0.080000000000', per: 60_000 },
+        { unit: 'requests', amount: '0.004000000000', per: 1 },
+        { unit: 'session_milliseconds', amount: '0.080000000000', per: 60_000 },
       ]);
 
       const again: string[] = [];
@@ -300,13 +294,13 @@ describe("the reviewed realtime voice catalogue, once Kaana's observation is rec
     });
   });
 
-  it("refuses a stored voice model whose realtime declaration drifted", async () => {
+  it('refuses a stored voice model whose realtime declaration drifted', async () => {
     const catalogue = voice();
     await rolledBack(async (tx) => {
       await writer.ensureCatalogue(tx, catalogue, []);
       await tx
         .update(inferenceModels)
-        .set({ realtimeSessionKinds: ["conversation", "transcription"] })
+        .set({ realtimeSessionKinds: ['conversation', 'transcription'] })
         .where(eq(inferenceModels.modelId, catalogue.modelId));
       await expect(writer.ensureCatalogue(tx, catalogue, [])).rejects.toThrow(
         `model:${catalogue.modelId}.realtimeSessionKinds differs from the reviewed bootstrap`,

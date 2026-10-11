@@ -144,6 +144,17 @@ export const ONBOARDING_FLOW_STORAGE_KEY = 'oxy_onboarding_flow';
 
 export type OnboardingFlow = 'create' | 'import';
 
+/**
+ * Storage key for the username the user chose at the username step but that is
+ * not registered yet (an offline device, or a registration that has not run).
+ *
+ * `POST /auth/register` carries the username, so a key is never registered
+ * before one is chosen; this is what lets the choice survive going offline or
+ * quitting, and the reconnect / resume sync registers with it. Cleared once the
+ * identity syncs, and whenever a new identity is created or imported.
+ */
+export const PENDING_USERNAME_STORAGE_KEY = 'oxy_pending_username';
+
 /** Canonical serialized truthy value. Only this literal is treated as set. */
 const STORED_TRUE = 'true';
 const STORED_FALSE = 'false';
@@ -184,49 +195,54 @@ const defaultState: IdentityState = {
  * is driven explicitly by the caller via {@link persistIdentitySyncState};
  * the acknowledgement flag persists from {@link IdentityStore.setRecoveryPhraseAcknowledged}.
  */
-export const useIdentityStore = create<IdentityStore>((set: (state: Partial<IdentityState>) => void, get: () => IdentityStore) => ({
-  ...defaultState,
+export const useIdentityStore = create<IdentityStore>(
+  (set: (state: Partial<IdentityState>) => void, get: () => IdentityStore) => ({
+    ...defaultState,
 
-  setSynced: (synced: boolean) => {
-    set({ isSynced: synced });
-    // Note: Persistence is handled via persistIdentitySyncState in the caller
-  },
+    setSynced: (synced: boolean) => {
+      set({ isSynced: synced });
+      // Note: Persistence is handled via persistIdentitySyncState in the caller
+    },
 
-  setSyncing: (syncing: boolean) => {
-    set({ isSyncing: syncing });
-  },
+    setSyncing: (syncing: boolean) => {
+      set({ isSyncing: syncing });
+    },
 
-  setRecoveryPhraseAcknowledged: (acknowledged: boolean) => {
-    set({ recoveryPhraseAcknowledged: acknowledged });
-    // Fire-and-forget persistence. Errors are logged but never block
-    // the UI — losing this flag is safe (it just means we re-nag the
-    // user on the next launch).
-    void persistRecoveryPhraseAcknowledged(acknowledged).catch((error) => {
-      console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
-    });
-  },
-
-  hydrate: async () => {
-    try {
-      const [synced, ack] = await Promise.all([
-        storage.getItem(IDENTITY_SYNC_STORAGE_KEY),
-        storage.getItem(RECOVERY_PHRASE_ACK_STORAGE_KEY),
-      ]);
-      // Only consider synced / acknowledged if explicitly stored as 'true'.
-      set({
-        isSynced: synced === STORED_TRUE,
-        recoveryPhraseAcknowledged: ack === STORED_TRUE,
+    setRecoveryPhraseAcknowledged: (acknowledged: boolean) => {
+      set({ recoveryPhraseAcknowledged: acknowledged });
+      // Fire-and-forget persistence. Errors are logged but never block
+      // the UI — losing this flag is safe (it just means we re-nag the
+      // user on the next launch).
+      void persistRecoveryPhraseAcknowledged(acknowledged).catch((error) => {
+        console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
       });
-    } catch (error) {
-      console.error('[IdentityStore] Failed to hydrate identity state from storage', error);
-      set({ isSynced: defaultState.isSynced, recoveryPhraseAcknowledged: defaultState.recoveryPhraseAcknowledged });
-    }
-  },
+    },
 
-  reset: () => {
-    set(defaultState);
-  },
-}));
+    hydrate: async () => {
+      try {
+        const [synced, ack] = await Promise.all([
+          storage.getItem(IDENTITY_SYNC_STORAGE_KEY),
+          storage.getItem(RECOVERY_PHRASE_ACK_STORAGE_KEY),
+        ]);
+        // Only consider synced / acknowledged if explicitly stored as 'true'.
+        set({
+          isSynced: synced === STORED_TRUE,
+          recoveryPhraseAcknowledged: ack === STORED_TRUE,
+        });
+      } catch (error) {
+        console.error('[IdentityStore] Failed to hydrate identity state from storage', error);
+        set({
+          isSynced: defaultState.isSynced,
+          recoveryPhraseAcknowledged: defaultState.recoveryPhraseAcknowledged,
+        });
+      }
+    },
+
+    reset: () => {
+      set(defaultState);
+    },
+  }),
+);
 
 /**
  * Persist sync state to platform storage.
@@ -244,7 +260,10 @@ export const persistIdentitySyncState = async (isSynced: boolean): Promise<void>
  */
 export const persistRecoveryPhraseAcknowledged = async (acknowledged: boolean): Promise<void> => {
   try {
-    await storage.setItem(RECOVERY_PHRASE_ACK_STORAGE_KEY, acknowledged ? STORED_TRUE : STORED_FALSE);
+    await storage.setItem(
+      RECOVERY_PHRASE_ACK_STORAGE_KEY,
+      acknowledged ? STORED_TRUE : STORED_FALSE,
+    );
   } catch (error) {
     console.error('[IdentityStore] Failed to persist recovery phrase acknowledgement', error);
   }
@@ -366,6 +385,31 @@ export const getOnboardingFlowFromStorage = async (): Promise<OnboardingFlow | n
     return flow === 'create' || flow === 'import' ? flow : null;
   } catch (error) {
     console.error('[IdentityStore] Failed to read onboarding flow', error);
+    return null;
+  }
+};
+
+/**
+ * Persist the username chosen for a not-yet-registered identity (see
+ * {@link PENDING_USERNAME_STORAGE_KEY}); `null` clears it.
+ */
+export const persistPendingUsername = async (username: string | null): Promise<void> => {
+  try {
+    await storage.setItem(PENDING_USERNAME_STORAGE_KEY, username ?? '');
+  } catch (error) {
+    console.error('[IdentityStore] Failed to persist pending username', error);
+  }
+};
+
+/**
+ * Read the pending username (offline-safe local read); `null` when none.
+ */
+export const getPendingUsernameFromStorage = async (): Promise<string | null> => {
+  try {
+    const username = await storage.getItem(PENDING_USERNAME_STORAGE_KEY);
+    return username ? username : null;
+  } catch (error) {
+    console.error('[IdentityStore] Failed to read pending username', error);
     return null;
   }
 };

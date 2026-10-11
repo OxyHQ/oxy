@@ -31,7 +31,8 @@ const families = [
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) return resolve(path) === resolve(GENERATED_ROOT) ? [] : sourceFiles(path);
+    if (entry.isDirectory())
+      return resolve(path) === resolve(GENERATED_ROOT) ? [] : sourceFiles(path);
     return SOURCE_EXTENSIONS.test(entry.name) ? [path] : [];
   });
 }
@@ -40,7 +41,8 @@ function quotedStrings() {
   const values = new Set();
   for (const file of sourceFiles(SOURCE_ROOT)) {
     const source = readFileSync(file, 'utf8');
-    for (const match of source.matchAll(/(['"`])([A-Za-z0-9][A-Za-z0-9-]*)\1/g)) values.add(match[2]);
+    for (const match of source.matchAll(/(['"`])([A-Za-z0-9][A-Za-z0-9-]*)\1/g))
+      values.add(match[2]);
   }
   return values;
 }
@@ -91,12 +93,21 @@ const manifest = {
 const generatedMaps = [];
 
 for (const family of families) {
-  const glyphMap = require(`@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/${family.sourceName}.json`);
-  const names = Object.keys(glyphMap).filter((name) => strings.has(name)).sort();
+  const glyphMap = require(
+    `@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/${family.sourceName}.json`,
+  );
+  const names = Object.keys(glyphMap)
+    .filter((name) => strings.has(name))
+    .sort();
   const subsetMap = Object.fromEntries(names.map((name) => [name, glyphMap[name]]));
-  const sourceFont = require.resolve(`@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/${family.sourceName}.ttf`);
+  const sourceFont = require.resolve(
+    `@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/${family.sourceName}.ttf`,
+  );
   const outputFont = join(FONT_ROOT, `${family.fontFamily}.ttf`);
-  const unicodes = [...new Set(Object.values(subsetMap))].sort((a, b) => a - b).map((value) => `U+${value.toString(16)}`).join(',');
+  const unicodes = [...new Set(Object.values(subsetMap))]
+    .sort((a, b) => a - b)
+    .map((value) => `U+${value.toString(16)}`)
+    .join(',');
 
   run('pyftsubset', [
     sourceFont,
@@ -116,7 +127,9 @@ for (const family of families) {
 
   const bytes = statSync(outputFont).size;
   if (!existsSync(outputFont) || bytes > family.maxBytes) {
-    throw new Error(`${relative(PACKAGE_ROOT, outputFont)} is ${bytes} bytes; expected <= ${family.maxBytes}`);
+    throw new Error(
+      `${relative(PACKAGE_ROOT, outputFont)} is ${bytes} bytes; expected <= ${family.maxBytes}`,
+    );
   }
   manifest.families[family.key] = {
     fontFamily: family.fontFamily,
@@ -125,7 +138,9 @@ for (const family of families) {
     sha256: hash(outputFont),
     names,
   };
-  generatedMaps.push(`export const ${family.key}GlyphMap = ${JSON.stringify(subsetMap, null, 2)} as const;`);
+  generatedMaps.push(
+    `export const ${family.key}GlyphMap = ${JSON.stringify(subsetMap, null, 2)} as const;`,
+  );
 }
 
 const mapsPath = join(GENERATED_ROOT, 'subsetGlyphMaps.ts');
@@ -133,4 +148,8 @@ writeFileSync(mapsPath, `${generatedMaps.join('\n\n')}\n`);
 manifest.glyphMapsFile = relative(PACKAGE_ROOT, mapsPath);
 manifest.glyphMapsSha256 = hash(mapsPath);
 writeFileSync(join(FONT_ROOT, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-console.log(`Generated exact-shape icon subsets: ${Object.values(manifest.families).map((value) => `${value.fontFamily} ${value.bytes} B`).join(', ')}`);
+console.log(
+  `Generated exact-shape icon subsets: ${Object.values(manifest.families)
+    .map((value) => `${value.fontFamily} ${value.bytes} B`)
+    .join(', ')}`,
+);

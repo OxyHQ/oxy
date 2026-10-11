@@ -345,10 +345,12 @@ export const chargeExportQuery = z
 /* -------------------------------------------------------------------------- */
 
 /** One of the closed threshold set the column's own CHECK admits. */
-const alertThresholdBps = z.number().int().refine(
-  (bps) => (SPENDING_ALERT_THRESHOLDS_BPS as readonly number[]).includes(bps),
-  { message: `must be one of ${SPENDING_ALERT_THRESHOLDS_BPS.join(', ')}` }
-);
+const alertThresholdBps = z
+  .number()
+  .int()
+  .refine((bps) => (SPENDING_ALERT_THRESHOLDS_BPS as readonly number[]).includes(bps), {
+    message: `must be one of ${SPENDING_ALERT_THRESHOLDS_BPS.join(', ')}`,
+  });
 
 const alertThresholdList = z
   .array(alertThresholdBps)
@@ -680,7 +682,7 @@ export const pendingReservationsSchema = z
           reservationCount: z.number().int().nonnegative(),
           heldAmount: exactDecimalSchema,
         })
-        .strict()
+        .strict(),
     ),
     truncated: z.boolean(),
   })

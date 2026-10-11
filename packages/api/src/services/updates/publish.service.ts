@@ -138,11 +138,7 @@ interface ChannelRow {
   updatedAt: Date;
 }
 
-function serializeUpdate(
-  update: UpdateRow,
-  channelName: string,
-  assetSha256s: string[]
-): Update {
+function serializeUpdate(update: UpdateRow, channelName: string, assetSha256s: string[]): Update {
   return {
     id: update.updateId,
     applicationId: update.applicationId,
@@ -156,9 +152,7 @@ function serializeUpdate(
     ...(update.gitCommit ? { gitCommit: update.gitCommit } : {}),
     ...(update.gitBranch ? { gitBranch: update.gitBranch } : {}),
     ...(update.message ? { message: update.message } : {}),
-    ...(update.promotedFromUpdateId
-      ? { promotedFromUpdateId: update.promotedFromUpdateId }
-      : {}),
+    ...(update.promotedFromUpdateId ? { promotedFromUpdateId: update.promotedFromUpdateId } : {}),
     createdAt: update.createdAt.toISOString(),
     updatedAt: update.updatedAt.toISOString(),
   };
@@ -166,7 +160,7 @@ function serializeUpdate(
 
 function serializeChannel(
   channel: ChannelRow,
-  rollbacksToEmbedded: RollbackToEmbeddedEntry[]
+  rollbacksToEmbedded: RollbackToEmbeddedEntry[],
 ): Channel {
   return {
     id: channel.id,
@@ -187,7 +181,7 @@ function serializeChannel(
  */
 async function loadAssetSha256s(
   db: DbHandle,
-  appUpdateIds: string[]
+  appUpdateIds: string[],
 ): Promise<Map<string, string[]>> {
   const byUpdate = new Map<string, string[]>(appUpdateIds.map((id) => [id, []]));
   if (appUpdateIds.length === 0) {
@@ -209,11 +203,9 @@ async function loadAssetSha256s(
 /** The active rollback-to-embedded directives of each channel. */
 async function loadRollbacks(
   db: DbHandle,
-  channelIds: string[]
+  channelIds: string[],
 ): Promise<Map<string, RollbackToEmbeddedEntry[]>> {
-  const byChannel = new Map<string, RollbackToEmbeddedEntry[]>(
-    channelIds.map((id) => [id, []])
-  );
+  const byChannel = new Map<string, RollbackToEmbeddedEntry[]>(channelIds.map((id) => [id, []]));
   if (channelIds.length === 0) {
     return byChannel;
   }
@@ -227,10 +219,7 @@ async function loadRollbacks(
     })
     .from(updateChannelRollbacks)
     .where(inArray(updateChannelRollbacks.channelId, channelIds))
-    .orderBy(
-      asc(updateChannelRollbacks.runtimeVersion),
-      asc(updateChannelRollbacks.platform)
-    );
+    .orderBy(asc(updateChannelRollbacks.runtimeVersion), asc(updateChannelRollbacks.platform));
 
   for (const row of rows) {
     byChannel.get(row.channelId)?.push({
@@ -253,7 +242,7 @@ async function loadRollbacks(
  */
 export async function initAssets(
   applicationId: string,
-  assets: AssetInitItem[]
+  assets: AssetInitItem[],
 ): Promise<AssetInitResponse> {
   const db = getDb();
   const missing: AssetInitResponse['missing'] = [];
@@ -275,7 +264,7 @@ export async function initAssets(
     .from(updateAssets)
     .where(inArray(updateAssets.sha256, [...bySha.keys()]));
   const uploaded = new Set(
-    held.filter((asset) => asset.status === 'uploaded').map((asset) => asset.sha256)
+    held.filter((asset) => asset.status === 'uploaded').map((asset) => asset.sha256),
   );
 
   for (const asset of bySha.values()) {
@@ -339,7 +328,7 @@ export async function initAssets(
  */
 export async function completeAssets(
   applicationId: string,
-  sha256s: string[]
+  sha256s: string[],
 ): Promise<AssetCompleteResponse> {
   const db = getDb();
   const results: AssetCompleteResponse['assets'] = [];
@@ -419,10 +408,9 @@ export async function completeAssets(
 async function ensureChannel(
   db: DbHandle,
   applicationId: string,
-  name: string
+  name: string,
 ): Promise<ChannelRow> {
-  // Mongoose stored this trimmed (`trim: true`), which Postgres has no
-  // counterpart for. `channelNameSchema` already refuses whitespace on every
+  // Stored trimmed; Postgres has no column-level trim. `channelNameSchema` already refuses whitespace on every
   // write path, so this only keeps the stored value's shape stated where it is
   // written rather than assumed.
   const trimmed = name.trim();
@@ -440,7 +428,7 @@ async function ensureChannel(
 async function resolveChannel(
   db: DbHandle,
   applicationId: string,
-  name: string
+  name: string,
 ): Promise<ChannelRow> {
   const [channel] = await db
     .select(channelColumns)
@@ -457,7 +445,7 @@ async function clearRollbackToEmbedded(
   db: DbHandle,
   channelId: string,
   runtimeVersion: string,
-  platform: UpdatePlatform
+  platform: UpdatePlatform,
 ): Promise<void> {
   await db
     .delete(updateChannelRollbacks)
@@ -465,8 +453,8 @@ async function clearRollbackToEmbedded(
       and(
         eq(updateChannelRollbacks.channelId, channelId),
         eq(updateChannelRollbacks.runtimeVersion, runtimeVersion),
-        eq(updateChannelRollbacks.platform, platform)
-      )
+        eq(updateChannelRollbacks.platform, platform),
+      ),
     );
 }
 
@@ -487,7 +475,7 @@ async function assertAssetsUploaded(db: DbHandle, shas: string[]): Promise<void>
     throw new BadRequestError(
       `Cannot publish: ${notUploaded.length} asset(s) not uploaded (${notUploaded
         .slice(0, 3)
-        .join(', ')}${notUploaded.length > 3 ? ', …' : ''})`
+        .join(', ')}${notUploaded.length > 3 ? ', …' : ''})`,
     );
   }
 }
@@ -534,7 +522,7 @@ export async function createUpdate(input: CreateUpdateRequest): Promise<Update> 
           key: asset.key,
           contentType: asset.contentType,
           fileExtension: asset.fileExtension,
-        }))
+        })),
       );
     }
 
@@ -553,7 +541,7 @@ export async function createUpdate(input: CreateUpdateRequest): Promise<Update> 
   return serializeUpdate(
     published.update,
     published.channelName,
-    input.assets.map((asset) => asset.sha256)
+    input.assets.map((asset) => asset.sha256),
   );
 }
 
@@ -575,7 +563,7 @@ async function findHead(
   channelId: string,
   runtimeVersion: string,
   platform: UpdatePlatform,
-  options: { lock?: boolean } = {}
+  options: { lock?: boolean } = {},
 ): Promise<UpdateRow | undefined> {
   const query = db
     .select(updateColumns)
@@ -586,8 +574,8 @@ async function findHead(
         eq(appUpdates.channelId, channelId),
         eq(appUpdates.runtimeVersion, runtimeVersion),
         eq(appUpdates.platform, platform),
-        eq(appUpdates.status, 'published')
-      )
+        eq(appUpdates.status, 'published'),
+      ),
     )
     .orderBy(desc(appUpdates.createdAt))
     .limit(1);
@@ -604,7 +592,7 @@ export async function rollback(
   applicationId: string,
   channelName: string,
   runtimeVersion: string,
-  platform: UpdatePlatform
+  platform: UpdatePlatform,
 ): Promise<{ rolledBack: Update; head: Update | null }> {
   const result = await getDb().transaction(async (tx) => {
     const channel = await resolveChannel(tx, applicationId, channelName);
@@ -627,7 +615,7 @@ export async function rollback(
 
     const assets = await loadAssetSha256s(
       tx,
-      newHead ? [rolledBack.id, newHead.id] : [rolledBack.id]
+      newHead ? [rolledBack.id, newHead.id] : [rolledBack.id],
     );
     return { channel, rolledBack, newHead, assets };
   });
@@ -645,13 +633,13 @@ export async function rollback(
     rolledBack: serializeUpdate(
       result.rolledBack,
       result.channel.name,
-      result.assets.get(result.rolledBack.id) ?? []
+      result.assets.get(result.rolledBack.id) ?? [],
     ),
     head: result.newHead
       ? serializeUpdate(
           result.newHead,
           result.channel.name,
-          result.assets.get(result.newHead.id) ?? []
+          result.assets.get(result.newHead.id) ?? [],
         )
       : null,
   };
@@ -662,10 +650,10 @@ export async function rollback(
  * back to the update embedded in their binary. Replaces any existing directive
  * for the same tuple; `commitTime` is set to now.
  *
- * ONE idempotent statement, and that is the whole point. The Mongo shape —
- * `$pull` the old entry, then `$push` the new one — left a window in which the
- * directive did not exist at all: a device polling the manifest endpoint inside
- * it is handed the very update it was just rolled back from. It also let two
+ * ONE idempotent statement, and that is the whole point. Removing the old entry
+ * and then adding the new one would leave a window in which the directive did
+ * not exist at all: a device polling the manifest endpoint inside it is handed
+ * the very update it was just rolled back from. It would also let two
  * concurrent rollbacks leave two entries for the same tuple. Neither is
  * representable here: the `(channel_id, runtime_version, platform)` primary key
  * is the target of the conflict clause, so the row is updated in place and is
@@ -675,7 +663,7 @@ export async function rollbackToEmbedded(
   applicationId: string,
   channelName: string,
   runtimeVersion: string,
-  platform: UpdatePlatform
+  platform: UpdatePlatform,
 ): Promise<Channel> {
   const db = getDb();
   const channel = await resolveChannel(db, applicationId, channelName);
@@ -713,7 +701,7 @@ export async function promote(
   applicationId: string,
   fromUpdateId: string,
   toChannelName: string,
-  rolloutPercent?: number
+  rolloutPercent?: number,
 ): Promise<Update> {
   const db = getDb();
 
@@ -727,9 +715,7 @@ export async function promote(
       metadata: appUpdates.metadata,
     })
     .from(appUpdates)
-    .where(
-      and(eq(appUpdates.applicationId, applicationId), eq(appUpdates.updateId, fromUpdateId))
-    );
+    .where(and(eq(appUpdates.applicationId, applicationId), eq(appUpdates.updateId, fromUpdateId)));
   if (!source) {
     throw new NotFoundError(`Update ${fromUpdateId} not found`);
   }
@@ -794,7 +780,7 @@ export async function promote(
   return serializeUpdate(
     published.update,
     published.channelName,
-    sourceAssets.map((asset) => asset.sha256)
+    sourceAssets.map((asset) => asset.sha256),
   );
 }
 
@@ -802,7 +788,7 @@ export async function promote(
 export async function setRollout(
   applicationId: string,
   updateId: string,
-  rolloutPercent: number
+  rolloutPercent: number,
 ): Promise<Update> {
   const db = getDb();
 
@@ -843,11 +829,9 @@ export async function listChannels(applicationId: string): Promise<Channel[]> {
 
   const rollbacks = await loadRollbacks(
     db,
-    channels.map((channel) => channel.id)
+    channels.map((channel) => channel.id),
   );
-  return channels.map((channel) =>
-    serializeChannel(channel, rollbacks.get(channel.id) ?? [])
-  );
+  return channels.map((channel) => serializeChannel(channel, rollbacks.get(channel.id) ?? []));
 }
 
 export async function listUpdates(
@@ -855,7 +839,7 @@ export async function listUpdates(
   channelName?: string,
   runtimeVersion?: string,
   platform?: UpdatePlatform,
-  limit = 50
+  limit = 50,
 ): Promise<Update[]> {
   const db = getDb();
 
@@ -865,8 +849,7 @@ export async function listUpdates(
   if (platform) filters.push(eq(appUpdates.platform, platform));
 
   // The channel name comes back on the join rather than from a second pass over
-  // the results — the Mongo version had to resolve it separately because the
-  // channel was a bare id with nothing to join to.
+  // the results.
   const rows = await db
     .select({ ...updateColumns, channelName: updateChannels.name })
     .from(appUpdates)
@@ -877,9 +860,7 @@ export async function listUpdates(
 
   const assets = await loadAssetSha256s(
     db,
-    rows.map((row) => row.id)
+    rows.map((row) => row.id),
   );
-  return rows.map((row) =>
-    serializeUpdate(row, row.channelName, assets.get(row.id) ?? [])
-  );
+  return rows.map((row) => serializeUpdate(row, row.channelName, assets.get(row.id) ?? []));
 }

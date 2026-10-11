@@ -115,7 +115,7 @@ function resolveEdgeRoute(
   viewer: Parameters<typeof resolveEdgeRouteRuntime>[0],
   modelReference: Parameters<typeof resolveEdgeRouteRuntime>[1],
   constraints: Parameters<typeof resolveEdgeRouteRuntime>[2],
-  modality: Parameters<typeof resolveEdgeRouteRuntime>[3]
+  modality: Parameters<typeof resolveEdgeRouteRuntime>[3],
 ) {
   return resolveEdgeRouteRuntime(
     viewer,
@@ -124,7 +124,7 @@ function resolveEdgeRoute(
     modality,
     TEST_OPTIMISE_FOR,
     UNCONSTRAINED_EDGE_CAPACITY,
-    undefined
+    undefined,
   );
 }
 
@@ -149,7 +149,7 @@ async function insertModel(
     commercialUseAllowed?: boolean;
     inputModalities?: string[];
     outputModalities?: string[];
-  } = {}
+  } = {},
 ): Promise<ModelFixture> {
   const db = getDb();
   const publisherSlug = `pub${suffix()}`;
@@ -200,7 +200,10 @@ async function insertModel(
       // ("this marks nothing"), not a placeholder.
       ...(outputModalities.every((modality) => modality === 'text')
         ? {}
-        : { provenanceMarking: 'none' as const, contentFilteringDefault: 'provider_default' as const }),
+        : {
+            provenanceMarking: 'none' as const,
+            contentFilteringDefault: 'provider_default' as const,
+          }),
     })
     .returning({ id: inferenceModelRevisions.id });
 
@@ -281,7 +284,7 @@ const PERMISSION_FOR_SCOPE = {
 /** One approved, priced deployment of `model`, on its own provider. */
 async function insertDeployment(
   model: ModelFixture,
-  options: DeploymentOptions
+  options: DeploymentOptions,
 ): Promise<{ providerSlug: string; deploymentId: string }> {
   const db = getDb();
   const providerSlug = `${options.rank}prv${suffix()}`;
@@ -315,30 +318,30 @@ async function insertDeployment(
 
   const unitPrices = options.unitPrices ?? DEFAULT_UNIT_PRICES;
   if (unitPrices.length > 0) {
-    await db.insert(priceVersionUnitPrices).values(
-      unitPrices.map((unitPrice) => ({ priceVersionId: priceVersion.id, ...unitPrice }))
-    );
+    await db
+      .insert(priceVersionUnitPrices)
+      .values(unitPrices.map((unitPrice) => ({ priceVersionId: priceVersion.id, ...unitPrice })));
   }
 
   await db.insert(inferenceDeployments).values({
-      modelRevisionId: model.revisionId,
-      providerSlug,
-      internalRouteId,
-      regions: options.regions ?? ['us-west-2'],
-      retainsPayloads: options.retainsPayloads ?? false,
-      retentionDays: options.retentionDays ?? 0,
-      trainsOnCustomerData: options.trainsOnCustomerData ?? false,
-      zeroDataRetentionAvailable: options.zeroDataRetentionAvailable ?? true,
-      availabilityScope: scope,
-      commercialPermission: PERMISSION_FOR_SCOPE[scope],
-      dedicatedCapacity: options.dedicatedCapacity ?? false,
-      status: 'active',
-      legalReviewStatus: 'approved',
-      legalReviewedAt: new Date(),
-      legalReviewEvidenceRef: `contract-register/${suffix()}`,
-      permissionState: 'approved',
-      ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
-    });
+    modelRevisionId: model.revisionId,
+    providerSlug,
+    internalRouteId,
+    regions: options.regions ?? ['us-west-2'],
+    retainsPayloads: options.retainsPayloads ?? false,
+    retentionDays: options.retentionDays ?? 0,
+    trainsOnCustomerData: options.trainsOnCustomerData ?? false,
+    zeroDataRetentionAvailable: options.zeroDataRetentionAvailable ?? true,
+    availabilityScope: scope,
+    commercialPermission: PERMISSION_FOR_SCOPE[scope],
+    dedicatedCapacity: options.dedicatedCapacity ?? false,
+    status: 'active',
+    legalReviewStatus: 'approved',
+    legalReviewedAt: new Date(),
+    legalReviewEvidenceRef: `contract-register/${suffix()}`,
+    permissionState: 'approved',
+    ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
+  });
 
   const now = Date.now();
   await db.insert(inferenceDeploymentRoutingScores).values({
@@ -370,8 +373,7 @@ async function insertDeployment(
     ...(options.fundingRemaining === undefined
       ? {}
       : { fundingRemaining: options.fundingRemaining, fundingRemainingUnit: 'requests' }),
-    ...((options.fundingClass === 'free_entitlement' ||
-      options.fundingClass === 'promotional_credit')
+    ...(options.fundingClass === 'free_entitlement' || options.fundingClass === 'promotional_credit'
       ? {
           fundingObservedAt: options.fundingObservedAt ?? new Date(now - 60_000),
           fundingValidUntil: options.fundingValidUntil ?? new Date(now + 3_600_000),
@@ -407,13 +409,13 @@ function requestCeiling(amount: string, currency = 'USD') {
 /** The provider a request resolves to, or the refusal it produced instead. */
 async function servingProvider(
   modelReference: string,
-  constraints: RoutingConstraints
+  constraints: RoutingConstraints,
 ): Promise<string> {
   const resolution = await resolveEdgeRoute(
     PUBLIC_CATALOGUE_VIEWER,
     modelReference,
     constraints,
-    TEXT_COMPLETION_MODALITY
+    TEXT_COMPLETION_MODALITY,
   );
   if (resolution.status !== 'resolved') {
     throw new Error(`expected a resolved route, got ${resolution.status}`);
@@ -438,14 +440,14 @@ describe('a data-handling control excludes the route that fails it', () => {
 
     // THE CLAIM: the constrained route is not selected, the conforming one is.
     await expect(
-      servingProvider(model.modelId, constrain({ requireZeroDataRetention: true }))
+      servingProvider(model.modelId, constrain({ requireZeroDataRetention: true })),
     ).resolves.toBe(zeroRetention.providerSlug);
 
     // POSITIVE CONTROL, and the mutation guard: with the control absent, the
     // route that violates it is exactly what this pair resolves to. Remove the
     // filter and the assertion above returns THIS provider instead.
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      retaining.providerSlug
+      retaining.providerSlug,
     );
   });
 
@@ -459,8 +461,8 @@ describe('a data-handling control excludes the route that fails it', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true })
-      )
+        constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true }),
+      ),
     ).resolves.toBe(zeroRetention.providerSlug);
   });
 
@@ -478,7 +480,7 @@ describe('a data-handling control excludes the route that fails it', () => {
     const actuallyZero = await insertDeployment(model, { rank: 'z' });
 
     await expect(
-      servingProvider(model.modelId, constrain({ requireZeroDataRetention: true }))
+      servingProvider(model.modelId, constrain({ requireZeroDataRetention: true })),
     ).resolves.toBe(actuallyZero.providerSlug);
   });
 
@@ -502,10 +504,10 @@ describe('a data-handling control excludes the route that fails it', () => {
     });
 
     await expect(
-      servingProvider(model.modelId, constrain({ prohibitTrainingOnCustomerData: true }))
+      servingProvider(model.modelId, constrain({ prohibitTrainingOnCustomerData: true })),
     ).resolves.toBe(notTraining.providerSlug);
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      training.providerSlug
+      training.providerSlug,
     );
   });
 });
@@ -517,10 +519,10 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const permitted = await insertDeployment(model, { rank: 'z' });
 
     await expect(
-      servingProvider(model.modelId, constrain({ providerDenylist: [denied.providerSlug] }))
+      servingProvider(model.modelId, constrain({ providerDenylist: [denied.providerSlug] })),
     ).resolves.toBe(permitted.providerSlug);
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      denied.providerSlug
+      denied.providerSlug,
     );
   });
 
@@ -530,14 +532,14 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const allowed = await insertDeployment(model, { rank: 'z' });
 
     await expect(
-      servingProvider(model.modelId, constrain({ providerAllowlist: [allowed.providerSlug] }))
+      servingProvider(model.modelId, constrain({ providerAllowlist: [allowed.providerSlug] })),
     ).resolves.toBe(allowed.providerSlug);
 
     // The degenerate input. `[].includes(x)` is false for every x, so an empty
     // allowlist written as a bare membership test would exclude EVERY route —
     // the contract says it means "no allowlist".
     await expect(
-      servingProvider(model.modelId, constrain({ providerAllowlist: [] }))
+      servingProvider(model.modelId, constrain({ providerAllowlist: [] })),
     ).resolves.toBe(first.providerSlug);
   });
 
@@ -553,10 +555,10 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const contained = await insertDeployment(model, { rank: 'z', regions: ['eu-west-1'] });
 
     await expect(
-      servingProvider(model.modelId, constrain({ allowedRegions: ['eu-west-1'] }))
+      servingProvider(model.modelId, constrain({ allowedRegions: ['eu-west-1'] })),
     ).resolves.toBe(contained.providerSlug);
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      spillsOutside.providerSlug
+      spillsOutside.providerSlug,
     );
   });
 
@@ -566,10 +568,10 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const permitted = await insertDeployment(model, { rank: 'z', regions: ['eu-west-1'] });
 
     await expect(
-      servingProvider(model.modelId, constrain({ deniedRegions: ['us-west-2'] }))
+      servingProvider(model.modelId, constrain({ deniedRegions: ['us-west-2'] })),
     ).resolves.toBe(permitted.providerSlug);
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      denied.providerSlug
+      denied.providerSlug,
     );
   });
 
@@ -579,26 +581,29 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const attested = await insertDeployment(model, { rank: 'z', regions: ['eu-west-1'] });
 
     await expect(
-      servingProvider(model.modelId, constrain({ allowedRegions: ['eu-west-1'] }))
+      servingProvider(model.modelId, constrain({ allowedRegions: ['eu-west-1'] })),
     ).resolves.toBe(attested.providerSlug);
     await expect(
-      servingProvider(model.modelId, constrain({ deniedRegions: ['us-west-2'] }))
+      servingProvider(model.modelId, constrain({ deniedRegions: ['us-west-2'] })),
     ).resolves.toBe(attested.providerSlug);
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      unattested.providerSlug
+      unattested.providerSlug,
     );
   });
 
   it('honours Oxy-hosted-only', async () => {
     const model = await insertModel();
-    const thirdParty = await insertDeployment(model, { rank: 'a', availabilityScope: 'public_payg' });
+    const thirdParty = await insertDeployment(model, {
+      rank: 'a',
+      availabilityScope: 'public_payg',
+    });
     const oxyHosted = await insertDeployment(model, { rank: 'z', availabilityScope: 'oxy_hosted' });
 
-    await expect(
-      servingProvider(model.modelId, constrain({ oxyHostedOnly: true }))
-    ).resolves.toBe(oxyHosted.providerSlug);
+    await expect(servingProvider(model.modelId, constrain({ oxyHostedOnly: true }))).resolves.toBe(
+      oxyHosted.providerSlug,
+    );
     await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
-      thirdParty.providerSlug
+      thirdParty.providerSlug,
     );
   });
 
@@ -608,19 +613,19 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     const dedicated = await insertDeployment(model, { rank: 'z', dedicatedCapacity: true });
 
     await expect(
-      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'require' }))
+      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'require' })),
     ).resolves.toBe(dedicated.providerSlug);
 
     // `prefer` is a RANKING among routes that already qualify — routing
     // execution, and the data plane's. It must never exclude a candidate.
     await expect(
-      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'prefer' }))
+      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'prefer' })),
     ).resolves.toBe(shared.providerSlug);
 
     // `disabled` is the other arm a route can fail: reserved capacity belongs to
     // one enterprise account, so a policy that says "shared" gets shared.
     await expect(
-      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'disabled' }))
+      servingProvider(model.modelId, constrain({ dedicatedCapacity: 'disabled' })),
     ).resolves.toBe(shared.providerSlug);
   });
 });
@@ -640,7 +645,7 @@ describe('the licence controls are model-level, so both candidates stand or fall
       PUBLIC_CATALOGUE_VIEWER,
       nonCommercial.modelId,
       constraints,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -650,13 +655,13 @@ describe('the licence controls are model-level, so both candidates stand or fall
 
     // POSITIVE CONTROL on the same control: a model that HAS the rights resolves.
     await expect(servingProvider(commercial.modelId, constraints)).resolves.toBe(
-      served.providerSlug
+      served.providerSlug,
     );
     // SECOND CONTROL: the refused model is genuinely servable without the
     // control, so the refusal above is measuring the control and not a fixture
     // that never landed.
     await expect(
-      servingProvider(nonCommercial.modelId, UNCONSTRAINED_ROUTING)
+      servingProvider(nonCommercial.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeTruthy();
   });
 
@@ -668,7 +673,7 @@ describe('the licence controls are model-level, so both candidates stand or fall
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ allowedLicenseIds: ['apache-2.0'] }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -677,10 +682,10 @@ describe('the licence controls are model-level, so both candidates stand or fall
     });
 
     await expect(
-      servingProvider(model.modelId, constrain({ allowedLicenseIds: ['cc-by-nc-4.0'] }))
+      servingProvider(model.modelId, constrain({ allowedLicenseIds: ['cc-by-nc-4.0'] })),
     ).resolves.toBe(deployment.providerSlug);
     await expect(
-      servingProvider(model.modelId, constrain({ allowedLicenseIds: [] }))
+      servingProvider(model.modelId, constrain({ allowedLicenseIds: [] })),
     ).resolves.toBe(deployment.providerSlug);
   });
 });
@@ -699,7 +704,7 @@ describe('byokPreference', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ byokPreference: 'require' }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -708,7 +713,7 @@ describe('byokPreference', () => {
     });
 
     await expect(
-      servingProvider(model.modelId, constrain({ byokPreference: 'disabled' }))
+      servingProvider(model.modelId, constrain({ byokPreference: 'disabled' })),
     ).resolves.toBe(shared.providerSlug);
   });
 });
@@ -751,8 +756,10 @@ describe('maxPricePerUnit', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000)] })
-      )
+        constrain({
+          maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000)],
+        }),
+      ),
     ).resolves.toBe(cheap.providerSlug);
 
     // POSITIVE CONTROL, and the mutation guard: the same pair under a ceiling
@@ -761,8 +768,10 @@ describe('maxPricePerUnit', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerUnit: [unitCeiling('output_tokens', '20.000000000000', 1_000_000)] })
-      )
+        constrain({
+          maxPricePerUnit: [unitCeiling('output_tokens', '20.000000000000', 1_000_000)],
+        }),
+      ),
     ).resolves.toBe(expensive.providerSlug);
   });
 
@@ -779,8 +788,8 @@ describe('maxPricePerUnit', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '3.000000000000', 1_000_000)] })
-      )
+        constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '3.000000000000', 1_000_000)] }),
+      ),
     ).resolves.toBe(route.providerSlug);
   });
 
@@ -800,8 +809,8 @@ describe('maxPricePerUnit', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '0.000002000000', 1)] }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -816,8 +825,8 @@ describe('maxPricePerUnit', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '0.000004000000', 1)] }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toMatchObject({ status: 'resolved' });
   });
 
@@ -840,8 +849,8 @@ describe('maxPricePerUnit', () => {
         constrain({
           maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000, 'USD')],
         }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -856,8 +865,8 @@ describe('maxPricePerUnit', () => {
         model.modelId,
         constrain({
           maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000, 'EUR')],
-        })
-      )
+        }),
+      ),
     ).resolves.toBe(route.providerSlug);
   });
 
@@ -877,8 +886,8 @@ describe('maxPricePerUnit', () => {
         model.modelId,
         constrain({
           maxPricePerUnit: [unitCeiling('video_milliseconds', '0.000000000001', 1)],
-        })
-      )
+        }),
+      ),
     ).resolves.toBe(route.providerSlug);
 
     // CONTROL on the same route: a ceiling on the unit it DOES price, below its
@@ -891,8 +900,8 @@ describe('maxPricePerUnit', () => {
         constrain({
           maxPricePerUnit: [unitCeiling('input_tokens', '1.000000000000', 1_000_000)],
         }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -915,8 +924,8 @@ describe('maxPricePerUnit', () => {
         constrain({
           maxPricePerUnit: [unitCeiling('output_tokens', '999.000000000000', 1_000_000)],
         }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -932,8 +941,8 @@ describe('maxPricePerUnit', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         UNCONSTRAINED_ROUTING,
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'routing-evidence-unavailable',
       modelReference: model.modelId,
@@ -959,8 +968,8 @@ describe('maxPricePerRequest', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerRequest: requestCeiling('0.010000000000') })
-      )
+        constrain({ maxPricePerRequest: requestCeiling('0.010000000000') }),
+      ),
     ).resolves.toBe(cheap.providerSlug);
 
     // POSITIVE CONTROL and mutation guard, same shape as every case above: under
@@ -968,8 +977,8 @@ describe('maxPricePerRequest', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerRequest: requestCeiling('0.100000000000') })
-      )
+        constrain({ maxPricePerRequest: requestCeiling('0.100000000000') }),
+      ),
     ).resolves.toBe(expensive.providerSlug);
   });
 
@@ -985,8 +994,8 @@ describe('maxPricePerRequest', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ maxPricePerRequest: requestCeiling('0.010000000000') }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -1000,8 +1009,8 @@ describe('maxPricePerRequest', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ maxPricePerRequest: requestCeiling('1.000000000000') }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toMatchObject({ status: 'resolved' });
   });
 
@@ -1018,8 +1027,8 @@ describe('maxPricePerRequest', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ maxPricePerRequest: requestCeiling('1.000000000000', 'USD') }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -1029,8 +1038,8 @@ describe('maxPricePerRequest', () => {
     await expect(
       servingProvider(
         model.modelId,
-        constrain({ maxPricePerRequest: requestCeiling('1.000000000000', 'EUR') })
-      )
+        constrain({ maxPricePerRequest: requestCeiling('1.000000000000', 'EUR') }),
+      ),
     ).resolves.toBe(route.providerSlug);
   });
 
@@ -1045,8 +1054,8 @@ describe('maxPricePerRequest', () => {
         PUBLIC_CATALOGUE_VIEWER,
         unpricedModel.modelId,
         constrain({ maxPricePerRequest: requestCeiling('1.000000000000') }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: unpricedModel.modelId,
@@ -1068,8 +1077,8 @@ describe('maxPricePerRequest', () => {
     await expect(
       servingProvider(
         pricedModel.modelId,
-        constrain({ maxPricePerRequest: requestCeiling('0.000001000000') })
-      )
+        constrain({ maxPricePerRequest: requestCeiling('0.000001000000') }),
+      ),
     ).resolves.toBe(route.providerSlug);
   });
 });
@@ -1098,7 +1107,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ requireZeroDataRetention: true }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     // The exact answer, not merely "not resolved": the status, the reference and
@@ -1115,7 +1124,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(served.status).toBe('resolved');
   });
@@ -1142,7 +1151,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -1169,7 +1178,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ prohibitTrainingOnCustomerData: true, requireZeroDataRetention: true }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(resolution).toEqual({
       status: 'resolved',
@@ -1199,7 +1208,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution.status).toBe('resolved');
@@ -1233,7 +1242,7 @@ describe('a request that cannot be served under its own policy is refused', () =
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution).toEqual({
@@ -1258,7 +1267,7 @@ describe('a policy refusal is never confused with an absent route', () => {
       PUBLIC_CATALOGUE_VIEWER,
       `nobody/nothing${suffix()}`,
       constraints,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(absent.status).toBe('unknown-model');
 
@@ -1278,7 +1287,7 @@ describe('a policy refusal is never confused with an absent route', () => {
       PUBLIC_CATALOGUE_VIEWER,
       present.modelId,
       constraints,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(excluded).toEqual({
       status: 'policy-excluded',
@@ -1298,8 +1307,8 @@ describe('a policy refusal is never confused with an absent route', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ requireZeroDataRetention: true }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({ status: 'unknown-model', modelReference: model.modelId });
 
     // CONTROL: the route is real and resolvable — for the audience it is for.
@@ -1307,7 +1316,7 @@ describe('a policy refusal is never confused with an absent route', () => {
       INTERNAL_VIEWER,
       model.modelId,
       constrain({ requireZeroDataRetention: true }),
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
     expect(internal.status).toBe('resolved');
   });
@@ -1331,8 +1340,8 @@ describe('a policy refusal is never confused with an absent route', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         constrain({ prohibitTrainingOnCustomerData: true }),
-        TEXT_COMPLETION_MODALITY
-      )
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'policy-excluded',
       modelReference: model.modelId,
@@ -1342,7 +1351,12 @@ describe('a policy refusal is never confused with an absent route', () => {
     // CONTROL: without the control it IS the pricing gap, so the assertion above
     // is about the ordering of the two checks and not about the fixture.
     await expect(
-      resolveEdgeRoute(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING, TEXT_COMPLETION_MODALITY)
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        UNCONSTRAINED_ROUTING,
+        TEXT_COMPLETION_MODALITY,
+      ),
     ).resolves.toEqual({
       status: 'routing-evidence-unavailable',
       modelReference: model.modelId,
@@ -1401,7 +1415,7 @@ describe('routing score order and exact Kaana identity', () => {
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
         UNCONSTRAINED_ROUTING,
-        TEXT_COMPLETION_MODALITY
+        TEXT_COMPLETION_MODALITY,
       );
       expect(resolution.status).toBe('resolved');
       if (resolution.status !== 'resolved') continue;
@@ -1420,7 +1434,7 @@ describe('routing score order and exact Kaana identity', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution.status).toBe('resolved');
@@ -1458,17 +1472,14 @@ describe('routing score order and exact Kaana identity', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution.status).toBe('resolved');
     if (resolution.status !== 'resolved') return;
-    expect([resolution.route, ...resolution.alternates].map((route) => route.deploymentId)).toEqual([
-      free.deploymentId,
-      cheap.deploymentId,
-      promotional.deploymentId,
-      normal.deploymentId,
-    ]);
+    expect([resolution.route, ...resolution.alternates].map((route) => route.deploymentId)).toEqual(
+      [free.deploymentId, cheap.deploymentId, promotional.deploymentId, normal.deploymentId],
+    );
   });
 
   it('does not prioritize unknown, exhausted, rate-limited, zero, future or expired funding', async () => {
@@ -1522,7 +1533,7 @@ describe('routing score order and exact Kaana identity', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution.status).toBe('resolved');
@@ -1549,7 +1560,7 @@ describe('routing score order and exact Kaana identity', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     expect(resolution.status).toBe('resolved');
@@ -1577,14 +1588,14 @@ describe('selectRouteForViewer applies the policy as well', () => {
     const constrained = await selectRouteForViewer(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ requireZeroDataRetention: true })
+      constrain({ requireZeroDataRetention: true }),
     );
     expect(constrained?.provider).toBe(zeroRetention.providerSlug);
 
     const unconstrained = await selectRouteForViewer(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      UNCONSTRAINED_ROUTING
+      UNCONSTRAINED_ROUTING,
     );
     expect(unconstrained?.provider).toBe(retaining.providerSlug);
   });
@@ -1602,14 +1613,14 @@ describe('selectRouteForViewer applies the policy as well', () => {
       selectRouteForViewer(
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
-        constrain({ requireZeroDataRetention: true })
-      )
+        constrain({ requireZeroDataRetention: true }),
+      ),
     ).resolves.toBeUndefined();
 
     // CONTROL: the route exists and is selectable, so the refusal above is the
     // policy rather than an empty catalogue.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING),
     ).resolves.toBeDefined();
   });
 });
@@ -1663,9 +1674,7 @@ describe('the classification covers the contract exactly', () => {
 
     // VACUITY FLOOR: the scan sees a real, fully-populated policy. Without it,
     // "every field is classified" is also what an empty object reports.
-    expect(Object.keys(policy).length).toBeGreaterThanOrEqual(
-      enforced.length + unfiltered.length
-    );
+    expect(Object.keys(policy).length).toBeGreaterThanOrEqual(enforced.length + unfiltered.length);
 
     for (const field of Object.keys(policy)) {
       expect([...enforced, ...unfiltered]).toContain(field);
@@ -1726,7 +1735,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
     // Without this passing, every refusal below could be refusing for an
@@ -1745,10 +1754,11 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      TEXT_COMPLETION_MODALITY
+      TEXT_COMPLETION_MODALITY,
     );
 
-    if (resolved.status !== 'resolved') throw new Error(`expected resolved, got ${resolved.status}`);
+    if (resolved.status !== 'resolved')
+      throw new Error(`expected resolved, got ${resolved.status}`);
     expect(resolved.route.inputModalities).toEqual(['text']);
     expect(resolved.route.outputModalities).toEqual(['text', 'embedding']);
   });
@@ -1763,7 +1773,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      { input: 'text', output: 'embedding' }
+      { input: 'text', output: 'embedding' },
     );
 
     expect(refused).toEqual({
@@ -1783,7 +1793,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      { input: 'audio', output: 'image' }
+      { input: 'audio', output: 'image' },
     );
 
     if (refused.status !== 'modality-unsupported') {
@@ -1803,7 +1813,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      { input: 'text', output: 'embedding' }
+      { input: 'text', output: 'embedding' },
     );
 
     expect(resolved.status).toBe('resolved');
@@ -1820,7 +1830,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       UNCONSTRAINED_ROUTING,
-      { input: 'text' }
+      { input: 'text' },
     );
 
     expect(resolved.status).toBe('resolved');
@@ -1841,7 +1851,7 @@ describe('resolveEdgeRoute — the modality filter', () => {
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
       constrain({ requireCommercialUseRights: true }),
-      { input: 'text', output: 'audio' }
+      { input: 'text', output: 'audio' },
     );
 
     expect(refused.status).toBe('modality-unsupported');

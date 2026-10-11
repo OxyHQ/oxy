@@ -22,7 +22,7 @@ function normalizeOptionalInlineText(value: string | undefined): string | undefi
 class LocationService {
   private readonly baseUrl = 'https://nominatim.openstreetmap.org';
   private readonly defaultHeaders = {
-    'User-Agent': 'OxyHQ-LocationSearch/1.0'
+    'User-Agent': 'OxyHQ-LocationSearch/1.0',
   };
 
   /**
@@ -31,18 +31,18 @@ class LocationService {
   private optimizeQuery(query: string): string {
     // Remove extra whitespace and normalize
     let optimized = normalizeInlineText(query);
-    
+
     // Add common location keywords if not present
     const locationKeywords = ['street', 'avenue', 'road', 'boulevard', 'plaza', 'square'];
-    const hasLocationKeyword = locationKeywords.some(keyword => 
-      optimized.toLowerCase().includes(keyword)
+    const hasLocationKeyword = locationKeywords.some((keyword) =>
+      optimized.toLowerCase().includes(keyword),
     );
-    
+
     if (!hasLocationKeyword && optimized.length < 10) {
       // For short queries, try to make them more specific
       optimized = `${optimized} location`;
     }
-    
+
     return optimized;
   }
 
@@ -50,21 +50,15 @@ class LocationService {
    * Search for locations with caching and rate limiting
    */
   async searchLocations(
-    query: string, 
-    options: LocationSearchOptions = {}
+    query: string,
+    options: LocationSearchOptions = {},
   ): Promise<EnhancedLocationResult[]> {
     const endTimer = performanceMonitor.startTimer('location_search');
-    
-    const {
-      limit = 5,
-      countrycodes,
-      addressdetails = 1,
-      useCache = true,
-      cacheTTL
-    } = options;
+
+    const { limit = 5, countrycodes, addressdetails = 1, useCache = true, cacheTTL } = options;
 
     const optimizedQuery = this.optimizeQuery(query);
-    
+
     // Check cache first
     if (useCache) {
       const cached = locationCache.get(optimizedQuery, limit, countrycodes);
@@ -89,22 +83,19 @@ class LocationService {
         limit: limit.toString(),
         addressdetails: addressdetails.toString(),
         'accept-language': 'en',
-        'dedupe': '1', // Remove duplicates
-        'extratags': '1', // Get extra tags for better results
-        'namedetails': '1' // Get name details
+        dedupe: '1', // Remove duplicates
+        extratags: '1', // Get extra tags for better results
+        namedetails: '1', // Get name details
       });
 
       if (countrycodes) {
         params.append('countrycodes', countrycodes);
       }
 
-      const response = await axios.get(
-        `${this.baseUrl}/search?${params.toString()}`,
-        {
-          headers: this.defaultHeaders,
-          timeout: 8000 // Reduced timeout for faster response
-        }
-      );
+      const response = await axios.get(`${this.baseUrl}/search?${params.toString()}`, {
+        headers: this.defaultHeaders,
+        timeout: 8000, // Reduced timeout for faster response
+      });
 
       const results: NominatimResult[] = response.data;
 
@@ -119,15 +110,14 @@ class LocationService {
       logger.info(`Found ${enhancedResults.length} locations for query: ${optimizedQuery}`);
       endTimer();
       return enhancedResults;
-
     } catch (error) {
       logger.error('Error searching locations:', error);
       endTimer();
-      
+
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
           // Rate limited - increase wait time
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
           throw new Error('Rate limit exceeded. Please try again in a moment.');
         }
         if (error.code === 'ECONNABORTED') {
@@ -143,9 +133,9 @@ class LocationService {
    * Get location details by coordinates with caching
    */
   async getLocationDetails(
-    lat: number, 
-    lon: number, 
-    options: { useCache?: boolean; cacheTTL?: number } = {}
+    lat: number,
+    lon: number,
+    options: { useCache?: boolean; cacheTTL?: number } = {},
   ): Promise<EnhancedLocationResult> {
     const { useCache = true, cacheTTL } = options;
     const cacheKey = `details:${lat.toFixed(6)}:${lon.toFixed(6)}`;
@@ -170,8 +160,8 @@ class LocationService {
         `${this.baseUrl}/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=en&extratags=1&namedetails=1`,
         {
           headers: this.defaultHeaders,
-          timeout: 8000
-        }
+          timeout: 8000,
+        },
       );
 
       const result: NominatimResult = response.data;
@@ -184,13 +174,12 @@ class LocationService {
 
       logger.info(`Retrieved location details for: ${result.display_name}`);
       return enhancedResult;
-
     } catch (error) {
       logger.error('Error getting location details:', error);
-      
+
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
           throw new Error('Rate limit exceeded. Please try again in a moment.');
         }
       }
@@ -210,7 +199,7 @@ class LocationService {
    * so all of them go through the canonical inline normalizer at ingest.
    */
   private transformResults(results: NominatimResult[]): EnhancedLocationResult[] {
-    return results.map(result => {
+    return results.map((result) => {
       const address = result.address || {};
       const lat = Number.parseFloat(result.lat) || 0;
       const lon = Number.parseFloat(result.lon) || 0;
@@ -250,18 +239,18 @@ class LocationService {
    * Batch search multiple queries efficiently
    */
   async batchSearch(
-    queries: string[], 
-    options: LocationSearchOptions = {}
+    queries: string[],
+    options: LocationSearchOptions = {},
   ): Promise<Map<string, EnhancedLocationResult[]>> {
     const results = new Map<string, EnhancedLocationResult[]>();
-    
+
     // Process queries in parallel with rate limiting
     const promises = queries.map(async (query, index) => {
       // Stagger requests to avoid overwhelming the API
       if (index > 0) {
-        await new Promise(resolve => setTimeout(resolve, index * 100));
+        await new Promise((resolve) => setTimeout(resolve, index * 100));
       }
-      
+
       try {
         const queryResults = await this.searchLocations(query, options);
         results.set(query, queryResults);
@@ -292,4 +281,4 @@ class LocationService {
 
 // Export singleton instance
 export const locationService = new LocationService();
-export default locationService; 
+export default locationService;

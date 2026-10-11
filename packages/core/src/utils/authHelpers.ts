@@ -36,7 +36,7 @@ export class AuthenticationFailedError extends Error {
 export async function ensureValidToken(
   oxyServices: OxyServices,
   _activeSessionId: string | null | undefined,
-  syncSession?: () => Promise<unknown>
+  syncSession?: () => Promise<unknown>,
 ): Promise<void> {
   if (oxyServices.session.isAuthenticated) {
     return;
@@ -51,7 +51,10 @@ export async function ensureValidToken(
     } catch (syncError) {
       const errorMessage = syncError instanceof Error ? syncError.message : String(syncError);
 
-      if (errorMessage.includes('AUTH_REQUIRED_OFFLINE_SESSION') || errorMessage.includes('offline')) {
+      if (
+        errorMessage.includes('AUTH_REQUIRED_OFFLINE_SESSION') ||
+        errorMessage.includes('offline')
+      ) {
         throw new SessionSyncRequiredError();
       }
 
@@ -59,7 +62,9 @@ export async function ensureValidToken(
     }
   }
 
-  throw new SessionSyncRequiredError('No active access token is available. Sync the session before calling authenticated APIs.');
+  throw new SessionSyncRequiredError(
+    'No active access token is available. Sync the session before calling authenticated APIs.',
+  );
 }
 
 /**
@@ -98,7 +103,7 @@ export function isAuthenticationError(error: unknown): boolean {
  */
 export async function withAuthErrorHandling<T>(
   apiCall: () => Promise<T>,
-  options?: HandleApiErrorOptions
+  options?: HandleApiErrorOptions,
 ): Promise<T> {
   try {
     return await apiCall();
@@ -136,7 +141,7 @@ export async function authenticatedApiCall<T>(
   oxyServices: OxyServices,
   activeSessionId: string | null | undefined,
   apiCall: () => Promise<T>,
-  syncSession?: () => Promise<unknown>
+  syncSession?: () => Promise<unknown>,
 ): Promise<T> {
   await ensureValidToken(oxyServices, activeSessionId, syncSession);
 

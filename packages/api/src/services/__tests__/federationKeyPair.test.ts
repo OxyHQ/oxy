@@ -1,13 +1,10 @@
 /**
  * Federation key pairs against a REAL Postgres.
  *
- * The suite this replaces mocked `mongoose` wholesale — `model()` returned a
- * `{ findOne, create }` pair of `jest.fn`s — and asserted that `findOne` was
- * CALLED with the lowercased keyId. That proved the argument was built as
- * expected and nothing else: it could not have caught a key stored under one
- * id and read back under another, because no row ever existed.
- *
- * Every assertion here reads the row back.
+ * Every assertion here reads the row back. Asserting only that a lookup was
+ * CALLED with the lowercased keyId would prove the argument was built as
+ * expected and nothing else: it could not catch a key stored under one id and
+ * read back under another.
  *
  * MOCKED, because each is a collaborator this file is not about: the asset and
  * S3 services (federated avatar storage) and `userCache`.

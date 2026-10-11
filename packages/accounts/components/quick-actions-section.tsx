@@ -39,12 +39,13 @@ export function QuickActionsSection({ actions, onPressIn }: QuickActionsSectionP
           accessibilityLabel={action.title}
         >
           <View style={[styles.chipIcon, { backgroundColor: action.iconColor }]}>
-            <MaterialCommunityIcons name={action.icon} size={20} color={darkenColor(action.iconColor)} />
+            <MaterialCommunityIcons
+              name={action.icon}
+              size={20}
+              color={darkenColor(action.iconColor)}
+            />
           </View>
-          <Text
-            style={[styles.chipText, { color: colors.text }]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.chipText, { color: colors.text }]} numberOfLines={1}>
             {action.title}
           </Text>
         </TouchableOpacity>
@@ -84,4 +85,3 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   } as const,
 });
-

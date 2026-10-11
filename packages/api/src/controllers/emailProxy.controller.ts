@@ -30,7 +30,7 @@ const FONT_MIME: Record<string, string> = {
 // Transparent 1x1 GIF for blocked tracking pixels
 const TRANSPARENT_GIF = Buffer.from(
   'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-  'base64'
+  'base64',
 );
 
 // ─── URL validation ───────────────────────────────────────────────
@@ -151,15 +151,18 @@ function addToCache(key: string, buffer: Buffer, contentType: string): void {
 }
 
 // Periodic cache cleanup
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of cache.entries()) {
-    if (now - entry.timestamp > CACHE_TTL) {
-      currentCacheSize -= entry.buffer.length;
-      cache.delete(key);
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of cache.entries()) {
+      if (now - entry.timestamp > CACHE_TTL) {
+        currentCacheSize -= entry.buffer.length;
+        cache.delete(key);
+      }
     }
-  }
-}, 60 * 60 * 1000).unref();
+  },
+  60 * 60 * 1000,
+).unref();
 
 // ─── Response Helpers ─────────────────────────────────────────────
 
@@ -180,7 +183,7 @@ function sendProxiedResponse(
   res: ExpressResponse,
   buffer: Buffer,
   contentType: string,
-  cacheHit: boolean
+  cacheHit: boolean,
 ): void {
   res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', buffer.length);
@@ -260,16 +263,16 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
       }
 
       const contentTypeHeader = headers['content-type'];
-      const contentType = (Array.isArray(contentTypeHeader)
-        ? contentTypeHeader[0]
-        : contentTypeHeader) || 'application/octet-stream';
+      const contentType =
+        (Array.isArray(contentTypeHeader) ? contentTypeHeader[0] : contentTypeHeader) ||
+        'application/octet-stream';
       const finalParsed = new URL(finalUrl);
 
       // Validate content type — allow octet-stream for font files (many servers
       // serve .ttf/.woff as application/octet-stream instead of font/*)
       const isAllowedType = /^(image\/|font\/|application\/(font|x-font))/i.test(contentType);
-      const isFontByExtension = contentType === 'application/octet-stream'
-        && FONT_EXTENSIONS.test(finalParsed.pathname);
+      const isFontByExtension =
+        contentType === 'application/octet-stream' && FONT_EXTENSIONS.test(finalParsed.pathname);
       if (!isAllowedType && !isFontByExtension) {
         throw new BadRequestError('Only images and fonts allowed');
       }

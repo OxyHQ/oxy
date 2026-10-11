@@ -27,7 +27,7 @@ function inventory(): Record<string, unknown> {
           modelReference: catalogue.modelReference,
           upstreamModelId: provider.upstreamModelId,
           current: true,
-        }))
+        })),
       ),
       {
         deploymentId: 'dep_unrelated_exact_id',
@@ -53,31 +53,31 @@ describe('the versioned live Kaana inventory bootstrap gate', () => {
     await expect(
       readBoundedKaanaInventoryBody(
         bodyChunks(first, second),
-        first.byteLength + second.byteLength
-      )
+        first.byteLength + second.byteLength,
+      ),
     ).resolves.toBe('{"ok":true}');
 
     await expect(
       readBoundedKaanaInventoryBody(
         bodyChunks(encoder.encode('{}')),
-        KAANA_INITIAL_INVENTORY_MAX_BYTES + 1
-      )
+        KAANA_INITIAL_INVENTORY_MAX_BYTES + 1,
+      ),
     ).rejects.toThrow(/ContentLength exceeds/);
     await expect(
       readBoundedKaanaInventoryBody(
         bodyChunks(new Uint8Array(KAANA_INITIAL_INVENTORY_MAX_BYTES + 1)),
-        KAANA_INITIAL_INVENTORY_MAX_BYTES
-      )
+        KAANA_INITIAL_INVENTORY_MAX_BYTES,
+      ),
     ).rejects.toThrow(/body exceeds/);
   });
 
   it('refuses missing or truncated ContentLength and exposes a cancellable timeout', async () => {
     const encoder = new TextEncoder();
     await expect(
-      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), undefined)
+      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), undefined),
     ).rejects.toThrow(/ContentLength/);
     await expect(
-      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), 3)
+      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), 3),
     ).rejects.toThrow(/does not match ContentLength/);
 
     jest.useFakeTimers();
@@ -93,9 +93,9 @@ describe('the versioned live Kaana inventory bootstrap gate', () => {
     'refuses static credential env %s',
     (name) => {
       expect(() => assertKaanaInventoryCredentialSource({ [name]: 'static-secret' })).toThrow(
-        /Static AWS credential env/
+        /Static AWS credential env/,
       );
-    }
+    },
   );
 
   it('allows a named local profile or the implicit ECS task-role provider', () => {
@@ -103,7 +103,7 @@ describe('the versioned live Kaana inventory bootstrap gate', () => {
     expect(() =>
       assertKaanaInventoryCredentialSource({
         AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: '/v2/credentials/task',
-      })
+      }),
     ).not.toThrow();
   });
 
@@ -161,32 +161,44 @@ describe('the versioned live Kaana inventory bootstrap gate', () => {
 
   const speechDeployment = (value: Record<string, unknown>): Record<string, unknown> => {
     const deployment = (value.deployments as Record<string, unknown>[]).find(
-      (entry) => entry.deploymentId === 'dep_xai_tts_observed_2026_09_24'
+      (entry) => entry.deploymentId === 'dep_xai_tts_observed_2026_09_24',
     );
     if (deployment === undefined) throw new Error('fixture lost the speech deployment');
     return deployment;
   };
 
   it.each([
-    ['speech deployment absent', (value: Record<string, unknown>) => {
-      value.deployments = (value.deployments as Record<string, unknown>[]).filter(
-        (entry) => entry.deploymentId !== 'dep_xai_tts_observed_2026_09_24'
-      );
-    }],
-    ['speech bound to the text model', (value: Record<string, unknown>) => {
-      speechDeployment(value).modelReference = KAANA_INITIAL_MODEL_REFERENCE;
-    }],
-    ['speech on another provider', (value: Record<string, unknown>) => {
-      speechDeployment(value).provider = 'openrouter';
-    }],
-    ['speech on a chat endpoint', (value: Record<string, unknown>) => {
-      speechDeployment(value).upstreamModelId = 'grok-4';
-    }],
+    [
+      'speech deployment absent',
+      (value: Record<string, unknown>) => {
+        value.deployments = (value.deployments as Record<string, unknown>[]).filter(
+          (entry) => entry.deploymentId !== 'dep_xai_tts_observed_2026_09_24',
+        );
+      },
+    ],
+    [
+      'speech bound to the text model',
+      (value: Record<string, unknown>) => {
+        speechDeployment(value).modelReference = KAANA_INITIAL_MODEL_REFERENCE;
+      },
+    ],
+    [
+      'speech on another provider',
+      (value: Record<string, unknown>) => {
+        speechDeployment(value).provider = 'openrouter';
+      },
+    ],
+    [
+      'speech on a chat endpoint',
+      (value: Record<string, unknown>) => {
+        speechDeployment(value).upstreamModelId = 'grok-4';
+      },
+    ],
   ])('refuses the reviewed speech route when %s', (_label, mutate) => {
     const value = inventory();
     mutate(value);
     expect(() => validateKaanaInitialInventory(value, 'version-1', NOW)).toThrow(
-      /dep_xai_tts_observed_2026_09_24/
+      /dep_xai_tts_observed_2026_09_24/,
     );
   });
 

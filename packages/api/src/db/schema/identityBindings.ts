@@ -77,29 +77,29 @@ export const identityBindings = pgTable(
     index('identity_bindings_application_id_user_id_status_idx').on(
       t.applicationId,
       t.userId,
-      t.status
+      t.status,
     ),
     // "Every application this user is bound in" — the compound above leads with
     // `application_id` and cannot serve it.
     index('identity_bindings_user_id_idx').on(t.userId),
-    // Mongo's field-level `{applicationId: 1}` and `{status: 1}` are dropped:
-    // the compound already serves any leading `application_id` prefix, and a
+    // No single-column `(application_id)` or `(status)` index: the compound
+    // already serves any leading `application_id` prefix, and a
     // standalone index over two status values can never beat a scan.
     check(
       'identity_bindings_binding_type_check',
-      sql`${t.bindingType} in (${sql.raw(IDENTITY_BINDING_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.bindingType} in (${sql.raw(IDENTITY_BINDING_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'identity_bindings_status_check',
-      sql`${t.status} in (${sql.raw(IDENTITY_BINDING_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(IDENTITY_BINDING_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
     // A revoked binding must say when it was revoked, and an active one must
-    // not claim to be. Mongo could express neither, so a row could read
-    // `active` while carrying a `revokedAt` — and the engine's "is not revoked"
+    // not claim to be. Otherwise a row could read `active` while carrying a
+    // `revokedAt` — and the engine's "is not revoked"
     // check reads `status`, so such a row would keep producing effects.
     check(
       'identity_bindings_revoked_at_check',
-      sql`(${t.status} = 'revoked') = (${t.revokedAt} is not null)`
+      sql`(${t.status} = 'revoked') = (${t.revokedAt} is not null)`,
     ),
-  ]
+  ],
 );

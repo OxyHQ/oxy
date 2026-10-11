@@ -55,7 +55,11 @@ import { quoteUnits } from './inferenceLedger.service';
 
 export interface MeteredAdmissionInput {
   /** Server-owned private Auto lineage; never read from a public request. */
-  readonly privateAutoParent?: { readonly meteredUsageId: string; readonly requestId: string; readonly deadlineAt: number };
+  readonly privateAutoParent?: {
+    readonly meteredUsageId: string;
+    readonly requestId: string;
+    readonly deadlineAt: number;
+  };
   readonly requestId: string;
   readonly parentRequestId?: string;
   readonly idempotencyKey: string;
@@ -110,13 +114,18 @@ function costCenterSnapshot(accountId: string) {
 
 /** A stable 64-bit lock key for one application + environment's capacity. */
 function capacityLockKey(applicationId: string, environment: string): bigint {
-  const digest = createHash('sha256').update(`inference-capacity:${applicationId}:${environment}`).digest();
+  const digest = createHash('sha256')
+    .update(`inference-capacity:${applicationId}:${environment}`)
+    .digest();
   return digest.readBigInt64BE(0);
 }
 
 /** Read the exact admission population; the caller decides whether to lock it. */
 export async function readMeteredCapacity(
-  executor: SqlExecutor, applicationId: string, environment: InferenceEnvironment, relationshipId?: string
+  executor: SqlExecutor,
+  applicationId: string,
+  environment: InferenceEnvironment,
+  relationshipId?: string,
 ): Promise<{ activeAdmissions: number; dailyAdmissions: number }> {
   const [counts] = await executeRows<{ in_flight: string; today: string }>(
     executor,
@@ -132,16 +141,21 @@ export async function readMeteredCapacity(
         and ${relationshipId === undefined ? sql`true` : sql`${inferenceMeteredUsage.economicRelationshipId} = ${relationshipId}`}
         and ${inferenceMeteredUsage.status} <> 'refused'
         and ${inferenceMeteredUsage.createdAt} >= now() - interval '2 days'
-    `
+    `,
   );
-  return { activeAdmissions: Number(counts?.in_flight ?? 0), dailyAdmissions: Number(counts?.today ?? 0) };
+  return {
+    activeAdmissions: Number(counts?.in_flight ?? 0),
+    dailyAdmissions: Number(counts?.today ?? 0),
+  };
 }
 
 /**
  * Claim the durable usage row for an admitted request. NOTHING may be
  * forwarded unless this returned `claimed`.
  */
-export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promise<MeteredAdmission> {
+export async function claimMeteredAdmission(
+  input: MeteredAdmissionInput,
+): Promise<MeteredAdmission> {
   const values = {
     requestId: input.requestId,
     parentRequestId: input.parentRequestId ?? null,
@@ -173,43 +187,57 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
     if (input.economics.treatment === 'internal_metered') {
       const { capacity } = input.economics.relationship;
       await tx.execute(
-        sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`
+        sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
       );
-      if (capacity.qualificationBudget !== undefined
-        || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
-        || input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3') {
+      if (
+        capacity.qualificationBudget !== undefined ||
+        input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2' ||
+        input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3'
+      ) {
         const budget = capacity.qualificationBudget;
         const identity = MENTION_CLASSIFIER_IDENTITY;
         const expiry = Date.parse(budget?.expiresAt ?? '');
         // Recheck the wall clock AFTER waiting for the capacity lock. A day or
         // source expiry crossed while queued cannot acquire a fresh daily slot.
-        const valid = typeof budget === 'object' && budget !== null
-          && Object.keys(budget).sort().join(',') === 'expiresAt,utcDay'
-          && ((input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2'
-            && capacity.maxRequestsPerUtcDay === 2)
-            || (input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3'
-              && capacity.maxRequestsPerUtcDay === 3))
-          && input.economics.relationship.relationshipId === 'mention-jev-kaana'
-          && input.economics.relationship.consumerApplicationId === identity.applicationId
-          && input.economics.relationship.consumerProduct === 'mention'
-          && input.economics.relationship.providerProduct === 'kaana'
-          && input.economics.relationship.lane === 'service_token'
-          && input.economics.relationship.environments.length === 1
-          && input.economics.relationship.environments[0] === 'production'
-          && input.applicationId === identity.applicationId && input.accountId === identity.ownerAccountId
-          && input.applicationCredentialId === identity.credentialId && input.environment === 'production'
-          && input.delegatedUserId === undefined && input.endpoint === '/v1/decisions'
-          && capacity.scope === 'relationship' && capacity.maxConcurrentRequests === 1
-          && budget.utcDay === '2026-10-05'
-          && Number.isFinite(expiry) && expiry <= Date.parse('2026-10-06T00:00:00Z');
-        if (!valid || budget === undefined) return { status: 'capacity-exceeded', limit: 'daily', capacity };
+        const valid =
+          typeof budget === 'object' &&
+          budget !== null &&
+          Object.keys(budget).sort().join(',') === 'expiresAt,utcDay' &&
+          ((input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.2' &&
+            capacity.maxRequestsPerUtcDay === 2) ||
+            (input.economics.policyVersion === 'oxy-mention-jev-native/2026-10-05.3' &&
+              capacity.maxRequestsPerUtcDay === 3)) &&
+          input.economics.relationship.relationshipId === 'mention-jev-kaana' &&
+          input.economics.relationship.consumerApplicationId === identity.applicationId &&
+          input.economics.relationship.consumerProduct === 'mention' &&
+          input.economics.relationship.providerProduct === 'kaana' &&
+          input.economics.relationship.lane === 'service_token' &&
+          input.economics.relationship.environments.length === 1 &&
+          input.economics.relationship.environments[0] === 'production' &&
+          input.applicationId === identity.applicationId &&
+          input.accountId === identity.ownerAccountId &&
+          input.applicationCredentialId === identity.credentialId &&
+          input.environment === 'production' &&
+          input.delegatedUserId === undefined &&
+          input.endpoint === '/v1/decisions' &&
+          capacity.scope === 'relationship' &&
+          capacity.maxConcurrentRequests === 1 &&
+          budget.utcDay === '2026-10-05' &&
+          Number.isFinite(expiry) &&
+          expiry <= Date.parse('2026-10-06T00:00:00Z');
+        if (!valid || budget === undefined)
+          return { status: 'capacity-exceeded', limit: 'daily', capacity };
         const [clock] = await tx.execute<{ valid: boolean }>(sql`select
           to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD') = ${budget.utcDay}
           and clock_timestamp() < ${budget.expiresAt}::timestamptz as valid`);
         if (clock?.valid !== true) return { status: 'capacity-exceeded', limit: 'daily', capacity };
       }
-      const counts = await readMeteredCapacity(tx, input.applicationId, input.environment,
-        capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined);
+      const counts = await readMeteredCapacity(
+        tx,
+        input.applicationId,
+        input.environment,
+        capacity.scope === 'relationship' ? input.economics.relationship.relationshipId : undefined,
+      );
       if (counts.activeAdmissions >= capacity.maxConcurrentRequests) {
         return { status: 'capacity-exceeded', limit: 'concurrency', capacity };
       }
@@ -221,39 +249,63 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
     if (input.privateAutoParent !== undefined) {
       const parent = input.privateAutoParent;
       let stableChildId: string;
-      try { stableChildId = privateAutoOperationId(parent.meteredUsageId); }
-      catch { return { status: 'parent-unavailable' }; }
-      if (input.economics.treatment !== 'internal_metered' || input.requestId !== stableChildId ||
+      try {
+        stableChildId = privateAutoOperationId(parent.meteredUsageId);
+      } catch {
+        return { status: 'parent-unavailable' };
+      }
+      if (
+        input.economics.treatment !== 'internal_metered' ||
+        input.requestId !== stableChildId ||
         input.economics.relationship.consumerApplicationId !== input.applicationId ||
-        input.idempotencyKey !== stableChildId || input.parentRequestId !== parent.requestId ||
-        input.endpoint !== '/internal/auto-classification' || input.delegatedUserId !== undefined ||
-        !Number.isFinite(parent.deadlineAt)) return { status: 'parent-unavailable' };
+        input.idempotencyKey !== stableChildId ||
+        input.parentRequestId !== parent.requestId ||
+        input.endpoint !== '/internal/auto-classification' ||
+        input.delegatedUserId !== undefined ||
+        !Number.isFinite(parent.deadlineAt)
+      )
+        return { status: 'parent-unavailable' };
       // The parent and child share principal/economics, not a ledger row. Lock
       // the parent while claiming the child and its independent capacity slot.
-      const eligibleParents = await tx.select({ id: inferenceMeteredUsage.id })
-        .from(inferenceMeteredUsage).where(and(
-          eq(inferenceMeteredUsage.id, parent.meteredUsageId),
-          eq(inferenceMeteredUsage.requestId, parent.requestId),
-          eq(inferenceMeteredUsage.accountId, input.accountId),
-          eq(inferenceMeteredUsage.applicationId, input.applicationId),
-          eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
-          eq(inferenceMeteredUsage.environment, input.environment),
-          eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
-          eq(inferenceMeteredUsage.economicPolicyVersion, input.economics.policyVersion),
-          eq(inferenceMeteredUsage.economicRelationshipId, input.economics.relationship.relationshipId),
-          eq(inferenceMeteredUsage.status, 'admitted'),
-          sql`${inferenceMeteredUsage.delegatedUserId} is null`,
-          sql`${inferenceMeteredUsage.parentRequestId} is null`,
-          sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
-        )).for('update');
+      const eligibleParents = await tx
+        .select({ id: inferenceMeteredUsage.id })
+        .from(inferenceMeteredUsage)
+        .where(
+          and(
+            eq(inferenceMeteredUsage.id, parent.meteredUsageId),
+            eq(inferenceMeteredUsage.requestId, parent.requestId),
+            eq(inferenceMeteredUsage.accountId, input.accountId),
+            eq(inferenceMeteredUsage.applicationId, input.applicationId),
+            eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
+            eq(inferenceMeteredUsage.environment, input.environment),
+            eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+            eq(inferenceMeteredUsage.economicPolicyVersion, input.economics.policyVersion),
+            eq(
+              inferenceMeteredUsage.economicRelationshipId,
+              input.economics.relationship.relationshipId,
+            ),
+            eq(inferenceMeteredUsage.status, 'admitted'),
+            sql`${inferenceMeteredUsage.delegatedUserId} is null`,
+            sql`${inferenceMeteredUsage.parentRequestId} is null`,
+            sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
+          ),
+        )
+        .for('update');
       if (eligibleParents.length !== 1) return { status: 'parent-unavailable' };
       // WHERE is evaluated before a row-lock wait, and now() is fixed at TX start.
       // Re-read real DB time AFTER both locks; neither parent nor deadline can renew.
-      const stillActive = await tx.select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
-        .where(and(eq(inferenceMeteredUsage.id, parent.meteredUsageId),
-          eq(inferenceMeteredUsage.status, 'admitted'),
-          sql`${inferenceMeteredUsage.expiresAt} > clock_timestamp()`,
-          sql`to_timestamp(${parent.deadlineAt} / 1000.0) > clock_timestamp()`)).limit(1);
+      const stillActive = await tx
+        .select({ id: inferenceMeteredUsage.id })
+        .from(inferenceMeteredUsage)
+        .where(
+          and(
+            eq(inferenceMeteredUsage.id, parent.meteredUsageId),
+            eq(inferenceMeteredUsage.status, 'admitted'),
+            sql`${inferenceMeteredUsage.expiresAt} > clock_timestamp()`,
+            sql`to_timestamp(${parent.deadlineAt} / 1000.0) > clock_timestamp()`,
+          ),
+        )
+        .limit(1);
       if (stillActive.length !== 1) return { status: 'parent-unavailable' };
       values.expiresAt.setTime(Math.min(values.expiresAt.getTime(), parent.deadlineAt));
     }
@@ -273,34 +325,54 @@ export async function claimMeteredAdmission(input: MeteredAdmissionInput): Promi
 
 /** Preserve the admitted floor, and append one final authorization before dispatch. */
 export async function finalizeMeteredAuthorization(
-  meteredUsageId: string, input: MeteredAdmissionInput
+  meteredUsageId: string,
+  input: MeteredAdmissionInput,
 ): Promise<boolean> {
-  const rows = await getDb().update(inferenceMeteredUsage).set({
-    finalAuthorizedModelReference: input.admittedModelReference,
-    finalAuthorizedProvider: input.admittedProvider,
-    finalAuthorizedDeploymentId: input.admittedDeploymentId,
-    finalAuthorizedCeilingAmount: input.ceiling?.amount ?? null,
-    finalAuthorizedCeilingCurrency: input.ceiling?.currency ?? null,
-  }).where(and(eq(inferenceMeteredUsage.id, meteredUsageId),
-    eq(inferenceMeteredUsage.requestId, input.requestId),
-    eq(inferenceMeteredUsage.idempotencyKey, input.idempotencyKey),
-    eq(inferenceMeteredUsage.accountId, input.accountId),
-    eq(inferenceMeteredUsage.applicationId, input.applicationId),
-    eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
-    eq(inferenceMeteredUsage.environment, input.environment),
-    eq(inferenceMeteredUsage.status, 'admitted'),
-    sql`${inferenceMeteredUsage.expiresAt} > now()`,
-    sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`))
+  const rows = await getDb()
+    .update(inferenceMeteredUsage)
+    .set({
+      finalAuthorizedModelReference: input.admittedModelReference,
+      finalAuthorizedProvider: input.admittedProvider,
+      finalAuthorizedDeploymentId: input.admittedDeploymentId,
+      finalAuthorizedCeilingAmount: input.ceiling?.amount ?? null,
+      finalAuthorizedCeilingCurrency: input.ceiling?.currency ?? null,
+    })
+    .where(
+      and(
+        eq(inferenceMeteredUsage.id, meteredUsageId),
+        eq(inferenceMeteredUsage.requestId, input.requestId),
+        eq(inferenceMeteredUsage.idempotencyKey, input.idempotencyKey),
+        eq(inferenceMeteredUsage.accountId, input.accountId),
+        eq(inferenceMeteredUsage.applicationId, input.applicationId),
+        eq(inferenceMeteredUsage.applicationCredentialId, input.applicationCredentialId),
+        eq(inferenceMeteredUsage.environment, input.environment),
+        eq(inferenceMeteredUsage.status, 'admitted'),
+        sql`${inferenceMeteredUsage.expiresAt} > now()`,
+        sql`${inferenceMeteredUsage.finalAuthorizedDeploymentId} is null`,
+      ),
+    )
     .returning({ id: inferenceMeteredUsage.id });
   return rows.length === 1;
 }
 
 /** Dispatch-time proof of the durable internal claim; expiry never permits replay. */
-export async function hasActiveInternalMeteredAdmission(meteredUsageId: string, requestId: string): Promise<boolean> {
-  const rows = await getDb().select({ id: inferenceMeteredUsage.id }).from(inferenceMeteredUsage)
-    .where(and(eq(inferenceMeteredUsage.id, meteredUsageId), eq(inferenceMeteredUsage.requestId, requestId),
-      eq(inferenceMeteredUsage.status, 'admitted'), eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
-      sql`${inferenceMeteredUsage.expiresAt} > now()`)).limit(1);
+export async function hasActiveInternalMeteredAdmission(
+  meteredUsageId: string,
+  requestId: string,
+): Promise<boolean> {
+  const rows = await getDb()
+    .select({ id: inferenceMeteredUsage.id })
+    .from(inferenceMeteredUsage)
+    .where(
+      and(
+        eq(inferenceMeteredUsage.id, meteredUsageId),
+        eq(inferenceMeteredUsage.requestId, requestId),
+        eq(inferenceMeteredUsage.status, 'admitted'),
+        eq(inferenceMeteredUsage.economicTreatment, 'internal_metered'),
+        sql`${inferenceMeteredUsage.expiresAt} > now()`,
+      ),
+    )
+    .limit(1);
   return rows.length === 1;
 }
 
@@ -313,7 +385,12 @@ export async function markMeteredAdmissionRefused(meteredUsageId: string): Promi
   await getDb()
     .update(inferenceMeteredUsage)
     .set({ status: 'refused' })
-    .where(and(eq(inferenceMeteredUsage.id, meteredUsageId), eq(inferenceMeteredUsage.status, 'admitted')));
+    .where(
+      and(
+        eq(inferenceMeteredUsage.id, meteredUsageId),
+        eq(inferenceMeteredUsage.status, 'admitted'),
+      ),
+    );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -346,11 +423,17 @@ export type MeteredSettlement =
  * row, so a later price change never alters what this request is recorded as
  * having been worth. An unpriceable request is `unpriced` with no amount.
  */
-export async function settleMeteredUsage(input: MeteredSettlementInput): Promise<MeteredSettlement> {
+export async function settleMeteredUsage(
+  input: MeteredSettlementInput,
+): Promise<MeteredSettlement> {
   const quote = await quoteUnits(input.priceVersionId, input.units);
   const tariff =
     quote.status === 'quoted'
-      ? { tariffStatus: 'quoted' as const, tariffAmount: quote.amount, tariffCurrency: quote.currency }
+      ? {
+          tariffStatus: 'quoted' as const,
+          tariffAmount: quote.amount,
+          tariffCurrency: quote.currency,
+        }
       : { tariffStatus: 'unpriced' as const, tariffAmount: null, tariffCurrency: null };
 
   const updated = await getDb()
@@ -371,8 +454,8 @@ export async function settleMeteredUsage(input: MeteredSettlementInput): Promise
     .where(
       and(
         eq(inferenceMeteredUsage.id, input.meteredUsageId),
-        eq(inferenceMeteredUsage.status, 'admitted')
-      )
+        eq(inferenceMeteredUsage.status, 'admitted'),
+      ),
     )
     .returning({ id: inferenceMeteredUsage.id });
 
@@ -388,19 +471,27 @@ export async function settleMeteredUsage(input: MeteredSettlementInput): Promise
  * No reservation, charge or provider request is made by this reconciliation.
  */
 export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
-  const matchingUnits = sql.join(Object.values(USAGE_UNIT_COLUMN_KEYS)
-    .map((key) => sql`${inferenceMeteredUsage[key]} = ${usageReceipts[key]}`), sql` and `);
-  const pending = await getDb().select({ metering: inferenceMeteredUsage, receipt: usageReceipts })
+  const matchingUnits = sql.join(
+    Object.values(USAGE_UNIT_COLUMN_KEYS).map(
+      (key) => sql`${inferenceMeteredUsage[key]} = ${usageReceipts[key]}`,
+    ),
+    sql` and `,
+  );
+  const pending = await getDb()
+    .select({ metering: inferenceMeteredUsage, receipt: usageReceipts })
     .from(inferenceMeteredUsage)
-    .innerJoin(usageReceipts, and(
-      eq(usageReceipts.requestId, inferenceMeteredUsage.requestId),
-      eq(usageReceipts.idempotencyKey, inferenceMeteredUsage.idempotencyKey),
-      eq(usageReceipts.accountId, inferenceMeteredUsage.accountId),
-      eq(usageReceipts.applicationId, inferenceMeteredUsage.applicationId),
-      eq(usageReceipts.applicationCredentialId, inferenceMeteredUsage.applicationCredentialId),
-      eq(usageReceipts.environment, inferenceMeteredUsage.environment),
-      sql`${usageReceipts.delegatedUserId} is not distinct from ${inferenceMeteredUsage.delegatedUserId}`,
-    ))
+    .innerJoin(
+      usageReceipts,
+      and(
+        eq(usageReceipts.requestId, inferenceMeteredUsage.requestId),
+        eq(usageReceipts.idempotencyKey, inferenceMeteredUsage.idempotencyKey),
+        eq(usageReceipts.accountId, inferenceMeteredUsage.accountId),
+        eq(usageReceipts.applicationId, inferenceMeteredUsage.applicationId),
+        eq(usageReceipts.applicationCredentialId, inferenceMeteredUsage.applicationCredentialId),
+        eq(usageReceipts.environment, inferenceMeteredUsage.environment),
+        sql`${usageReceipts.delegatedUserId} is not distinct from ${inferenceMeteredUsage.delegatedUserId}`,
+      ),
+    )
     .where(sql`${inferenceMeteredUsage.economicTreatment} = 'commercial'
       and ${inferenceMeteredUsage.status} in ('admitted', 'settled')
       and ${inferenceMeteredUsage.usageReceiptId} is null
@@ -416,24 +507,32 @@ export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
     .limit(limit);
   let recovered = 0;
   for (const { metering, receipt } of pending) {
-    const units = Object.fromEntries(Object.entries(USAGE_UNIT_COLUMN_KEYS)
-      .map(([unit, key]) => [unit, receipt[key]]));
+    const units = Object.fromEntries(
+      Object.entries(USAGE_UNIT_COLUMN_KEYS).map(([unit, key]) => [unit, receipt[key]]),
+    );
     if (metering.status === 'admitted') {
       const result = await settleMeteredUsage({
         meteredUsageId: metering.id,
-        outcome: receipt.outcome, usageSource: receipt.usageSource, units,
+        outcome: receipt.outcome,
+        usageSource: receipt.usageSource,
+        units,
         resolvedModelReference: receipt.resolvedModelReference,
         servingProvider: receipt.servingProvider,
         generationId: receipt.generationId ?? undefined,
-        priceVersionId: receipt.priceVersionId, usageReceiptId: receipt.id,
+        priceVersionId: receipt.priceVersionId,
+        usageReceiptId: receipt.id,
       });
       if (result.status === 'settled') recovered += 1;
     } else {
       // Link only if the already-recorded technical facts agree. Conflicting
       // evidence remains unresolved; never replace technical usage or receipts.
-      const matchingUnits = sql.join(Object.keys(USAGE_UNIT_COLUMN_KEYS)
-        .map((unit) => sql.raw(`m.${unit} = r.${unit}`)), sql` and `);
-      const rows = await executeRows(getDb(), sql`
+      const matchingUnits = sql.join(
+        Object.keys(USAGE_UNIT_COLUMN_KEYS).map((unit) => sql.raw(`m.${unit} = r.${unit}`)),
+        sql` and `,
+      );
+      const rows = await executeRows(
+        getDb(),
+        sql`
         update inference_metered_usage m set usage_receipt_id = r.id
         from usage_receipts r where m.id = ${metering.id} and r.id = ${receipt.id}
           and m.status = 'settled' and m.usage_receipt_id is null
@@ -442,7 +541,8 @@ export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
           and m.serving_provider = r.serving_provider
           and m.generation_id is not distinct from r.generation_id
           and m.settled_price_version_id = r.price_version_id and ${matchingUnits}
-        returning m.id`);
+        returning m.id`,
+      );
       recovered += rows.length;
     }
   }
@@ -455,14 +555,24 @@ export function startMeteredReceiptReconciliationSchedule(): { stop(): void } {
   const tick = (): void => {
     if (running) return;
     running = true;
-    reconcileMeteredReceipts().catch((error: unknown) =>
-      logger.error('inference.metered_usage.reconciliation_failed',
-        error instanceof Error ? error : new Error(String(error))))
-      .finally(() => { running = false; });
+    reconcileMeteredReceipts()
+      .catch((error: unknown) =>
+        logger.error(
+          'inference.metered_usage.reconciliation_failed',
+          error instanceof Error ? error : new Error(String(error)),
+        ),
+      )
+      .finally(() => {
+        running = false;
+      });
   };
   const interval = setInterval(tick, 60_000);
   interval.unref();
-  return { stop(): void { clearInterval(interval); } };
+  return {
+    stop(): void {
+      clearInterval(interval);
+    },
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -513,9 +623,11 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
   const end = query.periodEnd.toISOString();
   const unitSums = sql.join(
     USAGE_UNITS.map((unit) =>
-      sql.raw(`coalesce(sum(r.${unit}) filter (where r.status = 'settled'), 0)::text as "u_${unit}"`)
+      sql.raw(
+        `coalesce(sum(r.${unit}) filter (where r.status = 'settled'), 0)::text as "u_${unit}"`,
+      ),
     ),
-    sql`, `
+    sql`, `,
   );
 
   const rows = await executeRows<UsageReportRow>(
@@ -572,11 +684,13 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
       left join usage_receipts rc on rc.id = r.usage_receipt_id
       group by r.cost_center_account_id, r.economic_treatment
       order by r.cost_center_account_id nulls last, r.economic_treatment
-    `
+    `,
   );
 
   const centerIds = [
-    ...new Set(rows.map((row) => row.cost_center_account_id).filter((id): id is string => id !== null)),
+    ...new Set(
+      rows.map((row) => row.cost_center_account_id).filter((id): id is string => id !== null),
+    ),
   ];
   // Validated as a `costCenterSchema` by the report parse below.
   const centers = new Map<string, Record<string, unknown>>();
@@ -607,7 +721,9 @@ export async function costCenterUsage(query: CostCenterUsageQuery): Promise<Cost
     return costCenterUsageSchema.parse({
       schemaVersion: 1,
       costCenter:
-        row.cost_center_account_id === null ? null : centers.get(row.cost_center_account_id) ?? null,
+        row.cost_center_account_id === null
+          ? null
+          : (centers.get(row.cost_center_account_id) ?? null),
       treatment: row.economic_treatment,
       currency: query.currency,
       periodStart: start,

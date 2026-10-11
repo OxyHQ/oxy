@@ -1,5 +1,13 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
@@ -41,9 +49,7 @@ export default function DeviceDetailScreen() {
   const device = useMemo<DeviceRecord | null>(() => {
     if (!devicesData || !deviceId) return null;
     const devices = devicesData as DeviceRecord[];
-    return (
-      devices.find((d) => d.id === deviceId || d.deviceId === deviceId) ?? null
-    );
+    return devices.find((d) => d.id === deviceId || d.deviceId === deviceId) ?? null;
   }, [devicesData, deviceId]);
 
   // Distinguish "the list failed to load" from "the list loaded but this id
@@ -92,7 +98,7 @@ export default function DeviceDetailScreen() {
             }
           },
         },
-      ]
+      ],
     );
   }, [device, deviceId, removeDevice, router, t]);
 
@@ -142,13 +148,17 @@ export default function DeviceDetailScreen() {
         title: t('devices.detail.lastActive'),
         subtitle: formatRelativeTime(lastActive, t('common.unknown')),
       },
-      ...(createdAt ? [{
-        id: 'createdAt',
-        icon: 'calendar-outline',
-        iconColor: colors.sidebarIconDevices,
-        title: t('devices.detail.firstSeen'),
-        subtitle: formatDate(createdAt),
-      }] : []),
+      ...(createdAt
+        ? [
+            {
+              id: 'createdAt',
+              icon: 'calendar-outline',
+              iconColor: colors.sidebarIconDevices,
+              title: t('devices.detail.firstSeen'),
+              subtitle: formatDate(createdAt),
+            },
+          ]
+        : []),
     ];
   }, [device, colors, formatRelativeTime, t]);
 
@@ -156,9 +166,17 @@ export default function DeviceDetailScreen() {
   if (oxyLoading || loading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('devices.detail.loading')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('devices.detail.loading')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );
@@ -170,7 +188,10 @@ export default function DeviceDetailScreen() {
       <ScreenContentWrapper>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={styles.mobileContent}>
-            <ScreenHeader title={t('devices.detail.title')} subtitle={t('devices.detail.subtitle')} />
+            <ScreenHeader
+              title={t('devices.detail.title')}
+              subtitle={t('devices.detail.subtitle')}
+            />
             <AccountCard>
               <View style={styles.emptyStateContainer}>
                 <MaterialCommunityIcons
@@ -219,19 +240,23 @@ export default function DeviceDetailScreen() {
               {t('devices.detail.actionsSubtitle')}
             </ThemedText>
             <AccountCard>
-              <GroupedSection items={[{
-                id: 'remove-device',
-                icon: 'delete-outline',
-                iconColor: colors.error,
-                title: t('devices.detail.removeAction'),
-                subtitle: t('devices.detail.removeActionSubtitle'),
-                onPress: handleRemoveDevice,
-                showChevron: false,
-                disabled: actionLoading,
-                customContent: actionLoading ? (
-                  <ActivityIndicator size="small" color={colors.error} />
-                ) : undefined,
-              }]} />
+              <GroupedSection
+                items={[
+                  {
+                    id: 'remove-device',
+                    icon: 'delete-outline',
+                    iconColor: colors.error,
+                    title: t('devices.detail.removeAction'),
+                    subtitle: t('devices.detail.removeActionSubtitle'),
+                    onPress: handleRemoveDevice,
+                    showChevron: false,
+                    disabled: actionLoading,
+                    customContent: actionLoading ? (
+                      <ActivityIndicator size="small" color={colors.error} />
+                    ) : undefined,
+                  },
+                ]}
+              />
             </AccountCard>
           </Section>
         )}

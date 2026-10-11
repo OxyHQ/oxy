@@ -31,9 +31,9 @@ import { z } from 'zod';
 
 /** 256-bit backup locator (32 bytes), lowercase/uppercase hex. */
 export const backupLookupIdSchema = z
-    .string()
-    .trim()
-    .regex(/^[0-9a-fA-F]{64}$/, 'lookupId must be 64 hex characters');
+  .string()
+  .trim()
+  .regex(/^[0-9a-fA-F]{64}$/, 'lookupId must be 64 hex characters');
 
 /**
  * The stored, self-describing encrypted backup as it lives at rest and travels
@@ -56,13 +56,13 @@ export const backupLookupIdSchema = z
  * - `createdAt`     — ISO-8601 creation timestamp.
  */
 export const encryptedBackupEnvelopeSchema = z.object({
-    version: z.number().int().positive(),
-    algorithm: z.literal('xchacha20poly1305'),
-    kdfInfo: z.string().min(1),
-    nonce: z.string().trim().min(1),
-    ciphertext: z.string().trim().min(1),
-    publicKeyHint: z.string().trim().min(1),
-    createdAt: z.string().trim().min(1),
+  version: z.number().int().positive(),
+  algorithm: z.literal('xchacha20poly1305'),
+  kdfInfo: z.string().min(1),
+  nonce: z.string().trim().min(1),
+  ciphertext: z.string().trim().min(1),
+  publicKeyHint: z.string().trim().min(1),
+  createdAt: z.string().trim().min(1),
 });
 
 export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSchema>;
@@ -74,12 +74,12 @@ export type EncryptedBackupEnvelope = z.infer<typeof encryptedBackupEnvelopeSche
  * re-upload REPLACES the prior backup rather than accumulating duplicates.
  */
 export const backupUploadRequestSchema = encryptedBackupEnvelopeSchema.extend({
-    /**
-     * The raw 256-bit backup locator (hex), derived client-side from the seed
-     * with a domain-separated HKDF `info`. The server stores ONLY its sha256; a
-     * DB dump therefore cannot recompute a locator to enumerate backups.
-     */
-    lookupId: backupLookupIdSchema,
+  /**
+   * The raw 256-bit backup locator (hex), derived client-side from the seed
+   * with a domain-separated HKDF `info`. The server stores ONLY its sha256; a
+   * DB dump therefore cannot recompute a locator to enumerate backups.
+   */
+  lookupId: backupLookupIdSchema,
 });
 
 export type BackupUploadRequest = z.infer<typeof backupUploadRequestSchema>;
@@ -90,9 +90,9 @@ export type BackupUploadRequest = z.infer<typeof backupUploadRequestSchema>;
  * timestamp when one exists. Carries no ciphertext and no locator.
  */
 export const backupStatusResponseSchema = z.object({
-    exists: z.boolean(),
-    publicKeyHint: z.string().optional(),
-    createdAt: z.string().optional(),
+  exists: z.boolean(),
+  publicKeyHint: z.string().optional(),
+  createdAt: z.string().optional(),
 });
 
 export type BackupStatusResponse = z.infer<typeof backupStatusResponseSchema>;

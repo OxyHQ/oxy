@@ -14,7 +14,11 @@ const UNDECLARED = { apiFormats: null, realtimeTransports: null, realtimeSession
 describe('capabilityAdmits', () => {
   it('serves an ordinary chat request on a model that declares nothing', () => {
     expect(
-      capabilityAdmits(UNDECLARED, { input: 'text', output: 'text', apiFormat: 'chat_completions' })
+      capabilityAdmits(UNDECLARED, {
+        input: 'text',
+        output: 'text',
+        apiFormat: 'chat_completions',
+      }),
     ).toBe(true);
   });
 
@@ -25,7 +29,7 @@ describe('capabilityAdmits', () => {
         output: 'audio',
         apiFormat: 'chat_completions',
         requiresDeclaredApiFormat: true,
-      })
+      }),
     ).toBe(false);
   });
 
@@ -38,8 +42,8 @@ describe('capabilityAdmits', () => {
           output: 'audio',
           apiFormat: 'chat_completions',
           requiresDeclaredApiFormat: true,
-        }
-      )
+        },
+      ),
     ).toBe(true);
   });
 
@@ -47,8 +51,8 @@ describe('capabilityAdmits', () => {
     expect(
       capabilityAdmits(
         { ...UNDECLARED, apiFormats: ['audio_transcriptions'] },
-        { input: 'text', output: 'text', apiFormat: 'chat_completions' }
-      )
+        { input: 'text', output: 'text', apiFormat: 'chat_completions' },
+      ),
     ).toBe(false);
   });
 
@@ -56,8 +60,8 @@ describe('capabilityAdmits', () => {
     expect(
       capabilityAdmits(
         { ...UNDECLARED, apiFormats: ['chat_completions'] },
-        { input: 'text', output: 'audio', requiresDeclaredApiFormat: true }
-      )
+        { input: 'text', output: 'audio', requiresDeclaredApiFormat: true },
+      ),
     ).toBe(false);
   });
 
@@ -77,7 +81,7 @@ describe('capabilityAdmits', () => {
       capabilityAdmits(declared, {
         ...conversation,
         realtime: { kind: 'translation', transport: 'websocket' },
-      })
+      }),
     ).toBe(false);
     // Catalogue presence is not capability evidence: an audio model that holds
     // no declared sessions is refused one.

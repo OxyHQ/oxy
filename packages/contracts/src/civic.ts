@@ -67,29 +67,29 @@ export type PersonhoodStatus = 'unverified' | 'pending' | 'verified';
  *   stale/replayed card.
  */
 export interface PublicCard {
-    did: string;
-    userId: string;
-    name: string;
-    username?: string;
-    avatarUrl?: string;
-    trustTier: CardTrustTier;
-    personhoodStatus: PersonhoodStatus;
-    verifiedDomains: string[];
-    credentialBadges: string[];
-    issuedAt: number;
+  did: string;
+  userId: string;
+  name: string;
+  username?: string;
+  avatarUrl?: string;
+  trustTier: CardTrustTier;
+  personhoodStatus: PersonhoodStatus;
+  verifiedDomains: string[];
+  credentialBadges: string[];
+  issuedAt: number;
 }
 
 export const publicCardSchema: z.ZodType<PublicCard> = z.object({
-    did: z.string(),
-    userId: z.string(),
-    name: z.string(),
-    username: z.string().optional(),
-    avatarUrl: z.string().optional(),
-    trustTier: z.enum(['restricted', 'new', 'trusted', 'high_trust', 'verified']),
-    personhoodStatus: z.enum(['unverified', 'pending', 'verified']),
-    verifiedDomains: z.array(z.string()),
-    credentialBadges: z.array(z.string()),
-    issuedAt: z.number(),
+  did: z.string(),
+  userId: z.string(),
+  name: z.string(),
+  username: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  trustTier: z.enum(['restricted', 'new', 'trusted', 'high_trust', 'verified']),
+  personhoodStatus: z.enum(['unverified', 'pending', 'verified']),
+  verifiedDomains: z.array(z.string()),
+  credentialBadges: z.array(z.string()),
+  issuedAt: z.number(),
 });
 
 /**
@@ -102,13 +102,13 @@ export const publicCardSchema: z.ZodType<PublicCard> = z.object({
  * custodial key before trusting the card.
  */
 export interface SignedPublicCard {
-    card: PublicCard;
-    attestation: ExportAttestation | null;
+  card: PublicCard;
+  attestation: ExportAttestation | null;
 }
 
 export const signedPublicCardSchema: z.ZodType<SignedPublicCard> = z.object({
-    card: publicCardSchema,
-    attestation: exportAttestationSchema.nullable(),
+  card: publicCardSchema,
+  attestation: exportAttestationSchema.nullable(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -131,21 +131,21 @@ export const signedPublicCardSchema: z.ZodType<SignedPublicCard> = z.object({
  *   never sufficient alone).
  */
 export interface RealLifeAttestationRecord {
-    about: string;
-    context: string;
-    nonce: string;
-    exp: number;
-    geohash?: string;
-    biometricOk?: boolean;
+  about: string;
+  context: string;
+  nonce: string;
+  exp: number;
+  geohash?: string;
+  biometricOk?: boolean;
 }
 
 export const realLifeAttestationRecordSchema: z.ZodType<RealLifeAttestationRecord> = z.object({
-    about: z.string(),
-    context: z.string(),
-    nonce: z.string(),
-    exp: z.number(),
-    geohash: z.string().optional(),
-    biometricOk: z.boolean().optional(),
+  about: z.string(),
+  context: z.string(),
+  nonce: z.string(),
+  exp: z.number(),
+  geohash: z.string().optional(),
+  biometricOk: z.boolean().optional(),
 });
 
 /**
@@ -154,19 +154,19 @@ export const realLifeAttestationRecordSchema: z.ZodType<RealLifeAttestationRecor
  * awarded to the subject.
  */
 export interface RealLifeAttestationResult {
-    accepted: true;
-    recordId: string;
-    subjectUserId: string;
-    attestorUserId: string;
-    points: number;
+  accepted: true;
+  recordId: string;
+  subjectUserId: string;
+  attestorUserId: string;
+  points: number;
 }
 
 export const realLifeAttestationResultSchema: z.ZodType<RealLifeAttestationResult> = z.object({
-    accepted: z.literal(true),
-    recordId: z.string(),
-    subjectUserId: z.string(),
-    attestorUserId: z.string(),
-    points: z.number(),
+  accepted: z.literal(true),
+  recordId: z.string(),
+  subjectUserId: z.string(),
+  attestorUserId: z.string(),
+  points: z.number(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -177,7 +177,12 @@ export const realLifeAttestationResultSchema: z.ZodType<RealLifeAttestationResul
 export type ValidationVerdict = 'valid' | 'invalid' | 'abstain';
 
 /** The lifecycle status of a validation request. */
-export type ValidationRequestStatus = 'pending' | 'quorum_met' | 'validated' | 'rejected' | 'expired';
+export type ValidationRequestStatus =
+  | 'pending'
+  | 'quorum_met'
+  | 'validated'
+  | 'rejected'
+  | 'expired';
 
 /**
  * The `record` payload of a `validation_verdict` signed envelope — a juror's
@@ -185,39 +190,39 @@ export type ValidationRequestStatus = 'pending' | 'quorum_met' | 'validated' | '
  * a verdict cannot be replayed onto a different request or an altered payload).
  */
 export interface ValidationVerdictRecord {
-    requestId: string;
-    payloadHash: string;
-    verdict: ValidationVerdict;
+  requestId: string;
+  payloadHash: string;
+  verdict: ValidationVerdict;
 }
 
 export const validationVerdictRecordSchema: z.ZodType<ValidationVerdictRecord> = z.object({
-    requestId: z.string(),
-    payloadHash: z.string(),
-    verdict: z.enum(['valid', 'invalid', 'abstain']),
+  requestId: z.string(),
+  payloadHash: z.string(),
+  verdict: z.enum(['valid', 'invalid', 'abstain']),
 });
 
 /** Request body for opening a validation request (`POST /civic/validations`). */
 export const validationOpenRequestSchema = z.object({
-    subjectUserId: z.string(),
-    actionType: z.string().min(1),
-    sourceActionId: z.string().min(1),
-    payload: z.record(z.unknown()),
-    highValue: z.boolean().optional(),
+  subjectUserId: z.string(),
+  actionType: z.string().min(1),
+  sourceActionId: z.string().min(1),
+  payload: z.record(z.unknown()),
+  highValue: z.boolean().optional(),
 });
 
 export type ValidationOpenRequest = z.infer<typeof validationOpenRequestSchema>;
 
 /** The result of opening a validation request (`POST /civic/validations`). */
 export interface ValidationOpenResult {
-    requestId: string;
-    selectedValidatorCount: number;
-    expiresAt: string;
+  requestId: string;
+  selectedValidatorCount: number;
+  expiresAt: string;
 }
 
 export const validationOpenResultSchema: z.ZodType<ValidationOpenResult> = z.object({
-    requestId: z.string(),
-    selectedValidatorCount: z.number(),
-    expiresAt: z.string(),
+  requestId: z.string(),
+  selectedValidatorCount: z.number(),
+  expiresAt: z.string(),
 });
 
 /**
@@ -225,40 +230,40 @@ export const validationOpenResultSchema: z.ZodType<ValidationOpenResult> = z.obj
  * claim the juror inspects; `payloadHash` is what their verdict must bind to.
  */
 export interface ValidationRequestSummary {
-    id: string;
-    subjectUserId: string;
-    actionType: string;
-    payload: Record<string, unknown>;
-    payloadHash: string;
-    status: ValidationRequestStatus;
-    highValue: boolean;
-    expiresAt: string;
+  id: string;
+  subjectUserId: string;
+  actionType: string;
+  payload: Record<string, unknown>;
+  payloadHash: string;
+  status: ValidationRequestStatus;
+  highValue: boolean;
+  expiresAt: string;
 }
 
 export const validationRequestSummarySchema: z.ZodType<ValidationRequestSummary> = z.object({
-    id: z.string(),
-    subjectUserId: z.string(),
-    actionType: z.string(),
-    payload: z.record(z.unknown()),
-    payloadHash: z.string(),
-    status: z.enum(['pending', 'quorum_met', 'validated', 'rejected', 'expired']),
-    highValue: z.boolean(),
-    expiresAt: z.string(),
+  id: z.string(),
+  subjectUserId: z.string(),
+  actionType: z.string(),
+  payload: z.record(z.unknown()),
+  payloadHash: z.string(),
+  status: z.enum(['pending', 'quorum_met', 'validated', 'rejected', 'expired']),
+  highValue: z.boolean(),
+  expiresAt: z.string(),
 });
 
 /** The result of casting a vote (`POST /civic/validations/:id/vote`). */
 export interface ValidationVoteResult {
-    recorded: true;
-    requestId: string;
-    verdict: ValidationVerdict;
-    status: ValidationRequestStatus;
+  recorded: true;
+  requestId: string;
+  verdict: ValidationVerdict;
+  status: ValidationRequestStatus;
 }
 
 export const validationVoteResultSchema: z.ZodType<ValidationVoteResult> = z.object({
-    recorded: z.literal(true),
-    requestId: z.string(),
-    verdict: z.enum(['valid', 'invalid', 'abstain']),
-    status: z.enum(['pending', 'quorum_met', 'validated', 'rejected', 'expired']),
+  recorded: z.literal(true),
+  requestId: z.string(),
+  verdict: z.enum(['valid', 'invalid', 'abstain']),
+  status: z.enum(['pending', 'quorum_met', 'validated', 'rejected', 'expired']),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -281,15 +286,15 @@ export const validationVoteResultSchema: z.ZodType<ValidationVoteResult> = z.obj
  *   latter is the server's clamped, awarded value echoed in {@link VouchResult}.)
  */
 export interface PersonhoodVouchRecord {
-    about: string;
-    context?: string;
-    stake?: number;
+  about: string;
+  context?: string;
+  stake?: number;
 }
 
 export const personhoodVouchRecordSchema: z.ZodType<PersonhoodVouchRecord> = z.object({
-    about: z.string(),
-    context: z.string().optional(),
-    stake: z.number().optional(),
+  about: z.string(),
+  context: z.string().optional(),
+  stake: z.number().optional(),
 });
 
 /**
@@ -297,27 +302,27 @@ export const personhoodVouchRecordSchema: z.ZodType<PersonhoodVouchRecord> = z.o
  * mirroring the API `PersonhoodStatus` model's embedded `breakdown`.
  */
 export interface PersonhoodBreakdown {
-    /** Saturated [0,1] vouch signal from the weighted vouch sum. */
-    vouchSignal: number;
-    /** Saturated [0,1] real-life-attestation signal. */
-    realLifeSignal: number;
-    /** 1 when the account is biometric-bound, else 0. */
-    biometricSignal: number;
-    /** Weighted blend of the three signals before the sybil penalty. */
-    evidence: number;
-    /** The [0,1] sybil penalty subtracted from the evidence. */
-    sybilPenalty: number;
-    /** True when the score came from the seed-verifier genesis short-circuit. */
-    seed: boolean;
+  /** Saturated [0,1] vouch signal from the weighted vouch sum. */
+  vouchSignal: number;
+  /** Saturated [0,1] real-life-attestation signal. */
+  realLifeSignal: number;
+  /** 1 when the account is biometric-bound, else 0. */
+  biometricSignal: number;
+  /** Weighted blend of the three signals before the sybil penalty. */
+  evidence: number;
+  /** The [0,1] sybil penalty subtracted from the evidence. */
+  sybilPenalty: number;
+  /** True when the score came from the seed-verifier genesis short-circuit. */
+  seed: boolean;
 }
 
 export const personhoodBreakdownSchema: z.ZodType<PersonhoodBreakdown> = z.object({
-    vouchSignal: z.number(),
-    realLifeSignal: z.number(),
-    biometricSignal: z.number(),
-    evidence: z.number(),
-    sybilPenalty: z.number(),
-    seed: z.boolean(),
+  vouchSignal: z.number(),
+  realLifeSignal: z.number(),
+  biometricSignal: z.number(),
+  evidence: z.number(),
+  sybilPenalty: z.number(),
+  seed: z.boolean(),
 });
 
 /**
@@ -336,27 +341,27 @@ export const personhoodBreakdownSchema: z.ZodType<PersonhoodBreakdown> = z.objec
  *   'verified'`.)
  */
 export interface PersonhoodStatusResult {
-    userId: string;
-    score: number;
-    isRealPerson: boolean;
-    vouchCount: number;
-    realLifeCount: number;
-    biometricBound: boolean;
-    sybilPenalty: number;
-    breakdown: PersonhoodBreakdown | null;
-    updatedAt: string | null;
+  userId: string;
+  score: number;
+  isRealPerson: boolean;
+  vouchCount: number;
+  realLifeCount: number;
+  biometricBound: boolean;
+  sybilPenalty: number;
+  breakdown: PersonhoodBreakdown | null;
+  updatedAt: string | null;
 }
 
 export const personhoodStatusResultSchema: z.ZodType<PersonhoodStatusResult> = z.object({
-    userId: z.string(),
-    score: z.number(),
-    isRealPerson: z.boolean(),
-    vouchCount: z.number(),
-    realLifeCount: z.number(),
-    biometricBound: z.boolean(),
-    sybilPenalty: z.number(),
-    breakdown: personhoodBreakdownSchema.nullable(),
-    updatedAt: z.string().nullable(),
+  userId: z.string(),
+  score: z.number(),
+  isRealPerson: z.boolean(),
+  vouchCount: z.number(),
+  realLifeCount: z.number(),
+  biometricBound: z.boolean(),
+  sybilPenalty: z.number(),
+  breakdown: personhoodBreakdownSchema.nullable(),
+  updatedAt: z.string().nullable(),
 });
 
 /**
@@ -365,21 +370,21 @@ export const personhoodStatusResultSchema: z.ZodType<PersonhoodStatusResult> = z
  * clamped stake the server recorded, and the points awarded to the subject.
  */
 export interface VouchResult {
-    accepted: true;
-    recordId: string;
-    subjectUserId: string;
-    voucherUserId: string;
-    stakeAmount: number;
-    points: number;
+  accepted: true;
+  recordId: string;
+  subjectUserId: string;
+  voucherUserId: string;
+  stakeAmount: number;
+  points: number;
 }
 
 export const vouchResultSchema: z.ZodType<VouchResult> = z.object({
-    accepted: z.literal(true),
-    recordId: z.string(),
-    subjectUserId: z.string(),
-    voucherUserId: z.string(),
-    stakeAmount: z.number(),
-    points: z.number(),
+  accepted: z.literal(true),
+  recordId: z.string(),
+  subjectUserId: z.string(),
+  voucherUserId: z.string(),
+  stakeAmount: z.number(),
+  points: z.number(),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -424,17 +429,17 @@ export type CredentialStatus = 'active' | 'revoked' | 'expired';
  *   part of the signed bytes, so a holder cannot extend a credential's validity.
  */
 export interface CredentialRecord {
-    about: string;
-    types: string[];
-    claims: Record<string, unknown>;
-    expiresAt?: number;
+  about: string;
+  types: string[];
+  claims: Record<string, unknown>;
+  expiresAt?: number;
 }
 
 export const credentialRecordSchema: z.ZodType<CredentialRecord> = z.object({
-    about: z.string(),
-    types: z.array(z.string().min(1)).min(1),
-    claims: z.record(z.unknown()),
-    expiresAt: z.number().optional(),
+  about: z.string(),
+  types: z.array(z.string().min(1)).min(1),
+  claims: z.record(z.unknown()),
+  expiresAt: z.number().optional(),
 });
 
 /**
@@ -444,21 +449,22 @@ export const credentialRecordSchema: z.ZodType<CredentialRecord> = z.object({
  * are epoch milliseconds.
  */
 export interface VerifiableCredentialResponse {
-    id: string;
-    recordId: string;
-    holderUserId: string;
-    holderDid: string;
-    issuerUserId?: string;
-    issuerDid: string;
-    types: string[];
-    claims: Record<string, unknown>;
-    status: CredentialStatus;
-    issuedAt: number;
-    expiresAt?: number;
-    revokedAt?: number;
+  id: string;
+  recordId: string;
+  holderUserId: string;
+  holderDid: string;
+  issuerUserId?: string;
+  issuerDid: string;
+  types: string[];
+  claims: Record<string, unknown>;
+  status: CredentialStatus;
+  issuedAt: number;
+  expiresAt?: number;
+  revokedAt?: number;
 }
 
-export const verifiableCredentialResponseSchema: z.ZodType<VerifiableCredentialResponse> = z.object({
+export const verifiableCredentialResponseSchema: z.ZodType<VerifiableCredentialResponse> = z.object(
+  {
     id: z.string(),
     recordId: z.string(),
     holderUserId: z.string(),
@@ -471,26 +477,27 @@ export const verifiableCredentialResponseSchema: z.ZodType<VerifiableCredentialR
     issuedAt: z.number(),
     expiresAt: z.number().optional(),
     revokedAt: z.number().optional(),
-});
+  },
+);
 
 /** The result of `POST /civic/credentials` on success. */
 export interface CredentialIssueResult {
-    accepted: true;
-    credential: VerifiableCredentialResponse;
+  accepted: true;
+  credential: VerifiableCredentialResponse;
 }
 
 export const credentialIssueResultSchema: z.ZodType<CredentialIssueResult> = z.object({
-    accepted: z.literal(true),
-    credential: verifiableCredentialResponseSchema,
+  accepted: z.literal(true),
+  credential: verifiableCredentialResponseSchema,
 });
 
 /** The result of `GET /civic/credentials/:holderUserId` (list). */
 export interface CredentialListResult {
-    credentials: VerifiableCredentialResponse[];
+  credentials: VerifiableCredentialResponse[];
 }
 
 export const credentialListResultSchema: z.ZodType<CredentialListResult> = z.object({
-    credentials: z.array(verifiableCredentialResponseSchema),
+  credentials: z.array(verifiableCredentialResponseSchema),
 });
 
 /**
@@ -501,13 +508,13 @@ export const credentialListResultSchema: z.ZodType<CredentialListResult> = z.obj
  * `credential` is `null` when no credential exists for the record id.
  */
 export interface CredentialVerifyResult {
-    valid: boolean;
-    reason?: string;
-    credential: VerifiableCredentialResponse | null;
+  valid: boolean;
+  reason?: string;
+  credential: VerifiableCredentialResponse | null;
 }
 
 export const credentialVerifyResultSchema: z.ZodType<CredentialVerifyResult> = z.object({
-    valid: z.boolean(),
-    reason: z.string().optional(),
-    credential: verifiableCredentialResponseSchema.nullable(),
+  valid: z.boolean(),
+  reason: z.string().optional(),
+  credential: verifiableCredentialResponseSchema.nullable(),
 });

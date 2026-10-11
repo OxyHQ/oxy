@@ -57,7 +57,9 @@ describe('readJournal', () => {
     // journal that is missing, unparseable, or structurally wrong (see the
     // cases below). Conflating the two would refuse a legitimate run for a
     // project with no migrations yet.
-    const folder = journalFolder(JSON.stringify({ version: '7', dialect: 'postgresql', entries: [] }));
+    const folder = journalFolder(
+      JSON.stringify({ version: '7', dialect: 'postgresql', entries: [] }),
+    );
     throwawayFolders.push(folder);
     expect(readJournal(folder)).toEqual([]);
   });

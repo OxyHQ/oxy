@@ -19,7 +19,12 @@ function didDoc(overrides: Partial<DidDocument> = {}): DidDocument {
     id: SUBJECT,
     controller: [SUBJECT],
     verificationMethod: [
-      { id: `${SUBJECT}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: SUBJECT, publicKeyHex: KEY_A },
+      {
+        id: `${SUBJECT}#key-1`,
+        type: 'EcdsaSecp256k1VerificationKey2019',
+        controller: SUBJECT,
+        publicKeyHex: KEY_A,
+      },
     ],
     authentication: [`${SUBJECT}#key-1`],
     assertionMethod: [`${SUBJECT}#key-1`],
@@ -50,7 +55,9 @@ describe('didWebToUrl', () => {
   });
 
   it('decodes a %3A port in the host segment', () => {
-    expect(didWebToUrl('did:web:localhost%3A3000')).toBe('https://localhost:3000/.well-known/did.json');
+    expect(didWebToUrl('did:web:localhost%3A3000')).toBe(
+      'https://localhost:3000/.well-known/did.json',
+    );
   });
 
   it('returns null for a non-did:web identifier', () => {
@@ -75,8 +82,18 @@ describe('createDidWebResolver', () => {
   it('collects every assertionMethod key (deduped)', async () => {
     const doc = didDoc({
       verificationMethod: [
-        { id: `${SUBJECT}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: SUBJECT, publicKeyHex: KEY_A },
-        { id: `${SUBJECT}#key-2`, type: 'EcdsaSecp256k1VerificationKey2019', controller: SUBJECT, publicKeyHex: KEY_B },
+        {
+          id: `${SUBJECT}#key-1`,
+          type: 'EcdsaSecp256k1VerificationKey2019',
+          controller: SUBJECT,
+          publicKeyHex: KEY_A,
+        },
+        {
+          id: `${SUBJECT}#key-2`,
+          type: 'EcdsaSecp256k1VerificationKey2019',
+          controller: SUBJECT,
+          publicKeyHex: KEY_B,
+        },
       ],
       assertionMethod: [`${SUBJECT}#key-1`, `${SUBJECT}#key-2`],
     });
@@ -90,8 +107,18 @@ describe('createDidWebResolver', () => {
     // the hex signing key only.
     const doc = didDoc({
       verificationMethod: [
-        { id: `${SUBJECT}#key-1`, type: 'EcdsaSecp256k1VerificationKey2019', controller: SUBJECT, publicKeyHex: KEY_A },
-        { id: `${SUBJECT}#atproto`, type: 'Multikey', controller: SUBJECT, publicKeyMultibase: 'zQ3shFakeMultibaseKey' },
+        {
+          id: `${SUBJECT}#key-1`,
+          type: 'EcdsaSecp256k1VerificationKey2019',
+          controller: SUBJECT,
+          publicKeyHex: KEY_A,
+        },
+        {
+          id: `${SUBJECT}#atproto`,
+          type: 'Multikey',
+          controller: SUBJECT,
+          publicKeyMultibase: 'zQ3shFakeMultibaseKey',
+        },
       ],
       authentication: [`${SUBJECT}#key-1`, `${SUBJECT}#atproto`],
       assertionMethod: [`${SUBJECT}#key-1`, `${SUBJECT}#atproto`],
@@ -113,7 +140,9 @@ describe('createDidWebResolver', () => {
   });
 
   it('returns null when the document id does not match the subject', async () => {
-    const resolver = createDidWebResolver(async () => jsonResponse(didDoc({ id: 'did:web:other.example' })));
+    const resolver = createDidWebResolver(async () =>
+      jsonResponse(didDoc({ id: 'did:web:other.example' })),
+    );
     expect(await resolver.resolve(SUBJECT)).toBeNull();
   });
 

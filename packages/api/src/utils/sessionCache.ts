@@ -16,8 +16,8 @@ export type CachedSession = typeof sessions.$inferSelect;
  * The Redis tier stores JSON, and `JSON.parse` hands every `Date` back as a
  * STRING. Without reviving them a Redis hit and a local hit would disagree on
  * the type of `expiresAt` — and `expiresAt.toISOString()` on the sign-in
- * response would throw for whichever tier answered second. Mongo had the same
- * latent split; typing the cache off the schema is what made it visible.
+ * response would throw for whichever tier answered second. Typing the cache off
+ * the schema is what keeps that split visible.
  */
 const DATE_COLUMNS = [
   'lastActiveAt',
@@ -46,7 +46,10 @@ const LAST_ACTIVE_THRESHOLD = 60 * 1000; // 1 minute in ms
 const MAX_LOCAL_SIZE = 5000;
 
 class SessionCache {
-  private local: Map<string, { session: CachedSession; userId?: string; timestamp: number; ttl: number }> = new Map();
+  private local: Map<
+    string,
+    { session: CachedSession; userId?: string; timestamp: number; ttl: number }
+  > = new Map();
   private pendingLastActiveUpdates: Map<string, Date> = new Map();
   private cleanupTimer: NodeJS.Timeout;
 
@@ -62,7 +65,9 @@ class SessionCache {
         const data = await redis.get(`session:${sessionId}`);
         if (data) return reviveSession(JSON.parse(data));
         return null;
-      } catch { /* fall through to local */ }
+      } catch {
+        /* fall through to local */
+      }
     }
     return this.getLocal(sessionId);
   }
@@ -73,12 +78,15 @@ class SessionCache {
 
     const redis = getRedisClient();
     if (redis && redis.status === 'ready') {
-      redis.get(`session:${sessionId}`).then(data => {
-        if (data) {
-          const session = reviveSession(JSON.parse(data));
-          if (session) this.setLocal(sessionId, session);
-        }
-      }).catch(() => {});
+      redis
+        .get(`session:${sessionId}`)
+        .then((data) => {
+          if (data) {
+            const session = reviveSession(JSON.parse(data));
+            if (session) this.setLocal(sessionId, session);
+          }
+        })
+        .catch(() => {});
     }
     return null;
   }
@@ -121,13 +129,14 @@ class SessionCache {
             const data = await redis.get(key);
             if (data) {
               const session = reviveSession(JSON.parse(data));
-              // `user_id` is a plain text column now, so this is a string
-              // compare rather than the ObjectId `.toString()` Mongo needed.
+              // `user_id` is a plain text column, so this is a string compare.
               if (session?.userId === userId) {
                 await redis.del(key);
               }
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         }
       });
     }
@@ -139,11 +148,14 @@ class SessionCache {
       // Use Redis SETNX for distributed throttling
       const key = `session_la:${sessionId}`;
       const ttlSec = Math.ceil(LAST_ACTIVE_THRESHOLD / 1000);
-      redis.set(key, '1', 'EX', ttlSec, 'NX').then(result => {
-        if (!result) {
-          // Key already exists — throttled
-        }
-      }).catch(() => {});
+      redis
+        .set(key, '1', 'EX', ttlSec, 'NX')
+        .then((result) => {
+          if (!result) {
+            // Key already exists — throttled
+          }
+        })
+        .catch(() => {});
       // Fall through to local check for synchronous response
     }
 

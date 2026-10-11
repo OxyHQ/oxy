@@ -30,7 +30,7 @@
  *
  * WHERE NORMALIZATION RUNS — the one rule for the whole API
  * ---------------------------------------------------------
- * Normalize in the WRITE SERVICE, not in a Mongoose setter. The write service is
+ * Normalize in the WRITE SERVICE, not in a model-level setter. The write service is
  * where the rest of the field's boundary validation already lives (display-name
  * policy, locale canonicalization, premium-color gate); it is the layer that can
  * reject a malformed payload with a structured 400, and it keeps the
@@ -112,7 +112,7 @@ export function normalizeDisplayValue(value: string, maxLength: number): string 
 function withNormalizedKeys(
   source: UnknownRecord,
   keys: readonly string[],
-  normalize: (value: string) => string
+  normalize: (value: string) => string,
 ): UnknownRecord {
   const result: UnknownRecord = { ...source };
   for (const key of keys) {
@@ -209,7 +209,7 @@ export function normalizeLocations(value: unknown): unknown {
       next.address = withNormalizedKeys(
         next.address,
         LOCATION_ADDRESS_TEXT_KEYS,
-        normalizeLocationText
+        normalizeLocationText,
       );
     }
     normalized.push(next);

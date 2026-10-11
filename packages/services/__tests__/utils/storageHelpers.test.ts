@@ -55,11 +55,9 @@ describe('isReactNative', () => {
 describe('createPlatformStorage', () => {
   it('returns null and swallows errors when localStorage access throws on read', async () => {
     const storage = await createPlatformStorage();
-    const getItemSpy = jest
-      .spyOn(Storage.prototype, 'getItem')
-      .mockImplementation(() => {
-        throw new Error('quota exceeded');
-      });
+    const getItemSpy = jest.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
     try {
       expect(await storage.getItem('any')).toBeNull();
     } finally {
@@ -69,11 +67,9 @@ describe('createPlatformStorage', () => {
 
   it('swallows errors when localStorage.setItem throws (e.g. quota exceeded)', async () => {
     const storage = await createPlatformStorage();
-    const setItemSpy = jest
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation(() => {
-        throw new Error('quota exceeded');
-      });
+    const setItemSpy = jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
     try {
       await expect(storage.setItem('any', 'value')).resolves.toBeUndefined();
     } finally {

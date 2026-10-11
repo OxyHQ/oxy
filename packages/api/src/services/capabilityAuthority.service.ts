@@ -77,12 +77,15 @@ type ExecutionAuthorizationRow = typeof capabilityExecutionAuthorizations.$infer
 
 export function mostRestrictiveAutonomy(levels: readonly AutonomyLevel[]): AutonomyLevel {
   if (levels.length === 0) return 'read_only';
-  return levels.reduce((result, level) => (
-    AUTONOMY_RANK[level] < AUTONOMY_RANK[result] ? level : result
-  ));
+  return levels.reduce((result, level) =>
+    AUTONOMY_RANK[level] < AUTONOMY_RANK[result] ? level : result,
+  );
 }
 
-function mergeLimits(primary: readonly GrantLimit[], narrowing: readonly GrantLimit[]): GrantLimit[] {
+function mergeLimits(
+  primary: readonly GrantLimit[],
+  narrowing: readonly GrantLimit[],
+): GrantLimit[] {
   const merged = new Map(primary.map((limit) => [`${limit.tool}\0${limit.key}`, limit]));
   for (const limit of narrowing) {
     const mapKey = `${limit.tool}\0${limit.key}`;
@@ -98,7 +101,10 @@ function mergeLimits(primary: readonly GrantLimit[], narrowing: readonly GrantLi
   return [...merged.values()];
 }
 
-async function requesterCanOperate(requesterAccountId: string, accountId: string): Promise<boolean> {
+async function requesterCanOperate(
+  requesterAccountId: string,
+  accountId: string,
+): Promise<boolean> {
   const access = await accountService.resolveEffectiveAccess(requesterAccountId, accountId);
   return access?.permissions.includes('account:act_as') ?? false;
 }
@@ -107,13 +113,25 @@ async function loadExecutionAuthorization(
   request: AuthorityRequest,
   now: Date,
 ): Promise<ExecutionAuthorizationRow | null> {
-  const [authorization] = await getDb().select().from(capabilityExecutionAuthorizations).where(and(
-    eq(capabilityExecutionAuthorizations.id, request.executionAuthorizationId),
-    eq(capabilityExecutionAuthorizations.coordinatorApplicationId, request.coordinator.applicationId),
-    eq(capabilityExecutionAuthorizations.coordinatorCredentialId, request.coordinator.credentialId),
-    isNull(capabilityExecutionAuthorizations.revokedAt),
-    gt(capabilityExecutionAuthorizations.expiresAt, now),
-  )).limit(1);
+  const [authorization] = await getDb()
+    .select()
+    .from(capabilityExecutionAuthorizations)
+    .where(
+      and(
+        eq(capabilityExecutionAuthorizations.id, request.executionAuthorizationId),
+        eq(
+          capabilityExecutionAuthorizations.coordinatorApplicationId,
+          request.coordinator.applicationId,
+        ),
+        eq(
+          capabilityExecutionAuthorizations.coordinatorCredentialId,
+          request.coordinator.credentialId,
+        ),
+        isNull(capabilityExecutionAuthorizations.revokedAt),
+        gt(capabilityExecutionAuthorizations.expiresAt, now),
+      ),
+    )
+    .limit(1);
   return authorization ?? null;
 }
 
@@ -121,7 +139,8 @@ function actorOf(authorization: ExecutionAuthorizationRow): ExecutionActorRef {
   if (authorization.actorType === 'alia') {
     return { type: 'alia', ownerAccountId: authorization.ownerAccountId };
   }
-  if (!authorization.actorAccountId) throw new Error('Agent execution authorization has no actor account');
+  if (!authorization.actorAccountId)
+    throw new Error('Agent execution authorization has no actor account');
   return { type: authorization.actorType, accountId: authorization.actorAccountId };
 }
 
@@ -140,33 +159,54 @@ async function loadGrant(
   now: Date,
 ): Promise<GrantParts | null> {
   const db = getDb();
-  const [grant] = await db.select().from(delegationGrants).where(and(
-    eq(delegationGrants.ownerAccountId, authorization.ownerAccountId),
-    eq(delegationGrants.actorAccountId, actorAccountId),
-    eq(delegationGrants.resourceApp, authorization.resourceApp),
-    eq(delegationGrants.effectiveAccountId, authorization.effectiveAccountId),
-    eq(delegationGrants.resourceType, authorization.resourceType),
-    eq(delegationGrants.resourceKey, authorization.resourceKey),
-    isNull(delegationGrants.revokedAt),
-    or(isNull(delegationGrants.expiresAt), gt(delegationGrants.expiresAt, now)),
-  )).orderBy(desc(delegationGrants.createdAt)).limit(1);
+  const [grant] = await db
+    .select()
+    .from(delegationGrants)
+    .where(
+      and(
+        eq(delegationGrants.ownerAccountId, authorization.ownerAccountId),
+        eq(delegationGrants.actorAccountId, actorAccountId),
+        eq(delegationGrants.resourceApp, authorization.resourceApp),
+        eq(delegationGrants.effectiveAccountId, authorization.effectiveAccountId),
+        eq(delegationGrants.resourceType, authorization.resourceType),
+        eq(delegationGrants.resourceKey, authorization.resourceKey),
+        isNull(delegationGrants.revokedAt),
+        or(isNull(delegationGrants.expiresAt), gt(delegationGrants.expiresAt, now)),
+      ),
+    )
+    .orderBy(desc(delegationGrants.createdAt))
+    .limit(1);
   if (!grant) return null;
   if (!grant.catalogRegistrationId) return null;
   const [registrations, capabilities, overrides, limits] = await Promise.all([
-    db.select({ catalog: appCapabilityCatalogRegistrations.catalog })
-      .from(appCapabilityCatalogRegistrations).where(and(
-        eq(appCapabilityCatalogRegistrations.id, grant.catalogRegistrationId),
-        eq(appCapabilityCatalogRegistrations.appSlug, grant.resourceApp),
-      )).limit(1),
-    db.select({ capability: delegationCapabilities.capability })
-      .from(delegationCapabilities).where(eq(delegationCapabilities.grantId, grant.id)),
-    db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
-      .from(delegationToolOverrides).where(eq(delegationToolOverrides.grantId, grant.id)),
-    db.select({ tool: delegationLimits.tool, key: delegationLimits.key, value: delegationLimits.value })
-      .from(delegationLimits).where(and(
-        eq(delegationLimits.grantId, grant.id),
-        eq(delegationLimits.tool, authorization.tool),
-      )),
+    db
+      .select({ catalog: appCapabilityCatalogRegistrations.catalog })
+      .from(appCapabilityCatalogRegistrations)
+      .where(
+        and(
+          eq(appCapabilityCatalogRegistrations.id, grant.catalogRegistrationId),
+          eq(appCapabilityCatalogRegistrations.appSlug, grant.resourceApp),
+        ),
+      )
+      .limit(1),
+    db
+      .select({ capability: delegationCapabilities.capability })
+      .from(delegationCapabilities)
+      .where(eq(delegationCapabilities.grantId, grant.id)),
+    db
+      .select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
+      .from(delegationToolOverrides)
+      .where(eq(delegationToolOverrides.grantId, grant.id)),
+    db
+      .select({
+        tool: delegationLimits.tool,
+        key: delegationLimits.key,
+        value: delegationLimits.value,
+      })
+      .from(delegationLimits)
+      .where(
+        and(eq(delegationLimits.grantId, grant.id), eq(delegationLimits.tool, authorization.tool)),
+      ),
   ]);
   const registration = registrations[0];
   if (!registration) return null;
@@ -197,10 +237,12 @@ async function loadGrant(
  * naming exactly that resource.
  */
 function agentActsOnItsOwnAccount(authorization: ExecutionAuthorizationRow): boolean {
-  return authorization.actorType === 'agent'
-    && authorization.actorAccountId !== null
-    && authorization.actorAccountId === authorization.effectiveAccountId
-    && authorization.requesterAccountId !== authorization.actorAccountId;
+  return (
+    authorization.actorType === 'agent' &&
+    authorization.actorAccountId !== null &&
+    authorization.actorAccountId === authorization.effectiveAccountId &&
+    authorization.requesterAccountId !== authorization.actorAccountId
+  );
 }
 
 function denied(reason: string): AuthorityResult {
@@ -216,36 +258,53 @@ export async function evaluateCapabilityAuthority(
     request.coordinator.applicationId,
     request.coordinator.credentialId,
   );
-  if (!coordinator
-    || !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY)
-    || !coordinator.scopes.includes('capability-tickets:issue')) {
+  if (
+    !coordinator ||
+    !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY) ||
+    !coordinator.scopes.includes('capability-tickets:issue')
+  ) {
     return denied('coordinator_no_longer_authorized');
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
-  if (authorization.requesterAuthMethodId && !await readLiveAgentKey({
-    authMethodId: authorization.requesterAuthMethodId, authMethodOwnerId: authorization.requesterAccountId,
-  })) return denied('requester_autonomous_credential_not_active');
+  if (
+    authorization.requesterAuthMethodId &&
+    !(await readLiveAgentKey({
+      authMethodId: authorization.requesterAuthMethodId,
+      authMethodOwnerId: authorization.requesterAccountId,
+    }))
+  )
+    return denied('requester_autonomous_credential_not_active');
   if (authorization.actorType === 'requester') {
-    if (!authorization.requesterSessionId || !authorization.requesterSessionBindingDigest
-      || authorization.kind !== 'direct_request' || authorization.maximumAutonomy !== 'read_only'
-      || authorization.actorAccountId !== authorization.requesterAccountId
-      || authorization.ownerAccountId !== authorization.effectiveAccountId
-      || authorization.resourceApp !== 'oxy' || authorization.resourceType !== 'account'
-      || authorization.resourceKey !== authorization.effectiveAccountId
-      || !['recommendProfiles', 'readViewerGraph'].includes(authorization.tool)
-      || !await revalidateForegroundRequester({
-        sessionId: authorization.requesterSessionId,
-        principalAccountId: authorization.requesterAccountId,
-        subjectAccountId: authorization.effectiveAccountId,
-        digest: authorization.requesterSessionBindingDigest,
-      }, coordinator)) return denied('foreground_requester_no_longer_authorized');
+    if (
+      !authorization.requesterSessionId ||
+      !authorization.requesterSessionBindingDigest ||
+      authorization.kind !== 'direct_request' ||
+      authorization.maximumAutonomy !== 'read_only' ||
+      authorization.actorAccountId !== authorization.requesterAccountId ||
+      authorization.ownerAccountId !== authorization.effectiveAccountId ||
+      authorization.resourceApp !== 'oxy' ||
+      authorization.resourceType !== 'account' ||
+      authorization.resourceKey !== authorization.effectiveAccountId ||
+      !['recommendProfiles', 'readViewerGraph'].includes(authorization.tool) ||
+      !(await revalidateForegroundRequester(
+        {
+          sessionId: authorization.requesterSessionId,
+          principalAccountId: authorization.requesterAccountId,
+          subjectAccountId: authorization.effectiveAccountId,
+          digest: authorization.requesterSessionBindingDigest,
+        },
+        coordinator,
+      ))
+    )
+      return denied('foreground_requester_no_longer_authorized');
   }
-  const autonomousSelf = !!authorization.requesterAuthMethodId
-    && authorization.actorType === 'agent'
-    && authorization.actorAccountId === authorization.requesterAccountId
-    && authorization.ownerAccountId === authorization.requesterAccountId
-    && authorization.effectiveAccountId === authorization.requesterAccountId;
+  const autonomousSelf =
+    !!authorization.requesterAuthMethodId &&
+    authorization.actorType === 'agent' &&
+    authorization.actorAccountId === authorization.requesterAccountId &&
+    authorization.ownerAccountId === authorization.requesterAccountId &&
+    authorization.effectiveAccountId === authorization.requesterAccountId;
   const agentOwnAccount = agentActsOnItsOwnAccount(authorization);
 
   let runId: string;
@@ -262,35 +321,57 @@ export async function evaluateCapabilityAuthority(
     runId = authorization.runId;
     stepId = authorization.stepId ?? undefined;
   }
-  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
+  if (
+    authorization.actorType !== 'requester' &&
+    !autonomousSelf &&
+    !(await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId))
+  ) {
     return denied('requester_lacks_current_account_authority');
   }
-  if (authorization.actorType !== 'requester' && !autonomousSelf && !await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId)) {
+  if (
+    authorization.actorType !== 'requester' &&
+    !autonomousSelf &&
+    !(await requesterCanOperate(authorization.requesterAccountId, authorization.ownerAccountId))
+  ) {
     return denied('requester_lacks_grant_owner_authority');
   }
 
   const registration = await activeCapabilityCatalog(authorization.resourceApp);
   if (!registration) return denied('catalog_not_registered');
-  if (authorization.actorType === 'requester' && (
-    authorization.requesterCatalogRegistrationId !== registration.id
-    || authorization.requesterCatalogVersion !== registration.version
-    || authorization.requesterCatalogDigest !== registration.digest
-  )) return denied('foreground_approved_catalog_no_longer_current');
-  if (request.expectedCatalog && (
-    request.expectedCatalog.registrationId !== registration.id
-    || request.expectedCatalog.version !== registration.version
-    || request.expectedCatalog.digest !== registration.digest
-  )) return denied('ticket_catalog_no_longer_current');
+  if (
+    authorization.actorType === 'requester' &&
+    (authorization.requesterCatalogRegistrationId !== registration.id ||
+      authorization.requesterCatalogVersion !== registration.version ||
+      authorization.requesterCatalogDigest !== registration.digest)
+  )
+    return denied('foreground_approved_catalog_no_longer_current');
+  if (
+    request.expectedCatalog &&
+    (request.expectedCatalog.registrationId !== registration.id ||
+      request.expectedCatalog.version !== registration.version ||
+      request.expectedCatalog.digest !== registration.digest)
+  )
+    return denied('ticket_catalog_no_longer_current');
   const tool = registration.catalog.tools.find((entry) => entry.name === authorization.tool);
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
-  if (authorization.actorType === 'requester' && tool.effect !== 'read') return denied('foreground_effect_not_allowed');
-  if (!tool.resourceTypes.includes(authorization.resourceType)) return denied('resource_type_mismatch');
+  if (authorization.actorType === 'requester' && tool.effect !== 'read')
+    return denied('foreground_effect_not_allowed');
+  if (!tool.resourceTypes.includes(authorization.resourceType))
+    return denied('resource_type_mismatch');
 
-  const [policy] = await getDb().select().from(accountCapabilityPolicies).where(and(
-    eq(accountCapabilityPolicies.accountId, authorization.effectiveAccountId),
-    eq(accountCapabilityPolicies.appSlug, authorization.resourceApp),
-  )).limit(1);
-  if (policy?.deniedCapabilities.some((capability) => tool.requiredCapabilities.includes(capability))) {
+  const [policy] = await getDb()
+    .select()
+    .from(accountCapabilityPolicies)
+    .where(
+      and(
+        eq(accountCapabilityPolicies.accountId, authorization.effectiveAccountId),
+        eq(accountCapabilityPolicies.appSlug, authorization.resourceApp),
+      ),
+    )
+    .limit(1);
+  if (
+    policy?.deniedCapabilities.some((capability) => tool.requiredCapabilities.includes(capability))
+  ) {
     return denied('account_policy_denied_capability');
   }
 
@@ -308,8 +389,11 @@ export async function evaluateCapabilityAuthority(
   );
   if (authorizationSensitiveLimitError) return denied(authorizationSensitiveLimitError);
   if (actor.type === 'agent' && !autonomousSelf) {
-    const [actorRow] = await getDb().select({ kind: users.kind, accountStatus: users.accountStatus })
-      .from(users).where(eq(users.id, actor.accountId)).limit(1);
+    const [actorRow] = await getDb()
+      .select({ kind: users.kind, accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, actor.accountId))
+      .limit(1);
     if (!actorRow || actorRow.kind !== 'bot' || actorRow.accountStatus === 'archived') {
       return denied('actor_is_not_an_active_bot_account');
     }
@@ -317,15 +401,25 @@ export async function evaluateCapabilityAuthority(
   if (actor.type === 'agent' && !autonomousSelf && !agentOwnAccount) {
     grantParts = await loadGrant(authorization, actor.accountId, now);
     if (!grantParts) return denied('agent_has_no_active_grant');
-    if (!grantAllowsTool(tool, {
-      capabilities: grantParts.capabilities,
-      overrides: grantParts.overrides,
-      capabilityPackages: grantParts.grant.capabilityPackages,
-    }, grantParts.boundCatalog.tools.find((entry) => entry.name === tool.name))) {
+    if (
+      !grantAllowsTool(
+        tool,
+        {
+          capabilities: grantParts.capabilities,
+          overrides: grantParts.overrides,
+          capabilityPackages: grantParts.grant.capabilityPackages,
+        },
+        grantParts.boundCatalog.tools.find((entry) => entry.name === tool.name),
+      )
+    ) {
       return denied('grant_does_not_allow_tool');
     }
     grantAutonomy = grantParts.grant.maximumAutonomy;
-    const grantLimitError = capabilityLimitError(grantParts.limits, [tool], authorization.resourceType);
+    const grantLimitError = capabilityLimitError(
+      grantParts.limits,
+      [tool],
+      authorization.resourceType,
+    );
     if (grantLimitError) return denied(grantLimitError);
     const grantSensitiveLimitError = autonomousSensitiveToolLimitError(
       grantAutonomy,
@@ -351,7 +445,10 @@ export async function evaluateCapabilityAuthority(
   if (authorization.kind === 'direct_request' && effectiveAutonomy === 'autonomous') {
     return denied('direct_request_cannot_be_autonomous');
   }
-  if (tool.effect !== 'read' && AUTONOMY_RANK[effectiveAutonomy] < AUTONOMY_RANK.execute_on_request) {
+  if (
+    tool.effect !== 'read' &&
+    AUTONOMY_RANK[effectiveAutonomy] < AUTONOMY_RANK.execute_on_request
+  ) {
     return denied('effect_requires_execution_authority');
   }
   const sensitiveLimitError = autonomousSensitiveToolLimitError(effectiveAutonomy, tool, limits);
@@ -395,8 +492,16 @@ export async function evaluateCapabilityAuthority(
     executionAuthorization,
     coordinator: request.coordinator,
     ...(authorization.actorType === 'requester'
-      ? { catalog: { registrationId: registration.id, version: registration.version, digest: registration.digest } }
-      : request.expectedCatalog ? { catalog: request.expectedCatalog } : {}),
+      ? {
+          catalog: {
+            registrationId: registration.id,
+            version: registration.version,
+            digest: registration.digest,
+          },
+        }
+      : request.expectedCatalog
+        ? { catalog: request.expectedCatalog }
+        : {}),
     ...(grantParts ? { grantId: grantParts.grant.id } : {}),
     requesterAccountId: authorization.requesterAccountId,
     ownerAccountId: authorization.ownerAccountId,
@@ -434,78 +539,100 @@ export async function evaluateCapabilityAuthority(
 function sameCapabilities(left: readonly string[], right: readonly string[]): boolean {
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
-  return sortedLeft.length === sortedRight.length
-    && sortedLeft.every((capability, index) => capability === sortedRight[index]);
+  return (
+    sortedLeft.length === sortedRight.length &&
+    sortedLeft.every((capability, index) => capability === sortedRight[index])
+  );
 }
 
 function sameLimits(left: readonly GrantLimit[], right: readonly GrantLimit[]): boolean {
-  const compare = (first: GrantLimit, second: GrantLimit): number => (
-    first.tool.localeCompare(second.tool) || first.key.localeCompare(second.key)
-  );
+  const compare = (first: GrantLimit, second: GrantLimit): number =>
+    first.tool.localeCompare(second.tool) || first.key.localeCompare(second.key);
   const sortedLeft = [...left].sort(compare);
   const sortedRight = [...right].sort(compare);
-  return sortedLeft.length === sortedRight.length
-    && sortedLeft.every((limit, index) => {
+  return (
+    sortedLeft.length === sortedRight.length &&
+    sortedLeft.every((limit, index) => {
       const other = sortedRight[index];
-      return other !== undefined
-        && limit.tool === other.tool
-        && limit.key === other.key
-        && typeof limit.value === typeof other.value
-        && limit.value === other.value;
-    });
+      return (
+        other !== undefined &&
+        limit.tool === other.tool &&
+        limit.key === other.key &&
+        typeof limit.value === typeof other.value &&
+        limit.value === other.value
+      );
+    })
+  );
 }
 
-function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization: ExecutionAuthorizationRow): boolean {
+function claimsMatchAuthorization(
+  claims: CapabilityTicketClaims,
+  authorization: ExecutionAuthorizationRow,
+): boolean {
   const actor = actorOf(authorization);
-  const executionAuthorizationMatches = claims.executionAuthorization.kind === authorization.kind
-    && (authorization.kind === 'direct_request'
-      || (claims.executionAuthorization.kind === 'automation'
-        && claims.executionAuthorization.automationId === authorization.automationId));
-  const runScopeMatches = authorization.kind === 'automation'
-    ? claims.automationId === authorization.automationId
-    : claims.runId === authorization.runId
-      && claims.stepId === (authorization.stepId ?? undefined);
-  return executionAuthorizationMatches
-    && claims.requesterAccountId === authorization.requesterAccountId
-    && claims.ownerAccountId === authorization.ownerAccountId
-    && claims.actor.type === actor.type
-    && (actor.type === 'alia'
+  const executionAuthorizationMatches =
+    claims.executionAuthorization.kind === authorization.kind &&
+    (authorization.kind === 'direct_request' ||
+      (claims.executionAuthorization.kind === 'automation' &&
+        claims.executionAuthorization.automationId === authorization.automationId));
+  const runScopeMatches =
+    authorization.kind === 'automation'
+      ? claims.automationId === authorization.automationId
+      : claims.runId === authorization.runId &&
+        claims.stepId === (authorization.stepId ?? undefined);
+  return (
+    executionAuthorizationMatches &&
+    claims.requesterAccountId === authorization.requesterAccountId &&
+    claims.ownerAccountId === authorization.ownerAccountId &&
+    claims.actor.type === actor.type &&
+    (actor.type === 'alia'
       ? claims.actor.type === 'alia' && claims.actor.ownerAccountId === actor.ownerAccountId
-      : claims.actor.type === actor.type && claims.actor.accountId === actor.accountId)
-    && claims.resource.appId === authorization.resourceApp
-    && claims.resource.effectiveAccountId === authorization.effectiveAccountId
-    && claims.resource.resourceType === authorization.resourceType
-    && claims.resource.resourceId === authorization.resourceKey
-    && claims.tool === authorization.tool
-    && runScopeMatches
-    && claims.automationId === (authorization.automationId ?? undefined)
-    && claims.autonomy === authorization.maximumAutonomy;
+      : claims.actor.type === actor.type && claims.actor.accountId === actor.accountId) &&
+    claims.resource.appId === authorization.resourceApp &&
+    claims.resource.effectiveAccountId === authorization.effectiveAccountId &&
+    claims.resource.resourceType === authorization.resourceType &&
+    claims.resource.resourceId === authorization.resourceKey &&
+    claims.tool === authorization.tool &&
+    runScopeMatches &&
+    claims.automationId === (authorization.automationId ?? undefined) &&
+    claims.autonomy === authorization.maximumAutonomy
+  );
 }
 
-export async function reauthorizeCapabilityTicket(claims: CapabilityTicketClaims): Promise<PolicyDecision> {
+export async function reauthorizeCapabilityTicket(
+  claims: CapabilityTicketClaims,
+): Promise<PolicyDecision> {
   const now = new Date();
   const request = {
     executionAuthorizationId: claims.executionAuthorization.id,
     coordinator: claims.coordinator,
     ...(claims.catalog ? { expectedCatalog: claims.catalog } : {}),
-    ...(claims.executionAuthorization.kind === 'automation' ? {
-      runId: claims.runId,
-      ...(claims.stepId ? { stepId: claims.stepId } : {}),
-    } : {}),
+    ...(claims.executionAuthorization.kind === 'automation'
+      ? {
+          runId: claims.runId,
+          ...(claims.stepId ? { stepId: claims.stepId } : {}),
+        }
+      : {}),
   };
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization || !claimsMatchAuthorization(claims, authorization)) {
     return { allowed: false, reason: 'ticket_execution_authorization_mismatch' };
   }
-  const result = await evaluateCapabilityAuthority(request, { now, includeResolvedAuthority: true });
+  const result = await evaluateCapabilityAuthority(request, {
+    now,
+    includeResolvedAuthority: true,
+  });
   if (claims.grantId && result.decision.grantId !== claims.grantId) {
     return { allowed: false, reason: 'ticket_grant_is_no_longer_current' };
   }
   const resolved = result.resolvedAuthority;
-  if (result.decision.allowed && (!resolved
-    || claims.autonomy !== resolved.autonomy
-    || !sameCapabilities(claims.capabilities, resolved.capabilities)
-    || !sameLimits(claims.limits, resolved.limits))) {
+  if (
+    result.decision.allowed &&
+    (!resolved ||
+      claims.autonomy !== resolved.autonomy ||
+      !sameCapabilities(claims.capabilities, resolved.capabilities) ||
+      !sameLimits(claims.limits, resolved.limits))
+  ) {
     return { allowed: false, reason: 'ticket_authority_snapshot_no_longer_current' };
   }
   return result.decision;

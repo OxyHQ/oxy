@@ -16,13 +16,13 @@ jest.mock('expo-haptics', () => ({
 // outside a BloomThemeProvider; the shared-UI primitives are irrelevant to the
 // reveal state machine under test, so stand them in with plain DOM nodes.
 jest.mock('@/components/ui', () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react');
   return {
     Screen: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
     StackHeader: ({ title, subtitle }: { title: string; subtitle?: string }) =>
       R.createElement('div', null, title, subtitle),
-    Section: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
+    Section: ({ children }: { children: React.ReactNode }) =>
+      R.createElement('div', null, children),
     Button: ({
       children,
       onPress,
@@ -32,7 +32,8 @@ jest.mock('@/components/ui', () => {
       onPress?: () => void;
       disabled?: boolean;
     }) => R.createElement('button', { onClick: onPress, disabled }, children),
-    Callout: ({ children }: { children: React.ReactNode }) => R.createElement('div', null, children),
+    Callout: ({ children }: { children: React.ReactNode }) =>
+      R.createElement('div', null, children),
     CenteredState: ({
       title,
       body,

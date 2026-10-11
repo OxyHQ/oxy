@@ -31,6 +31,7 @@ import type {
   MessageCardType,
 } from '@oxy.so/contracts';
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
+import { isUniqueViolation } from '@oxy.so/db';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb, type Database, type Transaction } from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
@@ -44,11 +45,18 @@ import {
 import { emailFilters, incompleteEmailFilters } from '../db/schema/emailFilters';
 import { emailTemplates } from '../db/schema/emailTemplates';
 import { labels as labelsTable } from '../db/schema/labels';
+import {
+  emailUnsubscribedSenders,
+  type EmailUnsubscribeMethod,
+} from '../db/schema/emailUnsubscribedSenders';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments, type MessageAttachment } from '../db/schema/messageAttachments';
 import { messageRecipients } from '../db/schema/messageRecipients';
 import { messages, type EmailAddress, type MessageHighlight } from '../db/schema/messages';
-import { MESSAGES_PROTECTED_COLUMNS, PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import {
+  MESSAGES_PROTECTED_COLUMNS,
+  PROTECTED_COLUMNS_BY_TABLE,
+} from '../db/schema/protectedColumns';
 import { reminders } from '../db/schema/reminders';
 import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { users } from '../db/schema/users';
@@ -81,10 +89,10 @@ import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
- * Mongo's `maxTimeMS` on the two search queries, as `statement_timeout`.
+ * The `statement_timeout` on the two search queries.
  *
- * It is a DoS guard on a user-supplied search, not an optimisation, so it
- * survives the port. `SET LOCAL` needs a transaction — which is why both the
+ * It is a DoS guard on a user-supplied search, not an optimisation.
+ * `SET LOCAL` needs a transaction — which is why both the
  * page and the count run inside one.
  */
 const EMAIL_SEARCH_MAX_TIME_MS = 5_000;
@@ -108,18 +116,27 @@ function decodeEmailPageCursor(value: string, kind: EmailPageCursor['kind']): Em
     throw new BadRequestError('Invalid email pagination cursor');
   }
 
-  if (!parsed || typeof parsed !== 'object' || (parsed as { version?: unknown }).version !== 1 ||
-      (parsed as { kind?: unknown }).kind !== kind) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    (parsed as { version?: unknown }).version !== 1 ||
+    (parsed as { kind?: unknown }).kind !== kind
+  ) {
     throw new BadRequestError('Invalid email pagination cursor');
   }
 
   const candidate = parsed as Record<string, unknown>;
-  if (typeof candidate.date !== 'string' || Number.isNaN(Date.parse(candidate.date)) ||
-      typeof candidate.id !== 'string' || candidate.id.length === 0) {
+  if (
+    typeof candidate.date !== 'string' ||
+    Number.isNaN(Date.parse(candidate.date)) ||
+    typeof candidate.id !== 'string' ||
+    candidate.id.length === 0
+  ) {
     throw new BadRequestError('Invalid email pagination cursor');
   }
   if (kind === 'messages') {
-    if (typeof candidate.pinned !== 'boolean') throw new BadRequestError('Invalid email pagination cursor');
+    if (typeof candidate.pinned !== 'boolean')
+      throw new BadRequestError('Invalid email pagination cursor');
     return parsed as EmailPageCursor;
   }
   if (typeof candidate.rank !== 'number' || !Number.isFinite(candidate.rank)) {
@@ -147,8 +164,7 @@ export function normalizeStructuredSearchFilter(value: string | undefined): stri
 }
 
 /**
- * Case-insensitive substring containment — the exact semantic of Mongo's
- * `{ $regex: <escaped literal>, $options: 'i' }`.
+ * Case-insensitive substring containment of a literal.
  *
  * `strpos` rather than `ilike`: a LIKE pattern would need its own escaping for
  * `%`, `_` and `\`, which is a second escaping routine to get wrong for no gain.
@@ -175,25 +191,163 @@ function textArray(values: readonly string[]): SQL {
   )}]::text[]`;
 }
 
+// ─── Label references ──────────────────────────────────────────────
+
+/** The case-insensitive per-user unique index on label names. */
+const LABEL_NAME_UNIQUE_INDEX = 'labels_user_id_lower_name_key';
+
+/**
+ * `column` with every `from` replaced by `to`, each distinct entry kept ONCE at
+ * its first position. A bare `array_replace` would leave `{to, to}` on a row
+ * that already carried the new name, and every reader treats these arrays as
+ * sets.
+ */
+function renameInTextArray(column: SQLWrapper, from: string, to: string): SQL {
+  return sql`(
+    select coalesce(array_agg(entry.label order by entry.idx), '{}'::text[])
+    from (
+      select renamed.label, min(renamed.idx) as idx
+      from unnest(array_replace(${column}, ${from}::text, ${to}::text)) with ordinality as renamed(label, idx)
+      group by renamed.label
+    ) as entry
+  )`;
+}
+
+/**
+ * The tokens of a saved search's query, split the way the Inbox client's
+ * `parseSearchQuery` splits them: on whitespace, except inside quotes.
+ */
+function tokenizeSearchQuery(query: string): string[] {
+  const tokens: string[] = [];
+  let token = '';
+  let quote: '"' | "'" | null = null;
+  for (const character of query.trim()) {
+    if (quote) {
+      token += character;
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      token += character;
+    } else if (/\s/.test(character)) {
+      if (token) tokens.push(token);
+      token = '';
+    } else {
+      token += character;
+    }
+  }
+  if (token) tokens.push(token);
+  return tokens;
+}
+
+function unquoteSearchValue(value: string): string {
+  const trimmed = value.trim();
+  if (
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+function quoteSearchValue(value: string): string {
+  if (!/[\s"']/.test(value)) return value;
+  return value.includes('"') ? `'${value}'` : `"${value}"`;
+}
+
+/**
+ * A saved search's query with every `label:<from>` operator renamed to `<to>`,
+ * or the query unchanged when it names no such label. The client reads the
+ * operator from the query BEFORE the stored `filters.label`, so rewriting only
+ * the structured filter would leave the search pointing at the old name.
+ */
+export function renameLabelInSearchQuery(query: string, from: string, to: string): string {
+  let changed = false;
+  const tokens = tokenizeSearchQuery(query).map((token) => {
+    const match = /^label:(.*)$/i.exec(token);
+    if (!match || unquoteSearchValue(match[1] ?? '') !== from) return token;
+    changed = true;
+    return `label:${quoteSearchValue(to)}`;
+  });
+  return changed ? tokens.join(' ') : query;
+}
+
+/**
+ * Point every reference to the label `from` at `to`, for one user, inside the
+ * caller's transaction. Returns the mailboxes whose messages changed.
+ */
+async function renameLabelReferences(
+  tx: Transaction,
+  userId: string,
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const relabelled = await tx
+    .update(messages)
+    .set({ labels: renameInTextArray(messages.labels, from, to) })
+    .where(and(eq(messages.userId, userId), sql`${messages.labels} @> array[${from}::text]`))
+    .returning({ mailboxId: messages.mailboxId });
+
+  await tx
+    .update(bundles)
+    .set({ matchLabels: renameInTextArray(bundles.matchLabels, from, to) })
+    .where(and(eq(bundles.userId, userId), sql`${bundles.matchLabels} @> array[${from}::text]`));
+
+  // A filter's `label` action names the label in `value`; no other action type
+  // and no condition field holds a label name.
+  await tx
+    .update(emailFilterActions)
+    .set({ value: to })
+    .where(
+      and(
+        eq(emailFilterActions.type, 'label'),
+        eq(emailFilterActions.value, from),
+        inArray(
+          emailFilterActions.filterId,
+          tx
+            .select({ id: emailFilters.id })
+            .from(emailFilters)
+            .where(eq(emailFilters.userId, userId)),
+        ),
+      ),
+    );
+
+  const searches = await tx
+    .select({
+      id: emailSavedSearches.id,
+      query: emailSavedSearches.query,
+      filters: emailSavedSearches.filters,
+    })
+    .from(emailSavedSearches)
+    .where(eq(emailSavedSearches.userId, userId));
+  for (const search of searches) {
+    const query = renameLabelInSearchQuery(search.query, from, to);
+    const relabelFilter = search.filters.label === from;
+    if (query === search.query && !relabelFilter) continue;
+    await tx
+      .update(emailSavedSearches)
+      .set({ query, filters: relabelFilter ? { ...search.filters, label: to } : search.filters })
+      .where(eq(emailSavedSearches.id, search.id));
+  }
+
+  return [...new Set(relabelled.map((row) => row.mailboxId))];
+}
+
 // ─── Wire shapes ────────────────────────────────────────────────────
 //
 // Every response below carries BOTH `_id` and `id`, as strings.
 //
-// That is not indecision: the Mongo reads this replaces disagreed with each
-// other. `.lean({virtuals:true})` returned `_id` AND the `id` virtual, a plain
-// `.lean()` (bundles, the reminder list, bundled messages) returned only `_id`,
-// and `.toJSON()` returned only `id`. The three shapes reached the same clients
-// through different endpoints, so both keys are load-bearing somewhere —
+// That is not indecision: some clients read `_id`, others read `id`, through
+// different endpoints, so both keys are load-bearing somewhere —
 // `SYSTEM_LABELS` even keys on `_id` alone and is merged into the same array as
-// stored labels. Emitting both is the only shape that is a superset of all
-// three: no consumer loses a field and no existing field changes value.
-//
-// `__v` does not travel. It was a Mongo version key, absent from every
-// `toJSON` response already, and there is no column behind it.
+// stored labels. Emitting both means no consumer loses a field.
 
 /** One addressee, exactly as the wire has always carried it. */
 export interface EmailAddressDto {
-  /** Mongoose defaulted this to `''`; a header with no display name still sends `''`. */
+  /** A header with no display name sends `''`. */
   name: string;
   address: string;
 }
@@ -208,7 +362,7 @@ export interface AttachmentDto {
   isInline: boolean;
 }
 
-/** The six message flags, still nested exactly as Mongo nested them. */
+/** The six message flags, nested on the wire. */
 export interface MessageFlagsDto {
   seen: boolean;
   starred: boolean;
@@ -424,6 +578,23 @@ export interface SubscriptionSenderDto {
   hasListUnsubscribe: boolean;
   type: 'list-unsubscribe' | 'pattern-match' | 'frequent';
   senderAvatarPath?: string | null;
+  /** The user has already unsubscribed from this sender. */
+  unsubscribed: boolean;
+  /** When they first did, or `null` when they have not. */
+  unsubscribedAt: Date | null;
+}
+
+/** What `POST /email/subscriptions/unsubscribe` reports. */
+export interface UnsubscribeResultDto {
+  success: true;
+  method: EmailUnsubscribeMethod;
+  /** When the user first unsubscribed from this sender. */
+  unsubscribedAt: Date;
+  /**
+   * True when the sender was already unsubscribed and nothing was sent to it
+   * this time — the stored result is returned instead.
+   */
+  alreadyUnsubscribed: boolean;
 }
 
 // ─── Message reads ──────────────────────────────────────────────────
@@ -550,7 +721,10 @@ async function loadAttachments(
  * so the two shapes are not assignable to each other — the conversion belongs
  * at the boundary, once, rather than as a `.map()` at every send site.
  */
-async function loadOutboundAttachments(db: Database, messageId: string): Promise<MessageAttachment[]> {
+async function loadOutboundAttachments(
+  db: Database,
+  messageId: string,
+): Promise<MessageAttachment[]> {
   const rows = await db
     .select({
       fileId: messageAttachments.fileId,
@@ -663,10 +837,9 @@ async function toMessageDtos(
  * The set of RFC Message-ID tokens that identify a message's place in a thread:
  * its own `Message-ID`, its `In-Reply-To`, and every entry of `References`.
  *
- * Two messages are in the same thread exactly when these sets intersect — which
- * is, term for term, the sibling test the Mongo pipeline finished in JS
+ * Two messages are in the same thread exactly when these sets intersect
  * (`m.messageId ∈ myIds ∨ m.inReplyTo ∈ myIds ∨ m.references ∩ myIds ≠ ∅`,
- * where `myIds` was this same set). Stating it as one symmetric relation is
+ * where `myIds` is this same set). Stating it as one symmetric relation is
  * what lets the walk be transitive instead of one hop.
  */
 function threadKeys(alias: string): SQL {
@@ -762,8 +935,8 @@ async function writeFilterChildren(
 }
 
 /**
- * Refuse a rule with no conditions or no actions — Mongoose's two
- * `length > 0` validators, enforced where Postgres can enforce them.
+ * Refuse a rule with no conditions or no actions — enforced here because a
+ * CHECK cannot require child rows.
  *
  * The scoping is what the outer parentheses in `incompleteEmailFilters()` exist
  * for: without them this `and` would render as `(id = $1 and …) or …` and
@@ -826,7 +999,7 @@ async function loadFilterChildren(
   const actionsById = new Map<string, FilterActionDto[]>();
   for (const row of actionRows) {
     const entry = actionsById.get(row.filterId) ?? [];
-    // Mongoose omitted `value` when unset rather than storing null.
+    // `value` is omitted when unset rather than sent as null.
     entry.push(row.value === null ? { type: row.type } : { type: row.type, value: row.value });
     actionsById.set(row.filterId, entry);
   }
@@ -931,13 +1104,15 @@ function toContactDto(row: typeof contacts.$inferSelect): ContactDto {
  * `resolveEmailFromName` composes a display name out of.
  *
  * Shaped as `DisplayNameSource` so it feeds that helper directly. `name.full`
- * and `name.displayName` were Mongoose VIRTUALS with no column behind them —
- * they stay derived, so there is nothing else to select.
+ * and `name.displayName` are derived, with no column behind them, so there is
+ * nothing else to select.
  */
 async function loadSenderIdentity(
   db: Database,
   userId: string,
-): Promise<{ username: string | null; name: { first: string | null; last: string | null } } | undefined> {
+): Promise<
+  { username: string | null; name: { first: string | null; last: string | null } } | undefined
+> {
   const [row] = await db
     .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
     .from(users)
@@ -952,13 +1127,11 @@ async function loadSenderIdentity(
  *
  * The recipients and attachments are the message — a crash between the parent
  * insert and the children would leave stored mail claiming addressees it does
- * not have, which is exactly what Mongo's single-document write made
- * impossible and what a naive three-statement port would reintroduce.
+ * not have, which three separate statements outside a transaction would allow.
  *
  * Addresses are lower-cased and trimmed HERE, the call-site obligation
- * `db/schema/messages.ts` records: Mongoose applied it with a setter that
- * Postgres has no counterpart for, and skipping it turns address matching
- * silently case-sensitive.
+ * `db/schema/messages.ts` records: Postgres has no column-level setter, and
+ * skipping it turns address matching silently case-sensitive.
  */
 async function insertMessageWithChildren(
   db: Database,
@@ -1016,6 +1189,15 @@ async function readMessageDto(db: Database, messageId: string): Promise<MessageD
   return dto;
 }
 
+/** What an address filter condition is compared with: each address, each name, and both together. */
+function addressCandidates(list: { name?: string | null; address: string }[]): string[] {
+  return list.flatMap(({ name, address }) => {
+    const lowerAddress = address.toLowerCase();
+    const lowerName = name?.trim().toLowerCase();
+    return lowerName ? [lowerAddress, lowerName, `${lowerName} ${lowerAddress}`] : [lowerAddress];
+  });
+}
+
 class EmailService {
   /**
    * Compute the storage footprint of a message: UTF-8 body bytes plus the
@@ -1070,11 +1252,15 @@ class EmailService {
         await this.createWelcomeEmail(userId, inbox.id);
       }
     } catch (err) {
-      logger.error('Failed to create welcome email', err instanceof Error ? err : new Error(String(err)), {
-        component: 'EmailService',
-        method: 'provisionMailboxes',
-        userId,
-      });
+      logger.error(
+        'Failed to create welcome email',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          component: 'EmailService',
+          method: 'provisionMailboxes',
+          userId,
+        },
+      );
     }
 
     return this.listMailboxes(userId);
@@ -1087,8 +1273,20 @@ class EmailService {
   // ─── Default Labels ──────────────────────────────────────────────
 
   private static readonly DEFAULT_BUNDLES = [
-    { name: 'Promotions', icon: 'tag-outline', color: '#34A853', matchLabels: ['Shopping'], order: 0 },
-    { name: 'Social', icon: 'account-group-outline', color: '#E8710A', matchLabels: ['Social'], order: 1 },
+    {
+      name: 'Promotions',
+      icon: 'tag-outline',
+      color: '#34A853',
+      matchLabels: ['Shopping'],
+      order: 0,
+    },
+    {
+      name: 'Social',
+      icon: 'account-group-outline',
+      color: '#E8710A',
+      matchLabels: ['Social'],
+      order: 1,
+    },
     { name: 'Updates', icon: 'bell-outline', color: '#607D8B', matchLabels: ['Updates'], order: 2 },
     { name: 'Forums', icon: 'forum-outline', color: '#795548', matchLabels: ['Forums'], order: 3 },
   ];
@@ -1106,7 +1304,9 @@ class EmailService {
 
     // Sync missing default mailboxes (e.g., Archive added after user created)
     const existingSpecialUse = new Set(existing.map((m) => m.specialUse).filter(Boolean));
-    const missing = DEFAULT_MAILBOXES.filter((mb) => mb.specialUse && !existingSpecialUse.has(mb.specialUse));
+    const missing = DEFAULT_MAILBOXES.filter(
+      (mb) => mb.specialUse && !existingSpecialUse.has(mb.specialUse),
+    );
 
     if (missing.length > 0) {
       await db.insert(mailboxes).values(
@@ -1134,7 +1334,9 @@ class EmailService {
     const emailName = resolveEmailFromName(user);
     const displayName = emailName || 'there';
     const recipientName = emailName;
-    const recipientAddress = user.username ? resolveEmailAddress(user.username) : `${userId}@${EMAIL_DOMAIN}`;
+    const recipientAddress = user.username
+      ? resolveEmailAddress(user.username)
+      : `${userId}@${EMAIL_DOMAIN}`;
 
     const subject = 'Welcome to Inbox by Oxy';
     const text = [
@@ -1360,11 +1562,11 @@ class EmailService {
   }
 
   /**
-   * A user's folders with the three counters Mongo cached on the row.
+   * A user's folders with their three counters.
    *
-   * `total_messages`, `unseen_messages` and `size` are derived here — the
-   * numbers are the same numbers, and the eighteen hand-maintained `$inc` sites
-   * that kept them approximately current are gone. See `db/schema/mailboxes.ts`.
+   * `total_messages`, `unseen_messages` and `size` are derived here rather than
+   * stored, so there is no hand-maintained counter to drift. See
+   * `db/schema/mailboxes.ts`.
    */
   async listMailboxes(userId: string): Promise<MailboxDto[]> {
     const stats = getDb()
@@ -1472,6 +1674,21 @@ class EmailService {
     };
   }
 
+  /**
+   * Delete a user-created folder, KEEPING its mail.
+   *
+   * The client promises "messages inside are not deleted", and
+   * `messages.mailbox_id` CASCADEs — so deleting the row alone destroyed every
+   * message in the folder. The messages move to Archive first (Inbox when the
+   * user has no Archive), in the same transaction as the delete. The folder row
+   * is locked before the move: an insert into `messages` takes a KEY SHARE lock
+   * on the mailbox it references, so a delivery racing this delete waits and
+   * then fails its foreign key instead of landing after the move and being
+   * cascaded away.
+   *
+   * Counters need no bookkeeping: they are derived from `messages`, so the move
+   * IS the counter update for both folders.
+   */
   async deleteMailbox(userId: string, mailboxId: string): Promise<void> {
     const mailbox = await this.getMailboxById(userId, mailboxId);
     if (!mailbox) {
@@ -1481,12 +1698,59 @@ class EmailService {
       throw new BadRequestError('Cannot delete a system mailbox');
     }
 
-    // Unlink the attachments first — the file manager owns blob lifecycle and
-    // has to be told. Deleting the mailbox then takes its messages with it:
-    // `messages.mailbox_id` CASCADEs, which is the same two-step this method
-    // used to perform by hand, except Postgres cannot forget the second half.
-    await this.deleteAttachmentsForMailbox(userId, mailboxId);
-    await getDb().delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+    const destination = await this.mailDestinationForDeletedFolder(userId);
+    const db = getDb();
+
+    await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select({ id: mailboxes.id, specialUse: mailboxes.specialUse })
+        .from(mailboxes)
+        .where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.userId, userId)))
+        .for('update')
+        .limit(1);
+      if (!locked) throw new NotFoundError('Mailbox not found');
+      if (locked.specialUse) throw new BadRequestError('Cannot delete a system mailbox');
+
+      // Every row in the folder, not only the caller's: any row left behind is
+      // a row the cascade below would delete.
+      await tx
+        .update(messages)
+        .set({ mailboxId: destination.id })
+        .where(eq(messages.mailboxId, mailboxId));
+      // A message snoozed OUT of this folder would otherwise lose its return
+      // address to `ON DELETE SET NULL` and never wake up.
+      await tx
+        .update(messages)
+        .set({ snoozedFromMailbox: destination.id })
+        .where(eq(messages.snoozedFromMailbox, mailboxId));
+      await tx.delete(mailboxes).where(eq(mailboxes.id, mailboxId));
+    });
+
+    // One signal for the whole folder rather than one per message: the client
+    // re-reads every mail view and the folder list on any `email:changed`, and
+    // a large folder would otherwise be thousands of events and unread
+    // recounts. `id` is the deleted folder's.
+    await emitEmailChanged({
+      userId,
+      id: mailboxId,
+      mailboxIds: [destination.id],
+      reason: 'moved',
+    });
+  }
+
+  /** Where a deleted folder's mail goes: Archive, else Inbox, provisioning if needed. */
+  private async mailDestinationForDeletedFolder(
+    userId: string,
+  ): Promise<typeof mailboxes.$inferSelect> {
+    const find = async () =>
+      (await this.getMailboxBySpecialUse(userId, '\\Archive')) ??
+      (await this.getMailboxBySpecialUse(userId, '\\Inbox'));
+    const existing = await find();
+    if (existing) return existing;
+    await this.ensureMailboxes(userId);
+    const provisioned = await find();
+    if (!provisioned) throw new NotFoundError('Archive mailbox not found');
+    return provisioned;
   }
 
   // ─── Messages ─────────────────────────────────────────────────────
@@ -1494,13 +1758,36 @@ class EmailService {
   async listMessages(
     userId: string,
     mailboxId: string | null,
-    options: { limit?: number; offset?: number; cursor?: string; unseenOnly?: boolean; starred?: boolean; label?: string } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
-    const { limit = 50, offset = 0, cursor: cursorToken, unseenOnly = false, starred = false, label } = options;
+    options: {
+      limit?: number;
+      offset?: number;
+      cursor?: string;
+      unseenOnly?: boolean;
+      starred?: boolean;
+      label?: string;
+    } = {},
+  ): Promise<{
+    data: MessageDto[];
+    total: number;
+    limit: number;
+    offset: number;
+    nextCursor?: string | null;
+  }> {
+    const {
+      limit = 50,
+      offset = 0,
+      cursor: cursorToken,
+      unseenOnly = false,
+      starred = false,
+      label,
+    } = options;
     const db = getDb();
     const cursorMode = cursorToken !== undefined;
     const cursor = cursorToken
-      ? decodeEmailPageCursor(cursorToken, 'messages') as Extract<EmailPageCursor, { kind: 'messages' }>
+      ? (decodeEmailPageCursor(cursorToken, 'messages') as Extract<
+          EmailPageCursor,
+          { kind: 'messages' }
+        >)
       : null;
 
     const baseWhere = and(
@@ -1513,16 +1800,18 @@ class EmailService {
     const where = and(
       baseWhere,
       ...(cursor
-        ? [or(
-            lt(messages.pinned, cursor.pinned),
-            and(
-              eq(messages.pinned, cursor.pinned),
-              or(
-                lt(messages.date, new Date(cursor.date)),
-                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+        ? [
+            or(
+              lt(messages.pinned, cursor.pinned),
+              and(
+                eq(messages.pinned, cursor.pinned),
+                or(
+                  lt(messages.date, new Date(cursor.date)),
+                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+                ),
               ),
             ),
-          )]
+          ]
         : []),
     );
 
@@ -1537,7 +1826,9 @@ class EmailService {
       db.select({ total: sql<number>`count(*)::int` }).from(messages).where(baseWhere),
     ]);
 
-    const hasMore = cursorMode ? fetchedRows.length > limit : offset + limit < (countRow?.total ?? 0);
+    const hasMore = cursorMode
+      ? fetchedRows.length > limit
+      : offset + limit < (countRow?.total ?? 0);
     const rows = cursorMode ? fetchedRows.slice(0, limit) : fetchedRows;
     const data = await toMessageDtos(db, rows);
     await this.attachThreadMetadata(userId, data);
@@ -1551,15 +1842,16 @@ class EmailService {
       offset: cursorMode ? 0 : offset,
       ...(cursorMode
         ? {
-            nextCursor: hasMore && last
-              ? encodeEmailPageCursor({
-                  version: 1,
-                  kind: 'messages',
-                  pinned: last.pinned,
-                  date: last.date.toISOString(),
-                  id: last.id,
-                })
-              : null,
+            nextCursor:
+              hasMore && last
+                ? encodeEmailPageCursor({
+                    version: 1,
+                    kind: 'messages',
+                    pinned: last.pinned,
+                    date: last.date.toISOString(),
+                    id: last.id,
+                  })
+                : null,
           }
         : {}),
     };
@@ -1569,15 +1861,13 @@ class EmailService {
    * Attach `threadCount` / `threadParticipants` to every page message that has
    * any threading header.
    *
-   * ## What changed, deliberately
+   * ## The walk is transitive
    *
-   * Mongo fetched every message adjacent to the union of the page's Message-ID
-   * tokens, then resolved siblings per page message IN JS — ONE hop. A message
-   * two replies removed that had dropped the shared reference was simply not
-   * counted. Postgres walks the same adjacency TRANSITIVELY (`WITH RECURSIVE`),
-   * so the numbers are the whole thread rather than its immediate neighbourhood.
-   * In practice they usually agree, because `References` accumulates the whole
-   * ancestor chain — but where they differ, the old answer was wrong.
+   * Postgres walks the adjacency TRANSITIVELY (`WITH RECURSIVE`), so the numbers
+   * are the whole thread rather than its immediate neighbourhood. A one-hop
+   * lookup would miss a message two replies removed that had dropped the shared
+   * reference. Usually the two agree, because `References` accumulates the
+   * whole ancestor chain — but where they differ, one hop is wrong.
    *
    * `root_id` rides along so each page message keeps its OWN component: without
    * it the walk would return one merged set and every page message would report
@@ -1623,7 +1913,7 @@ class EmailService {
     for (const message of page) {
       const thread = byRoot.get(message.id);
       // A message is always in its own component, so a count of one means it
-      // has headers but no counterpart stored here — same rule Mongo applied.
+      // has headers but no counterpart stored here.
       if (!thread) continue;
       message.threadId = thread.threadId;
       if (thread.threadCount <= 1) continue;
@@ -1648,7 +1938,10 @@ class EmailService {
   }
 
   /** Read an idempotent outbound message by its RFC Message-ID. */
-  async findMessageByRfcMessageId(userId: string, rfcMessageId: string): Promise<MessageDto | null> {
+  async findMessageByRfcMessageId(
+    userId: string,
+    rfcMessageId: string,
+  ): Promise<MessageDto | null> {
     const [row] = await getDb()
       .select({ id: messages.id })
       .from(messages)
@@ -1666,16 +1959,17 @@ class EmailService {
   async updateMessageFlags(
     userId: string,
     messageId: string,
-    flags: Partial<MessageFlagsDto>
+    flags: Partial<MessageFlagsDto>,
   ): Promise<MessageDto> {
     const db = getDb();
     const owned = and(eq(messages.id, messageId), eq(messages.userId, userId));
 
     // An empty flag set is a no-op read, not an error. Drizzle refuses a `set`
-    // with no columns, and Mongo refused an empty `$set` too.
-    const [updated] = Object.keys(flags).length === 0
-      ? await db.select({ id: messages.id }).from(messages).where(owned).limit(1)
-      : await db.update(messages).set(flags).where(owned).returning({ id: messages.id });
+    // with no columns.
+    const [updated] =
+      Object.keys(flags).length === 0
+        ? await db.select({ id: messages.id }).from(messages).where(owned).limit(1)
+        : await db.update(messages).set(flags).where(owned).returning({ id: messages.id });
 
     if (!updated) {
       throw new NotFoundError('Message not found');
@@ -1691,7 +1985,11 @@ class EmailService {
     return dto;
   }
 
-  async moveMessage(userId: string, messageId: string, targetMailboxId: string): Promise<MessageDto> {
+  async moveMessage(
+    userId: string,
+    messageId: string,
+    targetMailboxId: string,
+  ): Promise<MessageDto> {
     const db = getDb();
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
@@ -1742,7 +2040,10 @@ class EmailService {
   ): Promise<string | null> {
     const sentId = headers[OXY_SENT_ID_HEADER.toLowerCase()]?.trim();
     if (!sentId) return null;
-    if (extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !== recipientUsername.trim().toLowerCase()) {
+    if (
+      extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !==
+      recipientUsername.trim().toLowerCase()
+    ) {
       return null;
     }
     const sent = await this.getMailboxBySpecialUse(userId, '\\Sent');
@@ -1750,7 +2051,13 @@ class EmailService {
     const [original] = await getDb()
       .select({ id: messages.id })
       .from(messages)
-      .where(and(eq(messages.userId, userId), eq(messages.mailboxId, sent.id), eq(messages.messageId, sentId)))
+      .where(
+        and(
+          eq(messages.userId, userId),
+          eq(messages.mailboxId, sent.id),
+          eq(messages.messageId, sentId),
+        ),
+      )
       .limit(1);
     return original?.id ?? null;
   }
@@ -1765,14 +2072,14 @@ class EmailService {
   async bulkUpdateMessageFlags(
     userId: string,
     messageIds: string[],
-    flags: Partial<MessageFlagsDto>
+    flags: Partial<MessageFlagsDto>,
   ): Promise<{ matchedCount: number; modifiedCount: number }> {
     if (messageIds.length === 0) return { matchedCount: 0, modifiedCount: 0 };
     const db = getDb();
     const owned = and(inArray(messages.id, messageIds), eq(messages.userId, userId));
 
     // "Already in the requested state" is what separates matched from modified:
-    // Mongo's `modifiedCount` skipped documents the write would not change. The
+    // a message the write would not change is not counted as modified. The
     // predicate is stated as the DISJUNCTION of the differing flags rather than
     // the negation of their conjunction — the same set by De Morgan, and it
     // composes with `and(...)` without a nullable operand in the middle.
@@ -1814,7 +2121,7 @@ class EmailService {
   async bulkMoveMessages(
     userId: string,
     messageIds: string[],
-    targetMailboxId: string
+    targetMailboxId: string,
   ): Promise<{ matchedCount: number; modifiedCount: number }> {
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
@@ -1880,11 +2187,46 @@ class EmailService {
     }
   }
 
+  /**
+   * Remove the draft a message was composed from, once that message has been
+   * sent or scheduled. Only a row that is still the caller's draft is touched,
+   * and a draft that is already gone is not an error: a retried send (same
+   * Idempotency-Key) and the same draft sent from two devices both land here
+   * a second time.
+   */
+  async deleteSentDraft(userId: string, draftId: string): Promise<void> {
+    const db = getDb();
+    const [draft] = await db
+      .select({ id: messages.id, messageId: messages.messageId, mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(and(eq(messages.id, draftId), eq(messages.userId, userId), eq(messages.draft, true)))
+      .limit(1);
+    if (!draft) return;
+
+    // The sent copy links the same files under its own entity id, so dropping
+    // the draft's links never orphans an attachment the sent message uses.
+    await this.deleteMessageAttachments(draft);
+    const removed = await db
+      .delete(messages)
+      .where(and(eq(messages.id, draft.id), eq(messages.userId, userId), eq(messages.draft, true)))
+      .returning({ id: messages.id });
+    if (removed.length === 0) return;
+
+    await emitEmailChanged({
+      userId,
+      id: draft.id,
+      mailboxIds: [draft.mailboxId],
+      reason: 'deleted',
+    });
+  }
+
   // ─── Storing an incoming message (from SMTP inbound) ──────────────
 
   async storeIncomingMessage(params: {
     recipientUsername: string;
     from: EmailAddress;
+    /** The `Reply-To` header. The column existed and was read, but nothing wrote it. */
+    replyTo?: EmailAddress | null;
     to: EmailAddress[];
     cc?: EmailAddress[];
     subject: string;
@@ -1942,7 +2284,7 @@ class EmailService {
           att.contentType,
           att.filename,
           'private',
-          { source: 'email-inbound' }
+          { source: 'email-inbound' },
         );
         storedAttachments.push({
           fileId: file.id,
@@ -1956,11 +2298,14 @@ class EmailService {
       }
     }
 
-    const totalSize =
-      params.rawSize +
-      storedAttachments.reduce((sum, a) => sum + a.size, 0);
+    const totalSize = params.rawSize + storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
-    const sentCopyOf = await this.findOwnSentOriginal(userId, params.recipientUsername, params.from.address, params.headers);
+    const sentCopyOf = await this.findOwnSentOriginal(
+      userId,
+      params.recipientUsername,
+      params.from.address,
+      params.headers,
+    );
 
     const receivedAt = new Date();
     const storedMessageId = await insertMessageWithChildren(
@@ -1971,6 +2316,12 @@ class EmailService {
         messageId: params.messageId,
         fromName: params.from.name?.trim() ? params.from.name.trim() : null,
         fromAddress: params.from.address.trim().toLowerCase(),
+        ...(params.replyTo?.address.trim()
+          ? {
+              replyToName: params.replyTo.name?.trim() ? params.replyTo.name.trim() : null,
+              replyToAddress: params.replyTo.address.trim().toLowerCase(),
+            }
+          : {}),
         subject: params.subject,
         text: params.text,
         html: params.html,
@@ -2042,16 +2393,45 @@ class EmailService {
       });
     }
 
-    // Fire-and-forget filter application (non-blocking)
-    this.applyFilters(userId, storedMessageId).catch((err) => {
-      logger.warn('Email filter application failed', { messageId: storedMessageId, error: String(err) });
-    });
+    // The user's filters run BEFORE anything is announced. They used to be
+    // fire-and-forget, racing the push and `email:new` below — so a message a
+    // rule moved out of the Inbox, marked read or deleted still buzzed the
+    // phone and toasted on every open client. A failing rule is logged and
+    // delivery carries on: the message is stored, and that is what matters.
+    try {
+      await this.applyFilters(userId, storedMessageId);
+    } catch (err) {
+      logger.warn('Email filter application failed', {
+        messageId: storedMessageId,
+        error: String(err),
+      });
+    }
 
     // Fire-and-forget global auto-forwarding (non-blocking, only for non-spam)
     if (!isSpam) {
       this.applyGlobalAutoForward(userId, storedMessageId).catch((err) => {
         logger.warn('Global auto-forward failed', { userId, error: String(err) });
       });
+    }
+
+    const dto = await readMessageDto(db, storedMessageId);
+
+    // Still unread where it was delivered: the filters left it as new mail, so
+    // it is announced as new mail. Anything else — moved (archived, deleted to
+    // Trash, filed), or marked read — is not news to the user.
+    const stillNew = dto.mailboxId === mailbox.id && !dto.flags.seen;
+
+    if (!stillNew) {
+      // The filter actions already emitted their own `email:changed`; this one
+      // names the delivery folder as well, so a client showing either side
+      // re-reads even if a rule's emit was lost. No toast, no unread bump.
+      await emitEmailChanged({
+        userId,
+        id: dto.id,
+        mailboxIds: dto.mailboxId === mailbox.id ? [mailbox.id] : [mailbox.id, dto.mailboxId],
+        reason: dto.mailboxId === mailbox.id ? 'flags' : 'moved',
+      });
+      return dto;
     }
 
     // Fire-and-forget push notification (non-blocking, only for non-spam)
@@ -2066,8 +2446,6 @@ class EmailService {
         mailboxId: mailbox.id,
       });
     }
-
-    const dto = await readMessageDto(db, storedMessageId);
 
     // Realtime fan-out lives HERE, at the one chokepoint every ingest path goes
     // through, and no longer in `routes/emailInbound.ts`. When the emit sat in
@@ -2173,7 +2551,7 @@ class EmailService {
       attachments?: MessageAttachment[];
       existingDraftId?: string;
       expectedRevision?: number;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2211,7 +2589,9 @@ class EmailService {
               eq(messages.id, existingDraftId),
               eq(messages.userId, userId),
               eq(messages.draft, true),
-              ...(draft.expectedRevision === undefined ? [] : [eq(messages.draftRevision, draft.expectedRevision)]),
+              ...(draft.expectedRevision === undefined
+                ? []
+                : [eq(messages.draftRevision, draft.expectedRevision)]),
             ),
           )
           .returning({ id: messages.id });
@@ -2253,7 +2633,13 @@ class EmailService {
         const [current] = await db
           .select({ draftRevision: messages.draftRevision })
           .from(messages)
-          .where(and(eq(messages.id, existingDraftId), eq(messages.userId, userId), eq(messages.draft, true)))
+          .where(
+            and(
+              eq(messages.id, existingDraftId),
+              eq(messages.userId, userId),
+              eq(messages.draft, true),
+            ),
+          )
           .limit(1);
         if (current) {
           throw new ConflictError('Draft changed on another device', {
@@ -2261,6 +2647,13 @@ class EmailService {
             currentRevision: current.draftRevision,
           });
         }
+        // The client held a revision of this draft, so it existed; it is gone
+        // now because it was sent or deleted. Creating it again would put a
+        // message that already left back into Drafts.
+        throw new ConflictError('Draft was sent or deleted', {
+          draftId: existingDraftId,
+          currentRevision: null,
+        });
       }
     }
 
@@ -2312,7 +2705,7 @@ class EmailService {
       references?: string[];
       attachments?: MessageAttachment[];
       size: number;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2364,7 +2757,11 @@ class EmailService {
   async snoozeMessage(userId: string, messageId: string, until: Date): Promise<MessageDto> {
     const db = getDb();
     const [message] = await db
-      .select({ id: messages.id, mailboxId: messages.mailboxId, snoozedUntil: messages.snoozedUntil })
+      .select({
+        id: messages.id,
+        mailboxId: messages.mailboxId,
+        snoozedUntil: messages.snoozedUntil,
+      })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
@@ -2442,9 +2839,13 @@ class EmailService {
         await this.unsnoozeMessage(msg.userId, msg.id);
         count++;
       } catch (err) {
-        logger.error('Failed to unsnooze message', err instanceof Error ? err : new Error(String(err)), {
-          messageId: msg.id,
-        });
+        logger.error(
+          'Failed to unsnooze message',
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            messageId: msg.id,
+          },
+        );
       }
     }
 
@@ -2475,7 +2876,7 @@ class EmailService {
       attachments?: MessageAttachment[];
       idempotencyKey?: string;
       scheduledAt: Date;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2577,12 +2978,19 @@ class EmailService {
         });
 
         // Clear scheduledAt to mark as sent
-        await db.update(messages).set({ scheduledAt: null, relayMessageId }).where(eq(messages.id, msg.id));
+        await db
+          .update(messages)
+          .set({ scheduledAt: null, relayMessageId })
+          .where(eq(messages.id, msg.id));
         count++;
       } catch (err) {
-        logger.error('Failed to send scheduled message', err instanceof Error ? err : new Error(String(err)), {
-          messageId: msg.id,
-        });
+        logger.error(
+          'Failed to send scheduled message',
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            messageId: msg.id,
+          },
+        );
       }
     }
 
@@ -2599,9 +3007,7 @@ class EmailService {
    *
    * The same `WITH RECURSIVE` walk `attachThreadMetadata` counts with — one
    * definition of "same thread", so a list that says `threadCount: 5` can never
-   * open onto a thread view showing three. Mongo ran the two independently, and
-   * both one hop: this one built a `$or` of five clauses over the anchor's own
-   * tokens and stopped there.
+   * open onto a thread view showing three.
    *
    * The anchor is always in its own component, so no separate dedup-and-append
    * step is needed — the walk returns it whether or not it has any counterpart.
@@ -2633,7 +3039,12 @@ class EmailService {
     const rows = await db
       .select(MESSAGE_COLUMNS_WITH_BODY)
       .from(messages)
-      .where(inArray(messages.id, memberRows.map((row) => row.id)))
+      .where(
+        inArray(
+          messages.id,
+          memberRows.map((row) => row.id),
+        ),
+      )
       .orderBy(asc(messages.date), asc(messages.id));
 
     // A message the user sent to a list that included themselves arrives back
@@ -2642,9 +3053,7 @@ class EmailService {
     const shown = rows.filter((row) => row.sentCopyOf === null || !memberIds.has(row.sentCopyOf));
 
     const thread = await toMessageDtos(db, shown);
-    const stableThreadId = memberRows
-      .map((row) => row.id)
-      .sort()[0];
+    const stableThreadId = memberRows.map((row) => row.id).sort()[0];
     if (stableThreadId) {
       for (const message of thread) message.threadId = stableThreadId;
     }
@@ -2671,53 +3080,123 @@ class EmailService {
   }
 
   async createLabel(userId: string, name: string, color: string): Promise<LabelDto> {
-    if (isSystemLabel(name)) throw new BadRequestError(`Label "${name.trim()}" already exists`);
+    if (isSystemLabel(name)) throw new ConflictError(`Label "${name.trim()}" already exists`);
     const db = getDb();
 
     // `lower(name)`, matching `labels_user_id_lower_name_key`. A plain equality
-    // is correct-looking, case-SENSITIVE, and will not use the index — which is
-    // the whole difference between this and Mongo's `strength: 2` collation.
+    // is correct-looking, case-SENSITIVE, and will not use the index.
     const [existing] = await db
       .select({ id: labelsTable.id })
       .from(labelsTable)
       .where(and(eq(labelsTable.userId, userId), sql`lower(${labelsTable.name}) = lower(${name})`))
       .limit(1);
-    if (existing) throw new BadRequestError(`Label "${name}" already exists`);
+    if (existing) throw new ConflictError(`Label "${name}" already exists`);
 
     const [countRow] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(labelsTable)
       .where(eq(labelsTable.userId, userId));
 
-    const [label] = await db
-      .insert(labelsTable)
-      .values({ userId, name: name.trim(), color, order: countRow?.count ?? 0 })
-      .returning();
-    return toLabelDto(label);
+    // The read above is a courtesy, not the guarantee: two creates racing past
+    // it both reach the insert, and the index refuses the second. That refusal
+    // is the same conflict, and must not surface as a 500.
+    try {
+      const [label] = await db
+        .insert(labelsTable)
+        .values({ userId, name: name.trim(), color, order: countRow?.count ?? 0 })
+        .returning();
+      return toLabelDto(label);
+    } catch (error) {
+      if (isUniqueViolation(error, LABEL_NAME_UNIQUE_INDEX)) {
+        throw new ConflictError(`Label "${name.trim()}" already exists`);
+      }
+      throw error;
+    }
   }
 
-  async updateLabel(userId: string, labelId: string, updates: { name?: string; color?: string }): Promise<LabelDto> {
+  /**
+   * Recolour and/or rename one label.
+   *
+   * A label is referenced BY NAME, not by id: `messages.labels`,
+   * `bundles.match_labels`, a filter's `label` action and a saved search's
+   * `label` filter (and `label:` operator in its query) all hold the string.
+   * Renaming only the `labels` row therefore orphaned every message carrying it
+   * — the chip vanished, the label's view went empty, and the old name could no
+   * longer be removed from anything. So a rename rewrites every reference in the
+   * same transaction as the row, under a lock on that row.
+   */
+  async updateLabel(
+    userId: string,
+    labelId: string,
+    updates: { name?: string; color?: string },
+  ): Promise<LabelDto> {
     if (isSystemLabelId(labelId)) throw new BadRequestError('System labels cannot be edited');
     if (updates.name && isSystemLabel(updates.name)) {
-      throw new BadRequestError(`Label "${updates.name.trim()}" already exists`);
+      throw new ConflictError(`Label "${updates.name.trim()}" already exists`);
     }
-    if (Object.keys(updates).length === 0) {
-      const [current] = await getDb()
-        .select()
-        .from(labelsTable)
-        .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
-        .limit(1);
-      if (!current) throw new NotFoundError('Label not found');
-      return toLabelDto(current);
+    const db = getDb();
+
+    let outcome: { label: typeof labelsTable.$inferSelect; renamedIn: string[] | null };
+    try {
+      outcome = await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(labelsTable)
+          .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
+          .for('update')
+          .limit(1);
+        if (!current) throw new NotFoundError('Label not found');
+        if (Object.keys(updates).length === 0) return { label: current, renamedIn: null };
+
+        const renaming = updates.name !== undefined && updates.name !== current.name;
+        if (renaming) {
+          // Case-only renames (`work` → `Work`) are this label colliding with
+          // itself, hence `id <>`.
+          const [clash] = await tx
+            .select({ id: labelsTable.id })
+            .from(labelsTable)
+            .where(
+              and(
+                eq(labelsTable.userId, userId),
+                ne(labelsTable.id, current.id),
+                sql`lower(${labelsTable.name}) = lower(${updates.name})`,
+              ),
+            )
+            .limit(1);
+          if (clash) throw new ConflictError(`Label "${updates.name}" already exists`);
+        }
+
+        const [label] = await tx
+          .update(labelsTable)
+          .set(updates)
+          .where(eq(labelsTable.id, current.id))
+          .returning();
+
+        const renamedIn = renaming
+          ? await renameLabelReferences(tx, userId, current.name, label.name)
+          : null;
+        return { label, renamedIn };
+      });
+    } catch (error) {
+      if (isUniqueViolation(error, LABEL_NAME_UNIQUE_INDEX)) {
+        throw new ConflictError(`Label "${updates.name?.trim() ?? ''}" already exists`);
+      }
+      throw error;
     }
 
-    const [label] = await getDb()
-      .update(labelsTable)
-      .set(updates)
-      .where(and(eq(labelsTable.id, labelId), eq(labelsTable.userId, userId)))
-      .returning();
-    if (!label) throw new NotFoundError('Label not found');
-    return toLabelDto(label);
+    if (outcome.renamedIn) {
+      // One signal for the whole rename, not one per message: a label on
+      // thousands of messages would otherwise be thousands of events and as
+      // many unread recounts. `id` is the label's — the client keys nothing on
+      // it and re-reads every mail view, bundles included.
+      await emitEmailChanged({
+        userId,
+        id: outcome.label.id,
+        mailboxIds: outcome.renamedIn,
+        reason: 'labels',
+      });
+    }
+    return toLabelDto(outcome.label);
   }
 
   async deleteLabel(userId: string, labelId: string): Promise<void> {
@@ -2734,31 +3213,32 @@ class EmailService {
     // Detaching the name from every message and deleting the row are one
     // change: a crash between them leaves messages carrying a label the user
     // can no longer see or remove.
-    await db.transaction(async (tx) => {
-      await tx
+    const detachedFrom = await db.transaction(async (tx) => {
+      const detached = await tx
         .update(messages)
         .set({ labels: sql`array_remove(${messages.labels}, ${label.name})` })
         .where(
-          and(
-            eq(messages.userId, userId),
-            sql`${messages.labels} @> array[${label.name}]::text[]`,
-          ),
-        );
+          and(eq(messages.userId, userId), sql`${messages.labels} @> array[${label.name}]::text[]`),
+        )
+        .returning({ mailboxId: messages.mailboxId });
       await tx.delete(labelsTable).where(eq(labelsTable.id, labelId));
+      return [...new Set(detached.map((row) => row.mailboxId))];
     });
+
+    if (detachedFrom.length > 0) {
+      await emitEmailChanged({ userId, id: label.id, mailboxIds: detachedFrom, reason: 'labels' });
+    }
   }
 
   /**
    * Add and remove labels on one message.
    *
-   * Mongo could not `$addToSet` and `$pull` the same field in one operation, so
-   * this ran TWO `updateOne` calls with a window between them where the message
-   * held the added labels but not yet the removals. Postgres rewrites the array
-   * once, and the expression states the same precedence Mongo's ordering did:
-   * add first, then remove, so a name in BOTH lists ends up removed.
+   * The array is rewritten once, so there is no window where the message holds
+   * the added labels but not yet the removals. The precedence is add first,
+   * then remove, so a name in BOTH lists ends up removed.
    *
    * The order of the surviving entries is preserved — kept ones in place,
-   * genuinely new ones appended — which is what `$addToSet` did.
+   * genuinely new ones appended.
    */
   async updateMessageLabels(
     userId: string,
@@ -2842,14 +3322,17 @@ class EmailService {
    * owns it and a violation rolls the whole rule back rather than leaving a rule
    * that silently matches everything or does nothing.
    */
-  async createFilter(userId: string, data: {
-    name: string;
-    enabled: boolean;
-    conditions: FilterConditionInput[];
-    matchAll: boolean;
-    actions: FilterActionInput[];
-    order: number;
-  }): Promise<FilterDto> {
+  async createFilter(
+    userId: string,
+    data: {
+      name: string;
+      enabled: boolean;
+      conditions: FilterConditionInput[];
+      matchAll: boolean;
+      actions: FilterActionInput[];
+      order: number;
+    },
+  ): Promise<FilterDto> {
     const db = getDb();
     const [countRow] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -2873,9 +3356,7 @@ class EmailService {
       return filter.id;
     });
 
-    const [dto] = await loadFilterChildren(db, [
-      await readFilterRow(db, userId, filterId),
-    ]);
+    const [dto] = await loadFilterChildren(db, [await readFilterRow(db, userId, filterId)]);
     return dto;
   }
 
@@ -2907,11 +3388,9 @@ class EmailService {
       }
 
       // A child list is REPLACED, never merged — the request carries the whole
-      // ordered list, exactly as Mongo's `$set` of the array did.
+      // ordered list.
       if (conditions) {
-        await tx
-          .delete(emailFilterConditions)
-          .where(eq(emailFilterConditions.filterId, filterId));
+        await tx.delete(emailFilterConditions).where(eq(emailFilterConditions.filterId, filterId));
       }
       if (actions) {
         await tx.delete(emailFilterActions).where(eq(emailFilterActions.filterId, filterId));
@@ -2925,8 +3404,7 @@ class EmailService {
   }
 
   async deleteFilter(userId: string, filterId: string): Promise<void> {
-    // The conditions and actions CASCADE, so this is one statement and not the
-    // hand-ordered pair Mongo needed.
+    // The conditions and actions CASCADE, so this is one statement.
     const deleted = await getDb()
       .delete(emailFilters)
       .where(and(eq(emailFilters.id, filterId), eq(emailFilters.userId, userId)))
@@ -3008,27 +3486,21 @@ class EmailService {
   ): boolean {
     const { field, operator, value } = condition;
 
-    let fieldValue: string;
+    let candidates: string[];
 
     switch (field) {
       case 'from':
-        fieldValue = `${message.from.name} ${message.from.address}`.toLowerCase();
+        candidates = addressCandidates([message.from]);
         break;
-      case 'to': {
-        const toAddrs = message.to.map(
-          (a) => `${a.name} ${a.address}`.toLowerCase()
-        );
-        fieldValue = toAddrs.join(' ');
+      case 'to':
+        candidates = addressCandidates(message.to);
         break;
-      }
       case 'subject':
-        fieldValue = message.subject.toLowerCase();
+        candidates = [message.subject.toLowerCase()];
         break;
       case 'has-attachment':
         // For has-attachment, operator is 'equals' and value is 'true' or 'false'
-        return value === 'true'
-          ? message.attachmentCount > 0
-          : message.attachmentCount === 0;
+        return value === 'true' ? message.attachmentCount > 0 : message.attachmentCount === 0;
       case 'size':
         return this.evaluateNumericCondition(message.size, operator, value);
       default:
@@ -3036,21 +3508,26 @@ class EmailService {
     }
 
     const lowerValue = value.toLowerCase();
+    const matches = (candidate: string): boolean => {
+      switch (operator) {
+        case 'contains':
+          return candidate.includes(lowerValue);
+        case 'equals':
+          return candidate.trim() === lowerValue;
+        case 'starts-with':
+          return candidate.startsWith(lowerValue);
+        case 'ends-with':
+          return candidate.endsWith(lowerValue);
+        default:
+          return false;
+      }
+    };
 
-    switch (operator) {
-      case 'contains':
-        return fieldValue.includes(lowerValue);
-      case 'equals':
-        return fieldValue.trim() === lowerValue;
-      case 'not-contains':
-        return !fieldValue.includes(lowerValue);
-      case 'starts-with':
-        return fieldValue.startsWith(lowerValue);
-      case 'ends-with':
-        return fieldValue.endsWith(lowerValue);
-      default:
-        return false;
-    }
+    // An address field is matched against each address, each display name and
+    // the two together — not only `"<name> <address>"`, which made "equals
+    // bob@x.com" and "starts with bob@" never match a sender with a name.
+    if (operator === 'not-contains') return candidates.every((c) => !c.includes(lowerValue));
+    return candidates.some(matches);
   }
 
   /**
@@ -3181,7 +3658,8 @@ class EmailService {
     const fromAddress = resolveEmailAddress(user.username);
     const fromName = resolveEmailFromName(user);
 
-    const recipients = (await loadRecipients(db, [message.id])).get(message.id) ?? emptyRecipients();
+    const recipients =
+      (await loadRecipients(db, [message.id])).get(message.id) ?? emptyRecipients();
     const attachments = await loadOutboundAttachments(db, message.id);
 
     // Build forwarded subject
@@ -3412,7 +3890,7 @@ class EmailService {
             att.contentType,
             att.filename,
             'private',
-            { source: 'email-import' }
+            { source: 'email-import' },
           );
           storedAttachments.push({
             fileId: uploadedFile.id,
@@ -3433,6 +3911,12 @@ class EmailService {
             messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
+            ...(mime.replyTo?.address.trim()
+              ? {
+                  replyToName: mime.replyTo.name.trim() || null,
+                  replyToAddress: mime.replyTo.address.trim().toLowerCase(),
+                }
+              : {}),
             subject: mime.subject || '(no subject)',
             text: mime.text || undefined,
             html: mime.html || undefined,
@@ -3506,20 +3990,45 @@ class EmailService {
       label?: string;
       seen?: boolean;
       cursor?: string;
-    } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
-    const { limit = 50, offset = 0, cursor: cursorToken, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
+    } = {},
+  ): Promise<{
+    data: MessageDto[];
+    total: number;
+    limit: number;
+    offset: number;
+    nextCursor?: string | null;
+  }> {
+    const {
+      limit = 50,
+      offset = 0,
+      cursor: cursorToken,
+      mailboxId,
+      from,
+      to,
+      subject,
+      hasAttachment,
+      dateAfter,
+      dateBefore,
+      starred,
+      label,
+      seen,
+    } = options;
     const cursorMode = cursorToken !== undefined;
-    const cursor = cursorToken ? decodeEmailPageCursor(cursorToken, 'search') as Extract<EmailPageCursor, { kind: 'search' }> : null;
+    const cursor = cursorToken
+      ? (decodeEmailPageCursor(cursorToken, 'search') as Extract<
+          EmailPageCursor,
+          { kind: 'search' }
+        >)
+      : null;
 
     const fromFilter = normalizeStructuredSearchFilter(from);
     const toFilter = normalizeStructuredSearchFilter(to);
     const subjectFilter = normalizeStructuredSearchFilter(subject);
 
-    // Mongo's `$text` becomes a `tsvector` match against the GENERATED column;
-    // the RANK has to be spelled out. `ts_rank` defaults to `{0.1, 0.2, 0.4, 1.0}`
-    // for D/C/B/A, which is exactly the 10:1 subject-to-body ratio Mongo's
-    // `weights: {subject: 10, text: 1}` declared — but it is passed explicitly,
+    // A `tsvector` match against the GENERATED column; the RANK has to be
+    // spelled out. `ts_rank` defaults to `{0.1, 0.2, 0.4, 1.0}` for D/C/B/A,
+    // which is exactly the intended 10:1 subject-to-body ratio — but it is
+    // passed explicitly,
     // because a default is a thing that can change underneath a search and
     // silently reorder every result.
     const tsQuery = query ? sql`websearch_to_tsquery('english', ${query})` : undefined;
@@ -3564,26 +4073,28 @@ class EmailService {
     const where = and(
       baseWhere,
       ...(cursor
-        ? [tsQuery && rankExpression
-            ? or(
-                sql`${rankExpression} < ${cursor.rank}`,
-                and(
-                  sql`${rankExpression} = ${cursor.rank}`,
-                  or(
-                    lt(messages.date, new Date(cursor.date)),
-                    and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+        ? [
+            tsQuery && rankExpression
+              ? or(
+                  sql`${rankExpression} < ${cursor.rank}`,
+                  and(
+                    sql`${rankExpression} = ${cursor.rank}`,
+                    or(
+                      lt(messages.date, new Date(cursor.date)),
+                      and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+                    ),
                   ),
+                )
+              : or(
+                  lt(messages.date, new Date(cursor.date)),
+                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
                 ),
-              )
-            : or(
-                lt(messages.date, new Date(cursor.date)),
-                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
-              )]
+          ]
         : []),
     );
 
-    // `statement_timeout` is Mongo's `maxTimeMS`, and `SET LOCAL` needs a
-    // transaction — so the page and the count share one.
+    // `SET LOCAL statement_timeout` needs a transaction — so the page and the
+    // count share one.
     const { rows, total } = await getDb().transaction(async (tx) => {
       await tx.execute(
         sql`set local statement_timeout = ${sql.raw(String(EMAIL_SEARCH_MAX_TIME_MS))}`,
@@ -3598,9 +4109,7 @@ class EmailService {
         .orderBy(
           ...(rankExpression
             ? [
-                desc(
-                  rankExpression,
-                ),
+                desc(rankExpression),
                 // A total order: equal ranks must not shuffle between pages.
                 desc(messages.date),
                 desc(messages.id),
@@ -3621,7 +4130,9 @@ class EmailService {
     const hasMore = cursorMode ? rows.length > limit : offset + limit < total;
     const pageRows = cursorMode ? rows.slice(0, limit) : rows;
     const data = await toMessageDtos(getDb(), pageRows);
-    const last = pageRows.at(-1) as (typeof pageRows)[number] & { searchRank?: number } | undefined;
+    const last = pageRows.at(-1) as
+      | ((typeof pageRows)[number] & { searchRank?: number })
+      | undefined;
     return {
       data,
       total,
@@ -3629,15 +4140,16 @@ class EmailService {
       offset: cursorMode ? 0 : offset,
       ...(cursorMode
         ? {
-            nextCursor: hasMore && last
-              ? encodeEmailPageCursor({
-                  version: 1,
-                  kind: 'search',
-                  rank: Number(last.searchRank ?? 0),
-                  date: last.date.toISOString(),
-                  id: last.id,
-                })
-              : null,
+            nextCursor:
+              hasMore && last
+                ? encodeEmailPageCursor({
+                    version: 1,
+                    kind: 'search',
+                    rank: Number(last.searchRank ?? 0),
+                    date: last.date.toISOString(),
+                    id: last.id,
+                  })
+                : null,
           }
         : {}),
     };
@@ -3661,12 +4173,15 @@ class EmailService {
       .orderBy(asc(emailSavedSearches.order), asc(emailSavedSearches.createdAt));
   }
 
-  async createSavedSearch(userId: string, input: {
-    name: string;
-    query: string;
-    filters: SavedEmailSearchFilters;
-    order?: number;
-  }) {
+  async createSavedSearch(
+    userId: string,
+    input: {
+      name: string;
+      query: string;
+      filters: SavedEmailSearchFilters;
+      order?: number;
+    },
+  ) {
     const [created] = await getDb()
       .insert(emailSavedSearches)
       .values({
@@ -3701,12 +4216,13 @@ class EmailService {
   /**
    * Bytes stored, against the tier's allowance.
    *
-   * Mongo summed the cached `size` counter across the user's mailboxes; the
-   * counter is gone, so this sums the messages themselves. Same number by
-   * definition — every message belongs to exactly one of that user's mailboxes
-   * — and it cannot drift from what is actually stored, which the counter could.
+   * This sums the messages themselves — every message belongs to exactly one
+   * of that user's mailboxes — so it cannot drift from what is actually stored
+   * the way a cached counter could.
    */
-  async getQuotaUsage(userId: string): Promise<{ used: number; limit: number; percentage: number }> {
+  async getQuotaUsage(
+    userId: string,
+  ): Promise<{ used: number; limit: number; percentage: number }> {
     const [row] = await getDb()
       .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
       .from(messages)
@@ -3785,7 +4301,13 @@ class EmailService {
 
   async getEmailSettings(userId: string): Promise<{
     signature?: string;
-    autoReply?: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date };
+    autoReply?: {
+      enabled: boolean;
+      subject?: string;
+      body?: string;
+      startDate?: Date;
+      endDate?: Date;
+    };
     autoForwardTo?: string;
     autoForwardKeepCopy?: boolean;
     address: string;
@@ -3810,10 +4332,16 @@ class EmailService {
       .limit(1);
     if (!user) throw new NotFoundError('User not found');
 
-    // The auto-reply sub-document is five columns now; it is reassembled here
-    // so the wire keeps the nested object, and each optional part is omitted
-    // when NULL exactly as an unset Mongo sub-field was.
-    const autoReply: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date } = {
+    // The auto-reply settings are five columns; they are reassembled here so
+    // the wire keeps the nested object, and each optional part is omitted when
+    // NULL.
+    const autoReply: {
+      enabled: boolean;
+      subject?: string;
+      body?: string;
+      startDate?: Date;
+      endDate?: Date;
+    } = {
       enabled: user.autoReplyEnabled,
     };
     if (user.autoReplySubject !== null) autoReply.subject = user.autoReplySubject;
@@ -3834,10 +4362,16 @@ class EmailService {
     userId: string,
     settings: {
       signature?: string;
-      autoReply?: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date };
+      autoReply?: {
+        enabled: boolean;
+        subject?: string;
+        body?: string;
+        startDate?: Date;
+        endDate?: Date;
+      };
       autoForwardTo?: string;
       autoForwardKeepCopy?: boolean;
-    }
+    },
   ): Promise<void> {
     const update: Partial<typeof users.$inferInsert> = {};
     if (settings.signature !== undefined) update.emailSignature = settings.signature;
@@ -3851,7 +4385,8 @@ class EmailService {
       update.autoReplyEndDate = settings.autoReply.endDate ?? null;
     }
     if (settings.autoForwardTo !== undefined) update.autoForwardTo = settings.autoForwardTo;
-    if (settings.autoForwardKeepCopy !== undefined) update.autoForwardKeepCopy = settings.autoForwardKeepCopy;
+    if (settings.autoForwardKeepCopy !== undefined)
+      update.autoForwardKeepCopy = settings.autoForwardKeepCopy;
 
     if (Object.keys(update).length > 0) {
       await getDb().update(users).set(update).where(eq(users.id, userId));
@@ -3924,10 +4459,7 @@ class EmailService {
       .select({ id: mailboxes.id })
       .from(mailboxes)
       .where(
-        and(
-          eq(mailboxes.userId, userId),
-          inArray(mailboxes.specialUse, ['\\Inbox', '\\Archive']),
-        ),
+        and(eq(mailboxes.userId, userId), inArray(mailboxes.specialUse, ['\\Inbox', '\\Archive'])),
       );
     const mailboxIds = receivedMailboxes.map((m) => m.id);
 
@@ -4001,7 +4533,31 @@ class EmailService {
     const latestMessages = await db
       .select({ id: messages.id, headers: messages.headers })
       .from(messages)
-      .where(inArray(messages.id, senders.map((s) => s.latest_message_id)));
+      .where(
+        inArray(
+          messages.id,
+          senders.map((s) => s.latest_message_id),
+        ),
+      );
+
+    const unsubscribedRows = await db
+      .select({
+        senderAddress: emailUnsubscribedSenders.senderAddress,
+        unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt,
+      })
+      .from(emailUnsubscribedSenders)
+      .where(
+        and(
+          eq(emailUnsubscribedSenders.userId, userId),
+          inArray(
+            emailUnsubscribedSenders.senderAddress,
+            senders.map((s) => s.address),
+          ),
+        ),
+      );
+    const unsubscribedAtBySender = new Map(
+      unsubscribedRows.map((row) => [row.senderAddress, row.unsubscribedAt]),
+    );
 
     const headerMap = new Map<string, Record<string, string>>();
     for (const msg of latestMessages) {
@@ -4034,6 +4590,8 @@ class EmailService {
         latestMessageId: sender.latest_message_id,
         hasListUnsubscribe: Boolean(listUnsub),
         type,
+        unsubscribed: unsubscribedAtBySender.has(sender.address),
+        unsubscribedAt: unsubscribedAtBySender.get(sender.address) ?? null,
       };
     });
 
@@ -4051,15 +4609,64 @@ class EmailService {
   }
 
   /**
-   * Unsubscribe from a sender via List-Unsubscribe header or by blocking.
+   * Unsubscribe from a sender via List-Unsubscribe header or by blocking, and
+   * remember that it was done.
+   *
+   * Idempotent: a sender already unsubscribed is answered from the stored row
+   * and NOTHING is sent to it again — each retry used to fire another
+   * one-click POST, GET or `mailto:` message, because the subscriptions list
+   * kept showing the sender as if the first attempt had failed. A `block` is
+   * the exception: it only moves mail locally, so it always runs (new mail may
+   * have arrived since) and upgrades the stored method to `blocked`.
    */
   async unsubscribe(
     userId: string,
     senderAddress: string,
     method: 'list-unsubscribe' | 'block' = 'list-unsubscribe',
-  ): Promise<{ success: boolean; method: string }> {
+  ): Promise<UnsubscribeResultDto> {
     const db = getDb();
     const normalizedSender = senderAddress.trim().toLowerCase();
+
+    const [already] = await db
+      .select({
+        method: emailUnsubscribedSenders.method,
+        unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt,
+      })
+      .from(emailUnsubscribedSenders)
+      .where(
+        and(
+          eq(emailUnsubscribedSenders.userId, userId),
+          eq(emailUnsubscribedSenders.senderAddress, normalizedSender),
+        ),
+      )
+      .limit(1);
+    if (already && method !== 'block') {
+      return {
+        success: true,
+        method: already.method,
+        unsubscribedAt: already.unsubscribedAt,
+        alreadyUnsubscribed: true,
+      };
+    }
+
+    const done = async (performed: EmailUnsubscribeMethod): Promise<UnsubscribeResultDto> => {
+      // Upsert: two requests racing past the read above both land here, and the
+      // first `unsubscribed_at` is the one kept.
+      const [row] = await db
+        .insert(emailUnsubscribedSenders)
+        .values({ userId, senderAddress: normalizedSender, method: performed })
+        .onConflictDoUpdate({
+          target: [emailUnsubscribedSenders.userId, emailUnsubscribedSenders.senderAddress],
+          set: { method: performed, updatedAt: new Date() },
+        })
+        .returning({ unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt });
+      return {
+        success: true,
+        method: performed,
+        unsubscribedAt: row.unsubscribedAt,
+        alreadyUnsubscribed: Boolean(already),
+      };
+    };
 
     if (method === 'list-unsubscribe') {
       // Find the latest message from this sender. `headers` is PROTECTED and
@@ -4094,7 +4701,7 @@ class EmailService {
                   'List-Unsubscribe': 'One-Click-Unsubscribe',
                 },
               });
-              return { success: true, method: 'one-click' };
+              return done('one-click');
             } catch (err) {
               logger.warn('One-click unsubscribe failed, trying fallback', {
                 sender: senderAddress,
@@ -4107,7 +4714,7 @@ class EmailService {
           if (httpMatch) {
             try {
               await this.fetchUnsubscribeUrl(httpMatch[1], { method: 'GET' });
-              return { success: true, method: 'http' };
+              return done('http');
             } catch (err) {
               logger.warn('HTTP unsubscribe failed, trying mailto', {
                 sender: senderAddress,
@@ -4134,7 +4741,7 @@ class EmailService {
                   subject: params.get('subject') || 'Unsubscribe',
                   text: params.get('body') || 'Unsubscribe',
                 });
-                return { success: true, method: 'mailto' };
+                return done('mailto');
               }
             } catch (err) {
               logger.warn('Mailto unsubscribe failed', {
@@ -4147,7 +4754,9 @@ class EmailService {
       }
 
       // Fall through to block if List-Unsubscribe methods fail
-      logger.info('No List-Unsubscribe available, falling back to block', { sender: senderAddress });
+      logger.info('No List-Unsubscribe available, falling back to block', {
+        sender: senderAddress,
+      });
     }
 
     // Block sender: move all messages from this sender to Spam.
@@ -4169,7 +4778,7 @@ class EmailService {
         );
     }
 
-    return { success: true, method: 'blocked' };
+    return done('blocked');
   }
 
   /**
@@ -4229,11 +4838,8 @@ class EmailService {
   /**
    * The subscription tier the quota and send limits are read from.
    *
-   * The `mongoose.model('BillingSubscription')` lookup this replaced existed to
-   * avoid an import cycle and swallowed "model not registered" alongside every
-   * real database error. There is no registry to miss now, so the read is
-   * direct — and a failure is logged rather than silently downgrading a paying
-   * account to the free quota.
+   * The read is direct, and a failure is logged rather than silently
+   * downgrading a paying account to the free quota.
    */
   private async getUserTier(userId: string): Promise<SubscriptionTier> {
     try {
@@ -4268,11 +4874,14 @@ class EmailService {
    * blob lifecycle.
    *
    * Links are recorded under two entityId conventions: outbound sends link by
-   * the RFC Message-ID (the Mongo _id of the Sent copy is created later inside
-   * storeSentMessage), while inbound/import link by the Mongo _id. Unlinking
+   * the RFC Message-ID (the row id of the Sent copy is created later inside
+   * storeSentMessage), while inbound/import link by the row id. Unlinking
    * is a no-op when a link doesn't exist, so we clear both.
    */
-  private async deleteMessageAttachments(message: { id: string; messageId: string }): Promise<void> {
+  private async deleteMessageAttachments(message: {
+    id: string;
+    messageId: string;
+  }): Promise<void> {
     const fileIds = await getDb()
       .select({ fileId: messageAttachments.fileId })
       .from(messageAttachments)
@@ -4289,10 +4898,14 @@ class EmailService {
         try {
           await assetService.unlinkFile(fileId, 'oxy-mail', 'message', entityId);
         } catch (error) {
-          logger.error('Failed to unlink attachment file from message', error instanceof Error ? error : new Error(String(error)), {
-            fileId,
-            entityId,
-          });
+          logger.error(
+            'Failed to unlink attachment file from message',
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              fileId,
+              entityId,
+            },
+          );
         }
       }
     }
@@ -4301,7 +4914,7 @@ class EmailService {
   /**
    * Unlink every attachment of every message matching `scope`.
    *
-   * Mongo streamed a cursor; this pages by primary key instead. A cursor holds
+   * This pages by primary key rather than streaming a cursor. A cursor holds
    * a snapshot open for the whole sweep, which for a large mailbox means a long
    * transaction the vacuum cannot get past — and the sweep is issuing S3-bound
    * unlink calls the whole time.
@@ -4329,12 +4942,6 @@ class EmailService {
     }
   }
 
-  private async deleteAttachmentsForMailbox(userId: string, mailboxId: string): Promise<void> {
-    await this.unlinkAttachmentsMatching(
-      and(eq(messages.userId, userId), eq(messages.mailboxId, mailboxId)),
-    );
-  }
-
   private async deleteAttachmentsForUser(userId: string): Promise<void> {
     await this.unlinkAttachmentsMatching(eq(messages.userId, userId));
   }
@@ -4344,11 +4951,9 @@ class EmailService {
   /**
    * Seed the four default bundles, once per user.
    *
-   * `onConflictDoNothing` replaces the `insertMany({ordered: false})` plus
-   * duplicate-key rescue: two concurrent first loads race here, and the whole
-   * point of that rescue was to let the loser proceed. Note the uniqueness is
-   * now case-INSENSITIVE (`bundles_user_id_lower_name_key`) where Mongo's was
-   * not — see `db/schema/bundles.ts`.
+   * `onConflictDoNothing`: two concurrent first loads race here, and the loser
+   * must proceed. Note the uniqueness is case-INSENSITIVE
+   * (`bundles_user_id_lower_name_key`) — see `db/schema/bundles.ts`.
    */
   async ensureDefaultBundles(userId: string): Promise<void> {
     const db = getDb();
@@ -4394,9 +4999,10 @@ class EmailService {
     const db = getDb();
     const owned = and(eq(bundles.id, bundleId), eq(bundles.userId, userId));
 
-    const [bundle] = Object.keys(updates).length === 0
-      ? await db.select().from(bundles).where(owned).limit(1)
-      : await db.update(bundles).set(updates).where(owned).returning();
+    const [bundle] =
+      Object.keys(updates).length === 0
+        ? await db.select().from(bundles).where(owned).limit(1)
+        : await db.update(bundles).set(updates).where(owned).returning();
     if (!bundle) throw new NotFoundError('Bundle not found');
     return toBundleDto(bundle);
   }
@@ -4535,7 +5141,13 @@ class EmailService {
   async updateReminder(
     userId: string,
     reminderId: string,
-    updates: { text?: string; remindAt?: string; completed?: boolean; pinned?: boolean; snoozedUntil?: string | null },
+    updates: {
+      text?: string;
+      remindAt?: string;
+      completed?: boolean;
+      pinned?: boolean;
+      snoozedUntil?: string | null;
+    },
   ): Promise<ReminderDto> {
     const db = getDb();
     const updateData: Partial<typeof reminders.$inferInsert> = {};
@@ -4548,9 +5160,10 @@ class EmailService {
     }
 
     const owned = and(eq(reminders.id, reminderId), eq(reminders.userId, userId));
-    const [reminder] = Object.keys(updateData).length === 0
-      ? await db.select().from(reminders).where(owned).limit(1)
-      : await db.update(reminders).set(updateData).where(owned).returning();
+    const [reminder] =
+      Object.keys(updateData).length === 0
+        ? await db.select().from(reminders).where(owned).limit(1)
+        : await db.update(reminders).set(updateData).where(owned).returning();
     if (!reminder) throw new NotFoundError('Reminder not found');
     return toReminderDto(reminder);
   }
@@ -4603,10 +5216,13 @@ class EmailService {
     return rows.map(toTemplateDto);
   }
 
-  async createTemplate(userId: string, data: { name: string; subject?: string; body: string }): Promise<EmailTemplateDto> {
+  async createTemplate(
+    userId: string,
+    data: { name: string; subject?: string; body: string },
+  ): Promise<EmailTemplateDto> {
     const db = getDb();
-    // `lower(name)`, matching `email_templates_user_id_lower_name_key` — the
-    // Postgres form of Mongo's `strength: 2` collation.
+    // `lower(name)`, matching `email_templates_user_id_lower_name_key` — a
+    // case-insensitive uniqueness.
     const [existing] = await db
       .select({ id: emailTemplates.id })
       .from(emailTemplates)
@@ -4637,7 +5253,11 @@ class EmailService {
     return toTemplateDto(template);
   }
 
-  async updateTemplate(userId: string, templateId: string, updates: { name?: string; subject?: string; body?: string }): Promise<EmailTemplateDto> {
+  async updateTemplate(
+    userId: string,
+    templateId: string,
+    updates: { name?: string; subject?: string; body?: string },
+  ): Promise<EmailTemplateDto> {
     const db = getDb();
     const cleanUpdates: Partial<typeof emailTemplates.$inferInsert> = {};
     if (updates.name !== undefined) cleanUpdates.name = updates.name.trim();
@@ -4645,9 +5265,10 @@ class EmailService {
     if (updates.body !== undefined) cleanUpdates.body = updates.body;
 
     const owned = and(eq(emailTemplates.id, templateId), eq(emailTemplates.userId, userId));
-    const [template] = Object.keys(cleanUpdates).length === 0
-      ? await db.select().from(emailTemplates).where(owned).limit(1)
-      : await db.update(emailTemplates).set(cleanUpdates).where(owned).returning();
+    const [template] =
+      Object.keys(cleanUpdates).length === 0
+        ? await db.select().from(emailTemplates).where(owned).limit(1)
+        : await db.update(emailTemplates).set(cleanUpdates).where(owned).returning();
     if (!template) throw new NotFoundError('Template not found');
     return toTemplateDto(template);
   }
@@ -4667,18 +5288,16 @@ class EmailService {
    *
    * ## Why this does NOT use `contacts_search_vector_idx`
    *
-   * The Mongo query was three unanchored case-insensitive REGEXES over `name`,
-   * `email` AND `company` — which no Mongo text index could serve either, so
-   * contact search has always been a scan. The `tsvector` on `contacts` is a
-   * port of that DEAD index: it covers `name` and `email` only, and it does
-   * prefix matching, not infix. Using it here would silently drop `company`
+   * Contact search is an unanchored case-insensitive SUBSTRING match over
+   * `name`, `email` AND `company`, which no text index can serve, so it is a
+   * scan. The `tsvector` on `contacts` covers `name` and `email` only, and it
+   * does prefix matching, not infix. Using it here would silently drop `company`
    * from the search and stop matching mid-word.
    *
    * `pg_trgm` WOULD reproduce the current semantics with an index, and it is
    * available — but adopting an extension is a schema decision with a
-   * migration-ordering cost in every environment, not something a call-site
-   * port gets to make. So the semantics are preserved exactly and the scan
-   * stays: it is bounded by `user_id`, i.e. one person's contacts.
+   * migration-ordering cost in every environment, not something a call site
+   * gets to make. So the scan stays: it is bounded by `user_id`, i.e. one person's contacts.
    */
   async listContacts(
     userId: string,
@@ -4707,7 +5326,10 @@ class EmailService {
         .select()
         .from(contacts)
         .where(where)
-        .orderBy(desc(contacts.starred), asc(contacts.name))
+        // `id` makes the order TOTAL: two contacts with the same name could
+        // otherwise swap sides of a page boundary between two requests, so one
+        // is returned twice and the other never.
+        .orderBy(desc(contacts.starred), asc(contacts.name), asc(contacts.id))
         .limit(limit)
         .offset(offset),
       db.select({ total: sql<number>`count(*)::int` }).from(contacts).where(where),
@@ -4721,8 +5343,8 @@ class EmailService {
     data: { name: string; email: string; company?: string; notes?: string; starred?: boolean },
   ): Promise<ContactDto> {
     const db = getDb();
-    // CALL-SITE OBLIGATION (`db/schema/contacts.ts`): Mongoose lower-cased and
-    // trimmed `email` with a setter. Postgres has none, so it happens here — or
+    // CALL-SITE OBLIGATION (`db/schema/contacts.ts`): `email` is stored
+    // lower-cased and trimmed. Postgres has no column setter, so it happens here — or
     // the user gets two address-book entries for one correspondent.
     const email = data.email.trim().toLowerCase();
 
@@ -4766,9 +5388,10 @@ class EmailService {
     if (updates.starred !== undefined) updateData.starred = updates.starred;
 
     const owned = and(eq(contacts.id, contactId), eq(contacts.userId, userId));
-    const [contact] = Object.keys(updateData).length === 0
-      ? await db.select().from(contacts).where(owned).limit(1)
-      : await db.update(contacts).set(updateData).where(owned).returning();
+    const [contact] =
+      Object.keys(updateData).length === 0
+        ? await db.select().from(contacts).where(owned).limit(1)
+        : await db.update(contacts).set(updateData).where(owned).returning();
     if (!contact) throw new NotFoundError('Contact not found');
     return toContactDto(contact);
   }

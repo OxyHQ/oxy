@@ -59,12 +59,9 @@ export function normalizeProfileLinks(
       const url = cleanUrl(entry?.url);
       if (!url) return;
       const id =
-        typeof entry?.id === 'string' && entry.id.trim().length > 0
-          ? entry.id
-          : String(index);
+        typeof entry?.id === 'string' && entry.id.trim().length > 0 ? entry.id : String(index);
       const title = typeof entry?.title === 'string' ? entry.title : undefined;
-      const description =
-        typeof entry?.description === 'string' ? entry.description : undefined;
+      const description = typeof entry?.description === 'string' ? entry.description : undefined;
       const image = typeof entry?.image === 'string' ? entry.image : undefined;
       result.push({
         id,

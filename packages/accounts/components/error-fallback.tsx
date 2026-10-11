@@ -46,21 +46,14 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
         },
       ]}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View
           style={[
             styles.iconBubble,
             { backgroundColor: colors.error + '22', borderColor: colors.error + '55' },
           ]}
         >
-          <MaterialCommunityIcons
-            name="alert-circle-outline"
-            size={48}
-            color={colors.error}
-          />
+          <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.error} />
         </View>
 
         <ThemedText style={[styles.title, { color: colors.text }]}>
@@ -111,7 +104,11 @@ export function ErrorFallback({ error, retry }: ErrorFallbackProps) {
  * provider (e.g. if `OxyProvider`/`BloomThemeProvider` itself throws). Uses
  * raw colour values so it is safe to render at the absolute root of the app.
  */
-export function MinimalErrorFallback({ error, retry, scheme = 'light' }: MinimalErrorFallbackProps) {
+export function MinimalErrorFallback({
+  error,
+  retry,
+  scheme = 'light',
+}: MinimalErrorFallbackProps) {
   const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
   const isDark = scheme === 'dark';
 
@@ -125,8 +122,16 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
 
   return (
     <View style={[minimalStyles.container, { backgroundColor: bg }]}>
-      <ScrollView contentContainerStyle={minimalStyles.content} showsVerticalScrollIndicator={false}>
-        <View style={[minimalStyles.iconBubble, { backgroundColor: errorColor + '22', borderColor: errorColor + '55' }]}>
+      <ScrollView
+        contentContainerStyle={minimalStyles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={[
+            minimalStyles.iconBubble,
+            { backgroundColor: errorColor + '22', borderColor: errorColor + '55' },
+          ]}
+        >
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color={errorColor} />
         </View>
 
@@ -136,7 +141,9 @@ export function MinimalErrorFallback({ error, retry, scheme = 'light' }: Minimal
         </Text>
 
         {isDev && (
-          <View style={[minimalStyles.devDetails, { backgroundColor: surface, borderColor: border }]}>
+          <View
+            style={[minimalStyles.devDetails, { backgroundColor: surface, borderColor: border }]}
+          >
             <Text style={[minimalStyles.devLabel, { color: muted }]}>Error details</Text>
             <Text style={[minimalStyles.devMessage, { color: text }]} selectable>
               {error.message}

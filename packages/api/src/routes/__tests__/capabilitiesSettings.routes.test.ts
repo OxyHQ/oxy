@@ -24,7 +24,11 @@ let mockBeforeNext: (() => Promise<void>) | undefined;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: async (
-    req: { sessionId?: string; user?: { _id: string; id: string }; oxyToken?: { principalUserId: string; subjectAccountId: string } },
+    req: {
+      sessionId?: string;
+      user?: { _id: string; id: string };
+      oxyToken?: { principalUserId: string; subjectAccountId: string };
+    },
     _res: unknown,
     next: (error?: unknown) => void,
   ) => {
@@ -45,11 +49,12 @@ jest.mock('../../middleware/auth', () => ({
 jest.mock('../../services/account.service', () => ({
   __esModule: true,
   default: {
-    resolveEffectiveAccess: jest.fn(async (operatorId: string, accountId: string) => (
-      operatorId === 'settings-user' && (accountId === 'settings-user' || accountId === 'settings-org')
+    resolveEffectiveAccess: jest.fn(async (operatorId: string, accountId: string) =>
+      operatorId === 'settings-user' &&
+      (accountId === 'settings-user' || accountId === 'settings-org')
         ? { permissions: ['account:act_as'] }
-        : null
-    )),
+        : null,
+    ),
   },
 }));
 
@@ -142,68 +147,90 @@ beforeAll(async () => {
   await connectPostgres();
   await getDb().insert(users).values({ id: USER_ID, color: 'teal' });
   await getDb().insert(users).values({ id: ORG_ID, color: 'teal', kind: 'organization' });
-  await getDb().insert(sessions).values({
-    sessionId: managedSessionId, userId: ORG_ID, operatedByUserId: USER_ID,
-    deviceId: `settings-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
-    accessToken: 'fixture-settings-access', refreshToken: 'fixture-settings-refresh',
-    expiresAt: new Date(Date.now() + 60_000), isActive: true,
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: managedSessionId,
+      userId: ORG_ID,
+      operatedByUserId: USER_ID,
+      deviceId: `settings-device-${randomUUID()}`,
+      deviceType: 'web',
+      platform: 'web',
+      accessToken: 'fixture-settings-access',
+      refreshToken: 'fixture-settings-refresh',
+      expiresAt: new Date(Date.now() + 60_000),
+      isActive: true,
+    });
   mockApprovingSessionId = managedSessionId;
-  const [agent] = await getDb().insert(users).values({
-    color: 'teal',
-    kind: 'bot',
-    username: `settings-agent-${randomUUID()}`,
-    parentAccountId: USER_ID,
-  }).returning({ id: users.id });
+  const [agent] = await getDb()
+    .insert(users)
+    .values({
+      color: 'teal',
+      kind: 'bot',
+      username: `settings-agent-${randomUUID()}`,
+      parentAccountId: USER_ID,
+    })
+    .returning({ id: users.id });
   agentId = agent.id;
-  const [application] = await getDb().insert(applications).values({
-    name: `Settings catalog owner ${randomUUID()}`,
-    ownerAccountId: USER_ID,
-    status: 'active',
-    isInternal: true,
-  }).returning({ id: applications.id });
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: `Settings catalog owner ${randomUUID()}`,
+      ownerAccountId: USER_ID,
+      status: 'active',
+      isInternal: true,
+    })
+    .returning({ id: applications.id });
   applicationId = application.id;
-  const [credential] = await getDb().insert(applicationCredentials).values({
-    applicationId,
-    name: 'Settings test credential',
-    publicKey: `oxy_dk_${randomUUID()}`,
-    secretHash: 'settings-test-secret-hash',
-    type: 'service',
-    environment: 'production',
-    scopes: [],
-    status: 'active',
-  }).returning({ id: applicationCredentials.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId,
+      name: 'Settings test credential',
+      publicKey: `oxy_dk_${randomUUID()}`,
+      secretHash: 'settings-test-secret-hash',
+      type: 'service',
+      environment: 'production',
+      scopes: [],
+      status: 'active',
+    })
+    .returning({ id: applicationCredentials.id });
   credentialId = credential.id;
-  await getDb().insert(appCapabilityCatalogRegistrations).values({
-    appSlug,
-    version: catalog.version,
-    audience: catalog.audience,
-    catalog,
-    digest: 'a'.repeat(64),
-    signature: 'settings-test-signature',
-    registeredByApplicationId: applicationId,
-    registeredByCredentialId: credentialId,
-    deployedAt: new Date(),
-    active: true,
-  });
-  const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
-    kind: 'direct_request',
-    requesterAccountId: USER_ID,
-    ownerAccountId: USER_ID,
-    coordinatorApplicationId: applicationId,
-    coordinatorCredentialId: credentialId,
-    actorType: 'alia',
-    actorAccountId: null,
-    resourceApp: appSlug,
-    effectiveAccountId: USER_ID,
-    resourceType: 'account',
-    resourceKey: USER_ID,
-    tool: 'readResource',
-    runId: `settings-run-${randomUUID()}`,
-    maximumAutonomy: 'read_only',
-    limits: [],
-    expiresAt: new Date(Date.now() + 60_000),
-  }).returning({ id: capabilityExecutionAuthorizations.id });
+  await getDb()
+    .insert(appCapabilityCatalogRegistrations)
+    .values({
+      appSlug,
+      version: catalog.version,
+      audience: catalog.audience,
+      catalog,
+      digest: 'a'.repeat(64),
+      signature: 'settings-test-signature',
+      registeredByApplicationId: applicationId,
+      registeredByCredentialId: credentialId,
+      deployedAt: new Date(),
+      active: true,
+    });
+  const [authorization] = await getDb()
+    .insert(capabilityExecutionAuthorizations)
+    .values({
+      kind: 'direct_request',
+      requesterAccountId: USER_ID,
+      ownerAccountId: USER_ID,
+      coordinatorApplicationId: applicationId,
+      coordinatorCredentialId: credentialId,
+      actorType: 'alia',
+      actorAccountId: null,
+      resourceApp: appSlug,
+      effectiveAccountId: USER_ID,
+      resourceType: 'account',
+      resourceKey: USER_ID,
+      tool: 'readResource',
+      runId: `settings-run-${randomUUID()}`,
+      maximumAutonomy: 'read_only',
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    .returning({ id: capabilityExecutionAuthorizations.id });
   authorizationId = authorization.id;
   server = await new Promise<Server>((resolve) => {
     const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
@@ -214,7 +241,9 @@ afterAll(async () => {
   const listener = server;
   if (listener) {
     listener.closeAllConnections();
-    await new Promise<void>((resolve, reject) => listener.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) =>
+      listener.close((error) => (error ? reject(error) : resolve())),
+    );
   }
   await closePostgres();
 });
@@ -227,21 +256,27 @@ function http() {
 it('serves safe catalogs and manages account policies for Settings', async () => {
   const available = await http().get(`/capabilities/catalogs/available?accountId=${USER_ID}`);
   expect(available.status).toBe(200);
-  expect(available.body.catalogs).toEqual(expect.arrayContaining([expect.objectContaining({
-    appId: appSlug,
-    version: catalog.version,
-    digest: 'a'.repeat(64),
-    audience: catalog.audience,
-    catalog,
-  })]));
+  expect(available.body.catalogs).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        appId: appSlug,
+        version: catalog.version,
+        digest: 'a'.repeat(64),
+        audience: catalog.audience,
+        catalog,
+      }),
+    ]),
+  );
   expect(JSON.stringify(available.body)).not.toContain('settings-test-signature');
   expect(JSON.stringify(available.body)).not.toContain(credentialId);
 
-  const written = await http().put(`/capabilities/account-policies/${appSlug}`).send({
-    accountId: USER_ID,
-    maximumAutonomy: 'draft',
-    deniedCapabilities: ['resource.read'],
-  });
+  const written = await http()
+    .put(`/capabilities/account-policies/${appSlug}`)
+    .send({
+      accountId: USER_ID,
+      maximumAutonomy: 'draft',
+      deniedCapabilities: ['resource.read'],
+    });
   expect(written.status).toBe(200);
   expect(written.body.policy).toMatchObject({
     accountId: USER_ID,
@@ -250,11 +285,15 @@ it('serves safe catalogs and manages account policies for Settings', async () =>
     deniedCapabilities: ['resource.read'],
   });
 
-  const listed = await http().get(`/capabilities/account-policies?accountId=${USER_ID}&appId=${appSlug}`);
+  const listed = await http().get(
+    `/capabilities/account-policies?accountId=${USER_ID}&appId=${appSlug}`,
+  );
   expect(listed.status).toBe(200);
   expect(listed.body.policies).toHaveLength(1);
 
-  const removed = await http().delete(`/capabilities/account-policies/${appSlug}?accountId=${USER_ID}`);
+  const removed = await http().delete(
+    `/capabilities/account-policies/${appSlug}?accountId=${USER_ID}`,
+  );
   expect(removed.status).toBe(204);
 });
 
@@ -265,72 +304,85 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
     resourceType: 'account',
     resourceId: USER_ID,
   };
-  const futureOverride = await http().post('/capabilities/grants').send({
-    ownerAccountId: USER_ID,
-    actorAccountId: agentId,
-    resource,
-    capabilityPackages: ['read'],
-    capabilities: [],
-    toolOverrides: [{ tool: 'futureTool', decision: 'allow' }],
-    limits: [],
-    maximumAutonomy: 'read_only',
-    canRedelegate: false,
-    expiresAt: null,
-  });
+  const futureOverride = await http()
+    .post('/capabilities/grants')
+    .send({
+      ownerAccountId: USER_ID,
+      actorAccountId: agentId,
+      resource,
+      capabilityPackages: ['read'],
+      capabilities: [],
+      toolOverrides: [{ tool: 'futureTool', decision: 'allow' }],
+      limits: [],
+      maximumAutonomy: 'read_only',
+      canRedelegate: false,
+      expiresAt: null,
+    });
   expect(futureOverride.status).toBe(400);
   expect(futureOverride.body).toEqual({ error: 'override_tool_not_available_for_resource' });
 
-  const unboundedAutonomy = await http().post('/capabilities/grants').send({
-    ownerAccountId: USER_ID,
-    actorAccountId: agentId,
-    resource,
-    capabilityPackages: [],
-    capabilities: ['finance.execute'],
-    toolOverrides: [],
-    limits: [],
-    maximumAutonomy: 'autonomous',
-    canRedelegate: false,
-    expiresAt: null,
-  });
+  const unboundedAutonomy = await http()
+    .post('/capabilities/grants')
+    .send({
+      ownerAccountId: USER_ID,
+      actorAccountId: agentId,
+      resource,
+      capabilityPackages: [],
+      capabilities: ['finance.execute'],
+      toolOverrides: [],
+      limits: [],
+      maximumAutonomy: 'autonomous',
+      canRedelegate: false,
+      expiresAt: null,
+    });
   expect(unboundedAutonomy.status).toBe(400);
   expect(unboundedAutonomy.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const created = await http().post('/capabilities/grants').send({
-    ownerAccountId: USER_ID,
-    actorAccountId: agentId,
-    resource,
-    capabilityPackages: ['read'],
-    capabilities: [],
-    toolOverrides: [],
-    limits: [],
-    maximumAutonomy: 'read_only',
-    canRedelegate: false,
-    expiresAt: null,
-  });
+  const created = await http()
+    .post('/capabilities/grants')
+    .send({
+      ownerAccountId: USER_ID,
+      actorAccountId: agentId,
+      resource,
+      capabilityPackages: ['read'],
+      capabilities: [],
+      toolOverrides: [],
+      limits: [],
+      maximumAutonomy: 'read_only',
+      canRedelegate: false,
+      expiresAt: null,
+    });
   expect(created.status).toBe(201);
-  expect(created.body.grant.catalog).toMatchObject({ version: catalog.version, digest: 'a'.repeat(64) });
-
-  const unsafeUpdate = await http().put(`/capabilities/grants/${created.body.grant.id}`).send({
-    capabilityPackages: [],
-    capabilities: ['finance.execute'],
-    toolOverrides: [],
-    limits: [],
-    maximumAutonomy: 'autonomous',
-    canRedelegate: false,
-    expiresAt: null,
+  expect(created.body.grant.catalog).toMatchObject({
+    version: catalog.version,
+    digest: 'a'.repeat(64),
   });
+
+  const unsafeUpdate = await http()
+    .put(`/capabilities/grants/${created.body.grant.id}`)
+    .send({
+      capabilityPackages: [],
+      capabilities: ['finance.execute'],
+      toolOverrides: [],
+      limits: [],
+      maximumAutonomy: 'autonomous',
+      canRedelegate: false,
+      expiresAt: null,
+    });
   expect(unsafeUpdate.status).toBe(400);
   expect(unsafeUpdate.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const updated = await http().put(`/capabilities/grants/${created.body.grant.id}`).send({
-    capabilityPackages: [],
-    capabilities: ['resource.read'],
-    toolOverrides: [],
-    limits: [],
-    maximumAutonomy: 'draft',
-    canRedelegate: false,
-    expiresAt: null,
-  });
+  const updated = await http()
+    .put(`/capabilities/grants/${created.body.grant.id}`)
+    .send({
+      capabilityPackages: [],
+      capabilities: ['resource.read'],
+      toolOverrides: [],
+      limits: [],
+      maximumAutonomy: 'draft',
+      canRedelegate: false,
+      expiresAt: null,
+    });
   expect(updated.status).toBe(200);
   expect(updated.body.grant).toMatchObject({
     id: created.body.grant.id,
@@ -342,37 +394,47 @@ it('rejects future tools and edits a catalog-bound grant atomically', async () =
 });
 
 it('lists and revokes execution authorizations for Settings', async () => {
-  const unsafeAuthorization = await http().post('/capabilities/execution-authorizations').send({
-    kind: 'automation',
-    ownerAccountId: USER_ID,
-    coordinatorApplicationId: applicationId,
-    coordinatorCredentialId: credentialId,
-    actor: { type: 'alia', ownerAccountId: USER_ID },
-    resource: {
-      appId: appSlug,
-      effectiveAccountId: USER_ID,
-      resourceType: 'account',
-      resourceId: USER_ID,
-    },
-    tool: 'financialEffect',
-    automationId: `settings-automation-${randomUUID()}`,
-    maximumAutonomy: 'autonomous',
-    limits: [],
-    expiresAt: new Date(Date.now() + 60_000).toISOString(),
-  });
+  const unsafeAuthorization = await http()
+    .post('/capabilities/execution-authorizations')
+    .send({
+      kind: 'automation',
+      ownerAccountId: USER_ID,
+      coordinatorApplicationId: applicationId,
+      coordinatorCredentialId: credentialId,
+      actor: { type: 'alia', ownerAccountId: USER_ID },
+      resource: {
+        appId: appSlug,
+        effectiveAccountId: USER_ID,
+        resourceType: 'account',
+        resourceId: USER_ID,
+      },
+      tool: 'financialEffect',
+      automationId: `settings-automation-${randomUUID()}`,
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
   expect(unsafeAuthorization.status).toBe(400);
   expect(unsafeAuthorization.body).toEqual({ error: 'autonomous_sensitive_tool_limit_required' });
 
-  const listed = await http().get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
+  const listed = await http().get(
+    `/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`,
+  );
   expect(listed.status).toBe(200);
-  expect(listed.body.authorizations).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id: authorizationId, ownerAccountId: USER_ID }),
-  ]));
+  expect(listed.body.authorizations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ id: authorizationId, ownerAccountId: USER_ID }),
+    ]),
+  );
 
   const revoked = await http().delete(`/capabilities/execution-authorizations/${authorizationId}`);
   expect(revoked.status).toBe(204);
-  const relisted = await http().get(`/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`);
-  const authorization = relisted.body.authorizations.find((entry: { id: string }) => entry.id === authorizationId);
+  const relisted = await http().get(
+    `/capabilities/execution-authorizations?ownerAccountId=${USER_ID}`,
+  );
+  const authorization = relisted.body.authorizations.find(
+    (entry: { id: string }) => entry.id === authorizationId,
+  );
   expect(authorization.revokedAt).not.toBeNull();
 });
 
@@ -381,28 +443,44 @@ it('asks authority of the person operating a managed account, not of the account
   // never its own member. The person behind the session is who operates it.
   mockManagedSubject = ORG_ID;
   try {
-    const created = await http().post('/capabilities/execution-authorizations').send({
-      kind: 'direct_request',
-      ownerAccountId: ORG_ID,
-      coordinatorApplicationId: applicationId,
-      coordinatorCredentialId: credentialId,
-      actor: { type: 'alia', ownerAccountId: ORG_ID },
-      resource: { appId: appSlug, effectiveAccountId: ORG_ID, resourceType: 'account', resourceId: ORG_ID },
-      tool: 'readResource',
-      runId: `managed-run-${randomUUID()}`,
-      maximumAutonomy: 'read_only',
-      limits: [],
-      expiresAt: new Date(Date.now() + 60_000).toISOString(),
-    });
+    const created = await http()
+      .post('/capabilities/execution-authorizations')
+      .send({
+        kind: 'direct_request',
+        ownerAccountId: ORG_ID,
+        coordinatorApplicationId: applicationId,
+        coordinatorCredentialId: credentialId,
+        actor: { type: 'alia', ownerAccountId: ORG_ID },
+        resource: {
+          appId: appSlug,
+          effectiveAccountId: ORG_ID,
+          resourceType: 'account',
+          resourceId: ORG_ID,
+        },
+        tool: 'readResource',
+        runId: `managed-run-${randomUUID()}`,
+        maximumAutonomy: 'read_only',
+        limits: [],
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
     expect(created.status).toBe(201);
-    expect(created.body.authorization).toMatchObject({ requesterAccountId: USER_ID, ownerAccountId: ORG_ID });
+    expect(created.body.authorization).toMatchObject({
+      requesterAccountId: USER_ID,
+      ownerAccountId: ORG_ID,
+    });
   } finally {
     mockManagedSubject = null;
   }
 });
 
-
-it.each(['missing', 'unknown', 'expired', 'revoked', 'revoked-after-auth', 'expired-after-auth'] as const)(
+it.each([
+  'missing',
+  'unknown',
+  'expired',
+  'revoked',
+  'revoked-after-auth',
+  'expired-after-auth',
+] as const)(
   'returns401 without insertion when the approving session is %s after bearer verification',
   async (state) => {
     // Bearer/operator middleware is synthetic here; the second session lookup
@@ -411,13 +489,20 @@ it.each(['missing', 'unknown', 'expired', 'revoked', 'revoked-after-auth', 'expi
     mockManagedSubject = ORG_ID;
     const sessionId = `settings-denied-${randomUUID()}`;
     if (state !== 'missing' && state !== 'unknown') {
-      await getDb().insert(sessions).values({
-        sessionId, userId: ORG_ID, operatedByUserId: USER_ID,
-        deviceId: `settings-denied-device-${randomUUID()}`, deviceType: 'web', platform: 'web',
-        accessToken: `fixture-${sessionId}-access`, refreshToken: `fixture-${sessionId}-refresh`,
-        expiresAt: new Date(Date.now() + (state === 'expired' ? -1_000 : 60_000)),
-        isActive: state !== 'revoked',
-      });
+      await getDb()
+        .insert(sessions)
+        .values({
+          sessionId,
+          userId: ORG_ID,
+          operatedByUserId: USER_ID,
+          deviceId: `settings-denied-device-${randomUUID()}`,
+          deviceType: 'web',
+          platform: 'web',
+          accessToken: `fixture-${sessionId}-access`,
+          refreshToken: `fixture-${sessionId}-refresh`,
+          expiresAt: new Date(Date.now() + (state === 'expired' ? -1_000 : 60_000)),
+          isActive: state !== 'revoked',
+        });
     }
     mockApprovingSessionId = state === 'missing' ? undefined : sessionId;
     let changedAfterAuthentication = false;
@@ -425,33 +510,57 @@ it.each(['missing', 'unknown', 'expired', 'revoked', 'revoked-after-auth', 'expi
       // Deterministic seam: the earlier bearer middleware observes a LIVE row;
       // revoke/expire commits before next() enters the final approval lookup.
       mockBeforeNext = async () => {
-        const [live] = await getDb().select({ active: sessions.isActive, expiry: sessions.expiresAt })
-          .from(sessions).where(eq(sessions.sessionId, sessionId));
+        const [live] = await getDb()
+          .select({ active: sessions.isActive, expiry: sessions.expiresAt })
+          .from(sessions)
+          .where(eq(sessions.sessionId, sessionId));
         expect(live.active).toBe(true);
         expect(live.expiry.getTime()).toBeGreaterThan(Date.now());
-        await getDb().update(sessions).set(state === 'revoked-after-auth'
-          ? { isActive: false } : { expiresAt: new Date(Date.now() - 1_000) })
+        await getDb()
+          .update(sessions)
+          .set(
+            state === 'revoked-after-auth'
+              ? { isActive: false }
+              : { expiresAt: new Date(Date.now() - 1_000) },
+          )
           .where(eq(sessions.sessionId, sessionId));
         changedAfterAuthentication = true;
       };
     }
     const runId = `settings-denied-run-${randomUUID()}`;
     try {
-      const denied = await http().post('/capabilities/execution-authorizations')
-        .timeout({ response: 1_000, deadline: 2_000 }).send({
-          kind: 'direct_request', ownerAccountId: ORG_ID,
-          coordinatorApplicationId: applicationId, coordinatorCredentialId: credentialId,
+      const denied = await http()
+        .post('/capabilities/execution-authorizations')
+        .timeout({ response: 1_000, deadline: 2_000 })
+        .send({
+          kind: 'direct_request',
+          ownerAccountId: ORG_ID,
+          coordinatorApplicationId: applicationId,
+          coordinatorCredentialId: credentialId,
           actor: { type: 'alia', ownerAccountId: ORG_ID },
-          resource: { appId: appSlug, effectiveAccountId: ORG_ID, resourceType: 'account', resourceId: ORG_ID },
-          tool: 'readResource', runId, maximumAutonomy: 'read_only', limits: [],
+          resource: {
+            appId: appSlug,
+            effectiveAccountId: ORG_ID,
+            resourceType: 'account',
+            resourceId: ORG_ID,
+          },
+          tool: 'readResource',
+          runId,
+          maximumAutonomy: 'read_only',
+          limits: [],
           expiresAt: new Date(Date.now() + 60_000).toISOString(),
         });
-      expect(changedAfterAuthentication).toBe(state === 'revoked-after-auth' || state === 'expired-after-auth');
+      expect(changedAfterAuthentication).toBe(
+        state === 'revoked-after-auth' || state === 'expired-after-auth',
+      );
       expect(denied.status).toBe(401);
       expect(denied.body).toMatchObject({ error: 'INVALID_SESSION' });
-      expect(await getDb().select({ id: capabilityExecutionAuthorizations.id })
-        .from(capabilityExecutionAuthorizations)
-        .where(eq(capabilityExecutionAuthorizations.runId, runId))).toEqual([]);
+      expect(
+        await getDb()
+          .select({ id: capabilityExecutionAuthorizations.id })
+          .from(capabilityExecutionAuthorizations)
+          .where(eq(capabilityExecutionAuthorizations.runId, runId)),
+      ).toEqual([]);
     } finally {
       mockManagedSubject = null;
       mockApprovingSessionId = managedSessionId;

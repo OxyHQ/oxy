@@ -411,7 +411,7 @@ describe('provisioning', () => {
 
   it('refuses an account that does not exist rather than raising a foreign key error', async () => {
     await expect(
-      provisionAccountBilling({ accountId: `missing-${randomUUID()}` })
+      provisionAccountBilling({ accountId: `missing-${randomUUID()}` }),
     ).resolves.toMatchObject({ status: 'unknown-account' });
   });
 });

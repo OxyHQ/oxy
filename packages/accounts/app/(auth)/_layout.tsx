@@ -11,15 +11,15 @@ import { ErrorFallback } from '@/components/error-fallback';
  * or import-identity flow here.
  */
 export default function AuthLayout() {
-    return (
-        <Stack
-            screenOptions={{
-                headerShown: false,
-            }}
-        >
-            <Stack.Screen name="index" />
-        </Stack>
-    );
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="index" />
+    </Stack>
+  );
 }
 
 /**
@@ -28,5 +28,5 @@ export default function AuthLayout() {
  * white screen.
  */
 export function ErrorBoundary(props: { error: Error; retry: () => void }) {
-    return <ErrorFallback {...props} />;
+  return <ErrorFallback {...props} />;
 }

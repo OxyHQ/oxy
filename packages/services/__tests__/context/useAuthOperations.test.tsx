@@ -51,10 +51,14 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-jest.mock('expo-crypto', () => ({
-  __esModule: true,
-  randomUUID: jest.fn(() => 'test-uuid-0000'),
-}), { virtual: true });
+jest.mock(
+  'expo-crypto',
+  () => ({
+    __esModule: true,
+    randomUUID: jest.fn(() => 'test-uuid-0000'),
+  }),
+  { virtual: true },
+);
 
 jest.mock('../../src/ui/utils/sessionHelpers', () => ({
   __esModule: true,
@@ -83,20 +87,34 @@ const makeOxyServices = (overrides: FakeServicesOverrides = {}): FakeServices =>
 };
 
 const makeDefaultOxyServices = (): FakeServices => ({
-  auth: { requestChallenge: jest.fn(async () => ({ challenge: 'server-challenge' })), verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
-    sessionId: 'new-session',
-    deviceId: 'device-1',
-    expiresAt: '2030-01-01',
-    accessToken: 'verify-access-token',
-    deviceSecret: 'verify-device-secret',
-    user: { id: 'user-1', username: 'alice' },
-  })) },
-  session: { setAccessToken: jest.fn(), logout: jest.fn(async () => undefined), logoutAll: jest.fn(async () => undefined) },
-  users: { me: jest.fn(async (): Promise<User> => ({
-    id: 'user-1',
-    username: 'alice',
-    privacySettings: {},
-  } as User)) },
+  auth: {
+    requestChallenge: jest.fn(async () => ({ challenge: 'server-challenge' })),
+    verifyChallenge: jest.fn(
+      async (): Promise<SessionLoginResponse> => ({
+        sessionId: 'new-session',
+        deviceId: 'device-1',
+        expiresAt: '2030-01-01',
+        accessToken: 'verify-access-token',
+        deviceSecret: 'verify-device-secret',
+        user: { id: 'user-1', username: 'alice' },
+      }),
+    ),
+  },
+  session: {
+    setAccessToken: jest.fn(),
+    logout: jest.fn(async () => undefined),
+    logoutAll: jest.fn(async () => undefined),
+  },
+  users: {
+    me: jest.fn(
+      async (): Promise<User> =>
+        ({
+          id: 'user-1',
+          username: 'alice',
+          privacySettings: {},
+        }) as User,
+    ),
+  },
 });
 
 /** A device account tracked by the (mocked) `SessionClient`. */
@@ -116,7 +134,8 @@ interface FakeSessionAccount {
 function buildFakeSessionClient(initialAccounts: FakeSessionAccount[]) {
   let accounts = [...initialAccounts];
   const signOut = jest.fn(async (target: { accountId: string } | { all: true }) => {
-    accounts = 'all' in target ? [] : accounts.filter((account) => account.accountId !== target.accountId);
+    accounts =
+      'all' in target ? [] : accounts.filter((account) => account.accountId !== target.accountId);
   });
   const switchAccount = jest.fn(async () => undefined);
   const addCurrentAccount = jest.fn(async () => undefined);
@@ -183,11 +202,14 @@ const setup = (opts: SetupOpts = {}) => {
   const runtime = buildFakeRuntime(opts.activeSessionId ?? null);
   const saveActiveSessionId = jest.fn(async () => undefined);
   const clearSessionState = jest.fn(async () => undefined);
-  const switchSession = jest.fn(async () => ({
-    id: 'user-1',
-    username: 'alice',
-    privacySettings: {},
-  } as User));
+  const switchSession = jest.fn(
+    async () =>
+      ({
+        id: 'user-1',
+        username: 'alice',
+        privacySettings: {},
+      }) as User,
+  );
   const onAuthStateChange = jest.fn();
   const onError = jest.fn();
   const logger = jest.fn();
@@ -293,7 +315,7 @@ describe('useAuthOperations.signIn — online flow', () => {
       load: jest.fn(async () => null),
       save: jest.fn(async () => true),
       clear: jest.fn(async () => undefined),
-    setAutomaticIdentitySignInSuppressed: jest.fn(async () => true),
+      setAutomaticIdentitySignInSuppressed: jest.fn(async () => true),
     };
     const refreshPinnedAccountId = jest.fn(async () => 'user-1');
     const helpers = setup({ identityBinding: { pinStore }, refreshPinnedAccountId });
@@ -334,7 +356,9 @@ describe('useAuthOperations.signIn — online flow', () => {
     // failed sign-in. `signIn` opens by CLEARING any previous error, so the
     // assertion is that no error MESSAGE was ever recorded — not that the
     // setter went untouched.
-    expect(helpers.setError.mock.calls.map(([message]: [string | null]) => message)).toEqual([null]);
+    expect(helpers.setError.mock.calls.map(([message]: [string | null]) => message)).toEqual([
+      null,
+    ]);
   });
 
   it('continues sign-in when the verify response omits an access token', async () => {
@@ -347,12 +371,16 @@ describe('useAuthOperations.signIn — online flow', () => {
         // A token-less new identity (onboarding): verify returns no access
         // token. The consumer must still proceed to fetch the user without
         // depending on legacy session-id token exchange.
-        auth: { verifyChallenge: jest.fn(async (): Promise<SessionLoginResponse> => ({
-          sessionId: 'new-session',
-          deviceId: 'device-1',
-          expiresAt: '2030-01-01',
-          user: { id: 'user-1', username: 'alice' },
-        })) },
+        auth: {
+          verifyChallenge: jest.fn(
+            async (): Promise<SessionLoginResponse> => ({
+              sessionId: 'new-session',
+              deviceId: 'device-1',
+              expiresAt: '2030-01-01',
+              user: { id: 'user-1', username: 'alice' },
+            }),
+          ),
+        },
       },
     });
 
@@ -371,9 +399,11 @@ describe('useAuthOperations.signIn — online flow', () => {
   it('rejects with the original error when verifyChallenge throws', async () => {
     const helpers = setup({
       oxyServices: {
-        auth: { verifyChallenge: jest.fn(async () => {
-          throw new Error('signature mismatch');
-        }) },
+        auth: {
+          verifyChallenge: jest.fn(async () => {
+            throw new Error('signature mismatch');
+          }),
+        },
       },
     });
 
@@ -388,9 +418,11 @@ describe('useAuthOperations.signIn — online flow', () => {
 
     expect((caught as Error).message).toBe('signature mismatch');
     expect(helpers.setError).toHaveBeenCalledWith('signature mismatch');
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGIN_ERROR',
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGIN_ERROR',
+      }),
+    );
   });
 
   it('switches to an existing session for the same user instead of duplicating', async () => {
@@ -409,9 +441,7 @@ describe('useAuthOperations.signIn — online flow', () => {
     expect(helpers.oxyServices.session.logout).toHaveBeenCalledWith('new-session', 'new-session');
     expect(helpers.switchSession).toHaveBeenCalledWith('old-session');
     expect(helpers.mergeSessions).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ sessionId: 'old-session' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ sessionId: 'old-session' })]),
       { merge: false },
     );
   });
@@ -421,9 +451,11 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
   it('does not create a local session when the network is unavailable', async () => {
     const helpers = setup({
       oxyServices: {
-        auth: { requestChallenge: jest.fn(async () => {
-          throw new Error('Network request failed');
-        }) },
+        auth: {
+          requestChallenge: jest.fn(async () => {
+            throw new Error('Network request failed');
+          }),
+        },
       },
     });
 
@@ -443,9 +475,11 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
   it('re-throws non-network errors from requestChallenge', async () => {
     const helpers = setup({
       oxyServices: {
-        auth: { requestChallenge: jest.fn(async () => {
-          throw new Error('bad request (400)');
-        }) },
+        auth: {
+          requestChallenge: jest.fn(async () => {
+            throw new Error('bad request (400)');
+          }),
+        },
       },
     });
 
@@ -492,7 +526,9 @@ describe('useAuthOperations.logout', () => {
   });
 
   it('clears local state AND the persisted store (full sign-out) when the last device account is signed out', async () => {
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     const helpers = setup({ activeSessionId: 'session-1', sessionClient });
     await act(async () => {
       await helpers.result.current.logout();
@@ -521,20 +557,26 @@ describe('useAuthOperations.logout', () => {
   });
 
   it('reports a clear error (no silent no-op) when the target session has no matching device account', async () => {
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     const helpers = setup({ activeSessionId: 'session-1', sessionClient });
     await act(async () => {
       await helpers.result.current.logout('session-unknown');
     });
     expect(sessionClient.signOut).not.toHaveBeenCalled();
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGOUT_ERROR',
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGOUT_ERROR',
+      }),
+    );
   });
 
   it('clears local state and the store when the server reports the session as invalid (401 fast-path)', async () => {
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       const err: Error & { status?: number } = new Error('HTTP 401: invalid session');
       err.status = 401;
@@ -556,7 +598,9 @@ describe('useAuthOperations.logout', () => {
     // Every in-app sign-out affordance calls `logout()` with no argument (see
     // `ManageAccountScreen.handleSignOut`), so the invalid-session fast-path has
     // to key on the RESOLVED session id, not on the raw optional parameter.
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       const err: Error & { status?: number } = new Error('HTTP 401: invalid session');
       err.status = 401;
@@ -575,7 +619,9 @@ describe('useAuthOperations.logout', () => {
   });
 
   it('reports unexpected errors via onError', async () => {
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       throw new Error('boom');
     });
@@ -585,9 +631,11 @@ describe('useAuthOperations.logout', () => {
       await helpers.result.current.logout('session-1');
     });
 
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGOUT_ERROR',
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGOUT_ERROR',
+      }),
+    );
   });
 });
 
@@ -599,10 +647,12 @@ describe('useAuthOperations.logoutAll', () => {
         await helpers.result.current.logoutAll();
       }),
     ).rejects.toThrow(/No active session/);
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGOUT_ALL_ERROR',
-      status: 404,
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGOUT_ALL_ERROR',
+        status: 404,
+      }),
+    );
   });
 
   it('revokes global sessions before every current-device account and clears local state on success', async () => {
@@ -630,15 +680,17 @@ describe('useAuthOperations.logoutAll', () => {
     const helpers = setup({
       activeSessionId: 'session-1',
       oxyServices: {
-        session: { logoutAll: jest.fn(async () => {
-          throw new Error('global revoke failed');
-        }) },
+        session: {
+          logoutAll: jest.fn(async () => {
+            throw new Error('global revoke failed');
+          }),
+        },
       },
     });
 
-    await expect(
-      act(async () => helpers.result.current.logoutAll()),
-    ).rejects.toThrow('global revoke failed');
+    await expect(act(async () => helpers.result.current.logoutAll())).rejects.toThrow(
+      'global revoke failed',
+    );
 
     expect(helpers.sessionClient.signOut).not.toHaveBeenCalled();
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
@@ -647,7 +699,9 @@ describe('useAuthOperations.logoutAll', () => {
   });
 
   it('re-throws and reports when SessionClient.signOut({ all: true }) fails', async () => {
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       throw new Error('server down');
     });
@@ -664,9 +718,11 @@ describe('useAuthOperations.logoutAll', () => {
 
     expect((caught as Error).message).toBe('server down');
     expect(sessionClient.signOut).toHaveBeenCalledWith({ all: true });
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGOUT_ALL_ERROR',
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGOUT_ALL_ERROR',
+      }),
+    );
     // The failed revoke must NOT run the local teardown or wipe the store.
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
@@ -679,7 +735,9 @@ describe('useAuthOperations.logoutAll', () => {
     // necessarily answers 401. That is a COMPLETED sign-out, not a failure: the
     // caller (Commons' delete-account flow) must reach its post-deletion cleanup
     // instead of being handed an error.
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       // `HttpService` rejects with the PLAIN `ApiError` object `handleHttpError`
       // builds — not an `Error` instance. Mirror that exactly.
@@ -701,7 +759,9 @@ describe('useAuthOperations.logoutAll', () => {
   it('rejects with the SERVER message, not a generic one, when signOut fails with a plain ApiError object', async () => {
     // `HttpService` never rejects with an `Error` instance, so an
     // `error instanceof Error` rethrow guard always erased the real reason.
-    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const sessionClient = buildFakeSessionClient([
+      { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+    ]);
     sessionClient.signOut.mockImplementationOnce(async () => {
       throw { message: 'Service unavailable', code: 'SERVICE_UNAVAILABLE', status: 503 };
     });
@@ -717,34 +777,47 @@ describe('useAuthOperations.logoutAll', () => {
     });
 
     expect((caught as Error).message).toBe('Service unavailable');
-    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
-      code: 'LOGOUT_ALL_ERROR',
-      status: 503,
-    }));
+    expect(helpers.onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'LOGOUT_ALL_ERROR',
+        status: 503,
+      }),
+    );
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
     expect(helpers.store.setAutomaticIdentitySignInSuppressed).not.toHaveBeenCalled();
   });
 });
 
-
-it('reports a failed durable logout but still clears local state after server revocation',async()=>{
-  const sessionClient=buildFakeSessionClient([{accountId:'acc-1',sessionId:'session-1',authuser:0}]);
-  const store=buildFakeStore();store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
-  const helpers=setup({activeSessionId:'session-1',sessionClient,store});
-  let outcome:unknown;
-  await act(async()=>{outcome=await helpers.result.current.logout();});
-  expect(outcome).toMatchObject({status:'failed'});
+it('reports a failed durable logout but still clears local state after server revocation', async () => {
+  const sessionClient = buildFakeSessionClient([
+    { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+  ]);
+  const store = buildFakeStore();
+  store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
+  const helpers = setup({ activeSessionId: 'session-1', sessionClient, store });
+  let outcome: unknown;
+  await act(async () => {
+    outcome = await helpers.result.current.logout();
+  });
+  expect(outcome).toMatchObject({ status: 'failed' });
   expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
   expect(helpers.store.clear).toHaveBeenCalledTimes(1);
   expect(sessionClient.getState().accounts).toEqual([]);
 });
 
-it("reports failed durable logoutAll after revocation and still clears local state", async () => {
-  const sessionClient = buildFakeSessionClient([{ accountId: "acc-1", sessionId: "session-1", authuser: 0 }]);
-  const store = buildFakeStore(); store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
-  const helpers = setup({ activeSessionId: "session-1", sessionClient, store });
-  await act(async () => { await expect(helpers.result.current.logoutAll()).rejects.toThrow("Failed to persist explicit sign-out intent"); });
+it('reports failed durable logoutAll after revocation and still clears local state', async () => {
+  const sessionClient = buildFakeSessionClient([
+    { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
+  ]);
+  const store = buildFakeStore();
+  store.setAutomaticIdentitySignInSuppressed.mockResolvedValue(false);
+  const helpers = setup({ activeSessionId: 'session-1', sessionClient, store });
+  await act(async () => {
+    await expect(helpers.result.current.logoutAll()).rejects.toThrow(
+      'Failed to persist explicit sign-out intent',
+    );
+  });
   expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
   expect(helpers.store.clear).toHaveBeenCalledTimes(1);
   expect(sessionClient.getState().accounts).toEqual([]);

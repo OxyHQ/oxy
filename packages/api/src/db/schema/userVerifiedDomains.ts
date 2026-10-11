@@ -41,17 +41,16 @@ export const userVerifiedDomains = pgTable(
     // here means a second write path cannot reintroduce one.
     uniqueIndex('user_verified_domains_user_id_lower_domain_key').on(
       t.userId,
-      sql`lower(${t.domain})`
+      sql`lower(${t.domain})`,
     ),
-    // Mongo's sparse `{verifiedDomains.domain}` index: "who claims this domain?"
-    // Deliberately NOT unique — two accounts claiming one domain is a real
-    // condition the platform must be able to observe and resolve, and Mongo
-    // permitted it. Making it unique here would fail the backfill on data that
-    // exists rather than surfacing it.
+    // "Who claims this domain?" Deliberately NOT unique — two accounts claiming
+    // one domain is a real condition the platform must be able to observe and
+    // resolve. Making it unique would fail on data that exists rather than
+    // surfacing it.
     index('user_verified_domains_lower_domain_idx').on(sql`lower(${t.domain})`),
     check(
       'user_verified_domains_method_check',
-      sql`${t.method} in (${sql.raw(VERIFIED_DOMAIN_METHODS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.method} in (${sql.raw(VERIFIED_DOMAIN_METHODS.map((value) => `'${value}'`).join(', '))})`,
     ),
-  ]
+  ],
 );

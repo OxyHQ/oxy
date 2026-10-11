@@ -1,4 +1,4 @@
-import { HugeiconsIcon } from "@hugeicons/react"
+import { HugeiconsIcon } from '@hugeicons/react';
 import {
   UserIcon,
   UserAccountIcon,
@@ -6,7 +6,7 @@ import {
   Folder01Icon,
   UserMultiple02Icon,
   SecurityLockIcon,
-} from "@hugeicons/core-free-icons"
+} from '@hugeicons/core-free-icons';
 
 import {
   Sidebar,
@@ -19,28 +19,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from '@/components/ui/sidebar';
 
-export type Page =
-  | "auth"
-  | "profile"
-  | "sessions"
-  | "files"
-  | "social"
-  | "security"
+export type Page = 'auth' | 'profile' | 'sessions' | 'files' | 'social' | 'security';
 
 const navItems: { page: Page; label: string; icon: typeof UserIcon }[] = [
-  { page: "auth", label: "Authentication", icon: UserIcon },
-  { page: "profile", label: "Profile", icon: UserAccountIcon },
-  { page: "sessions", label: "Sessions & Devices", icon: SmartPhone01Icon },
-  { page: "files", label: "Files & Assets", icon: Folder01Icon },
-  { page: "social", label: "Social", icon: UserMultiple02Icon },
-  { page: "security", label: "Security", icon: SecurityLockIcon },
-]
+  { page: 'auth', label: 'Authentication', icon: UserIcon },
+  { page: 'profile', label: 'Profile', icon: UserAccountIcon },
+  { page: 'sessions', label: 'Sessions & Devices', icon: SmartPhone01Icon },
+  { page: 'files', label: 'Files & Assets', icon: Folder01Icon },
+  { page: 'social', label: 'Social', icon: UserMultiple02Icon },
+  { page: 'security', label: 'Security', icon: SecurityLockIcon },
+];
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  activePage: Page
-  onNavigate: (page: Page) => void
+  activePage: Page;
+  onNavigate: (page: Page) => void;
 }
 
 export function AppSidebar({ activePage, onNavigate, ...props }: AppSidebarProps) {
@@ -80,5 +74,5 @@ export function AppSidebar({ activePage, onNavigate, ...props }: AppSidebarProps
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
-  )
+  );
 }

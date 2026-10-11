@@ -4,7 +4,23 @@
  * `server.assets.metadataByIds(...)` sits beside every client method of
  * `oxy.assets`.
  */
-import { capabilityTicketRequestSchema, foregroundExecutionAuthorizationInputSchema, type ForegroundExecutionAuthorizationInput, type ActorRef, type AppCapabilityCatalog, type AutonomyLevel, type CapabilityTicketClaims, type CapabilityTicketRequest, type GrantLimit, type PolicyDecision, type ResourceRef, type CreateOxyNotificationRequest, type AwardReputationInput, type ReputationTransaction, type ServiceLinkedAccountListResponse } from '@oxy.so/contracts';
+import {
+  capabilityTicketRequestSchema,
+  foregroundExecutionAuthorizationInputSchema,
+  type ForegroundExecutionAuthorizationInput,
+  type ActorRef,
+  type AppCapabilityCatalog,
+  type AutonomyLevel,
+  type CapabilityTicketClaims,
+  type CapabilityTicketRequest,
+  type GrantLimit,
+  type PolicyDecision,
+  type ResourceRef,
+  type CreateOxyNotificationRequest,
+  type AwardReputationInput,
+  type ReputationTransaction,
+  type ServiceLinkedAccountListResponse,
+} from '@oxy.so/contracts';
 import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
@@ -16,10 +32,18 @@ import type {
 import { AssetsApi } from '../api/assets';
 import { NotificationsApi } from '../api/notifications';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
-import { AgencyApi, type CapabilityExecutionAuthorization, type RequesterAssertionGrant, type RequesterAssertionIntrospection } from '../api/agency';
+import {
+  AgencyApi,
+  type CapabilityExecutionAuthorization,
+  type RequesterAssertionGrant,
+  type RequesterAssertionIntrospection,
+} from '../api/agency';
 import { ReputationApi } from '../api/reputation';
 import { AppsApi } from '../api/apps';
-import { isOxyAliaMachinePrincipal, type AliaMachineCredentialIntrospection } from './aliaMachineCredential';
+import {
+  isOxyAliaMachinePrincipal,
+  type AliaMachineCredentialIntrospection,
+} from './aliaMachineCredential';
 import { ServiceAssetMetadataError, ServiceLinkedDownloadUrlError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
 import { logger } from '../logger';
@@ -42,18 +66,29 @@ function lane(ctx: OxyContext): ServiceLane {
 }
 
 export class ServerAppsApi extends AppsApi {
-  constructor(private readonly serverCtx: OxyContext) { super(serverCtx); }
+  constructor(private readonly serverCtx: OxyContext) {
+    super(serverCtx);
+  }
   /** Live receiver-bound lookup using THIS resource server's own service token. */
-  async introspectAliaMachineCredential(token: string): Promise<AliaMachineCredentialIntrospection> {
+  async introspectAliaMachineCredential(
+    token: string,
+  ): Promise<AliaMachineCredentialIntrospection> {
     if (!token.startsWith('oxy_sk_') || token.length > 2048) return { active: false };
     const answer = await lane(this.serverCtx).request<unknown>(
-      'POST', '/internal/alia/machine-credentials/introspect', { token },
+      'POST',
+      '/internal/alia/machine-credentials/introspect',
+      { token },
       { cache: false, retry: false },
     );
-    if (!answer || typeof answer !== 'object' || Array.isArray(answer)) throw new Error('Invalid machine credential verdict');
+    if (!answer || typeof answer !== 'object' || Array.isArray(answer))
+      throw new Error('Invalid machine credential verdict');
     const record = answer as Record<string, unknown>;
     if (record.active === false && Object.keys(record).length === 1) return { active: false };
-    if (record.active !== true || Object.keys(record).length !== 2 || !isOxyAliaMachinePrincipal(record.principal)) {
+    if (
+      record.active !== true ||
+      Object.keys(record).length !== 2 ||
+      !isOxyAliaMachinePrincipal(record.principal)
+    ) {
       throw new Error('Invalid machine credential verdict');
     }
     return { active: true, principal: record.principal };
@@ -67,7 +102,9 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 function uniqueIds(ids: string[]): string[] {
-  return Array.from(new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)));
+  return Array.from(
+    new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)),
+  );
 }
 
 export class ServerAssetsApi extends AssetsApi {
@@ -81,7 +118,10 @@ export class ServerAssetsApi extends AssetsApi {
    * {@link ServiceAssetMetadataError} carrying the ids it could not resolve,
    * unless `{ partial: true }` asks for best-effort. Never cached.
    */
-  async metadataByIds(ids: string[], options: { partial?: boolean } = {}): Promise<ServiceAssetMetadata[]> {
+  async metadataByIds(
+    ids: string[],
+    options: { partial?: boolean } = {},
+  ): Promise<ServiceAssetMetadata[]> {
     const unique = uniqueIds(ids);
     if (unique.length === 0) return [];
 
@@ -90,25 +130,31 @@ export class ServerAssetsApi extends AssetsApi {
     let firstError: unknown;
 
     const settled = await Promise.all(
-      chunk(unique, SERVICE_ASSET_METADATA_CHUNK_SIZE).map(async (part): Promise<ServiceAssetMetadata[]> => {
-        try {
-          const entries = await lane(this.ctx).request<ServiceAssetMetadata[]>('POST', '/assets/service/by-ids', { ids: part });
-          return Array.isArray(entries) ? entries : [];
-        } catch (error: unknown) {
-          const status = extractErrorStatus(error);
-          logger.warn('assets.metadataByIds: chunk failed', {
-            method: 'assets.metadataByIds',
-            chunkSize: part.length,
-            status,
-            partial: options.partial === true,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          unresolvedIds.push(...part);
-          if (typeof status === 'number') statuses.push(status);
-          firstError ??= error;
-          return [];
-        }
-      }),
+      chunk(unique, SERVICE_ASSET_METADATA_CHUNK_SIZE).map(
+        async (part): Promise<ServiceAssetMetadata[]> => {
+          try {
+            const entries = await lane(this.ctx).request<ServiceAssetMetadata[]>(
+              'POST',
+              '/assets/service/by-ids',
+              { ids: part },
+            );
+            return Array.isArray(entries) ? entries : [];
+          } catch (error: unknown) {
+            const status = extractErrorStatus(error);
+            logger.warn('assets.metadataByIds: chunk failed', {
+              method: 'assets.metadataByIds',
+              chunkSize: part.length,
+              status,
+              partial: options.partial === true,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            unresolvedIds.push(...part);
+            if (typeof status === 'number') statuses.push(status);
+            firstError ??= error;
+            return [];
+          }
+        },
+      ),
     );
 
     if (unresolvedIds.length > 0 && options.partial !== true) {
@@ -138,26 +184,32 @@ export class ServerAssetsApi extends AssetsApi {
     let firstError: unknown;
 
     const settled = await Promise.all(
-      chunk(unique, SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE).map(async (part): Promise<ServiceLinkedDownloadUrl[]> => {
-        try {
-          const entries = await lane(this.ctx).request<ServiceLinkedDownloadUrl[]>('POST', '/assets/service/linked-url', { ids: part });
-          return Array.isArray(entries) ? entries : [];
-        } catch (error: unknown) {
-          const status = extractErrorStatus(error);
-          // `chunkSize` and `status`, never the ids and never a `url`: a minted
-          // URL in a log line is a credential in a log line.
-          logger.warn('assets.linkedDownloadUrls: chunk failed', {
-            method: 'assets.linkedDownloadUrls',
-            chunkSize: part.length,
-            status,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          unresolvedIds.push(...part);
-          if (typeof status === 'number') statuses.push(status);
-          firstError ??= error;
-          return [];
-        }
-      }),
+      chunk(unique, SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE).map(
+        async (part): Promise<ServiceLinkedDownloadUrl[]> => {
+          try {
+            const entries = await lane(this.ctx).request<ServiceLinkedDownloadUrl[]>(
+              'POST',
+              '/assets/service/linked-url',
+              { ids: part },
+            );
+            return Array.isArray(entries) ? entries : [];
+          } catch (error: unknown) {
+            const status = extractErrorStatus(error);
+            // `chunkSize` and `status`, never the ids and never a `url`: a minted
+            // URL in a log line is a credential in a log line.
+            logger.warn('assets.linkedDownloadUrls: chunk failed', {
+              method: 'assets.linkedDownloadUrls',
+              chunkSize: part.length,
+              status,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            unresolvedIds.push(...part);
+            if (typeof status === 'number') statuses.push(status);
+            firstError ??= error;
+            return [];
+          }
+        },
+      ),
     );
 
     if (unresolvedIds.length > 0) {
@@ -194,21 +246,29 @@ export class ServerAssetsApi extends AssetsApi {
     if (unique.length === 0) return [];
 
     const settled = await Promise.all(
-      chunk(unique, SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE).map(async (part): Promise<ServiceAssetMetadataBySha[]> => {
-        try {
-          const body = options.ownerUserId ? { sha256s: part, ownerUserId: options.ownerUserId } : { sha256s: part };
-          const entries = await lane(this.ctx).request<ServiceAssetMetadataBySha[]>('POST', '/assets/service/by-sha256', body);
-          return Array.isArray(entries) ? entries : [];
-        } catch (error: unknown) {
-          logger.warn('assets.metadataBySha256: chunk failed, continuing with remaining chunks', {
-            method: 'assets.metadataBySha256',
-            chunkSize: part.length,
-            status: extractErrorStatus(error),
-            error: error instanceof Error ? error.message : String(error),
-          });
-          return [];
-        }
-      }),
+      chunk(unique, SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE).map(
+        async (part): Promise<ServiceAssetMetadataBySha[]> => {
+          try {
+            const body = options.ownerUserId
+              ? { sha256s: part, ownerUserId: options.ownerUserId }
+              : { sha256s: part };
+            const entries = await lane(this.ctx).request<ServiceAssetMetadataBySha[]>(
+              'POST',
+              '/assets/service/by-sha256',
+              body,
+            );
+            return Array.isArray(entries) ? entries : [];
+          } catch (error: unknown) {
+            logger.warn('assets.metadataBySha256: chunk failed, continuing with remaining chunks', {
+              method: 'assets.metadataBySha256',
+              chunkSize: part.length,
+              status: extractErrorStatus(error),
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return [];
+          }
+        },
+      ),
     );
     return settled.flat();
   }
@@ -222,7 +282,11 @@ export class ServerNotificationsApi extends NotificationsApi {
    * recipient's own account.
    */
   async create(data: CreateOxyNotificationRequest): Promise<Notification> {
-    const res = await lane(this.ctx).request<{ notification: Notification }>('POST', '/notifications', data);
+    const res = await lane(this.ctx).request<{ notification: Notification }>(
+      'POST',
+      '/notifications',
+      data,
+    );
     return res.notification;
   }
 }
@@ -274,33 +338,76 @@ interface ExecutionAuthorizationTerms {
   expiresAt: string;
 }
 
-export type CreateExecutionAuthorizationInput = ExecutionAuthorizationTerms & (
-  | { kind: 'direct_request'; runId: string; stepId?: string; automationId?: never; maximumAutonomy: Exclude<AutonomyLevel, 'autonomous'> }
-  | { kind: 'automation'; automationId: string; runId?: never; stepId?: never; maximumAutonomy: AutonomyLevel }
-);
+export type CreateExecutionAuthorizationInput = ExecutionAuthorizationTerms &
+  (
+    | {
+        kind: 'direct_request';
+        runId: string;
+        stepId?: string;
+        automationId?: never;
+        maximumAutonomy: Exclude<AutonomyLevel, 'autonomous'>;
+      }
+    | {
+        kind: 'automation';
+        automationId: string;
+        runId?: never;
+        stepId?: never;
+        maximumAutonomy: AutonomyLevel;
+      }
+  );
 
 function agencyAuthorityOptions(signal?: AbortSignal): RequestOptions {
   signal?.throwIfAborted();
-  return { cache: false, deduplicate: false, retry: false, skipAuth: true, timeout: 5000, ...(signal ? { signal } : {}) };
+  return {
+    cache: false,
+    deduplicate: false,
+    retry: false,
+    skipAuth: true,
+    timeout: 5000,
+    ...(signal ? { signal } : {}),
+  };
 }
 
 export class ServerAgencyApi extends AgencyApi {
   /** Live registry discovery with this service's existing capability scopes. */
-  async serviceCatalogs(input: { appId?: string; signal?: AbortSignal } = {}): Promise<ServiceCapabilityCatalog[]> {
+  async serviceCatalogs(
+    input: { appId?: string; signal?: AbortSignal } = {},
+  ): Promise<ServiceCapabilityCatalog[]> {
     const path = `/capabilities/catalogs${input.appId === undefined ? '' : `?appId=${encodeURIComponent(input.appId)}`}`;
-    const result = await lane(this.ctx).request<{ registrations: ServiceCapabilityCatalog[] }>('GET', path, undefined, agencyAuthorityOptions(input.signal));
+    const result = await lane(this.ctx).request<{ registrations: ServiceCapabilityCatalog[] }>(
+      'GET',
+      path,
+      undefined,
+      agencyAuthorityOptions(input.signal),
+    );
     return result.registrations;
   }
 
   /** Existing Oxy execution authority is required; this call creates none. */
-  async issueCapabilityTicket(input: CapabilityTicketRequest, options: { signal?: AbortSignal } = {}): Promise<CapabilityTicketGrant> {
-    return lane(this.ctx).request<CapabilityTicketGrant>('POST', '/capabilities/tickets', capabilityTicketRequestSchema.parse(input), agencyAuthorityOptions(options.signal));
+  async issueCapabilityTicket(
+    input: CapabilityTicketRequest,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<CapabilityTicketGrant> {
+    return lane(this.ctx).request<CapabilityTicketGrant>(
+      'POST',
+      '/capabilities/tickets',
+      capabilityTicketRequestSchema.parse(input),
+      agencyAuthorityOptions(options.signal),
+    );
   }
 
   /** Receiving app authenticates live introspection using its own service credential. */
-  async introspectCapabilityTicket(ticket: string, options: { signal?: AbortSignal } = {}): Promise<CapabilityTicketIntrospection> {
+  async introspectCapabilityTicket(
+    ticket: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<CapabilityTicketIntrospection> {
     if (ticket.trim() === '') throw new Error('A capability ticket is required');
-    return lane(this.ctx).request<CapabilityTicketIntrospection>('POST', '/capabilities/tickets/introspect', { ticket }, agencyAuthorityOptions(options.signal));
+    return lane(this.ctx).request<CapabilityTicketIntrospection>(
+      'POST',
+      '/capabilities/tickets/introspect',
+      { ticket },
+      agencyAuthorityOptions(options.signal),
+    );
   }
 
   /**
@@ -308,30 +415,69 @@ export class ServerAgencyApi extends AgencyApi {
    * The service bearer and attribution headers cannot substitute for that user.
    * The token goes only to this client's configured Oxy authority; never retry.
    */
-  async createExecutionAuthorization(input: CreateExecutionAuthorizationInput, options: { requesterToken: string; signal?: AbortSignal }): Promise<CapabilityExecutionAuthorization> {
-    if (options.requesterToken === '' || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
-    const result = await this.ctx.request<{ authorization: CapabilityExecutionAuthorization }>('POST', '/capabilities/execution-authorizations', input, {
-      ...agencyAuthorityOptions(options.signal),
-      headers: { Authorization: `Bearer ${options.requesterToken}` },
-    });
+  async createExecutionAuthorization(
+    input: CreateExecutionAuthorizationInput,
+    options: { requesterToken: string; signal?: AbortSignal },
+  ): Promise<CapabilityExecutionAuthorization> {
+    if (options.requesterToken === '' || /\s/.test(options.requesterToken))
+      throw new Error('A requester bearer is required');
+    const result = await this.ctx.request<{ authorization: CapabilityExecutionAuthorization }>(
+      'POST',
+      '/capabilities/execution-authorizations',
+      input,
+      {
+        ...agencyAuthorityOptions(options.signal),
+        headers: { Authorization: `Bearer ${options.requesterToken}` },
+      },
+    );
     return result.authorization;
   }
 
   /** Revoke a direct approval on its canonical requester-authenticated lane. */
-  async revokeExecutionAuthorization(authorizationId: string, options: { requesterToken: string; signal?: AbortSignal }): Promise<void> {
+  async revokeExecutionAuthorization(
+    authorizationId: string,
+    options: { requesterToken: string; signal?: AbortSignal },
+  ): Promise<void> {
     options.signal?.throwIfAborted();
-    if (!authorizationId || authorizationId.length > 255 || /\s/.test(authorizationId)) throw new Error('An execution authorization id is required');
-    if (!options.requesterToken || options.requesterToken.length > 16_384 || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
-    await this.ctx.request<void>('DELETE', `/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
-      undefined, { ...agencyAuthorityOptions(options.signal), headers: { Authorization: `Bearer ${options.requesterToken}` } });
+    if (!authorizationId || authorizationId.length > 255 || /\s/.test(authorizationId))
+      throw new Error('An execution authorization id is required');
+    if (
+      !options.requesterToken ||
+      options.requesterToken.length > 16_384 ||
+      /\s/.test(options.requesterToken)
+    )
+      throw new Error('A requester bearer is required');
+    await this.ctx.request<void>(
+      'DELETE',
+      `/capabilities/execution-authorizations/${encodeURIComponent(authorizationId)}`,
+      undefined,
+      {
+        ...agencyAuthorityOptions(options.signal),
+        headers: { Authorization: `Bearer ${options.requesterToken}` },
+      },
+    );
   }
 
   /** Independent service proof plus present requester bearer, sent only to Oxy. */
-  async createForegroundExecutionAuthorization(input: ForegroundExecutionAuthorizationInput, options: { requesterToken: string; signal?: AbortSignal }): Promise<CapabilityExecutionAuthorization> {
-    if (options.requesterToken === '' || options.requesterToken.length > 16_384 || /\s/.test(options.requesterToken)) throw new Error('A requester bearer is required');
-    const result = await lane(this.ctx).request<{ authorization: CapabilityExecutionAuthorization }>(
-      'POST', '/capabilities/foreground-execution-authorizations',
-      { ...foregroundExecutionAuthorizationInputSchema.parse(input), subjectToken: options.requesterToken },
+  async createForegroundExecutionAuthorization(
+    input: ForegroundExecutionAuthorizationInput,
+    options: { requesterToken: string; signal?: AbortSignal },
+  ): Promise<CapabilityExecutionAuthorization> {
+    if (
+      options.requesterToken === '' ||
+      options.requesterToken.length > 16_384 ||
+      /\s/.test(options.requesterToken)
+    )
+      throw new Error('A requester bearer is required');
+    const result = await lane(this.ctx).request<{
+      authorization: CapabilityExecutionAuthorization;
+    }>(
+      'POST',
+      '/capabilities/foreground-execution-authorizations',
+      {
+        ...foregroundExecutionAuthorizationInputSchema.parse(input),
+        subjectToken: options.requesterToken,
+      },
       agencyAuthorityOptions(options.signal),
     );
     return result.authorization;
@@ -344,7 +490,10 @@ export class ServerAgencyApi extends AgencyApi {
    * forward it anywhere else. Not retried: a refusal is an answer, and the
    * caller mints per turn.
    */
-  async mintRequesterAssertion(input: { agentId: string; subjectToken: string }): Promise<RequesterAssertionGrant> {
+  async mintRequesterAssertion(input: {
+    agentId: string;
+    subjectToken: string;
+  }): Promise<RequesterAssertionGrant> {
     return lane(this.ctx).request<RequesterAssertionGrant>(
       'POST',
       '/internal/native-agents/requester-assertions',
@@ -378,7 +527,11 @@ export class ServerReputationApi extends ReputationApi {
    * moves it by hand. Invalidates cached reputation reads.
    */
   async award(input: AwardReputationInput): Promise<ReputationTransaction> {
-    const res = await lane(this.ctx).request<{ transaction: ReputationTransaction }>('POST', '/reputation/award', input);
+    const res = await lane(this.ctx).request<{ transaction: ReputationTransaction }>(
+      'POST',
+      '/reputation/award',
+      input,
+    );
     this.ctx.oxy.cache.deletePrefix(REPUTATION_CACHE_PREFIX);
     return res.transaction;
   }

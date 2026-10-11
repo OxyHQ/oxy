@@ -69,13 +69,11 @@ export interface UseCivicProfileStateResult {
  *
  * @param input - The surface subject and (for `self`) its sync state.
  */
-export function useCivicProfileState(
-  input: UseCivicProfileStateInput,
-): UseCivicProfileStateResult {
+export function useCivicProfileState(input: UseCivicProfileStateInput): UseCivicProfileStateResult {
   const isOnline = useOnlineStatus();
   const state = deriveCivicProfileState({
     subject: input.subject,
-    isSynced: input.subject === 'self' ? input.isSynced ?? false : true,
+    isSynced: input.subject === 'self' ? (input.isSynced ?? false) : true,
     isOnline,
   });
   return { state, isOnline };

@@ -32,6 +32,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import ts from 'typescript';
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
@@ -120,6 +121,16 @@ describe('every @oxy.so/bloom subpath this package imports exists', () => {
   const exported = readBloomExports();
   const imported = collectSubpaths();
 
+  it('shares the application Bloom instance instead of resolving a nested provider context', () => {
+    // Bypass Jest's Bloom mapper: it intentionally redirects every import to a
+    // mock and would make two installed copies look like a single provider.
+    const appRequire = createRequire(path.resolve(PACKAGE_ROOT, '../../package.json'));
+    const servicesRequire = createRequire(path.join(PACKAGE_ROOT, 'package.json'));
+    const appBloom = fs.realpathSync(appRequire.resolve('@oxy.so/bloom/package.json'));
+    const servicesBloom = fs.realpathSync(servicesRequire.resolve('@oxy.so/bloom/package.json'));
+    expect(servicesBloom).toBe(appBloom);
+  });
+
   // Floors. A scan that read nothing reports the same clean pass as a scan that
   // read everything and found no problem, so pin both sides to a real number.
   it('the scan actually read Bloom and this package', () => {
@@ -136,12 +147,17 @@ describe('every @oxy.so/bloom subpath this package imports exists', () => {
   // modules into Mention's common chunk just to draw login and overflow.
   it('imports icons through public glyph subpaths instead of the collection barrel', () => {
     const runtimeBarrels = (imported.get('./icons') ?? []).filter((file) => {
-      const source = ts.createSourceFile(file, fs.readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'), ts.ScriptTarget.Latest);
-      return source.statements.some((statement) =>
-        ts.isImportDeclaration(statement)
-        && !statement.importClause?.isTypeOnly
-        && ts.isStringLiteral(statement.moduleSpecifier)
-        && statement.moduleSpecifier.text === '@oxy.so/bloom/icons',
+      const source = ts.createSourceFile(
+        file,
+        fs.readFileSync(path.join(PACKAGE_ROOT, file), 'utf8'),
+        ts.ScriptTarget.Latest,
+      );
+      return source.statements.some(
+        (statement) =>
+          ts.isImportDeclaration(statement) &&
+          !statement.importClause?.isTypeOnly &&
+          ts.isStringLiteral(statement.moduleSpecifier) &&
+          statement.moduleSpecifier.text === '@oxy.so/bloom/icons',
       );
     });
     expect(runtimeBarrels).toEqual([]);

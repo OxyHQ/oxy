@@ -30,7 +30,11 @@ import type { AddressInfo } from 'net';
 let currentUserId = '';
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { id: string; _id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { id: string; _id: string } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { id: currentUserId, _id: currentUserId };
     next();
   },

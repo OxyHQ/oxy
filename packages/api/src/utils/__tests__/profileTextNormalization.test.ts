@@ -19,7 +19,7 @@ describe('profileTextNormalization', () => {
   describe('normalizeDisplayValue', () => {
     it('collapses an indented multi-line remote title to one line', () => {
       expect(normalizeDisplayValue(INDENTED_REMOTE_TITLE, MAX_LINK_TITLE_LENGTH)).toBe(
-        'Mi título — Ejemplo'
+        'Mi título — Ejemplo',
       );
     });
 

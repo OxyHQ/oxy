@@ -45,8 +45,7 @@ the live `oxy-api` task.
 The task definition is also checked before every run: one ARM64 Fargate
 container, exact command and image, exact inventory object and task role, and
 one secret binding — PostgreSQL `DATABASE_URL`. Provider keys, signing keys,
-application credentials, static AWS credentials and MongoDB are outside this
-lane.
+application credentials and static AWS credentials are outside this lane.
 
 6. Apply any pending same-value scorecard renewal first
    ([routing score renewal](./kaana-routing-score-renewal.md)). The bootstrap

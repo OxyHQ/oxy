@@ -101,7 +101,11 @@ const CODE_VERIFIER = 'a'.repeat(64);
 
 let server: http.Server;
 
-function post(path: string, body: string, contentType: string): Promise<{ status: number; body: Record<string, unknown> }> {
+function post(
+  path: string,
+  body: string,
+  contentType: string,
+): Promise<{ status: number; body: Record<string, unknown> }> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -180,7 +184,11 @@ async function join(clientId: string, deviceId: string, userId: string) {
 }
 
 function mint(deviceId: string, deviceSecret: string) {
-  return post('/session/device/token', JSON.stringify({ deviceId, deviceSecret }), 'application/json');
+  return post(
+    '/session/device/token',
+    JSON.stringify({ deviceId, deviceSecret }),
+    'application/json',
+  );
 }
 
 /** A browser where auth.oxy.so has signed `accountIds` in and holds its own credential. */
@@ -217,11 +225,18 @@ afterAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   // A session on exactly the device the route asked for, as the real service does.
-  mockCreateSession.mockImplementation((_userId: string, _req: unknown, options: { deviceId?: string }) =>
-    Promise.resolve({ sessionId: `s-${randomUUID()}`, deviceId: options.deviceId ?? `own-${randomUUID()}` }),
+  mockCreateSession.mockImplementation(
+    (_userId: string, _req: unknown, options: { deviceId?: string }) =>
+      Promise.resolve({
+        sessionId: `s-${randomUUID()}`,
+        deviceId: options.deviceId ?? `own-${randomUUID()}`,
+      }),
   );
   mockGetAccessToken.mockImplementation((sessionId: string) =>
-    Promise.resolve({ accessToken: `jwt-${sessionId}`, expiresAt: new Date('2030-01-01T00:00:00.000Z') }),
+    Promise.resolve({
+      accessToken: `jwt-${sessionId}`,
+      expiresAt: new Date('2030-01-01T00:00:00.000Z'),
+    }),
   );
 });
 
@@ -237,7 +252,10 @@ describe('official apps joining one browser DeviceSession (ADR 0029 D2)', () => 
     for (const secret of [authSecret, mentionSecret, aliaSecret]) {
       const res = await mint(deviceId, secret);
       expect(res.status).toBe(200);
-      const data = res.body.data as { nextDeviceSecret: string; state: { activeAccountId: string } };
+      const data = res.body.data as {
+        nextDeviceSecret: string;
+        state: { activeAccountId: string };
+      };
       expect(data.nextDeviceSecret).toBe(secret);
       expect(data.state.activeAccountId).toBe(alice);
     }
@@ -255,7 +273,9 @@ describe('official apps joining one browser DeviceSession (ADR 0029 D2)', () => 
     for (const secret of [authSecret, mentionSecret, aliaSecret]) {
       const res = await mint(deviceId, secret);
       expect(res.status).toBe(200);
-      const state = (res.body.data as { state: { accounts: { accountId: string }[]; activeAccountId: string } }).state;
+      const state = (
+        res.body.data as { state: { accounts: { accountId: string }[]; activeAccountId: string } }
+      ).state;
       expect(state.accounts.map((a) => a.accountId)).toEqual([bob]);
       expect(state.activeAccountId).toBe(bob);
     }

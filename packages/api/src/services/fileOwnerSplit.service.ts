@@ -93,7 +93,11 @@ interface CrossOwnerLink {
 }
 
 /** One keyset page of links created by someone other than the (live) file's owner. */
-async function crossOwnerLinkPage(after: string | undefined, limit: number, app?: string): Promise<CrossOwnerLink[]> {
+async function crossOwnerLinkPage(
+  after: string | undefined,
+  limit: number,
+  app?: string,
+): Promise<CrossOwnerLink[]> {
   return getDb()
     .select({
       linkId: fileLinks.id,
@@ -105,12 +109,14 @@ async function crossOwnerLinkPage(after: string | undefined, limit: number, app?
     })
     .from(fileLinks)
     .innerJoin(files, eq(files.id, fileLinks.fileId))
-    .where(and(
-      after === undefined ? undefined : gt(fileLinks.id, after),
-      app === undefined ? undefined : eq(fileLinks.app, app),
-      ne(files.status, 'deleted'),
-      sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
-    ))
+    .where(
+      and(
+        after === undefined ? undefined : gt(fileLinks.id, after),
+        app === undefined ? undefined : eq(fileLinks.app, app),
+        ne(files.status, 'deleted'),
+        sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
+      ),
+    )
     .orderBy(asc(fileLinks.id))
     .limit(limit);
 }
@@ -131,35 +137,40 @@ export async function ensureOwnerRowFor(
     if (existing) return { file: existing, created: false };
 
     return withStorageQuota(tx, [ownerUserId], async () => {
-    const intrinsic = Object.fromEntries(
-      Object.entries(source.metadata ?? {}).filter(([key]) => INTRINSIC_METADATA_KEYS.has(key)),
-    );
-    const file = await insertFile({
-      sha256: source.sha256,
-      size: source.size,
-      mime: source.mime,
-      ext: source.ext,
-      ...owner,
-      status: 'active',
-      visibility: source.visibility,
-      purpose: 'user',
-      storageKey: source.storageKey,
-      originalName: source.originalName,
-      metadata: { ...intrinsic, splitFromFileId: source.id },
-    }, tx);
-    if (source.variants.length > 0) {
-      await tx.insert(fileVariants).values(source.variants.map((variant) => ({
-        fileId: file.id,
-        type: variant.type,
-        key: variant.key,
-        width: variant.width,
-        height: variant.height,
-        readyAt: variant.readyAt,
-        size: variant.size,
-        metadata: variant.metadata,
-      })));
-    }
-    return { file, created: true };
+      const intrinsic = Object.fromEntries(
+        Object.entries(source.metadata ?? {}).filter(([key]) => INTRINSIC_METADATA_KEYS.has(key)),
+      );
+      const file = await insertFile(
+        {
+          sha256: source.sha256,
+          size: source.size,
+          mime: source.mime,
+          ext: source.ext,
+          ...owner,
+          status: 'active',
+          visibility: source.visibility,
+          purpose: 'user',
+          storageKey: source.storageKey,
+          originalName: source.originalName,
+          metadata: { ...intrinsic, splitFromFileId: source.id },
+        },
+        tx,
+      );
+      if (source.variants.length > 0) {
+        await tx.insert(fileVariants).values(
+          source.variants.map((variant) => ({
+            fileId: file.id,
+            type: variant.type,
+            key: variant.key,
+            width: variant.width,
+            height: variant.height,
+            readyAt: variant.readyAt,
+            size: variant.size,
+            metadata: variant.metadata,
+          })),
+        );
+      }
+      return { file, created: true };
     });
   });
 }
@@ -173,17 +184,23 @@ async function repointLinks(linkIds: readonly string[], targetFileId: string): P
   return getDb().transaction(async (tx) => {
     let moved = 0;
     for (const linkId of linkIds) {
-      const [link] = await tx.select().from(fileLinks).where(eq(fileLinks.id, linkId)).for('update');
+      const [link] = await tx
+        .select()
+        .from(fileLinks)
+        .where(eq(fileLinks.id, linkId))
+        .for('update');
       if (!link) continue;
       const [clash] = await tx
         .select({ id: fileLinks.id })
         .from(fileLinks)
-        .where(and(
-          eq(fileLinks.fileId, targetFileId),
-          eq(fileLinks.app, link.app),
-          eq(fileLinks.entityType, link.entityType),
-          eq(fileLinks.entityId, link.entityId),
-        ));
+        .where(
+          and(
+            eq(fileLinks.fileId, targetFileId),
+            eq(fileLinks.app, link.app),
+            eq(fileLinks.entityType, link.entityType),
+            eq(fileLinks.entityId, link.entityId),
+          ),
+        );
       if (clash) {
         await tx.delete(fileLinks).where(eq(fileLinks.id, linkId));
       } else {
@@ -195,9 +212,13 @@ async function repointLinks(linkIds: readonly string[], targetFileId: string): P
   });
 }
 
-export async function runFileOwnerSplit(options: FileOwnerSplitOptions): Promise<FileOwnerSplitSummary> {
+export async function runFileOwnerSplit(
+  options: FileOwnerSplitOptions,
+): Promise<FileOwnerSplitSummary> {
   if (options.mode === 'repoint-links' && !options.app) {
-    throw new Error('repoint-links needs --app=<name>: repoint only an application that stores the new ids');
+    throw new Error(
+      'repoint-links needs --app=<name>: repoint only an application that stores the new ids',
+    );
   }
   const summary: FileOwnerSplitSummary = {
     mode: options.mode,
@@ -253,7 +274,10 @@ export async function runFileOwnerSplit(options: FileOwnerSplitOptions): Promise
         if (created) summary.rowsCreated += 1;
         else summary.rowsReused += 1;
         if (options.mode === 'repoint-links') {
-          record.linksRepointed = await repointLinks(links.map((link) => link.linkId), file.id);
+          record.linksRepointed = await repointLinks(
+            links.map((link) => link.linkId),
+            file.id,
+          );
           summary.linksRepointed += record.linksRepointed;
         }
       }
@@ -275,10 +299,12 @@ export async function countCrossOwnerMessageAttachments(): Promise<number> {
     .from(messageAttachments)
     .innerJoin(files, eq(files.id, messageAttachments.fileId))
     .innerJoin(messages, eq(messages.id, messageAttachments.messageId))
-    .where(and(
-      ne(files.status, 'deleted'),
-      isNotNull(messages.userId),
-      sql`${messages.userId} is distinct from ${files.ownerUserId}`,
-    ));
+    .where(
+      and(
+        ne(files.status, 'deleted'),
+        isNotNull(messages.userId),
+        sql`${messages.userId} is distinct from ${files.ownerUserId}`,
+      ),
+    );
   return row?.count ?? 0;
 }

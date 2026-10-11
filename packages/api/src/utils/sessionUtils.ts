@@ -1,6 +1,6 @@
-import crypto from "node:crypto";
-import { logger } from "./logger";
-import jwt from "jsonwebtoken";
+import crypto from 'node:crypto';
+import { logger } from './logger';
+import jwt from 'jsonwebtoken';
 
 /**
  * Access-token lifetime in seconds. Exported because `POST /auth/oauth/token`
@@ -90,7 +90,9 @@ export const generateSessionTokens = (binding: AccessTokenBinding) => {
   const accessSecret = process.env.ACCESS_TOKEN_SECRET;
   const refreshSecret = process.env.REFRESH_TOKEN_SECRET;
   if (!accessSecret || !refreshSecret) {
-    throw new Error('Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)');
+    throw new Error(
+      'Token secrets are not configured (ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET)',
+    );
   }
 
   const scope = binding.scopes && binding.scopes.length > 0 ? binding.scopes.join(' ') : undefined;
@@ -120,7 +122,7 @@ export const generateSessionTokens = (binding: AccessTokenBinding) => {
       type: 'access',
     },
     accessSecret,
-    { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+    { expiresIn: ACCESS_TOKEN_EXPIRES_IN },
   );
 
   const refreshToken = jwt.sign(
@@ -135,7 +137,7 @@ export const generateSessionTokens = (binding: AccessTokenBinding) => {
       type: 'refresh',
     },
     refreshSecret,
-    { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN },
   );
 
   return { accessToken, refreshToken };
@@ -175,10 +177,10 @@ export interface TokenValidationResult {
 
 /**
  * Validate and decode an access token
- * 
+ *
  * Enhanced error handling: Returns specific error types for better debugging
  * and to distinguish between expired tokens (should refresh) vs invalid tokens.
- * 
+ *
  * @param token - The access token to validate
  * @returns Validation result with payload if valid, or error information if invalid
  */
@@ -203,8 +205,8 @@ export const validateAccessToken = (token: string): TokenValidationResult => {
       logger.debug('[SessionUtils] Access token invalid', { error: error.message });
       return { valid: false, error: 'invalid' };
     }
-    logger.debug('[SessionUtils] Access token validation failed', { 
-      error: error instanceof Error ? error.message : String(error) 
+    logger.debug('[SessionUtils] Access token validation failed', {
+      error: error instanceof Error ? error.message : String(error),
     });
     return { valid: false, error: 'malformed' };
   }
@@ -212,10 +214,10 @@ export const validateAccessToken = (token: string): TokenValidationResult => {
 
 /**
  * Validate and decode a refresh token
- * 
+ *
  * Enhanced error handling: Returns specific error types for better debugging
  * and to distinguish between expired tokens vs invalid tokens.
- * 
+ *
  * @param token - The refresh token to validate
  * @returns Validation result with payload if valid, or error information if invalid
  */
@@ -241,7 +243,7 @@ export const validateRefreshToken = (token: string): TokenValidationResult => {
       return { valid: false, error: 'invalid' };
     }
     logger.debug('[SessionUtils] Refresh token validation failed', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
     return { valid: false, error: 'malformed' };
   }
@@ -361,7 +363,7 @@ function audienceIncludes(aud: jwt.JwtPayload['aud'], expected: string): boolean
  */
 export function tokenBindingFromRow(
   row: SessionTokenBindingRow,
-  deviceId: string
+  deviceId: string,
 ): AccessTokenBinding {
   return {
     subjectAccountId: row.userId,
@@ -389,7 +391,7 @@ export function tokenBindingFromRow(
  */
 export function checkAccessTokenBinding(
   payload: SessionTokenPayload,
-  row: SessionTokenBindingRow
+  row: SessionTokenBindingRow,
 ): AccessTokenBindingResult {
   const rowIdentity: AccessTokenIdentity = {
     version: 1,

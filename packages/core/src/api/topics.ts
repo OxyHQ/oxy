@@ -43,13 +43,18 @@ export class TopicsApi {
   async search(query: string, limit?: number): Promise<TopicData[]> {
     const params: Record<string, string | number> = { q: query };
     if (limit) params.limit = limit;
-    const res = await this.ctx.request<{ topics?: TopicData[] }>('GET', '/topics/search', params, { cache: false });
+    const res = await this.ctx.request<{ topics?: TopicData[] }>('GET', '/topics/search', params, {
+      cache: false,
+    });
     return res.topics ?? [];
   }
 
   /** One topic by slug. */
   async get(slug: string): Promise<TopicData> {
-    return this.ctx.request<TopicData>('GET', `/topics/${slug}`, undefined, { cache: true, cacheTTL: LONG });
+    return this.ctx.request<TopicData>('GET', `/topics/${slug}`, undefined, {
+      cache: true,
+      cacheTTL: LONG,
+    });
   }
 
   /** The top-level categories, optionally translated. */
@@ -65,9 +70,14 @@ export class TopicsApi {
 
   /** Resolve names to topics, creating the missing ones. Staff or service only. */
   async resolveNames(names: Array<{ name: string; type: string }>): Promise<TopicData[]> {
-    const res = await this.ctx.request<{ topics?: Record<string, TopicData> }>('POST', '/topics/resolve', { names }, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ topics?: Record<string, TopicData> }>(
+      'POST',
+      '/topics/resolve',
+      { names },
+      {
+        cache: false,
+      },
+    );
     return Object.values(res.topics ?? {});
   }
 
@@ -76,7 +86,9 @@ export class TopicsApi {
     slug: string,
     data: { description?: string; translations?: Record<string, TopicTranslation> },
   ): Promise<TopicData> {
-    const topic = await this.ctx.request<TopicData>('PATCH', `/topics/${slug}`, data, { cache: false });
+    const topic = await this.ctx.request<TopicData>('PATCH', `/topics/${slug}`, data, {
+      cache: false,
+    });
     this.ctx.oxy.cache.delete(`GET:/topics/${slug}`);
     return topic;
   }

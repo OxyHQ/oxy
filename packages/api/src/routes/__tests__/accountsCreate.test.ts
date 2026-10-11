@@ -38,7 +38,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: OPERATOR_ID, id: OPERATOR_ID };
     next();
@@ -64,10 +64,7 @@ interface JsonResponse {
   body: { message?: string };
 }
 
-function request(
-  srv: http.Server,
-  payload: Record<string, unknown>
-): Promise<JsonResponse> {
+function request(srv: http.Server, payload: Record<string, unknown>): Promise<JsonResponse> {
   const address = srv.address() as AddressInfo;
   const body = JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -94,7 +91,7 @@ function request(
             body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
@@ -140,11 +137,11 @@ describe('POST /accounts', () => {
           permissionGrants: [],
           permissionRevokes: [],
         },
-      })
+      }),
     );
   });
 
-  it('creates a channel account with the caller\'s own bearer', async () => {
+  it("creates a channel account with the caller's own bearer", async () => {
     const res = await request(server, {
       kind: 'channel',
       username: 'daily-news',
@@ -157,7 +154,7 @@ describe('POST /accounts', () => {
     expect(mockCreateChildAccount).toHaveBeenCalledWith(
       OPERATOR_ID,
       OPERATOR_ID,
-      expect.objectContaining({ kind: 'channel', username: 'daily-news' })
+      expect.objectContaining({ kind: 'channel', username: 'daily-news' }),
     );
   });
 
@@ -172,9 +169,9 @@ describe('POST /accounts', () => {
       expect(mockCreateChildAccount).toHaveBeenCalledWith(
         OPERATOR_ID,
         OPERATOR_ID,
-        expect.objectContaining({ kind })
+        expect.objectContaining({ kind }),
       );
-    }
+    },
   );
 
   /**
@@ -206,7 +203,7 @@ describe('POST /accounts', () => {
     expect(mockCreateChildAccount).toHaveBeenCalledWith(
       OPERATOR_ID,
       OPERATOR_ID,
-      expect.objectContaining({ isPrivateAccount: true })
+      expect.objectContaining({ isPrivateAccount: true }),
     );
   });
 

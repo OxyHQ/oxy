@@ -24,125 +24,130 @@ import { ConnectedAppsSection } from '@/components/security/connected-apps-secti
 import { SecuritySkeleton } from '@/components/security/security-skeleton';
 
 export default function SecurityScreen() {
-    const colors = useColors();
-    const { width } = useWindowDimensions();
-    const isDesktop = Platform.OS === 'web' && width >= 768;
-    const { t } = useTranslation();
+  const colors = useColors();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
+  const { t } = useTranslation();
 
-    // OxyServices integration — auth is enforced by the `(tabs)` layout.
-    const { user, isLoading: oxyLoading, sessions, logoutAll } = useOxy();
+  // OxyServices integration — auth is enforced by the `(tabs)` layout.
+  const { user, isLoading: oxyLoading, sessions, logoutAll } = useOxy();
 
-    // Fetch devices using TanStack Query hook — the `(tabs)` layout guarantees
-    // an authenticated session by the time this hook mounts.
-    const { data: rawDevices, isLoading: loading } = useUserDevices();
-    const devices = (rawDevices ?? []) as DeviceRecord[];
+  // Fetch devices using TanStack Query hook — the `(tabs)` layout guarantees
+  // an authenticated session by the time this hook mounts.
+  const { data: rawDevices, isLoading: loading } = useUserDevices();
+  const devices = (rawDevices ?? []) as DeviceRecord[];
 
-    // Fetch security activity
-    const { data: securityActivities = [], isLoading: securityActivityLoading } = useRecentSecurityActivity(10);
+  // Fetch security activity
+  const { data: securityActivities = [], isLoading: securityActivityLoading } =
+    useRecentSecurityActivity(10);
 
-    // Biometric settings
-    const {
-        enabled: biometricEnabled,
-        canEnable: canEnableBiometric,
-        hasHardware: hasBiometricHardware,
-        isEnrolled: isBiometricEnrolled,
-        supportedTypes: biometricTypes,
-        isLoading: biometricLoading,
-        isSaving: biometricSaving,
-        toggleBiometricLogin,
-    } = useBiometricSettings();
+  // Biometric settings
+  const {
+    enabled: biometricEnabled,
+    canEnable: canEnableBiometric,
+    hasHardware: hasBiometricHardware,
+    isEnrolled: isBiometricEnrolled,
+    supportedTypes: biometricTypes,
+    isLoading: biometricLoading,
+    isSaving: biometricSaving,
+    toggleBiometricLogin,
+  } = useBiometricSettings();
 
-    const rootStatus = useIdentityRootStatus();
-    const securityRecommendations = useSecurityRecommendations({
-        canEnableBiometric,
-        biometricEnabled,
-        biometricLoading,
-        rootStatus,
-        sessions,
-        deviceCount: devices.length,
-        securityActivities,
-    });
+  const rootStatus = useIdentityRootStatus();
+  const securityRecommendations = useSecurityRecommendations({
+    canEnableBiometric,
+    biometricEnabled,
+    biometricLoading,
+    rootStatus,
+    sessions,
+    deviceCount: devices.length,
+    securityActivities,
+  });
 
-    const recentActivity = useSecurityActivityItems({ securityActivities });
+  const recentActivity = useSecurityActivityItems({ securityActivities });
 
-    const signInItems = useSignInItems({
-        biometricEnabled,
-        canEnableBiometric,
-        hasBiometricHardware,
-        isBiometricEnrolled,
-        biometricTypes,
-        biometricLoading,
-        biometricSaving,
-        toggleBiometricLogin,
-    });
+  const signInItems = useSignInItems({
+    biometricEnabled,
+    canEnableBiometric,
+    hasBiometricHardware,
+    isBiometricEnrolled,
+    biometricTypes,
+    biometricLoading,
+    biometricSaving,
+    toggleBiometricLogin,
+  });
 
-    // An account without a key: its email, password, authenticator and
-    // linking Commons. Returns [] for a Commons account, which signs in with its
-    // key (the public-key row says so).
-    const signInMethodItems = useSignInMethodItems();
-    const keyed = Boolean(user?.publicKey);
+  // An account without a key: its email, password, authenticator and
+  // linking Commons. Returns [] for a Commons account, which signs in with its
+  // key (the public-key row says so).
+  const signInMethodItems = useSignInMethodItems();
+  const keyed = Boolean(user?.publicKey);
 
-    const deviceItems = useDeviceItems({ devices });
+  const deviceItems = useDeviceItems({ devices });
 
-    const { items: activeSessionsItems } = useActiveSessions({ sessions, logoutAll });
+  const { items: activeSessionsItems } = useActiveSessions({ sessions, logoutAll });
 
-    // While the account and its devices load, the page keeps its header and
-    // shows the sections' shape (Bloom `Skeleton`) rather than a spinner.
-    const loadingContent = oxyLoading || loading;
+  // While the account and its devices load, the page keeps its header and
+  // shows the sections' shape (Bloom `Skeleton`) rather than a spinner.
+  const loadingContent = oxyLoading || loading;
 
-    const renderContent = () => loadingContent ? (
-        <SecuritySkeleton label={t('security.loading')} />
+  const renderContent = () =>
+    loadingContent ? (
+      <SecuritySkeleton label={t('security.loading')} />
     ) : (
-        <>
-            <SecurityRecommendationsSection items={securityRecommendations} />
+      <>
+        <SecurityRecommendationsSection items={securityRecommendations} />
 
-            <SecurityActivitySection
-                items={recentActivity}
-                securityActivities={securityActivities}
-                isLoading={securityActivityLoading}
-            />
+        <SecurityActivitySection
+          items={recentActivity}
+          securityActivities={securityActivities}
+          isLoading={securityActivityLoading}
+        />
 
-            <SignInSection
-                items={[...signInMethodItems, ...signInItems.filter((item) => keyed || item.id !== 'public-key-auth')]}
-            />
+        <SignInSection
+          items={[
+            ...signInMethodItems,
+            ...signInItems.filter((item) => keyed || item.id !== 'public-key-auth'),
+          ]}
+        />
 
-            <LanguageSection />
+        <LanguageSection />
 
-            <DevicesSection items={deviceItems} deviceCount={devices.length} />
+        <DevicesSection items={deviceItems} deviceCount={devices.length} />
 
-            <ActiveSessionsSection items={activeSessionsItems} />
+        <ActiveSessionsSection items={activeSessionsItems} />
 
-            <ConnectedAppsSection />
-        </>
+        <ConnectedAppsSection />
+      </>
     );
 
-    if (isDesktop) {
-        return (
-            <>
-                <ScreenHeader title={t('security.title')} subtitle={t('security.subtitle')} />
-                {renderContent()}
-            </>
-        );
-    }
-
+  if (isDesktop) {
     return (
-        <ScreenContentWrapper>
-            <View style={[styles.container, { backgroundColor: colors.background }]}>
-                <View style={styles.mobileContent}>
-                    <ScreenHeader title={t('security.title')} subtitle={t('security.subtitle')} />
-                    {renderContent()}
-                </View>
-            </View>
-        </ScreenContentWrapper>
+      <>
+        <ScreenHeader title={t('security.title')} subtitle={t('security.subtitle')} />
+        {renderContent()}
+      </>
     );
+  }
+
+  return (
+    <ScreenContentWrapper>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.mobileContent}>
+          <ScreenHeader title={t('security.title')} subtitle={t('security.subtitle')} />
+          {renderContent()}
+        </View>
+      </View>
+    </ScreenContentWrapper>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    mobileContent: {
-        padding: 16,
-        paddingBottom: 120,
-    },
+  container: {
+    flex: 1,
+  },
+  mobileContent: {
+    padding: 16,
+    paddingBottom: 120,
+  },
 });

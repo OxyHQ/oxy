@@ -38,13 +38,12 @@
  *
  * ## The private key is the only secret here
  *
- * `KAANA_EDGE_SIGNING_PRIVATE_KEY` is a signing key and belongs in SSM
- * (`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`), which means adding it to BOTH
- * hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
- * `SYNC_<NAME>` env block and the `API_SECRETS` list — at the moment a Kaana
- * deployment first needs it. `scripts/check-deploy-secrets-sync.mjs` guards that
- * pair. The base URL and the key id are not secrets and belong in the ECS task
- * definition's plain environment.
+ * `KAANA_EDGE_SIGNING_PRIVATE_KEY` is a signing key and lives only in SSM
+ * (`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`, SecureString), bound into the
+ * task definition by `TASK_SECRET_OVERRIDES_JSON` in
+ * `.github/workflows/deploy-aws.yml`; `scripts/check-deploy-secrets-sync.mjs`
+ * keeps that binding exact. The base URL and the key id are not secrets and
+ * belong in the ECS task definition's plain environment.
  *
  * The key material never leaves this module: {@link KaanaDataPlaneConfig} carries
  * a `KeyObject`, whose `toString()` is `[object Object]` rather than a PEM, and
@@ -107,27 +106,27 @@ export function resolveKaanaDataPlane(): KaanaDataPlaneResolution {
   if (keyId.length === 0 || keyId.length > MAX_KEY_ID_LENGTH) {
     return unreadable(
       KAANA_SIGNING_KEY_ID_VARIABLE,
-      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Kaana trusts, e.g. oxy-edge-2026-08`
+      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Kaana trusts, e.g. oxy-edge-2026-08`,
     );
   }
   if (FORBIDDEN_KEY_ID_CHARACTERS.test(keyId)) {
     return unreadable(
       KAANA_SIGNING_KEY_ID_VARIABLE,
-      'a key id with no colon, comma, whitespace or line break — Kaana parses its key set as kid:base64,kid:base64'
+      'a key id with no colon, comma, whitespace or line break — Kaana parses its key set as kid:base64,kid:base64',
     );
   }
 
   if (rawPrivateKey.length === 0) {
     return unreadable(
       KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
-      'an Ed25519 private key as PEM, or that PEM base64-encoded'
+      'an Ed25519 private key as PEM, or that PEM base64-encoded',
     );
   }
   const privateKey = parseEd25519PrivateKey(rawPrivateKey);
   if (privateKey === undefined) {
     return unreadable(
       KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
-      'an Ed25519 private key as PEM, or that PEM base64-encoded — generate one with `openssl genpkey -algorithm ed25519`'
+      'an Ed25519 private key as PEM, or that PEM base64-encoded — generate one with `openssl genpkey -algorithm ed25519`',
     );
   }
 
@@ -166,8 +165,10 @@ export function kaanaPublicKeyBase64(config: KaanaDataPlaneConfig): string {
 function unreadable(variable: string, expected: string): KaanaDataPlaneResolution {
   logger.error(
     'inference.kaana.config_unreadable',
-    new Error(`${variable} is set to a value this build cannot use; this deployment has no data plane`),
-    { component: 'inference-kaana', variable, expected }
+    new Error(
+      `${variable} is set to a value this build cannot use; this deployment has no data plane`,
+    ),
+    { component: 'inference-kaana', variable, expected },
   );
   return { status: 'unreadable', variable, expected };
 }

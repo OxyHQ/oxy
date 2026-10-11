@@ -149,7 +149,7 @@ export const CATALOGUE_SERVICE_READS_PER_15_MINUTES = 300_000;
 export function catalogueServiceRateLimitKey(req: Request): string {
   const caller = callerOf(req);
   return serviceRateLimitKey(
-    caller ? { appId: caller.applicationId, credentialId: caller.credentialId } : undefined
+    caller ? { appId: caller.applicationId, credentialId: caller.credentialId } : undefined,
   );
 }
 
@@ -171,7 +171,11 @@ const catalogueServiceReadLimiter = rateLimit({
  * the address budget, so a junk token cannot mint itself a fresh bucket; the
  * global per-address limiter still applies to it before it gets here.
  */
-async function resolveCatalogueCaller(req: Request, _res: Response, next: NextFunction): Promise<void> {
+async function resolveCatalogueCaller(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
     const token = extractTokenFromRequest(req);
     (req as CatalogueRequest).catalogueCaller =
@@ -291,7 +295,10 @@ async function callerForBearer(token: string): Promise<CatalogueCaller | undefin
     if (!isMachineCredentialLaneEnabled()) return undefined;
     const machine = await resolveMachineCredential(token);
     return machine.ok
-      ? { applicationId: machine.principal.applicationId, credentialId: machine.principal.credentialId }
+      ? {
+          applicationId: machine.principal.applicationId,
+          credentialId: machine.principal.credentialId,
+        }
       : undefined;
   }
 
@@ -334,10 +341,15 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const profiles = access.served ? await listRoutingProfiles(access.viewer, await servableAvailability()) : [];
-    const body: z.infer<typeof routingProfileListResponse> = { data: profiles, count: profiles.length };
+    const profiles = access.served
+      ? await listRoutingProfiles(access.viewer, await servableAvailability())
+      : [];
+    const body: z.infer<typeof routingProfileListResponse> = {
+      data: profiles,
+      count: profiles.length,
+    };
     res.json(body);
-  })
+  }),
 );
 
 /**
@@ -355,14 +367,16 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const models = access.served ? await listCatalogueForViewer(access.viewer, await servableAvailability()) : [];
+    const models = access.served
+      ? await listCatalogueForViewer(access.viewer, await servableAvailability())
+      : [];
     const body: z.infer<typeof catalogueStatsResponse> = {
       models,
       count: models.length,
       timestamp: new Date().toISOString(),
     };
     res.json(body);
-  })
+  }),
 );
 
 /**
@@ -376,10 +390,12 @@ router.get(
   catalogueServiceReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
-    const models = access.served ? await listCatalogueForViewer(access.viewer, await servableAvailability()) : [];
+    const models = access.served
+      ? await listCatalogueForViewer(access.viewer, await servableAvailability())
+      : [];
     const body: z.infer<typeof catalogueListResponse> = { data: models, count: models.length };
     res.json(body);
-  })
+  }),
 );
 
 /**
@@ -431,13 +447,13 @@ router.get(
       throw new NotFoundError(
         query.revision === undefined
           ? `No documentation for ${modelId} is available to you`
-          : `No documentation for ${modelId}@${query.revision} is available to you`
+          : `No documentation for ${modelId}@${query.revision} is available to you`,
       );
     }
 
     const body: z.infer<typeof modelDocumentationResponse> = { data: documentation };
     res.json(body);
-  })
+  }),
 );
 
 /**
@@ -471,7 +487,7 @@ router.get(
 
     const body: z.infer<typeof catalogueEntryResponse> = { data: entry };
     res.json(body);
-  })
+  }),
 );
 
 export default router;

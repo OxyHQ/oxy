@@ -33,7 +33,13 @@ import {
   type RegistryFailure,
 } from '../services/followRegistry.service';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
 
 const router = express.Router();
 
@@ -56,7 +62,7 @@ async function requireRegistrar(req: AuthRequest): Promise<FollowCapability> {
         ? 'This session was not created through an application authorization'
         : result.reason === 'application_inactive'
           ? 'This application is not active'
-          : 'This application has not been granted access to the follow registry'
+          : 'This application has not been granted access to the follow registry',
     );
   }
 
@@ -96,7 +102,7 @@ function raise(reason: RegistryFailure): never {
       throw new ConflictError('That namespace belongs to another application');
     case 'namespace_not_owned':
       throw new ForbiddenError(
-        'Your application does not own that namespace. Claim it first, or use one you own.'
+        'Your application does not own that namespace. Claim it first, or use one you own.',
       );
     case 'kind_not_owned':
       // Distinct from the above because claiming anything would not help: the
@@ -104,7 +110,7 @@ function raise(reason: RegistryFailure): never {
       throw new ForbiddenError('That kind was registered by another application');
     case 'namespace_in_use':
       throw new ConflictError(
-        'That namespace still has kinds registered in it, so it cannot be released'
+        'That namespace still has kinds registered in it, so it cannot be released',
       );
     case 'unknown_kind':
       throw new BadRequestError('That kind has not been registered');
@@ -139,7 +145,7 @@ router.post(
     const result = await claimNamespace({ capability, namespace });
     if (!result.ok) raise(result.reason);
     sendSuccess(res, result.value);
-  })
+  }),
 );
 
 /**
@@ -159,7 +165,7 @@ router.delete(
     const result = await releaseNamespace({ capability, namespace: req.params.namespace });
     if (!result.ok) raise(result.reason);
     sendSuccess(res, result.value);
-  })
+  }),
 );
 
 /**
@@ -191,7 +197,7 @@ router.post(
     });
     if (!result.ok) raise(result.reason);
     sendSuccess(res, result.value);
-  })
+  }),
 );
 
 /** Every kind the calling application owns. For its own boot, and for a console. */
@@ -200,7 +206,7 @@ router.get(
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const capability = await requireRegistrar(req);
     sendSuccess(res, { kinds: await listKindsForApplication(capability.applicationId) });
-  })
+  }),
 );
 
 /**
@@ -215,7 +221,7 @@ router.get(
     const kind = await getKindCapabilities(req.params.kind);
     if (!kind) throw new NotFoundError('Kind not found');
     sendSuccess(res, kind);
-  })
+  }),
 );
 
 /**
@@ -256,7 +262,7 @@ router.post(
     });
     if (!result.ok) raise(result.reason);
     sendSuccess(res, result.value);
-  })
+  }),
 );
 
 export default router;

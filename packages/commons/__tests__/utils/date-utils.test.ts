@@ -57,7 +57,10 @@ describe('getDisplayName', () => {
 
   it('prefers displayName over username', () => {
     expect(
-      getDisplayName({ name: { displayName: 'Jane', first: 'Jane', last: 'Doe' }, username: 'janed' }),
+      getDisplayName({
+        name: { displayName: 'Jane', first: 'Jane', last: 'Doe' },
+        username: 'janed',
+      }),
     ).toBe('Jane');
   });
 

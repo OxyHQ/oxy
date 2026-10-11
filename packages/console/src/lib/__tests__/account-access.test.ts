@@ -13,7 +13,7 @@ import { hasImplicitOwnership } from '@/lib/account-access';
  * opens on.
  */
 describe('hasImplicitOwnership', () => {
-  it('recognises the caller\'s own personal account', () => {
+  it("recognises the caller's own personal account", () => {
     expect(hasImplicitOwnership({ relationship: 'self' })).toBe(true);
   });
 
@@ -23,8 +23,11 @@ describe('hasImplicitOwnership', () => {
    * permissions, and a per-member revoke can take one away — inferring the
    * permission set from the word "owner" is exactly what the Console must not do.
    */
-  it('does not extend to an owned account that is not the caller\'s own', () => {
-    for (const relationship of ['owner', 'member'] as const satisfies ReadonlyArray<AccountRelationship>) {
+  it("does not extend to an owned account that is not the caller's own", () => {
+    for (const relationship of [
+      'owner',
+      'member',
+    ] as const satisfies ReadonlyArray<AccountRelationship>) {
       expect(hasImplicitOwnership({ relationship })).toBe(false);
     }
   });

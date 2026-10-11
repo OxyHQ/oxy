@@ -1,9 +1,9 @@
 /**
  * Custom hook for managing search navigation and query synchronization
- * 
+ *
  * Handles navigation to search screen when user starts typing and prevents
  * state updates from router params during active typing sessions.
- * 
+ *
  * @param pathname - Current route pathname
  * @param router - Expo router instance
  * @param searchInputRef - Ref to the search TextInput
@@ -33,7 +33,7 @@ export function useSearchNavigation({
   const router = useRouter();
   const pathname = usePathname();
   const params = useLocalSearchParams<{ q?: string }>();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const hasNavigatedToSearchRef = useRef(false);
   const isTypingRef = useRef(false);
@@ -50,19 +50,8 @@ export function useSearchNavigation({
       }
 
       requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (!searchInputRef.current) {
-            if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
-              attemptFocusWithRetry(textLength, attempt + 1);
-            }
-            return;
-          }
-
-          const wasFocused = searchInputRef.current.isFocused();
-          searchInputRef.current.focus();
-
-          // Verify focus was successful and restore cursor position
-          setTimeout(() => {
+        setTimeout(
+          () => {
             if (!searchInputRef.current) {
               if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
                 attemptFocusWithRetry(textLength, attempt + 1);
@@ -70,29 +59,46 @@ export function useSearchNavigation({
               return;
             }
 
-            if (searchInputRef.current.isFocused()) {
-              // Restore cursor position once focused (only on native platforms)
-              if (Platform.OS !== 'web' && typeof searchInputRef.current.setNativeProps === 'function') {
-                try {
-                  searchInputRef.current.setNativeProps({
-                    selection: { start: textLength, end: textLength },
-                  });
-                } catch (error) {
-                  // Silently fail if setNativeProps is not available
-                  if (__DEV__) {
-                    console.warn('[useSearchNavigation] setNativeProps failed:', error);
+            const wasFocused = searchInputRef.current.isFocused();
+            searchInputRef.current.focus();
+
+            // Verify focus was successful and restore cursor position
+            setTimeout(() => {
+              if (!searchInputRef.current) {
+                if (attempt < MAX_FOCUS_ATTEMPTS - 1) {
+                  attemptFocusWithRetry(textLength, attempt + 1);
+                }
+                return;
+              }
+
+              if (searchInputRef.current.isFocused()) {
+                // Restore cursor position once focused (only on native platforms)
+                if (
+                  Platform.OS !== 'web' &&
+                  typeof searchInputRef.current.setNativeProps === 'function'
+                ) {
+                  try {
+                    searchInputRef.current.setNativeProps({
+                      selection: { start: textLength, end: textLength },
+                    });
+                  } catch (error) {
+                    // Silently fail if setNativeProps is not available
+                    if (__DEV__) {
+                      console.warn('[useSearchNavigation] setNativeProps failed:', error);
+                    }
                   }
                 }
+              } else if (!wasFocused && attempt < MAX_FOCUS_ATTEMPTS - 1) {
+                // Retry if focus failed
+                attemptFocusWithRetry(textLength, attempt + 1);
               }
-            } else if (!wasFocused && attempt < MAX_FOCUS_ATTEMPTS - 1) {
-              // Retry if focus failed
-              attemptFocusWithRetry(textLength, attempt + 1);
-            }
-          }, 50);
-        }, INITIAL_FOCUS_DELAY_MS + attempt * FOCUS_RETRY_DELAY_MS);
+            }, 50);
+          },
+          INITIAL_FOCUS_DELAY_MS + attempt * FOCUS_RETRY_DELAY_MS,
+        );
       });
     },
-    [searchInputRef]
+    [searchInputRef],
   );
 
   /**
@@ -143,7 +149,7 @@ export function useSearchNavigation({
       // Note: If text is empty and we haven't navigated yet, we don't navigate
       // This prevents navigating to search screen when input is cleared before navigation
     },
-    [pathname, router, attemptFocusWithRetry]
+    [pathname, router, attemptFocusWithRetry],
   );
 
   /**
@@ -178,4 +184,3 @@ export function useSearchNavigation({
     handleSearchChange,
   };
 }
-

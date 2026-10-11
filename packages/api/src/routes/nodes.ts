@@ -18,7 +18,13 @@ import { Router, type Request, type Response } from 'express';
 import { and, eq, ne } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ApiError, ErrorCodes, InternalServerError, NotFoundError, UnauthorizedError } from '../utils/error';
+import {
+  ApiError,
+  ErrorCodes,
+  InternalServerError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { getDb } from '../config/postgres';
@@ -224,7 +230,11 @@ router.post(
       switch (result.reason) {
         case 'oxy_key_unconfigured':
         case 'managed_endpoint_unconfigured':
-          throw new ApiError(503, 'Managed vaults are not available right now', ErrorCodes.SERVICE_UNAVAILABLE);
+          throw new ApiError(
+            503,
+            'Managed vaults are not available right now',
+            ErrorCodes.SERVICE_UNAVAILABLE,
+          );
         case 'user_not_found':
           throw new NotFoundError('User not found');
         default:
@@ -248,12 +258,10 @@ router.post(
  * nothing without cryptographic verification), but rate-limited hard by IP. The
  * read path is untouched — this only schedules background work.
  *
- * The `isValidObjectId` pre-filter is DELETED, not ported. It existed to keep a
- * non-ObjectId path param out of a Mongoose `CastError`; here `user_id` is
- * `text`, so an unknown or malformed id simply selects no row. Keeping it would
- * have been worse than useless: every account minted since the cutover carries a
- * uuid v7, which the 24-hex predicate rejects — the notify would have silently
- * enqueued nothing for exactly those accounts, with a 202 either way. Same trap
+ * There is no id-shape pre-filter. `user_id` is `text`, so an unknown or
+ * malformed id simply selects no row. A 24-hex pre-filter would be worse than
+ * useless: it rejects every uuid v7 account, so the notify would silently
+ * enqueue nothing for exactly those accounts, with a 202 either way. Same trap
  * the chain-head route hit (`routes/__tests__/chainHead.test.ts`).
  */
 router.post(

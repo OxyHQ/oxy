@@ -17,7 +17,11 @@ const KID = 'oxy-service-test';
 
 function eventToken(
   privateKey: KeyObject,
-  overrides: { header?: Record<string, unknown>; payload?: Record<string, unknown>; event?: Record<string, unknown> } = {},
+  overrides: {
+    header?: Record<string, unknown>;
+    payload?: Record<string, unknown>;
+    event?: Record<string, unknown>;
+  } = {},
 ): string {
   return sign(
     privateKey,
@@ -48,17 +52,22 @@ describe('verifyAccountEvent', () => {
 
   let fetchSpy: jest.SpyInstance;
   beforeEach(() => {
-    fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
-      JSON.stringify({ keys: [jwk] }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ keys: [jwk] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
   });
   afterEach(() => jest.restoreAllMocks());
 
   const client = () => new OxyServer({ baseURL: 'https://api.oxy.test' });
 
   it('returns the event from a genuine Oxy-signed token, verified against the public JWKS', async () => {
-    const event = await client().accountEvents.verify(eventToken(oxyKey.privateKey), { audience: 'app-mention' });
+    const event = await client().accountEvents.verify(eventToken(oxyKey.privateKey), {
+      audience: 'app-mention',
+    });
 
     expect(event).toEqual({
       eventId: '019a0000-0000-7000-8000-000000000001',
@@ -84,8 +93,9 @@ describe('verifyAccountEvent', () => {
 
   it('carries `retained` through for an archived account', async () => {
     const token = eventToken(oxyKey.privateKey, { event: { retained: true } });
-    await expect(client().accountEvents.verify(token, { audience: 'app-mention' }))
-      .resolves.toMatchObject({ retained: true });
+    await expect(
+      client().accountEvents.verify(token, { audience: 'app-mention' }),
+    ).resolves.toMatchObject({ retained: true });
   });
 
   it('defaults the audience to the appId of the configured service credential', async () => {
@@ -96,44 +106,97 @@ describe('verifyAccountEvent', () => {
     await expect(oxy.accountEvents.verify(eventToken(oxyKey.privateKey))).resolves.toMatchObject({
       applicationId: 'app-mention',
     });
-    await expect(oxy.accountEvents.verify(eventToken(oxyKey.privateKey, { payload: { aud: 'app-other' } })))
-      .rejects.toThrow('addressed to another application');
+    await expect(
+      oxy.accountEvents.verify(eventToken(oxyKey.privateKey, { payload: { aud: 'app-other' } })),
+    ).rejects.toThrow('addressed to another application');
   });
 
   const refusals: Array<[string, () => string, string]> = [
-    ['a token signed by a key Oxy did not publish', () => eventToken(strangerKey.privateKey), 'signature is invalid'],
-    ['a service token (typ JWT) replayed as an event', () => eventToken(oxyKey.privateKey, { header: { typ: 'JWT' } }), 'header is not supported'],
-    ['a token for another application', () => eventToken(oxyKey.privateKey, { payload: { aud: 'app-other' } }), 'addressed to another application'],
-    ['a token from another issuer', () => eventToken(oxyKey.privateKey, { payload: { iss: 'someone-else' } }), 'issuer is not Oxy'],
-    ['a token without an event id', () => eventToken(oxyKey.privateKey, { payload: { jti: undefined } }), 'no event id'],
-    ['a token with an unknown event', () => eventToken(oxyKey.privateKey, { payload: { events: { 'https://oxy.so/events/other': {} } } }), 'unknown event'],
-    ['a token naming no account', () => eventToken(oxyKey.privateKey, { event: { userId: '' } }), 'names no account'],
-    ['a token whose username is not a string', () => eventToken(oxyKey.privateKey, { event: { username: 42 } }), 'username is malformed'],
-    ['a token with an unknown key id', () => eventToken(oxyKey.privateKey, { header: { kid: 'rotated-away' } }), 'unknown'],
+    [
+      'a token signed by a key Oxy did not publish',
+      () => eventToken(strangerKey.privateKey),
+      'signature is invalid',
+    ],
+    [
+      'a service token (typ JWT) replayed as an event',
+      () => eventToken(oxyKey.privateKey, { header: { typ: 'JWT' } }),
+      'header is not supported',
+    ],
+    [
+      'a token for another application',
+      () => eventToken(oxyKey.privateKey, { payload: { aud: 'app-other' } }),
+      'addressed to another application',
+    ],
+    [
+      'a token from another issuer',
+      () => eventToken(oxyKey.privateKey, { payload: { iss: 'someone-else' } }),
+      'issuer is not Oxy',
+    ],
+    [
+      'a token without an event id',
+      () => eventToken(oxyKey.privateKey, { payload: { jti: undefined } }),
+      'no event id',
+    ],
+    [
+      'a token with an unknown event',
+      () =>
+        eventToken(oxyKey.privateKey, {
+          payload: { events: { 'https://oxy.so/events/other': {} } },
+        }),
+      'unknown event',
+    ],
+    [
+      'a token naming no account',
+      () => eventToken(oxyKey.privateKey, { event: { userId: '' } }),
+      'names no account',
+    ],
+    [
+      'a token whose username is not a string',
+      () => eventToken(oxyKey.privateKey, { event: { username: 42 } }),
+      'username is malformed',
+    ],
+    [
+      'a token with an unknown key id',
+      () => eventToken(oxyKey.privateKey, { header: { kid: 'rotated-away' } }),
+      'unknown',
+    ],
   ];
 
   it.each(refusals)('refuses %s', async (_label, build, message) => {
     const attempt = client().accountEvents.verify(build(), { audience: 'app-mention' });
     await expect(attempt).rejects.toBeInstanceOf(OxyAccountEventError);
-    await expect(client().accountEvents.verify(build(), { audience: 'app-mention' })).rejects.toThrow(message);
+    await expect(
+      client().accountEvents.verify(build(), { audience: 'app-mention' }),
+    ).rejects.toThrow(message);
   });
 
   it('refuses a tampered payload', async () => {
     const [header, , signature] = eventToken(oxyKey.privateKey).split('.');
-    const forged = b64url(JSON.stringify({
-      iss: 'oxy-auth',
-      aud: 'app-mention',
-      iat: 1,
-      jti: 'x',
-      events: { [OXY_ACCOUNT_DELETED_EVENT_URI]: { userId: 'someone-else', occurredAt: '2026-09-26T00:00:00Z' } },
-    }));
-    await expect(client().accountEvents.verify(`${header}.${forged}.${signature}`, { audience: 'app-mention' }))
-      .rejects.toThrow('signature is invalid');
+    const forged = b64url(
+      JSON.stringify({
+        iss: 'oxy-auth',
+        aud: 'app-mention',
+        iat: 1,
+        jti: 'x',
+        events: {
+          [OXY_ACCOUNT_DELETED_EVENT_URI]: {
+            userId: 'someone-else',
+            occurredAt: '2026-09-26T00:00:00Z',
+          },
+        },
+      }),
+    );
+    await expect(
+      client().accountEvents.verify(`${header}.${forged}.${signature}`, {
+        audience: 'app-mention',
+      }),
+    ).rejects.toThrow('signature is invalid');
   });
 
   it('refuses garbage without fetching keys', async () => {
-    await expect(client().accountEvents.verify('not-a-token', { audience: 'app-mention' }))
-      .rejects.toThrow('not a compact JWS');
+    await expect(
+      client().accountEvents.verify('not-a-token', { audience: 'app-mention' }),
+    ).rejects.toThrow('not a compact JWS');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

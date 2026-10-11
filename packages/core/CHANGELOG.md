@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 4.5.0-oxy-one.1
+
+### Changed (breaking for `auth.registerKey` callers)
+
+- `auth.registerKey(publicKey, signature, timestamp, username)` takes the
+  account's username and sends it: `POST /auth/register` now requires it and
+  writes it in the same insert as the key, so an account never exists without
+  a username. A taken username is a 409 `Username already taken`. Commons is
+  the only caller.
+
+### Fixed
+
+- `assets.upload` no longer times out at the client's 5s per-request default:
+  an upload is now bounded at 10 minutes (override with `options.timeout`), so
+  a video of a few dozen MB no longer fails with `Request timed out after 5000ms`.
+
 ## 4.4.0
 
 ### Added
@@ -1403,7 +1419,7 @@ Affected: `ReputationCategory`, `TrustTier`, `ReputationTransactionStatus`,
 **One shape changed as well.** `ReputationLeaderboardEntry.user` was
 `Pick<User, …> & Partial<User>`; it is now the pinned
 **`ReputationLeaderboardUser`** (`id`, `username`, `name`, `avatar?`,
-`publicKey?`). The API was emitting Mongo's `_id` on that object, so `user.id`
+`publicKey?`). The API was emitting the raw `_id` on that object, so `user.id`
 was `undefined` for every leaderboard row — it now really is the user id.
 
 ### BREAKING — reputation balance view split

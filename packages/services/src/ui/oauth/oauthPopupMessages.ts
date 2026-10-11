@@ -119,10 +119,9 @@ export function readOAuthPopupMessage(
   if (!message) {
     // Origin and source matched, so this came from the IdP window we opened —
     // a shape we cannot read is worth a breadcrumb, unlike ordinary page noise.
-    logger.debug(
-      'Ignored an unrecognised message from the OAuth popup',
-      { component: 'oauthPopupMessages' },
-    );
+    logger.debug('Ignored an unrecognised message from the OAuth popup', {
+      component: 'oauthPopupMessages',
+    });
     return { kind: 'ignore' };
   }
 

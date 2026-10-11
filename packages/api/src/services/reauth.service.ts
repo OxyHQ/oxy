@@ -29,7 +29,12 @@ import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
 import { ApiError, BadRequestError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendReauthCode } from './accountEmail.mail';
-import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
+import {
+  assertMailConfigured,
+  consumeEmailCode,
+  recordVerification,
+  reserveSendBudget,
+} from './accountEmail.service';
 import { clearFailures, reserveAttempt } from './loginLockout.service';
 import { readPasswordHash, verifyPasswordOrDummy } from './password.service';
 import { isTotpEnabled, verifySecondFactor } from './totp.service';
@@ -69,7 +74,9 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
   );
 }
 
-async function accountEmail(userId: string): Promise<{ email: string | null; username: string | null }> {
+async function accountEmail(
+  userId: string,
+): Promise<{ email: string | null; username: string | null }> {
   const [row] = await getDb()
     .select({ email: users.email, username: users.username })
     .from(users)
@@ -105,9 +112,13 @@ export async function startReauthEmail(
     now,
   );
   sendReauthCode(email, code, username, action).catch((error: unknown) => {
-    logger.error('Confirmation email could not be sent', error instanceof Error ? error : new Error(String(error)), {
-      component: 'reauth',
-    });
+    logger.error(
+      'Confirmation email could not be sent',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        component: 'reauth',
+      },
+    );
   });
   return { verificationId, expiresAt: expiresAt.getTime() };
 }
@@ -138,7 +149,11 @@ async function checkPassword(userId: string, password: string): Promise<void> {
 async function checkTotp(userId: string, totpCode: string | undefined, now: Date): Promise<void> {
   if (!(await isTotpEnabled(userId))) return;
   if (!totpCode) {
-    throw new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired);
+    throw new ApiError(
+      401,
+      'Enter the code from your authenticator app too.',
+      SIGN_IN_ERROR_CODES.totpRequired,
+    );
   }
   if (!(await verifySecondFactor(userId, totpCode, now))) throw reauthInvalid();
 }
@@ -159,7 +174,11 @@ export async function verifyReauth(
   }
   // Asked first so a missing authenticator code never burns the email code.
   if (!proof.totpCode && (await isTotpEnabled(userId))) {
-    throw new ApiError(401, 'Enter the code from your authenticator app too.', SIGN_IN_ERROR_CODES.totpRequired);
+    throw new ApiError(
+      401,
+      'Enter the code from your authenticator app too.',
+      SIGN_IN_ERROR_CODES.totpRequired,
+    );
   }
   if (proof.emailCode) {
     await checkEmailCode(userId, proof.emailCode, action, now);

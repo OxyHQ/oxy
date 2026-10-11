@@ -29,10 +29,13 @@ describe('HttpService browser activity identifier', () => {
       configurable: true,
       value: {},
     });
-    const fetchMock = jest.fn(async () => new Response(JSON.stringify({ data: { ok: true } }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    }));
+    const fetchMock = jest.fn(
+      async () =>
+        new Response(JSON.stringify({ data: { ok: true } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     const http = new HttpService({ baseURL: 'https://api.oxy.so', enableRetry: false });

@@ -47,7 +47,9 @@ describe('clipboard boundary', () => {
 
   it("never uses React Native's deprecated Clipboard", () => {
     const offenders = files
-      .filter((file) => /import\s*\{[^}]*\bClipboard\b[^}]*\}\s*from\s*['"]react-native['"]/.test(code(file)))
+      .filter((file) =>
+        /import\s*\{[^}]*\bClipboard\b[^}]*\}\s*from\s*['"]react-native['"]/.test(code(file)),
+      )
       .map((file) => path.relative(srcRoot, file));
     expect(offenders).toEqual([]);
   });

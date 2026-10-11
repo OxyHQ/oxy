@@ -32,7 +32,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: actingUserId, id: actingUserId };
     next();
@@ -101,7 +101,7 @@ async function seedMember(
   accountId: string,
   memberUserId: string,
   role: AccountRole,
-  extra: { permissionGrants?: string[]; permissionRevokes?: string[] } = {}
+  extra: { permissionGrants?: string[]; permissionRevokes?: string[] } = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(accountMembers)
@@ -121,7 +121,7 @@ async function seedMember(
 function patchMember(
   accountId: string,
   memberId: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload);
@@ -149,17 +149,14 @@ function patchMember(
             body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
   });
 }
 
-function inviteMember(
-  accountId: string,
-  payload: Record<string, unknown>
-): Promise<JsonResponse> {
+function inviteMember(accountId: string, payload: Record<string, unknown>): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -186,7 +183,7 @@ function inviteMember(
             body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
@@ -194,10 +191,7 @@ function inviteMember(
 }
 
 async function rowById(memberId: string) {
-  const [row] = await getDb()
-    .select()
-    .from(accountMembers)
-    .where(eq(accountMembers.id, memberId));
+  const [row] = await getDb().select().from(accountMembers).where(eq(accountMembers.id, memberId));
   return row;
 }
 
@@ -215,7 +209,15 @@ async function seedOrg() {
   const adminMemberId = await seedMember(org, adminUserId, 'admin');
   const targetMemberId = await seedMember(org, targetUserId, 'viewer');
 
-  return { org, ownerUserId, adminUserId, targetUserId, ownerMemberId, adminMemberId, targetMemberId };
+  return {
+    org,
+    ownerUserId,
+    adminUserId,
+    targetUserId,
+    ownerMemberId,
+    adminMemberId,
+    targetMemberId,
+  };
 }
 
 beforeAll(async () => {
@@ -505,9 +507,7 @@ describe('per-member permission editing', () => {
       .where(eq(users.id, project));
     // `depth = 0` is the tree root and the highest depth is the immediate
     // parent, so a direct child of a root carries exactly one edge at 0.
-    await getDb()
-      .insert(userAncestors)
-      .values({ userId: project, ancestorId: org, depth: 0 });
+    await getDb().insert(userAncestors).values({ userId: project, ancestorId: org, depth: 0 });
 
     const adminUserId = await seedUser('personal');
     await seedMember(org, adminUserId, 'admin', {

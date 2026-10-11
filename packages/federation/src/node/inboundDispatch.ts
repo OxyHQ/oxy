@@ -64,9 +64,7 @@ export interface InboundDispatcherLogger {
  * compact failure summary. The app owns the validation (its zod schemas); the
  * engine owns the drop-with-warn behaviour so every app logs identically.
  */
-export type InboundActivityValidation =
-  | { ok: true; type: string }
-  | { ok: false; summary: string };
+export type InboundActivityValidation = { ok: true; type: string } | { ok: false; summary: string };
 
 /** The Oxy-user fields the engine reads off a resolved local user (Follow target). */
 export interface InboundLocalUser {
@@ -99,9 +97,16 @@ export interface InboundActorResolver {
 /** Bring-your-own-store: the AP follow records + actor cache reads the follow verbs need. */
 export interface InboundFollowStore {
   /** `handleIncomingFollow`: upsert the accepted inbound follow row. */
-  upsertInboundAccepted(localUserId: string, remoteActorUri: string, activityId: string): Promise<void>;
+  upsertInboundAccepted(
+    localUserId: string,
+    remoteActorUri: string,
+    activityId: string,
+  ): Promise<void>;
   /** `handleUndo(Follow)`: the inbound follow row (scoped by localUserId when known). */
-  findInboundFollow(remoteActorUri: string, localUserId?: string): Promise<{ _id: unknown; localUserId: string } | null>;
+  findInboundFollow(
+    remoteActorUri: string,
+    localUserId?: string,
+  ): Promise<{ _id: unknown; localUserId: string } | null>;
   /** `handleUndo(Follow)`: delete a follow row by id. */
   deleteFollowById(id: unknown): Promise<void>;
   /** `handleUndo(Follow)`: the follower actor's cached Oxy user id (for `bridgeUnfollow`). */
@@ -154,7 +159,11 @@ export interface InboundDispatcherConfig {
    * NEVER throws (it handles its own errors); a failure must not fail (and thus
    * retry) the inbox activity. Absent ⇒ no notification.
    */
-  onInboundFollowAccepted?(localUserId: string, followerOxyUserId: string, actorUri: string): Promise<void>;
+  onInboundFollowAccepted?(
+    localUserId: string,
+    followerOxyUserId: string,
+    actorUri: string,
+  ): Promise<void>;
   /**
    * Best-effort: backfill the newly-followed remote actor's recent posts after an
    * outbound Follow was Accepted. NEVER throws. Absent ⇒ no backfill.
@@ -248,7 +257,10 @@ function objectTargetUri(object: unknown): string | undefined {
 export function createInboundDispatcher(config: InboundDispatcherConfig): InboundDispatcher {
   const { logger } = config;
 
-  async function handleIncomingFollow(activity: Record<string, unknown>, actorUri: string): Promise<void> {
+  async function handleIncomingFollow(
+    activity: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<void> {
     const targetActorUri = objectTargetUri(activity.object);
     if (!targetActorUri) return;
 
@@ -314,7 +326,10 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
     logger.info(`Accepted follow from ${actorUri} to ${username}`);
   }
 
-  async function handleUndoFollow(object: Record<string, unknown>, actorUri: string): Promise<void> {
+  async function handleUndoFollow(
+    object: Record<string, unknown>,
+    actorUri: string,
+  ): Promise<void> {
     const targetActorUri = objectTargetUri(object.object);
     const match = targetActorUri?.match(/\/ap\/users\/([^/]+)$/);
     let localUserId: string | undefined;
@@ -374,9 +389,10 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
       }
     } else if ((object as { type?: unknown }).type === 'Follow') {
       const followActivityId = (object as { id?: unknown }).id;
-      updated = typeof followActivityId === 'string' && followActivityId.length > 0
-        ? await config.follows.markOutboundAcceptedByActivityId(actorUri, followActivityId)
-        : await config.follows.markOutboundAcceptedAnyPending(actorUri);
+      updated =
+        typeof followActivityId === 'string' && followActivityId.length > 0
+          ? await config.follows.markOutboundAcceptedByActivityId(actorUri, followActivityId)
+          : await config.follows.markOutboundAcceptedAnyPending(actorUri);
     }
 
     if (updated) {
@@ -394,7 +410,8 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
 
     const objectType = typeof object === 'string' ? null : (object as { type?: unknown }).type;
     if (objectType === 'Follow') {
-      const followActivityId = typeof object === 'object' ? (object as { id?: unknown }).id : undefined;
+      const followActivityId =
+        typeof object === 'object' ? (object as { id?: unknown }).id : undefined;
       await config.follows.markOutboundRejected(
         actorUri,
         typeof followActivityId === 'string' ? followActivityId : undefined,
@@ -403,7 +420,10 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
     }
   }
 
-  async function processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
+  async function processInboxActivity(
+    activity: Record<string, unknown>,
+    verifiedActorUri: string,
+  ): Promise<void> {
     // Instance domain policy, FIRST — before the payload is even parsed.
     //
     // This is the single chokepoint for inbound federation: every transport (the

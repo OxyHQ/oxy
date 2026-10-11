@@ -30,13 +30,13 @@
  */
 
 /** `response_mode` value with which a relying party requests popup delivery. */
-export const WEB_MESSAGE_RESPONSE_MODE = "web_message";
+export const WEB_MESSAGE_RESPONSE_MODE = 'web_message';
 
 /** Message type carrying a successful authorization. */
-export const OAUTH_CODE_MESSAGE_TYPE = "oxy:oauth:code";
+export const OAUTH_CODE_MESSAGE_TYPE = 'oxy:oauth:code';
 
 /** Message type carrying a failed or denied authorization. */
-export const OAUTH_ERROR_MESSAGE_TYPE = "oxy:oauth:error";
+export const OAUTH_ERROR_MESSAGE_TYPE = 'oxy:oauth:error';
 
 /** Successful authorization delivered to the opener. */
 export interface OAuthCodeMessage {
@@ -61,9 +61,9 @@ export type OAuthRelayMessage = OAuthCodeMessage | OAuthErrorMessage;
  * fields only, so no caller can widen what reaches the relying party.
  */
 export type OAuthResult =
-  | { kind: "code"; code: string; state: string | null }
+  | { kind: 'code'; code: string; state: string | null }
   | {
-      kind: "error";
+      kind: 'error';
       error: string;
       errorDescription?: string;
       state: string | null;
@@ -71,8 +71,8 @@ export type OAuthResult =
 
 /** How a result was delivered. */
 export type OAuthDelivery =
-  | { mode: "web_message"; message: OAuthRelayMessage; targetOrigin: string }
-  | { mode: "redirect"; url: string };
+  | { mode: 'web_message'; message: OAuthRelayMessage; targetOrigin: string }
+  | { mode: 'redirect'; url: string };
 
 /** The opener surface used for web-message delivery. */
 export interface WebMessageTarget {
@@ -97,9 +97,9 @@ export interface ResolvedWebMessageTarget {
 
 function isWebMessageTarget(value: unknown): value is WebMessageTarget {
   return (
-    typeof value === "object" &&
+    typeof value === 'object' &&
     value !== null &&
-    typeof (value as { postMessage?: unknown }).postMessage === "function"
+    typeof (value as { postMessage?: unknown }).postMessage === 'function'
   );
 }
 
@@ -108,20 +108,18 @@ function isWebMessageTarget(value: unknown): value is WebMessageTarget {
  * when the URI has no web origin (native schemes serialize to the opaque
  * `"null"` origin and can never receive a web message).
  */
-export function webMessageTargetOrigin(
-  safeRedirectUri: string
-): string | null {
+export function webMessageTargetOrigin(safeRedirectUri: string): string | null {
   let parsed: URL;
   try {
     parsed = new URL(safeRedirectUri);
   } catch {
     return null;
   }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     return null;
   }
   const origin = parsed.origin;
-  if (!origin || origin === "null") return null;
+  if (!origin || origin === 'null') return null;
   return origin;
 }
 
@@ -154,11 +152,11 @@ export function resolveWebMessageTarget(input: {
  * session can be spread in.
  */
 export function buildRelayMessage(result: OAuthResult): OAuthRelayMessage {
-  if (result.kind === "code") {
+  if (result.kind === 'code') {
     return {
       type: OAUTH_CODE_MESSAGE_TYPE,
       code: result.code,
-      state: result.state ?? "",
+      state: result.state ?? '',
     };
   }
 
@@ -176,21 +174,18 @@ export function buildRelayMessage(result: OAuthResult): OAuthRelayMessage {
 }
 
 /** Build the top-level redirect URL for a result. */
-export function buildOAuthRedirectUrl(
-  result: OAuthResult,
-  safeRedirectUri: string
-): string {
+export function buildOAuthRedirectUrl(result: OAuthResult, safeRedirectUri: string): string {
   const url = new URL(safeRedirectUri);
-  if (result.kind === "code") {
-    url.searchParams.set("code", result.code);
+  if (result.kind === 'code') {
+    url.searchParams.set('code', result.code);
   } else {
-    url.searchParams.set("error", result.error);
+    url.searchParams.set('error', result.error);
     if (result.errorDescription) {
-      url.searchParams.set("error_description", result.errorDescription);
+      url.searchParams.set('error_description', result.errorDescription);
     }
   }
   if (result.state) {
-    url.searchParams.set("state", result.state);
+    url.searchParams.set('state', result.state);
   }
   return url.toString();
 }
@@ -229,10 +224,10 @@ export function deliverOAuthResult(input: {
       // message is already posted. The caller's terminal state stays on screen
       // so the user is told they can close it themselves.
     }
-    return { mode: "web_message", message, targetOrigin: relay.targetOrigin };
+    return { mode: 'web_message', message, targetOrigin: relay.targetOrigin };
   }
 
   const url = buildOAuthRedirectUrl(input.result, input.safeRedirectUri);
   input.window.location.href = url;
-  return { mode: "redirect", url };
+  return { mode: 'redirect', url };
 }

@@ -56,7 +56,9 @@ describe('native agency authority', () => {
 
     fetchMock.mockImplementationOnce(async () => jsonResponse(undefined));
     await oxy.agency.grants.revoke('grant/id', 'owner/account');
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('http://test.invalid/capabilities/grants/grant%2Fid');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      'http://test.invalid/capabilities/grants/grant%2Fid',
+    );
     expect(fetchMock.mock.calls[1]?.[1]?.method).toBe('DELETE');
 
     await oxy.agency.grants.list('owner/account');
@@ -67,15 +69,17 @@ describe('native agency authority', () => {
     const grant = { id: 'grant/id', catalog: null };
     fetchMock.mockResolvedValueOnce(jsonResponse({ grant }));
 
-    await expect(oxy.agency.grants.update('grant/id', 'owner/account', {
-      capabilityPackages: ['read'],
-      capabilities: ['email.read'],
-      toolOverrides: [{ tool: 'sendEmail', decision: 'deny' }],
-      limits: [],
-      maximumAutonomy: 'read_only',
-      canRedelegate: false,
-      expiresAt: null,
-    })).resolves.toEqual(grant);
+    await expect(
+      oxy.agency.grants.update('grant/id', 'owner/account', {
+        capabilityPackages: ['read'],
+        capabilities: ['email.read'],
+        toolOverrides: [{ tool: 'sendEmail', decision: 'deny' }],
+        limits: [],
+        maximumAutonomy: 'read_only',
+        canRedelegate: false,
+        expiresAt: null,
+      }),
+    ).resolves.toEqual(grant);
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toBe('http://test.invalid/capabilities/grants/grant%2Fid');
@@ -103,19 +107,23 @@ describe('native agency authority', () => {
     };
     fetchMock.mockResolvedValueOnce(jsonResponse({ policy }));
 
-    await expect(oxy.agency.policies.put('mention', {
-      accountId: 'account-a',
-      maximumAutonomy: 'draft',
-      deniedCapabilities: ['social.publish'],
-    })).resolves.toEqual(policy);
+    await expect(
+      oxy.agency.policies.put('mention', {
+        accountId: 'account-a',
+        maximumAutonomy: 'draft',
+        deniedCapabilities: ['social.publish'],
+      }),
+    ).resolves.toEqual(policy);
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(String(url)).toBe('http://test.invalid/capabilities/account-policies/mention');
     expect(init?.method).toBe('PUT');
-    expect(init?.body).toBe(JSON.stringify({
-      accountId: 'account-a',
-      maximumAutonomy: 'draft',
-      deniedCapabilities: ['social.publish'],
-    }));
+    expect(init?.body).toBe(
+      JSON.stringify({
+        accountId: 'account-a',
+        maximumAutonomy: 'draft',
+        deniedCapabilities: ['social.publish'],
+      }),
+    );
   });
 });

@@ -19,9 +19,13 @@
  * kept in a comment.
  */
 
-const mockServiceAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
+const mockServiceAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) =>
+  next(),
+);
 const mockAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
-const mockOptionalAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) => next());
+const mockOptionalAuthMiddleware = jest.fn((_req: unknown, _res: unknown, next: () => void) =>
+  next(),
+);
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
@@ -84,15 +88,17 @@ const LINKED_URL_PREFIX = 'rl:asset-linked-url:';
 
 /** Redis prefixes of every `rateLimit()` middleware mounted on `path`. */
 function limiterPrefixesFor(path: string): string[] {
-  const stack = (assetsRouter as unknown as {
-    stack: Array<{ route?: { path: string; stack: Array<{ handle: unknown }> } }>;
-  }).stack;
+  const stack = (
+    assetsRouter as unknown as {
+      stack: Array<{ route?: { path: string; stack: Array<{ handle: unknown }> } }>;
+    }
+  ).stack;
 
   const layer = stack.find((entry) => entry.route?.path === path);
   if (!layer?.route) {
     throw new Error(
-      `No route mounted at "${path}" on the assets router — the path was renamed or removed, `
-      + 'so this guard is measuring nothing. Fix the path before trusting the suite.',
+      `No route mounted at "${path}" on the assets router — the path was renamed or removed, ` +
+        'so this guard is measuring nothing. Fix the path before trusting the suite.',
     );
   }
 

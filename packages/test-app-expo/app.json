@@ -42,10 +42,7 @@
       "expo-image",
       "expo-status-bar",
       "expo-web-browser",
-      [
-        "@oxy.so/app-preset",
-        {}
-      ]
+      ["@oxy.so/app-preset", {}]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -16,7 +16,11 @@ before(() => {
               assetExts: ['png', 'svg', 'woff'],
               sourceExts: ['js', 'ts'],
               extraNodeModules: { existing: '/existing' },
-              resolveRequest: (context, moduleName, platform) => ({ context, moduleName, platform }),
+              resolveRequest: (context, moduleName, platform) => ({
+                context,
+                moduleName,
+                platform,
+              }),
             },
             transformer: { minifierConfig: { compress: { existing: true } } },
           };
@@ -64,7 +68,8 @@ test('configures optional SVG, aliases, watch roots and minifier policy', () => 
 test('anchors README blocking and converts extra path blocks to escaped regexes', () => {
   const extraRoot = '/repo/.claude/worktrees';
   const config = createOxyMetroConfig('/repo/packages/frontend', { extraBlockList: [extraRoot] });
-  const isBlocked = (candidate) => config.resolver.blockList.some((pattern) => pattern.test(candidate));
+  const isBlocked = (candidate) =>
+    config.resolver.blockList.some((pattern) => pattern.test(candidate));
 
   assert.equal(isBlocked('/repo/packages/frontend/README'), true);
   assert.equal(isBlocked('/repo/packages/frontend/README.md'), true);
@@ -75,10 +80,14 @@ test('anchors README blocking and converts extra path blocks to escaped regexes'
 test('does not block a project whose checkout lives inside a worktrees directory', () => {
   const projectRoot = '/repo/.worktrees/feature/packages/frontend';
   const config = createOxyMetroConfig(projectRoot);
-  const isBlocked = (candidate) => config.resolver.blockList.some((pattern) => pattern.test(candidate));
+  const isBlocked = (candidate) =>
+    config.resolver.blockList.some((pattern) => pattern.test(candidate));
 
   assert.equal(isBlocked('/repo/.worktrees/feature/node_modules/expo-router/entry.js'), false);
-  assert.equal(isBlocked('/repo/.worktrees/feature/.worktrees/sibling/node_modules/react/index.js'), true);
+  assert.equal(
+    isBlocked('/repo/.worktrees/feature/.worktrees/sibling/node_modules/react/index.js'),
+    true,
+  );
 });
 
 test('keeps svg as an asset and console calls by default', () => {
@@ -89,7 +98,11 @@ test('keeps svg as an asset and console calls by default', () => {
 });
 
 test('stamps the build id into the env the SDK reads and into the transform cache key', () => {
-  const saved = { id: process.env.OXY_BUILD_ID, env: process.env.NODE_ENV, sha: process.env.GITHUB_SHA };
+  const saved = {
+    id: process.env.OXY_BUILD_ID,
+    env: process.env.NODE_ENV,
+    sha: process.env.GITHUB_SHA,
+  };
   try {
     delete process.env.OXY_BUILD_ID;
     process.env.NODE_ENV = 'production';
@@ -100,9 +113,16 @@ test('stamps the build id into the env the SDK reads and into the transform cach
 
     delete process.env.OXY_BUILD_ID;
     process.env.NODE_ENV = 'development';
-    assert.match(createOxyMetroConfig('/repo/packages/frontend').cacheVersion, /oxy-build:development/);
+    assert.match(
+      createOxyMetroConfig('/repo/packages/frontend').cacheVersion,
+      /oxy-build:development/,
+    );
   } finally {
-    for (const [key, value] of [['OXY_BUILD_ID', saved.id], ['NODE_ENV', saved.env], ['GITHUB_SHA', saved.sha]]) {
+    for (const [key, value] of [
+      ['OXY_BUILD_ID', saved.id],
+      ['NODE_ENV', saved.env],
+      ['GITHUB_SHA', saved.sha],
+    ]) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }

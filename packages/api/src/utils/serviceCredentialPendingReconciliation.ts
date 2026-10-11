@@ -24,7 +24,7 @@ export async function reconcilePendingCredentials({
 }: PendingCredentialReconciliation): Promise<void> {
   if (pendingCredentialIds.length > 0 && !rotateScopeMismatch) {
     throw new Error(
-      `Application "${appName}" has an unfinished pending ${environment} service credential (${pendingCredentialIds.join(", ")}). Recover or revoke it before preparing another secret.`,
+      `Application "${appName}" has an unfinished pending ${environment} service credential (${pendingCredentialIds.join(', ')}). Recover or revoke it before preparing another secret.`,
     );
   }
   if (dryRun) return;

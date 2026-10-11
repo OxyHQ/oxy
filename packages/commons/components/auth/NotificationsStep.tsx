@@ -29,15 +29,12 @@ export function NotificationsStep({
 
   const containerStyle = useMemo(
     () => [styles.container, { backgroundColor, paddingTop: insets.top }],
-    [backgroundColor, insets.top]
+    [backgroundColor, insets.top],
   );
-  const titleStyle = useMemo(
-    () => [styles.title, { color: textColor }],
-    [textColor]
-  );
+  const titleStyle = useMemo(() => [styles.title, { color: textColor }], [textColor]);
   const subtitleStyle = useMemo(
     () => [styles.subtitle, { color: textColor, opacity: 0.6 }],
-    [textColor]
+    [textColor],
   );
 
   return (
@@ -54,7 +51,16 @@ export function NotificationsStep({
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={onRequestNotifications} disabled={isRequestingNotifications || isSigningIn} loading={isRequestingNotifications || isSigningIn} className="mt-space-32">Enable notifications</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={onRequestNotifications}
+          disabled={isRequestingNotifications || isSigningIn}
+          loading={isRequestingNotifications || isSigningIn}
+          className="mt-space-32"
+        >
+          Enable notifications
+        </Button>
       </View>
     </View>
   );
@@ -86,4 +92,3 @@ const styles = StyleSheet.create({
     fontSize: 64,
   },
 });
-

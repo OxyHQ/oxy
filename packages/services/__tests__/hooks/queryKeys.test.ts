@@ -16,7 +16,7 @@ import {
 } from '../../src/ui/hooks/queries/queryKeys';
 
 describe('queryKeys.accounts', () => {
-  it('uses [\'accounts\'] as root', () => {
+  it("uses ['accounts'] as root", () => {
     expect(queryKeys.accounts.all).toEqual(['accounts']);
   });
 
@@ -114,12 +114,7 @@ describe('queryKeys.sessions / devices / privacy / security', () => {
   });
 
   it('security.infinite() includes the eventType only when supplied', () => {
-    expect(queryKeys.security.infinite(25)).toEqual([
-      'security',
-      'infinite',
-      25,
-      undefined,
-    ]);
+    expect(queryKeys.security.infinite(25)).toEqual(['security', 'infinite', 25, undefined]);
     expect(queryKeys.security.infinite(25, 'logout')).toEqual([
       'security',
       'infinite',

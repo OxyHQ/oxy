@@ -27,5 +27,7 @@ export function isReactNative(): boolean {
  * `randomBytes`) and the `await import('node:crypto')` loader.
  */
 export function isNodeJS(): boolean {
-  return typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
+  return (
+    typeof process !== 'undefined' && process.versions != null && process.versions.node != null
+  );
 }

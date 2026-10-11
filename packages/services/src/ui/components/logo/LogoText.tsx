@@ -53,7 +53,12 @@ export const LogoText: React.FC<LogoTextProps> = ({
   const resolvedLetterColor = letterColor ?? '#ffffff';
 
   return (
-    <Svg viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`} width={width} height={height} style={style}>
+    <Svg
+      viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`}
+      width={width}
+      height={height}
+      style={style}
+    >
       <G>
         {OUTER_PATHS.map((d) => (
           <Path key={d} d={d} fill={resolvedColor} />
