@@ -1,8 +1,9 @@
+import { personalCheckoutSnapshotColumns } from '../personalPlanCheckout.service';
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Peable } from '@peable.to/sdk';
+import { Peable, type BillingTaxQuote } from '@peable.to/sdk';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { eq } from 'drizzle-orm';
 import { personalPlanCheckoutIntents, accessGrants } from '../../db/schema';
@@ -241,7 +242,7 @@ async function pendingCheckoutFixture() {
   await connectPostgres();
   const account = await productAccessFixture();
   const intentId = randomUUID();
-  const quote = {
+  const quote: BillingTaxQuote = {
     schemaVersion: 1,
     source: {
       merchantId: 'merch_fixture',
@@ -297,7 +298,20 @@ async function pendingCheckoutFixture() {
       applicationRef: account.app.id,
       customerRef: 'customer_fixture',
       planRef: 'plan_fixture',
-      taxQuoteAuthority: JSON.stringify(quote),
+      ...personalCheckoutSnapshotColumns({
+        applicationId: account.app.id,
+        merchantId: 'merch_fixture',
+        subjectAccountId: account.payer,
+        planId: 'plan_fixture',
+        customerId: 'customer_fixture',
+        offerId: account.offers[0].id,
+        offerVersion: 1,
+        priceId: 'price_fixture',
+        mode: 'live',
+        environment: 'production',
+        taxQuote: quote,
+        returnUrl: 'https://example.invalid/return',
+      }),
     });
   const subscription = {
     providerSubscriptionId: `sub_${intentId}`,

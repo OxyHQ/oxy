@@ -20,7 +20,7 @@ export const personalPlanCheckoutIntents = pgTable(
     id: text().primaryKey(),
     subjectAccountId: text()
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => users.id, { onDelete: 'restrict' }),
     mode: text().notNull(),
     environment: text().notNull(),
     idempotencyHash: text().notNull(),
@@ -44,8 +44,25 @@ export const personalPlanCheckoutIntents = pgTable(
     applicationRef: text(),
     planRef: text(),
     customerRef: text(),
-    // Exact signed SDK wire document: opaque cryptographic authority, not mutable domain data.
-    taxQuoteAuthority: text(),
+    taxQuoteRef: text(),
+    taxQuoteCurrency: text(),
+    taxQuoteNetMinorUnits: bigint({ mode: 'number' }),
+    taxQuoteTaxMinorUnits: bigint({ mode: 'number' }),
+    taxQuoteSellerRef: text(),
+    taxQuoteInvoiceIssuerRef: text(),
+    taxQuoteTaxRemitterRef: text(),
+    taxQuoteTaxServiceRef: text(),
+    taxQuoteCountry: text(),
+    taxQuoteCoverageEvidenceRef: text(),
+    taxQuoteTaxRateEvidenceRef: text(),
+    taxQuoteCustomerLocationEvidenceRef: text(),
+    taxQuoteQuotedAt: timestamptz(),
+    taxQuoteExpiresAt: timestamptz(),
+    taxQuoteQuotedAtLexeme: text(),
+    taxQuoteExpiresAtLexeme: text(),
+    taxQuoteSignatureKeyRef: text(),
+    taxQuoteSignatureValue: text(),
+    returnUrl: text(),
     initialInvoiceId: text(),
     fulfilledSourceId: text().references(() => accessSubscriptionSources.id, {
       onDelete: 'restrict',
@@ -82,7 +99,19 @@ export const personalPlanCheckoutIntents = pgTable(
     ),
     check(
       'personal_checkout_authority_complete',
-      sql`(${t.taxQuoteAuthority} is null and ${t.applicationRef} is null and ${t.planRef} is null and ${t.customerRef} is null) or (${t.taxQuoteAuthority} is not null and ${t.applicationRef} is not null and ${t.planRef} is not null and ${t.customerRef} is not null)`,
+      sql`(${t.applicationRef} is null and ${t.planRef} is null and ${t.customerRef} is null and ${t.taxQuoteRef} is null and ${t.taxQuoteCurrency} is null and ${t.taxQuoteNetMinorUnits} is null and ${t.taxQuoteTaxMinorUnits} is null and ${t.taxQuoteSellerRef} is null and ${t.taxQuoteInvoiceIssuerRef} is null and ${t.taxQuoteTaxRemitterRef} is null and ${t.taxQuoteTaxServiceRef} is null and ${t.taxQuoteCountry} is null and ${t.taxQuoteCoverageEvidenceRef} is null and ${t.taxQuoteTaxRateEvidenceRef} is null and ${t.taxQuoteCustomerLocationEvidenceRef} is null and ${t.taxQuoteQuotedAt} is null and ${t.taxQuoteExpiresAt} is null and ${t.taxQuoteQuotedAtLexeme} is null and ${t.taxQuoteExpiresAtLexeme} is null and ${t.taxQuoteSignatureKeyRef} is null and ${t.taxQuoteSignatureValue} is null and ${t.returnUrl} is null) or (${t.applicationRef} is not null and ${t.planRef} is not null and ${t.customerRef} is not null and ${t.taxQuoteRef} is not null and ${t.taxQuoteCurrency} is not null and ${t.taxQuoteNetMinorUnits} is not null and ${t.taxQuoteTaxMinorUnits} is not null and ${t.taxQuoteSellerRef} is not null and ${t.taxQuoteInvoiceIssuerRef} is not null and ${t.taxQuoteTaxRemitterRef} is not null and ${t.taxQuoteTaxServiceRef} is not null and ${t.taxQuoteCountry} is not null and ${t.taxQuoteCoverageEvidenceRef} is not null and ${t.taxQuoteTaxRateEvidenceRef} is not null and ${t.taxQuoteCustomerLocationEvidenceRef} is not null and ${t.taxQuoteQuotedAt} is not null and ${t.taxQuoteExpiresAt} is not null and ${t.taxQuoteQuotedAtLexeme} is not null and ${t.taxQuoteExpiresAtLexeme} is not null and ${t.taxQuoteSignatureKeyRef} is not null and ${t.taxQuoteSignatureValue} is not null and ${t.returnUrl} is not null)`,
+    ),
+    check(
+      'personal_checkout_quote_amounts',
+      sql`${t.taxQuoteRef} is null or (${t.taxQuoteNetMinorUnits} >= 0 and ${t.taxQuoteTaxMinorUnits} >= 0 and ${t.taxQuoteNetMinorUnits} + ${t.taxQuoteTaxMinorUnits} = ${t.amountMinorUnits})`,
+    ),
+    check(
+      'personal_checkout_quote_timestamps',
+      sql`${t.taxQuoteRef} is null or (${t.taxQuoteExpiresAt} > ${t.taxQuoteQuotedAt} and ${t.taxQuoteQuotedAtLexeme}::timestamptz = ${t.taxQuoteQuotedAt} and ${t.taxQuoteExpiresAtLexeme}::timestamptz = ${t.taxQuoteExpiresAt})`,
+    ),
+    check(
+      'personal_checkout_quote_country',
+      sql`${t.taxQuoteCountry} is null or ${t.taxQuoteCountry} ~ '^[A-Z]{2}$'`,
     ),
     check(
       'personal_checkout_session_expiry',

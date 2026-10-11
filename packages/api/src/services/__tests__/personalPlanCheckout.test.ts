@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, generateKeyPairSync, sign } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { accessGrants, personalPlanCheckoutIntents } from '../../db/schema';
@@ -12,11 +12,12 @@ import {
   startPersonalPlanCheckout,
   resumePersonalPlanCheckout,
   type PersonalCheckoutSnapshot,
+  personalCheckoutSnapshotFromIntent,
   type PersonalCheckoutProvider,
 } from '../personalPlanCheckout.service';
 import { recordProductProviderPeriod } from '../productProviderEvidence.service';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
-import type { Peable } from '@peable.to/sdk';
+import { Peable } from '@peable.to/sdk';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
@@ -428,6 +429,7 @@ function authority(
 ): PersonalCheckoutSnapshot {
   return {
     applicationId: 'app_fixture',
+    returnUrl: 'https://example.invalid/return',
     merchantId: input.providerAccountRef,
     subjectAccountId: input.subjectAccountId,
     planId: 'plan_fixture',
@@ -488,8 +490,8 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
       .select()
       .from(personalPlanCheckoutIntents)
       .where(eq(personalPlanCheckoutIntents.id, input.intentId));
-    if (!stored.taxQuoteAuthority || !input.snapshot) throw new Error('Missing stored authority');
-    expect(JSON.parse(stored.taxQuoteAuthority)).toEqual(input.snapshot.taxQuote);
+    if (!stored.taxQuoteRef || !input.snapshot) throw new Error('Missing stored authority');
+    expect(personalCheckoutSnapshotFromIntent(stored)?.taxQuote).toEqual(input.snapshot.taxQuote);
     dispatched.push(input.snapshot.taxQuote.quote.id);
     throw new Error('response lost');
   });
@@ -577,6 +579,103 @@ it('rejects prepared authority for another subject without storing or dispatchin
     .select()
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
-  expect(intent.taxQuoteAuthority).toBeNull();
+  expect(intent.taxQuoteRef).toBeNull();
   expect(intent.state).toBe('reserved');
+});
+
+it('round-trips every typed signed quote field and exact valid ISO lexemes through PostgreSQL and official SDK verification', async () => {
+  const f = await fixture();
+  const keys = generateKeyPairSync('ed25519');
+  const publicKey = keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
+  let prepared: PersonalCheckoutSnapshot | undefined;
+  function canonical(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+    if (value !== null && typeof value === 'object') {
+      const object = value as Record<string, unknown>;
+      return `{${Object.keys(object)
+        .sort()
+        .map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`)
+        .join(',')}}`;
+    }
+    return JSON.stringify(value);
+  }
+  const provider: PersonalCheckoutProvider = {
+    kind: 'synthetic',
+    async prepare(input) {
+      const snapshot = authority(input, 'signed_quote_roundtrip');
+      snapshot.taxQuote.quote.currency = 'USD';
+      snapshot.taxQuote.quote.quotedAt = '2026-01-01T00:00:00Z';
+      snapshot.taxQuote.quote.expiresAt = '2099-01-01T00:00:00.000001Z';
+      snapshot.taxQuote.signature.keyId = 'fixture';
+      snapshot.taxQuote.signature.value = sign(
+        null,
+        Buffer.from(
+          canonical({
+            schemaVersion: snapshot.taxQuote.schemaVersion,
+            source: snapshot.taxQuote.source,
+            quote: snapshot.taxQuote.quote,
+          }),
+        ),
+        keys.privateKey,
+      ).toString('base64url');
+      prepared = snapshot;
+      return snapshot;
+    },
+    async create() {
+      throw new Error('synthetic lost response');
+    },
+  };
+  await expect(
+    startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
+  ).rejects.toThrow('lost response');
+  const [stored] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+  const reconstructed = personalCheckoutSnapshotFromIntent(stored);
+  expect(reconstructed).toEqual(prepared);
+  await expect(
+    getDb()
+      .update(personalPlanCheckoutIntents)
+      .set({ taxQuoteExpiresAtLexeme: '2099-01-01T00:00:01Z' })
+      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
+  ).rejects.toThrow();
+  await expect(
+    getDb()
+      .update(personalPlanCheckoutIntents)
+      .set({ taxQuoteNetMinorUnits: stored.amountMinorUnits + 1 })
+      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
+  ).rejects.toThrow();
+  await expect(
+    getDb()
+      .update(personalPlanCheckoutIntents)
+      .set({ taxQuoteCountry: 'USA' })
+      .where(eq(personalPlanCheckoutIntents.id, stored.id)),
+  ).rejects.toThrow();
+
+  expect(stored.taxQuoteQuotedAt).toBeInstanceOf(Date);
+  expect(stored.taxQuoteExpiresAt).toBeInstanceOf(Date);
+  const transport = jest.spyOn(globalThis, 'fetch').mockImplementation(
+    async () =>
+      new Response(JSON.stringify(reconstructed?.taxQuote), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+  );
+  try {
+    const sdk = new Peable({
+      baseURL: 'https://fixture.example.invalid',
+      tokenProvider: { getToken: async () => 'synthetic', invalidate: () => {} },
+      taxQuoteAuthorityKeys: { fixture: publicKey },
+    });
+    expect(
+      await sdk.billing.createTaxQuote({
+        storeId: f.payer,
+        planId: 'plan_fixture',
+        customerLocationEvidenceId: 'synthetic',
+      }),
+    ).toEqual(prepared?.taxQuote);
+  } finally {
+    transport.mockRestore();
+  }
 });

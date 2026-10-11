@@ -1,5 +1,5 @@
 {
-  "id": "a9a567ca-e32d-47e5-a569-c4df7335e6ef",
+  "id": "299547b4-ea58-499c-aeda-625954733e4c",
   "prevId": "f08e869d-949b-48ad-bad2-3439d67172fd",
   "version": "7",
   "dialect": "postgresql",
@@ -37254,8 +37254,116 @@
           "primaryKey": false,
           "notNull": false
         },
-        "tax_quote_authority": {
-          "name": "tax_quote_authority",
+        "tax_quote_ref": {
+          "name": "tax_quote_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_currency": {
+          "name": "tax_quote_currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_net_minor_units": {
+          "name": "tax_quote_net_minor_units",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_tax_minor_units": {
+          "name": "tax_quote_tax_minor_units",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_seller_ref": {
+          "name": "tax_quote_seller_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_invoice_issuer_ref": {
+          "name": "tax_quote_invoice_issuer_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_tax_remitter_ref": {
+          "name": "tax_quote_tax_remitter_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_tax_service_ref": {
+          "name": "tax_quote_tax_service_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_country": {
+          "name": "tax_quote_country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_coverage_evidence_ref": {
+          "name": "tax_quote_coverage_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_tax_rate_evidence_ref": {
+          "name": "tax_quote_tax_rate_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_customer_location_evidence_ref": {
+          "name": "tax_quote_customer_location_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_quoted_at": {
+          "name": "tax_quote_quoted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_expires_at": {
+          "name": "tax_quote_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_quoted_at_lexeme": {
+          "name": "tax_quote_quoted_at_lexeme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_expires_at_lexeme": {
+          "name": "tax_quote_expires_at_lexeme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_signature_key_ref": {
+          "name": "tax_quote_signature_key_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_quote_signature_value": {
+          "name": "tax_quote_signature_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "return_url": {
+          "name": "return_url",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -37403,6 +37511,26 @@
         "personal_checkout_price": {
           "name": "personal_checkout_price",
           "value": "\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one' and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
+        },
+        "personal_checkout_authority_complete": {
+          "name": "personal_checkout_authority_complete",
+          "value": "(\"personal_plan_checkout_intents\".\"application_ref\" is null and \"personal_plan_checkout_intents\".\"plan_ref\" is null and \"personal_plan_checkout_intents\".\"customer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\" is null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is null and \"personal_plan_checkout_intents\".\"return_url\" is null) or (\"personal_plan_checkout_intents\".\"application_ref\" is not null and \"personal_plan_checkout_intents\".\"plan_ref\" is not null and \"personal_plan_checkout_intents\".\"customer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_currency\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_seller_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_invoice_issuer_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_remitter_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_service_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_country\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_coverage_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_tax_rate_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_customer_location_evidence_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_key_ref\" is not null and \"personal_plan_checkout_intents\".\"tax_quote_signature_value\" is not null and \"personal_plan_checkout_intents\".\"return_url\" is not null)"
+        },
+        "personal_checkout_quote_amounts": {
+          "name": "personal_checkout_quote_amounts",
+          "value": "\"personal_plan_checkout_intents\".\"tax_quote_ref\" is null or (\"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" >= 0 and \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" >= 0 and \"personal_plan_checkout_intents\".\"tax_quote_net_minor_units\" + \"personal_plan_checkout_intents\".\"tax_quote_tax_minor_units\" = \"personal_plan_checkout_intents\".\"amount_minor_units\")"
+        },
+        "personal_checkout_quote_timestamps": {
+          "name": "personal_checkout_quote_timestamps",
+          "value": "\"personal_plan_checkout_intents\".\"tax_quote_ref\" is null or (\"personal_plan_checkout_intents\".\"tax_quote_expires_at\" > \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" and \"personal_plan_checkout_intents\".\"tax_quote_quoted_at_lexeme\"::timestamptz = \"personal_plan_checkout_intents\".\"tax_quote_quoted_at\" and \"personal_plan_checkout_intents\".\"tax_quote_expires_at_lexeme\"::timestamptz = \"personal_plan_checkout_intents\".\"tax_quote_expires_at\")"
+        },
+        "personal_checkout_quote_country": {
+          "name": "personal_checkout_quote_country",
+          "value": "\"personal_plan_checkout_intents\".\"tax_quote_country\" is null or \"personal_plan_checkout_intents\".\"tax_quote_country\" ~ '^[A-Z]{2}$'"
+        },
+        "personal_checkout_session_expiry": {
+          "name": "personal_checkout_session_expiry",
+          "value": "\"personal_plan_checkout_intents\".\"provider_session_expires_at\" is null or \"personal_plan_checkout_intents\".\"provider_session_id\" is not null"
         },
         "personal_checkout_fulfillment": {
           "name": "personal_checkout_fulfillment",

@@ -282,3 +282,27 @@ it('records the approved issuer and renewal choices without treating them as fis
     ]),
   );
 });
+
+it('replays the frozen return URL after provider restart with changed configuration', async () => {
+  const test = fixture();
+  const snapshot = await test.provider.prepare?.(input);
+  const client = {
+    merchants: { retrieve: test.retrieve },
+    billing: {
+      ensureCustomer: test.ensureCustomer,
+      createTaxQuote: test.createTaxQuote,
+      createCheckoutSession: test.createCheckoutSession,
+    },
+  } as unknown as Pick<Peable, 'merchants' | 'billing'>;
+  const restarted = createPeablePersonalCheckoutProvider(
+    client,
+    { ...configuration, returnUrl: 'https://new.example.invalid/return' },
+    () => now,
+  );
+  await restarted.create({ ...input, snapshot });
+  expect(test.createCheckoutSession).toHaveBeenCalledWith(
+    expect.objectContaining({ returnUrl: configuration.returnUrl }),
+    { idempotencyKey: input.idempotencyKey },
+  );
+  expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
+});

@@ -156,6 +156,7 @@ export function createPeablePersonalCheckoutProvider(
         mode: quote.source.mode,
         environment: quote.source.environment,
         taxQuote: structuredClone(quote),
+        returnUrl: configuration.returnUrl,
       };
       return snapshot;
     },
@@ -175,6 +176,11 @@ export function createPeablePersonalCheckoutProvider(
         snapshot.mode !== input.mode ||
         snapshot.environment !== input.environment ||
         !snapshot.customerId ||
+        !z
+          .string()
+          .url()
+          .refine((value) => new URL(value).protocol === 'https:')
+          .safeParse(snapshot.returnUrl).success ||
         input.idempotencyKey !== `personal-checkout:${input.intentId}`
       )
         throw new Error('Peable persisted checkout snapshot differs');
@@ -184,7 +190,7 @@ export function createPeablePersonalCheckoutProvider(
           providerCustomerId: snapshot.customerId,
           providerPriceId: snapshot.priceId,
           trialDays: 0,
-          returnUrl: configuration.returnUrl,
+          returnUrl: snapshot.returnUrl,
           storeId: snapshot.subjectAccountId,
           planId: snapshot.planId,
           taxQuote: structuredClone(snapshot.taxQuote),

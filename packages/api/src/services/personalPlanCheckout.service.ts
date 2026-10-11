@@ -1,7 +1,8 @@
+import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { uuidv7 } from '@oxy.so/db';
 import type { BillingTaxQuote } from '@peable.to/sdk';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
   personalPlanCheckoutRequestSchema,
   personalPlanCheckoutResultSchema,
@@ -9,7 +10,7 @@ import {
   type PersonalPlanCheckoutResult,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
-import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
+import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import {
   users,
   accountClosureFences,
@@ -38,6 +39,7 @@ export interface PersonalCheckoutSnapshot {
   mode: string;
   environment: string;
   taxQuote: BillingTaxQuote;
+  returnUrl: string;
 }
 export interface PersonalCheckoutInput {
   intentId: string;
@@ -266,8 +268,30 @@ export async function startPersonalPlanCheckout(
 export function personalCheckoutSnapshotFromIntent(
   intent: typeof personalPlanCheckoutIntents.$inferSelect,
 ): PersonalCheckoutSnapshot | undefined {
-  if (!intent.taxQuoteAuthority) return undefined;
-  if (!intent.applicationRef || !intent.customerRef || !intent.planRef)
+  if (!intent.taxQuoteRef) return undefined;
+  if (
+    !intent.applicationRef ||
+    !intent.customerRef ||
+    !intent.planRef ||
+    !intent.returnUrl ||
+    !intent.taxQuoteCurrency ||
+    intent.taxQuoteNetMinorUnits === null ||
+    intent.taxQuoteTaxMinorUnits === null ||
+    !intent.taxQuoteSellerRef ||
+    !intent.taxQuoteInvoiceIssuerRef ||
+    !intent.taxQuoteTaxRemitterRef ||
+    !intent.taxQuoteTaxServiceRef ||
+    !intent.taxQuoteCountry ||
+    !intent.taxQuoteCoverageEvidenceRef ||
+    !intent.taxQuoteTaxRateEvidenceRef ||
+    !intent.taxQuoteCustomerLocationEvidenceRef ||
+    !intent.taxQuoteQuotedAt ||
+    !intent.taxQuoteExpiresAt ||
+    !intent.taxQuoteQuotedAtLexeme ||
+    !intent.taxQuoteExpiresAtLexeme ||
+    !intent.taxQuoteSignatureKeyRef ||
+    !intent.taxQuoteSignatureValue
+  )
     throw new ConflictError('Stored checkout authority is incomplete');
   return {
     applicationId: intent.applicationRef,
@@ -280,7 +304,67 @@ export function personalCheckoutSnapshotFromIntent(
     priceId: intent.priceId,
     mode: intent.mode,
     environment: intent.environment,
-    taxQuote: JSON.parse(intent.taxQuoteAuthority) as BillingTaxQuote,
+    returnUrl: intent.returnUrl,
+    taxQuote: {
+      schemaVersion: 1,
+      source: {
+        merchantId: intent.providerAccountRef,
+        appId: intent.applicationRef,
+        storeId: intent.subjectAccountId,
+        planId: intent.planRef,
+        mode: billingNamespaceSchema.parse({ mode: intent.mode, environment: intent.environment })
+          .mode,
+        environment: z.enum(['development', 'staging', 'production']).parse(intent.environment),
+      },
+      quote: {
+        id: intent.taxQuoteRef,
+        currency: intent.taxQuoteCurrency,
+        grossMinorUnits: intent.amountMinorUnits,
+        netMinorUnits: intent.taxQuoteNetMinorUnits,
+        taxMinorUnits: intent.taxQuoteTaxMinorUnits,
+        taxTreatment: 'inclusive',
+        sellerId: intent.taxQuoteSellerRef,
+        invoiceIssuerId: intent.taxQuoteInvoiceIssuerRef,
+        taxRemitterId: intent.taxQuoteTaxRemitterRef,
+        taxServiceRef: intent.taxQuoteTaxServiceRef,
+        country: intent.taxQuoteCountry,
+        coverageEvidenceId: intent.taxQuoteCoverageEvidenceRef,
+        taxRateEvidenceId: intent.taxQuoteTaxRateEvidenceRef,
+        customerLocationEvidenceId: intent.taxQuoteCustomerLocationEvidenceRef,
+        quotedAt: intent.taxQuoteQuotedAtLexeme,
+        expiresAt: intent.taxQuoteExpiresAtLexeme,
+      },
+      signature: {
+        algorithm: 'Ed25519',
+        keyId: intent.taxQuoteSignatureKeyRef,
+        value: intent.taxQuoteSignatureValue,
+      },
+    },
+  };
+}
+/** Typed columns retain exact signed ISO lexemes alongside queryable timestamps. */
+export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapshot) {
+  const quote = snapshot.taxQuote.quote;
+  return {
+    returnUrl: snapshot.returnUrl,
+    taxQuoteRef: quote.id,
+    taxQuoteCurrency: quote.currency,
+    taxQuoteNetMinorUnits: quote.netMinorUnits,
+    taxQuoteTaxMinorUnits: quote.taxMinorUnits,
+    taxQuoteSellerRef: quote.sellerId,
+    taxQuoteInvoiceIssuerRef: quote.invoiceIssuerId,
+    taxQuoteTaxRemitterRef: quote.taxRemitterId,
+    taxQuoteTaxServiceRef: quote.taxServiceRef,
+    taxQuoteCountry: quote.country,
+    taxQuoteCoverageEvidenceRef: quote.coverageEvidenceId,
+    taxQuoteTaxRateEvidenceRef: quote.taxRateEvidenceId,
+    taxQuoteCustomerLocationEvidenceRef: quote.customerLocationEvidenceId,
+    taxQuoteQuotedAt: sql`${quote.quotedAt}::timestamptz`,
+    taxQuoteExpiresAt: sql`${quote.expiresAt}::timestamptz`,
+    taxQuoteQuotedAtLexeme: quote.quotedAt,
+    taxQuoteExpiresAtLexeme: quote.expiresAt,
+    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.keyId,
+    taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
   };
 }
 function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheckoutInput) {
@@ -290,6 +374,8 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     !snapshot.applicationId ||
     !snapshot.planId ||
     !snapshot.customerId ||
+    !snapshot.returnUrl ||
+    new URL(snapshot.returnUrl).protocol !== 'https:' ||
     snapshot.merchantId !== input.providerAccountRef ||
     snapshot.subjectAccountId !== input.subjectAccountId ||
     snapshot.offerId !== input.offerId ||
@@ -303,6 +389,8 @@ function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheck
     source.planId !== snapshot.planId ||
     source.mode !== snapshot.mode ||
     source.environment !== snapshot.environment ||
+    snapshot.taxQuote.schemaVersion !== 1 ||
+    snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
     quote?.grossMinorUnits !== input.amountMinorUnits ||
     quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
     quote.taxTreatment !== 'inclusive' ||
@@ -394,14 +482,14 @@ export async function resumePersonalPlanCheckout(
         .where(eq(personalPlanCheckoutIntents.id, intentId))
         .for('update');
       if (!current || current.state === 'closed') throw new ConflictError('Checkout closed');
-      if (!current.taxQuoteAuthority && current.state !== 'fulfilled')
+      if (!current.taxQuoteRef && current.state !== 'fulfilled')
         await tx
           .update(personalPlanCheckoutIntents)
           .set({
             applicationRef: prepared.applicationId,
             customerRef: prepared.customerId,
             planRef: prepared.planId,
-            taxQuoteAuthority: JSON.stringify(prepared.taxQuote),
+            ...personalCheckoutSnapshotColumns(prepared),
           })
           .where(eq(personalPlanCheckoutIntents.id, intentId));
     });
