@@ -74,9 +74,12 @@ Asset rendition generation has two runtime roles built from the same image:
   concurrency 1 and performs the sharp/ffmpeg work. The package shortcut is
   `bun run --filter @oxy.so/api start:asset-variant-worker`.
 
-The worker command requires `DATABASE_URL`, `REDIS_URL`, `AWS_ACCESS_KEY_ID`,
-`AWS_SECRET_ACCESS_KEY` and `AWS_S3_BUCKET`. It also reads `AWS_REGION`
-(`us-east-1` default) and optional `AWS_ENDPOINT_URL`. Production API startup
+The worker command requires `DATABASE_URL`, `QUEUE_REDIS_URL` and
+`AWS_S3_BUCKET`. It also reads `AWS_REGION` (`us-east-1` default) and optional
+`AWS_ENDPOINT_URL`. `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are optional for
+both roles: set together they are used as static keys (local dev); unset, the
+SDK's default provider chain resolves the ECS task role, which is how
+production runs. Production API startup
 fails when Redis is absent, and the worker fails when any required value is
 absent; neither condition may silently move transcoding back into an HTTP
 process. Development without Redis retains a single-file-at-a-time in-process

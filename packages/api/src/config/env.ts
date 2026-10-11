@@ -47,8 +47,10 @@ export interface RequiredEnvVars {
 
   // AWS/S3 Configuration
   AWS_REGION: string;
-  AWS_ACCESS_KEY_ID: string;
-  AWS_SECRET_ACCESS_KEY: string;
+  // Optional static credentials (local dev). Unset, the AWS SDK's default
+  // provider chain resolves the ECS task role, which is how production runs.
+  AWS_ACCESS_KEY_ID?: string;
+  AWS_SECRET_ACCESS_KEY?: string;
   AWS_S3_BUCKET: string;
   AWS_ENDPOINT_URL?: string; // Optional for S3-compatible services
 
@@ -263,8 +265,6 @@ export function validateRequiredEnvVars(): void {
     'ACCESS_TOKEN_SECRET',
     'REFRESH_TOKEN_SECRET',
     'AWS_REGION',
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
     'AWS_S3_BUCKET',
   ];
 
