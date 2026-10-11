@@ -213,8 +213,8 @@ export { OXY_ALIA_RESOURCE_APPLICATION_ID as ALIA_RESOURCE_SERVER_APPLICATION_ID
 export const REQUESTER_ASSERTION_AUDIENCE = 'alia';
 
 /**
- * A workload an entry point also answers to — the ADR 0026 form of the same
- * identity.
+ * The workload an entry point answers to — the ADR 0026 form of a product
+ * backend's identity, and since 2026-10-11 its ONLY form.
  *
  * The ROLE is declared, never the handle. A role ARN is reviewable (anyone can
  * read the task definition that names it) and the handle is computed from it
@@ -236,75 +236,71 @@ export interface NativeProductAgentWorkload {
 export interface NativeProductAgentEntryPoint {
   readonly product: 'homiio';
   readonly applicationId: string;
-  readonly credentialId: string;
   readonly agentId: string;
   /**
-   * The attested workload that is the SAME product backend, or `null` for an
-   * entry point that may only ever call with a credential.
+   * The attested workload that IS the product backend, and the only service
+   * identity that may call as this entry point.
    *
-   * Declaring one admits a second way to prove one identity, not a second
-   * identity: the binding row still has to name this application, still has to
-   * be live, and still has to name `inference:invoke` — see
-   * `services/nativeRequesterAssertion.service.ts`. Adding one is as much a
-   * reviewed authority change as adding a product, and for the same reason:
-   * provisioning a workload must not silently hand it a product's entry.
+   * There is deliberately no credential beside it. The entry used to pin the
+   * product's service credential as a second proof of the same identity; ADR
+   * 0026's migration ends by dropping it, and the credential it named is
+   * retired (revoked by the native product-agent bootstrap). Admitting a
+   * credential id here again would re-open the one lane through which a key
+   * pair could enter a product's agent.
+   *
+   * The binding row still has to name this application, still has to be live,
+   * and still has to name `inference:invoke` — see
+   * `services/nativeRequesterAssertion.service.ts`. Changing the workload is as
+   * much a reviewed authority change as adding a product, and for the same
+   * reason: provisioning a workload must not silently hand it a product's entry.
    */
-  readonly workload: NativeProductAgentWorkload | null;
+  readonly workload: NativeProductAgentWorkload;
 }
 
 /**
  * The exact entry points that may trade a present requester's live session for a
  * present-requester assertion (ADR 0025).
  *
- * Each names one application, one agent, and the service identities that may
- * call as it: a pinned credential id, and — since ADR 0026 — optionally the IAM
- * role whose attestation proves the same backend.
+ * Each names one application, one agent, and the IAM role whose attestation
+ * proves the product backend.
  *
  * Deliberately NOT derived from "every product in the manifest": being a
  * native product agent does not by itself mean the product's backend should be
  * able to enter Alia for a signed-in person. Adding a product here is a reviewed
- * authority change, not a side effect of provisioning its agent — and neither is
- * adding a `workload`, which is why the role ARN is written out here rather than
- * read from `application_workload_identities`. A binding row is created by the
- * platform when a service is deployed; if this list took its word for it, every
- * bind would be a grant of Homiio's entry point to whatever was just deployed.
+ * authority change, not a side effect of provisioning its agent — and so is its
+ * `workload`, which is why the role ARN is written out in reviewed source rather
+ * than read from `application_workload_identities`. A binding row is created by
+ * the platform when a service is deployed; if this list took its word for it,
+ * every bind would be a grant of Homiio's entry point to whatever was just
+ * deployed.
  */
 export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntryPoint[] = [
   {
     product: 'homiio',
     applicationId: NATIVE_PRODUCT_AGENTS.products.homiio.applicationId,
-    credentialId: NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential.id,
     agentId: NATIVE_PRODUCT_AGENTS.products.homiio.aliaAgent.id,
     /**
      * Homiio's ECS task role. It is bound to this same application
      * (`bind-workload-identity.ts --app-id 6a2f851751b784a86fd0e922 --role-arn
      * …/oxy-homiio-task`) and its binding names `inference:invoke` and
      * `acting-as:offline`, which is what an attested Sindi token was measured
-     * carrying. Without this line an attested Homiio backend matches nothing,
-     * and every Sindi chat turn tells a signed-in person to sign in.
+     * carrying.
      */
     workload: NATIVE_PRODUCT_AGENTS.products.homiio.workload,
   },
 ];
 
 /**
- * WHICH of an entry point's two proofs a caller presented.
- *
- * The distinction is not cosmetic: the two are checked against different rows.
- * A credential-minted caller is re-read as an `ApplicationCredential`; an
- * attested caller has no credential row at all and is re-read as its binding.
- * Losing the distinction here would mean checking one caller's liveness against
- * the other's row.
+ * The attested caller an entry point matched: its declared role, and the
+ * handle its token presented. Re-read live as its BINDING — there is no
+ * credential row behind it.
  */
-export type NativeProductAgentPrincipal =
-  | { readonly kind: 'credential'; readonly credentialId: string }
-  | {
-      readonly kind: 'workload';
-      readonly provider: AttestationProvider;
-      readonly subject: string;
-      /** `wl_…`, derived from `subject`; equal to the `credentialId` presented. */
-      readonly handle: string;
-    };
+export interface NativeProductAgentPrincipal {
+  readonly provider: AttestationProvider;
+  readonly subject: string;
+  /** `wl_…`, derived from `subject`; equal to the `credentialId` presented. */
+  readonly handle: string;
+}
 
 export interface NativeProductAgentEntryPointMatch {
   readonly entry: NativeProductAgentEntryPoint;
@@ -312,16 +308,15 @@ export interface NativeProductAgentEntryPointMatch {
 }
 
 /**
- * The entry point this caller is, with the proof it presented, or `null`.
+ * The entry point this caller is, or `null`.
  *
- * `applicationId` and `agentId` match exactly, as they always have.
- * `credentialId` is the value off the VERIFIED service token — an
- * `ApplicationCredential` id on the credential path and an attestation handle
- * on the workload path (`services/serviceTokenMint.service.ts`) — and it must
- * equal, byte for byte, either the pinned credential or the handle DERIVED from
- * the declared role. Nothing is inferred from the `wl_` prefix: a `wl_`-shaped
- * value that is not this role's handle matches nothing, and neither does
- * another service's real, valid handle.
+ * `applicationId` and `agentId` match exactly. `credentialId` is the value off
+ * the VERIFIED service token — an attestation handle on the workload path
+ * (`services/serviceTokenMint.service.ts`) — and it must equal, byte for byte,
+ * the handle DERIVED from the declared role. Nothing is inferred from the `wl_`
+ * prefix: a `wl_`-shaped value that is not this role's handle matches nothing,
+ * and neither does another service's real, valid handle — nor any credential
+ * id, the retired Sindi credential's included.
  */
 export function nativeProductAgentEntryPoint(
   applicationId: string,
@@ -330,15 +325,11 @@ export function nativeProductAgentEntryPoint(
 ): NativeProductAgentEntryPointMatch | null {
   for (const entry of NATIVE_PRODUCT_AGENT_ENTRY_POINTS) {
     if (entry.applicationId !== applicationId || entry.agentId !== agentId) continue;
-    if (credentialId === entry.credentialId) {
-      return { entry, principal: { kind: 'credential', credentialId: entry.credentialId } };
-    }
-    const workload = entry.workload;
-    if (workload !== null && credentialId === workloadAttestationHandle(workload.subject)) {
+    const { workload } = entry;
+    if (credentialId === workloadAttestationHandle(workload.subject)) {
       return {
         entry,
         principal: {
-          kind: 'workload',
           provider: workload.provider,
           subject: workload.subject,
           handle: credentialId,
