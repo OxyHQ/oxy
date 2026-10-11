@@ -12,7 +12,6 @@
     "lint": "biome lint ."
   },
   "dependencies": {
-    "@oxy.so/telemetry": "workspace:*",
     "@expo/vector-icons": "^15.0.3",
     "@oxy.so/bloom": "catalog:",
     "@oxy.so/contracts": "workspace:*",
