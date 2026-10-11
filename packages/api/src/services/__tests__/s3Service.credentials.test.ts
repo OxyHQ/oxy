@@ -52,7 +52,7 @@ describe('S3Service — credential source', () => {
     process.env.AWS_S3_BUCKET = 'media-test';
     try {
       jest.isolateModules(() => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        // biome-ignore lint/style/noCommonJs: required inside jest.isolateModules to get a fresh module registry
         require('../s3ServiceSingleton');
       });
     } finally {

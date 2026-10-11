@@ -85,11 +85,7 @@ const SUPPLIED_AS_PLAIN_ENV = new Map([
  * and rotates them once, centrally (oxy-infra
  * docs/runbooks/45-shared-ssm-parameters.md).
  */
-const INFRA_OWNED_SHARED_SECRETS = [
-  'REDIS_URL',
-  'LIVEKIT_API_KEY',
-  'LIVEKIT_API_SECRET',
-];
+const INFRA_OWNED_SHARED_SECRETS = ['REDIS_URL', 'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'];
 
 /**
  * Boot-required secrets and their SSM home. The task definition binds each one

@@ -19,11 +19,9 @@ const WORKER_MAX_POOL_SIZE = 5;
 const CONNECT_TIMEOUT_MS = 30_000;
 
 // AWS keys are optional: without them the S3 client resolves the task role.
-const missingEnvironment = [
-  'DATABASE_URL',
-  'QUEUE_REDIS_URL',
-  'AWS_S3_BUCKET',
-].filter((name) => !process.env[name]);
+const missingEnvironment = ['DATABASE_URL', 'QUEUE_REDIS_URL', 'AWS_S3_BUCKET'].filter(
+  (name) => !process.env[name],
+);
 
 if (missingEnvironment.length > 0) {
   logger.error('Asset-variant worker environment is incomplete', {
