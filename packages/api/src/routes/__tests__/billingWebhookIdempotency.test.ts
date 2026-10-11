@@ -1,5 +1,6 @@
 let mockPeableManagement: unknown;
 jest.mock('../../services/peablePersonalManagement.service', () => ({
+  ...jest.requireActual('../../services/peablePersonalManagement.service'),
   loadPeablePersonalManagement: jest.fn(async () => mockPeableManagement),
   cancelStoredPeablePersonalSource: jest.fn(),
 }));
@@ -2365,3 +2366,31 @@ it.each(['past_due', 'unpaid'] as const)(
       }
     }),
 );
+
+it('personal checkout HTTP requires the current actor and stays unconfigured without runtime provider', async () => {
+  const actor = await subscriber();
+  const other = await subscriber();
+  await withApp(async (base) => {
+    const body = {
+      expectedSubjectAccountId: actor.userId,
+      offerId: 'synthetic-personal',
+      offerVersion: 1,
+      idempotencyKey: 'synthetic-http-key',
+    };
+    const post = (payload: unknown, userId?: string) =>
+      fetch(`${base}/billing/checkout/personal-plan`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(userId ? { 'x-test-user': userId } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+    expect((await post(body)).status).toBe(401);
+    expect((await post(body, other.userId)).status).toBe(403);
+    expect((await post({ ...body, taxQuote: {} }, actor.userId)).status).toBe(400);
+    const response = await post(body, actor.userId);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ state: 'unconfigured', reason: 'offer_unconfigured' });
+  });
+});

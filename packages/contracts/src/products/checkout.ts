@@ -24,7 +24,7 @@ export const personalPlanCheckoutResultSchema = z.discriminatedUnion('state', [
     .object({
       state: z.literal('pending'),
       intentId: z.string().min(1).max(160),
-      checkoutUrl: z.string().url().startsWith('https://'),
+      checkoutUrl: z.string().url().startsWith('https://').optional(),
     })
     .strict(),
   z.object({ state: z.literal('closed'), intentId: z.string().min(1).max(160) }).strict(),

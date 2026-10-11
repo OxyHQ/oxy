@@ -1,6 +1,10 @@
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import { getDb } from '../config/postgres';
-import { accessSubscriptionSources, accessProviderPeriods } from '../db/schema';
+import {
+  accessSubscriptionSources,
+  accessProviderPeriods,
+  personalPlanCheckoutIntents,
+} from '../db/schema';
 import { and, eq } from 'drizzle-orm';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
 import { z } from 'zod';
@@ -13,7 +17,7 @@ import {
 } from './productProviderEvidence.service';
 import {
   validatePersonalInvoiceForAction,
-  personalFinalInvoiceSchema,
+  type personalFinalInvoiceSchema,
 } from './peablePersonalBilling.service';
 export const peablePaidEvidenceSchema = z
   .object({
@@ -90,6 +94,8 @@ export function createPeablePersonalEvidenceAuthority(client: Peable): PeableEvi
   };
 }
 export interface PeablePersonalPaidContext {
+  /** Present only for the immutable initial paid invoice of an owned checkout. */
+  checkoutIntentId?: string;
   accountId: string;
   customerId: string;
   subscriptionId: string;
@@ -200,8 +206,32 @@ export async function reconcilePeablePersonalPaidInvoice(
     BigInt(value.taxAmount) !== BigInt(invoice.taxMinorUnits)
   )
     throw new Error('Peable authoritative invoice totals differ');
+  // Replays retain the original immutable initial-checkout attribution. This
+  // lookup is local and exact; later subscription invoices never inherit it.
+  const initialIntents = await getDb()
+    .select({ id: personalPlanCheckoutIntents.id })
+    .from(personalPlanCheckoutIntents)
+    .where(
+      and(
+        eq(personalPlanCheckoutIntents.subjectAccountId, context.accountId),
+        eq(personalPlanCheckoutIntents.providerAccountRef, context.merchantId),
+        eq(personalPlanCheckoutIntents.mode, context.mode),
+        eq(personalPlanCheckoutIntents.environment, context.environment),
+        eq(personalPlanCheckoutIntents.initialInvoiceId, invoiceId),
+        eq(personalPlanCheckoutIntents.state, 'fulfilled'),
+      ),
+    );
+  if (
+    initialIntents.length > 1 ||
+    (context.checkoutIntentId &&
+      initialIntents.length &&
+      initialIntents[0].id !== context.checkoutIntentId)
+  )
+    throw new Error('Peable initial checkout attribution differs');
+  const checkoutIntentId = context.checkoutIntentId ?? initialIntents[0]?.id;
   const accountId = oxyAccountIdSchema.parse(context.accountId);
   const input: ProductProviderPeriodInput = {
+    ...(checkoutIntentId ? { checkoutIntentId } : {}),
     binding: {
       providerAccountRef: context.merchantId,
       mode: context.mode,
@@ -269,7 +299,7 @@ export async function reconcilePeablePersonalPaidInvoice(
 }
 export type PersonalInvoiceAuthority = z.infer<typeof personalFinalInvoiceSchema>;
 
-/** Unmounted wake-up handler: never grant from webhook amounts/status. The
+/** Wake-up reconciliation: never grant from webhook amounts/status. The
  * authenticated SDK re-read determines current state even for delayed paid events.
  * Partial refund policy is unselected: report review_required, no proportional grant.
  * Existing paid-period evidence is required before exact-line revocation. */
@@ -384,7 +414,7 @@ export function createPeableObservationVerifier(client: Pick<Peable, 'webhooks'>
   return (rawBody: string, signature: string): unknown =>
     client.webhooks.constructEvent(rawBody, signature, secret);
 }
-/** No route or timer mounted. Context comes from the server's existing owner-bound
+/** Context comes from the server's existing owner-bound
  * checkout/source, never from delivery fields. Replays reread current provider state. */
 export async function handlePeablePersonalObservation(
   authority: PeableEvidenceAuthority,
