@@ -11,7 +11,12 @@ import {
  * exist only so collisions can be detected and explained.
  */
 export const NATIVE_PRODUCT_AGENTS = {
-  manifestVersion: 2,
+  /**
+   * 3: the two product backends are identified by their attested ECS task
+   * roles (ADR 0026), and the two service credentials that used to identify
+   * them are RETIRED — the bootstrap revokes them and never mints a secret.
+   */
+  manifestVersion: 3,
   oxyOrganizationId: '69b2d3df5d12f58c9800d651',
   products: {
     homiio: {
@@ -27,6 +32,26 @@ export const NATIVE_PRODUCT_AGENTS = {
         displayName: 'Sindi',
       },
       applicationId: '6a2f851751b784a86fd0e922',
+      /**
+       * What the Homiio backend IS: its ECS task role, attested (ADR 0026) and
+       * bound to `applicationId` in `application_workload_identities`. This is
+       * the only proof Sindi's backend presents; there is no key pair.
+       */
+      workload: {
+        provider: 'aws-iam',
+        subject: 'arn:aws:iam::237343248947:role/oxy-homiio-task',
+      },
+      /**
+       * RETIRED. The key pair Sindi's backend used to present before it
+       * attested its task role. The row stays — it is the attribution of every
+       * spend it ever authorised, and its id is reserved — but the bootstrap
+       * only ever REVOKES it, and only once `workload` is bound live with every
+       * scope below. Nothing creates it, holds its secret or reads one.
+       *
+       * `scopes` is therefore what the replacing binding must still reach
+       * before the credential may go, and what the Homiio application must
+       * keep granting so the binding can reach it.
+       */
       sindiServiceCredential: {
         id: '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
         clientId: 'oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240',
@@ -84,6 +109,16 @@ export const NATIVE_PRODUCT_AGENTS = {
         type: 'internal',
         scopes: ['user:read', 'inference:invoke'],
       },
+      /** Clarity's backend ECS task role, bound to `backendApplication` (ADR 0026). */
+      workload: {
+        provider: 'aws-iam',
+        subject: 'arn:aws:iam::237343248947:role/oxy-clarity-task',
+      },
+      /**
+       * RETIRED, exactly as Homiio's `sindiServiceCredential` is: revoked by the
+       * bootstrap once `workload` is bound live with these scopes, and never
+       * created, re-secreted or read.
+       */
       backendServiceCredential: {
         id: '01a0648b-8d74-7240-adba-80707fdfdf9c',
         clientId: 'oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78',
@@ -248,7 +283,7 @@ export const NATIVE_PRODUCT_AGENT_ENTRY_POINTS: readonly NativeProductAgentEntry
      * carrying. Without this line an attested Homiio backend matches nothing,
      * and every Sindi chat turn tells a signed-in person to sign in.
      */
-    workload: { provider: 'aws-iam', subject: 'arn:aws:iam::237343248947:role/oxy-homiio-task' },
+    workload: NATIVE_PRODUCT_AGENTS.products.homiio.workload,
   },
 ];
 

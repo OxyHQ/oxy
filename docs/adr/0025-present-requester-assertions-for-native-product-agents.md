@@ -4,6 +4,8 @@
 - Date: 2026-09-17
 - Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
   "One entry point, two proofs")
+- Amended: 2026-10-11 — the native agents' service credentials are RETIRED; the
+  bootstrap revokes them and holds no key pair (see "No key pair left")
 - Scope: first-party product apps entering Alia through a native product agent (Homiio → Sindi first)
 
 ## Context
@@ -116,6 +118,31 @@ two proofs, not two identities.
   owner still live. Deleting the row, expiring it, or dropping the scope ends the
   lane at the next mint or introspection, which is the immediacy revoking a
   credential has.
+
+### No key pair left
+
+*(Amendment, 2026-10-11.)*
+
+Both product backends now attest (Homiio's API on `oxy-homiio-task`, Clarity's
+two ECS services on `oxy-clarity-task`), and no running task carries either
+credential. What still held the pairs alive was the bootstrap: it created the
+Sindi and Clarity backend service credentials from secrets it generated into
+SSM, and every later `apply` re-read those secrets to prove the stored hashes.
+
+So the bootstrap no longer mints or proves a service credential. The manifest
+declares each backend's WORKLOAD (`products.<product>.workload`, a provider and
+canonical role ARN, reviewable exactly as the entry point's is), and the two
+credentials are retired: a live one is revoked, an absent one is never created,
+and the bootstrap never reads a secret hash. Revocation waits on the
+replacement — the role must be bound to the same application and its binding
+must reach every scope the credential carried, read through the same
+`resolveLiveAgencyWorkload` ceiling this lane re-reads on every mint — which is
+ADR 0026's order (bind with scopes, verify, then remove the pair) enforced by
+the tool rather than remembered by an operator. The workflow reads, creates and
+injects no secret, and the four SSM SecureStrings are deleted by their owner.
+
+The credential rows stay, `revoked`: they are the attribution of every spend
+they authorised, and their ids remain reserved.
 
 ### How Alia accepts it
 

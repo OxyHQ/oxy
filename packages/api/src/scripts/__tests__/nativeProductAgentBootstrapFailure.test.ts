@@ -77,6 +77,25 @@ describe('native product-agent bootstrap failure projection', () => {
     expect(JSON.stringify(result)).not.toContain(unsafeMarker);
   });
 
+  /**
+   * A retired credential is only revoked once the workload replacing it is
+   * live with every scope it carried. When that is not yet true the run stops
+   * on a registered target, so an operator is told WHICH binding to fix
+   * without the envelope carrying the role, the scopes or anything else.
+   */
+  it.each([
+    ['homiio_workload_binding', 'subject'],
+    ['homiio_workload_binding', 'scopes'],
+    ['clarity_workload_binding', 'subject'],
+    ['clarity_workload_binding', 'scopes'],
+  ] as const)('projects the %s/%s refusal that guards credential retirement', (target, field) => {
+    expect(
+      nativeProductAgentBootstrapFailureResult(
+        new NativeProductAgentStateDriftError(target, field),
+      ),
+    ).toEqual({ status: 'failed', code: 'live_state_drift', target, field });
+  });
+
   it('returns only the fixed Homiio adoption authority projection', () => {
     const homiioProjectId = '6a50444ce8026582b949089d';
     const account = { ...holder, id: homiioProjectId };
@@ -157,7 +176,9 @@ describe('native product-agent bootstrap failure projection', () => {
       'manifest_binding_mismatch',
     ],
     [new Error('EXPECTED_PLAN_SHA256 mismatch'), 'plan_rejected'],
-    [new Error('Sindi service credential secret hash is malformed'), 'service_credential_invalid'],
+    // The bootstrap reads no secret any more, so nothing it says about one is a
+    // registered failure class of its own.
+    [new Error('Sindi service credential secret hash is malformed'), 'bootstrap_failed'],
     [new Error('Client-id collision'), 'identity_collision'],
     [new Error('Existing Homiio application was not found'), 'required_record_missing'],
     [new Error('Account kind drifted'), 'live_state_drift'],

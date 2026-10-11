@@ -4,6 +4,12 @@
  * agents. Dry-run is the default and executes the same PostgreSQL writes before
  * rolling the single transaction back.
  *
+ * No secret enters this process. Both product backends prove what they are by
+ * attesting their ECS task roles (ADR 0026), so the two service credentials
+ * that used to identify them are RETIRED: never created, never re-secreted, and
+ * revoked here only once the replacing workload binding is live with every
+ * scope the credential carried.
+ *
  * Apply an observed plan only after review:
  *   APPLY=1 BOOTSTRAP_ACTOR=... BOOTSTRAP_REASON=... \
  *   EXPECTED_PLAN_SHA256=... bun run bootstrap:native-product-agents
@@ -12,9 +18,7 @@
  *   ROLLBACK=1 [the same APPLY approval variables] bun run ...
  */
 
-import { asc, eq, sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { and, asc, eq, sql } from "drizzle-orm";
 import {
   NATIVE_PRODUCT_AGENTS,
   aliaNativeAgentBootstrapManifest,
@@ -36,10 +40,13 @@ import {
 import {
   nativeProductBootstrapPlanSha256,
   nativeProductAgentRollbackOperations,
-  requireExistingServiceCredentialSecretHash,
   requireNativeProductBootstrapApproval,
+  retiredServiceCredentialDecision,
+  type NativeProductAgentWorkloadReadiness,
   type NativeProductBootstrapPlan,
 } from "../src/scripts/nativeProductAgentsBootstrapPlan";
+import { resolveLiveAgencyWorkload } from "../src/services/agencyServicePrincipal.service";
+import type { AttestationProvider } from "../src/services/workloadAttestation.service";
 import {
   classifyNativeProductAgentDisplayName,
 } from "../src/scripts/nativeProductAgentAccountPlan";
@@ -91,22 +98,48 @@ interface CostCenterObservation {
   exists: boolean;
 }
 
+/**
+ * A service credential this bootstrap used to mint, and now only retires.
+ *
+ * The product backend it identified attests its ECS task role instead (ADR
+ * 0026), so the credential's one remaining state change is `revoked`, and that
+ * only once `workload` is bound live to the same application with every scope
+ * in `scopes`.
+ */
+interface RetiredServiceCredentialSpec {
+  target: "sindi_service_credential" | "clarity_backend_credential";
+  bindingTarget: "homiio_workload_binding" | "clarity_workload_binding";
+  label: string;
+  id: string;
+  clientId: string;
+  applicationId: string;
+  name: string;
+  scopes: readonly string[];
+  workload: { provider: AttestationProvider; subject: string };
+}
+
+interface RetiredServiceCredentialObservation {
+  spec: RetiredServiceCredentialSpec;
+  /** Non-secret projection of the row, or null when it does not exist. */
+  before: Record<string, unknown> | null;
+  workload: { provider: AttestationProvider; subject: string } & NativeProductAgentWorkloadReadiness;
+  disposition: "absent" | "already_revoked" | "revoke";
+}
+
 interface BootstrapObservations {
   accounts: AccountObservation[];
   costCenters: CostCenterObservation[];
   homiioOwnerAccountId: string;
   homiioApplicationScopes: string[];
-  homiioSindiCredentialExists: boolean;
-  homiioSindiCredentialBefore: unknown;
+  homiioSindiCredential: RetiredServiceCredentialObservation;
   homiioApplicationBefore: unknown;
   clarityApplicationExists: boolean;
   clarityCredentialExists: boolean;
   clarityBackendApplicationExists: boolean;
-  clarityBackendCredentialExists: boolean;
+  clarityBackendCredential: RetiredServiceCredentialObservation;
   clarityApplicationBefore: unknown;
   clarityCredentialBefore: unknown;
   clarityBackendApplicationBefore: unknown;
-  clarityBackendCredentialBefore: unknown;
 }
 
 interface BootstrapReport {
@@ -115,15 +148,6 @@ interface BootstrapReport {
   planSha256: string;
   plan: NativeProductBootstrapPlan;
   aliaManifest: ReturnType<typeof aliaNativeAgentBootstrapManifest>;
-  serviceCredentialState?: {
-    homiioSindiExists: boolean;
-    clarityBackendExists: boolean;
-  };
-}
-
-interface ServiceSecretHashes {
-  homiioSindi: string;
-  clarityBackend: string;
 }
 
 function assertWorkflowIdentityBindings(): void {
@@ -481,9 +505,90 @@ async function insertCostCenter(
     .values({ ...observation.spec, status: "active" });
 }
 
+/**
+ * Observe a retired service credential and decide its fate, without ever
+ * reading its secret hash.
+ *
+ * The row, when present, must still be the exact credential this manifest
+ * reserved — anything else is drift, exactly as before. Its STATUS is no longer
+ * asserted: `revoked` is the goal, and any other status is what this run
+ * changes. The replacing binding is read through `resolveLiveAgencyWorkload`,
+ * the same live ceiling an attested Sindi caller is re-read against on every
+ * requester-assertion mint, so "live" here means what it means at runtime.
+ */
+async function observeRetiredServiceCredential(
+  tx: Transaction,
+  spec: RetiredServiceCredentialSpec,
+): Promise<RetiredServiceCredentialObservation> {
+  const [row] = await tx
+    .select({
+      id: applicationCredentials.id,
+      applicationId: applicationCredentials.applicationId,
+      name: applicationCredentials.name,
+      publicKey: applicationCredentials.publicKey,
+      type: applicationCredentials.type,
+      environment: applicationCredentials.environment,
+      scopes: applicationCredentials.scopes,
+      status: applicationCredentials.status,
+      createdByUserId: applicationCredentials.createdByUserId,
+    })
+    .from(applicationCredentials)
+    .where(eq(applicationCredentials.id, spec.id))
+    .for("update");
+  const [clientIdHolder] = await tx
+    .select({ id: applicationCredentials.id })
+    .from(applicationCredentials)
+    .where(eq(applicationCredentials.publicKey, spec.clientId))
+    .limit(1)
+    .for("update");
+  if (clientIdHolder && clientIdHolder.id !== spec.id) {
+    throw new Error(
+      `${spec.label} client-id collision: held by credential ${clientIdHolder.id}`,
+    );
+  }
+  if (row) {
+    assertExact(spec.target, `${spec.label} ${spec.id}`, row, {
+      id: spec.id,
+      applicationId: spec.applicationId,
+      name: spec.name,
+      publicKey: spec.clientId,
+      type: "service",
+      environment: "production",
+      scopes: [...spec.scopes],
+      createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
+    });
+  }
+
+  const live = await resolveLiveAgencyWorkload(
+    spec.applicationId,
+    spec.workload.provider,
+    spec.workload.subject,
+    new Date(),
+    tx,
+  );
+  const readiness: NativeProductAgentWorkloadReadiness =
+    live === null ? { live: false } : { live: true, scopes: [...live.scopes] };
+  const decision = retiredServiceCredentialDecision({
+    credentialStatus: row?.status ?? null,
+    workload: readiness,
+    requiredScopes: spec.scopes,
+  });
+  if ("refusal" in decision) {
+    throw new NativeProductAgentStateDriftError(
+      spec.bindingTarget,
+      decision.refusal === "workload_not_live" ? "subject" : "scopes",
+    );
+  }
+  return {
+    spec,
+    before: row ?? null,
+    workload: { ...spec.workload, ...readiness },
+    disposition: decision.disposition,
+  };
+}
+
 async function observeBootstrap(
   tx: Transaction,
-  serviceSecretHashes: ServiceSecretHashes,
 ): Promise<BootstrapObservations> {
   await requireOxyOrganization(tx);
   const root = NATIVE_PRODUCT_AGENTS.oxyOrganizationId;
@@ -583,73 +688,17 @@ async function observeBootstrap(
       isInternal: false,
     },
   );
-  const [homiioSindiCredential] = await tx
-    .select({
-      id: applicationCredentials.id,
-      applicationId: applicationCredentials.applicationId,
-      name: applicationCredentials.name,
-      publicKey: applicationCredentials.publicKey,
-      secretHash: applicationCredentials.secretHash,
-      type: applicationCredentials.type,
-      environment: applicationCredentials.environment,
-      scopes: applicationCredentials.scopes,
-      status: applicationCredentials.status,
-      createdByUserId: applicationCredentials.createdByUserId,
-    })
-    .from(applicationCredentials)
-    .where(eq(applicationCredentials.id, homiio.sindiServiceCredential.id))
-    .for("update");
-  const [homiioClientIdHolder] = await tx
-    .select({ id: applicationCredentials.id })
-    .from(applicationCredentials)
-    .where(
-      eq(
-        applicationCredentials.publicKey,
-        homiio.sindiServiceCredential.clientId,
-      ),
-    )
-    .limit(1)
-    .for("update");
-  if (
-    homiioClientIdHolder &&
-    homiioClientIdHolder.id !== homiio.sindiServiceCredential.id
-  ) {
-    throw new Error(
-      `Sindi client-id collision: held by credential ${homiioClientIdHolder.id}`,
-    );
-  }
-  if (homiioSindiCredential) {
-    assertExact(
-      "sindi_service_credential",
-      `Sindi credential ${homiio.sindiServiceCredential.id}`,
-      {
-        ...homiioSindiCredential,
-        secretHashPresent: homiioSindiCredential.secretHash !== null,
-      },
-      {
-        id: homiio.sindiServiceCredential.id,
-        applicationId: homiio.applicationId,
-        name: "Sindi production service",
-        publicKey: homiio.sindiServiceCredential.clientId,
-        secretHashPresent: true,
-        type: "service",
-        environment: "production",
-        scopes: [...homiio.sindiServiceCredential.scopes],
-        status: "active",
-        createdByUserId: root,
-      },
-    );
-    if (!/^[a-f0-9]{64}$/.test(homiioSindiCredential.secretHash ?? "")) {
-      throw new Error("Sindi service credential secret hash is malformed");
-    }
-    if (APPLY) {
-      requireExistingServiceCredentialSecretHash({
-        label: `Sindi credential ${homiio.sindiServiceCredential.id}`,
-        existingSecretHash: homiioSindiCredential.secretHash,
-        suppliedSecretHash: serviceSecretHashes.homiioSindi,
-      });
-    }
-  }
+  const homiioSindiCredential = await observeRetiredServiceCredential(tx, {
+    target: "sindi_service_credential",
+    bindingTarget: "homiio_workload_binding",
+    label: "Sindi credential",
+    id: homiio.sindiServiceCredential.id,
+    clientId: homiio.sindiServiceCredential.clientId,
+    applicationId: homiio.applicationId,
+    name: "Sindi production service",
+    scopes: homiio.sindiServiceCredential.scopes,
+    workload: homiio.workload,
+  });
 
   const [clarityApplication] = await tx
     .select({
@@ -807,105 +856,48 @@ async function observeBootstrap(
     );
   }
 
-  const [clarityBackendCredential] = await tx
-    .select({
-      id: applicationCredentials.id,
-      applicationId: applicationCredentials.applicationId,
-      name: applicationCredentials.name,
-      publicKey: applicationCredentials.publicKey,
-      secretHash: applicationCredentials.secretHash,
-      type: applicationCredentials.type,
-      environment: applicationCredentials.environment,
-      scopes: applicationCredentials.scopes,
-      status: applicationCredentials.status,
-      createdByUserId: applicationCredentials.createdByUserId,
-    })
-    .from(applicationCredentials)
-    .where(eq(applicationCredentials.id, clarity.backendServiceCredential.id))
-    .for("update");
-  const [clarityBackendClientIdHolder] = await tx
-    .select({ id: applicationCredentials.id })
-    .from(applicationCredentials)
-    .where(
-      eq(
-        applicationCredentials.publicKey,
-        clarity.backendServiceCredential.clientId,
-      ),
-    )
-    .limit(1)
-    .for("update");
-  if (
-    clarityBackendClientIdHolder &&
-    clarityBackendClientIdHolder.id !== clarity.backendServiceCredential.id
-  ) {
-    throw new Error(
-      `Clarity backend client-id collision: held by credential ${clarityBackendClientIdHolder.id}`,
-    );
-  }
-  if (clarityBackendCredential) {
-    assertExact(
-      "clarity_backend_credential",
-      `Clarity backend credential ${clarity.backendServiceCredential.id}`,
-      {
-        ...clarityBackendCredential,
-        secretHashPresent: clarityBackendCredential.secretHash !== null,
-      },
-      {
-        id: clarity.backendServiceCredential.id,
-        applicationId: clarity.backendApplication.id,
-        name: "Clarity backend production service",
-        publicKey: clarity.backendServiceCredential.clientId,
-        secretHashPresent: true,
-        type: "service",
-        environment: "production",
-        scopes: [...clarity.backendServiceCredential.scopes],
-        status: "active",
-        createdByUserId: root,
-      },
-    );
-    if (!/^[a-f0-9]{64}$/.test(clarityBackendCredential.secretHash ?? "")) {
-      throw new Error("Clarity backend credential secret hash is malformed");
-    }
-    if (APPLY) {
-      requireExistingServiceCredentialSecretHash({
-        label: `Clarity backend credential ${clarity.backendServiceCredential.id}`,
-        existingSecretHash: clarityBackendCredential.secretHash,
-        suppliedSecretHash: serviceSecretHashes.clarityBackend,
-      });
-    }
-  }
+  // Observed after its application: a credential row cannot exist without it,
+  // and on a fresh database neither does the binding — which is fine, because
+  // a credential that was never created needs no replacement to stay absent.
+  const clarityBackendCredential = await observeRetiredServiceCredential(tx, {
+    target: "clarity_backend_credential",
+    bindingTarget: "clarity_workload_binding",
+    label: "Clarity backend credential",
+    id: clarity.backendServiceCredential.id,
+    clientId: clarity.backendServiceCredential.clientId,
+    applicationId: clarity.backendApplication.id,
+    name: "Clarity backend production service",
+    scopes: clarity.backendServiceCredential.scopes,
+    workload: clarity.workload,
+  });
 
   return {
     accounts,
     costCenters,
     homiioOwnerAccountId: homiioApplication.ownerAccountId,
     homiioApplicationScopes: homiioApplication.scopes,
-    homiioSindiCredentialExists: homiioSindiCredential !== undefined,
-    homiioSindiCredentialBefore: homiioSindiCredential
-      ? {
-          ...homiioSindiCredential,
-          secretHash: undefined,
-          secretHashPresent: homiioSindiCredential.secretHash !== null,
-        }
-      : null,
+    homiioSindiCredential,
     homiioApplicationBefore: homiioApplication,
     clarityApplicationExists: clarityApplication !== undefined,
     clarityCredentialExists: clarityCredential !== undefined,
     clarityBackendApplicationExists: clarityBackendApplication !== undefined,
-    clarityBackendCredentialExists: clarityBackendCredential !== undefined,
+    clarityBackendCredential,
     clarityApplicationBefore: clarityApplication ?? null,
     clarityCredentialBefore: clarityCredential
       ? { ...clarityCredential, secretHash: undefined }
       : null,
     clarityBackendApplicationBefore: clarityBackendApplication ?? null,
-    clarityBackendCredentialBefore: clarityBackendCredential
-      ? {
-          ...clarityBackendCredential,
-          secretHash: undefined,
-          secretHashPresent: clarityBackendCredential.secretHash !== null,
-        }
-      : null,
   };
+}
+
+function retiredCredentialOperation(
+  observed: RetiredServiceCredentialObservation,
+): string {
+  const { spec, disposition } = observed;
+  if (disposition === "absent") return `assert absent credential ${spec.id}`;
+  if (disposition === "already_revoked")
+    return `assert revoked credential ${spec.id}`;
+  return `revoke credential ${spec.id} superseded-by workload ${spec.workload.provider}:${spec.workload.subject}`;
 }
 
 function bootstrapOperations(observed: BootstrapObservations): string[] {
@@ -929,35 +921,17 @@ function bootstrapOperations(observed: BootstrapObservations): string[] {
         ? `assert application-scope ${homiio.applicationId}:${scope}`
         : `grant application-scope ${homiio.applicationId}:${scope}`,
     ),
-    `${observed.homiioSindiCredentialExists ? "assert" : "insert"} credential ${homiio.sindiServiceCredential.id}`,
+    retiredCredentialOperation(observed.homiioSindiCredential),
     `${observed.clarityApplicationExists ? "assert" : "insert"} application ${clarity.application.id}`,
     `${observed.clarityCredentialExists ? "assert" : "insert"} credential ${clarity.publicCredential.id}`,
     `${observed.clarityBackendApplicationExists ? "assert" : "insert"} application ${clarity.backendApplication.id}`,
-    `${observed.clarityBackendCredentialExists ? "assert" : "insert"} credential ${clarity.backendServiceCredential.id}`,
+    retiredCredentialOperation(observed.clarityBackendCredential),
   ];
-}
-
-function readServiceSecretHash(envName: string): string {
-  if (!APPLY) return "0".repeat(64);
-  const path = process.env[envName];
-  if (!path || path.trim() !== path) {
-    throw new Error(
-      `Creating this service credential requires exact ${envName} (use a protected file; never argv/env plaintext)`,
-    );
-  }
-  const secret = readFileSync(path, "utf8");
-  if (!/^[a-f0-9]{64}$/.test(secret)) {
-    throw new Error(
-      `${envName} must contain exactly 32 random bytes encoded as lowercase hex`,
-    );
-  }
-  return createHash("sha256").update(secret).digest("hex");
 }
 
 async function applyBootstrap(
   tx: Transaction,
   observed: BootstrapObservations,
-  serviceSecretHashes: ServiceSecretHashes,
 ): Promise<void> {
   const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
   for (const account of observed.accounts) await applyAccount(tx, account);
@@ -982,20 +956,6 @@ async function applyBootstrap(
         ],
       })
       .where(eq(applications.id, homiio.applicationId));
-  }
-  if (!observed.homiioSindiCredentialExists) {
-    await tx.insert(applicationCredentials).values({
-      id: homiio.sindiServiceCredential.id,
-      applicationId: homiio.applicationId,
-      name: "Sindi production service",
-      publicKey: homiio.sindiServiceCredential.clientId,
-      secretHash: serviceSecretHashes.homiioSindi,
-      type: "service",
-      environment: "production",
-      scopes: [...homiio.sindiServiceCredential.scopes],
-      status: "active",
-      createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
-    });
   }
   if (!observed.clarityApplicationExists) {
     await tx.insert(applications).values({
@@ -1044,19 +1004,22 @@ async function applyBootstrap(
       createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
     });
   }
-  if (!observed.clarityBackendCredentialExists) {
-    await tx.insert(applicationCredentials).values({
-      id: clarity.backendServiceCredential.id,
-      applicationId: clarity.backendApplication.id,
-      name: "Clarity backend production service",
-      publicKey: clarity.backendServiceCredential.clientId,
-      secretHash: serviceSecretHashes.clarityBackend,
-      type: "service",
-      environment: "production",
-      scopes: [...clarity.backendServiceCredential.scopes],
-      status: "active",
-      createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
-    });
+  // Last, so a backend application this run creates already exists — though a
+  // credential this run could revoke can only belong to one that did.
+  for (const retired of [
+    observed.homiioSindiCredential,
+    observed.clarityBackendCredential,
+  ]) {
+    if (retired.disposition !== "revoke") continue;
+    await tx
+      .update(applicationCredentials)
+      .set({ status: "revoked" })
+      .where(
+        and(
+          eq(applicationCredentials.id, retired.spec.id),
+          eq(applicationCredentials.applicationId, retired.spec.applicationId),
+        ),
+      );
   }
 }
 
@@ -1114,19 +1077,7 @@ async function execute(): Promise<BootstrapReport> {
     // Retirement deliberately addresses only the reserved primary keys. It is
     // idempotent: an absent/already-retired optional row remains a no-op, while
     // the immutable Oxy organization is still required for the audit record.
-    const serviceSecretHashes: ServiceSecretHashes | null = ROLLBACK
-      ? null
-      : {
-          homiioSindi: readServiceSecretHash(
-            "HOMIIO_SINDI_SERVICE_SECRET_FILE",
-          ),
-          clarityBackend: readServiceSecretHash(
-            "CLARITY_BACKEND_SERVICE_SECRET_FILE",
-          ),
-        };
-    const observed = ROLLBACK
-      ? null
-      : await observeBootstrap(tx, serviceSecretHashes!);
+    const observed = ROLLBACK ? null : await observeBootstrap(tx);
     if (ROLLBACK) await requireOxyOrganization(tx);
     const aliaManifest = aliaNativeAgentBootstrapManifest();
     const desired = {
@@ -1142,8 +1093,16 @@ async function execute(): Promise<BootstrapReport> {
           ...NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential
             .scopes,
         ],
-        serviceCredential:
-          NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential,
+        workload: NATIVE_PRODUCT_AGENTS.products.homiio.workload,
+        retiredServiceCredential: {
+          ...NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential,
+          // Absent is equally final: the bootstrap never creates it.
+          status: "revoked",
+          retiredOnlyWhileWorkloadReaches: [
+            ...NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential
+              .scopes,
+          ],
+        },
       },
       clarityPublicApplication: {
         ...NATIVE_PRODUCT_AGENTS.products.clarity.application,
@@ -1171,14 +1130,19 @@ async function execute(): Promise<BootstrapReport> {
         capabilities: [],
         redirectUris: [],
       },
-      clarityBackendServiceCredential: {
+      clarityBackendWorkload: NATIVE_PRODUCT_AGENTS.products.clarity.workload,
+      clarityBackendRetiredServiceCredential: {
         ...NATIVE_PRODUCT_AGENTS.products.clarity.backendServiceCredential,
         applicationId:
           NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id,
         type: "service",
         environment: "production",
-        status: "active",
-        secretHashPresent: true,
+        // Absent is equally final: the bootstrap never creates it.
+        status: "revoked",
+        retiredOnlyWhileWorkloadReaches: [
+          ...NATIVE_PRODUCT_AGENTS.products.clarity.backendServiceCredential
+            .scopes,
+        ],
       },
     };
     const plan: NativeProductBootstrapPlan = {
@@ -1205,7 +1169,7 @@ async function execute(): Promise<BootstrapReport> {
       : null;
 
     if (ROLLBACK) await applyRollback(tx);
-    else await applyBootstrap(tx, observed!, serviceSecretHashes!);
+    else await applyBootstrap(tx, observed!);
 
     if (APPLY) {
       await tx.insert(securityActivities).values({
@@ -1233,14 +1197,6 @@ async function execute(): Promise<BootstrapReport> {
       planSha256,
       plan,
       aliaManifest,
-      ...(observed === null
-        ? {}
-        : {
-            serviceCredentialState: {
-              homiioSindiExists: observed.homiioSindiCredentialExists,
-              clarityBackendExists: observed.clarityBackendCredentialExists,
-            },
-          }),
     };
     if (!APPLY) throw new DryRunRollback(report);
     return report;
@@ -1263,9 +1219,6 @@ async function main(): Promise<void> {
         mode: report.mode,
         direction: report.direction,
         planSha256: report.planSha256,
-        ...(report.serviceCredentialState === undefined
-          ? {}
-          : { serviceCredentialState: report.serviceCredentialState }),
       })}\n`,
     );
   } finally {

@@ -1,5 +1,13 @@
 name: Bootstrap native product agents
 
+# Runs the reviewed native product-agent plan on the image oxy-api is serving.
+#
+# No secret is read, created or injected here. Homiio and Clarity's backends
+# attest their ECS task roles (ADR 0026), so the two service credentials that
+# used to identify them are retired by the bootstrap itself — revoked once the
+# replacing workload binding is live with every scope they carried — and the
+# task runs on the LIVE task definition, unmodified, in every mode.
+
 on:
   workflow_dispatch:
     inputs:
@@ -54,10 +62,6 @@ env:
   CLARITY_BACKEND_CREDENTIAL_ID: 01a0648b-8d74-7240-adba-80707fdfdf9c
   CLARITY_BACKEND_CLIENT_ID: oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78
   CLARITY_AGENT_ID: 01a0646a-078f-7642-95ef-439952f4f3f9
-  HOMIIO_KEY_PARAMETER: /oxy/homiio/SINDI_OXY_SERVICE_API_KEY
-  HOMIIO_SECRET_PARAMETER: /oxy/homiio/SINDI_OXY_SERVICE_API_SECRET
-  CLARITY_KEY_PARAMETER: /oxy/clarity/OXY_SERVICE_API_KEY
-  CLARITY_SECRET_PARAMETER: /oxy/clarity/OXY_SERVICE_API_SECRET
 
 jobs:
   bootstrap:
@@ -151,16 +155,6 @@ jobs:
             echo '::error::live task definition does not contain exactly one oxy-api container'
             exit 1
           fi
-
-          temp_task_definition=''
-          cleanup_task_definition() {
-            if [ -n "$temp_task_definition" ]; then
-              aws ecs deregister-task-definition \
-                --task-definition "$temp_task_definition" >/dev/null 2>&1 || true
-            fi
-          }
-          trap cleanup_task_definition EXIT
-          run_task_definition="$live_task_definition"
 
           build_overrides() {
             local task_apply="$1"
@@ -257,165 +251,8 @@ jobs:
             printf '%s' "${result_line#NATIVE_PRODUCT_AGENTS_RESULT=}"
           }
 
-          if [ "$REQUESTED_MODE" = apply ]; then
-            # Observe PostgreSQL before creating anything in SSM. If a fixed
-            # credential already exists and its original secret is absent, a
-            # newly generated secret can never authenticate it and must not be
-            # installed as though it could.
-            preflight_overrides=$(build_overrides 0 0 "$BOOTSTRAP_ACTOR_INPUT" 'apply preflight' '')
-            preflight_result=$(run_bootstrap_task "$live_task_definition" "$preflight_overrides" 'preflight')
-            jq -e \
-              --arg expected "$expected_plan" '
-                .mode == "dry-run" and
-                .direction == "bootstrap" and
-                .planSha256 == $expected and
-                (.serviceCredentialState.homiioSindiExists | type == "boolean") and
-                (.serviceCredentialState.clarityBackendExists | type == "boolean")
-              ' <<<"$preflight_result" >/dev/null || {
-                echo '::error::apply preflight no longer matches the reviewed bootstrap plan' >&2
-                exit 1
-              }
-            homiio_credential_exists=$(jq -r '.serviceCredentialState.homiioSindiExists' <<<"$preflight_result")
-            clarity_credential_exists=$(jq -r '.serviceCredentialState.clarityBackendExists' <<<"$preflight_result")
-            unset preflight_result preflight_overrides
-
-            read_parameter() {
-              local parameter_name="$1"
-              aws ssm get-parameter \
-                --name "$parameter_name" \
-                --with-decryption \
-                --output json 2>/dev/null
-            }
-
-            set +e
-            homiio_key_json=$(read_parameter "$HOMIIO_KEY_PARAMETER")
-            homiio_key_status=$?
-            homiio_secret_json=$(read_parameter "$HOMIIO_SECRET_PARAMETER")
-            homiio_secret_status=$?
-            clarity_key_json=$(read_parameter "$CLARITY_KEY_PARAMETER")
-            clarity_key_status=$?
-            clarity_secret_json=$(read_parameter "$CLARITY_SECRET_PARAMETER")
-            clarity_secret_status=$?
-            set -e
-
-            if [ "$homiio_key_status" -ne "$homiio_secret_status" ]; then
-              echo '::error::homiio has a partial SSM credential pair; repair it explicitly before bootstrap'
-              exit 1
-            fi
-            if [ "$clarity_key_status" -ne "$clarity_secret_status" ]; then
-              echo '::error::clarity has a partial SSM credential pair; repair it explicitly before bootstrap'
-              exit 1
-            fi
-            if { [ "$homiio_key_status" -ne 0 ] && [ "$homiio_key_status" -ne 254 ]; } ||
-               { [ "$clarity_key_status" -ne 0 ] && [ "$clarity_key_status" -ne 254 ]; }; then
-              echo '::error::could not read an exact native product-agent SSM credential pair'
-              exit 1
-            fi
-            if [ "$homiio_key_status" -eq 254 ] && [ "$homiio_credential_exists" = true ]; then
-              echo '::error::the fixed Sindi credential exists but its original SSM pair is absent; recover it instead of rotating implicitly'
-              exit 1
-            fi
-            if [ "$clarity_key_status" -eq 254 ] && [ "$clarity_credential_exists" = true ]; then
-              echo '::error::the fixed Clarity backend credential exists but its original SSM pair is absent; recover it instead of rotating implicitly'
-              exit 1
-            fi
-
-            create_pair() {
-              local key_parameter="$1"
-              local secret_parameter="$2"
-              local exact_client_id="$3"
-              local generated_secret
-              generated_secret=$(openssl rand -hex 32)
-              if [[ ! "$generated_secret" =~ ^[a-f0-9]{64}$ ]]; then
-                echo '::error::OpenSSL did not produce a 32-byte lowercase-hex secret'
-                exit 1
-              fi
-              echo "::add-mask::$generated_secret"
-              printf '%s' "$exact_client_id" | \
-                bash .github/scripts/put-secure-parameter.sh "$key_parameter" create
-              if ! printf '%s' "$generated_secret" | \
-                bash .github/scripts/put-secure-parameter.sh "$secret_parameter" create; then
-                aws ssm delete-parameter --name "$key_parameter" >/dev/null 2>&1 || true
-                unset generated_secret
-                return 1
-              fi
-              unset generated_secret
-            }
-
-            if [ "$homiio_key_status" -eq 254 ]; then
-              create_pair "$HOMIIO_KEY_PARAMETER" "$HOMIIO_SECRET_PARAMETER" "$HOMIIO_SINDI_CLIENT_ID"
-              homiio_key_json=$(read_parameter "$HOMIIO_KEY_PARAMETER")
-              homiio_secret_json=$(read_parameter "$HOMIIO_SECRET_PARAMETER")
-            fi
-            if [ "$clarity_key_status" -eq 254 ]; then
-              create_pair "$CLARITY_KEY_PARAMETER" "$CLARITY_SECRET_PARAMETER" "$CLARITY_BACKEND_CLIENT_ID"
-              clarity_key_json=$(read_parameter "$CLARITY_KEY_PARAMETER")
-              clarity_secret_json=$(read_parameter "$CLARITY_SECRET_PARAMETER")
-            fi
-
-            for parameter_json in "$homiio_key_json" "$homiio_secret_json" "$clarity_key_json" "$clarity_secret_json"; do
-              if [ "$(jq -r '.Parameter.Type // ""' <<<"$parameter_json")" != SecureString ]; then
-                echo '::error::native product-agent SSM parameters must all be SecureString'
-                exit 1
-              fi
-            done
-            homiio_key=$(jq -er '.Parameter.Value' <<<"$homiio_key_json")
-            homiio_secret=$(jq -er '.Parameter.Value' <<<"$homiio_secret_json")
-            clarity_key=$(jq -er '.Parameter.Value' <<<"$clarity_key_json")
-            clarity_secret=$(jq -er '.Parameter.Value' <<<"$clarity_secret_json")
-            echo "::add-mask::$homiio_key"
-            echo "::add-mask::$homiio_secret"
-            echo "::add-mask::$clarity_key"
-            echo "::add-mask::$clarity_secret"
-            if [ "$homiio_key" != "$HOMIIO_SINDI_CLIENT_ID" ] || [ "$clarity_key" != "$CLARITY_BACKEND_CLIENT_ID" ]; then
-              echo '::error::an SSM public key does not match its exact fixed credential ID'
-              exit 1
-            fi
-            if [[ ! "$homiio_secret" =~ ^[a-f0-9]{64}$ ]] || [[ ! "$clarity_secret" =~ ^[a-f0-9]{64}$ ]]; then
-              echo '::error::native product-agent service secrets must be exactly 64 lowercase hex characters'
-              exit 1
-            fi
-            unset homiio_key homiio_secret clarity_key clarity_secret
-            unset homiio_key_json homiio_secret_json clarity_key_json clarity_secret_json
-
-            homiio_secret_arn="arn:aws:ssm:$AWS_REGION:$AWS_ACCOUNT_ID:parameter/${HOMIIO_SECRET_PARAMETER#/}"
-            clarity_secret_arn="arn:aws:ssm:$AWS_REGION:$AWS_ACCOUNT_ID:parameter/${CLARITY_SECRET_PARAMETER#/}"
-            rendered_task_json=$(jq \
-              --arg container "$CONTAINER" \
-              --arg homiio_secret "$homiio_secret_arn" \
-              --arg clarity_secret "$clarity_secret_arn" '
-                .containerDefinitions |= map(
-                  if .name == $container then
-                    .secrets = (
-                      ((.secrets // []) | map(select(
-                        .name != "HOMIIO_SINDI_SERVICE_SECRET_VALUE" and
-                        .name != "CLARITY_BACKEND_SERVICE_SECRET_VALUE"
-                      ))) + [
-                        {name:"HOMIIO_SINDI_SERVICE_SECRET_VALUE", valueFrom:$homiio_secret},
-                        {name:"CLARITY_BACKEND_SERVICE_SECRET_VALUE", valueFrom:$clarity_secret}
-                      ]
-                    )
-                  else . end
-                )
-                | del(
-                    .taskDefinitionArn,
-                    .revision,
-                    .status,
-                    .requiresAttributes,
-                    .compatibilities,
-                    .registeredAt,
-                    .registeredBy,
-                    .deregisteredAt
-                  )
-              ' <<<"$live_task_json")
-            temp_task_definition=$(aws ecs register-task-definition \
-              --cli-input-json "$rendered_task_json" \
-              --query 'taskDefinition.taskDefinitionArn' --output text)
-            run_task_definition="$temp_task_definition"
-          fi
-
           overrides=$(build_overrides "$apply" "$rollback" "$BOOTSTRAP_ACTOR_INPUT" "$bootstrap_reason" "$expected_plan")
-          result_json=$(run_bootstrap_task "$run_task_definition" "$overrides" "$REQUESTED_MODE")
+          result_json=$(run_bootstrap_task "$live_task_definition" "$overrides" "$REQUESTED_MODE")
           jq -e \
             --arg mode "$([ "$apply" = 1 ] && printf apply || printf dry-run)" \
             --arg direction "$([ "$rollback" = 1 ] && printf rollback || printf bootstrap)" '
@@ -425,10 +262,3 @@ jobs:
             ' <<<"$result_json" >/dev/null
           observed_plan=$(jq -r '.planSha256' <<<"$result_json")
           echo "validated $REQUESTED_MODE plan sha256: $observed_plan"
-
-          if [ -n "$temp_task_definition" ]; then
-            aws ecs deregister-task-definition \
-              --task-definition "$temp_task_definition" >/dev/null
-            temp_task_definition=''
-          fi
-          trap - EXIT

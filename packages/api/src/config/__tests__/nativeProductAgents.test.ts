@@ -4,13 +4,17 @@ import { NATIVE_PRODUCT_AGENTS, aliaNativeAgentBootstrapManifest } from '../nati
 describe('native product agent identities', () => {
   it('pins the approved Oxy, app, credential, bot and Alia primary keys', () => {
     expect(NATIVE_PRODUCT_AGENTS).toMatchObject({
-      manifestVersion: 2,
+      manifestVersion: 3,
       oxyOrganizationId: '69b2d3df5d12f58c9800d651',
       products: {
         homiio: {
           project: { id: '6a50444ce8026582b949089d' },
           bot: { id: '01a0646a-078f-7974-9645-a5e8be237f47' },
           applicationId: '6a2f851751b784a86fd0e922',
+          workload: {
+            provider: 'aws-iam',
+            subject: 'arn:aws:iam::237343248947:role/oxy-homiio-task',
+          },
           sindiServiceCredential: {
             id: '01a0648e-ad3f-7608-aa8b-c07bfef6cf73',
             clientId: 'oxy_dk_bed4f8941795512ddce5b0662879dccae52d8bd30308d240',
@@ -29,6 +33,10 @@ describe('native product agent identities', () => {
             clientId: 'oxy_dk_75cdd9996d19362e15ddedcc5ab0f4fb310de8d7b5e8523a',
           },
           backendApplication: { id: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e' },
+          workload: {
+            provider: 'aws-iam',
+            subject: 'arn:aws:iam::237343248947:role/oxy-clarity-task',
+          },
           backendServiceCredential: {
             id: '01a0648b-8d74-7240-adba-80707fdfdf9c',
             clientId: 'oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78',
@@ -40,6 +48,21 @@ describe('native product agent identities', () => {
         },
       },
     });
+  });
+
+  /**
+   * The workloads are what the two backends ARE now that their key pairs are
+   * retired. Each role is declared, and the handle it derives to is the value
+   * the product itself pins (Homiio's Sindi canary, Clarity's
+   * `clarity-agent-manifest.ts`), so a drift on either side reddens here.
+   */
+  it('declares each product backend by the task role whose handle that product pins', () => {
+    const { workloadAttestationHandle } = jest.requireActual(
+      '../../services/workloadAttestation.service',
+    ) as typeof import('../../services/workloadAttestation.service');
+    const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
+    expect(workloadAttestationHandle(homiio.workload.subject)).toBe('wl_f28159178c5e993eb03b8cc1');
+    expect(workloadAttestationHandle(clarity.workload.subject)).toBe('wl_1553bb11eb957512b3cdc956');
   });
 
   it('hands Alia a private one-to-one bot mapping without names as authority', () => {

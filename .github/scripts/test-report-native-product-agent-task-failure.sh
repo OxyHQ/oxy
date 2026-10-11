@@ -49,8 +49,18 @@ actual=$(run_reporter "$subject" "$valid_adoption")
 [ "$actual" = "$expected" ]
 
 expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":\"task_exited_after_valid_plan\",\"planSha256\":\"$plan_sha\"}"
-actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"$plan_sha\",\"serviceCredentialState\":{\"homiioSindiExists\":false,\"clarityBackendExists\":true}}")
+actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"$plan_sha\"}")
 [ "$actual" = "$expected" ]
+
+# The retired-credential guard: revoking waits for the replacing workload, and
+# the refusal names only the registered binding target and field.
+for target in homiio_workload_binding clarity_workload_binding; do
+  for field in subject scopes; do
+    expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":\"live_state_drift\",\"target\":\"$target\",\"field\":\"$field\"}"
+    actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"live_state_drift\",\"target\":\"$target\",\"field\":\"$field\"}")
+    [ "$actual" = "$expected" ]
+  done
+done
 
 unsafe_marker='must-not-appear-9d65d1'
 for unsafe_envelope in \
@@ -75,6 +85,8 @@ for unsafe_envelope in \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\"}}" \
   'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"username_collision"}' \
   'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"UPPERCASE_NOT_ALLOWED"}' \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"$plan_sha\",\"serviceCredentialState\":{\"homiioSindiExists\":false,\"clarityBackendExists\":true}}" \
+  'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift","target":"homiio_workload_binding","field":"secretHashPresent"}' \
   'NATIVE_PRODUCT_AGENTS_RESULT=not-json'
 do
   actual=$(run_reporter "$subject" "$unsafe_envelope")

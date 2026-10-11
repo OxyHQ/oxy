@@ -14,7 +14,6 @@ type NativeProductAgentBootstrapGenericFailureCode =
   | 'manifest_binding_mismatch'
   | 'bootstrap_lock_failed'
   | 'plan_rejected'
-  | 'service_credential_invalid'
   | 'identity_collision'
   | 'required_record_missing'
   | 'live_state_drift'
@@ -54,6 +53,8 @@ export const NATIVE_PRODUCT_AGENT_DRIFT_TARGETS = [
   'clarity_public_credential',
   'clarity_backend_application',
   'clarity_backend_credential',
+  'homiio_workload_binding',
+  'clarity_workload_binding',
 ] as const;
 
 export type NativeProductAgentDriftTarget = (typeof NATIVE_PRODUCT_AGENT_DRIFT_TARGETS)[number];
@@ -79,7 +80,6 @@ export const NATIVE_PRODUCT_AGENT_DRIFT_FIELDS = [
   'name',
   'publicKey',
   'secretHash',
-  'secretHashPresent',
   'environment',
   'scopes',
   'websiteUrl',
@@ -87,6 +87,7 @@ export const NATIVE_PRODUCT_AGENT_DRIFT_FIELDS = [
   'redirectUris',
   'ownerAccountId',
   'createdByUserId',
+  'subject',
 ] as const;
 
 export type NativeProductAgentDriftField = (typeof NATIVE_PRODUCT_AGENT_DRIFT_FIELDS)[number];
@@ -231,9 +232,6 @@ function nativeProductAgentBootstrapGenericFailureCode(
   if (/advisory lock/i.test(message)) return 'bootstrap_lock_failed';
   if (/EXPECTED_PLAN_SHA256|BOOTSTRAP_ACTOR|BOOTSTRAP_REASON/i.test(message)) {
     return 'plan_rejected';
-  }
-  if (/service secret|secret hash|service-secret/i.test(message)) {
-    return 'service_credential_invalid';
   }
   if (/collision/i.test(message)) return 'identity_collision';
   if (/organization .*does not exist|application .*not found/i.test(message)) {

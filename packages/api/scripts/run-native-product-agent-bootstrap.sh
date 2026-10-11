@@ -1,20 +1,21 @@
 #!/bin/sh
 
-# Materialize the two ECS-injected service secrets only for the lifetime of the
-# one-shot bootstrap process. The raw values are unset before Bun starts; the
-# bootstrap receives only 0600 file paths and hashes their contents itself.
+# Run the one-shot native product-agent bootstrap and let exactly one
+# structured result line cross the task boundary.
+#
+# No secret enters this process. The two product backends attest their ECS
+# task roles (ADR 0026), so the bootstrap only ever REVOKES the service
+# credentials they used to present, and never creates or proves one. The two
+# variables that used to carry those secrets are refused outright: a task that
+# still injects them was rendered by something that has not caught up, and
+# running on would hand a retired secret to a process that has no use for it.
 
 set -eu
 umask 077
 
-homiio_secret_file=''
-clarity_secret_file=''
 bootstrap_output_file=''
 
 cleanup() {
-  unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE
-  [ -z "$homiio_secret_file" ] || rm -f -- "$homiio_secret_file" >/dev/null 2>&1 || true
-  [ -z "$clarity_secret_file" ] || rm -f -- "$clarity_secret_file" >/dev/null 2>&1 || true
   [ -z "$bootstrap_output_file" ] || rm -f -- "$bootstrap_output_file" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT HUP INT TERM
@@ -24,32 +25,13 @@ fail_pre_entrypoint() {
   exit "$1"
 }
 
-is_service_secret() {
-  [ "${#1}" -eq 64 ] || return 1
-  case "$1" in
-    *[!0-9a-f]*) return 1 ;;
-  esac
-}
-
 is_valid_success_result() {
-  printf '%s\n' "$1" | grep -Eq '^NATIVE_PRODUCT_AGENTS_RESULT=\{"mode":"(dry-run|apply)","direction":"(bootstrap|rollback)","planSha256":"[a-f0-9]{64}"(,"serviceCredentialState":\{"homiioSindiExists":(true|false),"clarityBackendExists":(true|false)\})?\}$' >/dev/null 2>&1
+  printf '%s\n' "$1" | grep -Eq '^NATIVE_PRODUCT_AGENTS_RESULT=\{"mode":"(dry-run|apply)","direction":"(bootstrap|rollback)","planSha256":"[a-f0-9]{64}"\}$' >/dev/null 2>&1
 }
 
-if [ "${APPLY:-0}" = '1' ] && [ "${ROLLBACK:-0}" != '1' ]; then
-  [ -n "${HOMIIO_SINDI_SERVICE_SECRET_VALUE:-}" ] || fail_pre_entrypoint 64
-  [ -n "${CLARITY_BACKEND_SERVICE_SECRET_VALUE:-}" ] || fail_pre_entrypoint 64
-  is_service_secret "${HOMIIO_SINDI_SERVICE_SECRET_VALUE:-}" || fail_pre_entrypoint 64
-  is_service_secret "${CLARITY_BACKEND_SERVICE_SECRET_VALUE:-}" || fail_pre_entrypoint 64
-
-  homiio_secret_file=$(mktemp /tmp/oxy-native-agent-homiio.XXXXXX 2>/dev/null) || fail_pre_entrypoint 70
-  clarity_secret_file=$(mktemp /tmp/oxy-native-agent-clarity.XXXXXX 2>/dev/null) || fail_pre_entrypoint 70
-  chmod 0600 "$homiio_secret_file" "$clarity_secret_file" >/dev/null 2>&1 || fail_pre_entrypoint 70
-  printf '%s' "$HOMIIO_SINDI_SERVICE_SECRET_VALUE" 2>/dev/null >"$homiio_secret_file" || fail_pre_entrypoint 70
-  printf '%s' "$CLARITY_BACKEND_SERVICE_SECRET_VALUE" 2>/dev/null >"$clarity_secret_file" || fail_pre_entrypoint 70
+if [ -n "${HOMIIO_SINDI_SERVICE_SECRET_VALUE+x}" ] || [ -n "${CLARITY_BACKEND_SERVICE_SECRET_VALUE+x}" ]; then
   unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE
-
-  export HOMIIO_SINDI_SERVICE_SECRET_FILE="$homiio_secret_file"
-  export CLARITY_BACKEND_SERVICE_SECRET_FILE="$clarity_secret_file"
+  fail_pre_entrypoint 64
 fi
 
 bootstrap_output_file=$(mktemp /tmp/oxy-native-agent-bootstrap.XXXXXX 2>/dev/null) || fail_pre_entrypoint 70
