@@ -7,8 +7,8 @@
  * is rejected as `invalid_envelope`.
  *
  * `oxySignedRecordTypeSchema` is that runtime gate (the API's `verifyEnvelope`
- * re-narrows with it; the Mongoose `SignedRecord.type` enum and the Postgres
- * CHECK on `signed_records.type` are both derived from `.options`);
+ * re-narrows with it; the Postgres CHECK on `signed_records.type` is derived
+ * from `.options`);
  * `OxySignedRecordType` is the matching compile-time union the SDK
  * identity/civic mixins type against.
  *

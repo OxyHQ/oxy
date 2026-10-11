@@ -29,10 +29,8 @@ const getPlanStorageLimitBytes = (plan: string | undefined): number => {
 /**
  * Which bucket a file counts towards, from its MIME type.
  *
- * The Mongo original was a `$switch` over three `$regexMatch` branches with a
- * `default`; this is the same ladder as a `CASE`, in the same order (the order
- * matters — `application/` must not shadow `video/`). `~` is case-sensitive, as
- * `$regexMatch` was with these patterns.
+ * A `CASE` ladder whose order matters — `application/` must not shadow
+ * `video/`. `~` is case-sensitive.
  */
 const CATEGORY = sql<StorageCategory>`case
   when ${files.mime} ~ '^(image|video)/' then 'photosVideos'
@@ -44,10 +42,8 @@ end`;
 /**
  * Bytes a file occupies INCLUDING its renditions.
  *
- * Mongo summed a nested array inside the same document
- * (`$add: ['$size', { $ifNull: [{ $sum: '$variants.size' }, 0] }]`); the
- * renditions are their own table now, so the inner sum is a correlated
- * subquery. `coalesce` reproduces `$ifNull` exactly: `sum` over no rows — or
+ * The renditions are their own table, so the inner sum is a correlated
+ * subquery. `coalesce` matters: `sum` over no rows — or
  * over rows whose `size` is NULL, which a still-encoding rendition has — is
  * NULL, not 0, and `bigint + NULL` would make the whole file's contribution
  * vanish rather than count its original bytes.

@@ -218,10 +218,8 @@ router.post('/activity', (req, res) => {
  * Both ids are opaque strings the caller supplies, and neither is trusted for
  * anything beyond being looked up. The bounds exist so an arbitrarily long
  * string never reaches a query; they are not a format contract, because this API
- * carries two live id shapes (24-char ObjectId hex preserved from Mongo, and
- * uuid v7 for everything created since) and a format check that admits only one
- * of them would silently deny every user created on the wrong side of the
- * cutover.
+ * carries two live id shapes (legacy 24-hex ids and uuid v7) and a format check
+ * that admits only one of them would silently deny every user with the other.
  */
 const serviceActingAsVerifyQuery = z.object({
   credentialId: z.string().min(1).max(128).optional(),
@@ -455,8 +453,8 @@ const serviceAccountSwitchLimiter = rateLimit({
  *
  * Bounded and shape-checked for the reason the verify query's ids are: an
  * arbitrarily long string must never reach a query, and no format check is
- * possible because this API carries two live id shapes (24-char ObjectId hex
- * preserved from Mongo, uuid v7 since). `z.string()` also rejects the array
+ * possible because this API carries two live id shapes (legacy 24-hex ids and
+ * uuid v7). `z.string()` also rejects the array
  * Express produces from a repeated header, rather than letting a comma-joined
  * value fall through to a lookup that would merely miss.
  */

@@ -4,10 +4,9 @@
  * This module decides who may claim a session, who may approve one, and how
  * many authorization codes a request can ever mint, so every assertion here
  * runs the real service against the throwaway database and then READS THE ROW
- * BACK. The suite it replaces mocked the Mongoose models and asserted on
- * `$set` / `findOneAndUpdate` payload SHAPES — that proved the call was built
- * as expected, never that the stored row ended up correct, and it could not
- * have caught a filter that matched the wrong row.
+ * BACK. Asserting on call payload SHAPES would prove the call was built as
+ * expected, never that the stored row ended up correct, and could not catch a
+ * filter that matched the wrong row.
  *
  * It absorbs four earlier mock-based files, one describe block each, so no
  * concern is silently dropped: `sessionAuthorizeSigned.test.ts`,
@@ -1125,8 +1124,7 @@ describe('finalizeOAuthAuthorization', () => {
       .from(appGrants)
       .where(eq(appGrants.applicationId, applicationId));
     // `files:read` was already granted and keeps its slot; `user:read` is
-    // appended. A re-granted scope must not be duplicated, which is what
-    // Mongo's `$addToSet` guaranteed.
+    // appended. A re-granted scope must not be duplicated.
     expect(grant.scopes).toEqual(['files:read', 'user:read']);
   });
 

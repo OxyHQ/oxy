@@ -13,8 +13,8 @@
  *
  * ## Three things, and the middle one is the whole point
  *
- * 1. {@link publicUserColumns} — the drizzle SELECTION. Inclusion-only, exactly
- *    as the Mongo projection was: every unlisted column (`email`, `phone`, the
+ * 1. {@link publicUserColumns} — the drizzle SELECTION. Inclusion-only: every
+ *    unlisted column (`email`, `phone`, the
  *    contact hashes, `refresh_token`, the private half of the privacy settings)
  *    is absent because it was never named, rather than because someone
  *    remembered to exclude it.
@@ -23,12 +23,11 @@
  *    `privacy_fediverse_sharing` as flat columns (see
  *    `db/schema/CONVENTIONS.md`), while the WIRE contract nests them as
  *    `name.first` / `federation.domain` / `privacySettings.fediverseSharing`.
- *    The nesting is the API's shape, not Mongo's, so it belongs at the read
+ *    The nesting is the API's shape, not the storage's, so it belongs at the read
  *    boundary — and putting it here means every serializer downstream consumes
  *    one shape and cannot re-derive it differently.
  * 3. {@link publicUserFollowCounts} — the follower/following totals. `_count`
- *    was a denormalized counter on the Mongo document because Mongo cannot
- *    JOIN; here it is a correlated `count(*)` served by
+ *    is a correlated `count(*)` served by
  *    `user_follows_followed_id_created_at_id_idx` and the follower/followed
  *    unique index, so it is a MEASUREMENT and can never drift from the edges.
  *
@@ -49,8 +48,7 @@ import type { NameParts } from './displayName';
 /**
  * One profile link's unfurled metadata, as it appears on the wire.
  *
- * Mongo embedded this as an array on the user document; it is a child table
- * here, aggregated back into an ordered array by {@link publicUserColumns} so a
+ * It is a child table, aggregated back into an ordered array by {@link publicUserColumns} so a
  * list of N profiles still costs ONE query.
  */
 export interface LinkMetadataDto {
@@ -218,8 +216,8 @@ function optional<T>(value: T | null): T | undefined {
  *
  * The three re-nestings (`name`, `federation`, `privacySettings`) are the whole
  * job. `federation` is emitted only for a row that actually has federation
- * data, matching Mongo, where the subdocument was simply absent on a local
- * account and `formatUserResponse` tests it for truthiness.
+ * data: the subdocument is absent on a local account and `formatUserResponse`
+ * tests it for truthiness.
  */
 export function toPublicUserView(row: PublicUserRow): PublicUserView {
   const federation =
@@ -263,31 +261,3 @@ export function toPublicUserView(row: PublicUserRow): PublicUserView {
     updatedAt: row.updatedAt,
   };
 }
-
-/**
- * The Mongoose `.select(...)` argument for a public user row.
- *
- * Retained ONLY for `controllers/session.controller.ts`, whose port belongs to
- * the auth/session batch; it is the last Mongo reader of this module. Delete it
- * with that call site — nothing else may grow a dependency on it.
- */
-export const PUBLIC_USER_PROFILE_SELECT = [
-  'username',
-  'name',
-  'kind',
-  'avatar',
-  'color',
-  'bio',
-  'description',
-  'links',
-  'linksMetadata',
-  'verified',
-  'type',
-  'federation',
-  'privacySettings.fediverseSharing',
-  'createdAt',
-  'updatedAt',
-  'accountStatus',
-  'reputationTier',
-  'privacySettings.isPrivateAccount',
-].join(' ');

@@ -10,12 +10,12 @@
  *
  * `ConductStrike.policyVersion` and `ModerationEffect.policyVersions.oxyConduct`
  * both name a version so a consequence can be recomputed under the policy it was
- * derived under. In Mongo that was a string nobody checked — a strike could name
- * a version with no document, and the recomputation would simply find nothing.
- * Here `policy_version` carries a UNIQUE constraint and both columns reference
- * it with `ON DELETE RESTRICT`: a version may not be deleted while any
- * consequence was derived under it. That is the "no relational link may be lost"
- * directive applied to a link that was never enforced in the first place.
+ * derived under. An unchecked string would let a strike name a version with no
+ * policy, and the recomputation would simply find nothing. So `policy_version`
+ * carries a UNIQUE constraint and both columns reference it with `ON DELETE
+ * RESTRICT`: a version may not be deleted while any consequence was derived
+ * under it. That is the "no relational link may be lost" directive applied to a
+ * link that was never enforced in the first place.
  *
  * The other two versions on an effect (`universal`, `application`) stay plain
  * text: they are the emitting system's policy identifiers, not rows here.

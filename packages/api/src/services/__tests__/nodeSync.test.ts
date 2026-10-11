@@ -1,19 +1,12 @@
 /**
  * Node → Oxy ingest (F5b), against a REAL Postgres and a REAL hash chain.
  *
- * The suite this replaces mocked `models/UserNode`, `models/SignedRecord`,
- * `models/NodeIngestWitness`, `signedRecord.service` and `@oxy.so/protocol`, then
- * asserted on the arguments handed to `SignedRecord.create`. Nothing was ever
- * signed, verified or stored, so the assertions described a Mongoose call shape:
- * `mockVerifyAndStore` returned `{ ok: true }` for a forged envelope as readily
- * as for a genuine one, and `expect(created.seq).toBeUndefined()` passed against
- * a service that wrote nothing at all. None of those models is imported by the
- * service any more, so the mocks are inert too.
- *
- * Everything here is real except the NETWORK: `safeFetch` is replaced by a fake
- * node that serves `/oxy/head` and `/oxy/log` from envelopes signed with a real
- * secp256k1 key. The verification, the chain, the constraints, the witness
- * ledger and the cursor are the actual system.
+ * A mocked verifier accepts a forged envelope as readily as a genuine one, and
+ * an assertion on a write's arguments passes against a service that stores
+ * nothing — so nothing here is mocked except the NETWORK: `safeFetch` is
+ * replaced by a fake node that serves `/oxy/head` and `/oxy/log` from envelopes
+ * signed with a real secp256k1 key. The verification, the chain, the
+ * constraints, the witness ledger and the cursor are the actual system.
  *
  * ## The guarantees this file exists for
  *
@@ -679,9 +672,8 @@ describe('resilience — a down node leaves the mirror stale, never wrong', () =
   });
 
   it('cannot be reached for a deleted account — the node row cascades away', async () => {
-    // This is why the Mongo-era "does the user still exist?" guard is deleted
-    // rather than translated: `user_nodes.user_id` is NOT NULL and CASCADEs, so
-    // a node row cannot outlive its account.
+    // There is no "does the user still exist?" guard: `user_nodes.user_id` is
+    // NOT NULL and CASCADEs, so a node row cannot outlive its account.
     const subject = await signer();
     await nodeFor(subject, await chain(subject, 1));
     await getDb().delete(users).where(eq(users.id, subject.userId));

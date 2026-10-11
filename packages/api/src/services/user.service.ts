@@ -5,19 +5,16 @@ import { externalIdentities, externalIdentityActors } from '../db/schema/externa
  * Business logic layer for user-related operations.
  * Separates route handlers from business logic for better testability and maintainability.
  *
- * ## What the Postgres port changed
+ * ## Storage rules
  *
- * - **`users.following[]` / `followers[]` and `_count` are GONE.** `user_follows`
- *   is the single authority and every total is a `count(*)` over it. The wire
- *   still carries `_count: { followers, following }`; it is now a MEASUREMENT,
- *   so it cannot drift from the edges the way a denormalized counter did — and
- *   follow/unfollow no longer has counter maintenance to get wrong.
- * - **`followType` is gone from every filter.** `Follow` was polymorphic in name
- *   only; see `db/schema/userFollows.ts` for the evidence that no non-`user`
- *   edge was ever written.
- * - **`Types.ObjectId.isValid` guards are gone.** They existed to stop a
- *   Mongoose `CastError`; a `text` id simply matches no rows, so a malformed id
- *   takes the identical "no such user" path it always produced.
+ * - **There are no stored follow arrays or counters.** `user_follows` is the
+ *   single authority and every total is a `count(*)` over it. The wire carries
+ *   `_count: { followers, following }` as a MEASUREMENT, so it cannot drift from
+ *   the edges and follow/unfollow has no counter maintenance to get wrong.
+ * - **No follow-type filter.** `user_follows` holds user edges only; see
+ *   `db/schema/userFollows.ts`.
+ * - **No id-shape guards.** A `text` id that names no user simply matches no
+ *   rows, so a malformed id takes the "no such user" path.
  */
 
 import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
@@ -199,8 +196,7 @@ type FollowUserEdgeField = 'followerId' | 'followedId';
  * only so `total` / `hasMore` stay accurate after tombstoned/restricted
  * accounts are filtered out of discovery lists.
  *
- * Mongo needed a `$lookup` + `$unwind` + a second `$match` for the eligibility
- * half; here it is an ordinary inner join, and the SORT still precedes
+ * The eligibility half is an ordinary inner join, and the SORT precedes
  * OFFSET/LIMIT so it orders the full match set rather than the page.
  */
 async function paginateActiveFollowUserIds(
@@ -390,8 +386,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * The `federation` subdocument rebuilt from a FLAT `users` row, or `undefined`
- * when the row carries no federation data — which is what a local account's
- * absent Mongo subdocument meant, and what `formatUserResponse` tests for.
+ * when the row carries no federation data — a local account, which is what
+ * `formatUserResponse` tests for.
  */
 function flatFederation(source: {
   federationActorUri?: unknown;
@@ -407,9 +403,9 @@ function stringOrUndefined(value: unknown): string | undefined {
 }
 
 /**
- * `Mongoose` stored an absent optional string as `''` on several of these
- * columns; the schema stores NULL. Both mean "not set", and a write of either
- * must land as NULL so the two states cannot coexist.
+ * An absent optional string may arrive as `''`; the schema stores NULL. Both
+ * mean "not set", and a write of either must land as NULL so the two states
+ * cannot coexist.
  */
 function blankToNull(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -482,8 +478,7 @@ type SelfUserRow = PublicUserRow & {
  *
  * The theme preference is emitted only when BOTH halves are present, which the
  * `users_theme_preference_check` constraint already makes the only
- * representable state — the check here is what keeps the DTO honest for rows
- * the backfill mapped from a partial Mongo subdocument.
+ * representable state — the check here keeps the DTO honest regardless.
  */
 function toSelfUserView(row: SelfUserRow): SelfUserView {
   const view: SelfUserView = {
@@ -505,9 +500,8 @@ function toSelfUserView(row: SelfUserRow): SelfUserView {
 /**
  * The privacy settings, wire key → column.
  *
- * Mongo held these as ONE nested `privacySettings` subdocument, so a read was a
- * projection and a write was a set of dot-paths. They are 22 flat `boolean`
- * columns here (`db/schema/users.ts` explains why a 1:1 child table would have
+ * The wire nests these as ONE `privacySettings` object. They are 22 flat
+ * `boolean` columns (`db/schema/users.ts` explains why a 1:1 child table would have
  * bought a join on every profile read for nothing), which makes this map the
  * single place the wire's nesting is unwound — read and write both go through
  * it, so a key can never be readable and unwritable, or vice versa.
@@ -570,7 +564,7 @@ const PRIVACY_SETTING_PROPERTIES: Record<PrivacySettingKey, string> = {
 };
 
 /**
- * The whole account, nested exactly as the Mongo document was.
+ * The whole account, nested in its document shape.
  *
  * `PUT /users/resolve` (the federation upsert) returns the raw document rather
  * than a DTO, and `req.user` is built from it; both are read by code that uses
@@ -629,8 +623,7 @@ export interface AccountDocument {
 
 /**
  * Every `users` column a self-document read may carry — the whole table minus
- * the protected set (`db/schema/protectedColumns.ts`), which is precisely what
- * Mongoose's `select: false` withheld from these two reads.
+ * the protected set (`db/schema/protectedColumns.ts`).
  */
 const accountDocumentColumns = publicColumns(users, PROTECTED_COLUMNS_BY_TABLE);
 
@@ -638,9 +631,7 @@ export class UserService {
   /**
    * The account's full privacy settings, or null when no such account exists.
    *
-   * Every key is always present: the columns are `NOT NULL` with defaults, so
-   * the "field absent on an old document" state Mongo could produce no longer
-   * exists.
+   * Every key is always present: the columns are `NOT NULL` with defaults.
    */
   async readPrivacySettings(userId: string): Promise<PrivacySettingsResponse | null> {
     const [row] = await getDb()
@@ -654,9 +645,8 @@ export class UserService {
   /**
    * Merge a PARTIAL privacy-settings patch and return the whole updated object.
    *
-   * Only the keys the caller supplied are written — the same semantics Mongo's
-   * dot-path `$set` had, and the reason it could not be a whole-subdocument
-   * replace: that would wipe every toggle the client did not send.
+   * Only the keys the caller supplied are written — a whole-object replace
+   * would wipe every toggle the client did not send.
    *
    * @returns The updated settings, or null when no such account exists.
    */
@@ -691,8 +681,7 @@ export class UserService {
   /**
    * The whole account as a document — see {@link AccountDocument}.
    *
-   * Five queries because five tables hold what Mongo held in one document; they
-   * run in parallel and this is a single-account read, so the fan-out is
+   * Five queries because five tables hold the document; they run in parallel and this is a single-account read, so the fan-out is
    * constant, not per-row.
    */
   async readAccountDocument(userId: string): Promise<AccountDocument | null> {
@@ -1104,9 +1093,7 @@ export class UserService {
       : undefined;
 
     // One transaction: the account row and its two child collections either all
-    // move or none do. Mongo could only offer this through a replica-set
-    // transaction the deployment might not support, so the code carried a
-    // session-less fallback; there is no such fallback here.
+    // move or none do. There is no non-transactional fallback.
     await db.transaction(async (tx) => {
       if (Object.keys(columnUpdates).length > 0) {
         await tx.update(users).set(columnUpdates).where(eq(users.id, userId));
@@ -1584,8 +1571,8 @@ export class UserService {
    * edge. Called AFTER a follow/unfollow mutation so the returned counts reflect
    * the post-write state.
    *
-   * A MEASUREMENT, not a cached counter: the `_count` subdocument the Mongo
-   * version read is gone, so these two numbers cannot disagree with the edges.
+   * A MEASUREMENT, not a cached counter, so these two numbers cannot disagree
+   * with the edges.
    */
   private async readFollowCounts(targetId: string, followerId: string): Promise<FollowCounts> {
     const db = getDb();
@@ -1775,11 +1762,8 @@ export class UserService {
    * untouched and reported as already in the desired (not-following) state.
    *
    * Efficiency: ONE `DELETE ... RETURNING` regardless of how many targets are
-   * supplied. The Mongo version issued one `findOneAndDelete` PER target,
-   * because `deleteMany` reported only an aggregate count and that is not
-   * enough to attribute a decrement safely under a race; a single statement's
-   * RETURNING names exactly the rows THIS call removed, so the per-target loop
-   * has no reason to survive.
+   * supplied. RETURNING names exactly the rows THIS call removed, so no
+   * per-target statement is needed to attribute the result under a race.
    *
    * @param currentUserId The follower (authenticated user) id.
    * @param targetUserIds Candidate user ids to unfollow (may contain duplicates
@@ -2050,8 +2034,7 @@ export class UserService {
    * feed hydration) so callers avoid N+1 `GET /users/:id` round-trips.
    *
    * Efficiency contract: ONE query regardless of `ids.length`. The two follow
-   * totals ride it as correlated aggregates rather than the two extra grouped
-   * aggregations Mongo needed.
+   * totals ride it as correlated aggregates.
    *
    * Resilient to bad input: ids that match no user are silently dropped — the
    * result only contains resolved users. Order is NOT guaranteed to match the
@@ -2226,10 +2209,8 @@ export class UserService {
 /**
  * Dedupe target ids preserving first-seen order and drop the caller's own id.
  *
- * There is no id-FORMAT filter any more. Mongo needed one because an
- * ObjectId-shaped cast failure threw; a `text` id that names no account simply
- * matches nothing, which is the same answer by a shorter road — and the
- * per-target result entry for it is identical (`success: false`).
+ * There is no id-FORMAT filter: a `text` id that names no account simply
+ * matches nothing, and its per-target result entry is `success: false`.
  */
 function dedupeTargetIds(currentUserId: string, targetUserIds: string[]): string[] {
   const seen = new Set<string>();
@@ -2247,11 +2228,11 @@ function dedupeTargetIds(currentUserId: string, targetUserIds: string[]): string
 /**
  * Map the validated profile-update allowlist onto `users` columns.
  *
- * The nested Mongo subdocuments (`name`, `notificationPreferences`,
- * `userPreferences`, `themePreference`) are flat columns here, so this is where
+ * The wire's nested objects (`name`, `notificationPreferences`,
+ * `userPreferences`, `themePreference`) are flat columns, so this is where
  * the wire's nesting is unwound — the mirror image of `toPublicUserView`. Only
  * keys the caller supplied are written; a partial `userPreferences` leaves the
- * fields it omitted untouched, matching Mongoose's dot-path `set`.
+ * fields it omitted untouched.
  */
 function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<string, unknown> {
   const set: Record<string, unknown> = {};
@@ -2326,7 +2307,7 @@ function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<strin
  * `db/schema/userLocations.ts`.
  *
  * Returns `null` for an entry with no usable `name`, which is the field the
- * column requires; Mongoose would have rejected the same row on `required`.
+ * column requires.
  */
 function toLocationRow(userId: string, entry: unknown, index: number) {
   if (!isRecord(entry)) return null;

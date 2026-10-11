@@ -20,19 +20,14 @@
  * caller's identity comes from the service credential and not the request body;
  * and the destructive path is refused unless the deployment is armed.
  *
- * ## What the port changed here
+ * ## Real rows, not doubles
  *
- * `main` wrote this suite against in-memory doubles for the `User`, `File` and
- * `Follow` Mongoose models — and the purge service it exercised was Mongoose
- * too. The service is now Postgres, so the doubles no longer stand between the
- * test and the store: every row below is a real row, and every assertion reads
- * one back. Three consequences worth naming, because they are what a reader
- * would otherwise flag as a weakened case:
+ * Every row below is a real row, and every assertion reads one back. Three
+ * consequences worth naming:
  *
- *   - **"Wrote nothing" is now a store DIFF, not an unused mock.** The old
- *     `assertNothingWritten()` asserted that seven jest doubles were never
- *     called, which is satisfied by a purge that writes through any path those
- *     doubles did not model. {@link expectStoreUnchanged} snapshots the rows
+ *   - **"Wrote nothing" is a store DIFF, not an unused mock.** An unused-mock
+ *     check is satisfied by a purge that writes through any path the mocks do
+ *     not model. {@link expectStoreUnchanged} snapshots the rows
  *     themselves — users, their `accountStatus`, files, their `status`, follow
  *     edges, blocks and restrictions — and requires them identical afterwards.
  *   - **"Deleted" means what the store means.** `assetService.deleteFile`

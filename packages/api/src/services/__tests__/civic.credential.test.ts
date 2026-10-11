@@ -1,11 +1,9 @@
 /**
  * Verifiable credentials (civic / Fase 4), against a REAL Postgres.
  *
- * The suite this replaces mocked `VerifiableCredential`, `SignedRecord`,
- * `RepoHead` and `User` as Mongoose models the service no longer imports, and
- * fed `verifyCredential` a hand-written `{ envelope }` object — so the "stored
- * envelope" it verified was one the test had just built in memory, never one the
- * ledger held. That is the single most important thing about a credential:
+ * Mocked models fed a hand-written `{ envelope }` object would verify an
+ * envelope the test had just built in memory, never one the ledger held. That
+ * is the single most important thing about a credential:
  *
  *  - **Verification recomputes the canonical signing input from the STORED
  *    envelope**, never from the projection's denormalized claims. The tampered

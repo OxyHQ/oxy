@@ -14,7 +14,7 @@
  * that was built correctly but never landed fails.
  *
  * `session.service` and the socket emitters are mocked — collaborators, not the
- * subject. Nothing about MongoDB is mocked.
+ * subject. The database is not mocked.
  */
 
 import express from 'express';

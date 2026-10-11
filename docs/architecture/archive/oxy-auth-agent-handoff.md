@@ -179,7 +179,7 @@ flowchart TB
 Tomadas de [`docs/nodes/README.md`](../nodes/README.md) y [`docs/identity/README.md`](../identity/README.md):
 
 1. **Reads de apps NUNCA await un node.** Perfil, feed, session restore → `api.oxy.so`. Node fetch = background ingest vía `safeFetch`.
-2. **El DID `#oxy-node` service** se deriva del row `UserNode` en Mongo (`did.service.ts`) — **no** probando liveness al node en el read path.
+2. **El DID `#oxy-node` service** se deriva del row `UserNode` en la base de datos (`did.service.ts`) — **no** probando liveness al node en el read path.
 3. **Misma crypto en todas partes:** firma Commons = verifica en Oxy API = verifica en `@oxy.so/node` (`@oxy.so/core` `verifyRecordEnvelope`). El replanteo auth **no** añade crypto nueva en nodes.
 4. **Commons-first sign-in** (este plan) es el puente humano a la identidad self-sovereign; **no** sustituye DeviceSession ni mueve tokens al node.
 5. **Federación ActivityPub** (`packages/api/src/routes/federation.ts`) es otro eje — no confundir con DeviceSession ni OAuth RP.
@@ -249,7 +249,7 @@ flowchart TB
   end
 
   subgraph server [api.oxy.so]
-    DS[DeviceSession mongoose]
+    DS[DeviceSession store]
     RT["/session/device/*"]
     OAuth["/auth/oauth/* third party"]
     DS --> RT
@@ -420,7 +420,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 
 ### Fase 1 — DeviceSession server
 
-**IN:** contracts schema, mongoose model, service, REST, socket broadcast, tests.  
+**IN:** contracts schema, modelo de datos, service, REST, socket broadcast, tests.  
 **OUT:** borrar FedCM; fusionar auth-sdk; UI Dialog; token mint final; migrar apps.
 
 ### Fase 2 — Contratos + Console
@@ -461,7 +461,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 - FedCM “solo para Chrome mientras tanto”
 - Cookie `oxy_rt` “solo para auth.oxy.so IdP”
 - Mantener `WebOxyProvider` export deprecated
-- Script Mongo migrate `devicesessions` desde cookies — **no hay migración**
+- Script de migración de `devicesessions` desde cookies — **no hay migración**
 - Bottom sheet para EditProfile etc. (solo auth va a Dialog en Fase 4; resto bottom sheet puede quedar)
 - Publicar `@oxy.so/contracts` civic types — reglas AGENTS unchanged
 - Fase 2c token mint **forma final**
@@ -500,7 +500,7 @@ El agente **no avanza** sin cumplir todo lo de la fase actual.
 ### Colisión de nombres (crítico)
 
 Hoy en main, **`DeviceSession` en contracts/core** = DTO de “sesiones que comparten device fingerprint” (`GET /session/device/sessions/:sessionId`).  
-El **nuevo `DeviceSession`** del plan = modelo mongoose `devicesessions` + `/session/device/{state,add,switch,signout}`. Son conceptos distintos; el agente debe migrar/reemplazar sin dejar dos modelos paralelos.
+El **nuevo `DeviceSession`** del plan = modelo de datos `devicesessions` + `/session/device/{state,add,switch,signout}`. Son conceptos distintos; el agente debe migrar/reemplazar sin dejar dos modelos paralelos.
 
 ---
 
@@ -687,7 +687,7 @@ Montar en `packages/api/src/routes/sessionDevice.ts` (prefijo `/session/device`)
 
 **Tests obligatorios:** ver Tasks 1–5 en superpowers plan; baseline api no debe bajar de ~997.
 
-**Colisión legacy:** rutas existentes `GET /session/device/sessions/:sessionId` listan Session Mongo por fingerprint — renombrar DTO en contracts si hace falta (`DeviceSessionAccount` vs `SessionAccount`) para no confundir tipos.
+**Colisión legacy:** rutas existentes `GET /session/device/sessions/:sessionId` listan Session por fingerprint — renombrar DTO en contracts si hace falta (`DeviceSessionAccount` vs `SessionAccount`) para no confundir tipos.
 
 ---
 

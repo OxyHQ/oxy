@@ -10,10 +10,9 @@
  *
  * ## Why this file exists
  *
- * Mongoose ran that normalisation as a schema SETTER — the API's ONE sanctioned
- * setter, carved out precisely because there is no single write chokepoint:
- * several independent upload paths write this one leaf field. Postgres has no
- * setter, and it cannot be a generated column either: `normalizeInlineText`
+ * This field is the API's ONE sanctioned exception to "normalize in the write
+ * service", precisely because there is no single write chokepoint: several
+ * independent upload paths write this one leaf field. Postgres has no setter, and it cannot be a generated column either: `normalizeInlineText`
  * starts with `String.prototype.normalize('NFC')` and Postgres has no IMMUTABLE
  * Unicode normalisation function in core (`schema/files.ts`).
  *

@@ -2,10 +2,8 @@
  * Persistence for the stored-asset aggregate: `files` + `file_links` +
  * `file_variants`.
  *
- * In Mongo those three were ONE document, so "load a file" and "load its links
- * and variants" were the same statement and every caller got the whole thing for
- * free. In Postgres they are three tables, and the assembly has to happen
- * somewhere. It happens HERE, once — not in `assetService` and again in
+ * They are three tables, so loading a file with its links and variants takes
+ * an assembly step, and that has to happen somewhere. It happens HERE, once — not in `assetService` and again in
  * `variantService`, which is how the two would drift on ordering, on which
  * child rows count, and on whether a write is atomic.
  *
@@ -74,7 +72,7 @@ export type NewFileLink = Omit<typeof fileLinks.$inferInsert, 'fileId'>;
  * (`files_sha256_owner_user_live_key`, `files_sha256_system_owner_live_key`)
  * that make per-owner dedup a database invariant rather than a hope: two
  * concurrent uploads of identical bytes BY ONE OWNER race, one inserts, the
- * other lands here and re-reads the winner. Mongo's equivalent was `E11000`/`code: 11000`.
+ * other lands here and re-reads the winner.
  *
  * **The cause chain is not optional.** Drizzle does not surface the driver's
  * error: it throws its own `Failed query: …` `Error` with the postgres.js error
@@ -628,8 +626,7 @@ export async function deleteFileLink(
  * in ONE transaction — replacing any existing row of the SAME `type` and
  * leaving rows of every other type untouched.
  *
- * Mongoose wrote variants and metadata in a single `$set` because they were
- * fields of one document; the transaction is what keeps that indivisible.
+ * The transaction keeps variants and metadata indivisible.
  * Intrinsic metadata (dimensions, duration) is derived from the same decode pass
  * that produced the renditions, so a state with one and not the other never
  * existed and must not become reachable.

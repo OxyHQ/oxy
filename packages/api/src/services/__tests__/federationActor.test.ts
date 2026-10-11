@@ -1,12 +1,10 @@
 /**
  * `getUserActor` against a REAL Postgres.
  *
- * The suite this replaces mocked `mongoose` wholesale and fed the function an
- * `as never` object, so neither the key lookup nor the actor's own shape was
- * checked against anything. Here the key pair is a real row and the parameter
- * is the declared `ActorSourceUser`, which is what makes the `as never` — and
- * with it the ability to hand this function a shape it cannot serve —
- * unnecessary.
+ * The key pair is a real row and the parameter is the declared
+ * `ActorSourceUser`, so both the key lookup and the actor's own shape are
+ * checked against something real — no `as never` object can hand this function
+ * a shape it cannot serve.
  *
  * MOCKED, because each is a collaborator this file is not about: the asset and
  * S3 services (avatar URL resolution) and `userCache`.

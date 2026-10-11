@@ -156,10 +156,8 @@ interface RecommendationRow {
 /**
  * The `users` columns every recommendation surface reads.
  *
- * Replaces the two `$project` stages the Mongo pipelines carried — one for
- * pipelines rooted at `follows` and one for pipelines rooted at `users`. Rooting
- * is a JOIN here, not a different projection, so there is only one list and the
- * two can no longer drift.
+ * Rooting at `user_follows` or at `users` is a JOIN, not a different
+ * projection, so there is only one list and no second copy to drift.
  */
 const recommendationColumns = {
   _id: users.id,
@@ -212,12 +210,9 @@ export function formatProfileResult(u: RecommendationRow) {
 /**
  * Load ONE public profile by a predicate, with its follower/following totals.
  *
- * The totals are correlated aggregates on the same row rather than the two
- * grouped `Follow` aggregations the Mongo version ran afterwards — which is also
- * where `routes/profiles.ts:540` was broken: it passed `.toString()` ids into an
- * aggregation `$match`, Mongoose does not cast aggregation pipelines, and the
- * match therefore selected nothing, so every follower count on `/profiles/search`
- * read zero. A join on a real foreign key cannot express that mistake.
+ * The totals are correlated aggregates on the same row rather than separate
+ * grouped aggregations afterwards. A join on a real foreign key cannot silently
+ * match nothing on an id-type mismatch.
  */
 async function loadProfileByPredicate(
   predicate: SQL,
@@ -381,10 +376,9 @@ router.get(
       throw new BadRequestError(`Username must be no more than ${MAX_USERNAME_LENGTH} characters`);
     }
 
-    // Case-insensitive on BOTH branches now, and written against the EXPRESSION
-    // the unique index is built on (`lower(btrim(username))`). Mongo indexed
-    // `username` case-SENSITIVELY while this lookup ran an anchored `/i` regex,
-    // so every profile fetch was a collection scan; the index serves it here.
+    // Case-insensitive on BOTH branches, and written against the EXPRESSION the
+    // unique index is built on (`lower(btrim(username))`), so the index serves
+    // every profile fetch.
     const aliasId = isFedHandle ? await lookupExternalIdentity(username) : null;
     let profile = await loadProfileByPredicate(
       aliasId
@@ -540,7 +534,7 @@ router.get(
     // `resolveAndUpsert` returns the cached row for a known federated actor,
     // which can be an ARCHIVED (dead / 410-Gone) account, a `restricted`
     // (negative-reputation) actor, or a private account — never let that prepend
-    // re-introduce an actor the `peopleSearchMongoMatch` $match above excluded.
+    // re-introduce an actor the `peopleSearchPredicate()` filter above excluded.
     //
     // This is a DELIBERATE exception to the native-first ordering applied above:
     // the caller typed an EXACT fediverse handle (`user@host`), so the resolved
@@ -876,10 +870,8 @@ async function resolveAuthorizedRecommendationClientId(
     return undefined;
   }
 
-  // No id-format guard: it existed to stop a Mongoose `CastError`, and it also
-  // normalized both sides through `new ObjectId(...).toHexString()` so two
-  // spellings of one ObjectId compared equal. A `text` id has ONE spelling and
-  // an unknown one simply matches no row, so the comparison is plain equality.
+  // No id-format guard or normalization: a `text` id has ONE spelling and an
+  // unknown one simply matches no row, so the comparison is plain equality.
   const requestedAppId = suppliedClientId;
 
   // SERVICE token: authorized only for its own application.
@@ -1217,8 +1209,7 @@ async function buildRecommendationsScored(
 
   // ---- Single scoring pass over the candidate users -----------------------
   //
-  // The three score components Mongo computed in `$addFields` are ordinary SQL
-  // expressions. Follower/following counts are deliberately NOT computed here —
+  // The three score components are ordinary SQL expressions. Follower/following counts are deliberately NOT computed here —
   // they are looked up for the final page only (see below), so the scoring pass
   // never pays a per-candidate count for a candidate that will not be returned.
   const repNormDenominator = REP_WEIGHT_NORM_MAX - REP_WEIGHT_NORM_MIN;

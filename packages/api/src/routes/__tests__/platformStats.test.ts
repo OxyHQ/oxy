@@ -315,9 +315,8 @@ describe('each counter measures its own table', () => {
 
 describe('the two counters that carry a WHERE', () => {
   it('excludes a session that is still `is_active` but has expired', () => {
-    // The Mongo query filtered on `isActive` alone and leant on a TTL index to
-    // have already removed the row. Nothing in this codebase DELETES a session,
-    // so without the expiry predicate this number grows without bound between
+    // Nothing in this codebase DELETES a session, so without the expiry
+    // predicate this number grows without bound between
     // sweeps — a plausible-looking wrong answer, which is the failure mode this
     // whole batch exists to remove. Drop the predicate and the reported figure
     // becomes the unfiltered one below.

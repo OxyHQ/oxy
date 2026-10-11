@@ -34,7 +34,7 @@ const ERROR_ICON_SIZE = 48;
 
 /**
  * Resolve a user's id from the canonical `id` field, falling back to the
- * Mongo `_id` exposed via `User`'s index signature — narrowed with a `typeof`
+ * raw `_id` exposed via `User`'s index signature — narrowed with a `typeof`
  * guard so we never reach for a cast.
  */
 const resolveUserId = (user: User): string =>

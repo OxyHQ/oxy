@@ -20,22 +20,21 @@
  * until a bot self-authentication lane exists that cannot be confused with a
  * degraded session read — see `accountsCreateAsOperatedAccount.test.ts`.
  *
- * ## What the Postgres port changed
+ * ## Storage decisions
  *
  * - **`ancestors` is `user_ancestors`, not an embedded array.** Each edge is a
  *   row with a real foreign key and an explicit `depth`, so the ROOT-FIRST order
- *   the Mongo array carried implicitly is now stated (`db/schema/userAncestors.ts`).
- * - **`account_members.permissions` does not travel.** Every write site set it
- *   to exactly `permissionsForAccountRole(role)`; it is a derivation of `role`,
+ *   is stated rather than implied (`db/schema/userAncestors.ts`).
+ * - **`account_members` stores no `permissions` column.** Every write site would
+ *   set it to exactly `permissionsForAccountRole(role)`; it is a derivation of `role`,
  *   not data, and the serializer keeps emitting it. What the table stores
  *   instead is the per-member ADJUSTMENT — `permission_grants` /
  *   `permission_revokes` — which a role name genuinely cannot express;
  *   `effectivePermissionsForMember` combines the three.
- * - **The session-less transaction fallback is DELETED, not translated.** The
- *   Mongoose helper string-matched a "no replica set" error and re-ran the work
- *   WITHOUT a transaction, so a subtree move on a standalone deployment ran
- *   non-atomically — a half-rewritten materialised path, silently. Postgres has
- *   no such mode, so there is nothing to fall back to.
+ * - **There is no non-transactional fallback.** Re-running the work WITHOUT a
+ *   transaction would let a subtree move run non-atomically — a half-rewritten
+ *   materialised path, silently. Postgres always has transactions, so there is
+ *   nothing to fall back to.
  *
  * Pure tree/inheritance helpers are exported separately so they can be unit
  * tested without a database.
@@ -683,8 +682,7 @@ export class AccountService {
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name);
-      // Mongo merged the supplied halves over the stored subdocument; the two
-      // columns are independent, so only the supplied half is written.
+      // The two columns are independent, so only the supplied half is written.
       if (input.name.first !== undefined) set.nameFirst = input.name.first;
       if (input.name.last !== undefined) set.nameLast = input.name.last;
       // An empty string CLEARS the explicit name and falls back to the composed
@@ -1315,8 +1313,8 @@ export class AccountService {
    * assignable here — ownership is granted only via {@link transferOwnership}.
    *
    * ONE statement: the compound unique on `(account_id, member_user_id)` is what
-   * decides between inserting and reactivating, so the read-then-branch the
-   * Mongo version ran cannot race with a concurrent invitation.
+   * decides between inserting and reactivating, so there is no read-then-branch
+   * to race with a concurrent invitation.
    */
   async addMember(
     accountId: string,

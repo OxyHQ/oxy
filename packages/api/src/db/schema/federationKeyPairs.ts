@@ -1,11 +1,6 @@
 /**
  * `federation_key_pairs` — the RSA key pairs Oxy signs ActivityPub requests with.
  *
- * Ported from an INLINE Mongoose model that lived in
- * `services/federation.service.ts` (`mongoose.model('FederationKeyPair', …,
- * 'federation_keypairs')`) rather than in `models/`, which is why it is the one
- * table with no counterpart file there.
- *
  * ## `key_id` is the identity, and it is not a row id
  *
  * A keyId is the canonical `https://<domain>/ap/users/<username>#main-key` URI.
@@ -19,18 +14,11 @@
  *
  * ## `private_key_pem` is a PROTECTED column
  *
- * It is the live signing key for a federated identity. Mongoose left it fully
- * selectable and the service only avoided leaking it by hand-picking fields at
+ * It is the live signing key for a federated identity. Hand-picking fields at
  * every call site — including `getPublicKeyForKeyId`, which exists precisely to
- * return the public half. Drizzle's `select()` does not hand-pick, so the guard
- * moves into `protectedColumns.ts` where a read that wants it has to name it.
- *
- * ## The collection name did NOT travel
- *
- * Mongo's was `federation_keypairs` (an explicit third argument to
- * `mongoose.model`). The table is `federation_key_pairs`, per the snake_case
- * convention — nothing reads a collection name, and the call sites are being
- * rewritten rather than shimmed.
+ * return the public half — is not a guard, because Drizzle's `select()` does
+ * not hand-pick, so the guard lives in `protectedColumns.ts` where a read that
+ * wants it has to name it.
  */
 
 import { pgTable, text, unique } from 'drizzle-orm/pg-core';

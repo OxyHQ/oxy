@@ -500,19 +500,11 @@ export function emitSessionUpdate(userId: string, payload: any) {
 }
 
 // The database connection lives entirely in the startup gate below
-// (`waitForDatabaseConnection` → `connectPostgres`), which is what removing
-// Mongoose from this file finally allowed.
-//
-// What used to sit here was a SECOND, independent connect: a module-level
-// `mongoose.connect(...)` with its own pool options, its own `process.exit(1)`
-// on failure, and four `mongoose.connection.on(...)` monitors — running at
-// import time, in parallel with the Postgres gate, and in EVERY process that
-// imported this module (including jest). It is deleted rather than translated:
-// `connectPostgres()` is idempotent and the single place a pool is opened in
-// this package, and pool sizing belongs there (`PG_MAX_POOL_SIZE`) rather than
-// in a second copy here. The connection-event monitors have no `postgres.js`
-// counterpart — `GET /health` reports reachability with a real round trip,
-// which is strictly better than a driver-side flag.
+// (`waitForDatabaseConnection` → `connectPostgres`). Nothing here connects at
+// import time: `connectPostgres()` is idempotent and the single place a pool is
+// opened in this package, and pool sizing belongs there (`PG_MAX_POOL_SIZE`).
+// `GET /health` reports reachability with a real round trip rather than a
+// driver-side flag.
 //
 // `ensureFileSha256LiveUniqueIndex()` also used to run here: boot-time index
 // reconciliation that dropped the legacy global `sha256_1` index and recreated
@@ -592,9 +584,8 @@ app.get('/', async (req, res) => {
 // being unusable is the only condition that returns 503.
 //
 // The probe is a real `select 1` round trip, NOT the existence of a connection
-// object. `mongoose.connection.readyState === 1` reported "connected" from a
-// driver-side flag, which is why this endpoint could report a healthy database
-// while it was refusing work. `isDatabaseReachable()` cannot: it either gets a
+// object: a driver-side "connected" flag can report a healthy database while
+// it is refusing work. `isDatabaseReachable()` cannot: it either gets a
 // row back over the same pool real requests use, or it does not.
 //
 // A mutation test on `isDatabaseReachable` that stops the database BEFORE
@@ -951,9 +942,8 @@ const AP_DOMAIN = process.env.FEDERATION_DOMAIN || 'oxy.so';
  * The one account whose username matches, case-insensitively, or `undefined`.
  *
  * Written against the EXPRESSION `users_lower_username_key` is built on
- * (`lower(btrim(username))`), which is what makes it an index seek. Mongo
- * indexed `username` case-SENSITIVELY while both callers below ran an anchored
- * `/i` regex, so each actor/WebFinger lookup was a full collection scan.
+ * (`lower(btrim(username))`), which is what makes it an index seek rather than
+ * a full scan on every actor/WebFinger lookup.
  *
  * The projection is exactly the union of what `isFederatableUser` gates on and
  * what `getUserActor` renders — `select: false` does not survive into drizzle,
@@ -984,7 +974,7 @@ async function findFederatableUserByUsername(username: string) {
   }
 
   // `isFederatableUser` is the SHARED discovery predicate (`utils/profileQuery.ts`),
-  // and it reads the Mongo-shaped `privacySettings.fediverseSharing`. Reshaping
+  // and it reads the nested `privacySettings.fediverseSharing`. Reshaping
   // here keeps ONE authority for "may this account be discovered over
   // ActivityPub" rather than a second copy of the rule written in SQL.
   return {
@@ -1154,8 +1144,8 @@ const DATABASE_STARTUP_TIMEOUT_MS = 30_000;
  * that listens before the database answers joins the ALB target group and
  * starts serving 500s; the gate is what makes "in the target group" mean "can
  * actually serve". `waitForDatabaseConnection` RETRIES inside the deadline
- * because `postgres.js` makes a single connection attempt where the Mongo
- * driver retried internally — on ECS a task can start before RDS finishes a
+ * because `postgres.js` makes a single connection attempt and does not retry
+ * internally — on ECS a task can start before RDS finishes a
  * failover, and a single attempt would turn seconds of unavailability into a
  * crash loop.
  *
@@ -1301,8 +1291,7 @@ export async function bootstrap(
   }, RESERVATION_EXPIRY_SWEEP_INTERVAL_MS);
   reservationExpirySweep.unref();
 
-  // Enforce the declared row retentions (issue #1015) — the Postgres stand-in
-  // for the Mongo TTL indexes the port removed. `db/expiry.ts` names every
+  // Enforce the declared row retentions (issue #1015). `db/expiry.ts` names every
   // table and its window, including the ninety days `api_key_usage_events` and
   // `inference_usage_events` are documented to keep; this interval is what
   // makes those windows a fact rather than a claim, so the ninety days is a
@@ -1482,9 +1471,8 @@ export async function bootstrap(
   // recovery. Never throws.
   await startConductRiskExpiryJobs();
 
-  // Materialize `status = 'expired'` on lapsed subscriptions. This REPLACES
-  // a Mongo TTL index that DELETED the subscription record when its period
-  // closed; nothing is deleted now. Entitlement never depends on this
+  // Materialize `status = 'expired'` on lapsed subscriptions. Nothing is
+  // deleted: the subscription record outlives its period. Entitlement never depends on this
   // running — every read derives expiry from `end_date` itself — so a missed
   // tick delays a label and nothing more. Never throws.
   await startSubscriptionExpiryJobs();

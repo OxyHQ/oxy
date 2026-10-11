@@ -3,19 +3,18 @@
  *
  * ## The weighted text index
  *
- * Mongo declared one text index over four paths with weights
- * `{name: 10, displayName: 8, aliases: 5, description: 1}` and
- * `default_language: 'en'`. The Postgres port is a GENERATED `tsvector` built
- * from four `setweight` terms (A/B/C/D, highest first) plus a GIN index —
- * generated rather than application-maintained for the reason
- * `CONVENTIONS.md` gives: a hook is bypassable and a
- * `GENERATED ALWAYS ... STORED` column is not.
+ * Search covers four fields with relative weights
+ * `{name: 10, displayName: 8, aliases: 5, description: 1}`, in English. It is a
+ * GENERATED `tsvector` built from four `setweight` terms (A/B/C/D, highest
+ * first) plus a GIN index — generated rather than application-maintained for
+ * the reason `CONVENTIONS.md` gives: a hook is bypassable and a `GENERATED
+ * ALWAYS ... STORED` column is not.
  *
  * **Call-site note, and it is load-bearing.** Postgres's DEFAULT rank weights
- * are `{D,C,B,A} = {0.1, 0.2, 0.4, 1.0}`, which orders the four fields the same
- * way Mongo did but does not reproduce its RATIOS. `TopicService.search` /
- * `.list` must therefore rank with the explicit array —
- * `ts_rank('{0.1, 0.5, 0.8, 1.0}', search_vector, query)` — which is Mongo's
+ * are `{D,C,B,A} = {0.1, 0.2, 0.4, 1.0}`, which orders the four fields correctly
+ * but does not reproduce their RATIOS. `TopicService.search` / `.list` must
+ * therefore rank with the explicit array —
+ * `ts_rank('{0.1, 0.5, 0.8, 1.0}', search_vector, query)` — which is
  * `{1, 5, 8, 10}` normalized. Ranking with the default weights compiles, runs,
  * and quietly returns a different order.
  *
@@ -47,18 +46,18 @@
  * because `array_to_tsvector` sorts; positions do not affect `@@` or
  * `setweight` ranking). `__tests__/socialGraph.test.ts` pins the equality.
  *
- * ## Everything else that did not travel verbatim
+ * ## Other shape decisions
  *
- * - `description` defaulted to `''` in Mongoose. Absent is NULL here, as on
- *   `users`: `''` is a value, and every reader already treats blank and absent
+ * - `description` absent is NULL, never `''`, as on `users`: `''` is a value,
+ * and every reader already treats blank and absent
  *   identically.
  * - `translations` is the codebase's ONLY `Map` of subdocuments. It is `jsonb`:
  *   the KEY space is open (arbitrary BCP-47 locale tags), nothing joins on a
  *   key, and there is no locale table to reference — so a child table would add
  *   a join to every read and enforce nothing. The CHECK below keeps it an object
  *   rather than a dumping ground.
- * - Mongo's standalone `{type}` and `{aliases}` indexes are dropped. `{type}` is
- *   fully served by `(is_active, type)` — both live readers (`getCategories`,
+ * - No standalone `(type)` or `(aliases)` index. `type` is fully served by
+ * `(is_active, type)` — both live readers (`getCategories`,
  *   `list`) filter `isActive` too — and nothing queries `aliases` by element;
  *   they exist only to be searched, which the GIN index above covers.
  */
@@ -76,14 +75,14 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, tsvector, updatedAt } from '@oxy.so/db';
 
-/** Where a topic sits in the taxonomy. Mongo's `TopicType`, unchanged. */
+/** Where a topic sits in the taxonomy. */
 export const TOPIC_TYPES = ['category', 'topic', 'entity'] as const;
 
-/** How a topic came to exist. Mongo's `TopicSource`, unchanged. */
+/** How a topic came to exist. */
 export const TOPIC_SOURCES = ['seed', 'ai', 'manual', 'system'] as const;
 
 /**
- * Mongo's `default_language: 'en'`. A LITERAL configuration, because the
+ * English. A LITERAL configuration, because the
  * one-argument `to_tsvector` reads `default_text_search_config` at runtime and
  * is therefore STABLE, which Postgres refuses in a generated column.
  */
@@ -133,15 +132,15 @@ export const topics = pgTable(
     id: generatedId(),
     /**
      * The canonical lookup key (`TopicService.findOrCreate` resolves on it).
-     * Mongoose lower-cased and trimmed it on write; that is APPLICATION
-     * behaviour with no Postgres counterpart, so the call-site port must keep
-     * normalizing — the unique below compares the stored value as-is.
+     * Stored lower-cased and trimmed; that is APPLICATION behaviour with no
+     * Postgres counterpart, so every call site must normalize — the unique
+     * below compares the stored value as-is.
      */
     name: text().notNull(),
     /** URL handle (`getBySlug`). Same normalization note as `name`. */
     slug: text().notNull(),
     displayName: text().notNull(),
-    /** Mongoose defaulted to `''`; absent is NULL. */
+    /** Absent is NULL, never `''`. */
     description: text(),
     type: text({ enum: TOPIC_TYPES }).notNull(),
     source: text({ enum: TOPIC_SOURCES }).notNull(),
@@ -165,7 +164,7 @@ export const topics = pgTable(
     isActive: boolean().notNull().default(true),
     /** Locale tag → `{ displayName, description? }`. See the header. */
     translations: jsonb(),
-    /** GENERATED — the replacement for Mongo's weighted text index. */
+    /** GENERATED — the weighted full-text search vector. */
     searchVector: tsvector().generatedAlwaysAs(SEARCH_VECTOR_EXPRESSION),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -174,8 +173,8 @@ export const topics = pgTable(
     unique('topics_name_key').on(t.name),
     unique('topics_slug_key').on(t.slug),
 
-    // Mongo's `{isActive, type}` compound. It also subsumes Mongo's standalone
-    // `{type}` index, since both live readers filter on `isActive` as well.
+    // `(is_active, type)`. It also serves a lookup by `type`, since both live
+    // readers filter on `isActive` as well.
     index('topics_is_active_type_idx').on(t.isActive, t.type),
     // The child-side of the self-reference. Postgres does NOT index a foreign
     // key automatically, and without this every parent delete (and every

@@ -15,29 +15,23 @@
  * so the apex proxy must forward the user-DID and well-known-DID paths to this
  * API exactly as it already forwards the well-known and ActivityPub prefixes.
  *
- * ## The cutover bug this port removes
+ * ## No id-shape guard
  *
- * The handler used to open by running `userId` through the legacy 24-hex id
- * predicate in `utils/validation.ts` and answering
- * `404 {error:'NOT_FOUND', message:'DID not found'}` on a miss.
+ * Ids are either legacy 24-hex ids or **uuid v7** (`@oxy.so/db`'s
+ * `generatedId()`). A 24-hex check on `userId` would 404 every uuid account's
+ * DID BEFORE ANY QUERY RAN — the account would not be resolvable by any DID
+ * resolver, remote fediverse instance, or Oxy's own credential verifier, and
+ * the response would be indistinguishable from "no such account".
  *
- * That predicate is `/^[0-9a-f]{24}$/i`, which rejects the **uuid v7 every
- * account created after the Postgres cutover carries** (`@oxy.so/db`'s
- * `generatedId()`). Every such account's DID therefore 404'd BEFORE ANY QUERY
- * RAN — the account was not resolvable by any DID resolver, remote fediverse
- * instance, or Oxy's own credential verifier, and the response was
- * indistinguishable from "no such account".
- *
- * The guard is DELETED rather than widened: it only ever existed to stop a
- * malformed string reaching Mongoose as a `CastError`. `users.id` is a `text`
- * column compared against a bound parameter, so a malformed id is simply a value
- * that matches no row — reaching the SAME 404 body by querying instead of by
+ * `users.id` is a `text` column compared against a bound parameter, so a
+ * malformed id is simply a value that matches no row — reaching the 404 body
+ * (`{error:'NOT_FOUND', message:'DID not found'}`) by querying instead of by
  * guessing at the string's shape.
  *
  * ## Storage (Postgres)
  *
- * `authMethods[]` and `verifiedDomains[]` were embedded arrays on the Mongo
- * document; both are child tables now, so the read is three explicit queries.
+ * `authMethods[]` and `verifiedDomains[]` are child tables, so the read is three
+ * explicit queries.
  * Only the columns the DID document is derived from are selected — the rest of
  * the `users` row, protected columns included, never enters this path.
  *
@@ -45,9 +39,9 @@
  * `verificationMethod[]` fragments are positional (`#key-1`, `#key-2`, …) and
  * whose `alsoKnownAs[]` is consumed verbatim by remote resolvers, so heap order
  * — which is what an unordered Postgres read returns — would let the SAME
- * account serve two different documents. `linked_at` / `created_at` are the
- * meaningful form of the Mongo arrays' insertion order, with the (uuid v7,
- * time-ordered) `id` breaking a same-instant tie so the order is total.
+ * account serve two different documents. `linked_at` / `created_at` give
+ * insertion order, with the (uuid v7, time-ordered) `id` breaking a
+ * same-instant tie so the order is total.
  */
 
 import { Router, type Request, type Response } from 'express';

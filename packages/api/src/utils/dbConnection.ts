@@ -1,28 +1,19 @@
 /**
  * Database readiness — the startup gate and its synchronous companion.
  *
- * This file used to wrap `mongoose.connection.readyState` and the driver's
- * `connected`/`error` events. Neither has a Postgres counterpart, and the
- * difference is not cosmetic:
+ * `postgres.js` has no "connected" event and no internal retry.
+ * `connectPostgres()` issues ONE `select 1` and either resolves or throws — a
+ * single attempt. On ECS the task can start before RDS finishes a failover or a
+ * security group settles, so a single attempt would turn a few seconds of
+ * unavailability into a crash loop.
  *
- *  - Mongoose's driver retries server selection internally and emits
- *    `connected` whenever it eventually succeeds, so "wait for the connection"
- *    was a matter of subscribing to an event.
- *  - `postgres.js` has no such event. `connectPostgres()` issues ONE `select 1`
- *    and either resolves or throws — a single attempt. On ECS the task can
- *    start before RDS finishes a failover or a security group settles, so a
- *    single attempt would turn a few seconds of unavailability into a crash
- *    loop.
- *
- * {@link waitForDatabaseConnection} therefore RETRIES until the deadline, which
- * is what preserves the old behaviour: `server.ts` does not call `listen` until
- * the database has actually answered, and gives up with a thrown error after
- * the timeout exactly as the Mongo version did.
+ * {@link waitForDatabaseConnection} therefore RETRIES until the deadline:
+ * `server.ts` does not call `listen` until the database has actually answered,
+ * and gives up with a thrown error after the timeout.
  *
  * The probe is a real round trip in both functions that claim liveness. A pool
- * object existing proves nothing — that is the failure the `/health` endpoint
- * used to have, where `readyState === 1` reported "connected" against a server
- * that was refusing work.
+ * object existing proves nothing — a driver-side "connected" flag can report a
+ * server that is refusing work.
  */
 
 import { checkPostgresHealth, connectPostgres, isPostgresConnected } from '../config/postgres';

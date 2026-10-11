@@ -8,13 +8,11 @@
  * flatten to columns for the same reason — they are indexed, and `jsonb` cannot
  * serve an indexed path without a hand-written expression index per path.
  *
- * ## Coordinates are ported as a FIX, not replicated
+ * ## Coordinates are NAMED columns
  *
- * Mongo stored `{ lat, lon }` and indexed it with `2dsphere`. A 2dsphere index
- * over an object reads the pair POSITIONALLY as `[longitude, latitude]` — the
- * first field is longitude — so the live index has almost certainly had every
- * point transposed for its whole life. Two NAMED columns make that class of bug
- * unrepresentable: there is no ordering left to get wrong.
+ * A `{ lat, lon }` pair read POSITIONALLY as `[longitude, latitude]` transposes
+ * every point. Two NAMED columns make that class of bug unrepresentable: there
+ * is no ordering left to get wrong.
  *
  * ## The spatial index is PostGIS, and the point is GENERATED
  *
@@ -102,8 +100,8 @@ const geography = customType<{ data: string; driverData: string }>({
  * The one place the coordinate ORDER is written down.
  *
  * `ST_MakePoint` takes (x, y) — that is (longitude, latitude), the opposite of
- * how humans say a coordinate — and reading it backwards is the exact bug
- * inherited from Mongo's 2dsphere index. Because the column is generated from
+ * how humans say a coordinate — and reading it backwards is the exact
+ * transposition bug described above. Because the column is generated from
  * this expression, no write path can reintroduce the transposition: every row's
  * point is derived from the NAMED columns, by this expression, or it does not
  * exist.
@@ -118,14 +116,14 @@ const GEO_EXPRESSION = sql.raw('ST_MakePoint(longitude, latitude)::geography');
 export const USER_LOCATION_TYPES = ['home', 'work', 'school', 'other'] as const;
 
 /**
- * The text-search configuration behind `search_vector`, matching the Mongo text
- * index's `default_language: "en"`. A LITERAL, because the one-argument
- * `to_tsvector` is STABLE and Postgres refuses it in a generated column.
+ * The text-search configuration behind `search_vector`: English. A LITERAL,
+ * because the one-argument `to_tsvector` is STABLE and Postgres refuses it in a
+ * generated column.
  */
 const SEARCH_CONFIGURATION = 'english';
 
 /**
- * `name` + `formatted_address`, the two fields Mongo's text index covered.
+ * `name` + `formatted_address`, the two searchable text fields.
  *
  * The column names are spelled in SQL here because a generated expression is
  * built before the table object exists, so there are no drizzle columns to
@@ -191,7 +189,7 @@ export const userLocations = pgTable(
     countryCode: text(),
     timezone: text(),
 
-    /** GENERATED — the replacement for Mongo's text index on this table. */
+    /** GENERATED — the full-text search vector for this table. */
     searchVector: tsvector().generatedAlwaysAs(SEARCH_VECTOR_EXPRESSION),
 
     createdAt: createdAt(),
@@ -202,36 +200,34 @@ export const userLocations = pgTable(
     // read — which is every read there is. No separate `user_id` index.
     uniqueIndex('user_locations_user_id_location_key_key').on(t.userId, t.locationKey),
 
-    // Mongo declared seven indexes on these paths; three were redundant, since a
-    // btree serves any leading prefix of a compound:
-    //   {address.city}          — covered by (city, country)
-    //   {type}                  — covered by (type, city)
-    //   {address.country} is NOT covered by (city, country), so it stays.
+    // No standalone index where a compound already leads with the column, since
+    // a btree serves any leading prefix of a compound:
+    //   (city)     — covered by (city, country)
+    //   (type)     — covered by (type, city)
+    //   (country) is NOT covered by (city, country), so it has its own index.
     index('user_locations_city_country_idx').on(t.city, t.country),
     index('user_locations_country_idx').on(t.country),
     index('user_locations_type_city_idx').on(t.type, t.city),
     index('user_locations_country_code_city_idx').on(t.countryCode, t.city),
-    // Mongo also indexed `locations.createdAt` and `locations.updatedAt`
-    // descending. Dropped: nothing in the codebase orders or filters locations
-    // by either, and an index nobody uses still costs every write.
+    // No index on `created_at` or `updated_at`: nothing in the codebase orders
+    // or filters locations by either, and an index nobody uses still costs
+    // every write.
     index('user_locations_search_vector_idx').using('gin', t.searchVector),
     // The only index a distance search can use. `geography` has a default GiST
     // operator class, so no opclass is named here; `EXPLAIN` on a real
     // `ST_DWithin` confirms the planner picks it (`db/__tests__/postgis.test.ts`).
     index('user_locations_geo_idx').using('gist', t.geo),
-    // NOTE for the call-site port: these are ports of the indexes Mongo
-    // declared, and they serve equality and prefix reads. The one live consumer
-    // of this data — people search — matches with an UNANCHORED
-    // case-insensitive substring pattern (`utils/profileQuery.ts:97-102`), which
-    // none of them can serve, exactly as none of Mongo's could. It is a scan
-    // today and it will be a scan on port. If it needs indexing, `pg_trgm` is
-    // the tool and it is already available; do not assume these cover it.
+    // NOTE: these serve equality and prefix reads. The one live consumer of
+    // this data — people search — matches with an UNANCHORED case-insensitive
+    // substring pattern (`utils/profileQuery.ts`), which none of them can
+    // serve. It is a scan. If it needs indexing, `pg_trgm` is the tool and it
+    // is already available; do not assume these cover it.
 
     check(
       'user_locations_type_check',
       sql`${t.type} in (${sql.raw(USER_LOCATION_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
-    // Mongo's `min`/`max` on the two coordinate paths.
+    // Each coordinate within its valid range.
     check(
       'user_locations_latitude_check',
       sql`${t.latitude} is null or (${t.latitude} >= -90 and ${t.latitude} <= 90)`,
@@ -240,8 +236,8 @@ export const userLocations = pgTable(
       'user_locations_longitude_check',
       sql`${t.longitude} is null or (${t.longitude} >= -180 and ${t.longitude} <= 180)`,
     ),
-    // Half a coordinate is not a place. Mongo permitted `{ lat }` with no `lon`,
-    // and every consumer had to guard for it; here the pair is whole or absent.
+    // Half a coordinate is not a place: the pair is whole or absent, so no
+    // consumer has to guard for a latitude with no longitude.
     check(
       'user_locations_coordinates_complete_check',
       sql`(${t.latitude} is null) = (${t.longitude} is null)`,

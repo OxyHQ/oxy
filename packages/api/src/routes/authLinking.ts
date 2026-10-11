@@ -10,15 +10,13 @@
  *
  * ## Storage (Postgres)
  *
- * The `authMethods[]` subdocument array is now the CHILD TABLE
- * `user_auth_methods`, so "push an entry" is an INSERT, "filter the array" is a
- * DELETE, and "replace the identity entry in place" is an UPDATE of exactly one
- * row. Two consequences worth stating, because each is a behaviour the Mongo
- * version could not have:
+ * `authMethods[]` is the CHILD TABLE `user_auth_methods`, so "add an entry" is
+ * an INSERT, "remove an entry" is a DELETE, and "replace the identity entry in
+ * place" is an UPDATE of exactly one row. Two consequences worth stating:
  *
  * - **The rotation swap is one transaction** covering the `users.public_key`
  *   write, the in-place identity-row replacement, AND the stale
- *   `identity_backups` delete — a committed swap can no longer leave a backup
+ *   `identity_backups` delete — a committed swap cannot leave a backup
  *   that still holds the OLD key behind.
  * - **A key already linked elsewhere is caught by a unique index**
  *   (`users_lower_public_key_key`, `user_auth_methods_lower_method_public_key_key`)
@@ -66,8 +64,8 @@ const router = Router();
  * `where lower(btrim(public_key)) = lower(btrim($1))` — the spelling that both
  * matches case-insensitively and uses `users_lower_public_key_key`. A plain
  * `public_key = $1` is correct-looking, case-sensitive, and would not use the
- * index (Mongoose's `lowercase: true` setter is what used to make the naive
- * comparison work, and it has no Postgres counterpart).
+ * index (Postgres has no column-level lower-casing to make the naive
+ * comparison work).
  */
 function publicKeyMatches(candidate: string) {
   return sql`lower(btrim(${users.publicKey})) = lower(btrim(${candidate}))`;
@@ -180,8 +178,7 @@ router.get(
       throw new BadRequestError('User not found');
     }
 
-    // Ordered by `linked_at`: the Mongo array was read in insertion order, and
-    // `linked_at` is the meaningful form of that. `id` (uuid v7, time-ordered)
+    // Ordered by `linked_at`, i.e. insertion order. `id` (uuid v7, time-ordered)
     // breaks a same-instant tie so the response order is total rather than
     // whatever the heap returns.
     const methods = await db
@@ -487,8 +484,8 @@ router.post(
     }
 
     const body = req.body as LinkAuthMethodBody;
-    // Mongoose's `lowercase: true` setter on `publicKey` has no Postgres
-    // counterpart, so the normalization it performed is re-applied here.
+    // `publicKey` is stored lower-cased; Postgres has no column-level setter, so
+    // the normalization is applied here.
     const safePublicKey = body.publicKey.trim().toLowerCase();
     if (!SignatureService.isValidPublicKey(safePublicKey)) {
       throw new BadRequestError('publicKey is not a valid public key');

@@ -146,11 +146,11 @@ export function decideOAuthConsent(input: OAuthConsentInput): OAuthConsentDecisi
  * Record (or refresh) a user's standing consent for an application — the
  * "Connected apps" entry. Upsert on `(user_id, application_id)`.
  *
- * The scope merge is Mongo's `$addToSet: { scopes: { $each } }`: the granted set
- * is a UNION that keeps each scope's FIRST position, so an existing grant keeps
- * the order it was written in and genuinely new scopes are appended.
- * `first_granted_at` is deliberately absent from the conflict branch — that is
- * `$setOnInsert`, and re-stamping it would erase when the user first consented.
+ * The scope merge is a set UNION that keeps each scope's FIRST position, so an
+ * existing grant keeps the order it was written in and genuinely new scopes are
+ * appended. `first_granted_at` is deliberately absent from the conflict branch —
+ * it is set on insert only, and re-stamping it would erase when the user first
+ * consented.
  *
  * `updated_at` is set explicitly: drizzle's `$onUpdate` fires for `db.update()`,
  * not for the update arm of an upsert.

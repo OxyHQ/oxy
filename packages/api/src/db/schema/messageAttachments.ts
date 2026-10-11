@@ -3,9 +3,8 @@
  *
  * Ported from the `attachments` array in `models/Message.ts`.
  *
- * Mongo indexed `attachments.fileId` for the reverse lookup "which messages
- * reference this file", which is the tell that this was always a RELATION
- * wearing an embedded array's clothes. Here it is a real foreign key.
+ * The reverse lookup "which messages reference this file" is the tell that
+ * this is a RELATION, not an embedded array. It is a real foreign key.
  *
  * ## `ON DELETE no action` on `file_id`, deliberately
  *
@@ -87,11 +86,11 @@ export const messageAttachments = pgTable(
   },
   (t) => [
     unique('message_attachments_message_id_ord_key').on(t.messageId, t.ord),
-    // Mongo's `{userId, 'attachments.fileId'}`, landing where the data now
-    // lives. The user scope comes from the join to `messages`, which is keyed
-    // on the primary key — cheaper than carrying a denormalized `user_id` here.
+    // The reverse lookup by file. The user scope comes from the join to
+    // `messages`, which is keyed on the primary key — cheaper than carrying a
+    // denormalized `user_id` here.
     index('message_attachments_file_id_idx').on(t.fileId),
-    // Mongo's `min: 0`.
+    // A size is never negative.
     check('message_attachments_size_check', sql`${t.size} >= 0`),
     check('message_attachments_ord_check', sql`${t.ord} >= 0`),
   ],

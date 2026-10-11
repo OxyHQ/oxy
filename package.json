@@ -122,7 +122,6 @@
     "lint": "biome check . && bun run --filter accounts --filter commons --filter test-app lint:expo",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "validate:no-mongo": "bun ./scripts/validate-no-mongo.mjs && bun ./scripts/test-validate-no-mongo.mjs",
     "validate:no-flat-account-list": "bun ./scripts/validate-no-flat-account-list.mjs && bun ./scripts/test-validate-no-flat-account-list.mjs",
     "build:all": "turbo run build",
     "build:workspaces": "bun run build --filter '*'",

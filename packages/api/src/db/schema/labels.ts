@@ -3,9 +3,8 @@
  *
  * Ported from `models/Label.ts`.
  *
- * Mongo enforced "one label name per user, case-insensitively" with a unique
- * index under `collation: { locale: 'en', strength: 2 }`. Postgres gets the same
- * guarantee from a unique index on the EXPRESSION `lower(name)` — see
+ * One label name per user, case-insensitively: a unique index on the
+ * EXPRESSION `lower(name)` — see
  * `CONVENTIONS.md` for why that beats the `citext` extension here.
  *
  * Consequence for every read: a lookup by name must be written
@@ -38,8 +37,8 @@ export const labels = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  // Mongo also declared a standalone `{userId: 1}` index; dropped, since the
-  // unique index below leads with `user_id` and serves those reads. No index
+  // No standalone `(user_id)` index, since the unique index below leads with
+  // `user_id` and serves those reads. No index
   // backs the `order, name` sort of the list view either — a user holds a few
   // dozen labels at most, so sorting them is free and an index would be noise.
   (t) => [uniqueIndex('labels_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)],

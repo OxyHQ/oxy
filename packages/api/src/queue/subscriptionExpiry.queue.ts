@@ -2,9 +2,8 @@
  * Subscription status projection scheduling.
  *
  * Runs `projectExpiredSubscriptions` (`db/subscriptionStatus.ts`), which
- * relabels a lapsed subscription `active → expired`. It DELETES NOTHING: the
- * Mongo TTL index this replaces destroyed the record of what a user bought, and
- * removing that data loss is the point.
+ * relabels a lapsed subscription `active → expired`. It DELETES NOTHING:
+ * deleting the row would destroy the record of what a user bought.
  *
  * Mirrors `conductRiskExpiry.queue.ts` exactly:
  *   - **BullMQ path** (`REDIS_URL` set): one repeatable job deduped by a stable

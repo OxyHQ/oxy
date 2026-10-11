@@ -61,7 +61,7 @@ const CLUSTER_TABLES = [
   securityActivities,
 ];
 
-/** Tables of this batch that had a Mongo TTL index, and what it replaced. */
+/** Tables of this batch whose rows expire, and their retention in seconds. */
 const EXPECTED_SWEEP_RETENTIONS: ReadonlyArray<readonly [string, number]> = [
   ['sessions', 0],
   ['domain_verifications', 0],
@@ -201,8 +201,8 @@ describe('sparse-unique becomes a plain UNIQUE on a nullable column', () => {
 
   it("shows why `''` would be worse than the problem it looks like a fix for", async () => {
     // The claim the two assertions above rest on, demonstrated rather than
-    // asserted: an empty string is a VALUE, so a `default: ''` port of Mongo's
-    // `default: undefined` would make every code-less request collide with
+    // asserted: an empty string is a VALUE, so a `default: ''` in place of an
+    // absent value would make every code-less request collide with
     // every other one — converting a non-problem into a live outage.
     await getDb().delete(authSessions).where(eq(authSessions.authorizeCode, ''));
     await deviceSignInRequest({ authorizeCode: '' });
@@ -233,9 +233,9 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
 
     const [row] = await getDb().select().from(authSessions).where(eq(authSessions.id, id));
 
-    // The Mongoose sub-schema exists so this path stays `undefined` instead of
-    // materialising an empty object that reads as truthy. Four separate NULLs
-    // are the port of that, and `{}` has no representation here at all.
+    // This path must stay absent instead of materialising an empty object that
+    // reads as truthy. Four separate NULLs express that, and `{}` has no
+    // representation here at all.
     expect(row.purpose).toBe('device_sign_in');
     expect(row.oauthRedirectUri).toBeNull();
     expect(row.oauthCodeChallenge).toBeNull();
@@ -306,7 +306,7 @@ describe('AuthSession.oauth stays NULL rather than becoming {}', () => {
   });
 
   it('keeps `requester_label` a label, not a fingerprint', async () => {
-    // Mongoose's `maxlength: 64` is a fail-closed guard: a writer that tried to
+    // The 64-character limit is a fail-closed guard: a writer that tried to
     // persist a whole User-Agent here must fail rather than quietly widen this
     // column into a device fingerprint.
     const error = await rejection(
@@ -606,8 +606,8 @@ describe('sessions', () => {
     `);
     const byName = new Map(rows.map((row) => [row.column_name, row.data_type]));
 
-    // `deviceInfo.fingerprint` carried its own Mongo index, which a jsonb blob
-    // could not serve without a hand-written expression index per path.
+    // `deviceInfo.fingerprint` needs its own index, which a jsonb blob could
+    // not serve without a hand-written expression index per path.
     expect(byName.get('device_fingerprint')).toBe('text');
     expect(byName.get('last_active_at')).toBe('timestamp with time zone');
     expect(byName.get('device_type')).toBe('text');
@@ -641,8 +641,8 @@ describe('protected columns — the credentials this batch adds', () => {
   });
 });
 
-describe('expiry registry — every Mongo TTL index in this batch', () => {
-  it('registers each one with the retention its TTL declared', () => {
+describe('expiry registry — every expiring table in this batch', () => {
+  it('registers each one with its declared retention', () => {
     const registered = new Map(
       EXPIRY_SWEEP_TARGETS.map((target) => [getTableName(target.table), target.retentionSeconds]),
     );
@@ -879,8 +879,8 @@ describe('identity_backups — two timestamps that are not the same thing', () =
   });
 
   it('has no created_at — the absence is deliberate, not an omission', async () => {
-    // Mongoose declared `createdAt: false` because the client's value held the
-    // name. A `DEFAULT now()` column would stamp every backfilled row with the
+    // The client's own value already holds the `createdAt` name, so there is no
+    // server-stamped creation time. A `DEFAULT now()` column would stamp every backfilled row with the
     // migration date, asserting a falsehood about every backup that exists.
     const rows = await getDb().execute<{ column_name: string }>(sql`
       select column_name from information_schema.columns
@@ -992,7 +992,7 @@ describe('domain_verifications — one live challenge per (user, domain)', () =>
     );
 
     // Two live tokens for one domain is exactly what the model promises cannot
-    // happen, and Mongoose's `lowercase: true` setter has no Postgres analogue.
+    // happen, and an application-side lower-casing setter has no Postgres analogue.
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
     expect(pgErrorText(error)).toContain('domain_verifications_user_id_lower_domain_key');
   });

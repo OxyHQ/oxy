@@ -3,18 +3,14 @@
  *
  * Ported from `models/Restricted.ts`. Structurally identical to `blocks`, and
  * deliberately mirrors it: same two-user shape, same compound unique, same
- * `created_at`-only append-only contract (Mongoose declared its own
- * `createdAt: { default: Date.now }` rather than `timestamps`, which has no
- * Postgres counterpart — both spellings are one `created_at` column).
+ * `created_at`-only append-only contract.
  *
- * The Mongo collection was `restricteds`. Nothing reads a collection name, so
- * the table is named for what a row holds: a restriction.
+ * The table is named for what a row holds: a restriction.
  *
  * ## The one place it does NOT mirror `blocks`
  *
- * `blocks` gained a `blocked_id` index that Mongo lacked, because
- * `graphExclusion.ts:47` and `user.service.ts:1661` both ask "who has blocked
- * me" and no Mongo index could serve that direction. Restrictions have no such
+ * `blocks` has a `blocked_id` index, because `graphExclusion.ts` and
+ * `user.service.ts` both ask "who has blocked me". Restrictions have no such
  * reader: every query leads with `user_id` — `mediaPrivacyService.ts:133`
  * (`{userId, restrictedId}` point lookup), and the three list/act/remove
  * handlers in `routes/privacy.ts:211-213`, all scoped to the restricter. The

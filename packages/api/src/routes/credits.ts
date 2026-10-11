@@ -22,9 +22,7 @@ export type UserCreditsRow = typeof userCredits.$inferSelect;
  * The account's credit row, creating it with the schema defaults if this is the
  * first time the account has been billed.
  *
- * The Mongoose original was `findByIdAndUpdate(userId, {$setOnInsert: …},
- * {upsert: true, new: true})` and restated all five defaults inline. Here the
- * defaults live on the table, so the insert supplies only the key.
+ * The defaults live on the table, so the insert supplies only the key.
  *
  * `onConflictDoNothing` is what makes this safe against two concurrent first
  * calls: the loser writes nothing rather than raising a duplicate-key error, and
@@ -32,8 +30,8 @@ export type UserCreditsRow = typeof userCredits.$inferSelect;
  * winner committed. Never a read-then-insert, which has a window between the two.
  *
  * @throws When `userId` is not an existing account. `user_credits.user_id` is a
- *   real foreign key now, so an id with no account behind it fails here instead
- *   of silently minting an orphan balance the way Mongo's upsert did.
+ *   real foreign key, so an id with no account behind it fails here instead of
+ *   silently minting an orphan balance.
  */
 export async function getOrCreateUserCredits(
   db: DatabaseOrTransaction,
@@ -93,20 +91,18 @@ router.get(
       since.setDate(since.getDate() - days);
       since.setHours(0, 0, 0, 0);
 
-      // The Mongo `$group` on a `$dateToString` of the event timestamp, and its
-      // `$cond`: bill the recorded credits when there are any, else one credit per
-      // started 1000 tokens with a floor of 1.
+      // Group by the UTC day of the event timestamp; bill the recorded credits
+      // when there are any, else one credit per started 1000 tokens with a floor
+      // of 1.
       //
       // `at time zone 'UTC'` is load-bearing, not decoration. A bare
       // `date_trunc('day', <timestamptz>)` truncates in the SESSION's `TimeZone`,
       // so the day a row lands in would depend on server configuration — while
-      // Mongo's `$dateToString` grouped in UTC and the gap-fill below keys on
-      // `toISOString()`, which is UTC too. Naming the zone is what keeps the
+      // the gap-fill below keys on `toISOString()`, which is UTC. Naming the zone is what keeps the
       // grouping and the keys it is matched against the same calendar.
       //
-      // `api_key_usage_events.created_at` IS the Mongoose `timestamp` field — see
-      // that table's docblock; the rename is invisible to this response, which
-      // emits its own `date` key.
+      // `api_key_usage_events.created_at` is the event time — see that table's
+      // docblock; this response emits its own `date` key.
       const usage = await getDb()
         .select({
           day: sql<string>`to_char(date_trunc('day', ${apiKeyUsageEvents.createdAt} at time zone 'UTC'), 'YYYY-MM-DD')`,

@@ -167,7 +167,7 @@ describe('Validation Utils', () => {
       ['დავით', 'Georgian'],
       ['สมชาย', 'Thai'],
       ['ᏔᎳ', 'Cherokee'],
-      ['ᠮᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠮᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
     ])('should return true for allowlisted-script real name %p (%s)', (name) => {
       expect(isValidDisplayName(name)).toBe(true);
     });
@@ -277,7 +277,7 @@ describe('Validation Utils', () => {
       ['김철수', 'Hangul'],
       ['Αριστοτέλης', 'Greek'],
       ['ᏔᎳ', 'Cherokee'],
-      ['ᠮᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠮᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
     ])('range regexes ACCEPT allowlisted %p (%s)', (name) => {
       expect(passesPolicy(name)).toBe(true);
       // Parity with the public predicate.
@@ -353,7 +353,7 @@ describe('Validation Utils', () => {
       ['।', 'Devanagari danda (scx=Devanagari, GC=Po)'],
       ['،', 'Arabic comma (scx=Arabic, GC=Po)'],
       ['؜', 'ARABIC LETTER MARK - invisible bidi control (scx=Arabic, GC=Cf)'],
-      ['᠎', 'MONGOLIAN VOWEL SEPARATOR - invisible (scx=Mongolian, GC=Cf)'],
+      ['᠎', 'U+180E Mong-script vowel separator - invisible (scx=Mong, GC=Cf)'],
     ])('rejects %p, a non-letter from an allowlisted script (%s)', (ch) => {
       expect(isValidDisplayName(ch)).toBe(false);
     });
@@ -364,7 +364,7 @@ describe('Validation Utils', () => {
     it.each([
       ['مُحَمَد', 'Arabic letters + harakat survive'],
       ['नमस्ते', 'Devanagari'],
-      ['ᠰᠣᠩᠭᠣᠯ', 'Mongolian'],
+      ['ᠰᠣᠩᠭᠣᠯ', 'Mong script (ISO 15924)'],
       ['বাংলা', 'Bengali'],
     ])('still accepts %p (%s)', (name) => {
       expect(isValidDisplayName(name)).toBe(true);

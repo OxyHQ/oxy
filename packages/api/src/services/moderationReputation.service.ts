@@ -94,8 +94,7 @@ export type ConductStandingThreshold = typeof moderationPolicyStandingThresholds
 /**
  * A published policy version with its two child tables loaded.
  *
- * The Mongo document embedded `severityRules[]` and `standingThresholds[]`; both
- * are real tables now, so a reader that needs the whole version asks for this
+ * `severityRules[]` and `standingThresholds[]` are child tables, so a reader that needs the whole version asks for this
  * rather than re-joining at each call site. A version is IMMUTABLE once
  * published, so loading it whole is a read of frozen data.
  */
@@ -267,9 +266,9 @@ function scale(base: number, multiplier: number): number {
  *
  * WHY THIS EXISTS RATHER THAN TRUSTING THE CALLER: every method on this service
  * is exported, and a queue worker, a reconciliation script or a future caller is
- * under no obligation to have passed a body through the route's schema. A Mongo
- * filter handed `{ $ne: null }` where it expects an id matches EVERY document —
- * for `findOne({ eventId })` that turns the transport idempotency check into
+ * under no obligation to have passed a body through the route's schema. A
+ * filter handed an operator object such as `{ $ne: null }` where it expects an
+ * id could match EVERY row — for an `eventId` lookup that turns the transport idempotency check into
  * "some effect exists", and for a reversal it would reverse an unrelated one. So
  * the coercion lives where the query lives, not three layers up.
  *
@@ -743,7 +742,7 @@ class ModerationReputationService {
     // The primary is the most severe recognised finding. Ties keep the emitter's
     // order, so the same event always derives the same effect.
     //
-    // `family` is re-read as a primitive: it reaches a Mongo filter in the
+    // `family` is re-read as a primitive: it reaches a filter in the
     // repetition lookup, and the same reasoning as `readEventIdentifiers`
     // applies — a filter handed an operator object there would count every prior
     // strike as similar and escalate the penalty.
@@ -842,9 +841,8 @@ class ModerationReputationService {
       bindingId,
     } = params;
 
-    // ONE real transaction, no fallback. The Mongo version re-ran the three
-    // writes SESSION-LESS whenever the deployment had no replica set, which is
-    // precisely the case where a half-applied consequence — points deducted, no
+    // ONE real transaction, no fallback. Running the three writes outside a
+    // transaction is precisely the case where a half-applied consequence — points deducted, no
     // strike, no effect record — could survive an interruption and be invisible
     // to every one of the three idempotency guards.
     //

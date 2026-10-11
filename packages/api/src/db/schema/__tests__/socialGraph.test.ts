@@ -46,12 +46,12 @@ const FOREIGN_KEY_VIOLATION = '23503';
 const CHECK_VIOLATION = '23514';
 
 /**
- * Mongo's rank weights `{name: 10, displayName: 8, aliases: 5, description: 1}`,
+ * The rank weights `{name: 10, displayName: 8, aliases: 5, description: 1}`,
  * normalized and ordered `{D, C, B, A}` as `ts_rank` expects. Postgres's DEFAULT
  * weights order the four fields the same way but do not reproduce these ratios,
- * which is exactly why the call-site port must pass this array explicitly.
+ * which is exactly why the call site must pass this array explicitly.
  */
-const MONGO_RANK_WEIGHTS = '{0.1, 0.5, 0.8, 1.0}';
+const RANK_WEIGHTS = '{0.1, 0.5, 0.8, 1.0}';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
@@ -190,7 +190,7 @@ describe('user_follows — one typed table, both sides constrained', () => {
     ).resolves.toBeDefined();
   });
 
-  it('refuses a self-follow, which Mongo permitted', async () => {
+  it('refuses a self-follow', async () => {
     const self = await account();
     const error = await rejection(
       getDb().insert(userFollows).values({ followerId: self, followedId: self }),
@@ -200,8 +200,7 @@ describe('user_follows — one typed table, both sides constrained', () => {
   });
 
   it('refuses an edge into an account that does not exist', async () => {
-    // The guarantee Mongo never had, and the reason `followed_id` is a real
-    // foreign key rather than a discriminated polymorphic column.
+    // The reason `followed_id` is a real foreign key rather than a discriminated polymorphic column.
     const follower = await account();
     const error = await rejection(
       getDb()
@@ -257,12 +256,9 @@ describe('user_follows — the string/ObjectId ambiguity is gone', () => {
     ]);
   });
 
-  it('no longer accepts two spellings of the same id as equivalent', async () => {
-    // Mongo's `followedId` was declared `ObjectId`, so a call site could pass a
-    // `Types.ObjectId` OR its `.toString()` and Mongoose cast between them
-    // silently — which is the only reason `followedIdToObjectId`
-    // (`routes/profiles.ts:894`) existed. That cast was CASE-INSENSITIVE, so
-    // these two spellings were ONE key in Mongo.
+  it('does not accept two spellings of the same id as equivalent', async () => {
+    // These two spellings of a legacy 24-hex id differ only in case. A
+    // case-insensitive id cast would treat them as ONE key.
     const lower = 'a1b2c3d4e5f60718293a4b5c';
     const upper = lower.toUpperCase();
 
@@ -446,11 +442,11 @@ describe('topics — the weighted text index', () => {
     return row.id;
   }
 
-  /** `ts_rank` under Mongo's weight ratios for one query term. */
+  /** `ts_rank` under the intended weight ratios for one query term. */
   async function rank(id: string, term: string): Promise<number> {
     const [row] = await getDb()
       .select({
-        rank: sql<number>`ts_rank(${sql.raw(`'${MONGO_RANK_WEIGHTS}'`)}, ${topics.searchVector}, to_tsquery('english', ${term}))`,
+        rank: sql<number>`ts_rank(${sql.raw(`'${RANK_WEIGHTS}'`)}, ${topics.searchVector}, to_tsquery('english', ${term}))`,
       })
       .from(topics)
       .where(eq(topics.id, id));
@@ -601,8 +597,7 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
   });
 
   it('preserves an empty object exactly, distinct from NULL', async () => {
-    // Mongoose sets `minimize: false` on this schema precisely so `{}` is
-    // STORED rather than stripped: a progress record with no entries yet is not
+    // `{}` must be STORED rather than stripped: a progress record with no entries yet is not
     // the same thing as no record.
     const userId = await account();
     const [stored] = await getDb()
@@ -655,7 +650,7 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
     expect(byKey.get('absent')).toBeNull();
   });
 
-  it('refuses an identifier the Mongoose validator would have rejected', async () => {
+  it('refuses an identifier `APP_DATA_IDENTIFIER_PATTERN` rejects', async () => {
     const userId = await account();
 
     for (const [column, values] of [
@@ -678,9 +673,9 @@ describe('user_app_data — `{}` is a value, not an absence', () => {
     }
   });
 
-  it('states the same identifier rule the Mongoose model does', async () => {
-    // The SQL pattern is written for POSIX regex and the Mongoose one for
-    // JavaScript, so they cannot be compared as strings — they are compared by
+  it('states the same identifier rule as the JavaScript pattern', async () => {
+    // The SQL pattern is written for POSIX regex and `APP_DATA_IDENTIFIER_PATTERN`
+    // for JavaScript, so they cannot be compared as strings — they are compared by
     // BEHAVIOUR, against inputs on both sides of the boundary.
     const accepted = ['a', 'academy', 'oxy-academy', 'oxy_academy_2', '0', 'x'.repeat(64)];
     const refused = [

@@ -12,12 +12,11 @@
  * `conduct`, `reporting`, `reviewing` and `contextualInfluence` each have a
  * fully known, closed shape, so they are real columns with the block as a name
  * prefix — the same treatment `users` gives its privacy and notification blocks.
- * `jsonb` is for genuinely shape-less data; "it was an object in Mongo" is not a
- * reason (`CONVENTIONS.md`, "Arrays and objects").
+ * `jsonb` is for genuinely shape-less data; "it is an object on the wire" is not
+ * a reason (`CONVENTIONS.md`, "Arrays and objects").
  *
- * Each subdocument defaulted to `() => ({})`, which Mongoose expands to the
- * per-field defaults. Those defaults now live on the columns, so a row created
- * with only `user_id` lands in exactly the state Mongoose produced — including
+ * The per-field defaults live on the columns, so a row created with only
+ * `user_id` lands in the full default state — including
  * `reporting_reliability` and `reviewing_global_reliability` at the NEUTRAL 0.5
  * rather than at 0, which is a real distinction (no history, not a terrible
  * record).

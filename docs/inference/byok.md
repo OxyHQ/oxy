@@ -4,8 +4,8 @@ Kaana is the only custodian of upstream provider credentials. It encrypts each
 credential with the customer-BYOK KMS key and stores only the ciphertext and its
 exact binding in **Kaana PostgreSQL**. Decryption is available only to Kaana's
 inference runtime. Provider credentials never live in an Oxy/product database,
-environment variable, task definition, application bundle, MongoDB, Vault, SSM
-or Secrets Manager.
+environment variable, task definition, application bundle, Vault, SSM or
+Secrets Manager.
 
 Oxy is the control plane. It stores the connection's provider, exact owner and
 scope, environment, lifecycle, Kaana-minted opaque `credentialHandle`, exact

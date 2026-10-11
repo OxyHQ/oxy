@@ -5,12 +5,12 @@
  *
  * ## The balance is `numeric`, never a float
  *
- * Mongo stored it as a `Number`, i.e. an IEEE-754 double, which cannot
- * represent `0.1` — ten deposits of `0.1` minus `1` leaves `2.2e-16` in a
- * double and exactly `0` in `numeric`. A residue like that in a wallet ledger is
- * silent, compounds, and cannot be reconciled after the fact, so the column is
- * `numeric(38, 8)`: exact decimal arithmetic in the database, and postgres.js
- * hands it back as a STRING rather than re-introducing a double on the way out.
+ * An IEEE-754 double cannot represent `0.1` — ten deposits of `0.1` minus `1`
+ * leaves `2.2e-16` in a double and exactly `0` in `numeric`. A residue like
+ * that in a wallet ledger is silent, compounds, and cannot be reconciled after
+ * the fact, so the column is `numeric(38, 8)`: exact decimal arithmetic in the
+ * database, and postgres.js hands it back as a STRING rather than
+ * re-introducing a double on the way out.
  *
  * `scale: 8` because FairCoin's smallest unit is 1e-8, the same convention
  * Bitcoin's satoshi follows; `precision: 38` leaves 30 integer digits, which is
@@ -26,14 +26,13 @@
  *
  * `DELETE /users/me` (`routes/users.ts:1517`) hard-deletes the account after
  * purging mail, identity backups, sessions and the social graph — and touches
- * NOTHING financial, so today every deleted account leaves its wallet behind in
- * Mongo with no constraint to notice. Postgres forces the choice, and `CASCADE`
- * is the wrong half of it: a wallet holds a BALANCE, that balance is not
- * derivable from `transactions` (a withdrawal debits nothing until approved),
- * and destroying it destroys value with no audit trail and no way back.
- * `RESTRICT` converts that silent loss into a loud "settle this account first",
- * which is a step the deletion path has to grow. `SET NULL` is not available:
- * `user_id` is the wallet's owner identity, NOT NULL and unique.
+ * NOTHING financial. A foreign key forces a choice about the wallet, and
+ * `CASCADE` is the wrong half of it: a wallet holds a BALANCE, that balance is
+ * not derivable from `transactions` (a withdrawal debits nothing until
+ * approved), and destroying it destroys value with no audit trail and no way
+ * back. `RESTRICT` converts that silent loss into a loud "settle this account
+ * first", which is a step the deletion path has to grow. `SET NULL` is not
+ * available: `user_id` is the wallet's owner identity, NOT NULL and unique.
  *
  * An EMPTY, never-used wallet (zero balance, no payout address, never updated,
  * no ledger row naming the account) is not something to settle: the deletion
@@ -74,11 +73,11 @@ export const wallets = pgTable(
   },
   (t) => [
     unique('wallets_user_id_key').on(t.userId),
-    // Mongo built a sparse index on `address` (a bare `sparse: true` does that).
-    // Dropped: no query in the codebase reads a wallet by address — it is only
-    // ever written, and read back as part of the owner's own wallet.
+    // No index on `address`: no query in the codebase reads a wallet by
+    // address — it is only ever written, and read back as part of the owner's
+    // own wallet.
     //
-    // Mongoose's `min: 0`. Every debit path already refuses to overdraw
+    // Never negative. Every debit path already refuses to overdraw
     // (`wallet.controller.ts:232`, `:330`, `:427`); this is what stops a write
     // path that forgets to.
     check('wallets_balance_check', sql`${t.balance} >= 0`),

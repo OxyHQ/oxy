@@ -61,8 +61,8 @@
  * unconfigured (dev/pre-prod) witnessing is skipped (logged once) but ingest
  * still proceeds.
  *
- * `ingested_at` is a `timestamptz` column but the SIGNED input keeps the
- * millisecond epoch number Mongo stored, so the signature over
+ * `ingested_at` is a `timestamptz` column but the SIGNED input is the
+ * millisecond epoch number, so the signature over
  * `canonicalize({ recordId, userId, ingestedAt })` is reproducible from the
  * stored row via `.getTime()`.
  */
@@ -146,8 +146,8 @@ function liveNodeFor(userId: string) {
  *
  * `-1` is this module's in-memory sentinel for "nothing mirrored yet"; the
  * column expresses that as NULL, and `user_nodes_cursor_check` refuses a
- * negative. Mongo stored the `-1` verbatim, so a literal translation writes a
- * row Postgres rejects — and because the write sits inside the background-safe
+ * negative. Writing the `-1` verbatim would produce a row Postgres rejects —
+ * and because the write sits inside the background-safe
  * `try`, the rejection would be swallowed into `lastError` and every ingest that
  * had appended nothing yet (a chain gap, a rejected record, an unreachable
  * frontier) would silently fail to stamp its real reason.
@@ -412,9 +412,8 @@ export async function ingestFromNode(userId: string): Promise<void> {
     if (!node) {
       // No registered node — nothing to ingest. This ALSO covers a deleted
       // account: `user_nodes.user_id` is `NOT NULL REFERENCES users(id) ON
-      // DELETE CASCADE`, so a node row cannot outlive its account. Mongo had no
-      // such constraint and needed a separate existence check here; in Postgres
-      // that check can never fail, so it is deleted rather than translated.
+      // DELETE CASCADE`, so a node row cannot outlive its account and no
+      // separate existence check is needed.
       return;
     }
 

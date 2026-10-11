@@ -27,7 +27,7 @@
  * and the scalar reconciliations only ever move a record TOWARD the registered
  * official state.
  *
- * Mongoose-free and DB-free — the only imports are types — so the whole decision
+ * DB-free — the only imports are types — so the whole decision
  * is unit-testable without a database.
  */
 
@@ -108,19 +108,17 @@ export interface ApplicationRegistrationPlan {
    * The complete state the record will be in after this run. The writer reads
    * its values from here; `ownerAccountId` is stringified for reporting (`null`
    * when the owning account is minted by this run), so the writer takes the
-   * resolved id from its caller instead — its runtime type differs between a
-   * Mongoose document (`ObjectId`) and this plan (`string`).
+   * resolved id from its caller instead.
    */
   desired: ApplicationRegistrationState;
 }
 
 /**
- * The fields {@link applyApplicationPlan} writes. A Mongoose `IApplication`
- * document satisfies this structurally; so does a plain object in a test —
- * which is what lets the tests exercise the REAL writer.
+ * The fields {@link applyApplicationPlan} writes. A mutable copy of the
+ * application row satisfies this structurally; so does a plain object in a
+ * test — which is what lets the tests exercise the REAL writer.
  *
- * Generic in the owner-id type for exactly that reason: `ObjectId` in
- * production, `string` in a test.
+ * Generic in the owner-id type for exactly that reason.
  */
 export interface MutableApplicationFields<TOwnerId> {
   status: ApplicationStatus;
@@ -134,7 +132,7 @@ export interface MutableApplicationFields<TOwnerId> {
 }
 
 /**
- * The shape {@link readApplicationState} accepts — the Mongoose document, read
+ * The shape {@link readApplicationState} accepts — the application row, read
  * defensively: a legacy record may carry a missing/null array.
  */
 export interface ReadableApplication {
@@ -276,8 +274,8 @@ export function computeApplicationPlan(
 }
 
 /**
- * Write a plan onto a record. THE ONLY WRITER — the real run calls this with the
- * Mongoose document, the tests call it with a plain object, and neither can
+ * Write a plan onto a record. THE ONLY WRITER — the real run calls this with a
+ * mutable copy of the application row, the tests call it with a plain object, and neither can
  * write a field the plan did not report.
  *
  * @param target - The record to mutate.

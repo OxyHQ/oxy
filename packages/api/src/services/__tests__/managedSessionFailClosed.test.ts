@@ -18,8 +18,8 @@
  * connection, whose failure surfaces as an exception rather than an empty
  * result. So `account.service` runs for real, and the table its membership read
  * names is taken away underneath it. The error is Postgres' own, its SQLSTATE
- * arrives on `cause` (never on `error.code`, which is the shape a ported Mongo
- * check would have looked for), and the positive control below proves the same
+ * arrives on `cause` (never on `error.code`, so a check that reads `code`
+ * directly would miss it), and the positive control below proves the same
  * call answers normally when the table is there.
  *
  * If the catch is ever widened back to `return true`, the first case goes red.

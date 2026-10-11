@@ -1,11 +1,9 @@
 /**
  * Reserved identity colors and individual mono permissions, against real Postgres.
  *
- * The suite this replaces asserted `expect(set).toHaveBeenCalledWith('color',
- * 'blue')` on a mocked Mongoose document, and stubbed
- * `resolveUserSubscriptionPlan` to return `'basic'`. It therefore proved
- * nothing about the gate: the plan resolver never ran, and "the write was
- * attempted" is not "the value was stored".
+ * Asserting that a mocked write was attempted, with the plan resolver stubbed,
+ * would prove nothing about the gate: "the write was attempted" is not "the
+ * value was stored".
  *
  * The gate's whole design is that the premium check reads the SAME canonical
  * value the write persists (`trim` + `lowercase`), so ` oxy ` / `OXY` cannot

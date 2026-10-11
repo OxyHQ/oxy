@@ -1132,14 +1132,12 @@ export async function suggestContactsForUser(
 
   // Search both the address book and message history in parallel.
   //
-  // Mongo's `$concatArrays` of `from`, `to` and `cc` followed by `$unwind`
-  // existed only because all three lived on one document. `to` and `cc` are a
-  // child table now, so the concat IS the union — and the `$regex` becomes
-  // `strpos`, which has no metacharacter language, so the escaping the old
-  // query needed to neutralize ReDoS has nothing left to escape.
+  // `to` and `cc` are a child table, so the candidate set is the union of
+  // `from`, `to` and `cc` — and matching is `strpos`, which has no
+  // metacharacter language, so there is nothing to escape against ReDoS.
   //
-  // `$first` after no `$sort` picked an arbitrary spelling of the name; this
-  // picks the most recently used one, which is at least a decision.
+  // The most recently used spelling of a name wins, rather than an arbitrary
+  // one.
   const [contactResults, messageResults] = await Promise.all([
     emailService.searchContacts(userId, q, 10),
     getDb().execute<{ name: string | null; address: string }>(sql`
@@ -1185,7 +1183,7 @@ export async function suggestContactsForUser(
     const key = (m.address || '').toLowerCase();
     if (key && !seen.has(key)) {
       seen.add(key);
-      // Mongoose defaulted an absent display name to `''`, not null.
+      // An absent display name is `''` on the wire, not null.
       merged.push({ name: m.name ?? '', address: m.address });
     }
   }

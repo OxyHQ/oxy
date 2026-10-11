@@ -14,41 +14,34 @@
  * file fetched through `safeFetch` (SSRF-safe — never a raw fetch of the
  * user-supplied domain).
  *
- * ## The cutover bug this port removes
+ * ## No id-shape guards
  *
- * Five public read routes opened by running `userId` through the legacy 24-hex
- * id predicate in `utils/validation.ts` and throwing a 404 on a miss. That
- * predicate is `/^[0-9a-f]{24}$/i` and rejects the **uuid v7 every account
- * created after the Postgres cutover carries** (`@oxy.so/db`'s
- * `generatedId()`), so each answered 404 BEFORE ANY QUERY RAN for such an
- * account.
+ * Ids are either legacy 24-hex ids or **uuid v7** (`@oxy.so/db`'s
+ * `generatedId()`). A 24-hex check on `userId` in the five public read routes
+ * would answer 404 BEFORE ANY QUERY RAN for every uuid account.
  *
  * `GET /identity/records/:userId/chain/head` is the severe one: `@oxy.so/core`
  * fetches it immediately before signing EVERY v2 record (`OxyServices.civic.ts`
  * `_signMyCivicRecordV2`, `OxyServices.nodes.ts` `registerMyNode`) to learn the
  * `seq`/`prev` it must sign over. A 404 there is not a degraded read — it aborts
- * the signature, so a post-cutover account could publish no civic record and
- * register no personal data node at all.
+ * the signature, so such an account could publish no civic record and register
+ * no personal data node at all.
  *
- * All five guards are DELETED rather than widened. Each existed only to stop a
- * malformed string reaching Mongoose as a `CastError`; every id here is now a
- * `text` column compared against a bound parameter, so a malformed id is a value
- * that matches no row. The two record routes reach the IDENTICAL 404 by querying
- * (`getLatestRecord` returns null → `Record not found`); the three chain/log
- * routes now answer a malformed id exactly as they already answered an unknown
- * well-formed one — the empty chain — which is the consistency the guard broke,
- * since neither route ever checked that the account existed.
+ * Every id here is a `text` column compared against a bound parameter, so a
+ * malformed id is a value that matches no row. The two record routes reach the
+ * 404 by querying (`getLatestRecord` returns null → `Record not found`); the
+ * three chain/log routes answer a malformed id exactly as they answer an
+ * unknown well-formed one — the empty chain — since none of them checks that
+ * the account exists.
  *
  * ## Storage (Postgres)
  *
- * `User.verifiedDomains[]` is the child table `user_verified_domains` and
- * `DomainVerification` is `domain_verifications`, so "push onto the array" is an
- * INSERT and "filter the array" is a DELETE. Two consequences the Mongo version
- * could not have:
+ * Verified domains are the child table `user_verified_domains` and pending
+ * challenges are `domain_verifications`, so adding a domain is an INSERT and
+ * removing one is a DELETE. Two consequences:
  *
  * - **Proving a domain is ONE transaction.** The badge write and the burn of the
- *   pending challenge commit together, so a crash between them can no longer
- *   leave a still-spendable token beside a granted badge.
+ *   pending challenge commit together, so a crash between them cannot leave a still-spendable token beside a granted badge.
  * - **A second live challenge for one (account, domain) is unrepresentable.**
  *   `domain_verifications_user_id_lower_domain_key` is a unique index on
  *   `(user_id, lower(domain))`, so the re-request path is a real upsert rather
@@ -162,8 +155,7 @@ function normalizeDomain(raw: string): string | null {
  * `user_verified_domains_user_id_lower_domain_key`).
  *
  * A plain `domain = $1` is correct-looking, case-sensitive, and would not use
- * either index. Mongoose's `lowercase: true` setter is what used to make the
- * naive comparison work and it has no Postgres counterpart;
+ * either index. Postgres has no column-level lower-casing;
  * {@link normalizeDomain} already lower-cased the bound parameter, so this makes
  * the STORED side agree too.
  */
@@ -498,10 +490,9 @@ router.get(
       throw new UnauthorizedError('Authentication required');
     }
 
-    // Ordered so the badge list is stable between calls: `created_at` is the
-    // meaningful form of the Mongo array's insertion order (re-verifying a
-    // domain updates `verified_at` in place, exactly as the array entry was
-    // updated in place), with the time-ordered uuid v7 `id` as a total tiebreak.
+    // Ordered so the badge list is stable between calls: `created_at` gives
+    // insertion order (re-verifying a domain updates `verified_at` in place),
+    // with the time-ordered uuid v7 `id` as a total tiebreak.
     const domains = await getDb()
       .select({
         domain: userVerifiedDomains.domain,
@@ -571,9 +562,9 @@ router.post(
     }
 
     const verifiedAt = new Date();
-    // Granting the badge and burning the challenge commit together. Mongo could
-    // only do them in sequence, so a failure between the two left a proven
-    // domain beside a token that was still spendable.
+    // Granting the badge and burning the challenge commit together, so a
+    // failure between the two cannot leave a proven domain beside a token that
+    // is still spendable.
     //
     // No account-existence check precedes this: `domain_verifications.user_id`
     // references `users` with `ON DELETE CASCADE`, so finding a pending
@@ -586,8 +577,8 @@ router.post(
         .onConflictDoNothing()
         .returning({ id: userVerifiedDomains.id });
       if (inserted.length === 0) {
-        // Re-verifying an already-proven domain refreshes it in place, exactly
-        // as the Mongo array entry was updated in place — never a second badge.
+        // Re-verifying an already-proven domain refreshes it in place — never a
+        // second badge.
         // Untargeted `DO NOTHING` for the same reason as the challenge upsert:
         // the unique index here is on `(user_id, lower(domain))`, an expression
         // drizzle's conflict target cannot express.

@@ -55,9 +55,8 @@ interface NodeIngestJobData {
  * mid-ingest is not re-scheduled. Reads Oxy's own `user_nodes` rows only — it
  * does NOT touch any node (the worker does, in the background).
  *
- * **`NULLS FIRST` is load-bearing, exactly as in `sweepNodeLiveness`.** Mongo
- * sorts a missing `lastSyncedAt` ahead of every date on an ascending sort;
- * Postgres puts NULLs LAST by default. A node that has NEVER been ingested IS
+ * **`NULLS FIRST` is load-bearing, exactly as in `sweepNodeLiveness`.**
+ * Postgres puts NULLs LAST by default on an ascending sort. A node that has NEVER been ingested IS
  * the least-recently-synced one, so with the default ordering a freshly
  * registered node would sit behind {@link NODE_INGEST_SWEEP_BATCH} already-synced
  * ones and never be picked up at all.
@@ -71,7 +70,7 @@ export async function sweepPullNodes(): Promise<void> {
         eq(userNodes.mode, 'pull'),
         // The statuses are ENUMERATED rather than written `<> 'revoked'`: a
         // status added later is not silently swept just because it is not
-        // `revoked`. This is the Mongo `$in` verbatim.
+        // `revoked`.
         inArray(userNodes.status, ['active', 'unreachable']),
       ),
     )
@@ -280,7 +279,7 @@ async function teardownQueue(): Promise<void> {
 /**
  * Stop the node-ingest subsystem. Closes BullMQ resources and stops the fallback
  * interval. Safe to call regardless of which path ran. Intended for the server's
- * graceful-shutdown sequence (BEFORE the shared Redis client and MongoDB close).
+ * graceful-shutdown sequence (BEFORE the shared Redis client and the database close).
  */
 export async function stopNodeIngestJobs(): Promise<void> {
   stopped = true;

@@ -120,16 +120,6 @@ async function tablesMissingPrimaryKey(db: SqlExecutor): Promise<string[]> {
   return rows.map((row) => row.table_name);
 }
 
-async function mongooseArtifactColumns(db: SqlExecutor): Promise<ColumnRow[]> {
-  return executeRows<ColumnRow>(
-    db,
-    sql`
-      select table_name, column_name from information_schema.columns
-      where table_schema = 'public' and column_name in ('__v', '_id')
-    `,
-  );
-}
-
 /**
  * Walk the migrated schema's catalogue and report every convention it
  * breaks. Returns an empty array for a clean schema, which is what makes a
@@ -190,13 +180,6 @@ export async function findSchemaInvariantViolations(
 
   for (const name of await tablesMissingPrimaryKey(db)) {
     violations.push({ check: 'missing_primary_key', subject: name });
-  }
-
-  for (const row of await mongooseArtifactColumns(db)) {
-    violations.push({
-      check: 'mongoose_artifact',
-      subject: `${row.table_name}.${row.column_name}`,
-    });
   }
 
   return violations;

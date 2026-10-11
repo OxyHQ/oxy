@@ -60,13 +60,9 @@ function mapBillingStatus(
 /**
  * The legacy row's status, with expiry DERIVED rather than trusted.
  *
- * `subscriptions` used to carry a Mongo TTL index on `endDate` that DELETED the
- * row when the period closed — so a lapsed subscription simply vanished from
- * this response and the caller fell through to `{ plan: 'basic' }`. That index
- * was a data-loss bug (it destroyed the record of what was bought) and is gone.
- *
- * Its removal leaves an obligation HERE: the row now survives its own deadline,
- * so a reader that trusted the stored `status` would report `active` for a
+ * Nothing deletes a `subscriptions` row when its period closes (that would
+ * destroy the record of what was bought), which leaves an obligation HERE: the
+ * row survives its own deadline, so a reader that trusted the stored `status` would report `active` for a
  * subscription that ended months ago. `expired` is exactly the projection the
  * schema defines — `status <> 'canceled' and end_date <= now()` — and computing
  * it at read time means this response is correct whether or not the projection
@@ -96,7 +92,7 @@ function toFeatures(legacy: LegacySubscriptionSource): SubscriptionFeatures {
   };
 }
 
-/** Mongoose omitted an unset optional field; a nullable column reads back `null`. */
+/** The wire omits an unset optional field; a nullable column reads back `null`. */
 function optional(value: string | null): string | undefined {
   return value ?? undefined;
 }

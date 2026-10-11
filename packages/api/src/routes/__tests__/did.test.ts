@@ -25,8 +25,7 @@
  *
  * ## What is mocked, and why
  *
- * `nodeRegistry.service` only. It is still Mongoose-backed (a sibling port), and
- * what matters here is the DID document's `#oxy-node` service entry, which is a
+ * `nodeRegistry.service` only. It is a collaborator, and what matters here is the DID document's `#oxy-node` service entry, which is a
  * pure function of the ACTIVE/inactive node the route hands `buildDidDocument`.
  * Everything else — the account row, `user_auth_methods`, `user_verified_domains`,
  * and the real `did.service` derivation — is the database.

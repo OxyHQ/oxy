@@ -39,10 +39,10 @@ let smtpServer: SMTPServer | null = null;
  *
  * The match is written `lower(btrim(username)) = lower(btrim($1))`, the
  * EXPRESSION `users_lower_username_key` is built on and the same spelling the
- * Cloudflare-webhook path uses (`routes/emailInbound.ts`). Mongo compared
- * `{ username }` for exact equality against a lower-cased address, so mail to
- * `Nate@oxy.so` was rejected for an account stored as `Nate` while the webhook
- * path delivered it — the two inbound routes now agree.
+ * Cloudflare-webhook path uses (`routes/emailInbound.ts`). An exact-equality
+ * match against a lower-cased address would reject mail to `Nate@oxy.so` for an
+ * account stored as `Nate` while the webhook path delivered it — the two
+ * inbound routes must agree.
  *
  * Only `id` is selected. `users` is in `db/schema/protectedColumns.ts`, and a
  * bare `select()` here would pull the raw phone, the contact-discovery hashes

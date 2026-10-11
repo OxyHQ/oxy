@@ -1,22 +1,19 @@
 /**
  * In-app notification endpoints.
  *
- * ## The wire shape is a serializer now, and it is deliberate
+ * ## The wire shape is a serializer, and it is deliberate
  *
- * Every handler used to hand a Mongoose document (or a `.lean()` result)
- * straight to `res.json()`, so the response shape was whatever the driver
- * happened to produce. It is written out here instead, following the same split
+ * The response shape is written out here rather than left to whatever the
+ * driver produces, following the same split
  * `utils/billingResponse.ts` settled on for the Stripe tables:
  *
  *   - **`_id` IS contract.** It is the row key every consumer addresses a
  *     notification by (`PUT /notifications/:id/read`), so it is emitted from the
  *     drizzle `id`.
- *   - **`__v` is NOT contract.** Mongoose's version counter has no Postgres
- *     counterpart and no consumer reads it. It does not travel.
- *   - **The populated actor keeps its shape**: `{_id, username, name, avatar}`,
- *     the exact projection `populate('actorId', 'username name avatar _id')`
- *     selected. Absent optionals are OMITTED rather than emitted as `null`,
- *     because that is what Mongo did and what the SDK's zod parses expect.
+ *   - **There is no `__v` version key.** No consumer reads one.
+ *   - **The actor keeps its shape**: `{_id, username, name, avatar}`. Absent
+ *     optionals are OMITTED rather than emitted as `null`, because that is what
+ *     the SDK's zod parses expect.
  *
  * ## `title` / `message` / `url` are stored for `system` only
  *
@@ -24,23 +21,18 @@
  * account) has no actor action for a client to render from, so its `title`
  * and `message` are required and stored, with an optional validated deep link
  * `url`; they appear in the 201 body, the list and the socket payload. For
- * every other type `title` / `message` / `data` are accepted and DISCARDED as
- * they always were (the Mongoose model declared none of them), and the table's
- * CHECKs keep those columns null.
+ * every other type `title` / `message` / `data` are accepted and DISCARDED,
+ * and the table's CHECKs keep those columns null.
  *
- * ## Two behaviours the port could not preserve, both flagged
+ * ## Two request rules worth stating
  *
- *   1. `markAsRead` and `deleteNotification` read `req.params.notificationId`,
- *      but the routes that reach them are `/:id/read` and `/:id` — so the value
- *      was ALWAYS `undefined`, Mongoose dropped the undefined key from the
- *      filter, and both endpoints operated on an ARBITRARY notification of the
- *      caller. Postgres cannot express "ignore this predicate", and reproducing
- *      the bug would mean deliberately targeting the wrong row, so both now read
- *      `req.params.id` — the parameter `notificationIdParams` validates.
- *   2. An out-of-enum `type` / `entityType` used to reach Mongoose and fail
- *      validation, surfacing as a 500 from the generic catch. The values are a
- *      CHECK-constrained closed set here, so the schema below names them and the
- *      request is rejected as a 400 through the SAME
+ *   1. `markAsRead` and `deleteNotification` read `req.params.id` — the
+ *      parameter `notificationIdParams` validates on the `/:id/read` and `/:id`
+ *      routes. Reading a parameter no route supplies would leave the id
+ *      `undefined` and target the wrong row.
+ *   2. `type` / `entityType` are a CHECK-constrained closed set, so the schema
+ *      below names them and an out-of-enum value is rejected as a 400 (not a
+ *      500 from the generic catch) through the SAME
  *      `BadRequestError('Invalid notification data', { errors })` envelope every
  *      other malformed field already used.
  */
@@ -121,9 +113,9 @@ interface ActorColumns {
 }
 
 /**
- * Mongoose omitted an unset optional entirely rather than emitting `null`, and
- * the SDK's parses treat a `null` where a string is optional as a failure. A
- * drizzle nullable column reads back as `null`, so the two are reconciled here.
+ * The SDK's parses treat a `null` where a string is optional as a failure. A
+ * drizzle nullable column reads back as `null`, so an unset optional is omitted
+ * here.
  */
 function optional(value: string | null): string | undefined {
   return value ?? undefined;
@@ -135,8 +127,7 @@ function toActorResponse(actor: ActorColumns): NotificationActorResponse {
   if (username !== undefined) {
     response.username = username;
   }
-  // Mongoose's `NameSchema` defaulted both parts to `''`, so a user carrying a
-  // name sub-document always had two strings — never a missing half.
+  // A name on the wire always carries two strings — never a missing half.
   if (actor.nameFirst !== null || actor.nameLast !== null) {
     response.name = { first: actor.nameFirst ?? '', last: actor.nameLast ?? '' };
   }
@@ -403,9 +394,9 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     if (error instanceof ConflictError || error instanceof BadRequestError) {
       throw error;
     }
-    // `recipient_id` and `actor_id` are real foreign keys now. Mongo let a
-    // notification name an account that does not exist; here the row is
-    // refused, and that is a bad REQUEST — the caller supplied both ids.
+    // `recipient_id` and `actor_id` are real foreign keys, so a notification
+    // naming an account that does not exist is refused, and that is a bad
+    // REQUEST — the caller supplied both ids.
     if (isForeignKeyViolation(error)) {
       throw new BadRequestError('Invalid notification data', {
         errors: [{ message: 'recipientId and actorId must name existing accounts' }],

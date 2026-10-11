@@ -10,9 +10,9 @@
  * emitted TYPE, not just the value — `"25.5" == 25.5` is true in JS, so a value
  * comparison alone would pass against the bug.
  *
- * **An absent optional must stay OMITTED.** Mongoose returned `undefined` for an
- * unset `description`/`itemId`/`itemType`/`completedAt` and `JSON.stringify`
- * dropped the key; drizzle returns `null`, which `JSON.stringify` EMITS. Every
+ * **An absent optional must stay OMITTED.** For an unset
+ * `description`/`itemId`/`itemType`/`completedAt` drizzle returns `null`, which
+ * `JSON.stringify` EMITS. Every
  * field of that contract is `?:`, so a `null` is a wire change. The body is
  * asserted whole, key set included.
  *

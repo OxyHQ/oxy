@@ -134,9 +134,8 @@ export function uuidv7(): string {
 }
 
 /**
- * Primary key: `text` holding a 24-char ObjectId hex for every row that existed
- * before a Mongo-to-Postgres cutover, and a uuid v7 for every row created after
- * it — see {@link isLiveEntityId} in `ids.ts` for the two shapes this schema
+ * Primary key: `text` holding a legacy 24-char hex id for every row that
+ * predates uuid ids, and a uuid v7 for every row created since — see {@link isLiveEntityId} in `ids.ts` for the two shapes this schema
  * actually stores.
  *
  * The id is generated HERE rather than by a database `DEFAULT` because Postgres
@@ -170,14 +169,14 @@ export const bytea = customType<{ data: Buffer; driverData: Uint8Array }>({
 });
 
 /**
- * `tsvector` — the replacement for a Mongo text index.
+ * `tsvector` — full-text search.
  *
  * Drizzle has no built-in for it. Every use is a GENERATED column plus a GIN
  * index, never a value the application writes, so the TypeScript type is the
  * `string` Postgres renders it as and there is no `toDriver` direction to get
- * wrong. Declared here because "Mongo text index becomes `tsvector` + GIN" is a
- * schema-wide rule, not one table's detail — a `LIKE '%…%'` scan is not the port
- * of a text index, it is a table scan wearing one's clothes.
+ * wrong. Declared here because "text search is `tsvector` + GIN" is a
+ * schema-wide rule, not one table's detail — a `LIKE '%…%'` scan is not a text
+ * index, it is a table scan wearing one's clothes.
  *
  * The generating expression MUST use the two-argument
  * `to_tsvector('<config>', …)` with a literal configuration: the one-argument

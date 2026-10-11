@@ -14,25 +14,21 @@
  *  - Awards are idempotent on (application_id, source_action_id).
  *  - Every constant lives in `reputation.constants.ts`.
  *
- * ## The transaction fallback is DELETED, not translated
+ * ## There is no non-transactional fallback
  *
- * The Mongo version wrapped every multi-write in a `withTransaction` that
- * string-matched "no replica set" on the failure and then RE-RAN the same work
- * SESSION-LESS. That made `award` and `reverseTransaction` non-atomic on any
- * deployment without a replica set: an interruption could leave a ledger row
+ * Re-running a multi-write outside a transaction would make `award` and
+ * `reverseTransaction` non-atomic: an interruption could leave a ledger row
  * with no balance recompute behind it, or a `reversed` original with no
- * compensating entry — a permanent, silent
- * mis-statement of someone's standing. Postgres has real transactions in every
- * deployment, so the fallback has nothing to fall back to and is gone; every
- * write below either commits whole or does not happen.
+ * compensating entry — a permanent, silent mis-statement of someone's
+ * standing. Postgres has real transactions in every deployment, so every write
+ * below either commits whole or does not happen.
  *
- * ## What that changes about duplicate-key recovery
+ * ## Duplicate-key recovery
  *
  * A `unique_violation` inside a Postgres transaction ABORTS it — no further
  * statement on that connection succeeds until it rolls back. So the
  * "return the winner of the idempotency race" read cannot live inside the
- * failing transaction the way `findOne` did inside the Mongo one. It runs
- * AFTER, on a fresh connection ({@link ReputationService.findBySourceAction}),
+ * failing transaction. It runs AFTER, on a fresh connection ({@link ReputationService.findBySourceAction}),
  * and only when this service owns the transaction — when a CALLER supplied one
  * (the moderation bridge), the abort belongs to them and the error is rethrown
  * so their own handler resolves the winner.
@@ -100,8 +96,7 @@ import userCache from '../utils/userCache';
  *
  * Exported because it is part of {@link AwardInput}: the moderation bridge opens
  * ONE transaction covering the ledger row, its strike and its effect record, and
- * hands it here so the three commit together or not at all. It replaces the
- * Mongo `ClientSession` in exactly that role.
+ * hands it here so the three commit together or not at all.
  */
 export type ReputationTransactionHandle = PostgresJsTransaction<
   typeof schema,
@@ -119,10 +114,9 @@ export type ReputationTransactionRow = typeof reputationTransactions.$inferSelec
 /**
  * The recomputed standing of one account.
  *
- * The Mongo document nested nine `{_id: false}` subdocuments; the table holds
- * them as prefixed columns plus one child table. This view re-assembles the
- * nested shape the wire contract and every consumer already speak, so the
- * storage change stops at this boundary.
+ * The table holds nine nested groups as prefixed columns plus one child table.
+ * This view re-assembles the nested shape the wire contract and every consumer
+ * speak, so the storage shape stops at this boundary.
  */
 export interface ReputationBalanceView {
   userId: string;
@@ -149,9 +143,7 @@ export interface ReputationBalanceView {
  * One leaderboard row: a balance plus the inline public projection of its
  * subject.
  *
- * The Mongo aggregate `$lookup`ed the user and projected it into `userId`, which
- * left the route serializer casting an id-typed field to a user object. The join
- * is a real join now, so the row NAMES the projection — a serializer that reads
+ * The user is a real join, and the row NAMES the projection — a serializer that reads
  * `row.user.username` cannot be handed an id by mistake.
  *
  * `user` is the FLAT users-row shape on purpose: `userIdentityFields`
@@ -292,11 +284,10 @@ class ReputationService {
    */
   async award(input: AwardInput): Promise<ReputationTransactionRow> {
     // Coerced once, here, because `award` has fourteen call sites and is
-    // exported: most of them never pass through an HTTP schema at all. `trim`
-    // is the Mongoose `trim: true` on `ReputationRule.actionType`, which was
-    // APPLICATION behaviour with no Postgres counterpart and is therefore
-    // re-applied at the call site (`CONVENTIONS.md`) — on the lookup as well as
-    // on the write, since Mongoose applied it to query filters too.
+    // exported: most of them never pass through an HTTP schema at all.
+    // `actionType` is stored trimmed; Postgres has no column-level trim, so it
+    // is applied at the call site (`CONVENTIONS.md`) — on the lookup as well as
+    // on the write.
     const actionType = String(input.actionType).trim();
     const sourceActionId =
       input.sourceActionId === undefined ? undefined : String(input.sourceActionId);
@@ -1107,8 +1098,7 @@ class ReputationService {
     offset: number,
   ): Promise<{ items: ReputationLeaderboardRow[]; total: number }> {
     // Archived accounts and restricted tiers are excluded from the public board.
-    // Both columns are `NOT NULL` with a default, so `<>` needs no NULL arm —
-    // unlike Mongo's `$ne`, which also matched a missing field.
+    // Both columns are `NOT NULL` with a default, so `<>` needs no NULL arm.
     const eligible = and(
       ne(users.accountStatus, 'archived'),
       ne(users.reputationTier, 'restricted'),

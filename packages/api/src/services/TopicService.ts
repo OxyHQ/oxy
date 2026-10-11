@@ -1,37 +1,37 @@
 /**
  * Topic taxonomy service.
  *
- * ## The text search is the part that had to be ported rather than translated
+ * ## The text search
  *
- * Mongo ran `$text: { $search: q }` against a WEIGHTED text index
- * (`{name: 10, displayName: 8, aliases: 5, description: 1}`) and sorted by
- * `{ $meta: 'textScore' }`. Two properties of that had to survive, and neither
- * is what the obvious Postgres spelling gives you:
+ * Search runs against a WEIGHTED text index
+ * (`{name: 10, displayName: 8, aliases: 5, description: 1}`) and sorts by rank.
+ * Two properties matter, and neither is what the obvious Postgres spelling
+ * gives you:
  *
  * 1. **The weights.** `ts_rank`'s DEFAULT weight array is `{0.1, 0.2, 0.4, 1.0}`,
- *    which orders the four fields the same way but does not reproduce Mongo's
- *    RATIOS. {@link SEARCH_RANK_WEIGHTS} is Mongo's `{1, 5, 8, 10}` normalized,
+ *    which orders the four fields the same way but does not reproduce these
+ *    RATIOS. {@link SEARCH_RANK_WEIGHTS} is `{1, 5, 8, 10}` normalized,
  *    passed explicitly — see the note in `db/schema/topics.ts`, which says
  *    outright that ranking with the defaults compiles, runs, and quietly
  *    returns a different order.
- * 2. **OR semantics.** Mongo's `$text` treats a multi-word search as OR over
- *    its terms. `plainto_tsquery` / `websearch_to_tsquery` both build AND, so
- *    using either directly would make a two-word query answer a strictly
- *    NARROWER question than it does today while looking correct.
+ * 2. **OR semantics.** A multi-word search is OR over its terms.
+ *    `plainto_tsquery` / `websearch_to_tsquery` both build AND, so using either
+ *    directly would make a two-word query answer a strictly NARROWER question
+ *    while looking correct.
  *    {@link searchTsQuery} therefore lets `plainto_tsquery` do the parsing,
  *    stemming and stop-word removal and then rewrites its `&` connectives to
  *    `|`. That rewrite is exact rather than approximate: `plainto_tsquery`
  *    emits nothing but quoted lexemes joined by `&`, and `&` cannot appear
  *    inside a lexeme because the parser drops it as a non-word character.
  *
- * A stop-words-only query produces the empty tsquery, which `@@` never matches
- * — the same empty result Mongo gave.
+ * A stop-words-only query produces the empty tsquery, which `@@` never matches,
+ * so the result is empty.
  *
  * ## Normalization is re-applied HERE
  *
- * `trim: true` / `lowercase: true` were Mongoose APPLICATION behaviour with no
- * Postgres counterpart (`schema/CONVENTIONS.md`), and `topics.name` / `.slug`
- * are compared as stored. {@link TopicService.findOrCreate} is the only writer
+ * `topics.name` / `.slug` are stored trimmed and lower-cased, Postgres has no
+ * column-level counterpart (`schema/CONVENTIONS.md`), and they are compared as
+ * stored. {@link TopicService.findOrCreate} is the only writer
  * of either, so it is the one place that must keep normalizing.
  */
 
@@ -82,13 +82,13 @@ export interface TopicRecord {
 }
 
 /**
- * Mongo's `{name: 10, displayName: 8, aliases: 5, description: 1}` normalized,
+ * `{name: 10, displayName: 8, aliases: 5, description: 1}` normalized,
  * ordered `{D, C, B, A}` as `ts_rank` requires — so `A` (weight 1.0) is `name`,
  * matching the `setweight` order the generated `search_vector` is built with.
  */
 const SEARCH_RANK_WEIGHTS = '{0.1, 0.5, 0.8, 1.0}';
 
-/** Mongo's `default_language: 'en'`, spelled as a LITERAL configuration. */
+/** English, spelled as a LITERAL configuration. */
 const SEARCH_CONFIGURATION = 'english';
 
 /** Every column a `/topics` response reads. */
@@ -123,8 +123,7 @@ function slugify(name: string): string {
 }
 
 /**
- * `translations` is `jsonb`, so it arrives as a plain object or NULL — never
- * the Mongoose `Map` the old reader also had to handle. A value that is not an
+ * `translations` is `jsonb`, so it arrives as a plain object or NULL. A value that is not an
  * object is rejected by `topics_translations_object_check` at write time, so
  * the only shapes reachable here are "object" and "absent".
  */
@@ -138,13 +137,11 @@ function toTranslations(value: unknown): Record<string, TopicTranslation> | unde
 /**
  * Row → wire document.
  *
- * NULL becomes ABSENT for the four optionals, matching a Mongo document that
- * simply had no such key — a client that iterates keys, or spreads the object,
- * must not start seeing `icon: null` where it saw nothing.
+ * NULL becomes ABSENT for the four optionals — a client that iterates keys, or
+ * spreads the object, must not see `icon: null` where it expects nothing.
  *
- * `description` is the one exception and it is deliberate: Mongoose defaulted
- * it to `''` and therefore always emitted a string, so a NULL is coalesced back
- * rather than dropped. Dropping it would break `topic.description.length` at
+ * `description` is the one exception and it is deliberate: the wire always
+ * carries a string, so a NULL is coalesced to `''` rather than dropped. Dropping it would break `topic.description.length` at
  * every caller.
  */
 function toTopicRecord(row: TopicRow): TopicRecord {
@@ -175,7 +172,7 @@ function searchTsQuery(query: string): SQL<unknown> {
   return sql`replace(plainto_tsquery(${SEARCH_CONFIGURATION}, ${query})::text, '&', '|')::tsquery`;
 }
 
-/** Mongo's `{ $meta: 'textScore' }`, with Mongo's weights. */
+/** The search rank, with {@link SEARCH_RANK_WEIGHTS}. */
 function searchRank(query: string): SQL<number> {
   return sql<number>`ts_rank(${sql.raw(`'${SEARCH_RANK_WEIGHTS}'::float4[]`)}, ${topics.searchVector}, ${searchTsQuery(query)})`;
 }
@@ -191,8 +188,7 @@ class TopicService {
   /**
    * Atomic upsert — find by lowercase name or create a new topic.
    *
-   * `on conflict do nothing` is the exact analogue of Mongoose's
-   * `$setOnInsert`: an existing row is left untouched, including its
+   * `on conflict do nothing`: an existing row is left untouched, including its
    * `updated_at`. The follow-up read is not a race — under READ COMMITTED,
    * `do nothing` waits for a concurrent inserter to commit before deciding, so
    * by the time it returns empty the winning row is visible to the next
@@ -217,9 +213,9 @@ class TopicService {
         displayName: display,
         type,
         source,
-        // Mongoose defaulted this to `''`. NULL is the column's "absent", and
-        // `toTopicRecord` coalesces it back to `''` on the way out, so the wire
-        // is unchanged while the two states cannot both exist in storage.
+        // NULL is the column's "absent", and `toTopicRecord` coalesces it to
+        // `''` on the way out, so the wire carries a string while the two
+        // states cannot both exist in storage.
         description: null,
         aliases: [],
         isActive: true,
@@ -315,8 +311,7 @@ class TopicService {
     const where = and(...filters);
 
     const db = getDb();
-    // Two statements, exactly as the Mongo `Promise.all([find, countDocuments])`
-    // was — `total` is the size of the whole filtered set, not of the page.
+    // Two statements — `total` is the size of the whole filtered set, not of the page.
     const [rows, [counted]] = await Promise.all([
       hasQuery && query
         ? db
@@ -358,9 +353,7 @@ class TopicService {
    * Update the editable metadata of a topic, addressed by slug.
    *
    * Lives here rather than in the route so the `topics` table has ONE writer
-   * module: the route used to reach past this service into the Mongoose model
-   * directly, which is how it ended up holding the last `.lean()` on a table
-   * this file already owned.
+   * module.
    *
    * The caller supplies an explicit whitelist of columns; there is no spread of
    * a request body anywhere on this path.

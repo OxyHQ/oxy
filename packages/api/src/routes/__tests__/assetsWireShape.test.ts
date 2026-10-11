@@ -7,16 +7,16 @@
  * TABLE rows, and each carries its own way to break that silently:
  *
  * - **New internal columns.** `file_links` and `file_variants` have `id` and
- *   `file_id` primary/foreign keys; the Mongo subdocuments were declared
- *   `{ _id: false }` and had neither. Returning rows verbatim would publish two
- *   internal identifiers into a public payload.
- * - **`null` where a field used to be ABSENT.** Mongoose omitted an unset
- *   optional; a Postgres row spells it `null`. `JSON.stringify` drops
+ *   `file_id` primary/foreign keys that the wire shape does not carry.
+ *   Returning rows verbatim would publish two internal identifiers into a
+ *   public payload.
+ * - **`null` where a field must be ABSENT.** The wire omits an unset optional;
+ *   a Postgres row spells it `null`. `JSON.stringify` drops
  *   `undefined` but preserves `null`, so a verbatim row turns "this variant has
  *   no recorded size" into `"size": null` for every client.
  *
- * - **`usageCount`** was a Mongoose virtual over `links.length`. It is derived
- *   at the serializer now, and must still be present and correct.
+ * - **`usageCount`** is `links.length`, derived at the serializer, and must be
+ *   present and correct.
  *
  * The assertions are exact object equality on the emitted link and variant, so
  * an ADDED key fails just as loudly as a missing one.

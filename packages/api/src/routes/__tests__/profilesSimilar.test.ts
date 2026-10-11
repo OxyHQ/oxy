@@ -12,10 +12,9 @@
  *  - **The exclusion set.** The viewer, the target, and everyone the viewer
  *    already follows are never suggested.
  *
- * The previous version reimplemented the Mongo `$graphLookup` pipeline inside
- * the test and then asserted the pipeline's own stage ORDER — a check that could
- * only ever agree with itself. Here the overlap is computed by Postgres from
- * real `user_follows` rows.
+ * The overlap is computed by Postgres from real `user_follows` rows, never by
+ * a query the test builds itself — a check that could only ever agree with
+ * itself.
  */
 
 import express from 'express';

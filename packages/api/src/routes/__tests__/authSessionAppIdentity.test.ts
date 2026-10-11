@@ -15,7 +15,7 @@
  *
  * `session.service`, the socket emitters and the auth middleware ARE mocked:
  * they are collaborators, not the subject. `validate` and `serializeApplication`
- * are REAL, so the wire shape stays pinned. Nothing about MongoDB is mocked.
+ * are REAL, so the wire shape stays pinned. The database is not mocked.
  *
  * Every test mints its own users, applications and credentials with unique
  * values, so no assertion depends on a table being empty.

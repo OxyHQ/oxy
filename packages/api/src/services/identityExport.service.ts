@@ -24,35 +24,31 @@
  * bundle is still served with `attestation: null` and a warning is logged — the
  * export must never crash on a missing key.
  *
- * ## Storage (Postgres) — six tables where Mongo had one document plus two
+ * ## Storage
  *
- * `verifiedDomains[]`, `authMethods[]`, `following[]` and `followers[]` were all
- * embedded arrays on the Mongo user document. Three are child tables now
- * (`user_verified_domains`, `user_auth_methods`) and the social graph is
- * `user_follows`, which `schema/CONVENTIONS.md` makes the SINGLE authority — the
- * embedded id arrays are deleted, so reading them is the only correct port.
+ * `verifiedDomains[]` and `authMethods[]` are child tables
+ * (`user_verified_domains`, `user_auth_methods`), and the social graph
+ * (`following[]`, `followers[]`) is `user_follows`, which
+ * `schema/CONVENTIONS.md` makes the SINGLE authority.
  *
  * **Every read is ORDERED, and that is load-bearing here rather than tidiness.**
  * The bundle's bytes are the SIGNING INPUT of the Oxy attestation, so an
  * unordered read (Postgres heap order) would let two exports of an unchanged
- * account produce different bytes and different signatures. Each ordering is the
- * faithful analogue of what Mongo returned:
+ * account produce different bytes and different signatures. Each ordering is
+ * stable and matches the bundle's established order:
  *
- * | section | ordering | why it is the same order Mongo gave |
+ * | section | ordering | why |
  * |---|---|---|
- * | `verifiedDomains` | `created_at, id` | array insertion order; re-verifying updated the entry in place |
- * | `authMethods` | `linked_at, id` | array insertion order, as `routes/authLinking.ts` also reads it |
- * | `appData` | `namespace, key` | Mongo served `find({userId})` from the `{userId, namespace, key}` unique index |
- * | `social.*` | `created_at, id` | the order edges were pushed onto the arrays |
+ * | `verifiedDomains` | `created_at, id` | insertion order; re-verifying updates the entry in place |
+ * | `authMethods` | `linked_at, id` | insertion order, as `routes/authLinking.ts` also reads it |
+ * | `appData` | `namespace, key` | the `{user_id, namespace, key}` unique index order |
+ * | `social.*` | `created_at, id` | the order edges were created |
  *
  * ## Secrets
  *
  * The profile comes from `UserService.readAccountDocument`, which selects
- * `publicColumns(users)` — the `select: false` replacement
- * (`db/schema/protectedColumns.ts`). That is STRICTLY stronger than the Mongoose
- * projection it replaces: the old `.select('-password …')` string never excluded
- * `phone`, and relied on `formatUserResponse`'s explicit field list to keep it
- * out of the bundle. Now the column cannot be read at all — the row type has no
+ * `publicColumns(users)` (`db/schema/protectedColumns.ts`), so `phone` and the
+ * other protected columns cannot be read at all — the row type has no
  * `phone` property, so a serializer that reached for one would fail `tsc`.
  * `formatUserResponse` remains the second, independent gate.
  */
@@ -294,9 +290,9 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
     _id: userId,
     publicKey: self.publicKey,
     username: self.username,
-    // `buildAuthMethodEntries` and `buildDidDocument` both still read the
-    // `metadata.*` shape the Mongo subdocument had; the child-table columns are
-    // adapted to it HERE rather than by changing helpers other routes share.
+    // `buildAuthMethodEntries` and `buildDidDocument` both read a nested
+    // `metadata.*` shape; the child-table columns are adapted to it HERE rather
+    // than by changing helpers other routes share.
     authMethods: authMethodRows.map((method) => ({
       type: method.type,
       metadata: { publicKey: method.methodPublicKey },

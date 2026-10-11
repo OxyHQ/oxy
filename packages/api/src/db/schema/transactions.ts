@@ -13,9 +13,9 @@
  *
  * A transfer row belongs to two accounts. Cascading either side would delete a
  * record out of the OTHER person's history — erasing A must never mutate B's
- * ledger — so `user_id` cascades nowhere. `user_id` is also `required: true` in
- * Mongoose, so `SET NULL` (retain-and-anonymize) is not available without
- * weakening the constraint for every live row.
+ * ledger — so `user_id` cascades nowhere. `user_id` is also `NOT NULL`, so
+ * `SET NULL` (retain-and-anonymize) is not available without weakening the
+ * constraint for every live row.
  *
  * `recipient_id` is nullable and therefore COULD take `SET NULL`, and it still
  * does not: NULL here already MEANS "this movement had no counterparty" — a
@@ -73,13 +73,12 @@ export const transactions = pgTable(
     // the SORT together — a btree scans backwards, so ascending `created_at`
     // answers `order by created_at desc` without a second index.
     //
-    // They replace FIVE Mongo indexes. The standalone `{userId}` and
-    // `{recipientId}` are redundant (a btree serves any leading prefix), and
-    // `{userId, status}` / `{recipientId, status}` are dropped outright: no
-    // query in the codebase filters this table by status. `{userId, type}` is
-    // dropped too — the payments query's type filter is a cheap residual once
-    // the index has narrowed to one account's rows, and dropping it is what
-    // buys the sort the Mongo index could not serve.
+    // No other index is needed. A standalone `(user_id)` or `(recipient_id)`
+    // would be redundant (a btree serves any leading prefix), and no query in
+    // the codebase filters this table by status. Nor `(user_id, type)` — the
+    // payments query's type filter is a cheap residual once the index has
+    // narrowed to one account's rows, and `created_at` as the second column is
+    // what serves the sort.
     index('transactions_user_id_created_at_idx').on(t.userId, t.createdAt),
     index('transactions_recipient_id_created_at_idx')
       .on(t.recipientId, t.createdAt)
@@ -93,14 +92,14 @@ export const transactions = pgTable(
       'transactions_status_check',
       sql`${t.status} in (${sql.raw(TRANSACTION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
-    // Mongoose's `min: 0`. Direction is carried by `type`, never by the sign of
+    // Never negative. Direction is carried by `type`, never by the sign of
     // the amount, so a negative row would be unreadable by every consumer.
     //
     // Deliberately the ONLY value constraint added here. A "recipient is not
-    // self" CHECK would look right — `wallet.controller.ts:193` refuses one —
-    // but Mongoose never enforced it, so it could reject rows that already
-    // exist and turn a cosmetic invariant into a failed backfill on financial
-    // data nobody can audit first.
+    // self" CHECK would look right — `wallet.controller.ts` refuses one — but
+    // it has never been enforced at the storage layer, so it could reject rows
+    // that already exist and turn a cosmetic invariant into a failed migration
+    // on financial data nobody can audit first.
     check('transactions_amount_check', sql`${t.amount} >= 0`),
   ],
 );

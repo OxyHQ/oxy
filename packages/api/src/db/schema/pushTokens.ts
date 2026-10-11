@@ -43,9 +43,9 @@ export const pushTokens = pgTable(
     unique('push_tokens_user_id_token_key').on(t.userId, t.token),
     // App-scoped delivery lookup: "this user's installs of these applications".
     index('push_tokens_user_id_application_id_idx').on(t.userId, t.applicationId),
-    // Mongo also declared a standalone `{userId: 1}` index. Dropped: a btree
-    // index serves any leading-column prefix, so the unique above already
-    // answers every `where user_id = ?` read.
+    // No standalone `(user_id)` index: a btree index serves any leading-column
+    // prefix, so the unique above already answers every `where user_id = ?`
+    // read.
     check('push_tokens_platform_check', sql`${t.platform} in ('ios', 'android', 'web')`),
   ],
 );

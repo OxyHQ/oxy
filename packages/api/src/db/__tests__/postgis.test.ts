@@ -15,9 +15,9 @@
  *    not exist`).
  *
  * 2. **The generated point is built as (longitude, latitude).** Reading that
- *    pair backwards is the ORIGINAL bug — Mongo's 2dsphere index read
- *    `{lat, lon}` positionally as `[lon, lat]`, so it has almost certainly had
- *    every point transposed for its whole life. A transposition does not throw:
+ *    pair backwards is the bug this guards against — a spatial index that reads
+ *    `{lat, lon}` positionally as `[lon, lat]` transposes every point. A
+ *    transposition does not throw:
  *    it yields a perfectly valid point in the wrong hemisphere, so a test that
  *    only asserts "a row came back" passes against the exact bug being fixed.
  *    The assertions below therefore pin the ordering two ways: axis by axis

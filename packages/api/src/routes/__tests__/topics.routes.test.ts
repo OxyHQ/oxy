@@ -1,14 +1,11 @@
 /**
  * `/topics` against a REAL Postgres.
  *
- * The staff-authorization concern is unchanged from the suite this replaces;
- * what changed is that the write side is no longer proved by asserting the
- * ARGUMENTS of a mocked `Topic.findOneAndUpdate`. That assertion pinned the
- * Mongo call shape and nothing else — it would have passed just as happily
- * against an update that matched no row.
+ * Covers staff authorization, and proves the write side by reading the row
+ * back — asserting a mocked call's ARGUMENTS would pass just as happily against
+ * an update that matched no row.
  *
- * Two additions the mock could not have covered, and both are the port's own
- * risk surface: the response body (`_id`, no `__v`, `description` a string) and
+ * Two further risk surfaces: the response body (`_id`, no `__v`, `description` a string) and
  * the weighted OR-semantics search.
  *
  * MOCKED: `authMiddleware` only, so a test can be staff or not without minting
@@ -241,16 +238,14 @@ describe('/topics response shape', () => {
       name: 'gardening',
       slug: 'gardening',
       displayName: 'Gardening',
-      // Mongoose defaulted `description` to `''` and therefore always emitted a
-      // string; the column is NULL. A client doing `description.length` must
-      // not start crashing.
+      // The wire always carries `description` as a string; the column is NULL.
+      // A client doing `description.length` must not crash.
       description: '',
       isActive: true,
     });
     expect(typeof res.body._id).toBe('string');
     expect(res.body).not.toHaveProperty('__v');
-    // Optional columns that are NULL are ABSENT, as they were on a Mongo
-    // document that never had the key — not `null`.
+    // Optional columns that are NULL are ABSENT — not `null`.
     expect(res.body).not.toHaveProperty('icon');
     expect(res.body).not.toHaveProperty('parentTopicId');
   });
@@ -279,7 +274,7 @@ describe('/topics response shape', () => {
   });
 });
 
-describe('/topics search — Mongo `$text` semantics', () => {
+describe('/topics search — OR terms, weighted rank', () => {
   it('matches on ANY term, not all of them', async () => {
     await seedTopic({
       name: 'urban gardening',
@@ -296,12 +291,12 @@ describe('/topics search — Mongo `$text` semantics', () => {
 
     expect(res.status).toBe(200);
     const names = (res.body.topics as Array<{ name: string }>).map((t) => t.name);
-    // `plainto_tsquery` builds AND. Mongo's `$text` is OR, so BOTH rows must
-    // come back — an AND port would return zero here and look like "no match".
+    // `plainto_tsquery` builds AND. Search is OR, so BOTH rows must come back —
+    // an AND query would return zero here and look like "no match".
     expect(names).toEqual(expect.arrayContaining(['urban gardening', 'quantum physics']));
   });
 
-  it('ranks a name hit above a description-only hit (Mongo weights 10 vs 1)', async () => {
+  it('ranks a name hit above a description-only hit (weights 10 vs 1)', async () => {
     await seedTopic({
       name: 'ceramics',
       slug: 'ceramics',
@@ -319,7 +314,7 @@ describe('/topics search — Mongo `$text` semantics', () => {
     const ranked = results.map((t) => t.name).filter((n) => n === 'ceramics' || n === 'sculpture');
 
     // Postgres's DEFAULT ts_rank weights order the fields the same way but with
-    // different ratios; this is here so ranking with them instead of Mongo's
+    // different ratios; this is here so ranking with them instead of the
     // normalized `{1,5,8,10}` is visible rather than silent.
     expect(ranked[0]).toBe('ceramics');
   });

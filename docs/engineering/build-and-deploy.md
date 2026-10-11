@@ -175,7 +175,7 @@ packages/
 @oxy.so/core           dep: @oxy.so/contracts
 @oxy.so/services       dep: @oxy.so/core + @oxy.so/contracts
 @oxy.so/api            dep: @oxy.so/contracts + @oxy.so/core/server for auth middleware
-@oxy.so/federation     dep: @oxy.so/core (isomorphic entry has zero Express/Mongo deps; `./node` subpath adds them)
+@oxy.so/federation     dep: @oxy.so/core (isomorphic entry has zero Express/database deps; `./node` subpath adds them)
 accounts              dep: @oxy.so/core + @oxy.so/services
 commons               dep: @oxy.so/core + @oxy.so/services  (NATIVE-ONLY — no web build/CF Pages)
 console               dep: @oxy.so/core + @oxy.so/services  (RN Web via Vite)

@@ -36,8 +36,8 @@ export const appAffinityEdges = pgTable(
     /** Decayed, additive strength as of `last_event_at`. */
     affinity: doublePrecision().notNull().default(0),
     /**
-     * The decay reference point. Nullable with NO default: Mongoose declared it
-     * with neither, so an edge created before its first fold genuinely has none,
+     * The decay reference point. Nullable with NO default: an edge created
+     * before its first fold genuinely has none,
      * and `now()` would silently claim a fold that did not happen.
      */
     lastEventAt: timestamptz(),

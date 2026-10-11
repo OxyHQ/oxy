@@ -12,18 +12,17 @@
  *
  * ## `source_id`: NULL, and `NULLS NOT DISTINCT`
  *
- * Mongo stored `''` for "unset" because the field is part of the idempotency
- * key, and `''` made the compound unique index behave. `''` must not travel:
- * `CONVENTIONS.md` is explicit that an empty string is a VALUE, and the contract
- * itself (`z.string().trim().min(1).optional()`,
+ * The field is part of the idempotency key, but "unset" is never stored as
+ * `''`: `CONVENTIONS.md` is explicit that an empty string is a VALUE, and the
+ * contract itself (`z.string().trim().min(1).optional()`,
  * `contracts/src/recommendations.ts:127`) says the wire form is a non-empty
  * string or nothing at all. So absent is NULL here.
  *
  * That alone would BREAK the guarantee, because Postgres treats NULLs in a
  * unique constraint as distinct — two unset edges for the same
  * (app, owner, member) would both insert and the endorsement would be counted
- * twice. `NULLS NOT DISTINCT` (Postgres 15+) restores exactly the Mongo
- * semantic without reintroducing the sentinel: one edge per
+ * twice. `NULLS NOT DISTINCT` (Postgres 15+) gives exactly the intended
+ * semantic without a sentinel: one edge per
  * (application, owner, member, source), unset included.
  *
  * The alternative — a unique index on `coalesce(source_id, '')` — would work and
@@ -66,7 +65,7 @@ export const appEndorsementEdges = pgTable(
   },
   (t) => [
     // Idempotency: one edge per (app, owner, member, source), with two unset
-    // sources colliding as Mongo intended. See the header.
+    // sources colliding as intended. See the header.
     //
     // Named for what it enforces rather than by the usual
     // `<table>_<col>_<col>…_key` convention: spelled out, this constraint's name

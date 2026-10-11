@@ -9,21 +9,20 @@
  *
  * ## Two timestamps that are not the same thing
  *
- * Mongoose declared `timestamps: { createdAt: false, updatedAt: true }` and then
- * REDECLARED `createdAt` as a **String** holding the client's ISO-8601 snapshot
+ * The API's `createdAt` is a **String** holding the client's ISO-8601 snapshot
  * time, stored verbatim so the public restore endpoint can hand back the exact
- * envelope that was uploaded. Two different values were sharing one name. Here
- * they do not:
+ * envelope that was uploaded. That is not the row's own write time, so the two
+ * are separate columns:
  *
  * - `client_created_at` — `text`, the client's value, byte for byte. NOT a
  *   `timestamptz`: parsing it would re-render it on read in a different string
  *   form, and the restore endpoint's contract is to return what was uploaded.
- * - `updated_at` — the row's last write, as Mongoose maintained it.
+ * - `updated_at` — the row's last write.
  *
- * There is deliberately NO `created_at`. Mongoose's `createdAt: false` was
- * forced by the name collision above, so the row's birth was never recorded, and
- * a `DEFAULT now()` column would stamp every backfilled row with the migration
- * date — asserting, of every backup that already exists, a falsehood. The
+ * There is deliberately NO `created_at`. The row's birth was never recorded for
+ * existing backups, and a `DEFAULT now()` column would stamp every one of them
+ * with the migration date — asserting, of every backup that already exists, a
+ * falsehood. The
  * snapshot time is `client_created_at`; the last write is `updated_at`.
  */
 

@@ -25,7 +25,7 @@
  *
  * ## Relationship to the legacy `FollowButton`
  *
- * `FollowButton` follows a USER through the Mongo-backed social graph and
+ * `FollowButton` follows a USER through the user social graph and
  * remains the correct component for that until the user graph is migrated onto
  * `/v2/follows`. When it is, that component is deleted and this one takes the
  * name — not aliased, not deprecated in place.

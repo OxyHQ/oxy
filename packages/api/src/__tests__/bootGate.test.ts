@@ -15,8 +15,6 @@
  *    every event naming a policy version it cannot find, so a boot that
  *    skipped it looks healthy and fails at the first real
  *    request. Asserted by reading the seeded row back out of the database.
- * 3. **The API boots without MongoDB.** Mongo is not a dependency of the
- *    serving process.
  *
  * ## Why the failure case must run FIRST
  *

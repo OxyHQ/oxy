@@ -37,13 +37,10 @@ export const reminders = pgTable(
   },
   (t) => [
     // "This user's open reminders, soonest first."
-    // Mongo's standalone `{userId}` is dropped: this leads with `user_id`.
+    // No standalone `(user_id)` index: this leads with `user_id`.
     index('reminders_user_id_completed_remind_at_idx').on(t.userId, t.completed, t.remindAt),
-    // The delivery cron. Mongo declared `{completed, remindAt}` `sparse`, which
-    // on a COMPOUND index skips only documents missing EVERY indexed field —
-    // both are always present, so it indexed everything and the `sparse` flag
-    // did nothing. The predicate the cron actually uses is `completed = false`,
-    // so that is what this index carries.
+    // The delivery cron. The predicate the cron uses is `completed = false`, so
+    // that is what this partial index carries.
     index('reminders_due_idx').on(t.remindAt).where(sql`not ${t.completed}`),
   ],
 );

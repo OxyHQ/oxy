@@ -3,8 +3,7 @@
  *
  * `expiry.ts`'s sweep deletes with `column <= now() - retentionSeconds`.
  * Without a leading btree on `column`, that predicate is a full table scan
- * every time the sweep runs — the exact cost a Mongo TTL index hid, now
- * paid on a schedule instead of never. A convention ("index the column you
+ * every time the sweep runs, paid on a schedule. A convention ("index the column you
  * register") is not enough on its own, because nothing else notices when a
  * migration drops the index or a new target is registered without one; this
  * gate reads the real Postgres catalogue and reports every registered
@@ -31,7 +30,7 @@ type IndexedColumnRow = {
  * `pg_index.indkey[0]` is the first column of the index's key, and joining
  * on it (rather than every column of a multi-column index) is deliberate: a
  * btree can only serve the sweep's `column <= …` predicate efficiently when
- * `column` is the LEADING key, exactly as a Mongo TTL index required.
+ * `column` is the LEADING key.
  */
 async function btreeIndexedColumns(db: SqlExecutor): Promise<Set<string>> {
   const rows = await executeRows<IndexedColumnRow>(

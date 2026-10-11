@@ -5,8 +5,8 @@
  * on: the ordinal that keeps an update's asset list byte-stable, the generated
  * S3 key that cannot disagree with its content address, the `RESTRICT` that
  * stops referenced bytes from being deleted, the `extra.expoClient` CHECK that
- * replaces a bypassable Mongoose validator, and the child table that replaced an
- * array Mongo addressed by inner field.
+ * no write path can bypass, and the rollback child table keyed by
+ * (channel, runtime, platform).
  */
 
 import { randomUUID } from 'node:crypto';
@@ -136,7 +136,7 @@ describe('update_assets — the generated S3 key', () => {
 
   it('refuses to let any write path supply its own key', async () => {
     // A generated column is not writable at all — which is the whole point over
-    // a Mongoose hook, since a backfill or a `psql` session bypasses a hook.
+    // an application-side hook, since a backfill or a `psql` session bypasses a hook.
     const error = await rejection(
       getDb().execute(sql`
         insert into update_assets (id, sha256, s3_key, content_type, size)
@@ -236,7 +236,7 @@ describe('app_updates — the manifest', () => {
     );
     expect(pgErrorCode(missing)).toBe(CHECK_VIOLATION);
 
-    // Present but null — the case the Mongoose validator singled out.
+    // Present but null — the case an application-side check would miss.
     const nulled = await rejection(
       getDb()
         .insert(appUpdates)
@@ -462,7 +462,7 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
     });
 
     // A device may fetch any historical update's assets at any time, so the
-    // object must never disappear. `RESTRICT` says so; Mongo said nothing.
+    // object must never disappear. `RESTRICT` says so.
     const error = await rejection(
       getDb().delete(updateAssets).where(eq(updateAssets.sha256, sha256)),
     );
@@ -497,16 +497,15 @@ describe('app_update_assets — the ordinal keeps the manifest byte-stable', () 
   });
 });
 
-describe('update_channel_rollbacks — the array Mongo addressed by inner field', () => {
+describe('update_channel_rollbacks — one row per rollback directive', () => {
   it('holds at most one active directive per (channel, runtime, platform)', async () => {
     const channelId = await channel(await application());
     await getDb()
       .insert(updateChannelRollbacks)
       .values({ channelId, runtimeVersion: '1.0.0', platform: 'ios', commitTime: new Date() });
 
-    // Mongo's `$pull` + `$push` is a two-statement upsert with a crash window
-    // between them, and two concurrent rollbacks could leave two entries for the
-    // same tuple. The composite primary key makes that unrepresentable.
+    // A pull-then-push upsert has a crash window between its two statements,
+    // and two concurrent rollbacks could leave two entries for the same tuple. The composite primary key makes that unrepresentable.
     const error = await rejection(
       getDb()
         .insert(updateChannelRollbacks)

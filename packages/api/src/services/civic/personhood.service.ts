@@ -158,8 +158,8 @@ async function weightedVouchScore(
 /**
  * Whether the subject has at least one biometric-bound real-life attestation.
  *
- * Mongo's dotted `'metadata.biometricOk': true` becomes jsonb CONTAINMENT rather
- * than `metadata->>'biometricOk' = 'true'`: the text form also matches the
+ * `metadata.biometricOk = true` is tested by jsonb CONTAINMENT rather than
+ * `metadata->>'biometricOk' = 'true'`: the text form also matches the
  * STRING `"true"`, which is not the boolean the attestation writes, and `@>`
  * additionally leaves the door open to a GIN index if this ever needs one.
  */

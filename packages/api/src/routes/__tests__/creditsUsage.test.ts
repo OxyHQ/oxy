@@ -1,12 +1,11 @@
 /**
  * Credit balance + usage history — against a REAL Postgres, through the REAL routes.
  *
- * The usage endpoint was a Mongo aggregation pipeline: a `$match` on a time
- * window, a `$group` on `$dateToString` of the event timestamp, and a `$cond`
- * that billed recorded credits when present and otherwise one credit per started
- * 1000 tokens with a floor of 1. Rewriting that as SQL is the kind of change
- * where a plausible-looking translation returns plausible-looking numbers, so
- * each clause is pinned separately here.
+ * The usage endpoint filters a time window, groups by the day of the event
+ * timestamp, and bills recorded credits when present and otherwise one credit
+ * per started 1000 tokens with a floor of 1. That is the kind of SQL where a
+ * plausible-looking query returns plausible-looking numbers, so each clause is
+ * pinned separately here.
  *
  * The grouping is checked in UTC on purpose. A bare `date_trunc('day', …)` on a
  * `timestamptz` truncates in the SESSION's `TimeZone`, which would silently move

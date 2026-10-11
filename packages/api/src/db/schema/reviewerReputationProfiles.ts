@@ -89,7 +89,7 @@ export const reviewerReputationProfiles = pgTable(
   },
   (t) => [
     unique('reviewer_reputation_profiles_user_id_key').on(t.userId),
-    // Drawing a panel selects on status; Mongo declared the same index.
+    // Drawing a panel selects on status.
     index('reviewer_reputation_profiles_status_idx').on(t.status),
 
     check(

@@ -1,12 +1,9 @@
 /**
  * Profile-discovery predicates, executed against a REAL Postgres.
  *
- * The suite this replaces asserted the SHAPE of a Mongo match object —
- * `expect(match.$and).toEqual(expect.arrayContaining([{ accountStatus: { $ne:
- * 'archived' } }]))`. That assertion could not distinguish a predicate that
- * excludes archived accounts from one that merely mentions them, and both of
- * its subjects (`buildPeopleSearchOrClause`, `eligibleUserMatch`) were deleted
- * by the port. Every case below instead seeds rows whose visibility is KNOWN,
+ * Asserting the SHAPE of a predicate cannot distinguish one that excludes
+ * archived accounts from one that merely mentions them. Every case below
+ * instead seeds rows whose visibility is KNOWN,
  * runs the predicate as the `where` of a real query, and asserts exactly which
  * ids come back.
  *

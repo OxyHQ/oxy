@@ -279,8 +279,8 @@ describe('POST /identity/domains', () => {
   });
 
   it('treats a re-request in different CASE as the same challenge', async () => {
-    // The unique index is on `lower(domain)`; Mongoose's `lowercase: true` setter
-    // has no Postgres counterpart, so the route re-applies it.
+    // The unique index is on `lower(domain)`; Postgres has no column-level
+    // lower-casing, so the route applies it.
     await request('POST', '/identity/domains', { domain: 'nate.example' });
     await request('POST', '/identity/domains', { domain: 'NATE.EXAMPLE' });
 
