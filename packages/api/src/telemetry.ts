@@ -2,13 +2,10 @@ import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
 import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
-import { RuntimeNodeInstrumentation } from '@opentelemetry/instrumentation-runtime-node';
 import { SocketIoInstrumentation } from '@opentelemetry/instrumentation-socket.io';
 import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { shouldSuppressHttpTrace } from './utils/telemetryRedaction.js';
 
 const enabled =
@@ -17,13 +14,9 @@ const enabled =
 const sdk = enabled
   ? new NodeSDK({
       serviceName: process.env.OTEL_SERVICE_NAME ?? 'oxy-api',
+      // Traces only, sampled by OTEL_TRACES_SAMPLER/_ARG from the task definition.
+      // Metrics are Oxy ecosystem telemetry's job, not CloudWatch's.
       traceExporter: new OTLPTraceExporter(),
-      metricReaders: [
-        new PeriodicExportingMetricReader({
-          exporter: new OTLPMetricExporter(),
-          exportIntervalMillis: 30_000,
-        }),
-      ],
       // Only the libraries this API runs on. Redis stays uninstrumented: session
       // cache values contain bearer and refresh tokens, and Redis spans must never
       // copy command arguments into the telemetry trust boundary.
@@ -39,7 +32,6 @@ const sdk = enabled
         new SocketIoInstrumentation(),
         new AwsInstrumentation(),
         new PinoInstrumentation(),
-        new RuntimeNodeInstrumentation(),
       ],
     })
   : null;
