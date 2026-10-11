@@ -1,7 +1,14 @@
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Peable } from '@peable.to/sdk';
+import { Peable } from '@peable.to/sdk';
+import {
+  createPeablePersonalRuntime,
+  initializePeablePersonalRuntime,
+  getPeablePersonalRuntime,
+  recoverPeablePersonalSources,
+  stopPeablePersonalRuntime,
+} from '../peablePersonalRuntime.service';
 import { cancelStoredPeablePersonalSource } from '../peablePersonalManagement.service';
 import { EMPTY_PRODUCT_BILLING_CATALOGUE } from '../productBillingCatalogue.service';
 /** Opt-in two-checkout fixture. Set PEABLE_ONE_FIXTURE_RUNNER to Peable's
@@ -21,6 +28,7 @@ import {
 } from '../productAccessPersistence.service';
 import { cancelOwnedPeableSubscription } from '../peablePersonalBilling.service';
 import {
+  createPeablePersonalEvidenceAuthority,
   reconcilePeablePersonalInvoiceState,
   handlePeablePersonalObservation,
   type PeableEvidenceAuthority,
@@ -31,6 +39,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
   'local Peable SDK → Oxy paid/cancel/refund/lapse fixture',
   () => {
     let child: ChildProcessWithoutNullStreams;
+    let fixtureError = '';
     let nextId = 0;
     const pending = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
     const rpc = (method: string, args: any[] = [], input?: unknown) =>
@@ -55,7 +64,8 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         pending.clear();
       });
       child.on('exit', () => {
-        for (const p of pending.values()) p.reject(new Error('Peable fixture process exited'));
+        for (const p of pending.values())
+          p.reject(new Error(`Peable fixture process exited: ${fixtureError}`));
         pending.clear();
       });
       createInterface({ input: child.stdout }).on('line', (line) => {
@@ -66,7 +76,9 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         if (value.error) p?.reject(new Error(value.error));
         else p?.resolve(value.result);
       });
-      child.stderr.on('data', () => {});
+      child.stderr.on('data', (value) => {
+        fixtureError = (fixtureError + String(value)).slice(-8000);
+      });
     });
     afterAll(async () => {
       try {
@@ -90,6 +102,8 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         accountId: f.payer,
         appId: f.app.id,
         planId: 'synthetic-approved',
+        offerId: f.offers[0].id,
+        offerVersion: 1,
         periodStart: start,
         periodEnd: end,
       });
@@ -129,6 +143,7 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
         client,
         readFinalInvoiceAuthority: async (source: PeableInvoiceSource) => ({
           source,
+          method: 'card' as const,
           invoice: {
             platform: 'peable',
             currency: 'USD',
@@ -158,11 +173,127 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           },
         }),
       };
-      const first = await reconcilePeablePersonalInvoiceState(authority, context, 'in_fixture');
+      const packedClient = new Peable({
+        baseURL: initialized.baseURL,
+        oxyApiUrl: initialized.baseURL,
+        publicKey: 'synthetic',
+        secret: 'synthetic',
+        invoiceAuthorityKeys: initialized.invoiceAuthorityKeys,
+      });
+      const sdkAuthority = createPeablePersonalEvidenceAuthority(packedClient);
+      const first = await reconcilePeablePersonalInvoiceState(sdkAuthority, context, 'in_fixture');
       expect(first.status).toBe('recorded');
       expect(
-        (await reconcilePeablePersonalInvoiceState(authority, context, 'in_fixture')).status,
+        (await reconcilePeablePersonalInvoiceState(sdkAuthority, context, 'in_fixture')).status,
       ).toBe('replayed');
+      const wrongKeyClient = new Peable({
+        baseURL: initialized.baseURL,
+        oxyApiUrl: initialized.baseURL,
+        publicKey: 'synthetic',
+        secret: 'synthetic',
+        invoiceAuthorityKeys: {},
+      });
+      await expect(
+        reconcilePeablePersonalInvoiceState(
+          createPeablePersonalEvidenceAuthority(wrongKeyClient),
+          context,
+          'in_fixture',
+        ),
+      ).rejects.toThrow('verification is unconfigured');
+      async function withRuntimeCatalogue(
+        action: (runtime: ReturnType<typeof createPeablePersonalRuntime>) => Promise<void>,
+      ) {
+        const directory = await mkdtemp(join(tmpdir(), 'one-runtime-evidence-'));
+        const previous = process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+        const path = join(directory, 'catalogue.json');
+        await writeFile(
+          path,
+          JSON.stringify({
+            ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+            products: f.products,
+            offers: f.offers,
+            prices: [
+              {
+                provider: 'peable',
+                providerAccountId: context.merchantId,
+                priceId: context.priceId,
+                mode: 'live',
+                environment: 'production',
+                offerId: context.offerId,
+                offerVersion: 1,
+                validFrom: '2000-01-01T00:00:00.000Z',
+                validUntil: null,
+                currency: 'usd',
+                amountMinorUnits: 2999,
+                offerKind: 'bundle',
+                kind: 'oxy_one',
+              },
+            ],
+          }),
+        );
+        process.env.BILLING_PRODUCT_CATALOGUE_FILE = path;
+        const runtimeConfiguration: Parameters<typeof createPeablePersonalRuntime>[1] = {
+          merchantId: context.merchantId,
+          applicationId: context.appId,
+          namespace: { mode: 'live', environment: 'production' },
+          offers: [
+            {
+              offerId: context.offerId,
+              offerVersion: 1,
+              planId: context.planId,
+              providerPriceId: context.priceId,
+            },
+          ],
+          invoiceIssuer: { legalName: 'The Oxy Collective, Inc.', id: 'synthetic-issuer' },
+          sellerId: 'synthetic-seller',
+          invoiceAuthorityKeys: initialized.invoiceAuthorityKeys,
+          taxQuoteAuthorityKeys: initialized.invoiceAuthorityKeys,
+          purchasesEnabled: false,
+          observationsEnabled: true,
+          recoveryEnabled: true,
+          recoveryIntervalMilliseconds: 60000,
+        };
+        const runtimePath = join(directory, 'runtime.json');
+        await writeFile(runtimePath, JSON.stringify(runtimeConfiguration));
+        const environment = {
+          OXY_ONE_PEABLE_RUNTIME_ENABLED: 'true',
+          OXY_ONE_PEABLE_RUNTIME_FILE: runtimePath,
+          OXY_ONE_PEABLE_PUBLIC_KEY: 'synthetic',
+          OXY_ONE_PEABLE_SECRET: 'synthetic',
+          OXY_ONE_PEABLE_OBSERVATION_SECRET: initialized.observationSecret,
+        };
+        const previousEnvironment: Record<string, string | undefined> = {};
+        for (const [name, value] of Object.entries(environment)) {
+          previousEnvironment[name] = process.env[name];
+          process.env[name] = value;
+        }
+        try {
+          await initializePeablePersonalRuntime({ client: packedClient });
+          const runtime = getPeablePersonalRuntime();
+          if (!runtime) throw new Error('Configured fixture runtime missing');
+          await action(runtime);
+        } finally {
+          await stopPeablePersonalRuntime();
+          for (const [name, value] of Object.entries(previousEnvironment)) {
+            if (value === undefined) delete process.env[name];
+            else process.env[name] = value;
+          }
+          if (previous === undefined) delete process.env.BILLING_PRODUCT_CATALOGUE_FILE;
+          else process.env.BILLING_PRODUCT_CATALOGUE_FILE = previous;
+          await rm(directory, { recursive: true, force: true });
+        }
+      }
+      if (!('sourceId' in first) || typeof first.sourceId !== 'string')
+        throw new Error('Paid source missing');
+      const recordedSourceId = first.sourceId;
+      await withRuntimeCatalogue(async (runtime) => {
+        expect((await runtime.recover(recordedSourceId)).status).toBe('replayed');
+        await expect(runtime.recover(standalone.source.id)).rejects.toThrow('source unavailable');
+        const recovery = jest.spyOn(runtime, 'recover');
+        await recoverPeablePersonalSources();
+        expect(recovery).toHaveBeenCalledWith(recordedSourceId);
+        recovery.mockRestore();
+      });
       const active = () => readSubjectProductAccess(f.payer, f.products[1].id);
       expect((await active()).capabilities).toHaveLength(1);
       await expect(
@@ -202,6 +333,13 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           )
         ).status,
       ).toBe('replayed');
+      await withRuntimeCatalogue(async (runtime) => {
+        await expect(runtime.observe(recordedSourceId, deliveries[0].raw, 'bad')).rejects.toThrow();
+        expect(
+          (await runtime.observe(recordedSourceId, deliveries[0].raw, deliveries[0].signature))
+            .status,
+        ).toBe('replayed');
+      });
       await cancelOwnedPeableSubscription(
         client,
         f.payer,

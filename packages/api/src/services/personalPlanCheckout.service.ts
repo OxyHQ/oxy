@@ -23,9 +23,9 @@ import {
   type ProductBillingCatalogue,
 } from './productBillingCatalogue.service';
 
-/** Injection is for adapter contract tests. No provider is wired into HTTP yet. */
+/** HTTP stays closed until Peable supplies the complete financial authority. */
 export interface PersonalCheckoutProvider {
-  kind: 'synthetic';
+  kind: 'synthetic' | 'peable';
   create(input: {
     intentId: string;
     idempotencyKey: string;

@@ -91,6 +91,7 @@ async function fixture() {
       await barrier;
       return {
         source,
+        method: 'card' as const,
         invoice: {
           platform: 'peable',
           currency: 'USD',

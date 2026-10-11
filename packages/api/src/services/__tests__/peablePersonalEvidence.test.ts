@@ -110,8 +110,17 @@ it('requires real authority, activates exact paid period once and preserves indi
     client,
     readFinalInvoiceAuthority: async (
       source: import('../peablePersonalEvidence.service').PeableInvoiceSource,
-    ) => ({ source, invoice: final }),
+    ) => ({ source, method: 'card' as const, invoice: final }),
   };
+  const faircoinAuthority = {
+    client,
+    readFinalInvoiceAuthority: async (
+      source: import('../peablePersonalEvidence.service').PeableInvoiceSource,
+    ) => ({ source, method: 'faircoin' as const, invoice: final }),
+  };
+  await expect(
+    reconcilePeablePersonalPaidInvoice(faircoinAuthority, context, 'in_fixture', () => f.now),
+  ).rejects.toThrow('Faircoin quote');
   read.mockResolvedValue({ ...value, storeId: f.owner });
   await expect(
     reconcilePeablePersonalPaidInvoice(authority, context, 'in_fixture', () => f.now),
@@ -137,7 +146,7 @@ it('requires real authority, activates exact paid period once and preserves indi
       client,
       readFinalInvoiceAuthority: async (
         source: import('../peablePersonalEvidence.service').PeableInvoiceSource,
-      ) => ({ source: { ...source, [key]: 'wrong' }, invoice: final }),
+      ) => ({ source: { ...source, [key]: 'wrong' }, method: 'card' as const, invoice: final }),
     };
     await expect(
       reconcilePeablePersonalPaidInvoice(wrong, context, 'in_fixture', () => f.now),

@@ -62,10 +62,32 @@ export interface PeableEvidenceAuthority {
       'retrievePaidInvoice' | 'retrieveInvoiceState' | 'retrieveSubscription'
     >;
   };
-  /** Authoritative tax/seller evidence is not currently supplied by Peable. No default. */
+  /** Verified SDK authority; no local fiscal or FX default. */
   readFinalInvoiceAuthority?: (
     source: PeableInvoiceSource,
-  ) => Promise<{ source: PeableInvoiceSource; invoice: unknown }>;
+  ) => Promise<{ source: PeableInvoiceSource; invoice: unknown; method: 'card' | 'faircoin' }>;
+}
+/** The SDK checks the signed envelope using deployment-pinned keys before this
+ * consumer checks its exact frozen source. No response-provided key is trusted. */
+export function createPeablePersonalEvidenceAuthority(client: Peable): PeableEvidenceAuthority {
+  return {
+    client,
+    readFinalInvoiceAuthority: async (source) => {
+      const value = await client.billing.retrieveFinalInvoiceAuthority(
+        source.subscriptionId,
+        source.invoiceId,
+      );
+      if (
+        Object.keys(source).some(
+          (key) =>
+            value.source[key as keyof PeableInvoiceSource] !==
+            source[key as keyof PeableInvoiceSource],
+        )
+      )
+        throw new Error('Peable authoritative invoice source differs');
+      return { source: value.source, invoice: value.invoice, method: value.method };
+    },
+  };
 }
 export interface PeablePersonalPaidContext {
   accountId: string;
@@ -152,6 +174,7 @@ export async function reconcilePeablePersonalPaidInvoice(
     )
   )
     throw new Error('Peable authoritative invoice source differs');
+  const method = z.enum(['card', 'faircoin']).parse(authorityResult.method);
   const validateInvoice = () =>
     validatePersonalInvoiceForAction(
       authorityResult.invoice,
@@ -166,7 +189,7 @@ export async function reconcilePeablePersonalPaidInvoice(
         mode: context.mode,
         environment: context.environment,
       },
-      'card',
+      method,
       clock(),
     );
   const invoice = validateInvoice();
@@ -444,4 +467,24 @@ export async function handlePeablePersonalObservation(
       cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
     }),
   };
+}
+
+/** Applied/replayed outcomes complete reconciliation; no_invoice means recovery
+ * found no invoice work. Unknown or review outcomes remain retryable. */
+export function assertPeablePersonalReconciliationComplete(result: unknown): void {
+  const parsed = z
+    .object({
+      status: z.enum([
+        'recorded',
+        'replayed',
+        'historical_replayed',
+        'fenced',
+        'revoked',
+        'updated',
+        'stale',
+        'no_invoice',
+      ]),
+    })
+    .safeParse(result);
+  if (!parsed.success) throw new Error('Peable personal reconciliation deferred');
 }

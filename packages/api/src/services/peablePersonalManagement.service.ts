@@ -17,7 +17,7 @@ import { ApiError } from '../utils/error';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import { reconcileProductAccessFinancialState } from './productAccessPersistence.service';
 import { cancelOwnedPeableSubscription } from './peablePersonalBilling.service';
-const configurationSchema = z
+export const peablePersonalManagementConfigurationSchema = z
   .object({
     merchantId: z.string().regex(/^merch_[A-Za-z0-9_]+$/),
     applicationId: z.string().min(1),
@@ -40,7 +40,9 @@ export async function loadPeablePersonalManagement() {
   const path = process.env.OXY_ONE_PEABLE_MANAGEMENT_FILE;
   if (!path || !process.env.OXY_ONE_PEABLE_PUBLIC_KEY || !process.env.OXY_ONE_PEABLE_SECRET)
     return undefined;
-  const configuration = configurationSchema.parse(JSON.parse(await readFile(path, 'utf8')));
+  const configuration = peablePersonalManagementConfigurationSchema.parse(
+    JSON.parse(await readFile(path, 'utf8')),
+  );
   const client = new Peable({
     publicKey: process.env.OXY_ONE_PEABLE_PUBLIC_KEY,
     secret: process.env.OXY_ONE_PEABLE_SECRET,

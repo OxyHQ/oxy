@@ -1,5 +1,31 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## 2026-10-07 continuation
+
+The earlier six repository deliveries and the published Oxy/Peable candidate SDK versions are already deployed; their historical preparation sections below are not outstanding release tasks. Commercial activation remains disabled. The approved invoice issuer is **The Oxy Collective, Inc.** This does not establish the seller's processor identifier, tax remitter, registrations or sale countries. The customer may choose manual monthly Faircoin renewal or automatic renewal with express consent, amount and periodicity limits, and verifiable revocation. No mandate is created. The detached `packages/api/config/drafts/oxy-one-commercial-decisions.json` records these decisions and the remaining policy dependencies; no runtime reads it.
+
+`peablePersonalCheckout.service.ts` now exercises the published SDK's owned customer and recurring checkout operations, with exact merchant/application/namespace/offer/price binding, stable replay keys, monthly no-trial selection and bounded HTTPS session results. It deliberately refuses execution outside the test process. The default HTTP composition remains unconfigured because this SDK recurring processor has no complete authoritative inclusive-tax/seller/FAIR invoice contract. Removing the guard before that contract exists could create a charge that Oxy cannot validate. No fiscal or FX evidence is manufactured by the adapter.
+
+The trusted invoice-authority callback must now state the payment method. A Faircoin paid observation cannot be validated through the card path and must carry current authoritative FX evidence. Seven targeted suites (36 tests) passed against disposable local PostgreSQL, including the opt-in actual SDK/Peable HTTP lifecycle fixture with simulated downstream/auth/tax evidence. These tests establish local transport, attribution, cancellation, refund and replay behavior; they do not establish Faircoin settlement or production acceptance.
+
+The approved sales objective is worldwide. The detached proposal records `saleCountryObjective: "worldwide"` and `enabledSaleCountries: []`; no country or wildcard becomes commercially enabled. Country coverage, registrations and tax remittance still require verified configuration. The tax calculation provider has not been selected.
+
+Peable's current source adds `FinalInvoiceAuthorityReader.read` and pinned verification keys, an owned SDK invoice-authority read, and signature/source/total/expiry verification. That interface reads evidence for an already-paid invoice; it does not calculate tax or establish country coverage. There is still no concrete trusted tax adapter wired at startup to determine a customer's location, apply the seller's verified country/registration rules and return an expiring inclusive tax quote before checkout. Production also needs the matching signed final evidence reader. Selecting a tax calculation service and supplying its reviewed configuration is necessary to implement those adapters. This does not select Stripe Tax or infer coverage from Stripe's recurring processor.
+
+### SDK authority and inactive runtime composition
+
+Oxy now supplies a concrete SDK reader: `createPeablePersonalEvidenceAuthority` calls `billing.retrieveFinalInvoiceAuthority` and checks every frozen source binding after the SDK verifies the signed envelope against deployment-pinned Ed25519 keys. Runtime additionally requires the configured seller and approved issuer identifier to match final invoice evidence. No signing key supplied by a response is trusted.
+
+`bootstrap` initializes the runtime only when `OXY_ONE_PEABLE_RUNTIME_ENABLED=true`. Enabling requires a validated `OXY_ONE_PEABLE_RUNTIME_FILE`, the existing `OXY_ONE_PEABLE_PUBLIC_KEY`/`OXY_ONE_PEABLE_SECRET`, correct persisted database namespace, and matching authenticated merchant/application ownership. The file requires explicit observation/recovery flags, merchant/application/namespace/offer mappings, the approved issuer legal name and verified issuer/seller identifiers, pinned invoice/tax-quote verification keys and a bounded recovery interval. Observations additionally require `OXY_ONE_PEABLE_OBSERVATION_SECRET`. No configuration or credentials were installed or enabled by this change.
+
+The mounted raw-body endpoint is `POST /billing/peable/observations/:sourceId`. Signature verification happens before source lookup; context comes from an existing locally attributed personal source and reviewed catalogue mapping. Verified events are wake-ups; fresh SDK reads decide current paid/refunded/subscription state. Failed reconciliation returns 503 for retry. Recovery periodically scans at most 50 owned source identifiers per batch with a wrapping cursor and awaits its outstanding batch on shutdown. First-purchase checkout discovery is not composed by this worker; it handles already-recorded sources.
+
+The runtime schema requires `purchasesEnabled:false`; the HTTP purchase path remains unconfigured. Peable's checkout request still has no signed tax-quote binding, and Oxy has no trusted customer-location evidence resolver. Merely fetching a tax quote would not prove that checkout charged that quoted inclusive price. These require concrete protocol/adapter work before enabling purchases.
+
+Candidate integration uses the actual packed Peable shared-types `0.3.2-oxy-one.0` and SDK `0.2.4-oxy-one.0` in ignored local dependencies. The tracked dependency remains published SDK `0.2.3-oxy-one.0`; it lacks the new method/configuration, so clean registry CI/adoption is blocked until an approved release and legitimate manifest/lock update. No registry integrity was fabricated and no shim or alternative payment HTTP client was introduced. Local tests exercise signed invoice authority through the packed SDK and Peable HTTP fixture, configured startup, signed observations, source isolation and recovery using disposable databases and synthetic downstream/tax/auth/signing material.
+
+Publication of those candidate versions was subsequently approved, but the publishing environment returned `ENEEDAUTH` with its existing npm authentication. No publication, new token or account was created. The registry dependency and lockfile remain unchanged. Final local candidate validation passed 11 suites / 49 tests with no skips, including boot/health gates and signed SDK/HTTP runtime recovery. This is a draft source handoff with a registry adoption blocker, not a production deployment.
+
 Approved terms: US$29.99 per month (2999 minor units), final consumer price including applicable purchase taxes, no trial, no annual offer; Alia Pro-level 10,000 credits per subscription month plus existing daily free refill; shared 100,000,000,000 bytes including Noted attachments; Mention mono; personal only. This document authorizes no operational changes. There is no live consumer checkout provider in this draft.
 
 ## Voice policy: preserve the existing product
@@ -116,3 +142,24 @@ A delayed expired but previously recorded paid invoice is an exact immutable his
 Current correction validation: 162 Oxy tests in eleven suites (52 service/integration and 110 billing/access route and resolver regressions); 122 Peable backend tests in eight files; API and backend TypeScript checks. Prior v5 SDK, packed public artifact and Accounts checks above remain valid because their sources are unchanged. Migrations were applied only by throwaway local test harnesses. Publication, live configuration, deployment and operator gates remain unchanged.
 
 SDK audit follow-up: optional local billing-method augmentation is removed; the evidence bridge now imports actual public SDK invoice/method types. The installed registry0.2.2 lacks the new reads and cannot compile this updated bridge. Validation used candidate0.2.3-oxy-one.0/shared-types0.3.1-oxy-one.0 tarballs, not published adoption. Exact consumer manifest change and registry-lock clean-install plan are prepared separately, pending authorized release. See oxy-one-sdk-architecture-audit.md for every call, dependency, test-only proxy and remaining release gate.
+
+
+## Configurable runtime and unresolved observation handling (2026-10-07)
+
+The personal runtime now composes the Peable SDK authority reader, signed raw-body
+observation endpoint and bounded source recovery at startup when explicitly
+configured. Missing configuration leaves it disabled. Purchases remain disabled;
+pre-checkout signed tax-quote binding and trusted location lookup are still missing.
+
+Only completed reconciliation outcomes receive HTTP 200. `review_required`,
+`not_recorded` and unknown outcomes receive HTTP 503, leaving the existing Peable
+outbox delivery retryable. Recovery records the source as deferred and revisits it
+on the next cursor cycle while continuing other sources. This is a retry repair,
+not a durable manual-review queue per invoice; no refund policy is inferred.
+
+The source requires the unpublished Peable SDK `0.2.4-oxy-one.0` and shared-types
+`0.3.2-oxy-one.0` candidate APIs. Their immutable source snapshot is Peable
+`b44d490792ab47618a74090ca53ce35e78f1da09`. Publication is authorized but npm
+identity verification in this environment returns `ENEEDAUTH`. The consumer keeps
+its current registry dependency until that release exists, so registry-only API
+build remains blocked. Local candidate checks do not close publication or CI.
