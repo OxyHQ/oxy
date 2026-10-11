@@ -246,16 +246,23 @@ assert.match(homiioProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
 assert.doesNotMatch(homiioProvision, /ISOLATE_CREDENTIAL_NAME="false"/);
 assert.match(homiioProvision, /ROTATE_SCOPE_MISMATCH="true"/);
 assert.doesNotMatch(homiioProvision, /ROLLOUT_SERVICE/);
-assert.doesNotMatch(mentionProvision, /ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/);
+// Mention attests its ECS task roles (ADR 0026) and holds no Oxy key pair, so
+// no lane may mint one back into /oxy/mention/OXY_SERVICE_API_*. Only the
+// Cloudflare edge lane (a Worker has no role to attest) stays registered.
 assert.match(mentionProvision, /APP_NAMESPACE="mention"/);
-assert.match(mentionProvision, /DESTINATION_KEY_NAME="OXY_SERVICE_API_KEY"/);
-assert.match(mentionProvision, /DESTINATION_SECRET_NAME="OXY_SERVICE_API_SECRET"/);
-assert.match(mentionProvision, /ISOLATE_CREDENTIAL_NAME="true"/);
-assert.match(
+assert.match(mentionProvision, /\[ "\$CREDENTIAL_LANE" = "edge" \] \|\| \{/);
+assert.doesNotMatch(
   mentionProvision,
-  /SCOPES="user:read,files:read,files:write,federation:write,signals:write,catalogs:write,capabilities:read,capability-audit:write"/,
+  /SCOPES=|DESTINATION_(?:KEY|SECRET)_NAME|OXY_SERVICE_API_|ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/,
 );
-assert.doesNotMatch(mentionProvision, /capability-tickets:issue|agency:coordinate/);
+for (const lane of ['service', 'activity']) {
+  const execution = spawnSync('bash', ['-c', registryShell], {
+    env: { ...process.env, APP_ID: canonicalMentionApplicationId, CREDENTIAL_LANE: lane },
+    encoding: 'utf8',
+  });
+  assert.notEqual(execution.status, 0, `Mention ${lane} key pair provisioning was accepted`);
+  assert.match(execution.stdout, /Mention authenticates as its ECS task role/);
+}
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_KEY_NAME/);
 assert.match(provision, /\/oxy\/\$APP_NAMESPACE\/\$DESTINATION_SECRET_NAME/);
 assert.doesNotMatch(provision, /\/oxy\/\$APP_NAMESPACE\/OXY_APPLICATION_(?:KEY|SECRET)/);
@@ -317,6 +324,23 @@ assert.match(homiioReconcile, /ADD_SCOPES="reputation:write,inference:invoke"/);
 // reconcile arm must never widen past those three.
 assert.match(aliaReconcile, /ADD_SCOPES="capability-tickets:issue,clarity:search,clarity:index"/);
 assert.match(reconcile, /CREDENTIAL_ID.*EXPECTED_CREDENTIAL_ID/);
+// Mention's authority is its workload binding's, which this script cannot
+// select: the reconcile registry must refuse its application id outright.
+const reconcileRegistryStart = reconcile.indexOf('case "$APP_ID" in');
+const reconcileRegistryShell = reconcile.slice(
+  reconcileRegistryStart,
+  reconcile.indexOf('esac', reconcileRegistryStart) + 4,
+);
+assert.ok(reconcileRegistryStart >= 0);
+assert.doesNotMatch(
+  reconcileRegistryShell,
+  new RegExp(`\\n\\s+${canonicalMentionApplicationId}\\)`),
+);
+const mentionReconcile = spawnSync('bash', ['-c', reconcileRegistryShell], {
+  env: { ...process.env, APP_ID: canonicalMentionApplicationId },
+  encoding: 'utf8',
+});
+assert.notEqual(mentionReconcile.status, 0, 'Mention credential reconciliation was accepted');
 
 assert.match(
   reconcileScript,
