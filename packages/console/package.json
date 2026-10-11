@@ -6,13 +6,12 @@
     "dev": "vite dev --port 8106",
     "build": "vite build && bun ../core/scripts/writePagesHeaders.ts dist",
     "preview": "vite preview",
-    "test": "node --test worker/edge-checks.mjs && vitest run",
+    "test": "vitest run",
     "lint": "biome lint .",
     "format": "biome format --write .",
     "check": "biome check --write ."
   },
   "dependencies": {
-    "@oxy.so/telemetry": "workspace:*",
     "@base-ui/react": "^1.6.0",
     "@clarity.surf/sdk": "0.1.0",
     "@expo/vector-icons": "^15.0.3",

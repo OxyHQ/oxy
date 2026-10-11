@@ -64,7 +64,7 @@ The chooser ("Choose an account to continue") uses the SAME device-first SDK cha
 2. The SDK's `OxyAccountPicker` renders those rows on `/login` (inside `OxySignInPanel`), `/authorize`, `/device` and `/mcp/link`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
 3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
-The app's own pages (login, authorize, device, MCP link, email sign-in) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. The only Pages Function on this origin is the root `functions/_middleware.ts`, which records edge activity and serves no page.
+The app's own pages (login, authorize, device, MCP link, email sign-in) are a static Vite SPA with history-fallback — no dynamic routes and no advanced-mode worker. This origin runs no Pages Functions; its web traffic is read from Cloudflare analytics by oxy-api, not observed in code.
 
 ## API endpoints the IdP calls
 

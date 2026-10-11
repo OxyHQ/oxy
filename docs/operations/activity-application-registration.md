@@ -24,10 +24,6 @@ registered without evidence of an existing deployed email-worker process.
    `/oxy/nilo/OXY_SERVICE_API_KEY/SECRET`; the media worker receives the isolated
    `/oxy/oxy-asset-variant-worker/OXY_ACTIVITY_API_KEY/SECRET` pair. Verify only
    parameter names, SecureString types and versions in operator output.
-4. Nilo's separate `edge` lane delivers only to the already deployed Worker
-   `nilo`. The media worker has no edge lane. Enable publishing only after the
-   appropriate deployed adapter and central collector are verified.
-
-Accounts, Auth and Console already have verified official applications. Their
-edge-only delivery mappings reuse those identities with fresh isolated
-`user:read` principals, leaving existing sign-in or backend credentials alone.
+4. There is no `edge` lane any more: the workflow refuses it. Cloudflare-hosted
+   web apps (Nilo's Worker, Accounts, Auth, Console and every product frontend)
+   hold no Oxy key pair; oxy-api reads their traffic from Cloudflare analytics.
