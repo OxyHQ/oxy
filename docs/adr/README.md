@@ -50,6 +50,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0034](0034-present-requester-profile-capabilities.md) | #1523, Alia#659 | Present requester read-only profile tools reuse the common signed capability contract, with live session authority, verified application ranking and shared HTTP/MCP handlers. |
 
 | [0035](0035-alia-app-only-machine-chat.md) | #1571 | Proposed: explicit Alia recipient and `alia:chat` + `inference:invoke` machine scopes, separate app principal and caller payer; no user, tools or default grants. |
+| [0036](0036-reviewed-facts-and-funding-for-synced-routes.md) | Kaana#166 | A provider that publishes its price and accepted controls outside its model list (Anthropic) gets reviewed per-`(provider, line)` facts in Oxy, written by the sync into the same price versions and intersected with Kaana's controls; a synced route's funding class comes from Kaana's signed credential economics (a single promotional key → `promotional_credit`, six-hour window). Changes 0027 decision 5. |
 
 ## Related
 

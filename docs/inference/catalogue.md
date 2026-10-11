@@ -398,7 +398,20 @@ does it.
    the preflight never compares it.
 3. The provider's `inference_providers` row: the route's data policy
    (retention, training, zero-data-retention, policy URL). A provider without a
-   row is not synced — adding one is the only manual step left.
+   row is not synced. Rows ship as migrations, which every deploy applies
+   (`anthropic`: migration 0153).
+4. For a provider whose model list publishes no price (Anthropic):
+   `config/kaanaReviewedProviderRoutes.ts`, reviewed per exact
+   `(provider, model line)` from the provider's own pricing and model pages
+   (source and date in the file). Kaana names such a deployment only in the
+   line's `providers`, so the sync takes its exact id from the signed serving
+   snapshot (`POST /internal/v1/deployments/query` `{}`) and attests it like
+   any other. A Kaana list price for the deployment always wins; a price is
+   never taken from another provider of the line
+   ([ADR 0036](../adr/0036-reviewed-facts-and-funding-for-synced-routes.md)).
+5. `POST /internal/v1/provider-telemetry/credentials` (signed, telemetry
+   purpose): each enabled platform key's capacity category and latest capacity
+   evidence, for the route's funding class (below).
 
 ### What it writes
 
@@ -408,14 +421,29 @@ does it.
 | `inference_models` | `catalogue_source = 'kaana_sync'`; limits, modalities, tools and `reasoning_efforts` from Kaana; `provider_released_at` from `createdAt`; licence and provenance as below |
 | `inference_model_revisions` | Kaana's revision label, made current; `released_at` = first observation |
 | `inference_deployments` | `platform_internal`, `standard_application_use`, `approved`, `auto_approval_policy_id = 'kaana-sync'`, the attested regions, the provider's data policy, `accepted_parameters` (below) |
-| `price_versions` | USD, from the list price: input, cached input (at the input rate), output, reasoning (at the output rate) per million tokens, `requests` at zero. A changed list price SUPERSEDES the active version |
-| `inference_deployment_routing_scores` | `price` score = minus the cost of 1M input + 1M output tokens in cents; latency, throughput and balanced unscored (`not-measured:kaana-sync`); `standard_payg`, `available` |
+| `price_versions` | USD, from the list price: input, cached input (at the published cache-read rate when a reviewed route states one, otherwise the input rate), output, reasoning (at the output rate) per million tokens, `requests` at zero. A changed list price SUPERSEDES the active version |
+| `inference_deployment_routing_scores` | `price` score = minus the cost of 1M input + 1M output tokens in cents; latency, throughput and balanced unscored (`not-measured:kaana-sync`); funding as below |
 
 Synced licence and legal fields record the policy, not a review:
 `LicenseRef-Oxy-Serving-Provider-Terms`, `commercialUseAllowed: false` (not
 asserted, so `requireCommercialUseRights` excludes these routes),
 `requiresAttribution: true`, `releaseKind: third_party_hosted`, legal evidence
 `auto-approval-policy:kaana-sync` with no reviewer. ADR 0027 has the table.
+
+### Funding class of a synced route
+
+A provider with exactly one enabled Kaana key, described `promotional`, funds
+its synced routes as `promotional_credit` (`kaanaCredentialEconomics.service.ts`):
+observed at the read, valid for six hours and renewed once less than half of
+that is left. Fresh capacity evidence of a zero balance, an exhausted monthly
+quota or a past expiry records `exhausted` (a spent minute/hour/day quota
+`rate_limited`), which the edge never ranks. Every other provider, and every
+provider when the read fails, is `standard_payg`, `available`. With the same
+price, a promotional direct route therefore ranks before the paid route of the
+same line, which stays its failover destination; when the window lapses or the
+grant is spent, the paid route serves. Kaana also withholds a deployment whose
+key it retired (an Anthropic `billing_error`) and fails a request over to the
+next signed route on a quota refusal.
 
 ### Accepted request parameters
 
@@ -427,7 +455,13 @@ statement. The sync takes the deployment's own descriptor set when Kaana
 sends one; otherwise the catalogue entry's set, which is an intersection over
 the line's reporting deployments, is stored only when every deployment of the
 line is on one provider. A multi-provider intersection proves what every
-reporter accepts, not what any one refuses, so those routes stay unknown.
+reporter accepts, not what any one refuses, so those routes stay unknown. A
+reviewed provider route's statement is intersected with whichever of those
+applies: Anthropic routes never accept penalties, `seed` or a JSON response
+format (Kaana's adapter refuses them), Claude 4.7 and later never accept
+`sampling.temperature`/`sampling.topP`, and Fable 5.1, Opus 5.5 and Sonnet 5.5
+never accept `toolChoice` (Anthropic refuses a forced one with a 400, and the
+vocabulary cannot tell a forced choice from `auto`).
 
 The edge never signs a route whose known set lacks a control the request
 carries (Kaana's Translate would refuse it with `invalid_request` before any
@@ -473,8 +507,9 @@ entirely; existing routes keep serving until retired.
 
 A synced route carries only a `price` score, so it is selectable under
 `optimiseFor: 'price'`. An official application with no routing policy of its
-own is served under `platform-internal-default@1`, which ranks on `price` and
-authorizes same-model deployment failover only ([routing.md](./routing.md)). A policy optimising for
+own is served under `platform-internal-default@1`, which ranks by funding class
+and then `price`, and authorizes same-model deployment failover only
+([routing.md](./routing.md)). A policy optimising for
 latency, throughput or balanced finds no score on a synced route and refuses
 with `no_route_available` (`routing_evidence:missing-score`) until measured
 scores exist.
