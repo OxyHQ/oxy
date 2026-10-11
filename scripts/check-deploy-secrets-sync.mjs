@@ -33,7 +33,8 @@
  *      task-definition ARN (a READ).
  *   3. Every secret binding the deploy re-asserts (TASK_SECRET_OVERRIDES_JSON)
  *      is present with its exact SSM ARN, and every entry there is an SSM ARN
- *      in this account and region.
+ *      in this account and region. A RETIRED binding is absent from it and
+ *      named in TASK_REMOVE_NAMES_JSON, so it leaves the running revision.
  *   4. Every environment variable `validateRequiredEnvVars()` requires at boot
  *      (`packages/api/src/config/env.ts`) has a recorded home: an SSM-owned
  *      secret, an oxy-infra-owned shared parameter, or plain task-definition
@@ -118,13 +119,23 @@ const EXPECTED_TASK_SECRET_BINDINGS = new Map(
       'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
       '/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY',
     ],
-    ['INBOX_APPLICATION_KEY', '/oxy/inbox/OXY_APPLICATION_KEY'],
-    ['INBOX_APPLICATION_SECRET', '/oxy/inbox/OXY_APPLICATION_SECRET'],
     ['QUEUE_REDIS_URL', '/oxy/_shared/QUEUE_REDIS_URL'],
     ['META_GRAPH_ACCESS_TOKEN', '/oxy/oxy-api/META_GRAPH_ACCESS_TOKEN'],
     ['META_IG_BUSINESS_ACCOUNT_ID', '/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID'],
   ].map(([name, path]) => [name, `${SSM_ARN_PREFIX}${path}`]),
 );
+
+/**
+ * Bindings the deploy has RETIRED: never re-asserted, and named in
+ * TASK_REMOVE_NAMES_JSON so the rollout strips them from the running revision
+ * it renders from. Without the second half a retired binding is merely no
+ * longer re-asserted — it rides along on every inherited revision forever.
+ *
+ * The Inbox key pair is retired by ADR 0026: oxy-api acts as Oxy Inbox through
+ * its task role's workload binding. It must not come back by a revert of the
+ * override list alone, so both halves are held here.
+ */
+const RETIRED_TASK_SECRET_BINDINGS = ['INBOX_APPLICATION_KEY', 'INBOX_APPLICATION_SECRET'];
 
 /**
  * Vacuity guards. Each parse below can degrade into reading LESS than it should
@@ -210,6 +221,22 @@ function parseTaskSecretOverrides(workflow) {
   }
 }
 
+function parseTaskRemoveNames(workflow) {
+  const match = workflow.match(/^\s*TASK_REMOVE_NAMES_JSON:\s*>-\s*\n\s*(\[.*\])\s*$/m);
+  if (!match) {
+    fail(
+      'deploy-aws.yml no longer contains a one-line `TASK_REMOVE_NAMES_JSON: >-` array; the gate cannot read the retired bindings.',
+    );
+    return null;
+  }
+  try {
+    return JSON.parse(match[1]);
+  } catch (error) {
+    fail(`deploy-aws.yml TASK_REMOVE_NAMES_JSON is not valid JSON: ${error.message}`);
+    return null;
+  }
+}
+
 const workflow = read(WORKFLOW_PATH);
 const envModule = read(ENV_MODULE_PATH);
 
@@ -290,10 +317,28 @@ if (overrides) {
       );
     }
   }
+  for (const name of RETIRED_TASK_SECRET_BINDINGS) {
+    if (Object.hasOwn(overrides, name)) {
+      fail(
+        `${name} is a retired binding and must not be re-asserted in TASK_SECRET_OVERRIDES_JSON (ADR 0026: oxy-api acts as Inbox through its task role).`,
+      );
+    }
+  }
   for (const [name, value] of Object.entries(overrides)) {
     if (typeof value !== 'string' || !value.startsWith(`${SSM_ARN_PREFIX}/oxy/`)) {
       fail(
         `TASK_SECRET_OVERRIDES_JSON binds ${name} to ${JSON.stringify(value)}, which is not an SSM parameter under ${SSM_ARN_PREFIX}/oxy/.`,
+      );
+    }
+  }
+}
+
+const removeNames = parseTaskRemoveNames(workflow);
+if (removeNames) {
+  for (const name of RETIRED_TASK_SECRET_BINDINGS) {
+    if (!removeNames.includes(name)) {
+      fail(
+        `${name} is a retired binding but TASK_REMOVE_NAMES_JSON does not remove it, so every rollout inherits it from the running revision.`,
       );
     }
   }
@@ -336,5 +381,6 @@ console.log(
   `Deploy secrets are SSM-only: no SSM write in deploy-aws.yml or the ${reached.size} scripts it reaches, ` +
     `no repo secret read but ${[...CI_ONLY_SECRETS].join(', ')}, ` +
     `all ${EXPECTED_TASK_SECRET_BINDINGS.size} re-asserted bindings exact, ` +
+    `all ${RETIRED_TASK_SECRET_BINDINGS.length} retired bindings removed, ` +
     `and all ${requiredEnvVars.length} boot-required env vars have a recorded home.`,
 );

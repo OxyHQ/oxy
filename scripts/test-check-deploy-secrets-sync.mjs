@@ -294,6 +294,44 @@ expectVerdict(
   'TASK_SECRET_OVERRIDES_JSON is not valid JSON',
 );
 
+// A retired binding cannot come back by reverting the override list alone, and
+// cannot linger by being merely un-asserted: it has to leave the revision.
+const retiredReasserted = createFixture();
+edit(retiredReasserted, WORKFLOW, 'retired-binding-reasserted', (text) =>
+  text.replace(
+    '{"SERVICE_TOKEN_PRIVATE_KEY":',
+    '{"INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","SERVICE_TOKEN_PRIVATE_KEY":',
+  ),
+);
+expectVerdict(
+  'retired-binding-reasserted',
+  retiredReasserted,
+  1,
+  'INBOX_APPLICATION_KEY is a retired binding and must not be re-asserted',
+);
+
+const retiredNotRemoved = createFixture();
+edit(retiredNotRemoved, WORKFLOW, 'retired-binding-not-removed', (text) =>
+  text.replace(',"INBOX_APPLICATION_SECRET"]', ']'),
+);
+expectVerdict(
+  'retired-binding-not-removed',
+  retiredNotRemoved,
+  1,
+  'INBOX_APPLICATION_SECRET is a retired binding but TASK_REMOVE_NAMES_JSON does not remove it',
+);
+
+const removeNamesUnreadable = createFixture();
+edit(removeNamesUnreadable, WORKFLOW, 'remove-names-unparseable', (text) =>
+  text.replace(',"INBOX_APPLICATION_SECRET"]', ',INBOX_APPLICATION_SECRET]'),
+);
+expectVerdict(
+  'remove-names-unparseable',
+  removeNamesUnreadable,
+  1,
+  'TASK_REMOVE_NAMES_JSON is not valid JSON',
+);
+
 // ── 4. Every boot-required variable has a recorded home ────────────────────
 const newRequired = createFixture();
 edit(newRequired, ENV_MODULE, 'new-required-var-without-home', (text) =>
