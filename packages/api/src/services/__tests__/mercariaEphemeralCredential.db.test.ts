@@ -225,7 +225,12 @@ it('one-shot operation seam accepts only verifier, exact target and closed input
     await getDb().delete(applications).where(eq(applications.id, target.applicationId));
     await getDb().delete(users).where(eq(users.id, target.ownerAccountId));
   });
-  await getDb().insert(users).values({ id: target.ownerAccountId, color: 'teal' });
+  // Other suites (the official-app seeds, the Alia canary) create this account
+  // too, so a worker's database may already hold it: upsert, as they do.
+  await getDb()
+    .insert(users)
+    .values({ id: target.ownerAccountId, color: 'teal' })
+    .onConflictDoUpdate({ target: users.id, set: { accountStatus: 'active' } });
   await getDb()
     .insert(applications)
     .values({

@@ -87,3 +87,34 @@ test('jobs report bounded media infrastructure metadata and legacy jobs retain u
   expect(record.mock.calls[2][0].sourceRegion).toBeUndefined();
   expect(JSON.stringify(record.mock.calls)).not.toMatch(/private|dedicated/);
 });
+test('with no key pair, an attestable task role enables activity; half a pair never does', () => {
+  process.env.AWS_REGION = 'us-west-2';
+  expect(
+    startWorkerActivity(
+      'oxy-asset-variant-worker',
+      () => true,
+      create,
+      () => false,
+    ),
+  ).toBeUndefined();
+  process.env.OXY_ACTIVITY_API_KEY = 'dedicated-test-key';
+  expect(
+    startWorkerActivity(
+      'oxy-asset-variant-worker',
+      () => true,
+      create,
+      () => true,
+    ),
+  ).toBeUndefined();
+  expect(create).not.toHaveBeenCalled();
+  delete process.env.OXY_ACTIVITY_API_KEY;
+  expect(
+    startWorkerActivity(
+      'oxy-asset-variant-worker',
+      () => true,
+      create,
+      () => true,
+    ),
+  ).toBeDefined();
+  expect(create).toHaveBeenCalledTimes(1);
+});
