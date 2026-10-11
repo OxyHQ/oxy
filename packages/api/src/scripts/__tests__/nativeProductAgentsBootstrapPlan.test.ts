@@ -2,8 +2,8 @@ import {
   NATIVE_PRODUCT_AGENT_ROLLBACK_OPERATION_KINDS,
   nativeProductAgentRollbackOperations,
   nativeProductBootstrapPlanSha256,
-  requireExistingServiceCredentialSecretHash,
   requireNativeProductBootstrapApproval,
+  retiredServiceCredentialDecision,
   type NativeProductBootstrapPlan,
 } from '../nativeProductAgentsBootstrapPlan';
 
@@ -124,33 +124,68 @@ describe('native product agent bootstrap approval', () => {
     ]);
   });
 
-  it('fails closed when a fixed credential exists but no protected secret was supplied', () => {
-    expect(() =>
-      requireExistingServiceCredentialSecretHash({
-        label: 'Sindi credential',
-        existingSecretHash: 'a'.repeat(64),
-        suppliedSecretHash: undefined,
-      }),
-    ).toThrow('requires its protected service-secret file');
-  });
+  describe('retiring a native-agent service credential (ADR 0026)', () => {
+    const SINDI_SCOPES = ['inference:invoke', 'acting-as:offline'];
+    const liveWith = (scopes: readonly string[]) => ({ live: true as const, scopes });
 
-  it('fails closed when the supplied secret does not match the fixed credential', () => {
-    expect(() =>
-      requireExistingServiceCredentialSecretHash({
-        label: 'Clarity backend credential',
-        existingSecretHash: 'a'.repeat(64),
-        suppliedSecretHash: 'b'.repeat(64),
-      }),
-    ).toThrow('does not match PostgreSQL');
-  });
+    it('revokes a live credential once its workload is bound live with every scope it carried', () => {
+      for (const status of ['active', 'deprecated', 'pending']) {
+        expect(
+          retiredServiceCredentialDecision({
+            credentialStatus: status,
+            workload: liveWith(['inference:invoke', 'acting-as:offline', 'user:read']),
+            requiredScopes: SINDI_SCOPES,
+          }),
+        ).toEqual({ disposition: 'revoke' });
+      }
+    });
 
-  it('allows idempotent reuse only for the exact stored secret hash', () => {
-    expect(() =>
-      requireExistingServiceCredentialSecretHash({
-        label: 'Sindi credential',
-        existingSecretHash: 'c'.repeat(64),
-        suppliedSecretHash: 'c'.repeat(64),
-      }),
-    ).not.toThrow();
+    /**
+     * The order ADR 0026 makes a precondition: bind with scopes, THEN remove the
+     * pair. Revoking first is how Mention lost `federation:write` in production.
+     */
+    it('refuses to revoke while the replacing workload is not live', () => {
+      expect(
+        retiredServiceCredentialDecision({
+          credentialStatus: 'active',
+          workload: { live: false },
+          requiredScopes: SINDI_SCOPES,
+        }),
+      ).toEqual({ refusal: 'workload_not_live' });
+    });
+
+    it('refuses to revoke while the workload lacks a scope the credential carried', () => {
+      expect(
+        retiredServiceCredentialDecision({
+          credentialStatus: 'active',
+          workload: liveWith(['inference:invoke']),
+          requiredScopes: SINDI_SCOPES,
+        }),
+      ).toEqual({ refusal: 'workload_missing_scope' });
+    });
+
+    /**
+     * Nothing to protect, so nothing to require: a fresh environment, where the
+     * Clarity backend application (and so any binding to it) is created by this
+     * very run, must still bootstrap — and it never creates the credential.
+     */
+    it('leaves an absent credential absent and a revoked one revoked, whatever the workload', () => {
+      for (const workload of [{ live: false } as const, liveWith([])]) {
+        expect(
+          retiredServiceCredentialDecision({
+            credentialStatus: null,
+            workload,
+            requiredScopes: SINDI_SCOPES,
+          }),
+        ).toEqual({ disposition: 'absent' });
+        expect(
+          retiredServiceCredentialDecision({
+            credentialStatus: 'revoked',
+            workload,
+            requiredScopes: SINDI_SCOPES,
+          }),
+        ).toEqual({ disposition: 'already_revoked' });
+      }
+    });
   });
 });

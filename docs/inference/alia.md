@@ -102,10 +102,10 @@ clients and not public agents. Oxy's internal bootstrap reconciles these opaque
 primary keys byte for byte; runtimes must not trim, normalize, discover by
 display name, take the first list result or substitute a fallback.
 
-| Product agent | Project account | Bot account | Alia agent | Bound service app | Service credential |
-|---|---|---|---|---|---|
-| Sindi / Homiio | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
-| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | `01a0648b-8d74-7240-adba-80707fdfdf9c` |
+| Product agent | Project account | Bot account | Alia agent | Bound service app | Backend workload (ADR 0026) | Retired service credential |
+|---|---|---|---|---|---|---|
+| Sindi / Homiio | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `oxy-homiio-task` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
+| Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | `oxy-clarity-task` | `01a0648b-8d74-7240-adba-80707fdfdf9c` |
 
 Each agent's `oxyAccountId` is its exact bot-account primary key, and each
 service application is owned by the corresponding project account so billing
@@ -129,14 +129,16 @@ project to resolve an identity collision.
 
 Clarity's public sign-in application remains separate:
 `01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound
-to the backend service application above, whose exact scopes are `user:read`,
-`inference:invoke` and `capabilities:read`. Sindi's bound service credential has
-exactly
-`inference:invoke` and `acting-as:offline`. The products authenticate with those
-Oxy service credentials and delegate the verified human through
-`X-Oxy-User-Id`; a human bearer is never forwarded to Alia.
+to the backend service application above, whose exact scopes are `user:read`
+and `inference:invoke`. Each backend authenticates as its attested ECS task role
+(ADR 0026), bound to its service application; Homiio's binding reaches
+`inference:invoke` and `acting-as:offline`, Clarity's `user:read` and
+`inference:invoke` — exactly what the retired credentials carried. The service
+credentials listed above are revoked by the bootstrap and no key pair for
+either exists. A signed-in person reaches Sindi through a present-requester
+assertion (ADR 0025); a human bearer is never forwarded to Alia.
 
-These Oxy application credentials identify product services. They are not
+These Oxy application identities identify product services. They are not
 provider keys. Provider keys exist only encrypted in Kaana's PostgreSQL/KMS
 custody, and Kaana's only canonical signed origin is `https://kaana.ai`.
 

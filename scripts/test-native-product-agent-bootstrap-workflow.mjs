@@ -32,10 +32,6 @@ for (const exact of [
   '01a0648b-8d74-7240-adba-80707fdfdf9c',
   'oxy_dk_8c84c74a2656b8f5147d4d0b65fcd0e88c192ce64f465f78',
   '01a0646a-078f-7642-95ef-439952f4f3f9',
-  '/oxy/homiio/SINDI_OXY_SERVICE_API_KEY',
-  '/oxy/homiio/SINDI_OXY_SERVICE_API_SECRET',
-  '/oxy/clarity/OXY_SERVICE_API_KEY',
-  '/oxy/clarity/OXY_SERVICE_API_SECRET',
 ]) {
   assert.ok(workflow.includes(exact), `workflow must pin exact value ${exact}`);
 }
@@ -72,19 +68,32 @@ assert.match(workflow, /CONTAINER: oxy-api/);
 assert.match(workflow, /ref: \$\{\{ github\.sha \}\}/);
 assert.match(workflow, /persist-credentials: false/);
 assert.match(workflow, /dry-run-bootstrap[\s\S]*dry-run-rollback[\s\S]*rollback/);
-assert.match(workflow, /if \[ "\$REQUESTED_MODE" = apply \]; then/);
-assert.match(workflow, /put-secure-parameter\.sh "\$key_parameter" create/);
-assert.match(workflow, /put-secure-parameter\.sh "\$secret_parameter" create/);
-assert.match(workflow, /\.Parameter\.Type[\s\S]*SecureString/);
-assert.match(workflow, /\.planSha256 == \$expected/);
-assert.match(workflow, /homiio_credential_exists[\s\S]*original SSM pair is absent/);
-assert.match(workflow, /clarity_credential_exists[\s\S]*original SSM pair is absent/);
-assert.match(workflow, /partial SSM credential pair/);
-assert.match(workflow, /HOMIIO_SINDI_SERVICE_SECRET_VALUE/);
-assert.match(workflow, /CLARITY_BACKEND_SERVICE_SECRET_VALUE/);
-assert.match(workflow, /register-task-definition/);
-assert.match(workflow, /deregister-task-definition/);
 assert.match(workflow, /EXPECTED_PLAN_SHA256/);
+
+/**
+ * ADR 0026: Homiio and Clarity attest their task roles, so this workflow holds
+ * no Oxy key pair in any mode. It reads, creates and injects no secret, and it
+ * runs the bootstrap on the LIVE task definition rather than rendering one with
+ * secret references in it. Every one of these is a way the retired pair could
+ * come back, which is why each is refused by name.
+ */
+for (const [pattern, why] of [
+  [/\baws ssm\b|\bssm:/, 'reads or writes SSM'],
+  [/\/oxy\/(?:homiio|clarity)\//, 'names a product SSM parameter'],
+  [/put-secure-parameter/, 'creates a SecureString'],
+  [/--with-decryption/, 'decrypts a parameter'],
+  [/register-task-definition/, 'renders a task definition'],
+  [/SERVICE_SECRET|SERVICE_API_SECRET|_KEY_PARAMETER|_SECRET_PARAMETER/, 'names a secret'],
+  [/openssl rand/, 'generates a secret'],
+  [/preflight/, 'keeps the SSM preflight'],
+]) {
+  assert.doesNotMatch(workflow, pattern, `the workflow ${why}; the native agents hold no key pair`);
+}
+assert.match(
+  workflow,
+  /run_bootstrap_task "\$live_task_definition" "\$overrides" "\$REQUESTED_MODE"/,
+  'every mode, apply included, runs on the live task definition',
+);
 assert.match(workflow, /BOOTSTRAP_ACTOR_INPUT: \$\{\{ github\.actor \}\}/);
 assert.match(workflow, /BOOTSTRAP_REASON/);
 assert.match(
@@ -128,9 +137,10 @@ assert.match(
   failureReporter,
   /\(keys \| sort\) == \[\s*"createdByUserId",\s*"id",\s*"isInternal",\s*"isOfficial",\s*"ownerAccountId",\s*"status",\s*"type"\s*\]/,
 );
-assert.match(
+assert.doesNotMatch(
   failureReporter,
-  /\(keys \| sort\) == \["direction","mode","planSha256","serviceCredentialState"\]/,
+  /serviceCredentialState|preflight/,
+  'the reporter no longer admits the retired SSM preflight or its credential state',
 );
 assert.match(failureReporter, /\{code,planSha256\}/);
 assert.doesNotMatch(
@@ -151,24 +161,19 @@ assert.doesNotMatch(
   'native agent bootstrap must never handle provider keys',
 );
 
-const overrideBlock = workflow.slice(
-  workflow.indexOf('build_overrides()'),
-  workflow.indexOf('log_group=$(jq'),
-);
-assert.doesNotMatch(
-  overrideBlock,
-  /HOMIIO_SINDI_SERVICE_SECRET_VALUE|CLARITY_BACKEND_SERVICE_SECRET_VALUE/,
-  'plaintext secrets must enter through ECS secret refs, never run-task overrides',
-);
-
 assert.match(wrapper, /umask 077/);
-assert.match(wrapper, /chmod 0600 "\$homiio_secret_file" "\$clarity_secret_file"/);
-assert.match(
-  wrapper,
-  /unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE/,
-);
 assert.match(wrapper, /trap cleanup EXIT HUP INT TERM/);
 assert.doesNotMatch(wrapper, /set -x|echo .*SERVICE_SECRET_VALUE/);
+assert.doesNotMatch(
+  wrapper,
+  /SERVICE_SECRET_FILE|chmod 0600|serviceCredentialState/,
+  'the wrapper materializes no secret and forwards no credential state',
+);
+assert.match(
+  wrapper,
+  /if \[ -n "\$\{HOMIIO_SINDI_SERVICE_SECRET_VALUE\+x\}" \] \|\| \[ -n "\$\{CLARITY_BACKEND_SERVICE_SECRET_VALUE\+x\}" \]; then[\s\S]*?fail_pre_entrypoint 64/,
+  'a task still injecting a retired secret is refused before Bun starts',
+);
 assert.match(wrapper, />"\$bootstrap_output_file" 2>\/dev\/null/);
 assert.match(wrapper, /grep -a '\^NATIVE_PRODUCT_AGENTS_RESULT='/);
 assert.match(wrapper, /"code":"bootstrap_process_failed"/);
@@ -177,12 +182,35 @@ assert.doesNotMatch(wrapper, /cat "\$bootstrap_output_file"/);
 assert.match(wrapper, /result_count/);
 assert.match(wrapper, /output_bytes/);
 assert.match(wrapper, /is_valid_success_result/);
-assert.doesNotMatch(
-  wrapper,
-  /\$\{(?:HOMIIO_SINDI_SERVICE_SECRET_VALUE|CLARITY_BACKEND_SERVICE_SECRET_VALUE):\?/,
-  'missing protected inputs must not trigger free-form shell diagnostics',
-);
 assert.match(bootstrap, /NATIVE_PRODUCT_AGENTS_RESULT=/);
+assert.doesNotMatch(
+  bootstrap,
+  /readFileSync|SERVICE_SECRET_FILE|createHash|serviceCredentialState|secretHash: serviceSecret/,
+  'the bootstrap reads, hashes and mints no service secret',
+);
+assert.doesNotMatch(
+  bootstrap,
+  /insert\(applicationCredentials\)\.values\(\{\s*id: (?:homiio\.sindiServiceCredential|clarity\.backendServiceCredential)\.id/,
+  'the retired service credentials are never created',
+);
+const retiredObserverStart = bootstrap.indexOf('async function observeRetiredServiceCredential(');
+const retiredObserverEnd = bootstrap.indexOf(
+  'async function observeBootstrap(',
+  retiredObserverStart,
+);
+assert.notEqual(retiredObserverStart, -1, 'retired credential observer must exist');
+assert.notEqual(retiredObserverEnd, -1, 'retired credential observer end must exist');
+const retiredObserver = bootstrap.slice(retiredObserverStart, retiredObserverEnd);
+assert.doesNotMatch(
+  retiredObserver,
+  /secretHash/,
+  'retiring a credential never reads its secret hash',
+);
+assert.match(
+  retiredObserver,
+  /resolveLiveAgencyWorkload\([\s\S]*?retiredServiceCredentialDecision\(/,
+  'a credential is revoked only after its replacing binding is read live',
+);
 assert.doesNotMatch(bootstrap, /JSON\.stringify\(report, null, 2\)/);
 assert.match(bootstrap, /nativeProductAgentBootstrapFailureResult\(error\)/);
 assert.doesNotMatch(
@@ -311,5 +339,5 @@ assert.doesNotMatch(
 );
 
 process.stdout.write(
-  'Native product-agent workflow pins exact IDs and protects create/reuse/dry-run/rollback secret handling.\n',
+  'Native product-agent workflow pins exact IDs and handles no key pair in any mode.\n',
 );

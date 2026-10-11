@@ -11,7 +11,7 @@ task_label="$1"
 task_exit_code="$2"
 
 case "$task_label" in
-  preflight|dry-run-bootstrap|dry-run-rollback|apply|rollback) ;;
+  dry-run-bootstrap|dry-run-rollback|apply|rollback) ;;
   *) task_label='unregistered' ;;
 esac
 case "$task_exit_code" in
@@ -63,7 +63,9 @@ safe_result=$(jq -cer '
     . == "clarity_application" or
     . == "clarity_public_credential" or
     . == "clarity_backend_application" or
-    . == "clarity_backend_credential";
+    . == "clarity_backend_credential" or
+    . == "homiio_workload_binding" or
+    . == "clarity_workload_binding";
   def valid_drift_field:
     . == "id" or
     . == "username" or
@@ -85,14 +87,14 @@ safe_result=$(jq -cer '
     . == "name" or
     . == "publicKey" or
     . == "secretHash" or
-    . == "secretHashPresent" or
     . == "environment" or
     . == "scopes" or
     . == "websiteUrl" or
     . == "capabilities" or
     . == "redirectUris" or
     . == "ownerAccountId" or
-    . == "createdByUserId";
+    . == "createdByUserId" or
+    . == "subject";
   def valid_account_id:
     type == "string" and (
       test("^[a-f0-9]{24}$") or
@@ -139,22 +141,10 @@ safe_result=$(jq -cer '
       (.createdByUserId | valid_nullable_account_id)
     );
   def valid_plan:
-    (
-      (keys | sort) == ["direction","mode","planSha256"] or
-      (keys | sort) == ["direction","mode","planSha256","serviceCredentialState"]
-    ) and
+    (keys | sort) == ["direction","mode","planSha256"] and
     (.mode == "dry-run" or .mode == "apply") and
     (.direction == "bootstrap" or .direction == "rollback") and
-    (.planSha256 | valid_plan_sha) and
-    (
-      (has("serviceCredentialState") | not) or
-      (
-        .serviceCredentialState | type == "object" and
-        (keys | sort) == ["clarityBackendExists","homiioSindiExists"] and
-        (.clarityBackendExists | type == "boolean") and
-        (.homiioSindiExists | type == "boolean")
-      )
-    );
+    (.planSha256 | valid_plan_sha);
   if type != "object" then
     empty
   elif

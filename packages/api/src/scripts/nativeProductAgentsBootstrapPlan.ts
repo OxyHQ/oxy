@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 export interface NativeProductBootstrapPlan {
   manifestVersion: number;
@@ -89,32 +89,53 @@ export function requireNativeProductBootstrapApproval(
 }
 
 /**
- * Prove that a protected secret file still represents an already-provisioned
- * fixed service credential. Presence of a database hash is not proof: accepting
- * an unrelated secret here would leave SSM and PostgreSQL permanently split.
- * Error messages intentionally never include either digest.
+ * Whether a native product agent's backend can stand on its workload alone.
+ *
+ * `live: false` covers every reason `resolveLiveAgencyWorkload` answers null —
+ * no binding for this exact role and application, an expired one, an inactive
+ * or untrusted application, a suspended or fenced owner. `scopes` is what that
+ * resolver decided with `workloadBindingScopes`, i.e. what a token minted from
+ * the binding right now would carry.
  */
-export function requireExistingServiceCredentialSecretHash(input: {
-  label: string;
-  existingSecretHash: string | null | undefined;
-  suppliedSecretHash: string | undefined;
-}): void {
-  const existingSecretHash = input.existingSecretHash;
-  if (input.suppliedSecretHash === undefined) {
-    throw new Error(`${input.label} reuse requires its protected service-secret file`);
+export type NativeProductAgentWorkloadReadiness =
+  | { readonly live: false }
+  | { readonly live: true; readonly scopes: readonly string[] };
+
+export type RetiredServiceCredentialDecision =
+  /** No row with the reserved id: nothing to retire, and nothing is created. */
+  | { readonly disposition: 'absent' }
+  /** Already revoked: asserted, never touched again. */
+  | { readonly disposition: 'already_revoked' }
+  /** Still able to authenticate (or to become able to): revoke it now. */
+  | { readonly disposition: 'revoke' }
+  /** Revoking it now would cut the product off. Nothing is written. */
+  | { readonly refusal: 'workload_not_live' | 'workload_missing_scope' };
+
+/**
+ * What the bootstrap does with a retired native-agent service credential (ADR
+ * 0026: the product backend proves what it IS by attesting its task role).
+ *
+ * The credential is never created and its secret is never read: there is no
+ * key pair left to hold. A row that still exists is revoked — but only once the
+ * workload that replaces it is bound live AND reaches every scope the credential
+ * carried, because revoking first is exactly how a product loses a privileged
+ * scope in production (ADR 0026: bind with scopes, verify, THEN remove the
+ * pair). A row that is already revoked or absent needs no replacement to be
+ * left alone, so a fresh environment — where the backend application, and so
+ * its binding, may not exist yet — still bootstraps.
+ */
+export function retiredServiceCredentialDecision(input: {
+  /** `null` when no row has the reserved id. */
+  readonly credentialStatus: string | null;
+  readonly workload: NativeProductAgentWorkloadReadiness;
+  readonly requiredScopes: readonly string[];
+}): RetiredServiceCredentialDecision {
+  if (input.credentialStatus === null) return { disposition: 'absent' };
+  if (input.credentialStatus === 'revoked') return { disposition: 'already_revoked' };
+  if (!input.workload.live) return { refusal: 'workload_not_live' };
+  const granted = new Set(input.workload.scopes);
+  if (input.requiredScopes.some((scope) => !granted.has(scope))) {
+    return { refusal: 'workload_missing_scope' };
   }
-  if (typeof existingSecretHash !== 'string' || !/^[a-f0-9]{64}$/.test(existingSecretHash)) {
-    throw new Error(`${input.label} stored service-secret hash is malformed`);
-  }
-  if (!/^[a-f0-9]{64}$/.test(input.suppliedSecretHash)) {
-    throw new Error(`${input.label} supplied service-secret hash is malformed`);
-  }
-  if (
-    !timingSafeEqual(
-      Buffer.from(existingSecretHash, 'hex'),
-      Buffer.from(input.suppliedSecretHash, 'hex'),
-    )
-  ) {
-    throw new Error(`${input.label} protected service secret does not match PostgreSQL`);
-  }
+  return { disposition: 'revoke' };
 }

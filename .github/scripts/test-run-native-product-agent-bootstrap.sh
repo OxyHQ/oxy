@@ -16,21 +16,12 @@ set -eu
 [ "$2" = packages/api/scripts/bootstrap-native-product-agents.ts ]
 [ "${LOG_LEVEL:-}" = silent ]
 
-if [ "${APPLY:-0}" = '1' ] && [ "${ROLLBACK:-0}" != '1' ]; then
-  [ -z "${HOMIIO_SINDI_SERVICE_SECRET_VALUE+x}" ]
-  [ -z "${CLARITY_BACKEND_SERVICE_SECRET_VALUE+x}" ]
-  [ "$(stat -c '%a' "$HOMIIO_SINDI_SERVICE_SECRET_FILE")" = '600' ]
-  [ "$(stat -c '%a' "$CLARITY_BACKEND_SERVICE_SECRET_FILE")" = '600' ]
-  [ "$(wc -c <"$HOMIIO_SINDI_SERVICE_SECRET_FILE")" = '64' ]
-  [ "$(wc -c <"$CLARITY_BACKEND_SERVICE_SECRET_FILE")" = '64' ]
-  [ "$(cat "$HOMIIO_SINDI_SERVICE_SECRET_FILE")" = "$TEST_HOMIIO_SECRET" ]
-  [ "$(cat "$CLARITY_BACKEND_SERVICE_SECRET_FILE")" = "$TEST_CLARITY_SECRET" ]
-  printf '%s\n' "$HOMIIO_SINDI_SERVICE_SECRET_FILE" >"$TEST_FILE_LIST"
-  printf '%s\n' "$CLARITY_BACKEND_SERVICE_SECRET_FILE" >>"$TEST_FILE_LIST"
-else
-  [ -z "${HOMIIO_SINDI_SERVICE_SECRET_FILE+x}" ]
-  [ -z "${CLARITY_BACKEND_SERVICE_SECRET_FILE+x}" ]
-fi
+# No secret, in any form, in any mode: the bootstrap retires credentials and
+# never proves or mints one.
+[ -z "${HOMIIO_SINDI_SERVICE_SECRET_VALUE+x}" ]
+[ -z "${CLARITY_BACKEND_SERVICE_SECRET_VALUE+x}" ]
+[ -z "${HOMIIO_SINDI_SERVICE_SECRET_FILE+x}" ]
+[ -z "${CLARITY_BACKEND_SERVICE_SECRET_FILE+x}" ]
 
 case "${TEST_BUN_MODE:-success}" in
   success)
@@ -44,6 +35,8 @@ case "${TEST_BUN_MODE:-success}" in
     printf '%s\n' "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"secret\":\"$TEST_UNSAFE_MARKER\"}"
     ;;
   success-state)
+    # The pre-ADR-0026 envelope. Nothing consumes credential state any more, so
+    # it is no longer a shape a success may take.
     printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","serviceCredentialState":{"homiioSindiExists":false,"clarityBackendExists":true}}'
     ;;
   success-multiple)
@@ -51,6 +44,11 @@ case "${TEST_BUN_MODE:-success}" in
     printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"apply","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
     ;;
   success-missing) ;;
+  must-not-run)
+    # Succeeds if reached, so a wrapper that let the process start fails the
+    # exit-code assertion rather than passing by coincidence.
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    ;;
   classified-failure)
     printf '%s\n' "$TEST_UNSAFE_MARKER"
     printf '%s\n' "$TEST_UNSAFE_MARKER" >&2
@@ -79,51 +77,34 @@ EOF
 chmod 0700 "$test_root/bin/mktemp"
 export TEST_REAL_MKTEMP="$real_mktemp"
 
-homiio_secret=$(printf 'a%.0s' {1..64})
-clarity_secret=$(printf 'b%.0s' {1..64})
-file_list="$test_root/materialized-files"
-success_output=$(PATH="$test_root/bin:$PATH" \
-  APPLY=1 \
-  ROLLBACK=0 \
-  HOMIIO_SINDI_SERVICE_SECRET_VALUE="$homiio_secret" \
-  CLARITY_BACKEND_SERVICE_SECRET_VALUE="$clarity_secret" \
-  TEST_HOMIIO_SECRET="$homiio_secret" \
-  TEST_CLARITY_SECRET="$clarity_secret" \
-  TEST_FILE_LIST="$file_list" \
-  sh "$subject")
+success_output=$(PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=0 sh "$subject")
 [ "$success_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' ]
-
-while IFS= read -r materialized_file; do
-  if [ -e "$materialized_file" ]; then
-    echo "protected temporary file survived bootstrap: $materialized_file" >&2
-    exit 1
-  fi
-done <"$file_list"
 
 PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 sh "$subject"
 PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=1 sh "$subject"
 
-set +e
-invalid_output=$(PATH="$test_root/bin:$PATH" \
-  APPLY=1 \
-  ROLLBACK=0 \
-  HOMIIO_SINDI_SERVICE_SECRET_VALUE="${homiio_secret}A" \
-  CLARITY_BACKEND_SERVICE_SECRET_VALUE="$clarity_secret" \
-  sh "$subject" 2>&1)
-invalid_exit=$?
-set -e
-[ "$invalid_exit" -eq 64 ]
-[ "$invalid_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
-
-if grep -Fq "$clarity_secret" <<<"$invalid_output"; then
-  echo 'a service secret leaked to wrapper output' >&2
-  exit 1
-fi
+# A task that still injects a retired secret is refused before Bun starts, in
+# every mode, and the value never reaches the output.
+retired_secret=$(printf 'a%.0s' {1..64})
+for mode in '0 0' '1 0' '1 1'; do
+  set -- $mode
+  for variable in HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE; do
+    set +e
+    injected_output=$(env PATH="$test_root/bin:$PATH" APPLY="$1" ROLLBACK="$2" \
+      "$variable=$retired_secret" TEST_BUN_MODE=must-not-run sh "$subject" 2>&1)
+    injected_exit=$?
+    set -e
+    [ "$injected_exit" -eq 64 ]
+    [ "$injected_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+    if grep -Fq "$retired_secret" <<<"$injected_output"; then
+      echo 'a retired service secret leaked to wrapper output' >&2
+      exit 1
+    fi
+  done
+done
 
 unsafe_marker='must-not-cross-the-wrapper-boundary'
 set +e
-missing_output=$(PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=0 sh "$subject" 2>&1)
-missing_exit=$?
 mktemp_output=$(PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 TEST_MKTEMP_FAIL=1 TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 mktemp_exit=$?
 success_noise_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=success-noise TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
@@ -141,16 +122,14 @@ classified_exit=$?
 process_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=process-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 process_exit=$?
 set -e
-[ "$missing_exit" -eq 64 ]
-[ "$missing_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$mktemp_exit" -eq 70 ]
 [ "$mktemp_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$success_noise_exit" -eq 70 ]
 [ "$success_noise_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$success_extra_exit" -eq 70 ]
 [ "$success_extra_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
-[ "$success_state_exit" -eq 0 ]
-[ "$success_state_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","serviceCredentialState":{"homiioSindiExists":false,"clarityBackendExists":true}}' ]
+[ "$success_state_exit" -eq 70 ]
+[ "$success_state_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$success_multiple_exit" -eq 70 ]
 [ "$success_multiple_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$success_missing_exit" -eq 70 ]
@@ -159,11 +138,11 @@ set -e
 [ "$classified_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift"}' ]
 [ "$process_exit" -eq 1 ]
 [ "$process_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
-case "$invalid_output$missing_output$mktemp_output$success_noise_output$success_extra_output$success_multiple_output$success_missing_output$classified_output$process_output" in
+case "$mktemp_output$success_noise_output$success_extra_output$success_multiple_output$success_missing_output$classified_output$process_output" in
   *"$unsafe_marker"*)
     echo 'free-form bootstrap output crossed the wrapper boundary' >&2
     exit 1
     ;;
 esac
 
-echo 'Native product agent secret-file wrapper tests passed.'
+echo 'Native product agent wrapper tests passed (no secret crosses it).'
