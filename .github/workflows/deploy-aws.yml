@@ -331,8 +331,13 @@ jobs:
           # CloudFront invalidation of deleted public objects. Also a repository
           # variable: unset renders "", which the API reads as off (one warning),
           # so this can merge before oxy-infra grants cloudfront:CreateInvalidation.
+          # INBOX_EVENT_OUTBOX_WORKER_ENABLED: Inbox's durable event outbox
+          # (new_email…) had no worker in production, so no event ever reached
+          # Alia. Alia time-boxes outreach on late events (OxyHQ/Alia#684), so
+          # the backlog this releases cannot turn into stale "important email"
+          # messages.
           TASK_ENV_OVERRIDES_JSON: >-
-            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
+            {"INBOX_EVENT_OUTBOX_WORKER_ENABLED":"true","INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID":"oxy-credential-control-2026-09","CDN_CLOUDFRONT_DISTRIBUTION_ID":"${{ vars.CDN_CLOUDFRONT_DISTRIBUTION_ID }}","OTEL_SERVICE_NAME":"oxy-api","OTEL_EXPORTER_OTLP_ENDPOINT":"http://127.0.0.1:4318","OTEL_TRACES_SAMPLER":"parentbased_traceidratio","OTEL_TRACES_SAMPLER_ARG":"0.01","OTEL_EXPORTER_OTLP_PROTOCOL":"http/protobuf","OTEL_RESOURCE_ATTRIBUTES":"deployment.environment.name=production,service.namespace=oxy"}
           # Re-assert the Terraform-declared ADOT sidecar because releases are
           # rendered from the currently-running task revision. It carries TRACES
           # only, to X-Ray, sampled at 1% by OTEL_TRACES_SAMPLER above: at ~45M
