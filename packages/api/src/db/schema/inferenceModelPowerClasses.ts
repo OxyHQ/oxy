@@ -53,20 +53,20 @@ export const inferenceModelPowerClasses = pgTable(
   (t) => [
     check(
       'inference_model_power_classes_model_id_format',
-      sql`${t.modelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`
+      sql`${t.modelId} ~ ${sql.raw(MODEL_ID_CHECK_PATTERN)}`,
     ),
     check(
       'inference_model_power_classes_class_check',
-      sql`${t.powerClass} in (${sql.raw(inList(MODEL_POWER_CLASSES))})`
+      sql`${t.powerClass} in (${sql.raw(inList(MODEL_POWER_CLASSES))})`,
     ),
     check(
       'inference_model_power_classes_evidence_check',
       sql`length(btrim(${t.evidenceSource})) > 0
         and ${t.evidenceUrl} ~ '^https://'
         and length(btrim(${t.evidenceSummary})) > 0
-        and length(btrim(${t.reviewedBy})) > 0`
+        and length(btrim(${t.reviewedBy})) > 0`,
     ),
-  ]
+  ],
 );
 
 export type InferenceModelPowerClassRow = typeof inferenceModelPowerClasses.$inferSelect;

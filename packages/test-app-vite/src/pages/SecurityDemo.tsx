@@ -1,8 +1,14 @@
-import { useAuth, useOxy, useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from "@oxy.so/services"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
+import {
+  useAuth,
+  useOxy,
+  useSecurityActivity,
+  usePrivacySettings,
+  useUpdatePrivacySettings,
+} from '@oxy.so/services';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -10,17 +16,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Button } from "@/components/ui/button"
-import { toast } from "@oxy.so/bloom"
+} from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { toast } from '@oxy.so/bloom';
 
 export function SecurityDemo() {
-  const { isAuthenticated } = useAuth()
-  const { showBottomSheet } = useOxy()
-  const { data: activity, isLoading: activityLoading } = useSecurityActivity()
-  const { data: privacy, isLoading: privacyLoading } = usePrivacySettings()
-  const updatePrivacy = useUpdatePrivacySettings()
+  const { isAuthenticated } = useAuth();
+  const { showBottomSheet } = useOxy();
+  const { data: activity, isLoading: activityLoading } = useSecurityActivity();
+  const { data: privacy, isLoading: privacyLoading } = usePrivacySettings();
+  const updatePrivacy = useUpdatePrivacySettings();
 
   if (!isAuthenticated) {
     return (
@@ -31,19 +37,19 @@ export function SecurityDemo() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   const handleToggle = async (key: string, value: boolean) => {
     try {
-      await updatePrivacy.mutateAsync({ settings: { [key]: value } })
-      toast.success("Privacy setting updated")
+      await updatePrivacy.mutateAsync({ settings: { [key]: value } });
+      toast.success('Privacy setting updated');
     } catch (err) {
-      toast.error("Failed to update: " + String(err))
+      toast.error('Failed to update: ' + String(err));
     }
-  }
+  };
 
-  const activityItems = activity?.data ?? []
+  const activityItems = activity?.data ?? [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -54,10 +60,18 @@ export function SecurityDemo() {
           <CardDescription>The SDK's panels, via useOxy().showBottomSheet()</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => showBottomSheet?.("SignInPassword")}>Password</Button>
-          <Button variant="outline" onClick={() => showBottomSheet?.("SignInAuthenticator")}>Authenticator app</Button>
-          <Button variant="outline" onClick={() => showBottomSheet?.("LinkCommons")}>Link Commons</Button>
-          <Button variant="destructive" onClick={() => showBottomSheet?.("DeleteAccount")}>Delete account</Button>
+          <Button variant="outline" onClick={() => showBottomSheet?.('SignInPassword')}>
+            Password
+          </Button>
+          <Button variant="outline" onClick={() => showBottomSheet?.('SignInAuthenticator')}>
+            Authenticator app
+          </Button>
+          <Button variant="outline" onClick={() => showBottomSheet?.('LinkCommons')}>
+            Link Commons
+          </Button>
+          <Button variant="destructive" onClick={() => showBottomSheet?.('DeleteAccount')}>
+            Delete account
+          </Button>
         </CardContent>
       </Card>
 
@@ -70,7 +84,9 @@ export function SecurityDemo() {
         <CardContent>
           {activityLoading ? (
             <div className="space-y-2">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
             </div>
           ) : activityItems.length > 0 ? (
             <Table>
@@ -85,21 +101,25 @@ export function SecurityDemo() {
               <TableBody>
                 {activityItems.slice(0, 10).map((event) => (
                   <TableRow key={event.id}>
-                    <TableCell className="font-medium text-sm">
-                      {event.eventType}
-                    </TableCell>
+                    <TableCell className="font-medium text-sm">{event.eventType}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {event.eventDescription || "—"}
+                      {event.eventDescription || '—'}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {event.createdAt
                         ? new Date(event.createdAt).toLocaleString()
                         : event.timestamp
                           ? new Date(event.timestamp).toLocaleString()
-                          : "—"}
+                          : '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={event.severity === "critical" || event.severity === "high" ? "destructive" : "default"}>
+                      <Badge
+                        variant={
+                          event.severity === 'critical' || event.severity === 'high'
+                            ? 'destructive'
+                            : 'default'
+                        }
+                      >
                         {event.severity}
                       </Badge>
                     </TableCell>
@@ -117,22 +137,26 @@ export function SecurityDemo() {
       <Card>
         <CardHeader>
           <CardTitle>Privacy Settings</CardTitle>
-          <CardDescription>Manage via usePrivacySettings() + useUpdatePrivacySettings()</CardDescription>
+          <CardDescription>
+            Manage via usePrivacySettings() + useUpdatePrivacySettings()
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {privacyLoading ? (
             <div className="space-y-4">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
             </div>
           ) : privacy ? (
             <div className="space-y-4">
               {Object.entries(privacy)
-                .filter(([, value]) => typeof value === "boolean")
+                .filter(([, value]) => typeof value === 'boolean')
                 .map(([key, value]) => (
                   <div key={key} className="flex items-center justify-between">
                     <Label htmlFor={key} className="cursor-pointer">
                       {key
-                        .replace(/([A-Z])/g, " $1")
+                        .replace(/([A-Z])/g, ' $1')
                         .replace(/^./, (s) => s.toUpperCase())
                         .trim()}
                     </Label>
@@ -158,7 +182,7 @@ export function SecurityDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
+            {`import { useSecurityActivity, usePrivacySettings, useUpdatePrivacySettings } from '@oxy.so/services';
 
 function Security() {
   const { data: activity } = useSecurityActivity();
@@ -171,5 +195,5 @@ function Security() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

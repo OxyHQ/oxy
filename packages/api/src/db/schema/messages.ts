@@ -116,7 +116,7 @@ const SEARCH_CONFIGURATION = 'english';
  */
 const SEARCH_VECTOR_EXPRESSION = sql.raw(
   `setweight(to_tsvector('${SEARCH_CONFIGURATION}', coalesce(subject, '')), 'A') || ` +
-    `setweight(to_tsvector('${SEARCH_CONFIGURATION}', coalesce("text", '')), 'D')`
+    `setweight(to_tsvector('${SEARCH_CONFIGURATION}', coalesce("text", '')), 'D')`,
 );
 
 export const messages = pgTable(
@@ -276,7 +276,7 @@ export const messages = pgTable(
       t.userId,
       t.mailboxId,
       t.pinned.desc(),
-      t.date.desc()
+      t.date.desc(),
     ),
     // (2) + (3) + (4) Threading: by Message-ID, by In-Reply-To, and by any
     // entry of References. The third is a multikey read in Mongo and a GIN
@@ -317,9 +317,7 @@ export const messages = pgTable(
     index('messages_snoozed_until_idx')
       .on(t.snoozedUntil)
       .where(sql`${t.snoozedUntil} is not null`),
-    index('messages_scheduled_at_idx')
-      .on(t.scheduledAt)
-      .where(sql`${t.scheduledAt} is not null`),
+    index('messages_scheduled_at_idx').on(t.scheduledAt).where(sql`${t.scheduledAt} is not null`),
     // (14) Retention/cleanup, and the aggregate that replaced
     // `mailboxes.total_messages` / `.size`.
     index('messages_mailbox_id_received_at_idx').on(t.mailboxId, t.receivedAt),
@@ -331,15 +329,15 @@ export const messages = pgTable(
     check(
       'messages_card_type_check',
       sql`${t.cardType} is null or ${t.cardType} in (${sql.raw(
-        MESSAGE_CARD_TYPES.map((value) => `'${value}'`).join(', ')
-      )})`
+        MESSAGE_CARD_TYPES.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     // A card is whole or absent. Mongo required `type` inside the sub-document,
     // so "the card exists" and "the card has a type" were the same statement;
     // flattened to columns they are not, unless this says so.
     check(
       'messages_card_complete_check',
-      sql`${t.cardType} is not null or (${t.cardData} is null and ${t.cardConfidence} is null and ${t.cardExtractedAt} is null)`
+      sql`${t.cardType} is not null or (${t.cardData} is null and ${t.cardConfidence} is null and ${t.cardExtractedAt} is null)`,
     ),
     // Mongo's `min: 0`.
     check('messages_size_check', sql`${t.size} >= 0`),
@@ -347,7 +345,7 @@ export const messages = pgTable(
     // `replyTo` was a whole sub-document: it had an address or it did not exist.
     check(
       'messages_reply_to_complete_check',
-      sql`${t.replyToAddress} is not null or ${t.replyToName} is null`
+      sql`${t.replyToAddress} is not null or ${t.replyToName} is null`,
     ),
     // CALL-SITE OBLIGATION (`CONVENTIONS.md`, "Mongoose behaviour that has no
     // schema counterpart"): `from_address`, `reply_to_address` and every
@@ -358,5 +356,5 @@ export const messages = pgTable(
     // case-sensitive. Deliberately not a CHECK — a CHECK would reject a
     // production row the old setter never saw and turn a silent normalization
     // into a 500 during backfill.
-  ]
+  ],
 );

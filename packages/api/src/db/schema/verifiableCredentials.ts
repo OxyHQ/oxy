@@ -89,18 +89,18 @@ export const verifiableCredentials = pgTable(
 
     check(
       'verifiable_credentials_status_check',
-      sql`${t.status} in (${sql.raw(inList(CREDENTIAL_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(CREDENTIAL_STATUSES))})`,
     ),
     // `revoked_at` and the `revoked` status are one fact. Mongo could store a
     // revocation date on an active credential, and `verifyCredential` reads only
     // the status — so the date would be an invisible, contradicted record.
     check(
       'verifiable_credentials_revocation_check',
-      sql`(${t.status} = 'revoked' and ${t.revokedAt} is not null) or (${t.status} <> 'revoked' and ${t.revokedAt} is null)`
+      sql`(${t.status} = 'revoked' and ${t.revokedAt} is not null) or (${t.status} <> 'revoked' and ${t.revokedAt} is null)`,
     ),
     check(
       'verifiable_credentials_expiry_check',
-      sql`${t.expiresAt} is null or ${t.expiresAt} > ${t.issuedAt}`
+      sql`${t.expiresAt} is null or ${t.expiresAt} > ${t.issuedAt}`,
     ),
-  ]
+  ],
 );

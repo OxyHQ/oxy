@@ -123,10 +123,7 @@ export const appUpdates = pgTable(
     /** Embedded verbatim in the signed manifest. MUST carry `expoClient`. */
     extra: jsonb().$type<Record<string, unknown>>().notNull(),
     /** String→string manifest metadata dict, filtered client-side. */
-    metadata: jsonb()
-      .$type<Record<string, string>>()
-      .notNull()
-      .default(sql`'{}'::jsonb`),
+    metadata: jsonb().$type<Record<string, string>>().notNull().default(sql`'{}'::jsonb`),
     /** Deterministic per-device bucketing at serve time. */
     rolloutPercent: integer().notNull().default(100),
 
@@ -161,7 +158,7 @@ export const appUpdates = pgTable(
       t.runtimeVersion,
       t.platform,
       t.status,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // "This channel's updates", and the index Postgres needs to cascade a
     // channel delete without scanning the table — neither of which the compound
@@ -172,20 +169,20 @@ export const appUpdates = pgTable(
     // channel + runtime + platform the compound above leads with.
     check(
       'app_updates_platform_check',
-      sql`${t.platform} in (${sql.raw(inList(UPDATE_PLATFORMS))})`
+      sql`${t.platform} in (${sql.raw(inList(UPDATE_PLATFORMS))})`,
     ),
     check(
       'app_updates_status_check',
-      sql`${t.status} in (${sql.raw(inList(APP_UPDATE_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(APP_UPDATE_STATUSES))})`,
     ),
     check('app_updates_update_id_check', sql`${t.updateId} ~* ${sql.raw(`'${UUID_PATTERN}'`)}`),
     check(
       'app_updates_launch_asset_sha256_check',
-      sql`${t.launchAssetSha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`
+      sql`${t.launchAssetSha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`,
     ),
     check(
       'app_updates_rollout_percent_check',
-      sql`${t.rolloutPercent} >= 0 and ${t.rolloutPercent} <= 100`
+      sql`${t.rolloutPercent} >= 0 and ${t.rolloutPercent} <= 100`,
     ),
     // The Mongoose validator, now unbypassable: without `extra.expoClient` the
     // client's `Constants.expoConfig` does not resolve after an OTA update, so a
@@ -200,10 +197,10 @@ export const appUpdates = pgTable(
     // `null`, and a scalar are all rejected.
     check(
       'app_updates_extra_expo_client_check',
-      sql`jsonb_typeof(${t.extra} -> 'expoClient') is not distinct from 'object'`
+      sql`jsonb_typeof(${t.extra} -> 'expoClient') is not distinct from 'object'`,
     ),
     // `metadata` is a dict, never a scalar or an array — the manifest builder
     // iterates its keys.
     check('app_updates_metadata_check', sql`jsonb_typeof(${t.metadata}) = 'object'`),
-  ]
+  ],
 );

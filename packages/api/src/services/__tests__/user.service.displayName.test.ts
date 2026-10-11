@@ -30,12 +30,14 @@ const SEEDED = { first: 'Original', last: 'Name' } as const;
 
 async function makeUser(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({
-    id,
-    username: `u${id}`,
-    nameFirst: SEEDED.first,
-    nameLast: SEEDED.last,
-  });
+  await getDb()
+    .insert(users)
+    .values({
+      id,
+      username: `u${id}`,
+      nameFirst: SEEDED.first,
+      nameLast: SEEDED.last,
+    });
   return id;
 }
 
@@ -71,7 +73,7 @@ describe('a name outside the policy is refused and nothing is stored', () => {
       message: INVALID_NAME_MESSAGE,
     });
     await expect(userService.updateUserProfile(id, { name })).rejects.toBeInstanceOf(
-      BadRequestError
+      BadRequestError,
     );
 
     // The column is untouched. A validator that ran AFTER the write would fail
@@ -86,7 +88,7 @@ describe('a name outside the policy is refused and nothing is stored', () => {
     const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(id, { name: { first: 'Agent007' }, bio: 'sneaks in' })
+      userService.updateUserProfile(id, { name: { first: 'Agent007' }, bio: 'sneaks in' }),
     ).rejects.toBeInstanceOf(BadRequestError);
 
     const [row] = await getDb()

@@ -37,9 +37,7 @@ import { userFollows } from '../../db/schema/userFollows';
 /** Why two users were judged related (for audit + a machine-readable reason). */
 export type ExclusionReason = 'self' | 'graph_neighbor' | 'shared_device';
 
-export type ExclusionResult =
-  | { excluded: false }
-  | { excluded: true; reason: ExclusionReason };
+export type ExclusionResult = { excluded: false } | { excluded: true; reason: ExclusionReason };
 
 /**
  * The set of a user's DIRECT graph neighbours (as id strings): everyone they

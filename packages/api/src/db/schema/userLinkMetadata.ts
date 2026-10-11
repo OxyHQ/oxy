@@ -44,5 +44,5 @@ export const userLinkMetadata = pgTable(
   // Leads with `user_id`, so it answers the only read there is ("this profile's
   // link previews, in order") and simultaneously makes two rows claiming one
   // position impossible.
-  (t) => [uniqueIndex('user_link_metadata_user_id_position_key').on(t.userId, t.position)]
+  (t) => [uniqueIndex('user_link_metadata_user_id_position_key').on(t.userId, t.position)],
 );

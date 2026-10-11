@@ -20,7 +20,7 @@ export const DEFAULT_CIRCUIT_BREAKER_CONFIG = {
  * Create initial circuit breaker state.
  */
 export const createCircuitBreakerState = (
-  config: Partial<typeof DEFAULT_CIRCUIT_BREAKER_CONFIG> = {}
+  config: Partial<typeof DEFAULT_CIRCUIT_BREAKER_CONFIG> = {},
 ): CircuitBreakerState => {
   const { baseInterval, maxInterval, maxFailures } = {
     ...DEFAULT_CIRCUIT_BREAKER_CONFIG,
@@ -45,14 +45,11 @@ export const calculateBackoffInterval = (state: CircuitBreakerState): number => 
   // Calculate exponential backoff multiplier
   const backoffMultiplier = Math.min(
     Math.pow(2, consecutiveFailures - 1),
-    maxInterval / baseInterval
+    maxInterval / baseInterval,
   );
 
   // Calculate new interval, capped at maxInterval
-  const newInterval = Math.min(
-    baseInterval * backoffMultiplier,
-    maxInterval
-  );
+  const newInterval = Math.min(baseInterval * backoffMultiplier, maxInterval);
 
   return newInterval;
 };
@@ -68,8 +65,7 @@ export const recordFailure = (state: CircuitBreakerState): CircuitBreakerState =
   });
 
   // If we hit the circuit breaker threshold, use max interval
-  const finalInterval =
-    newFailures >= state.maxFailures ? state.maxInterval : newInterval;
+  const finalInterval = newFailures >= state.maxFailures ? state.maxInterval : newInterval;
 
   return {
     ...state,

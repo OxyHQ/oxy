@@ -18,8 +18,12 @@
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -72,10 +76,7 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
           { field: 'from', operator: 'contains', value: 'ops@' },
           { field: 'subject', operator: 'starts-with', value: 'Alert' },
         ],
-        actions: [
-          { type: 'label', value: 'Work' },
-          { type: 'mark-read' },
-        ],
+        actions: [{ type: 'label', value: 'Work' }, { type: 'mark-read' }],
       }),
     );
 
@@ -92,9 +93,9 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
   it('rolls the whole rule back when it would have no actions', async () => {
     const userId = await owner();
 
-    await expect(
-      emailService.createFilter(userId, filterInput({ actions: [] })),
-    ).rejects.toThrow(/at least one condition and one action/);
+    await expect(emailService.createFilter(userId, filterInput({ actions: [] }))).rejects.toThrow(
+      /at least one condition and one action/,
+    );
 
     // Nothing survived the rollback — not the parent, not the conditions.
     const rows = await getDb()
@@ -108,9 +109,9 @@ describe('filters — the invariant Postgres cannot state as a CHECK', () => {
     const userId = await owner();
     const filter = await emailService.createFilter(userId, filterInput());
 
-    await expect(
-      emailService.updateFilter(userId, filter.id, { conditions: [] }),
-    ).rejects.toThrow(/at least one condition and one action/);
+    await expect(emailService.updateFilter(userId, filter.id, { conditions: [] })).rejects.toThrow(
+      /at least one condition and one action/,
+    );
 
     const [reloaded] = await emailService.listFilters(userId);
     expect(reloaded.conditions).toHaveLength(1);
@@ -427,7 +428,9 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
     const userId = await owner();
     const email = `auto${unique().slice(0, 8)}@example.com`;
 
-    await emailService.autoCollectContacts(userId, [{ name: 'First Seen', address: ` ${email.toUpperCase()} ` }]);
+    await emailService.autoCollectContacts(userId, [
+      { name: 'First Seen', address: ` ${email.toUpperCase()} ` },
+    ]);
     const { data: afterFirst } = await emailService.listContacts(userId, { q: email });
     expect(afterFirst[0]).toMatchObject({ name: 'First Seen', email, autoCollected: true });
     const firstStamp = afterFirst[0].lastContactedAt;
@@ -456,7 +459,10 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
   it('suggests contacts starred-first, then most recently contacted', async () => {
     const userId = await owner();
     const tag = unique().slice(0, 8);
-    await emailService.createContact(userId, { name: `Plain${tag}`, email: `p-${tag}@example.com` });
+    await emailService.createContact(userId, {
+      name: `Plain${tag}`,
+      email: `p-${tag}@example.com`,
+    });
     await emailService.createContact(userId, {
       name: `Star${tag}`,
       email: `s-${tag}@example.com`,
@@ -477,10 +483,17 @@ describe('contacts — the normalization Mongoose did with a setter', () => {
 describe('filters — matching an address field', () => {
   it('matches "equals" and "starts with" against the address of a sender who has a name', async () => {
     // Storing a message kicks off card extraction and push; resolve them.
-    jest.requireMock('../cardExtraction.service').cardExtractionService.extractAndUpdate.mockResolvedValue(undefined);
-    jest.requireMock('../emailPushDelivery.service').sendInboxEmailPush.mockResolvedValue(undefined);
+    jest
+      .requireMock('../cardExtraction.service')
+      .cardExtractionService.extractAndUpdate.mockResolvedValue(undefined);
+    jest
+      .requireMock('../emailPushDelivery.service')
+      .sendInboxEmailPush.mockResolvedValue(undefined);
     const username = `filters${unique().slice(0, 10)}`;
-    const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+    const [row] = await getDb()
+      .insert(users)
+      .values({ username, color: 'teal' })
+      .returning({ id: users.id });
     await emailService.createFilter(
       row.id,
       filterInput({

@@ -94,10 +94,10 @@ describe('Kaana credential validation dispatcher', () => {
 
   it('refuses a successful-looking response rebound to another deployment', async () => {
     jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({ ...task, deploymentId: 'kaana_other', state: 'valid' }),
-        { status: 200, headers: { 'cache-control': 'no-store' } },
-      ),
+      new Response(JSON.stringify({ ...task, deploymentId: 'kaana_other', state: 'valid' }), {
+        status: 200,
+        headers: { 'cache-control': 'no-store' },
+      }),
     );
     await expect(
       new HttpKaanaCredentialValidationDispatcher(config).dispatch(task),

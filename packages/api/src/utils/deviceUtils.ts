@@ -104,7 +104,7 @@ function getDeviceIdSalt(): string | null {
 export function deriveStableDeviceId(
   userAgent: string,
   acceptLanguage: string,
-  userId?: string | null
+  userId?: string | null,
 ): string | null {
   if (!userAgent || userAgent === 'unknown') {
     return null;
@@ -159,7 +159,7 @@ export function deriveServiceDeviceId(userId: string, key: string): string {
   if (!salt) {
     throw new Error(
       'deriveServiceDeviceId: DEVICE_ID_SALT is not set. ' +
-        'Refusing to derive an unsalted IdP device id (would sprawl one session per request).'
+        'Refusing to derive an unsalted IdP device id (would sprawl one session per request).',
     );
   }
   return crypto
@@ -188,10 +188,14 @@ export const generateDeviceFingerprint = (fingerprint: DeviceFingerprintInput): 
     fingerprint.platform,
     fingerprint.language,
     fingerprint.timezone,
-    fingerprint.screen ? `${fingerprint.screen.width}x${fingerprint.screen.height}x${fingerprint.screen.colorDepth}` : '',
+    fingerprint.screen
+      ? `${fingerprint.screen.width}x${fingerprint.screen.height}x${fingerprint.screen.colorDepth}`
+      : '',
     // Don't include IP in fingerprint as it can change
-  ].filter(Boolean).join('|');
-  
+  ]
+    .filter(Boolean)
+    .join('|');
+
   return crypto.createHash('sha256').update(fingerprintString).digest('hex');
 };
 
@@ -210,11 +214,12 @@ export const extractDeviceInfo = (
   req: Request,
   providedDeviceId?: string,
   deviceName?: string,
-  userId?: string | null
+  userId?: string | null,
 ): DeviceInfo => {
   const userAgent = req.headers['user-agent'] || 'unknown';
   const platformHeader = req.headers['sec-ch-ua-platform'];
-  const platform = (typeof platformHeader === 'string' ? platformHeader.replace(/"/g, '') : 'unknown');
+  const platform =
+    typeof platformHeader === 'string' ? platformHeader.replace(/"/g, '') : 'unknown';
 
   // Parse user agent for browser and OS info
   const browser = parseUserAgentBrowser(userAgent);
@@ -310,7 +315,10 @@ export function deriveCoarseClientLabel(userAgent: string | undefined | null): s
  * Find existing device ID for a device fingerprint
  * This helps reuse device IDs for the same physical device
  */
-export const findExistingDeviceId = async (fingerprint: string, userId?: string): Promise<string | null> => {
+export const findExistingDeviceId = async (
+  fingerprint: string,
+  userId?: string,
+): Promise<string | null> => {
   if (!fingerprint) return null;
 
   try {
@@ -325,15 +333,18 @@ export const findExistingDeviceId = async (fingerprint: string, userId?: string)
           eq(sessions.deviceFingerprint, fingerprint),
           eq(sessions.isActive, true),
           gt(sessions.expiresAt, new Date()),
-          ...(userId ? [eq(sessions.userId, userId)] : [])
-        )
+          ...(userId ? [eq(sessions.userId, userId)] : []),
+        ),
       )
       .orderBy(desc(sessions.lastActiveAt))
       .limit(1);
 
     return session?.deviceId ?? null;
   } catch (error) {
-    logger.error('[DeviceUtils] Error finding existing device ID', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      '[DeviceUtils] Error finding existing device ID',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return null;
   }
 };
@@ -345,9 +356,9 @@ export const findExistingDeviceId = async (fingerprint: string, userId?: string)
  * @param userId - Optional user ID to optimize device lookup queries
  */
 export const registerDevice = async (
-  deviceInfo: DeviceInfo, 
+  deviceInfo: DeviceInfo,
   fingerprint?: string,
-  userId?: string
+  userId?: string,
 ): Promise<DeviceInfo> => {
   try {
     // If fingerprint provided, try to find existing device ID
@@ -359,8 +370,10 @@ export const registerDevice = async (
       }
       deviceInfo.fingerprint = fingerprint;
     }
-    
-    logger.info(`[DeviceUtils] Registered device: ${deviceInfo.deviceId} (${deviceInfo.deviceName})`);
+
+    logger.info(
+      `[DeviceUtils] Registered device: ${deviceInfo.deviceId} (${deviceInfo.deviceName})`,
+    );
     return deviceInfo;
   } catch (error) {
     logger.error('[DeviceUtils] Error registering device:', error);
@@ -414,8 +427,8 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
         and(
           eq(sessions.deviceId, deviceId),
           eq(sessions.isActive, true),
-          gt(sessions.expiresAt, now)
-        )
+          gt(sessions.expiresAt, now),
+        ),
       )
       // Most recent first; `session_id` breaks a tie so the page is stable.
       .orderBy(desc(sessions.lastActiveAt), asc(sessions.sessionId))
@@ -458,7 +471,7 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
         createdAt: row.createdAt,
         deviceId: row.deviceId,
         expiresAt: row.expiresAt,
-        isCurrent: currentSessionId ? row.sessionId === currentSessionId : false
+        isCurrent: currentSessionId ? row.sessionId === currentSessionId : false,
       });
     }
 
@@ -477,7 +490,7 @@ export const logoutAllDeviceSessions = async (deviceId: string, excludeSessionId
     const match = and(
       eq(sessions.deviceId, deviceId),
       eq(sessions.isActive, true),
-      ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : [])
+      ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
     );
 
     // One statement instead of Mongo's read-then-updateMany: `returning` gives

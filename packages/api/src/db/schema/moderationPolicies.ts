@@ -95,7 +95,7 @@ export const moderationPolicies = pgTable(
     index('moderation_policies_status_idx').on(t.status),
     check(
       'moderation_policies_status_check',
-      sql`${t.status} in (${sql.raw(inList(MODERATION_POLICY_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MODERATION_POLICY_STATUSES))})`,
     ),
-  ]
+  ],
 );

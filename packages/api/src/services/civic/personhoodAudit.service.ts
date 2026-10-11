@@ -27,10 +27,7 @@ import {
   type ValidationRequestRow,
   type ValidationRequestView,
 } from './validator.service';
-import {
-  recomputePersonhood,
-  slashVouchersForFakeSubject,
-} from './personhood.service';
+import { recomputePersonhood, slashVouchersForFakeSubject } from './personhood.service';
 import { reputationService } from '../reputation.service';
 import { buildUserDid } from '../did.service';
 import { VALIDATION_CORRECT_ACTION } from '../../utils/reputation.constants';

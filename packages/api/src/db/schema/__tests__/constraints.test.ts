@@ -79,7 +79,9 @@ describe('id column', () => {
     const legacyId = 'a1b2c3d4e5f60718293a4b5c';
     const userId = await owner();
 
-    await getDb().insert(blocks).values({ id: legacyId, userId, blockedId: await owner() });
+    await getDb()
+      .insert(blocks)
+      .values({ id: legacyId, userId, blockedId: await owner() });
     const [row] = await getDb().select().from(blocks).where(eq(blocks.id, legacyId));
 
     expect(row.id).toBe(legacyId);
@@ -98,10 +100,11 @@ describe('id column', () => {
 
     // Version nibble 7, and lexicographically increasing — v4 would satisfy the
     // format check and fail the ordering one, which is exactly why v7 was chosen.
-    expect(first.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(first.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
     expect(second.id > first.id).toBe(true);
   });
-
 });
 
 describe('labels — case-insensitive unique (Mongo collation strength 2)', () => {
@@ -115,9 +118,13 @@ describe('labels — case-insensitive unique (Mongo collation strength 2)', () =
 
   it('scopes the uniqueness to one user', async () => {
     const name = `Shared-${randomUUID()}`;
-    await getDb().insert(labels).values({ userId: await owner(), name });
+    await getDb()
+      .insert(labels)
+      .values({ userId: await owner(), name });
     await expect(
-      getDb().insert(labels).values({ userId: await owner(), name })
+      getDb()
+        .insert(labels)
+        .values({ userId: await owner(), name }),
     ).resolves.toBeDefined();
   });
 
@@ -158,9 +165,7 @@ describe('blocks — compound unique', () => {
     const a = await owner();
     const b = await owner();
     await getDb().insert(blocks).values({ userId: a, blockedId: b });
-    await expect(
-      getDb().insert(blocks).values({ userId: b, blockedId: a })
-    ).resolves.toBeDefined();
+    await expect(getDb().insert(blocks).values({ userId: b, blockedId: a })).resolves.toBeDefined();
   });
 });
 
@@ -174,7 +179,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
           { userId, token: `t-ios-${randomUUID()}`, platform: 'ios' },
           { userId, token: `t-android-${randomUUID()}`, platform: 'android' },
           { userId, token: `t-web-${randomUUID()}`, platform: 'web' },
-        ])
+        ]),
     ).resolves.toBeDefined();
   });
 
@@ -186,7 +191,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
       getDb().execute(sql`
         insert into push_tokens (id, user_id, token, platform)
         values (${randomUUID()}, ${await owner()}, ${randomUUID()}, 'desktop')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -197,7 +202,7 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
       getDb().execute(sql`
         insert into auth_challenges (id, public_key, challenge, purpose, expires_at)
         values (${randomUUID()}, ${randomUUID()}, ${randomUUID()}, 'mint_admin_token', now() + interval '5 minutes')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -207,19 +212,13 @@ describe('closed value sets — text + CHECK, not a pg enum', () => {
 describe('updated_at is maintained by the application', () => {
   it('advances on update and leaves created_at alone', async () => {
     const userId = await owner();
-    const [inserted] = await getDb()
-      .insert(labels)
-      .values({ userId, name: 'Before' })
-      .returning();
+    const [inserted] = await getDb().insert(labels).values({ userId, name: 'Before' }).returning();
 
     // `$onUpdate` stamps `updatedAt` with `new Date()` (ms resolution); a fast
     // runner can insert and update in the same tick without this pause.
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    await getDb()
-      .update(labels)
-      .set({ name: 'After' })
-      .where(eq(labels.id, inserted.id));
+    await getDb().update(labels).set({ name: 'After' }).where(eq(labels.id, inserted.id));
 
     const [updated] = await getDb().select().from(labels).where(eq(labels.id, inserted.id));
 

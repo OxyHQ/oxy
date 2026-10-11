@@ -1,7 +1,7 @@
 export function getDateRange(period: string): { startDate: Date; endDate: Date } {
   const now = new Date();
   const startDate = new Date();
-  
+
   switch (period) {
     case 'daily':
       startDate.setHours(0, 0, 0, 0);
@@ -21,6 +21,6 @@ export function getDateRange(period: string): { startDate: Date; endDate: Date }
 
   return {
     startDate,
-    endDate: now
+    endDate: now,
   };
 }

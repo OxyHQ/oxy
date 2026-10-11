@@ -42,7 +42,18 @@ export function signedRecordSigningInput(fields: SignedRecordSigningFields): str
   const { version, type, subject, issuer, record, issuedAt } = fields;
   if (version === 2) {
     const { seq, prev, collection, rkey } = fields;
-    return canonicalize({ version, type, subject, issuer, record, issuedAt, seq, prev, collection, rkey });
+    return canonicalize({
+      version,
+      type,
+      subject,
+      issuer,
+      record,
+      issuedAt,
+      seq,
+      prev,
+      collection,
+      rkey,
+    });
   }
   return canonicalize({ version, type, subject, issuer, record, issuedAt });
 }

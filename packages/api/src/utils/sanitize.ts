@@ -118,7 +118,7 @@ export function sanitizeString(value: unknown): unknown {
  */
 export function sanitizeObject<T extends Record<string, unknown>>(
   obj: T,
-  skipFields: string[] = []
+  skipFields: string[] = [],
 ): T {
   const result = { ...obj };
   // `result` is the generic `T`, whose per-key value types TypeScript won't let
@@ -158,7 +158,16 @@ export function sanitizeObject<T extends Record<string, unknown>>(
  * (see `utils/profileTextNormalization.ts`).
  */
 export function sanitizeProfileUpdate(updates: Record<string, unknown>): Record<string, unknown> {
-  const skipFields = ['name', 'avatar', 'color', 'email', 'password', 'links', 'linksMetadata', 'locations'];
+  const skipFields = [
+    'name',
+    'avatar',
+    'color',
+    'email',
+    'password',
+    'links',
+    'linksMetadata',
+    'locations',
+  ];
   const result = { ...updates };
 
   for (const key of Object.keys(result)) {

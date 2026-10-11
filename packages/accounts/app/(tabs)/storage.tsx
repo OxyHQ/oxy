@@ -31,7 +31,9 @@ export default function StorageScreen() {
     refetch,
   } = useAccountStorageUsage();
   const error = queryError
-    ? (queryError instanceof Error ? queryError.message : t('storage.loadFailed'))
+    ? queryError instanceof Error
+      ? queryError.message
+      : t('storage.loadFailed')
     : null;
 
   const handleRefresh = useCallback(async () => {
@@ -52,7 +54,9 @@ export default function StorageScreen() {
         usageSummaryText={usageSummaryText}
         usagePercentage={usagePercentage}
         segments={segments}
-        onRetry={() => { void refetch(); }}
+        onRetry={() => {
+          void refetch();
+        }}
       />
 
       {usage && (

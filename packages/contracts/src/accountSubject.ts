@@ -72,7 +72,7 @@ const ACTOR_NATURE_BY_KIND: Readonly<Record<AccountKind, AccountActorNature>> = 
 
 /** `null` for a value that is not an account kind. Never a guess. */
 export function accountKindActorNature(
-  kind: AccountKind | null | undefined
+  kind: AccountKind | null | undefined,
 ): AccountActorNature | null {
   if (!kind || !Object.prototype.hasOwnProperty.call(ACTOR_NATURE_BY_KIND, kind)) {
     return null;
@@ -111,8 +111,7 @@ export const KIND_INDEPENDENT_ACCOUNT_DIMENSIONS = [
   'beneficiary',
 ] as const;
 
-export type KindIndependentAccountDimension =
-  (typeof KIND_INDEPENDENT_ACCOUNT_DIMENSIONS)[number];
+export type KindIndependentAccountDimension = (typeof KIND_INDEPENDENT_ACCOUNT_DIMENSIONS)[number];
 
 // ===========================================================================
 // Actor chain
@@ -208,7 +207,7 @@ export type FinancialEffectAttribution = z.infer<typeof financialEffectAttributi
 /** Attribute a payment or a receipt to the subject the actor chain speaks as. */
 export function attributeFinancialEffect(
   direction: FinancialEffectDirection,
-  actor: AccountActorChain
+  actor: AccountActorChain,
 ): FinancialEffectAttribution {
   return financialEffectAttributionSchema.parse({
     schemaVersion: ACCOUNT_SUBJECT_CONTRACT_VERSION,
@@ -217,4 +216,3 @@ export function attributeFinancialEffect(
     actor,
   });
 }
-

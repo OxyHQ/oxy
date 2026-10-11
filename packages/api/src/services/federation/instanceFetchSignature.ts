@@ -34,7 +34,11 @@ import { signRequest } from '@oxy.so/federation';
 import { INSTANCE_FETCH_MAX_URL_LENGTH, type InstanceFetchSignResponse } from '@oxy.so/contracts';
 import { ensureInstanceKeyId, signWithKeyId } from '../federation.service';
 
-export type InstanceFetchRefusalReason = 'invalid_url' | 'not_https' | 'credentials_in_url' | 'not_public';
+export type InstanceFetchRefusalReason =
+  | 'invalid_url'
+  | 'not_https'
+  | 'credentials_in_url'
+  | 'not_public';
 
 /** A URL Oxy will not sign a GET for. */
 export class InstanceFetchRefused extends Error {
@@ -55,19 +59,22 @@ export class InstanceKeyUnavailable extends Error {
 }
 
 export async function signInstanceFetch(rawUrl: string): Promise<InstanceFetchSignResponse> {
-  if (rawUrl.length > INSTANCE_FETCH_MAX_URL_LENGTH) throw new InstanceFetchRefused('invalid_url', 'url is too long');
+  if (rawUrl.length > INSTANCE_FETCH_MAX_URL_LENGTH)
+    throw new InstanceFetchRefused('invalid_url', 'url is too long');
   let url: URL;
   try {
     url = new URL(rawUrl);
   } catch {
     throw new InstanceFetchRefused('invalid_url', 'url is not an absolute URL');
   }
-  if (url.protocol !== 'https:') throw new InstanceFetchRefused('not_https', 'only https URLs are signed');
+  if (url.protocol !== 'https:')
+    throw new InstanceFetchRefused('not_https', 'only https URLs are signed');
   if (url.username !== '' || url.password !== '') {
     throw new InstanceFetchRefused('credentials_in_url', 'a URL with credentials is not signed');
   }
   const verdict = await assertSafePublicUrl(url.toString());
-  if (!verdict.ok) throw new InstanceFetchRefused('not_public', `url is not a public address (${verdict.reason})`);
+  if (!verdict.ok)
+    throw new InstanceFetchRefused('not_public', `url is not a public address (${verdict.reason})`);
 
   const keyId = await ensureInstanceKeyId();
   const headers = await signRequest(
@@ -80,5 +87,8 @@ export async function signInstanceFetch(rawUrl: string): Promise<InstanceFetchSi
     'GET',
     url.toString(),
   );
-  return { keyId, headers: { Host: headers.Host, Date: headers.Date, Signature: headers.Signature } };
+  return {
+    keyId,
+    headers: { Host: headers.Host, Date: headers.Date, Signature: headers.Signature },
+  };
 }

@@ -7,11 +7,7 @@ import { RecoveryPhraseService } from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import {
-  useScreenBottomPad,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { useScreenBottomPad, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -41,7 +37,9 @@ export default function RotateKeyRecoveryPhraseScreen() {
   const [deriveNonce, setDeriveNonce] = useState(0);
   // In-flight derivation shared across a strict-mode double-invoke so we never
   // start two derivations (which would show one phrase but commit another).
-  const deriveInFlightRef = useRef<ReturnType<typeof RecoveryPhraseService.derivePendingIdentity> | null>(null);
+  const deriveInFlightRef = useRef<ReturnType<
+    typeof RecoveryPhraseService.derivePendingIdentity
+  > | null>(null);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -86,11 +84,9 @@ export default function RotateKeyRecoveryPhraseScreen() {
       if (Platform.OS === 'web') return undefined;
       const onBackPress = (): boolean => {
         if (!acknowledged) {
-          alert(
-            t('rotateKey.backBlockedTitle'),
-            t('rotateKey.backBlockedMessage'),
-            [{ text: t('common.ok'), style: 'default' }],
-          );
+          alert(t('rotateKey.backBlockedTitle'), t('rotateKey.backBlockedMessage'), [
+            { text: t('common.ok'), style: 'default' },
+          ]);
           return true;
         }
         return false;

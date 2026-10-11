@@ -18,13 +18,9 @@ jest.mock('@oxy.so/core/crypto', () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import type { OxyServices } from '@oxy.so/core';
-// eslint-disable-next-line import/first
 import { syncIdentityWithServer } from '@/hooks/identity/syncService';
-// eslint-disable-next-line import/first
 import { UsernameRequiredError } from '@/hooks/identity/identityErrors';
-// eslint-disable-next-line import/first
 import { isUsernameRequiredError } from '@/utils/auth/errorUtils';
 
 function httpError(status: number, message: string) {
@@ -94,7 +90,12 @@ describe('syncIdentityWithServer', () => {
     });
 
     await expect(
-      syncIdentityWithServer({ oxyServices: oxy, signIn, isAlreadySynced: false, username: 'alice' }),
+      syncIdentityWithServer({
+        oxyServices: oxy,
+        signIn,
+        isAlreadySynced: false,
+        username: 'alice',
+      }),
     ).rejects.toThrow('Username already taken');
     expect(signIn).not.toHaveBeenCalled();
   });
@@ -107,7 +108,12 @@ describe('syncIdentityWithServer', () => {
       }),
     });
 
-    await syncIdentityWithServer({ oxyServices: oxy, signIn, isAlreadySynced: false, username: 'alice' });
+    await syncIdentityWithServer({
+      oxyServices: oxy,
+      signIn,
+      isAlreadySynced: false,
+      username: 'alice',
+    });
 
     expect(signIn).toHaveBeenCalledWith('pub-1');
   });

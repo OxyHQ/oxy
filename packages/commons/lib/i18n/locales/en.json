@@ -1423,15 +1423,7 @@
           "Nov",
           "Dec"
         ],
-        "weekdays": [
-          "Sun",
-          "Mon",
-          "Tue",
-          "Wed",
-          "Thu",
-          "Fri",
-          "Sat"
-        ],
+        "weekdays": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
         "loading": "Loading activity…",
         "error": "Couldn't load recent activity.",
         "empty": "No reputation activity yet — your verified actions will appear here.",

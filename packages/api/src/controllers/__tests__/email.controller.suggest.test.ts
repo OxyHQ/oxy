@@ -47,7 +47,10 @@ interface SuggestRequest {
 }
 
 /** Call the handler and return what it wrote to the response. */
-async function suggest(userId: string, q: string): Promise<Array<{ name: string | null; address: string }>> {
+async function suggest(
+  userId: string,
+  q: string,
+): Promise<Array<{ name: string | null; address: string }>> {
   let captured: Array<{ name: string | null; address: string }> = [];
   const res = {
     json: (payload: { data: Array<{ name: string | null; address: string }> }) => {
@@ -80,7 +83,10 @@ async function store(
   userId: string,
   mailboxId: string,
   from: { name?: string; address: string },
-  recipients: { to?: Array<{ name?: string; address: string }>; cc?: Array<{ name?: string; address: string }> } = {},
+  recipients: {
+    to?: Array<{ name?: string; address: string }>;
+    cc?: Array<{ name?: string; address: string }>;
+  } = {},
   date = new Date(),
 ): Promise<string> {
   const [row] = await getDb()

@@ -56,17 +56,17 @@
 import { z } from 'zod';
 
 export const oxySignedRecordTypeSchema = z.enum([
-    'identity',
-    'profile',
-    'reputation_attestation',
-    'real_life_attestation',
-    'validation_verdict',
-    'personhood_vouch',
-    'credential',
-    'node',
-    // Any Oxy app's own record. The LEXICON is the envelope's `collection`, not
-    // this value — see the header.
-    'app_record',
+  'identity',
+  'profile',
+  'reputation_attestation',
+  'real_life_attestation',
+  'validation_verdict',
+  'personhood_vouch',
+  'credential',
+  'node',
+  // Any Oxy app's own record. The LEXICON is the envelope's `collection`, not
+  // this value — see the header.
+  'app_record',
 ]);
 
 /**

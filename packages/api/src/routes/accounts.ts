@@ -96,7 +96,7 @@ function requireOperatorId(req: AccountContextRequest): string {
   const operatorId = req.operatorId;
   if (!operatorId) {
     throw new Error(
-      'requireOperatorId called without loadAccountContext; wire the route behind requireAccountPermission'
+      'requireOperatorId called without loadAccountContext; wire the route behind requireAccountPermission',
     );
   }
   return operatorId;
@@ -105,14 +105,14 @@ function requireOperatorId(req: AccountContextRequest): string {
 /** Refuse any permission conferral outside the actor's effective permission set. */
 function requireConferredPermissions(
   actorPermissions: readonly AccountPermission[],
-  conferredPermissions: readonly AccountPermission[]
+  conferredPermissions: readonly AccountPermission[],
 ): void {
   const beyondActor = [...new Set(conferredPermissions)].filter(
-    (permission) => !actorPermissions.includes(permission)
+    (permission) => !actorPermissions.includes(permission),
   );
   if (beyondActor.length > 0) {
     throw new ForbiddenError(
-      `You cannot grant permissions you do not hold: ${beyondActor.join(', ')}`
+      `You cannot grant permissions you do not hold: ${beyondActor.join(', ')}`,
     );
   }
 }
@@ -234,7 +234,7 @@ function serializeAccountNode(node: AccountNode) {
 function accountNodeFromAccess(
   account: AccountRow,
   access: EffectiveAccess,
-  childCount: number
+  childCount: number,
 ): AccountNode {
   const relationship: AccountNode['relationship'] =
     access.source === 'self' ? 'self' : access.role === 'owner' ? 'owner' : 'member';
@@ -282,7 +282,11 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
   // The `isValidObjectId` guard is gone: it only ever prevented a Mongoose
   // `CastError`, and a Postgres text id that matches no row is already the 404
   // this endpoint documents.
-  const [account] = await getDb().select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users).where(eq(users.id, id)).limit(1);
+  const [account] = await getDb()
+    .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
   if (!account || account.accountStatus === 'archived') {
     throw new NotFoundError('Account not found');
   }
@@ -341,7 +345,7 @@ router.get(
       return;
     }
     res.json({ accounts: serialized });
-  })
+  }),
 );
 
 /**
@@ -383,7 +387,11 @@ router.post(
       throw new ForbiddenError('You are not authorized to switch into this account');
     }
 
-    const [account] = await getDb().select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE)).from(users).where(eq(users.id, id)).limit(1);
+    const [account] = await getDb()
+      .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
     if (!account || account.accountStatus === 'archived') {
       throw new NotFoundError('Account not found');
     }
@@ -397,7 +405,7 @@ router.post(
       throw new ForbiddenError(
         account.kind === 'channel'
           ? 'Cannot switch into a channel account'
-          : 'Cannot switch into a personal account'
+          : 'Cannot switch into a personal account',
       );
     }
 
@@ -412,12 +420,15 @@ router.post(
     // decodable deviceId, keep today's behavior (let createSession allocate one).
     const callerDeviceId = resolveCallerDeviceId(req);
     if (!callerDeviceId) {
-      logger.warn('[accounts] switch: no deviceId on operator bearer — org session gets a fresh device', {
-        component: 'accounts',
-        method: 'switch',
-        operatorId,
-        targetAccountId: id,
-      });
+      logger.warn(
+        '[accounts] switch: no deviceId on operator bearer — org session gets a fresh device',
+        {
+          component: 'accounts',
+          method: 'switch',
+          operatorId,
+          targetAccountId: id,
+        },
+      );
     }
     const authMethod = await readSessionAgentBinding(req.sessionId, operatorId);
     const session = await sessionService.createSession(account.id, req, {
@@ -479,7 +490,7 @@ router.post(
     };
 
     res.status(200).json(response);
-  })
+  }),
 );
 
 /**
@@ -530,7 +541,11 @@ router.post(
     // `children:create` is not, so implicit self-ownership would hand every
     // editor who switches a permission their role withholds. Asking the operator
     // gives each person exactly the role they already hold here.
-    const access = await accountService.resolveEffectiveAccess(operatorId, parentAccountId, req.sessionId);
+    const access = await accountService.resolveEffectiveAccess(
+      operatorId,
+      parentAccountId,
+      req.sessionId,
+    );
     if (!access) {
       throw new ForbiddenError('You do not have access to the parent account');
     }
@@ -541,20 +556,24 @@ router.post(
     // WHO OWNS the new account is a question about the operator too: the owner
     // member of an account is a person, and the person here is the human, not
     // the organization they are wearing.
-    const { account, membership } = await accountService.createChildAccount(parentAccountId, operatorId, {
-      kind: body.kind,
-      username: body.username,
-      name: body.name,
-      bio: body.bio,
-      avatar: body.avatar ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
-      description: body.description,
-      color: body.color,
-      accountCategories: body.accountCategories,
-      // Threaded explicitly, like every other field: this handler names each
-      // one, so a field the schema accepts but this list omits is dropped
-      // between validation and the insert with no error anywhere.
-      isPrivateAccount: body.isPrivateAccount,
-    });
+    const { account, membership } = await accountService.createChildAccount(
+      parentAccountId,
+      operatorId,
+      {
+        kind: body.kind,
+        username: body.username,
+        name: body.name,
+        bio: body.bio,
+        avatar: body.avatar ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
+        description: body.description,
+        color: body.color,
+        accountCategories: body.accountCategories,
+        // Threaded explicitly, like every other field: this handler names each
+        // one, so a field the schema accepts but this list omits is dropped
+        // between validation and the insert with no error anywhere.
+        isPrivateAccount: body.isPrivateAccount,
+      },
+    );
 
     const node: AccountNode = {
       accountId: account.id,
@@ -568,7 +587,7 @@ router.post(
       childCount: 0,
     };
     res.status(201).json({ account: serializeAccountNode(node) });
-  })
+  }),
 );
 
 /** Get a single account the caller can read. */
@@ -585,7 +604,7 @@ router.get(
     }
     const childCount = await countChildren(account.id);
     res.json({ account: serializeAccountNode(accountNodeFromAccess(account, access, childCount)) });
-  })
+  }),
 );
 
 /**
@@ -625,7 +644,7 @@ router.get(
     const { limit, cursor } = accountAuditQuerySchema.parse(req.query);
     const page = await listAccountAuditTrail(account.id, { limit, cursor: cursor ?? null });
     res.json({ data: page.entries, count: page.entries.length, nextCursor: page.nextCursor });
-  })
+  }),
 );
 
 /**
@@ -662,7 +681,7 @@ router.get(
     const { limit, cursor } = accountBillingAuditQuerySchema.parse(req.query);
     const page = await listAccountBillingAudit(account.id, { limit, cursor: cursor ?? null });
     res.json({ data: page.entries, count: page.entries.length, nextCursor: page.nextCursor });
-  })
+  }),
 );
 
 /** Partially update an account (`account:update`). */
@@ -693,9 +712,7 @@ router.patch(
       // sanitised. Collapsing the two here would turn "remove my picture" into
       // "leave it alone", which is silent and unreportable from the client.
       avatar:
-        typeof body.avatar === 'string'
-          ? stripSensitiveUrlQueryParams(body.avatar)
-          : body.avatar,
+        typeof body.avatar === 'string' ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
     });
 
     const access = req.access;
@@ -704,7 +721,7 @@ router.patch(
     }
     const childCount = await countChildren(updated.id);
     res.json({ account: serializeAccountNode(accountNodeFromAccess(updated, access, childCount)) });
-  })
+  }),
 );
 
 /** Archive an account (`account:delete`). Never hard-deletes. */
@@ -720,7 +737,7 @@ router.delete(
     }
     await accountService.archiveAccount(account.id);
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -740,7 +757,7 @@ router.get(
     }
     const subtree = await accountService.getSubtree(requireOperatorId(req), account.id);
     res.json({ accounts: subtree.map(serializeAccountNode) });
-  })
+  }),
 );
 
 /**
@@ -765,7 +782,7 @@ router.post(
     const destAccess = await accountService.resolveEffectiveAccess(
       requireOperatorId(req),
       newParentId,
-      req.sessionId
+      req.sessionId,
     );
     if (!destAccess || !destAccess.permissions.includes('children:create')) {
       throw new ForbiddenError('Missing permission to add children to the destination account');
@@ -778,7 +795,7 @@ router.post(
     }
     const childCount = await countChildren(moved.id);
     res.json({ account: serializeAccountNode(accountNodeFromAccess(moved, access, childCount)) });
-  })
+  }),
 );
 
 // ============================================================================
@@ -804,7 +821,7 @@ router.get(
     }
     const members = await accountService.listMembers(account.id);
     res.json({ members: members.map(({ row, source }) => serializeMember(row, source)) });
-  })
+  }),
 );
 
 /** Add a member by username/email (`members:invite`). */
@@ -828,10 +845,7 @@ router.post(
     // A role is itself a bundle of grants. Checking only `members:invite`
     // would let a narrowed admin restore one of their revoked permissions on a
     // confederate by choosing a role whose baseline contains it.
-    requireConferredPermissions(
-      access.permissions,
-      resolveEffectivePermissions(role, [], [])
-    );
+    requireConferredPermissions(access.permissions, resolveEffectivePermissions(role, [], []));
 
     const targetUser = await resolveUserByIdentifier(usernameOrEmail);
     if (!targetUser) {
@@ -845,13 +859,13 @@ router.post(
       requireOperatorId(req),
       targetUser.id,
       role,
-      inherit
+      inherit,
     );
 
     // `addMember` writes on `account.id`, so the row is direct by construction —
     // `inherit` governs whether it cascades to CHILDREN, not where it lives.
     res.status(201).json({ member: serializeMember(member, 'direct') });
-  })
+  }),
 );
 
 /**
@@ -906,10 +920,7 @@ router.patch(
       permissionRevokes?: AccountPermission[];
     };
 
-    const target = await accountService.requireDirectMember(
-      account.id,
-      req.params.memberId
-    );
+    const target = await accountService.requireDirectMember(account.id, req.params.memberId);
 
     // Rule 2. Compared on `memberUserId`, not on the membership id: an actor
     // whose access is INHERITED from an ancestor has no row on this account, and
@@ -929,10 +940,10 @@ router.patch(
     const prospectivePermissions = resolveEffectivePermissions(
       role ?? target.role,
       permissionGrants ?? target.permissionGrants,
-      permissionRevokes ?? target.permissionRevokes
+      permissionRevokes ?? target.permissionRevokes,
     );
     const newlyConferred = prospectivePermissions.filter(
-      (permission) => !currentPermissions.includes(permission)
+      (permission) => !currentPermissions.includes(permission),
     );
     requireConferredPermissions(access.permissions, [
       ...newlyConferred,
@@ -948,7 +959,7 @@ router.patch(
     // `requireDirectMember` above already refused anything but a row on this
     // account, so the edited row is direct by construction.
     res.json({ member: serializeMember(member, 'direct') });
-  })
+  }),
 );
 
 /** Remove a member (`members:remove`). Last owner cannot be removed. */
@@ -964,13 +975,9 @@ router.delete(
       throw new NotFoundError('Account not found');
     }
 
-    await accountService.removeMember(
-      account.id,
-      req.params.memberId,
-      access.role === 'owner'
-    );
+    await accountService.removeMember(account.id, req.params.memberId, access.role === 'owner');
     res.json({ success: true });
-  })
+  }),
 );
 
 /** Transfer ownership to another active member (`ownership:transfer`). */
@@ -988,7 +995,7 @@ router.post(
 
     await accountService.transferOwnership(account.id, requireOperatorId(req), targetUserId);
     res.json({ success: true });
-  })
+  }),
 );
 
 // ============================================================================
@@ -1002,7 +1009,7 @@ router.post(
  */
 function buildForest(
   nodes: AccountNode[],
-  serialized: ReturnType<typeof serializeAccountNode>[]
+  serialized: ReturnType<typeof serializeAccountNode>[],
 ): (ReturnType<typeof serializeAccountNode> & { children: unknown[] })[] {
   const byId = new Map<string, ReturnType<typeof serializeAccountNode> & { children: unknown[] }>();
   for (const item of serialized) {

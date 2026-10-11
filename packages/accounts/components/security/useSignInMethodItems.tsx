@@ -21,7 +21,8 @@ export function useSignInMethodItems(): GroupedItem[] {
 
   return useMemo<GroupedItem[]>(() => {
     if (keyed || !methods) return [];
-    const open = (screen: 'SignInPassword' | 'SignInAuthenticator' | 'LinkCommons') => () => showBottomSheet?.(screen);
+    const open = (screen: 'SignInPassword' | 'SignInAuthenticator' | 'LinkCommons') => () =>
+      showBottomSheet?.(screen);
     const items: GroupedItem[] = [];
 
     if (methods.hasEmail) {
@@ -39,7 +40,9 @@ export function useSignInMethodItems(): GroupedItem[] {
       icon: 'form-textbox-password',
       iconColor: methods.hasPassword ? colors.success : colors.sidebarIconSecurity,
       title: t('security.signInMethods.password'),
-      subtitle: methods.hasPassword ? t('security.signInMethods.passwordSet') : t('security.signInMethods.passwordNotSet'),
+      subtitle: methods.hasPassword
+        ? t('security.signInMethods.passwordSet')
+        : t('security.signInMethods.passwordNotSet'),
       onPress: open('SignInPassword'),
       showChevron: true,
     });

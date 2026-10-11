@@ -79,8 +79,11 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
     const subscriptionPlan = await resolveUserSubscriptionPlan(userId);
     const catalogue = await loadProductBillingCatalogue();
     const totalLimitBytes = catalogue.storageAdapter
-      ? await storageCapacity(getDb(), userId, catalogue) : getPlanStorageLimitBytes(subscriptionPlan);
-    const reservedBytes = catalogue.storageAdapter ? (await reservedStorageBytes(getDb(), userId)).toString() : null;
+      ? await storageCapacity(getDb(), userId, catalogue)
+      : getPlanStorageLimitBytes(subscriptionPlan);
+    const reservedBytes = catalogue.storageAdapter
+      ? (await reservedStorageBytes(getDb(), userId)).toString()
+      : null;
 
     // `sum`/`count` over `bigint` come back as strings from postgres.js — a byte
     // total can exceed 2^53, so the driver refuses to guess. Parse once, here.
@@ -129,7 +132,10 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       updatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    logger.error('Error computing storage usage', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error computing storage usage',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return res.status(500).json({
       message: 'Error computing storage usage',
       error: error instanceof Error ? error.message : 'Unknown error',

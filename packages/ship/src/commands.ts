@@ -1,11 +1,5 @@
 import path from 'node:path';
-import {
-  stringFlag,
-  requireString,
-  rolloutFlag,
-  platformsFlag,
-  type ShipFlags,
-} from './args';
+import { stringFlag, requireString, rolloutFlag, platformsFlag, type ShipFlags } from './args';
 import {
   collectPlatformAssets,
   readExportMetadata,
@@ -47,7 +41,10 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
   const rolloutPercent = rolloutFlag(flags);
   const message = stringFlag(flags, 'message');
   const projectDir = path.resolve(stringFlag(flags, 'project-dir', undefined, '.') as string);
-  const distDir = path.resolve(projectDir, stringFlag(flags, 'dist-dir', undefined, 'dist') as string);
+  const distDir = path.resolve(
+    projectDir,
+    stringFlag(flags, 'dist-dir', undefined, 'dist') as string,
+  );
   const runtimeOverride = stringFlag(flags, 'runtime-version');
   const gitCommit = resolveGitCommit(projectDir, stringFlag(flags, 'git-commit'));
   const gitBranch = resolveGitBranch(projectDir, stringFlag(flags, 'git-branch'));
@@ -67,7 +64,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
   const bySha = uniqueAssets(bundles);
 
   progress(
-    `Runtime ${runtimeVersion} · channel ${channel} · ${bySha.size} unique assets across ${platforms.length} platform(s)`
+    `Runtime ${runtimeVersion} · channel ${channel} · ${bySha.size} unique assets across ${platforms.length} platform(s)`,
   );
 
   if (dryRun) {
@@ -82,7 +79,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
         assetCount: bySha.size,
         gitCommit,
         gitBranch,
-      }
+      },
     );
     return;
   }
@@ -107,7 +104,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
       ticket.contentType,
       ticket.cacheControl,
       ticket.checksumSHA256,
-      asset.absPath
+      asset.absPath,
     );
   }
 
@@ -115,7 +112,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
   const notUploaded = complete.assets.filter((asset) => asset.status !== 'uploaded');
   if (notUploaded.length > 0) {
     throw new Error(
-      `${notUploaded.length} asset(s) failed to upload: ${notUploaded.map((a) => a.sha256.slice(0, 12)).join(', ')}`
+      `${notUploaded.length} asset(s) failed to upload: ${notUploaded.map((a) => a.sha256.slice(0, 12)).join(', ')}`,
     );
   }
 
@@ -149,7 +146,7 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
   emit(
     flags,
     published.map((u) => `${u.platform} ${u.id} (rollout ${u.rolloutPercent}%)`).join('\n'),
-    { channel, runtimeVersion, updates: published }
+    { channel, runtimeVersion, updates: published },
   );
 }
 
@@ -162,7 +159,7 @@ export async function rollbackCommand(flags: ShipFlags): Promise<void> {
   emit(
     flags,
     `Rolled back ${result.rolledBack.id}; new head: ${result.head?.id ?? '(none)'}`,
-    result
+    result,
   );
 }
 
@@ -172,11 +169,7 @@ export async function rollbackToEmbeddedCommand(flags: ShipFlags): Promise<void>
   const platform = requirePlatform(flags);
   const client = createShipClient(flags);
   const result = await client.rollbackToEmbedded(channel, runtimeVersion, platform);
-  emit(
-    flags,
-    `Set rollback-to-embedded on ${channel} for ${runtimeVersion}/${platform}.`,
-    result
-  );
+  emit(flags, `Set rollback-to-embedded on ${channel} for ${runtimeVersion}/${platform}.`, result);
 }
 
 export async function promoteCommand(flags: ShipFlags): Promise<void> {
@@ -188,7 +181,7 @@ export async function promoteCommand(flags: ShipFlags): Promise<void> {
   emit(
     flags,
     `Promoted ${updateId} → ${toChannel} as ${update.id} (rollout ${update.rolloutPercent}%)`,
-    update
+    update,
   );
 }
 
@@ -228,7 +221,7 @@ export async function updateListCommand(flags: ShipFlags): Promise<void> {
       : updates
           .map(
             (u) =>
-              `${u.id}  ${u.channel}  ${u.runtimeVersion}/${u.platform}  ${u.status}  rollout ${u.rolloutPercent}%`
+              `${u.id}  ${u.channel}  ${u.runtimeVersion}/${u.platform}  ${u.status}  rollout ${u.rolloutPercent}%`,
           )
           .join('\n');
   emit(flags, human, updates);

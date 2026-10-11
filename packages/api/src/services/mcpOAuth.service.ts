@@ -1,9 +1,4 @@
-import {
-  createHash,
-  randomBytes,
-  randomUUID,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
   issueMcpAccessToken,
@@ -31,7 +26,11 @@ import {
 import { applications } from '../db/schema/applications';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
-import { readLiveAgentKey, lockLiveAgentKeyForAuthorization, type AgentKeyBinding } from './agentKeyAuthority.service';
+import {
+  readLiveAgentKey,
+  lockLiveAgentKeyForAuthorization,
+  type AgentKeyBinding,
+} from './agentKeyAuthority.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
 import {
   resolveMcpConnectionState,
@@ -107,23 +106,23 @@ export function canonicalMcpResource(value: string): string {
   } catch {
     throw new McpOAuthError('invalid_request', 'resource must be an absolute URI');
   }
-  const loopback = url.hostname === 'localhost'
-    || url.hostname === '127.0.0.1'
-    || url.hostname === '[::1]';
+  const loopback =
+    url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
   if (url.protocol !== 'https:' && !(loopback && url.protocol === 'http:')) {
     throw new McpOAuthError('invalid_request', 'resource must use HTTPS outside local development');
   }
   if (url.username || url.password || url.search || url.hash) {
-    throw new McpOAuthError('invalid_request', 'resource cannot contain credentials, query or fragment');
+    throw new McpOAuthError(
+      'invalid_request',
+      'resource cannot contain credentials, query or fragment',
+    );
   }
   const pathname = url.pathname === '/' ? '' : trimTrailingSlashes(url.pathname);
   return `${url.origin}${pathname}`;
 }
 
 export function normalizeMcpScopes(value: string | readonly string[] | undefined): string[] {
-  const source: readonly string[] = typeof value === 'string'
-    ? value.split(/\s+/)
-    : (value ?? []);
+  const source: readonly string[] = typeof value === 'string' ? value.split(/\s+/) : (value ?? []);
   return [...new Set(source.map((scope) => scope.trim()).filter(Boolean))].sort();
 }
 
@@ -134,12 +133,19 @@ export function validateMcpRedirectUri(value: string): string {
   } catch {
     throw new McpOAuthError('invalid_request', 'redirect_uri must be an absolute URI');
   }
-  const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+  const loopback =
+    url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
   if (url.hash || url.username || url.password) {
-    throw new McpOAuthError('invalid_request', 'redirect_uri cannot contain credentials or a fragment');
+    throw new McpOAuthError(
+      'invalid_request',
+      'redirect_uri cannot contain credentials or a fragment',
+    );
   }
   if (url.protocol !== 'https:' && !(loopback && url.protocol === 'http:')) {
-    throw new McpOAuthError('invalid_request', 'redirect_uri must use HTTPS or an HTTP loopback address');
+    throw new McpOAuthError(
+      'invalid_request',
+      'redirect_uri must use HTTPS or an HTTP loopback address',
+    );
   }
   return value;
 }
@@ -158,29 +164,33 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
   if (!registration?.catalog.externalMcp) {
     throw new McpOAuthError('invalid_request', 'resource is not a registered Oxy MCP server');
   }
-  const [application] = await getDb().select({
-    id: applications.id,
-    name: applications.name,
-    description: applications.description,
-    icon: applications.icon,
-    websiteUrl: applications.websiteUrl,
-    privacyPolicyUrl: applications.privacyPolicyUrl,
-    termsUrl: applications.termsUrl,
-    type: applications.type,
-    isOfficial: applications.isOfficial,
-    isInternal: applications.isInternal,
-    scopes: applications.scopes,
-  }).from(applications).where(and(
-    eq(applications.id, registration.registeredByApplicationId),
-    eq(applications.status, 'active'),
-  )).limit(1);
+  const [application] = await getDb()
+    .select({
+      id: applications.id,
+      name: applications.name,
+      description: applications.description,
+      icon: applications.icon,
+      websiteUrl: applications.websiteUrl,
+      privacyPolicyUrl: applications.privacyPolicyUrl,
+      termsUrl: applications.termsUrl,
+      type: applications.type,
+      isOfficial: applications.isOfficial,
+      isInternal: applications.isInternal,
+      scopes: applications.scopes,
+    })
+    .from(applications)
+    .where(
+      and(
+        eq(applications.id, registration.registeredByApplicationId),
+        eq(applications.status, 'active'),
+      ),
+    )
+    .limit(1);
   if (!application) {
     throw new McpOAuthError('invalid_request', 'resource application is not active');
   }
   const tools = registration.catalog.tools.filter((tool) => tool.exposure.includes('mcp'));
-  const scopes = [...new Set(
-    tools.flatMap((tool) => tool.requiredCapabilities),
-  )].sort();
+  const scopes = [...new Set(tools.flatMap((tool) => tool.requiredCapabilities))].sort();
   return {
     appSlug: registration.appSlug,
     audience: registration.audience,
@@ -192,7 +202,10 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
   };
 }
 
-function assertScopesAllowed(requested: readonly string[], descriptor: McpResourceDescriptor): void {
+function assertScopesAllowed(
+  requested: readonly string[],
+  descriptor: McpResourceDescriptor,
+): void {
   if (requested.length === 0) {
     throw new McpOAuthError('invalid_scope', 'At least one MCP scope is required');
   }
@@ -203,36 +216,76 @@ function assertScopesAllowed(requested: readonly string[], descriptor: McpResour
   }
 }
 
-export async function grantAccountAuthorityHolds(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>
-  & Partial<Pick<McpOauthGrantRow, 'authMethodId'>>): Promise<boolean> {
+export async function grantAccountAuthorityHolds(
+  grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'> &
+    Partial<Pick<McpOauthGrantRow, 'authMethodId'>>,
+): Promise<boolean> {
   if (grant.authMethodId) {
-    if (!await readLiveAgentKey({ authMethodId: grant.authMethodId, authMethodOwnerId: grant.principalUserId })) return false;
+    if (
+      !(await readLiveAgentKey({
+        authMethodId: grant.authMethodId,
+        authMethodOwnerId: grant.principalUserId,
+      }))
+    )
+      return false;
     if (grant.principalUserId === grant.effectiveAccountId) return true;
   } else {
-    const [actor] = await getDb().select({ kind: users.kind }).from(users).where(eq(users.id, grant.principalUserId));
+    const [actor] = await getDb()
+      .select({ kind: users.kind })
+      .from(users)
+      .where(eq(users.id, grant.principalUserId));
     if (!actor || actor.kind === 'bot') return false;
   }
-  const access = await accountService.resolveEffectiveAccess(grant.principalUserId, grant.effectiveAccountId);
+  const access = await accountService.resolveEffectiveAccess(
+    grant.principalUserId,
+    grant.effectiveAccountId,
+  );
   return access?.permissions.includes('account:act_as') ?? false;
 }
 
 /** Serialize approval with agent revocation; another key always creates a new grant. */
-export async function reusableMcpGrant(tx: Transaction, input: {
-  principalUserId: string; effectiveAccountId: string; clientRecordId: string; resource: string;
-  authMethod?: AgentKeyBinding;
-}, now: Date): Promise<McpOauthGrantRow | undefined> {
-  if (input.authMethod) await lockLiveAgentKeyForAuthorization(tx, input.authMethod, input.principalUserId);
+export async function reusableMcpGrant(
+  tx: Transaction,
+  input: {
+    principalUserId: string;
+    effectiveAccountId: string;
+    clientRecordId: string;
+    resource: string;
+    authMethod?: AgentKeyBinding;
+  },
+  now: Date,
+): Promise<McpOauthGrantRow | undefined> {
+  if (input.authMethod)
+    await lockLiveAgentKeyForAuthorization(tx, input.authMethod, input.principalUserId);
   else {
-    const [actor] = await tx.select({ kind: users.kind }).from(users).where(eq(users.id, input.principalUserId));
-    if (!actor || actor.kind === 'bot') throw new McpOAuthError('access_denied', 'Agent proof is required', 403);
+    const [actor] = await tx
+      .select({ kind: users.kind })
+      .from(users)
+      .where(eq(users.id, input.principalUserId));
+    if (!actor || actor.kind === 'bot')
+      throw new McpOAuthError('access_denied', 'Agent proof is required', 403);
   }
-  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`mcp-grant:${input.principalUserId}:${input.effectiveAccountId}:${input.clientRecordId}:${input.resource}`}, 0))`);
-  const [existing] = await tx.select().from(mcpOauthGrants).where(and(
-    eq(mcpOauthGrants.principalUserId, input.principalUserId), eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
-    eq(mcpOauthGrants.clientRecordId, input.clientRecordId), eq(mcpOauthGrants.resource, input.resource), isNull(mcpOauthGrants.revokedAt),
-  )).limit(1);
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`mcp-grant:${input.principalUserId}:${input.effectiveAccountId}:${input.clientRecordId}:${input.resource}`}, 0))`,
+  );
+  const [existing] = await tx
+    .select()
+    .from(mcpOauthGrants)
+    .where(
+      and(
+        eq(mcpOauthGrants.principalUserId, input.principalUserId),
+        eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
+        eq(mcpOauthGrants.clientRecordId, input.clientRecordId),
+        eq(mcpOauthGrants.resource, input.resource),
+        isNull(mcpOauthGrants.revokedAt),
+      ),
+    )
+    .limit(1);
   if (existing && existing.authMethodId !== (input.authMethod?.authMethodId ?? null)) {
-    await tx.update(mcpOauthGrants).set({ revokedAt: now, updatedAt: now }).where(eq(mcpOauthGrants.id, existing.id));
+    await tx
+      .update(mcpOauthGrants)
+      .set({ revokedAt: now, updatedAt: now })
+      .where(eq(mcpOauthGrants.id, existing.id));
     await revokeMcpConnectionMemberships(tx, existing.id, now);
     return undefined;
   }
@@ -277,18 +330,21 @@ export async function registerMcpClient(input: {
   clientUri?: string;
   logoUri?: string;
 }): Promise<McpOauthClientRow> {
-  const [client] = await getDb().insert(mcpOauthClients).values({
-    clientId: newMcpClientId(),
-    clientName: input.clientName,
-    redirectUris: [...input.redirectUris],
-    grantTypes: [...input.grantTypes],
-    responseTypes: ['code'],
-    tokenEndpointAuthMethod: 'none',
-    clientUri: input.clientUri ?? null,
-    logoUri: input.logoUri ?? null,
-    status: 'active',
-    revokedAt: null,
-  }).returning();
+  const [client] = await getDb()
+    .insert(mcpOauthClients)
+    .values({
+      clientId: newMcpClientId(),
+      clientName: input.clientName,
+      redirectUris: [...input.redirectUris],
+      grantTypes: [...input.grantTypes],
+      responseTypes: ['code'],
+      tokenEndpointAuthMethod: 'none',
+      clientUri: input.clientUri ?? null,
+      logoUri: input.logoUri ?? null,
+      status: 'active',
+      revokedAt: null,
+    })
+    .returning();
   if (!client) throw new Error('MCP OAuth client registration was not persisted');
   return client;
 }
@@ -305,13 +361,15 @@ export async function mcpConsentRequired(input: {
   const [grant] = await getDb()
     .select({ scopes: mcpOauthGrants.scopes, authMethodId: mcpOauthGrants.authMethodId })
     .from(mcpOauthGrants)
-    .where(and(
-      eq(mcpOauthGrants.principalUserId, input.principalUserId),
-      eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
-      eq(mcpOauthGrants.clientRecordId, input.client.id),
-      eq(mcpOauthGrants.resource, input.descriptor.resource),
-      isNull(mcpOauthGrants.revokedAt),
-    ))
+    .where(
+      and(
+        eq(mcpOauthGrants.principalUserId, input.principalUserId),
+        eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
+        eq(mcpOauthGrants.clientRecordId, input.client.id),
+        eq(mcpOauthGrants.resource, input.descriptor.resource),
+        isNull(mcpOauthGrants.revokedAt),
+      ),
+    )
     .limit(1);
   if (!grant || grant.authMethodId !== (input.authMethod?.authMethodId ?? null)) return true;
   const granted = new Set(grant.scopes);
@@ -327,22 +385,33 @@ export async function mcpConsentDetails(input: {
   scopes: readonly string[];
 }): Promise<McpOAuthConsentResponse> {
   assertScopesAllowed(input.scopes, input.descriptor);
-  if (!await currentAccountAuthority({
-    principalUserId: input.principalUserId,
-    effectiveAccountId: input.effectiveAccountId,
-    authMethodId: input.authMethod?.authMethodId,
-  })) {
-    throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
+  if (
+    !(await currentAccountAuthority({
+      principalUserId: input.principalUserId,
+      effectiveAccountId: input.effectiveAccountId,
+      authMethodId: input.authMethod?.authMethodId,
+    }))
+  ) {
+    throw new McpOAuthError(
+      'access_denied',
+      'The approving user can no longer operate this account',
+      403,
+    );
   }
   const [account, consentRequired] = await Promise.all([
-    getDb().select({
-      id: users.id,
-      username: users.username,
-      nameFirst: users.nameFirst,
-      nameLast: users.nameLast,
-      nameDisplay: users.nameDisplay,
-      avatar: users.avatar,
-    }).from(users).where(eq(users.id, input.effectiveAccountId)).limit(1).then((rows) => rows[0]),
+    getDb()
+      .select({
+        id: users.id,
+        username: users.username,
+        nameFirst: users.nameFirst,
+        nameLast: users.nameLast,
+        nameDisplay: users.nameDisplay,
+        avatar: users.avatar,
+      })
+      .from(users)
+      .where(eq(users.id, input.effectiveAccountId))
+      .limit(1)
+      .then((rows) => rows[0]),
     mcpConsentRequired(input),
   ]);
   if (!account) {
@@ -359,7 +428,9 @@ export async function mcpConsentDetails(input: {
   const grantedCapabilities = new Set(input.scopes);
   const writeActions = input.descriptor.tools
     .filter((tool) => tool.effect !== 'read')
-    .filter((tool) => tool.requiredCapabilities.every((capability) => grantedCapabilities.has(capability)))
+    .filter((tool) =>
+      tool.requiredCapabilities.every((capability) => grantedCapabilities.has(capability)),
+    )
     .map((tool) => ({
       name: tool.name,
       version: tool.version,
@@ -402,42 +473,67 @@ export async function authorizeMcpConnection(input: {
   if (!mcpRedirectUriAllowed(input.client, input.redirectUri)) {
     throw new McpOAuthError('invalid_request', 'redirect_uri is not registered for this client');
   }
-  if (!await currentAccountAuthority({
-    principalUserId: input.principalUserId,
-    effectiveAccountId: input.effectiveAccountId,
-    authMethodId: input.authMethod?.authMethodId,
-  })) {
-    throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
+  if (
+    !(await currentAccountAuthority({
+      principalUserId: input.principalUserId,
+      effectiveAccountId: input.effectiveAccountId,
+      authMethodId: input.authMethod?.authMethodId,
+    }))
+  ) {
+    throw new McpOAuthError(
+      'access_denied',
+      'The approving user can no longer operate this account',
+      403,
+    );
   }
 
   const code = opaque(AUTHORIZATION_CODE_PREFIX);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + MCP_AUTHORIZATION_CODE_TTL_SECONDS * 1_000);
   await getDb().transaction(async (tx) => {
-    const existing = await reusableMcpGrant(tx, { principalUserId: input.principalUserId,
-      effectiveAccountId: input.effectiveAccountId, clientRecordId: input.client.id,
-      resource: input.descriptor.resource, authMethod: input.authMethod }, now);
+    const existing = await reusableMcpGrant(
+      tx,
+      {
+        principalUserId: input.principalUserId,
+        effectiveAccountId: input.effectiveAccountId,
+        clientRecordId: input.client.id,
+        resource: input.descriptor.resource,
+        authMethod: input.authMethod,
+      },
+      now,
+    );
     const scopes = normalizeMcpScopes([...(existing?.scopes ?? []), ...input.scopes]);
     const grant = existing
-      ? (await tx.update(mcpOauthGrants).set({
-          scopes,
-          audience: input.descriptor.audience,
-          appSlug: input.descriptor.appSlug,
-          lastUsedAt: now,
-          updatedAt: now,
-        }).where(eq(mcpOauthGrants.id, existing.id)).returning())[0]
-      : (await tx.insert(mcpOauthGrants).values({
-          principalUserId: input.principalUserId,
-          authMethodId: input.authMethod?.authMethodId ?? null,
-          effectiveAccountId: input.effectiveAccountId,
-          clientRecordId: input.client.id,
-          appSlug: input.descriptor.appSlug,
-          resource: input.descriptor.resource,
-          audience: input.descriptor.audience,
-          scopes,
-          lastUsedAt: now,
-          revokedAt: null,
-        }).returning())[0];
+      ? (
+          await tx
+            .update(mcpOauthGrants)
+            .set({
+              scopes,
+              audience: input.descriptor.audience,
+              appSlug: input.descriptor.appSlug,
+              lastUsedAt: now,
+              updatedAt: now,
+            })
+            .where(eq(mcpOauthGrants.id, existing.id))
+            .returning()
+        )[0]
+      : (
+          await tx
+            .insert(mcpOauthGrants)
+            .values({
+              principalUserId: input.principalUserId,
+              authMethodId: input.authMethod?.authMethodId ?? null,
+              effectiveAccountId: input.effectiveAccountId,
+              clientRecordId: input.client.id,
+              appSlug: input.descriptor.appSlug,
+              resource: input.descriptor.resource,
+              audience: input.descriptor.audience,
+              scopes,
+              lastUsedAt: now,
+              revokedAt: null,
+            })
+            .returning()
+        )[0];
     if (!grant) throw new Error('MCP OAuth grant was not persisted');
     await tx.insert(mcpOauthAuthorizationCodes).values({
       codeHash: sha256(code),
@@ -466,19 +562,22 @@ async function issueTokenPair(
 ): Promise<McpTokenResponse> {
   const signing = capabilityTicketSigningConfig();
   const issuer = (process.env.OXY_API_URL ?? 'https://api.oxy.so').replace(/\/$/, '');
-  const issued = issueMcpAccessToken({
-    sub: grant.principalUserId,
-    aud: grant.audience,
-    resource: grant.resource,
-    client_id: client.clientId,
-    scope: normalizeMcpScopes(scopes).join(' '),
-    account_id: grant.effectiveAccountId,
-  }, {
-    privateKey: signing.privateKey,
-    keyId: signing.keyId,
-    issuer,
-    ttlSeconds: MCP_ACCESS_TOKEN_TTL_SECONDS,
-  });
+  const issued = issueMcpAccessToken(
+    {
+      sub: grant.principalUserId,
+      aud: grant.audience,
+      resource: grant.resource,
+      client_id: client.clientId,
+      scope: normalizeMcpScopes(scopes).join(' '),
+      account_id: grant.effectiveAccountId,
+    },
+    {
+      privateKey: signing.privateKey,
+      keyId: signing.keyId,
+      issuer,
+      ttlSeconds: MCP_ACCESS_TOKEN_TTL_SECONDS,
+    },
+  );
   const refreshToken = opaque(REFRESH_TOKEN_PREFIX);
   const refreshExpiresAt = new Date(Date.now() + MCP_REFRESH_TOKEN_TTL_SECONDS * 1_000);
   await db.insert(mcpOauthAccessTokens).values({
@@ -513,11 +612,15 @@ async function liveGrantContext(grantId: string): Promise<{
   client: McpOauthClientRow;
   descriptor: McpResourceDescriptor;
 }> {
-  const [grant] = await getDb().select().from(mcpOauthGrants)
+  const [grant] = await getDb()
+    .select()
+    .from(mcpOauthGrants)
     .where(and(eq(mcpOauthGrants.id, grantId), isNull(mcpOauthGrants.revokedAt)))
     .limit(1);
   if (!grant) throw new McpOAuthError('invalid_grant', 'The MCP authorization grant is inactive');
-  const [client] = await getDb().select().from(mcpOauthClients)
+  const [client] = await getDb()
+    .select()
+    .from(mcpOauthClients)
     .where(and(eq(mcpOauthClients.id, grant.clientRecordId), eq(mcpOauthClients.status, 'active')))
     .limit(1);
   if (!client) throw new McpOAuthError('invalid_client', 'The MCP client is inactive', 401);
@@ -526,8 +629,11 @@ async function liveGrantContext(grantId: string): Promise<{
     throw new McpOAuthError('invalid_grant', 'The MCP resource registration has changed');
   }
   assertScopesAllowed(grant.scopes, descriptor);
-  if (!await currentAccountAuthority(grant)) {
-    throw new McpOAuthError('invalid_grant', 'The approving user can no longer operate this account');
+  if (!(await currentAccountAuthority(grant))) {
+    throw new McpOAuthError(
+      'invalid_grant',
+      'The approving user can no longer operate this account',
+    );
   }
   return { grant, client, descriptor };
 }
@@ -539,42 +645,64 @@ export async function exchangeMcpAuthorizationCode(input: {
   codeVerifier: string;
   resource: string;
 }): Promise<McpTokenResponse> {
-  const [authorizationCode] = await getDb().select().from(mcpOauthAuthorizationCodes)
+  const [authorizationCode] = await getDb()
+    .select()
+    .from(mcpOauthAuthorizationCodes)
     .where(eq(mcpOauthAuthorizationCodes.codeHash, sha256(input.code)))
     .limit(1);
   if (!authorizationCode || authorizationCode.usedAt || authorizationCode.expiresAt <= new Date()) {
-    throw new McpOAuthError('invalid_grant', 'Authorization code is invalid, expired, or already used');
+    throw new McpOAuthError(
+      'invalid_grant',
+      'Authorization code is invalid, expired, or already used',
+    );
   }
   const context = await liveGrantContext(authorizationCode.grantId);
-  if (!equalStrings(context.client.clientId, input.clientId)
-    || !equalStrings(authorizationCode.redirectUri, input.redirectUri)
-    || authorizationCode.resource !== canonicalMcpResource(input.resource)
-    || !equalStrings(authorizationCode.codeChallenge, pkceChallenge(input.codeVerifier))) {
+  if (
+    !equalStrings(context.client.clientId, input.clientId) ||
+    !equalStrings(authorizationCode.redirectUri, input.redirectUri) ||
+    authorizationCode.resource !== canonicalMcpResource(input.resource) ||
+    !equalStrings(authorizationCode.codeChallenge, pkceChallenge(input.codeVerifier))
+  ) {
     throw new McpOAuthError('invalid_grant', 'Authorization code binding does not match');
   }
 
   return getDb().transaction(async (tx) => {
-    const [claimed] = await tx.update(mcpOauthAuthorizationCodes)
+    const [claimed] = await tx
+      .update(mcpOauthAuthorizationCodes)
       .set({ usedAt: new Date(), updatedAt: new Date() })
-      .where(and(
-        eq(mcpOauthAuthorizationCodes.id, authorizationCode.id),
-        isNull(mcpOauthAuthorizationCodes.usedAt),
-        gt(mcpOauthAuthorizationCodes.expiresAt, new Date()),
-      ))
+      .where(
+        and(
+          eq(mcpOauthAuthorizationCodes.id, authorizationCode.id),
+          isNull(mcpOauthAuthorizationCodes.usedAt),
+          gt(mcpOauthAuthorizationCodes.expiresAt, new Date()),
+        ),
+      )
       .returning({ id: mcpOauthAuthorizationCodes.id });
     if (!claimed) throw new McpOAuthError('invalid_grant', 'Authorization code was already used');
     return issueTokenPair(tx, context.grant, context.client, authorizationCode.scopes);
   });
 }
 
-async function revokeGrant(db: DatabaseOrTransaction, grantId: string, when = new Date()): Promise<void> {
-  await db.update(mcpOauthGrants).set({ revokedAt: when, updatedAt: when })
+async function revokeGrant(
+  db: DatabaseOrTransaction,
+  grantId: string,
+  when = new Date(),
+): Promise<void> {
+  await db
+    .update(mcpOauthGrants)
+    .set({ revokedAt: when, updatedAt: when })
     .where(and(eq(mcpOauthGrants.id, grantId), isNull(mcpOauthGrants.revokedAt)));
   await revokeMcpConnectionMemberships(db, grantId, when);
-  await db.update(mcpOauthAccessTokens).set({ revokedAt: when })
+  await db
+    .update(mcpOauthAccessTokens)
+    .set({ revokedAt: when })
     .where(and(eq(mcpOauthAccessTokens.grantId, grantId), isNull(mcpOauthAccessTokens.revokedAt)));
-  await db.update(mcpOauthRefreshTokens).set({ revokedAt: when })
-    .where(and(eq(mcpOauthRefreshTokens.grantId, grantId), isNull(mcpOauthRefreshTokens.revokedAt)));
+  await db
+    .update(mcpOauthRefreshTokens)
+    .set({ revokedAt: when })
+    .where(
+      and(eq(mcpOauthRefreshTokens.grantId, grantId), isNull(mcpOauthRefreshTokens.revokedAt)),
+    );
 }
 
 export async function refreshMcpAccessToken(input: {
@@ -582,29 +710,39 @@ export async function refreshMcpAccessToken(input: {
   clientId: string;
   resource: string;
 }): Promise<McpTokenResponse> {
-  const [refresh] = await getDb().select().from(mcpOauthRefreshTokens)
+  const [refresh] = await getDb()
+    .select()
+    .from(mcpOauthRefreshTokens)
     .where(eq(mcpOauthRefreshTokens.tokenHash, sha256(input.refreshToken)))
     .limit(1);
   if (!refresh) throw new McpOAuthError('invalid_grant', 'Refresh token is invalid');
   const context = await liveGrantContext(refresh.grantId);
-  if (!equalStrings(context.client.clientId, input.clientId)
-    || context.grant.resource !== canonicalMcpResource(input.resource)) {
+  if (
+    !equalStrings(context.client.clientId, input.clientId) ||
+    context.grant.resource !== canonicalMcpResource(input.resource)
+  ) {
     throw new McpOAuthError('invalid_grant', 'Refresh token binding does not match');
   }
 
   const outcome = await getDb().transaction(async (tx) => {
-    const [claimed] = await tx.update(mcpOauthRefreshTokens)
+    const [claimed] = await tx
+      .update(mcpOauthRefreshTokens)
       .set({ usedAt: new Date() })
-      .where(and(
-        eq(mcpOauthRefreshTokens.id, refresh.id),
-        isNull(mcpOauthRefreshTokens.usedAt),
-        isNull(mcpOauthRefreshTokens.revokedAt),
-        gt(mcpOauthRefreshTokens.expiresAt, new Date()),
-      ))
+      .where(
+        and(
+          eq(mcpOauthRefreshTokens.id, refresh.id),
+          isNull(mcpOauthRefreshTokens.usedAt),
+          isNull(mcpOauthRefreshTokens.revokedAt),
+          gt(mcpOauthRefreshTokens.expiresAt, new Date()),
+        ),
+      )
       .returning();
     if (!claimed) {
-      const [current] = await tx.select().from(mcpOauthRefreshTokens)
-        .where(eq(mcpOauthRefreshTokens.id, refresh.id)).limit(1);
+      const [current] = await tx
+        .select()
+        .from(mcpOauthRefreshTokens)
+        .where(eq(mcpOauthRefreshTokens.id, refresh.id))
+        .limit(1);
       if (current?.usedAt) await revokeGrant(tx, refresh.grantId);
       return null;
     }
@@ -613,26 +751,31 @@ export async function refreshMcpAccessToken(input: {
       parentTokenId: claimed.id,
     });
   });
-  if (!outcome) throw new McpOAuthError('invalid_grant', 'Refresh token is expired, revoked, or reused');
+  if (!outcome)
+    throw new McpOAuthError('invalid_grant', 'Refresh token is expired, revoked, or reused');
   return outcome;
 }
 
 export async function revokeMcpToken(token: string, clientId: string): Promise<void> {
   if (token.startsWith(REFRESH_TOKEN_PREFIX)) {
     const [row] = await getDb()
-      .select({ grantId: mcpOauthRefreshTokens.grantId, registeredClientId: mcpOauthClients.clientId })
+      .select({
+        grantId: mcpOauthRefreshTokens.grantId,
+        registeredClientId: mcpOauthClients.clientId,
+      })
       .from(mcpOauthRefreshTokens)
       .innerJoin(mcpOauthGrants, eq(mcpOauthGrants.id, mcpOauthRefreshTokens.grantId))
       .innerJoin(mcpOauthClients, eq(mcpOauthClients.id, mcpOauthGrants.clientRecordId))
       .where(eq(mcpOauthRefreshTokens.tokenHash, sha256(token)))
       .limit(1);
-    if (row && equalStrings(row.registeredClientId, clientId)) await revokeGrant(getDb(), row.grantId);
+    if (row && equalStrings(row.registeredClientId, clientId))
+      await revokeGrant(getDb(), row.grantId);
     return;
   }
   try {
     const signing = capabilityTicketSigningConfig();
     const claims = verifyMcpAccessTokenSignature(token, {
-      resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
+      resolvePublicKey: (keyId) => (keyId === signing.keyId ? signing.publicKey : undefined),
     });
     const [row] = await getDb()
       .select({ id: mcpOauthAccessTokens.id, registeredClientId: mcpOauthClients.clientId })
@@ -642,7 +785,9 @@ export async function revokeMcpToken(token: string, clientId: string): Promise<v
       .where(eq(mcpOauthAccessTokens.jti, claims.jti))
       .limit(1);
     if (row && equalStrings(row.registeredClientId, clientId)) {
-      await getDb().update(mcpOauthAccessTokens).set({ revokedAt: new Date() })
+      await getDb()
+        .update(mcpOauthAccessTokens)
+        .set({ revokedAt: new Date() })
         .where(eq(mcpOauthAccessTokens.id, row.id));
     }
   } catch {
@@ -655,14 +800,17 @@ export async function revokeMcpGrant(input: {
   principalUserId: string;
   effectiveAccountId: string;
 }): Promise<boolean> {
-  const [grant] = await getDb().select({ id: mcpOauthGrants.id })
+  const [grant] = await getDb()
+    .select({ id: mcpOauthGrants.id })
     .from(mcpOauthGrants)
-    .where(and(
-      eq(mcpOauthGrants.id, input.grantId),
-      eq(mcpOauthGrants.principalUserId, input.principalUserId),
-      eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
-      isNull(mcpOauthGrants.revokedAt),
-    ))
+    .where(
+      and(
+        eq(mcpOauthGrants.id, input.grantId),
+        eq(mcpOauthGrants.principalUserId, input.principalUserId),
+        eq(mcpOauthGrants.effectiveAccountId, input.effectiveAccountId),
+        isNull(mcpOauthGrants.revokedAt),
+      ),
+    )
     .limit(1);
   if (!grant) return false;
   await getDb().transaction(async (tx) => revokeGrant(tx, grant.id));
@@ -681,7 +829,7 @@ export async function resolveLiveMcpAccessToken(
   try {
     const signing = capabilityTicketSigningConfig();
     const untrusted = verifyMcpAccessTokenSignature(token, {
-      resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
+      resolvePublicKey: (keyId) => (keyId === signing.keyId ? signing.publicKey : undefined),
     });
     const [row] = await getDb()
       .select({
@@ -696,14 +844,23 @@ export async function resolveLiveMcpAccessToken(
       .innerJoin(mcpOauthClients, eq(mcpOauthClients.id, mcpOauthGrants.clientRecordId))
       .where(eq(mcpOauthAccessTokens.jti, untrusted.jti))
       .limit(1);
-    if (!row || row.accessRevokedAt || row.accessExpiresAt <= new Date()
-      || row.grant.revokedAt || row.client.status !== 'active') return null;
+    if (
+      !row ||
+      row.accessRevokedAt ||
+      row.accessExpiresAt <= new Date() ||
+      row.grant.revokedAt ||
+      row.client.status !== 'active'
+    )
+      return null;
     const descriptor = await resolveMcpResource(row.grant.resource);
-    if (descriptor.registeredByApplicationId !== callingApplicationId
-      || descriptor.appSlug !== row.grant.appSlug
-      || descriptor.audience !== row.grant.audience
-      || row.accessScopes.some((scope) => !descriptor.scopes.includes(scope))
-      || !await currentAccountAuthority(row.grant)) return null;
+    if (
+      descriptor.registeredByApplicationId !== callingApplicationId ||
+      descriptor.appSlug !== row.grant.appSlug ||
+      descriptor.audience !== row.grant.audience ||
+      row.accessScopes.some((scope) => !descriptor.scopes.includes(scope)) ||
+      !(await currentAccountAuthority(row.grant))
+    )
+      return null;
     const claims = validateMcpAccessTokenClaims(untrusted, {
       issuer: (process.env.OXY_API_URL ?? 'https://api.oxy.so').replace(/\/$/, ''),
       audience: row.grant.audience,
@@ -714,8 +871,11 @@ export async function resolveLiveMcpAccessToken(
     });
     const claimScopes = normalizeMcpScopes(claims.scope);
     const storedScopes = normalizeMcpScopes(row.accessScopes);
-    if (claimScopes.length !== storedScopes.length
-      || claimScopes.some((scope, index) => scope !== storedScopes[index])) return null;
+    if (
+      claimScopes.length !== storedScopes.length ||
+      claimScopes.some((scope, index) => scope !== storedScopes[index])
+    )
+      return null;
     return { claims, grant: row.grant, client: row.client, descriptor };
   } catch {
     return null;

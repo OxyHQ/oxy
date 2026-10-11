@@ -1,25 +1,21 @@
 import { createCatalogMcpHttpService } from '@oxy.so/mcp';
 
-import {
-  introspectMcpAccessToken,
-  resolveMcpResource,
-} from '../services/mcpOAuth.service';
+import { introspectMcpAccessToken, resolveMcpResource } from '../services/mcpOAuth.service';
 import { logger } from '../utils/logger';
 import { INBOX_MCP_CATALOG, INBOX_MCP_HANDLERS } from './inbox.handlers';
 
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://chatgpt.com',
-  'https://claude.ai',
-] as const;
+const DEFAULT_ALLOWED_ORIGINS = ['https://chatgpt.com', 'https://claude.ai'] as const;
 
 export function parseInboxMcpAllowedOrigins(configured?: string): string[] {
-  return [...new Set([
-    ...DEFAULT_ALLOWED_ORIGINS,
-    ...(configured ?? '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  ])];
+  return [
+    ...new Set([
+      ...DEFAULT_ALLOWED_ORIGINS,
+      ...(configured ?? '')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ]),
+  ];
 }
 
 export function createInboxMcpHttpService() {

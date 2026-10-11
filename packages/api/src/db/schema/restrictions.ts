@@ -41,5 +41,5 @@ export const restrictions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     createdAt: createdAt(),
   },
-  (t) => [unique('restrictions_user_id_restricted_id_key').on(t.userId, t.restrictedId)]
+  (t) => [unique('restrictions_user_id_restricted_id_key').on(t.userId, t.restrictedId)],
 );

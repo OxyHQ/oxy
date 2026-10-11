@@ -77,7 +77,7 @@ export function useSecurityRecommendations({
               alert(
                 t('security.recommendations.biometricAlertTitle'),
                 t('security.recommendations.biometricAlertMessage'),
-                [{ text: t('common.ok'), style: 'default' }]
+                [{ text: t('common.ok'), style: 'default' }],
               );
             },
             showChevron: true,
@@ -131,7 +131,7 @@ export function useSecurityRecommendations({
               alert(
                 t('security.recommendations.suspiciousAlertTitle'),
                 t('security.recommendations.suspiciousAlertMessage', { count }),
-                [{ text: t('common.ok'), style: 'default' }]
+                [{ text: t('common.ok'), style: 'default' }],
               );
             },
             showChevron: true,

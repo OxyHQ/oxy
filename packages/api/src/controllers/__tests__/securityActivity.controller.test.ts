@@ -113,10 +113,12 @@ let server: http.Server;
 let authenticated = true;
 
 beforeAll(async () => {
-  mockAuthMiddleware.mockImplementation((req: { user?: unknown }, _res: unknown, next: () => void) => {
-    if (authenticated) req.user = { _id: { toString: () => CALLER }, id: CALLER };
-    next();
-  });
+  mockAuthMiddleware.mockImplementation(
+    (req: { user?: unknown }, _res: unknown, next: () => void) => {
+      if (authenticated) req.user = { _id: { toString: () => CALLER }, id: CALLER };
+      next();
+    },
+  );
   const app = express();
   app.use(express.json());
   app.use('/security', securityRouter);
@@ -184,7 +186,11 @@ describe('GET /security/activity — pagination contract', () => {
   });
 
   it('reports hasMore from the service rather than recomputing it differently', async () => {
-    mockGetUserSecurityActivity.mockResolvedValueOnce({ activities: [], total: 10, hasMore: false });
+    mockGetUserSecurityActivity.mockResolvedValueOnce({
+      activities: [],
+      total: 10,
+      hasMore: false,
+    });
     const res = await requestJson('GET', '/security/activity?limit=50&offset=0');
     // `sendPaginated` derives it as offset + limit < total — 0 + 50 < 10 is false.
     expect((res.body.pagination as { hasMore: boolean }).hasMore).toBe(false);
@@ -192,7 +198,7 @@ describe('GET /security/activity — pagination contract', () => {
 });
 
 describe('GET /security/activity — the wire DTO', () => {
-  it('emits exactly the documented field set, with `timestamp` (never the table\'s occurred_at)', async () => {
+  it("emits exactly the documented field set, with `timestamp` (never the table's occurred_at)", async () => {
     mockGetUserSecurityActivity.mockResolvedValueOnce({
       activities: [activityRow()],
       total: 1,
@@ -308,7 +314,9 @@ describe('GET /security/activity — eventType filter', () => {
   });
 
   it('500s (and does not leak the error) when the data source throws', async () => {
-    mockGetUserSecurityActivity.mockRejectedValueOnce(new Error('connection refused: 127.0.0.1:5432'));
+    mockGetUserSecurityActivity.mockRejectedValueOnce(
+      new Error('connection refused: 127.0.0.1:5432'),
+    );
     const res = await requestJson('GET', '/security/activity');
     expect(res.status).toBe(500);
     expect(res.body).toEqual({ error: 'Failed to fetch security activity' });
@@ -332,7 +340,9 @@ describe('POST /security/activity/private-key-exported', () => {
   });
 
   it('rejects a non-string deviceId at the schema, before the handler', async () => {
-    const res = await requestJson('POST', '/security/activity/private-key-exported', { deviceId: 7 });
+    const res = await requestJson('POST', '/security/activity/private-key-exported', {
+      deviceId: 7,
+    });
     expect(res.status).toBe(400);
     expect(mockLogPrivateKeyExported).not.toHaveBeenCalled();
   });
@@ -347,7 +357,9 @@ describe('POST /security/activity/private-key-exported', () => {
 
 describe('POST /security/activity/backup-created', () => {
   it('records the event for the authenticated caller', async () => {
-    const res = await requestJson('POST', '/security/activity/backup-created', { deviceId: 'dev-2' });
+    const res = await requestJson('POST', '/security/activity/backup-created', {
+      deviceId: 'dev-2',
+    });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
     expect(mockLogBackupCreated).toHaveBeenCalledWith(CALLER, expect.anything(), 'dev-2');

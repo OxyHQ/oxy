@@ -100,9 +100,7 @@ function makeRequest(overrides: Partial<AuthRequest> = {}): AuthRequest {
 }
 
 async function insertUser(createdAt?: Date): Promise<string> {
-  const values = createdAt
-    ? { color: 'teal', createdAt, updatedAt: createdAt }
-    : { color: 'teal' };
+  const values = createdAt ? { color: 'teal', createdAt, updatedAt: createdAt } : { color: 'teal' };
   const [row] = await getDb().insert(users).values(values).returning({ id: users.id });
   return row.id;
 }
@@ -135,24 +133,26 @@ beforeEach(async () => {
 describe('getAnalytics', () => {
   it('rebuilds the nested `stats` tree and the Mongo field spellings', async () => {
     const date = new Date(Date.now() - DAY_MS);
-    await getDb().insert(userAnalytics).values({
-      userId: USER_ID,
-      period: 'weekly',
-      date,
-      postViews: 11,
-      profileViews: 12,
-      engagementLikes: 1,
-      engagementReplies: 2,
-      engagementReposts: 3,
-      engagementQuotes: 4,
-      engagementBookmarks: 5,
-      reachImpressions: 6,
-      reachUniqueViewers: 7,
-      demographicsCountries: { ES: 3 },
-      demographicsLanguages: { es: 3 },
-      peakActivityHour: 9,
-      peakActivityCount: 21,
-    });
+    await getDb()
+      .insert(userAnalytics)
+      .values({
+        userId: USER_ID,
+        period: 'weekly',
+        date,
+        postViews: 11,
+        profileViews: 12,
+        engagementLikes: 1,
+        engagementReplies: 2,
+        engagementReposts: 3,
+        engagementQuotes: 4,
+        engagementBookmarks: 5,
+        reachImpressions: 6,
+        reachUniqueViewers: 7,
+        demographicsCountries: { ES: 3 },
+        demographicsLanguages: { es: 3 },
+        peakActivityHour: 9,
+        peakActivityCount: 21,
+      });
 
     const { res, taken } = capture();
     await getAnalytics(makeRequest(), res);
@@ -192,7 +192,9 @@ describe('getAnalytics', () => {
     const { res, taken } = capture();
     await getAnalytics(makeRequest(), res);
 
-    const body = taken.body as { timeSeriesData: { userID: string; stats: { postViews: number } }[] };
+    const body = taken.body as {
+      timeSeriesData: { userID: string; stats: { postViews: number } }[];
+    };
     expect(body.timeSeriesData).toHaveLength(1);
     expect(body.timeSeriesData[0].userID).toBe(USER_ID);
     expect(body.timeSeriesData[0].stats.postViews).toBe(1);
@@ -290,12 +292,7 @@ describe('updateAnalytics', () => {
 
     const rows = await storedRows(USER_ID);
     expect(rows).toHaveLength(4);
-    expect(rows.map((row) => row.period).sort()).toEqual([
-      'daily',
-      'monthly',
-      'weekly',
-      'yearly',
-    ]);
+    expect(rows.map((row) => row.period).sort()).toEqual(['daily', 'monthly', 'weekly', 'yearly']);
     for (const row of rows) {
       expect(row.profileViews).toBe(1);
       expect(row.reachImpressions).toBe(4);
@@ -330,7 +327,7 @@ describe('updateAnalytics', () => {
           },
         },
       }),
-      res
+      res,
     );
 
     const [row] = await storedRows(USER_ID);
@@ -373,7 +370,7 @@ describe('updateAnalytics', () => {
       makeRequest({
         body: { type: 'postViews', data: { 'stats.engagement.likes': 2, peakActivityHour: 5 } },
       }),
-      res
+      res,
     );
 
     const [row] = await storedRows(USER_ID);
@@ -493,7 +490,7 @@ describe('getFollowerDetails', () => {
     const { res, taken } = capture();
     await getFollowerDetails(
       makeRequest({ user: { _id: randomUUID() } as AuthRequest['user'] }),
-      res
+      res,
     );
 
     expect(taken.body).toEqual({ totalFollowers: 0, newFollowers: 0, activeFollowers: 0 });

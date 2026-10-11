@@ -32,22 +32,19 @@ export interface ReputationActivityMeta {
 }
 
 /** Known civic / cross-app action types → icon + label + signed provenance. */
-const ACTION_META: Readonly<
-  Record<string, { icon: IconName; labelKey: string; signed: boolean }>
-> = {
-  real_life_attested: { icon: 'handshake', labelKey: 'realLife', signed: true },
-  peer_validated: { icon: 'community', labelKey: 'peerValidated', signed: true },
-  validation_correct: { icon: 'validation', labelKey: 'validationCorrect', signed: true },
-  validation_incorrect: { icon: 'validation', labelKey: 'validationIncorrect', signed: true },
-  personhood_vouched: { icon: 'endorsed', labelKey: 'vouched', signed: true },
-  vouch_slashed: { icon: 'alert', labelKey: 'vouchSlashed', signed: true },
-  endorsement_received: { icon: 'star', labelKey: 'endorsement', signed: false },
-};
+const ACTION_META: Readonly<Record<string, { icon: IconName; labelKey: string; signed: boolean }>> =
+  {
+    real_life_attested: { icon: 'handshake', labelKey: 'realLife', signed: true },
+    peer_validated: { icon: 'community', labelKey: 'peerValidated', signed: true },
+    validation_correct: { icon: 'validation', labelKey: 'validationCorrect', signed: true },
+    validation_incorrect: { icon: 'validation', labelKey: 'validationIncorrect', signed: true },
+    personhood_vouched: { icon: 'endorsed', labelKey: 'vouched', signed: true },
+    vouch_slashed: { icon: 'alert', labelKey: 'vouchSlashed', signed: true },
+    endorsement_received: { icon: 'star', labelKey: 'endorsement', signed: false },
+  };
 
 /** Category fallback when an `actionType` is not a known civic action. */
-const CATEGORY_META: Readonly<
-  Record<ReputationCategory, { icon: IconName; labelKey: string }>
-> = {
+const CATEGORY_META: Readonly<Record<ReputationCategory, { icon: IconName; labelKey: string }>> = {
   content: { icon: 'document', labelKey: 'content' },
   social: { icon: 'people', labelKey: 'social' },
   trust: { icon: 'shieldCheck', labelKey: 'trust' },

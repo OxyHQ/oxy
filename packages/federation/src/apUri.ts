@@ -135,7 +135,9 @@ export function createDomainPolicy(config: DomainPolicyConfig): DomainPolicy {
     canonicalFederationHost(config.domain),
     canonicalFederationHost(config.actorDomain ?? config.domain),
   ]);
-  const identityApex = config.identityApex ? canonicalFederationHost(config.identityApex) : undefined;
+  const identityApex = config.identityApex
+    ? canonicalFederationHost(config.identityApex)
+    : undefined;
   const blocked = new Set<string>();
   for (const d of config.blockedDomains ?? []) {
     blocked.add(canonicalFederationHost(d));
@@ -144,7 +146,9 @@ export function createDomainPolicy(config: DomainPolicyConfig): DomainPolicy {
   return {
     isBlockedDomain(domain: string): boolean {
       const d = canonicalFederationHost(domain);
-      return localDomains.has(d) || (identityApex !== undefined && d === identityApex) || blocked.has(d);
+      return (
+        localDomains.has(d) || (identityApex !== undefined && d === identityApex) || blocked.has(d)
+      );
     },
     extractLocalPostId(objectUri: string): string | null {
       let parsed: URL;

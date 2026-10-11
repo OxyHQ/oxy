@@ -148,7 +148,7 @@ describe('the ambiguity the read-side guard used to cover', () => {
     await insertAccount({ username });
 
     await expect(
-      getDb().insert(users).values({ username: username.toUpperCase(), color: 'teal' })
+      getDb().insert(users).values({ username: username.toUpperCase(), color: 'teal' }),
     ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
@@ -161,7 +161,7 @@ describe('the ambiguity the read-side guard used to cover', () => {
     await expect(
       getDb()
         .insert(users)
-        .values({ username: `twin-mail2-${RUN}`, email: `  ${email}  `, color: 'teal' })
+        .values({ username: `twin-mail2-${RUN}`, email: `  ${email}  `, color: 'teal' }),
     ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 

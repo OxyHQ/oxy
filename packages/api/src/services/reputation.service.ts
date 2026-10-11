@@ -70,11 +70,12 @@ import {
 import { reputationTransactions } from '../db/schema/reputationTransactions';
 import { reviewerReputationProfiles } from '../db/schema/reviewerReputationProfiles';
 import { users } from '../db/schema/users';
+import { REPORT_CONFIRMED_ACTION, REPORT_REJECTED_ACTION } from '../utils/reputation.constants';
 import {
-  REPORT_CONFIRMED_ACTION,
-  REPORT_REJECTED_ACTION,
-} from '../utils/reputation.constants';
-import { findReputationRule, REPUTATION_RULES, type ReputationRuleDefinition } from './reputationRules';
+  findReputationRule,
+  REPUTATION_RULES,
+  type ReputationRuleDefinition,
+} from './reputationRules';
 import {
   CONDUCT_ACTION_TYPES,
   NEUTRAL_REVIEWER_RELIABILITY,
@@ -315,7 +316,7 @@ class ReputationService {
     // of the phase enforces.
     if (!input.ruleOverride && CONDUCT_ACTION_TYPES.has(actionType)) {
       throw new BadRequestError(
-        'Conduct action types are produced only by the moderation reputation bridge'
+        'Conduct action types are produced only by the moderation reputation bridge',
       );
     }
 
@@ -374,8 +375,8 @@ class ReputationService {
             eq(reputationTransactions.userId, input.userId),
             eq(reputationTransactions.actionType, actionType),
             eq(reputationTransactions.status, 'active'),
-            gt(reputationTransactions.createdAt, threshold)
-          )
+            gt(reputationTransactions.createdAt, threshold),
+          ),
         )
         .limit(1);
       if (recent) {
@@ -391,7 +392,7 @@ class ReputationService {
       : input.metadata;
 
     const writeTransaction = async (
-      handle: ReputationDbHandle
+      handle: ReputationDbHandle,
     ): Promise<ReputationTransactionRow> => {
       const [created] = await handle
         .insert(reputationTransactions)
@@ -469,7 +470,7 @@ class ReputationService {
    */
   private async findBySourceAction(
     applicationId: string,
-    sourceActionId: string
+    sourceActionId: string,
   ): Promise<ReputationTransactionRow | null> {
     const [existing] = await getDb()
       .select()
@@ -477,8 +478,8 @@ class ReputationService {
       .where(
         and(
           eq(reputationTransactions.applicationId, applicationId),
-          eq(reputationTransactions.sourceActionId, sourceActionId)
-        )
+          eq(reputationTransactions.sourceActionId, sourceActionId),
+        ),
       )
       .limit(1);
     return existing ?? null;
@@ -493,7 +494,7 @@ class ReputationService {
   async reverseTransaction(
     transactionId: string,
     review: ReviewInput,
-    tx?: ReputationTransactionHandle
+    tx?: ReputationTransactionHandle,
   ): Promise<{ original: ReputationTransactionRow; reversal: ReputationTransactionRow }> {
     const reviewedByUserId = review.reviewedByUserId;
     const handle: ReputationDbHandle = tx ?? getDb();
@@ -601,7 +602,7 @@ class ReputationService {
    */
   async recalculateBalance(
     userId: string,
-    handle: ReputationDbHandle = getDb()
+    handle: ReputationDbHandle = getDb(),
   ): Promise<ReputationBalanceView> {
     const transactions = await handle
       .select({
@@ -886,7 +887,7 @@ class ReputationService {
    */
   private async deriveConductSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationConductSnapshot> {
     const strikes = await handle
       .select({ riskPoints: conductStrikes.riskPoints, expiresAt: conductStrikes.expiresAt })
@@ -917,7 +918,7 @@ class ReputationService {
    */
   private async derivePersonhoodSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationPersonhoodSnapshot> {
     const [status] = await handle
       .select({ isRealPerson: personhoodStatuses.isRealPerson, score: personhoodStatuses.score })
@@ -942,7 +943,7 @@ class ReputationService {
    */
   private async deriveReportingSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationReportingSnapshot> {
     const [profile] = await handle
       .select({
@@ -966,7 +967,7 @@ class ReputationService {
    */
   private async deriveReviewingSnapshot(
     userId: string,
-    handle: ReputationDbHandle
+    handle: ReputationDbHandle,
   ): Promise<ReputationReviewingSnapshot> {
     const [profile] = await handle
       .select({
@@ -1081,8 +1082,12 @@ class ReputationService {
    */
   async getInfluence(
     userId: string,
-    context: ReputationInfluenceContext
-  ): Promise<{ context: ReputationInfluenceContext; weight: number; influence: ReputationInfluence }> {
+    context: ReputationInfluenceContext,
+  ): Promise<{
+    context: ReputationInfluenceContext;
+    weight: number;
+    influence: ReputationInfluence;
+  }> {
     const balance = await this.getBalance(userId);
     const { influence } = balance;
     const weight =
@@ -1099,14 +1104,14 @@ class ReputationService {
   /** Leaderboard ordered by lifetime total descending. */
   async getLeaderboard(
     limit: number,
-    offset: number
+    offset: number,
   ): Promise<{ items: ReputationLeaderboardRow[]; total: number }> {
     // Archived accounts and restricted tiers are excluded from the public board.
     // Both columns are `NOT NULL` with a default, so `<>` needs no NULL arm —
     // unlike Mongo's `$ne`, which also matched a missing field.
     const eligible = and(
       ne(users.accountStatus, 'archived'),
-      ne(users.reputationTier, 'restricted')
+      ne(users.reputationTier, 'restricted'),
     );
 
     const rows = await getDb()
@@ -1154,7 +1159,7 @@ class ReputationService {
   async listTransactions(
     userId: string,
     limit: number,
-    offset: number
+    offset: number,
   ): Promise<{ items: ReputationTransactionRow[]; total: number }> {
     const items = await getDb()
       .select()

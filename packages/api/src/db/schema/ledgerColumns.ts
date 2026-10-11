@@ -182,7 +182,7 @@ export const USAGE_UNIT_COLUMN_KEYS: Readonly<Record<UsageUnit, UsageUnitColumnK
  * measured, reported or reconstructed.
  */
 export function usageUnitColumnValues(
-  units: Partial<Record<UsageUnit, number>>
+  units: Partial<Record<UsageUnit, number>>,
 ): Record<UsageUnitColumnKey, number> {
   const row = zeroUsageUnits();
   for (const [unit, key] of Object.entries(USAGE_UNIT_COLUMN_KEYS) as [
@@ -228,16 +228,14 @@ export function zeroUsageUnits(): Record<UsageUnitColumnKey, number> {
  */
 export function usageUnitsNonNegativeCheck(
   name: string,
-  columns: Record<UsageUnitColumnKey, PgColumn>
+  columns: Record<UsageUnitColumnKey, PgColumn>,
 ): ReturnType<typeof check> {
   const clauses = Object.values(USAGE_UNIT_COLUMN_KEYS).map((key) => sql`${columns[key]} >= 0`);
   return check(name, sql.join(clauses, sql` and `));
 }
 
 /** `input_tokens + … + embeddings`, for "was anything at all metered?". */
-export function totalUsageUnitsExpression(
-  columns: Record<UsageUnitColumnKey, PgColumn>
-): SQL {
+export function totalUsageUnitsExpression(columns: Record<UsageUnitColumnKey, PgColumn>): SQL {
   const terms = Object.values(USAGE_UNIT_COLUMN_KEYS).map((key) => sql`${columns[key]}`);
   return sql.join(terms, sql` + `);
 }

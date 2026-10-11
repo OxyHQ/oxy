@@ -8,13 +8,7 @@ import { View, Text, StyleSheet, Image, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { useColors } from '@/hooks/useColors';
-import {
-  Screen,
-  StackHeader,
-  Section,
-  LoadingState,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, StackHeader, Section, LoadingState, STATE_MIN_HEIGHT } from '@/components/ui';
 import { useCivicCard } from '@/hooks/useCivicCard';
 import { useVouch } from '@/hooks/useVouch';
 import { userIdFromDid } from '@/lib/civic/did';
@@ -93,17 +87,31 @@ export default function VouchScreen() {
         <EmptyState
           illustration={<Icons.vouched size="3xl" fill={colors.success} />}
           title={t('civic.vouch.confirm.done.title')}
-          description={t('civic.vouch.confirm.done.body', { name: subjectName, points: result.points })}
+          description={t('civic.vouch.confirm.done.body', {
+            name: subjectName,
+            points: result.points,
+          })}
           footer={
             <View className="items-center gap-space-12 mt-space-4">
               <View style={styles.stakedChip}>
-                <Icons.lock size='sm' fill={colors.textSecondary} />
+                <Icons.lock size="sm" fill={colors.textSecondary} />
                 <BloomText style={[styles.stakedText, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.done.staked', { stake: result.stakeAmount })}
                 </BloomText>
               </View>
-              <Button appearance="outline" tone="accent" size="lg" icon={Icons.undo} onPress={withdraw} disabled={busy}>{t('civic.vouch.confirm.withdraw')}</Button>
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
+              <Button
+                appearance="outline"
+                tone="accent"
+                size="lg"
+                icon={Icons.undo}
+                onPress={withdraw}
+                disabled={busy}
+              >
+                {t('civic.vouch.confirm.withdraw')}
+              </Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.done')}
+              </Button>
               {busy && (
                 <BloomText style={[styles.muted, { color: colors.textSecondary }]}>
                   {t('civic.vouch.confirm.withdrawing')}
@@ -124,7 +132,9 @@ export default function VouchScreen() {
           description={t('civic.vouch.confirm.withdrawn.body', { name: subjectName })}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.done')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.done')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -140,7 +150,9 @@ export default function VouchScreen() {
           description={t(`civic.vouch.error.${errorCode ?? 'generic'}`)}
           footer={
             <View className="items-center mt-space-4">
-              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>{t('common.close')}</Button>
+              <Button appearance="solid" tone="accent" size="lg" onPress={handleClose}>
+                {t('common.close')}
+              </Button>
             </View>
           }
           minHeight={STATE_MIN_HEIGHT}
@@ -160,7 +172,9 @@ export default function VouchScreen() {
           {card?.avatarUrl ? (
             <Image source={{ uri: card.avatarUrl }} style={styles.avatar} resizeMode="cover" />
           ) : (
-            <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+            <View
+              style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}
+            >
               <Text style={[styles.avatarInitial, { color: colors.textSecondary }]}>
                 {subjectName.charAt(0)?.toUpperCase() || '?'}
               </Text>
@@ -171,7 +185,10 @@ export default function VouchScreen() {
               {subjectName || t('civic.vouch.confirm.unknownPerson')}
             </BloomText>
             {card?.username && (
-              <BloomText style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
+              <BloomText
+                style={[styles.username, { color: colors.textSecondary }]}
+                numberOfLines={1}
+              >
                 @{card.username}
               </BloomText>
             )}
@@ -179,13 +196,18 @@ export default function VouchScreen() {
         </View>
 
         <BloomText style={[styles.intro, { color: colors.text }]}>
-          {t('civic.vouch.confirm.intro', { name: subjectName || t('civic.vouch.confirm.unknownPerson') })}
+          {t('civic.vouch.confirm.intro', {
+            name: subjectName || t('civic.vouch.confirm.unknownPerson'),
+          })}
         </BloomText>
 
         {/* Stake input */}
-        <Section title={t('civic.vouch.confirm.stakeTitle')} subtitle={t('civic.vouch.confirm.stakeHint')}>
+        <Section
+          title={t('civic.vouch.confirm.stakeTitle')}
+          subtitle={t('civic.vouch.confirm.stakeHint')}
+        >
           <View className="flex-row items-center gap-space-12 py-space-4">
-            <Icons.shieldStar size='md' fill={colors.textTertiary} />
+            <Icons.shieldStar size="md" fill={colors.textTertiary} />
             <BloomText style={[styles.stakeLabel, { color: colors.text }]}>
               {t('civic.vouch.confirm.stakeLabel')}
             </BloomText>
@@ -202,9 +224,7 @@ export default function VouchScreen() {
         </Section>
 
         {/* Slash warning */}
-        <Admonition type="warning">
-          {t('civic.vouch.confirm.slashWarning')}
-        </Admonition>
+        <Admonition type="warning">{t('civic.vouch.confirm.slashWarning')}</Admonition>
 
         {biometricFailed && (
           <BloomText style={[styles.inlineWarn, { color: colors.warning }]}>
@@ -212,7 +232,17 @@ export default function VouchScreen() {
           </BloomText>
         )}
 
-        <Button appearance="solid" tone="accent" size="lg" icon={Icons.personhood} onPress={handleVouch} loading={busy} style={fullWidthControl}>{t('civic.vouch.confirm.cta')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          size="lg"
+          icon={Icons.personhood}
+          onPress={handleVouch}
+          loading={busy}
+          style={fullWidthControl}
+        >
+          {t('civic.vouch.confirm.cta')}
+        </Button>
 
         {busy && (
           <BloomText style={[styles.muted, styles.centerText, { color: colors.textSecondary }]}>
@@ -225,7 +255,11 @@ export default function VouchScreen() {
 
   return (
     <Screen gap={20}>
-      <StackHeader title={t('civic.vouch.confirm.title')} onBack={handleClose} backAccessibilityLabel={t('common.back')} />
+      <StackHeader
+        title={t('civic.vouch.confirm.title')}
+        onBack={handleClose}
+        backAccessibilityLabel={t('common.back')}
+      />
       {renderBody()}
     </Screen>
   );

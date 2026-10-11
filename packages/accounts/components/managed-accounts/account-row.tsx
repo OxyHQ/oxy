@@ -3,7 +3,11 @@ import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'rea
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxy.so/bloom/avatar';
 import type { AccountNode, AccountRole, OxyServices } from '@oxy.so/core';
-import { getAccountFallbackHandle, getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
+import {
+  getAccountFallbackHandle,
+  getAccountDisplayName,
+  getNormalizedUserHandle,
+} from '@oxy.so/core';
 import { canSwitchIntoAccount } from '@oxy.so/core/session';
 import { useColors, type AppColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
@@ -42,7 +46,6 @@ function getNodeRole(node: AccountNode): AccountRole {
   if (node.callerMembership?.role) return node.callerMembership.role;
   return node.relationship === 'member' ? 'viewer' : 'owner';
 }
-
 
 interface AccountRowContentProps {
   node: AccountNode;
@@ -91,7 +94,12 @@ function AccountRowContent({
 
   return (
     <View style={styles.accountActions}>
-      <View style={[styles.roleBadge, { backgroundColor: `${badgeColor}20`, borderColor: `${badgeColor}40` }]}>
+      <View
+        style={[
+          styles.roleBadge,
+          { backgroundColor: `${badgeColor}20`, borderColor: `${badgeColor}40` },
+        ]}
+      >
         <Text style={[styles.roleBadgeText, { color: badgeColor }]}>{role}</Text>
       </View>
       {isArchiving ? (
@@ -130,7 +138,11 @@ function AccountRowContent({
               accessibilityRole="button"
               accessibilityLabel={t('a11y.manageMembers')}
             >
-              <MaterialCommunityIcons name="account-multiple-outline" size={16} color={colors.text} />
+              <MaterialCommunityIcons
+                name="account-multiple-outline"
+                size={16}
+                color={colors.text}
+              />
             </TouchableOpacity>
           )}
           {canEdit && (
@@ -197,62 +209,75 @@ export function useAccountRowBuilder({
 }: UseAccountRowBuilderParams): (node: AccountNode) => GroupedItem {
   const { t, locale } = useTranslation();
 
-  return useCallback((node: AccountNode): GroupedItem => {
-    const name =
-      node.account?.name?.displayName ??
-      getNormalizedUserHandle(node.account) ??
-      getAccountDisplayName(null, locale);
-    const username = node.account?.username;
-    // When an account has no username yet (e.g. mid-provisioning) fall back to
-    // a truncated `publicKey` handle so the row still reads as identifiable
-    // rather than showing "No username set".
-    const fallbackHandle = getAccountFallbackHandle(node.account ?? null);
-    // "Current" = the account the app is currently signed in as. The personal/
-    // self account is not listed here.
-    const isCurrent = currentAccountId === node.accountId;
-    const isArchiving = archivingId === node.accountId;
-    const avatarUri = node.account?.avatar
-      ? oxyServices.assets.publicUrl(node.account.avatar, 'thumb')
-      : undefined;
-    // Same two conditions as `AccountRowContent`'s switch button above — the
-    // whole row is that button's larger tap target, so the two must agree.
-    const canSwitchInto = canSwitchIntoAccount(node);
-    const canManageMembers = hasCallerPermission(node, [
-      'members:invite',
-      'members:update',
-      'members:remove',
-    ]);
+  return useCallback(
+    (node: AccountNode): GroupedItem => {
+      const name =
+        node.account?.name?.displayName ??
+        getNormalizedUserHandle(node.account) ??
+        getAccountDisplayName(null, locale);
+      const username = node.account?.username;
+      // When an account has no username yet (e.g. mid-provisioning) fall back to
+      // a truncated `publicKey` handle so the row still reads as identifiable
+      // rather than showing "No username set".
+      const fallbackHandle = getAccountFallbackHandle(node.account ?? null);
+      // "Current" = the account the app is currently signed in as. The personal/
+      // self account is not listed here.
+      const isCurrent = currentAccountId === node.accountId;
+      const isArchiving = archivingId === node.accountId;
+      const avatarUri = node.account?.avatar
+        ? oxyServices.assets.publicUrl(node.account.avatar, 'thumb')
+        : undefined;
+      // Same two conditions as `AccountRowContent`'s switch button above — the
+      // whole row is that button's larger tap target, so the two must agree.
+      const canSwitchInto = canSwitchIntoAccount(node);
+      const canManageMembers = hasCallerPermission(node, [
+        'members:invite',
+        'members:update',
+        'members:remove',
+      ]);
 
-    return {
-      id: node.accountId,
-      title: name,
-      subtitle: username
-        ? `@${username}`
-        : (fallbackHandle ?? t('managedAccounts.noUsernameYet')),
-      customIcon: <Avatar name={name} source={avatarUri} size={40} />,
-      customContent: (
-        <AccountRowContent
-          node={node}
-          isCurrent={isCurrent}
-          isArchiving={isArchiving}
-          onSwitchTo={onSwitchTo}
-          onManageMembers={onManageMembers}
-          onEditProfile={onEditProfile}
-          onArchive={onArchive}
-        />
-      ),
-      // Tapping the row switches INTO the account (Gmail-style). The current
-      // account is not pressable (it is already active); accounts the caller
-      // can't switch into fall back to the manage-members affordance.
-      onPress: isCurrent
-        ? undefined
-        : canSwitchInto
-          ? () => onSwitchTo(node.accountId)
-          : canManageMembers
-            ? () => onManageMembers(node.accountId)
-            : undefined,
-    };
-  }, [currentAccountId, archivingId, oxyServices, onSwitchTo, onManageMembers, onEditProfile, onArchive, t, locale]);
+      return {
+        id: node.accountId,
+        title: name,
+        subtitle: username
+          ? `@${username}`
+          : (fallbackHandle ?? t('managedAccounts.noUsernameYet')),
+        customIcon: <Avatar name={name} source={avatarUri} size={40} />,
+        customContent: (
+          <AccountRowContent
+            node={node}
+            isCurrent={isCurrent}
+            isArchiving={isArchiving}
+            onSwitchTo={onSwitchTo}
+            onManageMembers={onManageMembers}
+            onEditProfile={onEditProfile}
+            onArchive={onArchive}
+          />
+        ),
+        // Tapping the row switches INTO the account (Gmail-style). The current
+        // account is not pressable (it is already active); accounts the caller
+        // can't switch into fall back to the manage-members affordance.
+        onPress: isCurrent
+          ? undefined
+          : canSwitchInto
+            ? () => onSwitchTo(node.accountId)
+            : canManageMembers
+              ? () => onManageMembers(node.accountId)
+              : undefined,
+      };
+    },
+    [
+      currentAccountId,
+      archivingId,
+      oxyServices,
+      onSwitchTo,
+      onManageMembers,
+      onEditProfile,
+      onArchive,
+      t,
+      locale,
+    ],
+  );
 }
 
 const styles = StyleSheet.create({

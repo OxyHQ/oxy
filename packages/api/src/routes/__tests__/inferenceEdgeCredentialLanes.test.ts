@@ -104,7 +104,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     if (sessionUserId.length > 0) {
       req.user = { _id: sessionUserId, id: sessionUserId, isStaff: false };
@@ -201,7 +201,7 @@ const ROLLOUT_ENVIRONMENT = {
 } as const;
 
 const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
-  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 let server: http.Server;
@@ -236,7 +236,7 @@ beforeAll(async () => {
           return currentKaana.execute(envelope, options);
         },
       },
-    })
+    }),
   );
   app.use(errorHandler);
 
@@ -251,7 +251,7 @@ afterAll(async () => {
     else process.env[key] = value;
   }
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -270,7 +270,7 @@ function request(
   method: 'GET' | 'POST',
   path: string,
   body: unknown,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<RawResponse> {
   const { port } = server.address() as AddressInfo;
   const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -296,9 +296,9 @@ function request(
             status: res.statusCode ?? 0,
             headers: res.headers,
             body: Buffer.concat(chunks).toString('utf8'),
-          })
+          }),
         );
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -333,7 +333,7 @@ const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
  * behaviour between the two files is about the lane and not about the catalogue.
  */
 async function makeFixture(
-  options: { fund?: string; appScopes?: string[]; credentialScopes?: string[] } = {}
+  options: { fund?: string; appScopes?: string[]; credentialScopes?: string[] } = {},
 ): Promise<Fixture> {
   const db = getDb();
   const tag = suffix();
@@ -436,10 +436,30 @@ async function makeFixture(
 
   await db.insert(priceVersionUnitPrices).values([
     { priceVersionId: priceVersion.id, unit: 'requests', amount: '0.000000000000', per: 1 },
-    { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'cached_input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'output_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'reasoning_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
   ]);
 
   await db.insert(inferenceDeployments).values({
@@ -538,24 +558,24 @@ function signServiceToken(input: {
 }): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: input.applicationId,
-      appName: 'Alia',
-      credentialId: input.credentialId,
-      ownerAccountId: input.ownerAccountId,
-      environment: 'development',
-      scopes: input.scopes ?? ['inference:invoke'],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: input.applicationId,
+    appName: 'Alia',
+    credentialId: input.credentialId,
+    ownerAccountId: input.ownerAccountId,
+    environment: 'development',
+    scopes: input.scopes ?? ['inference:invoke'],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 /** A fake data plane. TESTS ONLY — `services/kaanaClient.ts` has no production one. */
 function fakeKaana(
   build: (envelope: InferenceRequest) => KaanaCompletion,
-  seen?: InferenceRequest[]
+  seen?: InferenceRequest[],
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
@@ -568,7 +588,7 @@ function fakeKaana(
 
 function completionFor(
   envelope: InferenceRequest,
-  units: { input: number; output: number; provider: string }
+  units: { input: number; output: number; provider: string },
 ): KaanaCompletion {
   const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === units.provider);
   if (servedRoute === undefined) {
@@ -628,8 +648,9 @@ describe('the service-token lane, with a delegated user', () => {
     const seen: InferenceRequest[] = [];
 
     currentKaana = fakeKaana(
-      (envelope) => completionFor(envelope, { input: 12, output: 2000, provider: fixture.provider }),
-      seen
+      (envelope) =>
+        completionFor(envelope, { input: 12, output: 2000, provider: fixture.provider }),
+      seen,
     );
 
     const response = await request('POST', '/v1/responses', responsesBody(fixture), {
@@ -638,7 +659,7 @@ describe('the service-token lane, with a delegated user', () => {
           applicationId: fixture.applicationId,
           ownerAccountId: fixture.accountId,
           credentialId: fixture.credentialId,
-        })
+        }),
       ),
       // The delegated user is a REAL, FUNDED account. If the edge resolved the
       // payer from this header, the assertions below would catch it debiting the
@@ -694,14 +715,14 @@ describe('the service-token lane, with a delegated user', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     // The control, with the SAME token: it works before the revocation. Without
     // it, the 401 below would also be what a malformed fixture produces.
-    expect((await request('POST', '/v1/responses', responsesBody(fixture), bearer(token))).status).toBe(
-      200
-    );
+    expect(
+      (await request('POST', '/v1/responses', responsesBody(fixture), bearer(token))).status,
+    ).toBe(200);
     expect(seen).toHaveLength(1);
 
     await getDb()
@@ -727,7 +748,7 @@ describe('the service-token lane, with a delegated user', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     const refused = await request(
@@ -741,8 +762,8 @@ describe('the service-token lane, with a delegated user', () => {
           credentialId: fixture.credentialId,
           // The claim asks for a scope the intersection does not grant.
           scopes: ['inference:invoke'],
-        })
-      )
+        }),
+      ),
     );
     expect(refused.status).toBe(403);
     expect(json(refused)).toMatchObject({ code: 'insufficient_scope' });
@@ -758,7 +779,7 @@ describe('the service-token lane, with a delegated user', () => {
     });
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: granted.provider }),
-      seen
+      seen,
     );
     const served = await request(
       'POST',
@@ -769,8 +790,8 @@ describe('the service-token lane, with a delegated user', () => {
           applicationId: granted.applicationId,
           ownerAccountId: granted.accountId,
           credentialId: granted.credentialId,
-        })
-      )
+        }),
+      ),
     );
     expect(served.status).toBe(200);
     expect(seen).toHaveLength(1);
@@ -811,7 +832,7 @@ describe('the service-token lane, with a delegated user', () => {
  */
 async function bindWorkload(
   fixture: Fixture,
-  options: { scopes?: string[]; attribute?: boolean } = {}
+  options: { scopes?: string[]; attribute?: boolean } = {},
 ): Promise<{ readonly subject: string; readonly handle: string; readonly bindingId: string }> {
   const subject = `arn:aws:iam::237343248947:role/oxy-lane-${suffix()}-task`;
 
@@ -899,14 +920,12 @@ describe('the attested service-token lane', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     // Half one: the identity resolves, from the BINDING, with no credential
     // involved.
-    await expect(
-      resolveServiceTokenPrincipal(claims(fixture, handle))
-    ).resolves.toMatchObject({
+    await expect(resolveServiceTokenPrincipal(claims(fixture, handle))).resolves.toMatchObject({
       status: 'resolved',
       principal: { proof: 'workload', credentialId: handle, applicationId: fixture.applicationId },
     });
@@ -917,7 +936,7 @@ describe('the attested service-token lane', () => {
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, handle))
+      bearer(attestedToken(fixture, handle)),
     );
     expect(response.status).toBe(200);
     expect(seen).toHaveLength(1);
@@ -972,7 +991,7 @@ describe('the attested service-token lane', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     // `resolveLiveAgencyWorkloadByHandle` requires the binding→row link, so this
@@ -985,7 +1004,7 @@ describe('the attested service-token lane', () => {
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, handle))
+      bearer(attestedToken(fixture, handle)),
     );
     expect(response.status).toBe(401);
     expect(seen).toHaveLength(0);
@@ -999,14 +1018,14 @@ describe('the attested service-token lane', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     const served = await request(
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, handle))
+      bearer(attestedToken(fixture, handle)),
     );
     expect(served.status).toBe(200);
 
@@ -1021,7 +1040,7 @@ describe('the attested service-token lane', () => {
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, handle))
+      bearer(attestedToken(fixture, handle)),
     );
     expect(after.status).toBe(401);
     expect(seen).toHaveLength(1);
@@ -1051,18 +1070,18 @@ describe('the attested service-token lane', () => {
       .set({ expiresAt: new Date(Date.now() - 60_000) })
       .where(eq(applicationWorkloadIdentities.id, expired.bindingId));
     const unboundHandle = workloadAttestationHandle(
-      `arn:aws:iam::237343248947:role/oxy-never-bound-${suffix()}-task`
+      `arn:aws:iam::237343248947:role/oxy-never-bound-${suffix()}-task`,
     );
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     // Both collapse to the one arm, which is what the hop promises.
-    await expect(
-      resolveServiceTokenPrincipal(claims(fixture, expired.handle))
-    ).resolves.toEqual({ status: 'unknown-workload' });
+    await expect(resolveServiceTokenPrincipal(claims(fixture, expired.handle))).resolves.toEqual({
+      status: 'unknown-workload',
+    });
     await expect(resolveServiceTokenPrincipal(claims(fixture, unboundHandle))).resolves.toEqual({
       status: 'unknown-workload',
     });
@@ -1071,13 +1090,13 @@ describe('the attested service-token lane', () => {
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, expired.handle))
+      bearer(attestedToken(fixture, expired.handle)),
     );
     const unbound = await request(
       'POST',
       '/v1/responses',
       responsesBody(fixture),
-      bearer(attestedToken(fixture, unboundHandle))
+      bearer(attestedToken(fixture, unboundHandle)),
     );
     expect(expiredResponse.status).toBe(401);
     expect(unbound.status).toBe(401);
@@ -1100,7 +1119,7 @@ describe('the attested service-token lane', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     const response = await request(
@@ -1112,8 +1131,8 @@ describe('the attested service-token lane', () => {
           applicationId: fixture.applicationId,
           ownerAccountId: fixture.accountId,
           credentialId: fixture.credentialId,
-        })
-      )
+        }),
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -1140,8 +1159,8 @@ describe('the attested service-token lane', () => {
           applicationId: fixture.applicationId,
           ownerAccountId: fixture.accountId,
           credentialId: fixture.credentialId,
-        })
-      )
+        }),
+      ),
     );
     expect(after.status).toBe(401);
     expect(seen).toHaveLength(1);
@@ -1166,7 +1185,7 @@ describe('credential rotation during traffic', () => {
       'POST',
       `/applications/${fixture.applicationId}/credentials/${fixture.credentialId}/rotate`,
       graceSeconds === undefined ? {} : { graceSeconds },
-      bearer('session-bearer')
+      bearer('session-bearer'),
     );
     if (response.status !== 200) {
       throw new Error(`rotate failed: ${response.status} ${response.body}`);
@@ -1184,11 +1203,16 @@ describe('credential rotation during traffic', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     // Traffic is already flowing on the original token.
-    const before = await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token));
+    const before = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(fixture.token),
+    );
     expect(before.status).toBe(200);
 
     // A window long enough that the assertions are not racing the clock. The
@@ -1202,11 +1226,21 @@ describe('credential rotation during traffic', () => {
     // Inside the window: the PREVIOUS token still serves. This is "during
     // traffic" — an in-flight integration does not have to redeploy the instant
     // somebody presses rotate.
-    const onOld = await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token));
+    const onOld = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(fixture.token),
+    );
     expect(onOld.status).toBe(200);
 
     // And so does the replacement.
-    const onNew = await request('POST', '/v1/responses', responsesBody(fixture), bearer(rotated.token));
+    const onNew = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(rotated.token),
+    );
     expect(onNew.status).toBe(200);
 
     expect(seen).toHaveLength(3);
@@ -1232,11 +1266,12 @@ describe('credential rotation during traffic', () => {
     const seen: InferenceRequest[] = [];
     currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-      seen
+      seen,
     );
 
     expect(
-      (await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token))).status
+      (await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token)))
+        .status,
     ).toBe(200);
     expect(seen).toHaveLength(1);
 
@@ -1246,7 +1281,12 @@ describe('credential rotation during traffic', () => {
     expect(rotated.graceExpiresAt).toBeNull();
     resetFailureAuditCooldown();
 
-    const onOld = await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token));
+    const onOld = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(fixture.token),
+    );
     expect(onOld.status).toBe(401);
     // The half that makes this a control rather than a status-code check: the
     // refused request never reached the fake kaana, so "the grace window works"
@@ -1255,7 +1295,12 @@ describe('credential rotation during traffic', () => {
 
     // And the replacement serves, so the 401 is about the retired token and not
     // about a rotation that broke the application.
-    const onNew = await request('POST', '/v1/responses', responsesBody(fixture), bearer(rotated.token));
+    const onNew = await request(
+      'POST',
+      '/v1/responses',
+      responsesBody(fixture),
+      bearer(rotated.token),
+    );
     expect(onNew.status).toBe(200);
     expect(seen).toHaveLength(2);
 

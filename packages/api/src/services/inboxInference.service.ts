@@ -1,9 +1,5 @@
 import { eq } from 'drizzle-orm';
-import {
-  type InferenceError,
-  type InferenceMessage,
-  type ResponseFormat,
-} from '@oxy.so/contracts';
+import { type InferenceError, type InferenceMessage, type ResponseFormat } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { INBOX_APPLICATION_ID, INBOX_ROUTING_PROFILE_ID } from '../config/inboxInference';
 import { applications } from '../db/schema/applications';
@@ -63,11 +59,7 @@ async function resolveInboxInferenceAuthority(): Promise<InboxInferenceAuthority
   // must fail closed instead of being normalized into a different authority.
   const credentialPublicKey = process.env.INBOX_APPLICATION_KEY;
   if (!credentialPublicKey) {
-    throw new ApiError(
-      503,
-      'Inbox inference is not configured.',
-      'INBOX_INFERENCE_UNAVAILABLE',
-    );
+    throw new ApiError(503, 'Inbox inference is not configured.', 'INBOX_INFERENCE_UNAVAILABLE');
   }
 
   const attribution = await resolveCredentialAttribution(credentialPublicKey);
@@ -182,10 +174,8 @@ export function inboxCompletionText(completion: EdgeCompletion): string {
 }
 
 function inferenceRefusal(error: InferenceError): ApiError {
-  return new ApiError(
-    inferenceErrorStatus(error.code),
-    error.message,
-    error.code,
-    { requestId: error.requestId, retryable: error.retryable },
-  );
+  return new ApiError(inferenceErrorStatus(error.code), error.message, error.code, {
+    requestId: error.requestId,
+    retryable: error.retryable,
+  });
 }

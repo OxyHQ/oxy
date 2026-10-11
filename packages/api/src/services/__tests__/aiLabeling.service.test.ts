@@ -140,12 +140,9 @@ async function insertUser(): Promise<string> {
   return row.id;
 }
 
-async function insertMessage(options: {
-  userId?: string;
-  labels?: string[];
-  text?: string;
-  subject?: string;
-} = {}): Promise<string> {
+async function insertMessage(
+  options: { userId?: string; labels?: string[]; text?: string; subject?: string } = {},
+): Promise<string> {
   const [row] = await getDb()
     .insert(messages)
     .values({
@@ -383,7 +380,7 @@ describe('what the classifier is given', () => {
     await loaded.service.classifyAndLabel(USER_ID, messageId);
 
     const offered = JSON.parse(
-      /Available labels: (\[.*?\])\n/s.exec(promptOf(loaded.axiosPost))?.[1] ?? '[]'
+      /Available labels: (\[.*?\])\n/s.exec(promptOf(loaded.axiosPost))?.[1] ?? '[]',
     ) as string[];
     expect(offered.filter((name) => name === shadowed)).toHaveLength(1);
   });
@@ -399,7 +396,7 @@ describe('the bounded background queue', () => {
       () =>
         new Promise((resolve) => {
           axiosResolvers.push(resolve);
-        })
+        }),
     );
 
     expect(loaded.service.enqueueClassification(USER_ID, ids[0])).toBe(true);
@@ -441,7 +438,7 @@ describe('the bounded background queue', () => {
     expect(loaded.service.enqueueClassification(USER_ID, messageId)).toBe(true);
     await waitFor(
       async () => (await storedLabels(messageId)).length > 0,
-      'the enqueued job to store a label'
+      'the enqueued job to store a label',
     );
 
     expect(await storedLabels(messageId)).toEqual(['Work']);

@@ -44,8 +44,17 @@ const failures = [];
  */
 const FIXTURE_ROUTES = {
   'capabilities.ts': [['post', '/foreground-execution-authorizations']],
-  'foregroundProfiles.ts': [['post', '/profiles/recommendations'], ['get', '/users/me/graph']],
-  'billing.ts': [['get', '/product-subscriptions'], ['get', '/credit-grants'], ['get', '/subscriptions'], ['post', '/product-subscriptions/cancel'], ['post', '/subscriptions/cancel']],
+  'foregroundProfiles.ts': [
+    ['post', '/profiles/recommendations'],
+    ['get', '/users/me/graph'],
+  ],
+  'billing.ts': [
+    ['get', '/product-subscriptions'],
+    ['get', '/credit-grants'],
+    ['get', '/subscriptions'],
+    ['post', '/product-subscriptions/cancel'],
+    ['post', '/subscriptions/cancel'],
+  ],
   'productAccess.ts': [['get', '/{productId}/access/{subjectAccountId}']],
   'inferenceEdge.ts': [
     ['post', '/responses'],
@@ -67,7 +76,11 @@ const FIXTURE_ROUTES = {
   'inferenceRoutingPolicies.ts': [['get', '/accounts/{accountId}']],
   'inferenceProviderConnections.ts': [['get', '/accounts/{accountId}']],
   'inferenceReporting.ts': [['get', '/accounts/{accountId}/balance']],
-  'email.ts': [['get', '/messages'], ['post', '/inbound'], ['get', '/proxy']],
+  'email.ts': [
+    ['get', '/messages'],
+    ['post', '/inbound'],
+    ['get', '/proxy'],
+  ],
 };
 
 const FIXTURE_MAP = {
@@ -214,7 +227,15 @@ function createFixture({
   for (const args of [
     ['init', '-q', '.'],
     ['add', '--', 'packages/api/openapi.json', 'packages/api/scripts/generate-openapi.ts'],
-    ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit', '-qm', 'fixture'],
+    [
+      '-c',
+      'user.email=fixture@example.invalid',
+      '-c',
+      'user.name=fixture',
+      'commit',
+      '-qm',
+      'fixture',
+    ],
   ]) {
     const step = runCommand('git', args, root);
     if (step.code !== 0) throw new Error(`Fixture git ${args[0]} failed: ${step.output}`);
@@ -225,7 +246,15 @@ function createFixture({
 function commitAll(root) {
   for (const args of [
     ['add', '--', 'packages/api/openapi.json', 'packages/api/scripts/generate-openapi.ts'],
-    ['-c', 'user.email=fixture@example.invalid', '-c', 'user.name=fixture', 'commit', '-qm', 'edit'],
+    [
+      '-c',
+      'user.email=fixture@example.invalid',
+      '-c',
+      'user.name=fixture',
+      'commit',
+      '-qm',
+      'edit',
+    ],
   ]) {
     const step = runCommand('git', args, root);
     if (step.code !== 0) throw new Error(`Fixture git ${args[0]} failed: ${step.output}`);
@@ -239,7 +268,9 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment, script = 
     return;
   }
   if (!output.includes(expectedFragment)) {
-    failures.push(`${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`);
+    failures.push(
+      `${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`,
+    );
   }
 }
 
@@ -283,7 +314,9 @@ expectVerdict(
   'product-access-success-schema-dropped',
   createFixture({
     payloadOverrides: {
-      '/v1/products/{productId}/access/{subjectAccountId} get': { responses: { 200: { description: 'ok' } } },
+      '/v1/products/{productId}/access/{subjectAccountId} get': {
+        responses: { 200: { description: 'ok' } },
+      },
     },
   }),
   1,
@@ -291,15 +324,33 @@ expectVerdict(
 );
 
 // Private billing projections and named cancellation must retain constrained contracts.
-for (const path of ['/billing/product-subscriptions', '/billing/credit-grants', '/billing/subscriptions']) {
-  expectVerdict(`billing-response-dropped-${path}`, createFixture({ payloadOverrides: {
-    [`${path} get`]: { responses: { 200: { description: 'ok' } } },
-  } }), 1, `GET ${path} declares no 2xx response with a constrained schema`);
+for (const path of [
+  '/billing/product-subscriptions',
+  '/billing/credit-grants',
+  '/billing/subscriptions',
+]) {
+  expectVerdict(
+    `billing-response-dropped-${path}`,
+    createFixture({
+      payloadOverrides: {
+        [`${path} get`]: { responses: { 200: { description: 'ok' } } },
+      },
+    }),
+    1,
+    `GET ${path} declares no 2xx response with a constrained schema`,
+  );
 }
 for (const path of ['/billing/product-subscriptions/cancel', '/billing/subscriptions/cancel']) {
-  expectVerdict(`billing-selector-dropped-${path}`, createFixture({ payloadOverrides: {
-    [`${path} post`]: { requestBody: null },
-  } }), 1, `POST ${path} publishes no constrained \`application/json\` request body`);
+  expectVerdict(
+    `billing-selector-dropped-${path}`,
+    createFixture({
+      payloadOverrides: {
+        [`${path} post`]: { requestBody: null },
+      },
+    }),
+    1,
+    `POST ${path} publishes no constrained \`application/json\` request body`,
+  );
 }
 
 // The catalogue is mounted TWICE. A map that keeps only one prefix leaves a
@@ -349,32 +400,55 @@ expectVerdict(
 );
 expectVerdict(
   'foreground-ranking-empty-filters',
-  createFixture({ payloadOverrides: { '/_oxy/capabilities/profiles/recommendations post': {
-    requestBody: { required: true, content: { 'application/json': { schema: {
-      type: 'object', additionalProperties: false, properties: { limit: { type: 'integer', minimum: 1 } },
-    } } } },
-  } } }),
+  createFixture({
+    payloadOverrides: {
+      '/_oxy/capabilities/profiles/recommendations post': {
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                additionalProperties: false,
+                properties: { limit: { type: 'integer', minimum: 1 } },
+              },
+            },
+          },
+        },
+      },
+    },
+  }),
   0,
   'is fresh',
 );
 
 expectVerdict(
   'foreground-requester-body-missing',
-  createFixture({ payloadOverrides: { '/capabilities/foreground-execution-authorizations post': { requestBody: null } } }),
+  createFixture({
+    payloadOverrides: {
+      '/capabilities/foreground-execution-authorizations post': { requestBody: null },
+    },
+  }),
   1,
   'POST /capabilities/foreground-execution-authorizations publishes no constrained',
 );
 expectVerdict(
   'foreground-read-body-missing',
-  createFixture({ payloadOverrides: { '/_oxy/capabilities/profiles/recommendations post': { requestBody: null } } }),
+  createFixture({
+    payloadOverrides: { '/_oxy/capabilities/profiles/recommendations post': { requestBody: null } },
+  }),
   1,
   'POST /_oxy/capabilities/profiles/recommendations publishes no constrained',
 );
 expectVerdict(
   'foreground-graph-selector-body',
-  createFixture({ payloadOverrides: { '/_oxy/capabilities/users/me/graph get': {
-    requestBody: { content: { 'application/json': { schema: { type: 'string' } } } },
-  } } }),
+  createFixture({
+    payloadOverrides: {
+      '/_oxy/capabilities/users/me/graph get': {
+        requestBody: { content: { 'application/json': { schema: { type: 'string' } } } },
+      },
+    },
+  }),
   1,
   'GET /_oxy/capabilities/users/me/graph publishes a request body, but this operation takes none',
 );
@@ -421,7 +495,11 @@ expectVerdict(
       '/v1/audio/speech post': {
         requestBody: {
           required: true,
-          content: { 'application/json': { schema: { type: 'object', properties: { model: { type: 'string' } } } } },
+          content: {
+            'application/json': {
+              schema: { type: 'object', properties: { model: { type: 'string' } } },
+            },
+          },
         },
       },
     },
@@ -439,8 +517,14 @@ expectVerdict(
     payloadOverrides: {
       '/v1/models get': {
         responses: {
-          401: { description: 'unauthorized', content: { 'application/json': { schema: { type: 'object' } } } },
-          '5XX': { description: 'server error', content: { 'application/json': { schema: { type: 'object' } } } },
+          401: {
+            description: 'unauthorized',
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
+          '5XX': {
+            description: 'server error',
+            content: { 'application/json': { schema: { type: 'object' } } },
+          },
         },
       },
     },
@@ -500,7 +584,9 @@ expectVerdict(
 
 expectVerdict(
   'operation-id-duplicated',
-  createFixture({ payloadOverrides: { '/v1/responses post': { operationId: 'postV1ChatCompletions' } } }),
+  createFixture({
+    payloadOverrides: { '/v1/responses post': { operationId: 'postV1ChatCompletions' } },
+  }),
   1,
   'is claimed by both',
 );
@@ -564,7 +650,9 @@ expectVerdict(
 // A route added without regenerating: complete and correctly gated, but not what
 // the generator now produces.
 const staleFixture = createFixture();
-const staleDocument = JSON.parse(readFileSync(join(staleFixture, 'packages/api/openapi.json'), 'utf8'));
+const staleDocument = JSON.parse(
+  readFileSync(join(staleFixture, 'packages/api/openapi.json'), 'utf8'),
+);
 // Layer-4-clean on purpose: this case must reach the FRESHNESS layer, and an
 // operation missing its `operationId` would be stopped by the dialect layer first
 // — a green freshness check for the wrong reason.
@@ -572,7 +660,9 @@ staleDocument.paths['/unrelated'] = {
   get: {
     operationId: 'getUnrelated',
     security: [{}],
-    responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object' } } } } },
+    responses: {
+      200: { description: 'ok', content: { 'application/json': { schema: { type: 'object' } } } },
+    },
   },
 };
 writeFileSync(
@@ -580,7 +670,12 @@ writeFileSync(
   `${JSON.stringify(staleDocument, null, 2)}\n`,
 );
 commitAll(staleFixture);
-expectVerdict('stale-artifact', staleFixture, 1, '/unrelated is in the committed document but no longer served.');
+expectVerdict(
+  'stale-artifact',
+  staleFixture,
+  1,
+  '/unrelated is in the committed document but no longer served.',
+);
 
 // An already-modified document makes attribution impossible, so the gate must
 // refuse rather than blame the commit for what was altered beforehand.

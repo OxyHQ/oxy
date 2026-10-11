@@ -80,7 +80,7 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertApplication(
-  fields: Partial<typeof applications.$inferInsert> = {}
+  fields: Partial<typeof applications.$inferInsert> = {},
 ): Promise<string> {
   const ownerAccountId = fields.ownerAccountId ?? (await insertUser());
   const [row] = await getDb()
@@ -93,11 +93,9 @@ async function insertApplication(
 async function insertInstall(
   userId: string,
   token: string,
-  applicationId: string | null
+  applicationId: string | null,
 ): Promise<void> {
-  await getDb()
-    .insert(pushTokens)
-    .values({ userId, token, platform: 'ios', applicationId });
+  await getDb().insert(pushTokens).values({ userId, token, platform: 'ios', applicationId });
 }
 
 interface StoredRequest {
@@ -106,7 +104,7 @@ interface StoredRequest {
 }
 
 async function insertRequest(
-  overrides: Partial<typeof authSessions.$inferInsert> = {}
+  overrides: Partial<typeof authSessions.$inferInsert> = {},
 ): Promise<StoredRequest> {
   const applicationId = overrides.applicationId ?? VAULT_APP_ID;
   const sessionToken = `${SECRET_MARKER}-${randomUUID()}`;
@@ -151,7 +149,9 @@ function collectKeyPaths(value: unknown, prefix = ''): string[] {
 
 /** The tokens the push transport was handed, in the order it received them. */
 function pushedTokens(): string[] {
-  return (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? [];
+  return (
+    (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? []
+  );
 }
 
 beforeAll(async () => {
@@ -343,7 +343,12 @@ describe('deliverAuthRequestToIdentityApps — payload', () => {
     // action buttons to a notification, and approval must never happen from the
     // notification shade.
     expect(Object.keys(call).sort()).toEqual([
-      'body', 'channelId', 'data', 'title', 'tokens', 'userId',
+      'body',
+      'channelId',
+      'data',
+      'title',
+      'tokens',
+      'userId',
     ]);
     expect(call.channelId).toBe(IDENTITY_APPROVAL_PUSH_CHANNEL);
     expect(call.userId).toBe(USER_ID);

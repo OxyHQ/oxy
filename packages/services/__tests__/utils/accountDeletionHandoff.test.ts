@@ -79,7 +79,9 @@ describe('runAccountDeletionHandoff', () => {
 
   it('says so when Commons cannot be opened after all', async () => {
     confirm.mockResolvedValue(true);
-    const deps = makeDeps({ openURL: jest.fn(async () => Promise.reject(new Error('no handler'))) });
+    const deps = makeDeps({
+      openURL: jest.fn(async () => Promise.reject(new Error('no handler'))),
+    });
 
     await expect(runAccountDeletionHandoff(deps)).resolves.toBe('handled');
 
@@ -115,7 +117,9 @@ describe('runAccountDeletionHandoff', () => {
   });
 
   it('never routes an unreadable keystore anywhere: it reports it and stops', async () => {
-    const deps = makeDeps({ hasIdentity: jest.fn(async () => Promise.reject(new Error('locked'))) });
+    const deps = makeDeps({
+      hasIdentity: jest.fn(async () => Promise.reject(new Error('locked'))),
+    });
 
     await expect(runAccountDeletionHandoff(deps)).resolves.toBe('handled');
 

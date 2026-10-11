@@ -87,15 +87,17 @@ async function recordUsage(
   at: Date,
   billed: { creditsUsed?: number; tokensUsed?: number },
 ): Promise<void> {
-  await getDb().insert(apiKeyUsageEvents).values({
-    userId,
-    endpoint: '/v1/test',
-    method: 'GET',
-    statusCode: 200,
-    creditsUsed: billed.creditsUsed ?? 0,
-    tokensUsed: billed.tokensUsed ?? 0,
-    createdAt: at,
-  });
+  await getDb()
+    .insert(apiKeyUsageEvents)
+    .values({
+      userId,
+      endpoint: '/v1/test',
+      method: 'GET',
+      statusCode: 200,
+      creditsUsed: billed.creditsUsed ?? 0,
+      tokensUsed: billed.tokensUsed ?? 0,
+      createdAt: at,
+    });
 }
 
 /** The `used` figure the response reports for a given UTC day. */
@@ -241,7 +243,7 @@ describe('GET /credits/usage', () => {
     expect(thirty.body).toHaveLength(30);
   });
 
-  it('does not count another account\'s usage', async () => {
+  it("does not count another account's usage", async () => {
     const otherUserId = await account();
     const at = daysAgo(4);
     await recordUsage(otherUserId, at, { creditsUsed: 500 });

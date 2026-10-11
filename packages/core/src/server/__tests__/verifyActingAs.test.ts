@@ -34,13 +34,11 @@ interface CapturedCall {
  */
 function captureRequests(oxy: OxyServer, result: unknown) {
   const calls: CapturedCall[] = [];
-  jest
-    .spyOn(oxy, 'request')
-    .mockImplementation(async (method, url, data, options) => {
-      calls.push({ method, url, data, options });
-      if (result instanceof Error) throw result;
-      return result as never;
-    });
+  jest.spyOn(oxy, 'request').mockImplementation(async (method, url, data, options) => {
+    calls.push({ method, url, data, options });
+    if (result instanceof Error) throw result;
+    return result as never;
+  });
   return calls;
 }
 
@@ -57,7 +55,11 @@ describe('verifyActingAs', () => {
   });
 
   it("authenticates with the VERIFIER's own service token", async () => {
-    const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
+    const calls = captureRequests(oxy, {
+      authorized: true,
+      epoch: '1',
+      scopes: ['podcasts:write'],
+    });
 
     await oxy.verifyActingAs(APP, USER);
 
@@ -82,7 +84,11 @@ describe('verifyActingAs', () => {
   });
 
   it('returns the grant when the API authorizes, carrying the scopes through', async () => {
-    captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['acting-as:offline', 'podcasts:write'] });
+    captureRequests(oxy, {
+      authorized: true,
+      epoch: '1',
+      scopes: ['acting-as:offline', 'podcasts:write'],
+    });
 
     const grant = await oxy.verifyActingAs(APP, USER);
 
@@ -121,7 +127,11 @@ describe('verifyActingAs', () => {
     jest
       .spyOn(oxy, 'serviceToken')
       .mockRejectedValue(new Error('Service credentials not provided.'));
-    const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
+    const calls = captureRequests(oxy, {
+      authorized: true,
+      epoch: '1',
+      scopes: ['podcasts:write'],
+    });
 
     await expect(oxy.verifyActingAs(APP, USER)).resolves.toBeNull();
     expect(calls).toHaveLength(0);
@@ -129,7 +139,11 @@ describe('verifyActingAs', () => {
 
   describe('caching', () => {
     it('serves a positive grant from cache rather than re-asking', async () => {
-      const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
+      const calls = captureRequests(oxy, {
+        authorized: true,
+        epoch: '1',
+        scopes: ['podcasts:write'],
+      });
 
       await oxy.verifyActingAs(APP, USER, { cache: true });
       await oxy.verifyActingAs(APP, USER, { cache: true });
@@ -151,7 +165,11 @@ describe('verifyActingAs', () => {
       // the user alone, one application's grant would authorize every other
       // application for that user; keyed on the app alone, one user's grant
       // would authorize acting as everybody.
-      const calls = captureRequests(oxy, { authorized: true, epoch: '1', scopes: ['podcasts:write'] });
+      const calls = captureRequests(oxy, {
+        authorized: true,
+        epoch: '1',
+        scopes: ['podcasts:write'],
+      });
 
       await oxy.verifyActingAs(APP, USER, { cache: true });
       await oxy.verifyActingAs('other-app', USER, { cache: true });
@@ -177,7 +195,10 @@ describe('verifyActingAs cache', () => {
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
     let release: (value: unknown) => void = () => {};
     const request = jest.spyOn(oxy, 'request').mockImplementation(
-      () => new Promise((resolve) => { release = resolve; }) as never,
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }) as never,
     );
 
     const first = oxy.verifyActingAs(APP, USER, { cache: true });
@@ -193,7 +214,9 @@ describe('verifyActingAs cache', () => {
   it('forgets the least recently used pair past 1000 entries', async () => {
     const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
     jest.spyOn(oxy, 'serviceToken').mockResolvedValue('verifier-service-token');
-    const request = jest.spyOn(oxy, 'request').mockResolvedValue({ authorized: false, epoch: '1', scopes: [] } as never);
+    const request = jest
+      .spyOn(oxy, 'request')
+      .mockResolvedValue({ authorized: false, epoch: '1', scopes: [] } as never);
 
     for (let i = 0; i < 1001; i++) {
       await oxy.verifyActingAs(APP, `user-${i}`, { cache: true });

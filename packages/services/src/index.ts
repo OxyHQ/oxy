@@ -71,16 +71,16 @@ export { IdentityBoundSessionError } from './ui/session/identityBinding';
 // ---------------------------------------------------------------------------
 export { useAuthStore } from './ui/stores/authStore';
 export {
-    useAssetStore,
-    useAssets as useAssetsStore,
-    useAsset,
-    useUploadProgress,
-    useAssetLoading,
-    useAssetErrors,
-    useAssetsByApp,
-    useAssetsByEntity,
-    useAssetUsageCount,
-    useIsAssetLinked,
+  useAssetStore,
+  useAssets as useAssetsStore,
+  useAsset,
+  useUploadProgress,
+  useAssetLoading,
+  useAssetErrors,
+  useAssetsByApp,
+  useAssetsByEntity,
+  useAssetUsageCount,
+  useIsAssetLinked,
 } from './ui/stores/assetStore';
 
 // ---------------------------------------------------------------------------
@@ -96,78 +96,78 @@ export type { UseStorageOptions, UseStorageResult } from './ui/hooks/useStorage'
 // Query hooks (TanStack Query — fetching)
 // ---------------------------------------------------------------------------
 export {
-    useUserProfile,
-    useUserProfiles,
-    useCurrentUser,
-    useUserById,
-    useUserByUsername,
-    useUsersBySessions,
-    usePrivacySettings,
-    useConnectedApps,
+  useUserProfile,
+  useUserProfiles,
+  useCurrentUser,
+  useUserById,
+  useUserByUsername,
+  useUsersBySessions,
+  usePrivacySettings,
+  useConnectedApps,
 } from './ui/hooks/queries/useAccountQueries';
 export {
-    useSessions,
-    useSession,
-    useDeviceSessions,
-    useUserDevices,
-    useSecurityInfo,
-    useAccountStorageUsage,
+  useSessions,
+  useSession,
+  useDeviceSessions,
+  useUserDevices,
+  useSecurityInfo,
+  useAccountStorageUsage,
 } from './ui/hooks/queries/useServicesQueries';
 export {
-    useSecurityActivity,
-    useRecentSecurityActivity,
-    useInfiniteSecurityActivity,
+  useSecurityActivity,
+  useRecentSecurityActivity,
+  useInfiniteSecurityActivity,
 } from './ui/hooks/queries/useSecurityQueries';
 export { useAuthMethods, useSignInMethods } from './ui/hooks/queries/useAuthMethods';
 export {
-    useUserSubscription,
-    useUserPayments,
-    useUserWallet,
-    useUserWalletTransactions,
+  useUserSubscription,
+  useUserPayments,
+  useUserWallet,
+  useUserWalletTransactions,
 } from './ui/hooks/queries/usePaymentQueries';
 
 // Payment / wallet / subscription domain types
 export type {
-    Subscription,
-    SubscriptionPlan,
-    SubscriptionStatus,
-    SubscriptionFeatures,
-    Payment,
-    Wallet,
-    WalletTransaction,
-    WalletTransactionType,
-    WalletTransactionStatus,
-    WalletPagination,
-    WalletTransactionsResponse,
+  Subscription,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  SubscriptionFeatures,
+  Payment,
+  Wallet,
+  WalletTransaction,
+  WalletTransactionType,
+  WalletTransactionStatus,
+  WalletPagination,
+  WalletTransactionsResponse,
 } from './ui/hooks/queries/paymentTypes';
 
 // ---------------------------------------------------------------------------
 // Mutation hooks (TanStack Query — updates)
 // ---------------------------------------------------------------------------
 export {
-    useUpdateProfile,
-    useUploadAvatar,
-    useUpdateAccountSettings,
-    useUpdatePrivacySettings,
-    useUpdateNotificationPreferences,
-    useUpdateUserPreferences,
-    useRevokeConnectedApp,
-    useUploadFile,
+  useUpdateProfile,
+  useUploadAvatar,
+  useUpdateAccountSettings,
+  useUpdatePrivacySettings,
+  useUpdateNotificationPreferences,
+  useUpdateUserPreferences,
+  useRevokeConnectedApp,
+  useUploadFile,
 } from './ui/hooks/mutations/useAccountMutations';
 export {
-    useSwitchSession,
-    useLogoutSession,
-    useLogoutAll,
-    useUpdateDeviceName,
-    useRemoveDevice,
+  useSwitchSession,
+  useLogoutSession,
+  useLogoutAll,
+  useUpdateDeviceName,
+  useRemoveDevice,
 } from './ui/hooks/mutations/useServicesMutations';
 export {
-    createProfileMutation,
-    createGenericMutation,
+  createProfileMutation,
+  createGenericMutation,
 } from './ui/hooks/mutations/mutationFactory';
 export type {
-    ProfileMutationConfig,
-    GenericMutationConfig,
+  ProfileMutationConfig,
+  GenericMutationConfig,
 } from './ui/hooks/mutations/mutationFactory';
 
 // Stable mutation keys for the offline queue
@@ -180,17 +180,17 @@ export { mutationKeys } from './ui/hooks/mutations/mutationKeys';
 // data after writes that touch shared backend state. Keep nominal — no
 // `export *` — and never drop a public symbol without a major version bump.
 export {
-    queryKeys,
-    invalidateAccountQueries,
-    invalidateUserQueries,
-    invalidateSessionQueries,
-    invalidateDeviceQueries,
-    invalidatePrivacyQueries,
-    invalidateSecurityQueries,
-    invalidateStorageQueries,
-    invalidatePaymentsQueries,
-    invalidateConnectedAppsQueries,
-    invalidateAuthMethodsQueries,
+  queryKeys,
+  invalidateAccountQueries,
+  invalidateUserQueries,
+  invalidateSessionQueries,
+  invalidateDeviceQueries,
+  invalidatePrivacyQueries,
+  invalidateSecurityQueries,
+  invalidateStorageQueries,
+  invalidatePaymentsQueries,
+  invalidateConnectedAppsQueries,
+  invalidateAuthMethodsQueries,
 } from './ui/hooks/queries/queryKeys';
 
 // Canonical user-cache upsert. MERGE-upserts a (possibly partial) user into the
@@ -201,16 +201,16 @@ export {
 // ("remove my picture") says so with `{ cleared: [...] }` — the payload cannot
 // express it, see the module docs.
 export {
-    upsertCachedUser,
-    upsertCachedUsers,
-    CLEARABLE_USER_FIELDS,
-    clearedFieldsFromProfileUpdate,
-    clearedFieldsFromAccountUpdate,
+  upsertCachedUser,
+  upsertCachedUsers,
+  CLEARABLE_USER_FIELDS,
+  clearedFieldsFromProfileUpdate,
+  clearedFieldsFromAccountUpdate,
 } from './ui/hooks/queries/userCache';
 export type {
-    CacheableUser,
-    ClearableUserField,
-    UpsertCachedUserOptions,
+  CacheableUser,
+  ClearableUserField,
+  UpsertCachedUserOptions,
 } from './ui/hooks/queries/userCache';
 
 // Mutation status aggregator (for "Syncing..." indicators)
@@ -223,10 +223,10 @@ export { useOxyEvent } from './ui/hooks/useOxyEvent';
 // Error handlers
 // ---------------------------------------------------------------------------
 export {
-    handleAuthError,
-    isInvalidSessionError,
-    isTimeoutOrNetworkError,
-    extractErrorMessage,
+  handleAuthError,
+  isInvalidSessionError,
+  isTimeoutOrNetworkError,
+  extractErrorMessage,
 } from './ui/utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './ui/utils/errorHandlers';
 
@@ -310,7 +310,11 @@ export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './ui/components/
 export type { AccountQueriesConfig } from './ui/hooks/accountQueryPersistence';
 
 export { default as FollowButton } from './ui/components/FollowButton';
-export type { FollowButtonProps, SingleFollowButtonProps, MultiFollowButtonProps } from './ui/components/FollowButton';
+export type {
+  FollowButtonProps,
+  SingleFollowButtonProps,
+  MultiFollowButtonProps,
+} from './ui/components/FollowButton';
 // The follow graph (#809): follows anything registered, not just users.
 export { FollowTargetButton } from './ui/components/FollowTargetButton';
 export {
@@ -425,7 +429,10 @@ export type { RouteName } from './ui/navigation/routes';
 // action slot) into the Dialog's OWN navigation header. Screens render no header
 // of their own.
 export { useSurfaceHeader, type SurfaceHeaderContent } from './ui/hooks/useSurfaceHeader';
-export { SurfaceHeaderAction, type SurfaceHeaderActionProps } from './ui/components/SurfaceHeaderAction';
+export {
+  SurfaceHeaderAction,
+  type SurfaceHeaderActionProps,
+} from './ui/components/SurfaceHeaderAction';
 
 // ---------------------------------------------------------------------------
 // Unified account dialog — imperative entry points
@@ -437,6 +444,12 @@ export {
   subscribeToAccountDialog,
 } from './ui/navigation/accountDialogManager';
 
-export type { StartNativeOAuthSignInOptions, NativeOAuthSignInResult } from './ui/oauth/nativeAuthTransport';
+export type {
+  StartNativeOAuthSignInOptions,
+  NativeOAuthSignInResult,
+} from './ui/oauth/nativeAuthTransport';
 
-export { usePersonalPlans, usePersonalPlanSubscriptions } from './ui/hooks/queries/usePersonalPlans';
+export {
+  usePersonalPlans,
+  usePersonalPlanSubscriptions,
+} from './ui/hooks/queries/usePersonalPlans';

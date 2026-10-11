@@ -256,10 +256,7 @@ export const billingLedgerEntries = pgTable(
 
     // The account's journal, newest first — the reconciliation read and the
     // audit view.
-    index('billing_ledger_entries_account_id_created_at_idx').on(
-      t.accountId,
-      t.createdAt.desc()
-    ),
+    index('billing_ledger_entries_account_id_created_at_idx').on(t.accountId, t.createdAt.desc()),
     // "What happened to this hold / this receipt", which the settle path reads
     // to recover a reservation's per-bucket draw.
     index('billing_ledger_entries_reservation_id_idx').on(t.reservationId),
@@ -273,7 +270,7 @@ export const billingLedgerEntries = pgTable(
 
     check(
       'billing_ledger_entries_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(LEDGER_ENTRY_KINDS))})`
+      sql`${t.kind} in (${sql.raw(inList(LEDGER_ENTRY_KINDS))})`,
     ),
     check('billing_ledger_entries_currency_check', currencyCodeCheck(t.currency)),
     // Each kind must name the document it is about. Written as an implication
@@ -285,7 +282,7 @@ export const billingLedgerEntries = pgTable(
       sql`(${t.kind} not in ('reservation_hold', 'reservation_release', 'reservation_expiry')
              or ${t.reservationId} is not null)
         and (${t.kind} not in ('settlement', 'settlement_reversal') or ${t.receiptId} is not null)
-        and (${t.kind} not in ('invoice_rounding', 'invoice_payment') or ${t.invoiceId} is not null)`
+        and (${t.kind} not in ('invoice_rounding', 'invoice_payment') or ${t.invoiceId} is not null)`,
     ),
     // The actor pair, as a TOTAL disjunction over the three legal states rather
     // than as separate presence and vocabulary checks. Written this way because
@@ -315,9 +312,9 @@ export const billingLedgerEntries = pgTable(
       'billing_ledger_entries_actor_check',
       sql`(${t.actorKind} is null and ${t.actorUserId} is null)
         or (${t.actorKind} is not distinct from 'staff' and ${t.actorUserId} is not null)
-        or (${t.actorKind} is not distinct from 'machine' and ${t.actorUserId} is null)`
+        or (${t.actorKind} is not distinct from 'machine' and ${t.actorUserId} is null)`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -352,22 +349,22 @@ export const billingLedgerPostings = pgTable(
 
     check(
       'billing_ledger_postings_source_account_check',
-      sql`${t.sourceAccount} in (${sql.raw(inList(LEDGER_ACCOUNTS))})`
+      sql`${t.sourceAccount} in (${sql.raw(inList(LEDGER_ACCOUNTS))})`,
     ),
     check(
       'billing_ledger_postings_destination_account_check',
-      sql`${t.destinationAccount} in (${sql.raw(inList(LEDGER_ACCOUNTS))})`
+      sql`${t.destinationAccount} in (${sql.raw(inList(LEDGER_ACCOUNTS))})`,
     ),
     // A posting from an account to itself moves nothing while inflating both
     // sides of every sum computed over this table.
     check(
       'billing_ledger_postings_distinct_accounts_check',
-      sql`${t.sourceAccount} <> ${t.destinationAccount}`
+      sql`${t.sourceAccount} <> ${t.destinationAccount}`,
     ),
     // Zero is not a movement, and a negative one would invert the transfer —
     // which is the entire reason direction is carried by the two account
     // columns rather than by a sign.
     check('billing_ledger_postings_amount_check', sql`${t.amount} > 0`),
     check('billing_ledger_postings_sequence_check', sql`${t.sequence} >= 0`),
-  ]
+  ],
 );

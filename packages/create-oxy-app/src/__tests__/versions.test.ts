@@ -8,7 +8,9 @@ const SMOKE_WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'scaffold-sm
 
 /** The version each pinned Oxy package carries in THIS workspace. */
 function readWorkspacePackageVersion(dir: string): string {
-  const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, 'packages', dir, 'package.json'), 'utf8')) as {
+  const manifest = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, 'packages', dir, 'package.json'), 'utf8'),
+  ) as {
     version: string;
   };
   return manifest.version;
@@ -19,13 +21,21 @@ function readWorkspacePackageVersion(dir: string): string {
 function floorOf(range: string): { core: [number, number, number]; prerelease: boolean } {
   const match = /^[\^~]?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/.exec(range);
   if (!match) throw new Error(`not a plain semver range: ${range}`);
-  return { core: [Number(match[1]), Number(match[2]), Number(match[3])], prerelease: match[4] !== undefined };
+  return {
+    core: [Number(match[1]), Number(match[2]), Number(match[3])],
+    prerelease: match[4] !== undefined,
+  };
 }
 
 /** Negative when `a` sorts below `b`; a prerelease sorts below its release. */
 function compareVersions(a: string, b: string): number {
   const [x, y] = [floorOf(a), floorOf(b)];
-  return x.core[0] - y.core[0] || x.core[1] - y.core[1] || x.core[2] - y.core[2] || Number(y.prerelease) - Number(x.prerelease);
+  return (
+    x.core[0] - y.core[0] ||
+    x.core[1] - y.core[1] ||
+    x.core[2] - y.core[2] ||
+    Number(y.prerelease) - Number(x.prerelease)
+  );
 }
 
 function readWorkspaceCatalogVersion(pkg: string): string {
@@ -43,7 +53,9 @@ describe('VERSIONS drift guard', () => {
       dependencies?: Record<string, string>;
     };
 
-    expect(Object.values(manifest.dependencies ?? {}).filter((range) => range.startsWith('workspace:'))).toEqual([]);
+    expect(
+      Object.values(manifest.dependencies ?? {}).filter((range) => range.startsWith('workspace:')),
+    ).toEqual([]);
   });
 
   test('Oxy SDK dependencies use publishable semver ranges', () => {
@@ -78,7 +90,10 @@ describe('VERSIONS drift guard', () => {
     for (const [alias, range, dir] of pinned) {
       const workspaceVersion = readWorkspacePackageVersion(dir);
       const verdict = `${alias} ${range} vs packages/${dir}@${workspaceVersion}`;
-      expect({ verdict, ahead: compareVersions(range, workspaceVersion) > 0 }).toEqual({ verdict, ahead: false });
+      expect({ verdict, ahead: compareVersions(range, workspaceVersion) > 0 }).toEqual({
+        verdict,
+        ahead: false,
+      });
     }
   });
 
@@ -91,12 +106,19 @@ describe('VERSIONS drift guard', () => {
 
     expect(readFileSync(path.join(REPO_ROOT, script), 'utf8')).toContain('npm');
     expect(workflow).toContain(script);
-    expect(workflow.indexOf(script)).toBeLessThan(workflow.indexOf('Install the generated app with packed Oxy HEAD dependencies'));
+    expect(workflow.indexOf(script)).toBeLessThan(
+      workflow.indexOf('Install the generated app with packed Oxy HEAD dependencies'),
+    );
   });
 
   test('published Bloom pin is not ahead of the workspace; its Services peer is checked against npm', () => {
-    expect(compareVersions(VERSIONS.oxyBloom, readWorkspaceCatalogVersion('@oxy.so/bloom'))).toBeLessThanOrEqual(0);
-    const script = readFileSync(path.join(REPO_ROOT, 'packages/create-oxy-app/scripts/assert-oxy-ranges-resolve.mjs'), 'utf8');
+    expect(
+      compareVersions(VERSIONS.oxyBloom, readWorkspaceCatalogVersion('@oxy.so/bloom')),
+    ).toBeLessThanOrEqual(0);
+    const script = readFileSync(
+      path.join(REPO_ROOT, 'packages/create-oxy-app/scripts/assert-oxy-ranges-resolve.mjs'),
+      'utf8',
+    );
     expect(script).toContain('await assertPublishedBloomPair(resolved');
   });
 
@@ -108,7 +130,16 @@ describe('VERSIONS drift guard', () => {
   });
 
   test('scaffold smoke consumes every generated Oxy workspace package from a HEAD tarball', () => {
-    const workflowPath = path.join(__dirname, '..', '..', '..', '..', '.github', 'workflows', 'scaffold-smoke.yml');
+    const workflowPath = path.join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      '.github',
+      'workflows',
+      'scaffold-smoke.yml',
+    );
     const workflow = readFileSync(workflowPath, 'utf8');
 
     const tarballPrefixes = {

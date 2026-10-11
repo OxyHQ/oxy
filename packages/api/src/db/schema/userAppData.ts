@@ -96,11 +96,11 @@ export const userAppData = pgTable(
 
     check(
       'user_app_data_namespace_check',
-      sql`${t.namespace} ~ ${sql.raw(`'${APP_DATA_IDENTIFIER_SQL_PATTERN}'`)}`
+      sql`${t.namespace} ~ ${sql.raw(`'${APP_DATA_IDENTIFIER_SQL_PATTERN}'`)}`,
     ),
     check(
       'user_app_data_key_check',
-      sql`${t.key} ~ ${sql.raw(`'${APP_DATA_IDENTIFIER_SQL_PATTERN}'`)}`
+      sql`${t.key} ~ ${sql.raw(`'${APP_DATA_IDENTIFIER_SQL_PATTERN}'`)}`,
     ),
-  ]
+  ],
 );

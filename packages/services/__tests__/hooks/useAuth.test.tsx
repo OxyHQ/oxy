@@ -76,8 +76,10 @@ jest.mock('../../src/ui/runtime', () => ({
       error: mockState.error ? { message: mockState.error, code: 'test' } : null,
     }),
   }),
-  useRuntimeSelector: (runtime: { getSnapshot: () => unknown }, selector: (snapshot: unknown) => unknown) =>
-    selector(runtime.getSnapshot()),
+  useRuntimeSelector: (
+    runtime: { getSnapshot: () => unknown },
+    selector: (snapshot: unknown) => unknown,
+  ) => selector(runtime.getSnapshot()),
 }));
 
 import { useAuth } from '../../src/ui/hooks/useAuth';

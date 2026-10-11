@@ -1,7 +1,14 @@
-import { useAuth, useSessions, useUserDevices, useSwitchSession, useLogoutSession, useLogoutAll } from "@oxy.so/services"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import {
+  useAuth,
+  useSessions,
+  useUserDevices,
+  useSwitchSession,
+  useLogoutSession,
+  useLogoutAll,
+} from '@oxy.so/services';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Table,
   TableBody,
@@ -9,31 +16,31 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
-import { toast } from "@oxy.so/bloom"
+} from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { toast } from '@oxy.so/bloom';
 
 // `useUserDevices()` is typed loosely (`any[]`) by the SDK; this describes the
 // device fields this demo renders so the map callback is fully typed.
 interface DeviceInfo {
-  _id?: string
-  deviceId?: string
-  name?: string
-  deviceName?: string
-  platform?: string
-  os?: string
-  lastActive?: string
-  type?: string
+  _id?: string;
+  deviceId?: string;
+  name?: string;
+  deviceName?: string;
+  platform?: string;
+  os?: string;
+  lastActive?: string;
+  type?: string;
 }
 
 export function SessionsDemo() {
-  const { isAuthenticated } = useAuth()
-  const { data: sessions, isLoading: sessionsLoading } = useSessions()
-  const { data: devices, isLoading: devicesLoading } = useUserDevices()
-  const switchSession = useSwitchSession()
-  const logoutSession = useLogoutSession()
-  const logoutAll = useLogoutAll()
+  const { isAuthenticated } = useAuth();
+  const { data: sessions, isLoading: sessionsLoading } = useSessions();
+  const { data: devices, isLoading: devicesLoading } = useUserDevices();
+  const switchSession = useSwitchSession();
+  const logoutSession = useLogoutSession();
+  const logoutAll = useLogoutAll();
 
   if (!isAuthenticated) {
     return (
@@ -44,35 +51,35 @@ export function SessionsDemo() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   const handleSwitch = async (sessionId: string) => {
     try {
-      await switchSession.mutateAsync(sessionId)
-      toast.success("Switched session")
+      await switchSession.mutateAsync(sessionId);
+      toast.success('Switched session');
     } catch (err) {
-      toast.error("Failed to switch: " + String(err))
+      toast.error('Failed to switch: ' + String(err));
     }
-  }
+  };
 
   const handleLogoutSession = async (sessionId: string) => {
     try {
-      await logoutSession.mutateAsync(sessionId)
-      toast.success("Session logged out")
+      await logoutSession.mutateAsync(sessionId);
+      toast.success('Session logged out');
     } catch (err) {
-      toast.error("Failed to logout session: " + String(err))
+      toast.error('Failed to logout session: ' + String(err));
     }
-  }
+  };
 
   const handleLogoutAll = async () => {
     try {
-      await logoutAll.mutateAsync()
-      toast.success("All sessions logged out")
+      await logoutAll.mutateAsync();
+      toast.success('All sessions logged out');
     } catch (err) {
-      toast.error("Failed to logout all: " + String(err))
+      toast.error('Failed to logout all: ' + String(err));
     }
-  }
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -89,13 +96,15 @@ export function SessionsDemo() {
             onClick={handleLogoutAll}
             disabled={logoutAll.isPending}
           >
-            {logoutAll.isPending ? "Logging out..." : "Logout All"}
+            {logoutAll.isPending ? 'Logging out...' : 'Logout All'}
           </Button>
         </CardHeader>
         <CardContent>
           {sessionsLoading ? (
             <div className="space-y-2">
-              {[1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+              {[1, 2].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
           ) : sessions && sessions.length > 0 ? (
             <Table>
@@ -121,7 +130,7 @@ export function SessionsDemo() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {session.lastActive ? new Date(session.lastActive).toLocaleDateString() : "—"}
+                      {session.lastActive ? new Date(session.lastActive).toLocaleDateString() : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -166,7 +175,9 @@ export function SessionsDemo() {
         <CardContent>
           {devicesLoading ? (
             <div className="space-y-2">
-              {[1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+              {[1, 2].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
           ) : devices && Array.isArray(devices) && devices.length > 0 ? (
             <div className="space-y-3">
@@ -176,13 +187,16 @@ export function SessionsDemo() {
                   className="flex items-center justify-between rounded-md border p-3"
                 >
                   <div>
-                    <p className="text-sm font-medium">{device.name || device.deviceName || "Unknown Device"}</p>
+                    <p className="text-sm font-medium">
+                      {device.name || device.deviceName || 'Unknown Device'}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {device.platform || device.os || "Unknown platform"}
-                      {device.lastActive && ` · Last active ${new Date(device.lastActive).toLocaleDateString()}`}
+                      {device.platform || device.os || 'Unknown platform'}
+                      {device.lastActive &&
+                        ` · Last active ${new Date(device.lastActive).toLocaleDateString()}`}
                     </p>
                   </div>
-                  <Badge variant="outline">{device.type || "device"}</Badge>
+                  <Badge variant="outline">{device.type || 'device'}</Badge>
                 </div>
               ))}
             </div>
@@ -199,7 +213,7 @@ export function SessionsDemo() {
         </CardHeader>
         <CardContent>
           <pre className="overflow-auto rounded-md bg-muted p-4 text-xs">
-{`import { useSessions, useSwitchSession, useLogoutAll } from '@oxy.so/services';
+            {`import { useSessions, useSwitchSession, useLogoutAll } from '@oxy.so/services';
 
 function Sessions() {
   const { data: sessions } = useSessions();
@@ -213,5 +227,5 @@ function Sessions() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

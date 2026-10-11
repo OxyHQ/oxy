@@ -73,10 +73,10 @@ export const userAncestors = pgTable(
     index('user_ancestors_ancestor_id_idx').on(t.ancestorId),
     check(
       'user_ancestors_depth_check',
-      sql`${t.depth} >= 0 and ${t.depth} < ${sql.raw(String(MAX_ACCOUNT_DEPTH))}`
+      sql`${t.depth} >= 0 and ${t.depth} < ${sql.raw(String(MAX_ACCOUNT_DEPTH))}`,
     ),
     // An account is not its own ancestor. The one-hop case of the cycle check in
     // `account.service.ts`, and the shape a bad write actually produces.
     check('user_ancestors_not_self_check', sql`${t.ancestorId} <> ${t.userId}`),
-  ]
+  ],
 );

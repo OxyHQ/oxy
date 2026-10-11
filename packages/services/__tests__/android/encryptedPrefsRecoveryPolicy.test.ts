@@ -101,7 +101,10 @@ describe('OxyEncryptedPrefs recovery policy', () => {
   });
 
   test('RebuildFileOnly is the only policy, and it has no default', () => {
-    const helper = readFileSync(join(ANDROID_SOURCE_ROOT, 'storage', 'OxyEncryptedPrefs.kt'), 'utf8');
+    const helper = readFileSync(
+      join(ANDROID_SOURCE_ROOT, 'storage', 'OxyEncryptedPrefs.kt'),
+      'utf8',
+    );
     const enumBody = helper.match(/enum class RecoveryPolicy \{([\s\S]*?)\n\}/);
     expect(enumBody).not.toBeNull();
     const values = (enumBody?.[1] ?? '')

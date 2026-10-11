@@ -57,7 +57,6 @@ export interface SecurityInfo {
   recoveryEmail: string | null;
 }
 
-
 /**
  * The server's `401 account_not_on_device` for a PINNED mint: the requested
  * `accountId` is not (or is no longer) a live account of this device session.
@@ -72,10 +71,11 @@ export class AccountNotOnDeviceError extends Error {
   override readonly name = 'AccountNotOnDeviceError';
   /** HTTP status of the originating response; mirrors the ApiError shape. */
   readonly status = 401;
-  constructor(readonly accountId: string, readonly cause?: unknown) {
-    super(
-      `account_not_on_device: ${accountId} is not a live account of this device session`,
-    );
+  constructor(
+    readonly accountId: string,
+    readonly cause?: unknown,
+  ) {
+    super(`account_not_on_device: ${accountId} is not a live account of this device session`);
   }
 }
 
@@ -93,7 +93,6 @@ function isAccountNotOnDevice(error: unknown): boolean {
   }
   return typeof message === 'string' && message.includes('account_not_on_device');
 }
-
 
 /**
  * The bridge calls share their transport rules with the mint: no bearer
@@ -148,10 +147,15 @@ export class DevicesApi {
    */
   async sessions(sessionId: string): Promise<DeviceLinkedSession[]> {
     // Cache disabled by default to ensure fresh session data
-    return this.ctx.request<DeviceLinkedSession[]>('GET', `/session/device/sessions/${sessionId}`, undefined, {
-      cache: false, // Don't cache sessions - always get fresh data
-      deduplicate: true, // Deduplicate concurrent requests for same sessionId
-    });
+    return this.ctx.request<DeviceLinkedSession[]>(
+      'GET',
+      `/session/device/sessions/${sessionId}`,
+      undefined,
+      {
+        cache: false, // Don't cache sessions - always get fresh data
+        deduplicate: true, // Deduplicate concurrent requests for same sessionId
+      },
+    );
   }
 
   /**
@@ -161,11 +165,20 @@ export class DevicesApi {
    * @param excludeCurrent - Whether to exclude the current session
    * @returns Logout result
    */
-  async logoutAll(sessionId: string, deviceId?: string, excludeCurrent?: boolean): Promise<DeviceLinkedSessionLogoutResponse> {
+  async logoutAll(
+    sessionId: string,
+    deviceId?: string,
+    excludeCurrent?: boolean,
+  ): Promise<DeviceLinkedSessionLogoutResponse> {
     const urlParams: Record<string, string> = {};
     if (deviceId) urlParams.deviceId = deviceId;
     if (excludeCurrent) urlParams.excludeCurrent = 'true';
-    return this.ctx.request<DeviceLinkedSessionLogoutResponse>('POST', `/session/device/logout-all/${sessionId}`, urlParams, { cache: false });
+    return this.ctx.request<DeviceLinkedSessionLogoutResponse>(
+      'POST',
+      `/session/device/logout-all/${sessionId}`,
+      urlParams,
+      { cache: false },
+    );
   }
 
   /**
@@ -174,8 +187,16 @@ export class DevicesApi {
    * @param deviceName - New device name
    * @returns Updated device object
    */
-  async rename(sessionId: string, deviceName: string): Promise<{ success: boolean; message: string; deviceName: string }> {
-    return this.ctx.request('PUT', `/session/device/name/${sessionId}`, { deviceName }, { cache: false });
+  async rename(
+    sessionId: string,
+    deviceName: string,
+  ): Promise<{ success: boolean; message: string; deviceName: string }> {
+    return this.ctx.request(
+      'PUT',
+      `/session/device/name/${sessionId}`,
+      { deviceName },
+      { cache: false },
+    );
   }
 
   /**
@@ -198,7 +219,7 @@ export class DevicesApi {
   async securityActivity(
     limit?: number,
     offset?: number,
-    eventType?: SecurityEventType
+    eventType?: SecurityEventType,
   ): Promise<SecurityActivityResponse> {
     const params: Record<string, unknown> = {};
     if (limit !== undefined) params.limit = limit;
@@ -236,12 +257,16 @@ export class DevicesApi {
         'POST',
         '/security/activity/private-key-exported',
         { deviceId },
-        { cache: false }
+        { cache: false },
       );
     } catch (error) {
       // Don't throw - logging failures shouldn't break user flow, but surface
       // for monitoring via the shared logger sink.
-      logger.warn('[OxyServices] Failed to log private key exported event', { component: 'oxy.devices' }, error);
+      logger.warn(
+        '[OxyServices] Failed to log private key exported event',
+        { component: 'oxy.devices' },
+        error,
+      );
     }
   }
 
@@ -256,12 +281,16 @@ export class DevicesApi {
         'POST',
         '/security/activity/backup-created',
         { deviceId },
-        { cache: false }
+        { cache: false },
       );
     } catch (error) {
       // Don't throw - logging failures shouldn't break user flow, but surface
       // for monitoring via the shared logger sink.
-      logger.warn('[OxyServices] Failed to log backup created event', { component: 'oxy.devices' }, error);
+      logger.warn(
+        '[OxyServices] Failed to log backup created event',
+        { component: 'oxy.devices' },
+        error,
+      );
     }
   }
 
@@ -347,7 +376,12 @@ export class DevicesApi {
    * carries `invalid_device_secret`.
    */
   async requestJoinCode(request: DeviceJoinCodeRequest): Promise<DeviceJoinCodeResponse> {
-    return bridgeRequest(this.ctx, '/session/device/join-code', request, deviceJoinCodeResponseSchema);
+    return bridgeRequest(
+      this.ctx,
+      '/session/device/join-code',
+      request,
+      deviceJoinCodeResponseSchema,
+    );
   }
 
   /**
@@ -434,5 +468,4 @@ export class DevicesApi {
       throw error;
     }
   }
-
 }

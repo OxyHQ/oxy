@@ -58,7 +58,11 @@ import { applications } from '../db/schema/applications';
 import { appGrants } from '../db/schema/appGrants';
 import { buildUserDid, OXY_DID } from './did.service';
 import { oxyRecordStore } from './oxyRecordStore';
-import { signRecordEnvelope, verifyAndStoreRecord, type StoredRecordRef } from './signedRecord.service';
+import {
+  signRecordEnvelope,
+  verifyAndStoreRecord,
+  type StoredRecordRef,
+} from './signedRecord.service';
 
 /** The scope a service credential must carry to append on someone's behalf. */
 export const CHAINS_WRITE_SCOPE = 'chains:write';
@@ -108,7 +112,10 @@ export async function chainNamespacesForApplication(appId: string): Promise<stri
  * prefixes with the trailing dot, and one is appended when a grant omits it so a
  * hand-entered `app.mention` cannot silently widen to a neighbouring namespace.
  */
-export function collectionIsWithinNamespaces(collection: string, namespaces: readonly string[]): boolean {
+export function collectionIsWithinNamespaces(
+  collection: string,
+  namespaces: readonly string[],
+): boolean {
   return namespaces.some((raw) => {
     const prefix = raw.endsWith('.') ? raw : `${raw}.`;
     return collection.startsWith(prefix) && collection.length > prefix.length;

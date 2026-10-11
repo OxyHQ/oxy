@@ -58,9 +58,9 @@ export const messageRecipients = pgTable(
     check(
       'message_recipients_kind_check',
       sql`${t.kind} in (${sql.raw(
-        MESSAGE_RECIPIENT_KINDS.map((value) => `'${value}'`).join(', ')
-      )})`
+        MESSAGE_RECIPIENT_KINDS.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     check('message_recipients_ord_check', sql`${t.ord} >= 0`),
-  ]
+  ],
 );

@@ -29,12 +29,14 @@ import type { SqlExecutor } from './database';
  * `.transaction()` is never actually invoked here, which is what a real
  * transaction would require.
  */
-type TransactionCallback = Parameters<PostgresJsDatabase<Record<string, unknown>>['transaction']>[0];
+type TransactionCallback = Parameters<
+  PostgresJsDatabase<Record<string, unknown>>['transaction']
+>[0];
 type TransactionHandle = Parameters<TransactionCallback>[0];
 
 function realHandlesSatisfySqlExecutor(
   db: PostgresJsDatabase<Record<string, unknown>>,
-  tx: TransactionHandle
+  tx: TransactionHandle,
 ): void {
   // A real pool handle must satisfy SqlExecutor.
   const poolExecutor: SqlExecutor = db;

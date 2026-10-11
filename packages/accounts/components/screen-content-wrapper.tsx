@@ -1,7 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, RefreshControl, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { useAnimatedScrollHandler, runOnJS, useAnimatedReaction } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedScrollHandler,
+  runOnJS,
+  useAnimatedReaction,
+} from 'react-native-reanimated';
 import { useScrollContext } from '@/contexts/scroll-context';
 import { useColors } from '@/hooks/useColors';
 
@@ -11,43 +15,56 @@ interface ScreenContentWrapperProps {
   onRefresh?: () => void;
 }
 
-export function ScreenContentWrapper({ children, refreshing = false, onRefresh }: ScreenContentWrapperProps) {
-  const { setIsScrolled, scrollRef, scrollY, scrollDirection, headerHeight: contextHeaderHeight } = useScrollContext();
+export function ScreenContentWrapper({
+  children,
+  refreshing = false,
+  onRefresh,
+}: ScreenContentWrapperProps) {
+  const {
+    setIsScrolled,
+    scrollRef,
+    scrollY,
+    scrollDirection,
+    headerHeight: contextHeaderHeight,
+  } = useScrollContext();
   const { width } = useWindowDimensions();
   const colors = useColors();
 
   // Check if we're on mobile (header is absolutely positioned on mobile)
   const isMobile = Platform.OS !== 'web' || (Platform.OS === 'web' && width < 768);
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      const currentY = event.contentOffset.y;
-      const previousY = scrollY.value;
+  const scrollHandler = useAnimatedScrollHandler(
+    {
+      onScroll: (event) => {
+        const currentY = event.contentOffset.y;
+        const previousY = scrollY.value;
 
-      scrollY.value = currentY;
+        scrollY.value = currentY;
 
-      // Determine scroll direction
-      if (currentY > previousY) {
-        scrollDirection.value = 'down';
-      } else if (currentY < previousY) {
-        scrollDirection.value = 'up';
-      }
+        // Determine scroll direction
+        if (currentY > previousY) {
+          scrollDirection.value = 'down';
+        } else if (currentY < previousY) {
+          scrollDirection.value = 'up';
+        }
 
-      // Update isScrolled state on JS thread
-      if (currentY > 10 !== (previousY > 10)) {
-        runOnJS(setIsScrolled)(currentY > 10);
-      }
+        // Update isScrolled state on JS thread
+        if (currentY > 10 !== previousY > 10) {
+          runOnJS(setIsScrolled)(currentY > 10);
+        }
+      },
     },
-  }, []);
+    [],
+  );
 
   const insets = useSafeAreaInsets();
-  
+
   // Sync header height from shared value to state for use in styles
   // Use a conservative initial estimate: safe area + top padding (10) + top row (menu button 24px + padding 10px top + 10px bottom = 44px) + bottom padding (10) = ~64 + safe area
   // This will be updated immediately when the header measures its actual height
   const initialHeaderHeight = insets.top + 10 + 44 + 10;
   const [headerHeight, setHeaderHeight] = useState(initialHeaderHeight);
-  
+
   useAnimatedReaction(
     () => contextHeaderHeight.value,
     (height) => {
@@ -55,9 +72,9 @@ export function ScreenContentWrapper({ children, refreshing = false, onRefresh }
         runOnJS(setHeaderHeight)(height);
       }
     },
-    [contextHeaderHeight]
+    [contextHeaderHeight],
   );
-  
+
   // Also check the shared value on mount in case it was already set
   useEffect(() => {
     if (contextHeaderHeight.value > 0) {
@@ -123,4 +140,3 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 });
-

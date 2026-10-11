@@ -54,10 +54,10 @@ import { z } from 'zod';
  * secp256k1 public key in hex.
  */
 export interface Secp256k1VerificationMethod {
-    id: string;
-    type: 'EcdsaSecp256k1VerificationKey2019';
-    controller: string;
-    publicKeyHex: string;
+  id: string;
+  type: 'EcdsaSecp256k1VerificationKey2019';
+  controller: string;
+  publicKeyHex: string;
 }
 
 /**
@@ -70,10 +70,10 @@ export interface Secp256k1VerificationMethod {
  * present for atproto-bridged self-sovereign accounts.
  */
 export interface MultikeyVerificationMethod {
-    id: string;
-    type: 'Multikey';
-    controller: string;
-    publicKeyMultibase: string;
+  id: string;
+  type: 'Multikey';
+  controller: string;
+  publicKeyMultibase: string;
 }
 
 /**
@@ -92,22 +92,22 @@ export type VerificationMethod = Secp256k1VerificationMethod | MultikeyVerificat
 // `z.object` already infers each option's type exactly (id/type/controller +
 // the key field), so the union is structurally `VerificationMethod`.
 const secp256k1VerificationMethodSchema = z.object({
-    id: z.string(),
-    type: z.literal('EcdsaSecp256k1VerificationKey2019'),
-    controller: z.string(),
-    publicKeyHex: z.string(),
+  id: z.string(),
+  type: z.literal('EcdsaSecp256k1VerificationKey2019'),
+  controller: z.string(),
+  publicKeyHex: z.string(),
 });
 
 const multikeyVerificationMethodSchema = z.object({
-    id: z.string(),
-    type: z.literal('Multikey'),
-    controller: z.string(),
-    publicKeyMultibase: z.string(),
+  id: z.string(),
+  type: z.literal('Multikey'),
+  controller: z.string(),
+  publicKeyMultibase: z.string(),
 });
 
 export const verificationMethodSchema = z.discriminatedUnion('type', [
-    secp256k1VerificationMethodSchema,
-    multikeyVerificationMethodSchema,
+  secp256k1VerificationMethodSchema,
+  multikeyVerificationMethodSchema,
 ]);
 
 /**
@@ -116,15 +116,15 @@ export const verificationMethodSchema = z.discriminatedUnion('type', [
  * data. `serviceEndpoint` is a URL string.
  */
 export interface DidService {
-    id: string;
-    type: string;
-    serviceEndpoint: string;
+  id: string;
+  type: string;
+  serviceEndpoint: string;
 }
 
 export const didServiceSchema: z.ZodType<DidService> = z.object({
-    id: z.string(),
-    type: z.string(),
-    serviceEndpoint: z.string(),
+  id: z.string(),
+  type: z.string(),
+  serviceEndpoint: z.string(),
 });
 
 /**
@@ -139,25 +139,25 @@ export const didServiceSchema: z.ZodType<DidService> = z.object({
  *   profile URL, any verified-domain URLs).
  */
 export interface DidDocument {
-    '@context': string[];
-    id: string;
-    controller: string[];
-    verificationMethod: VerificationMethod[];
-    authentication: string[];
-    assertionMethod: string[];
-    alsoKnownAs: string[];
-    service: DidService[];
+  '@context': string[];
+  id: string;
+  controller: string[];
+  verificationMethod: VerificationMethod[];
+  authentication: string[];
+  assertionMethod: string[];
+  alsoKnownAs: string[];
+  service: DidService[];
 }
 
 export const didDocumentSchema: z.ZodType<DidDocument> = z.object({
-    '@context': z.array(z.string()),
-    id: z.string(),
-    controller: z.array(z.string()),
-    verificationMethod: z.array(verificationMethodSchema),
-    authentication: z.array(z.string()),
-    assertionMethod: z.array(z.string()),
-    alsoKnownAs: z.array(z.string()),
-    service: z.array(didServiceSchema),
+  '@context': z.array(z.string()),
+  id: z.string(),
+  controller: z.array(z.string()),
+  verificationMethod: z.array(verificationMethodSchema),
+  authentication: z.array(z.string()),
+  assertionMethod: z.array(z.string()),
+  alsoKnownAs: z.array(z.string()),
+  service: z.array(didServiceSchema),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -203,110 +203,110 @@ export const didDocumentSchema: z.ZodType<DidDocument> = z.object({
  * them) still type-check; the schema enforces "present iff version === 2".
  */
 export interface SignedRecordEnvelope {
-    version: 1 | 2;
-    /** App-defined record category (open string); each store re-narrows it. */
-    type: string;
-    subject: string;
-    issuer: string;
-    record: Record<string, unknown>;
-    issuedAt: number;
-    /** v2 only: strictly-increasing sequence number for this subject's chain. */
-    seq?: number;
-    /** v2 only: `recordId` of the previous record in the chain, `null` at genesis. */
-    prev?: string | null;
-    /** v2 only: AtProto-style collection namespace (e.g. `app.oxy.identity`). */
-    collection?: string;
-    /** v2 only: AtProto-style record key within the collection (e.g. `self`). */
-    rkey?: string;
-    publicKey: string;
-    alg: 'ES256K-DER-SHA256';
-    signature: string;
+  version: 1 | 2;
+  /** App-defined record category (open string); each store re-narrows it. */
+  type: string;
+  subject: string;
+  issuer: string;
+  record: Record<string, unknown>;
+  issuedAt: number;
+  /** v2 only: strictly-increasing sequence number for this subject's chain. */
+  seq?: number;
+  /** v2 only: `recordId` of the previous record in the chain, `null` at genesis. */
+  prev?: string | null;
+  /** v2 only: AtProto-style collection namespace (e.g. `app.oxy.identity`). */
+  collection?: string;
+  /** v2 only: AtProto-style record key within the collection (e.g. `self`). */
+  rkey?: string;
+  publicKey: string;
+  alg: 'ES256K-DER-SHA256';
+  signature: string;
 }
 
 export const signedRecordEnvelopeSchema: z.ZodType<SignedRecordEnvelope> = z
-    .object({
-        version: z.union([z.literal(1), z.literal(2)]),
-        // Open, app-defined category (see the `type` doc above). The Oxy STORE
-        // re-narrows to `oxySignedRecordTypeSchema`; an app to its own constant.
-        type: z.string().min(1),
-        subject: z.string(),
-        issuer: z.string(),
-        record: z.record(z.unknown()),
-        issuedAt: z.number(),
-        seq: z.number().int().nonnegative().optional(),
-        prev: z.string().nullable().optional(),
-        collection: z.string().min(1).optional(),
-        rkey: z.string().min(1).optional(),
-        publicKey: z.string(),
-        alg: z.literal('ES256K-DER-SHA256'),
-        signature: z.string(),
-    })
-    .superRefine((env, ctx) => {
-        if (env.version === 2) {
-            // v2 REQUIRES the hash-chain fields. `prev` may be `null` at genesis,
-            // but the key must be present (it is part of the signed bytes), so we
-            // reject only when it is entirely absent.
-            if (typeof env.seq !== 'number') {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v2 envelope requires `seq`',
-                    path: ['seq'],
-                });
-            }
-            if (env.prev === undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v2 envelope requires `prev` (use `null` at genesis)',
-                    path: ['prev'],
-                });
-            }
-            if (typeof env.collection !== 'string') {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v2 envelope requires `collection`',
-                    path: ['collection'],
-                });
-            }
-            if (typeof env.rkey !== 'string') {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v2 envelope requires `rkey`',
-                    path: ['rkey'],
-                });
-            }
-        } else {
-            // v1 FORBIDS the v2 chain fields entirely, so a legacy envelope keeps
-            // its exact byte shape and cannot smuggle unsigned chain metadata.
-            if (env.seq !== undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v1 envelope must not carry `seq`',
-                    path: ['seq'],
-                });
-            }
-            if (env.prev !== undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v1 envelope must not carry `prev`',
-                    path: ['prev'],
-                });
-            }
-            if (env.collection !== undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v1 envelope must not carry `collection`',
-                    path: ['collection'],
-                });
-            }
-            if (env.rkey !== undefined) {
-                ctx.addIssue({
-                    code: z.ZodIssueCode.custom,
-                    message: 'v1 envelope must not carry `rkey`',
-                    path: ['rkey'],
-                });
-            }
-        }
-    });
+  .object({
+    version: z.union([z.literal(1), z.literal(2)]),
+    // Open, app-defined category (see the `type` doc above). The Oxy STORE
+    // re-narrows to `oxySignedRecordTypeSchema`; an app to its own constant.
+    type: z.string().min(1),
+    subject: z.string(),
+    issuer: z.string(),
+    record: z.record(z.unknown()),
+    issuedAt: z.number(),
+    seq: z.number().int().nonnegative().optional(),
+    prev: z.string().nullable().optional(),
+    collection: z.string().min(1).optional(),
+    rkey: z.string().min(1).optional(),
+    publicKey: z.string(),
+    alg: z.literal('ES256K-DER-SHA256'),
+    signature: z.string(),
+  })
+  .superRefine((env, ctx) => {
+    if (env.version === 2) {
+      // v2 REQUIRES the hash-chain fields. `prev` may be `null` at genesis,
+      // but the key must be present (it is part of the signed bytes), so we
+      // reject only when it is entirely absent.
+      if (typeof env.seq !== 'number') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v2 envelope requires `seq`',
+          path: ['seq'],
+        });
+      }
+      if (env.prev === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v2 envelope requires `prev` (use `null` at genesis)',
+          path: ['prev'],
+        });
+      }
+      if (typeof env.collection !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v2 envelope requires `collection`',
+          path: ['collection'],
+        });
+      }
+      if (typeof env.rkey !== 'string') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v2 envelope requires `rkey`',
+          path: ['rkey'],
+        });
+      }
+    } else {
+      // v1 FORBIDS the v2 chain fields entirely, so a legacy envelope keeps
+      // its exact byte shape and cannot smuggle unsigned chain metadata.
+      if (env.seq !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v1 envelope must not carry `seq`',
+          path: ['seq'],
+        });
+      }
+      if (env.prev !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v1 envelope must not carry `prev`',
+          path: ['prev'],
+        });
+      }
+      if (env.collection !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v1 envelope must not carry `collection`',
+          path: ['collection'],
+        });
+      }
+      if (env.rkey !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'v1 envelope must not carry `rkey`',
+          path: ['rkey'],
+        });
+      }
+    }
+  });
 
 /* -------------------------------------------------------------------------- */
 /*  Verified domains (badge)                                                  */
@@ -319,48 +319,58 @@ export const signedRecordEnvelopeSchema: z.ZodType<SignedRecordEnvelope> = z
  * `Date` so the API can validate its own pre-serialization model objects.
  */
 export interface VerifiedDomain {
-    domain: string;
-    verifiedAt: string | Date;
-    method: 'dns-txt' | 'well-known';
+  domain: string;
+  verifiedAt: string | Date;
+  method: 'dns-txt' | 'well-known';
 }
 
 export const verifiedDomainSchema: z.ZodType<VerifiedDomain> = z.object({
-    domain: z.string(),
-    verifiedAt: z.union([z.string(), z.date()]),
-    method: z.enum(['dns-txt', 'well-known']),
+  domain: z.string(),
+  verifiedAt: z.union([z.string(), z.date()]),
+  method: z.enum(['dns-txt', 'well-known']),
 });
 
 /** Request body for `POST /identity/domains` — the domain to start verifying. */
 export const domainVerificationRequestSchema = z.object({
-    domain: z.string().trim().min(1),
+  domain: z.string().trim().min(1),
 });
 
 export type DomainVerificationRequest = z.infer<typeof domainVerificationRequestSchema>;
 
 const resourceOriginHostSchema = z
-    .string()
-    .trim()
-    .toLowerCase()
-    .pipe(z.string().min(1).max(253).regex(
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .max(253)
+      .regex(
         /^(?!-)[a-z0-9-]{1,63}(?<!-)(?:\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/,
         'originHost must be a public DNS hostname without scheme, port or path',
-    ));
+      ),
+  );
 
 /** Clarity resource-server request to bind a site to Oxy domain authority. */
-export const resourceDomainOwnershipRequestSchema = z.object({
+export const resourceDomainOwnershipRequestSchema = z
+  .object({
     accountId: z.string().min(1).max(128),
     verifiedDomainId: z.string().min(1).max(128),
     originHost: resourceOriginHostSchema,
-}).strict();
+  })
+  .strict();
 
-export const resourceDomainOwnershipResponseSchema = z.object({
+export const resourceDomainOwnershipResponseSchema = z
+  .object({
     verified: z.boolean(),
     accountId: z.string().min(1).max(128),
     verifiedDomainId: z.string().min(1).max(128),
     originHost: resourceOriginHostSchema,
     verifiedAt: z.string().datetime().optional(),
     method: z.enum(['dns-txt', 'well-known']).optional(),
-}).strict();
+  })
+  .strict();
 
 export type ResourceDomainOwnershipRequest = z.infer<typeof resourceDomainOwnershipRequestSchema>;
 export type ResourceDomainOwnershipResponse = z.infer<typeof resourceDomainOwnershipResponseSchema>;
@@ -372,21 +382,19 @@ export type ResourceDomainOwnershipResponse = z.infer<typeof resourceDomainOwner
  * `POST /identity/domains/:domain/verify`.
  */
 export const domainVerificationInstructionsSchema = z.object({
-    domain: z.string(),
-    token: z.string(),
-    dns: z.object({
-        name: z.string(),
-        value: z.string(),
-    }),
-    wellKnown: z.object({
-        url: z.string(),
-        body: z.string(),
-    }),
+  domain: z.string(),
+  token: z.string(),
+  dns: z.object({
+    name: z.string(),
+    value: z.string(),
+  }),
+  wellKnown: z.object({
+    url: z.string(),
+    body: z.string(),
+  }),
 });
 
-export type DomainVerificationInstructions = z.infer<
-    typeof domainVerificationInstructionsSchema
->;
+export type DomainVerificationInstructions = z.infer<typeof domainVerificationInstructionsSchema>;
 
 /* -------------------------------------------------------------------------- */
 /*  Auth methods ↔ verification methods                                       */
@@ -400,15 +408,15 @@ export type DomainVerificationInstructions = z.infer<
  * factors of the account, not DID verification methods.
  */
 export interface AuthMethodEntry {
-    type: 'identity';
-    linkedAt: string | Date;
-    verificationMethodId?: string;
+  type: 'identity';
+  linkedAt: string | Date;
+  verificationMethodId?: string;
 }
 
 export const authMethodEntrySchema: z.ZodType<AuthMethodEntry> = z.object({
-    type: z.literal('identity'),
-    linkedAt: z.union([z.string(), z.date()]),
-    verificationMethodId: z.string().optional(),
+  type: z.literal('identity'),
+  linkedAt: z.union([z.string(), z.date()]),
+  verificationMethodId: z.string().optional(),
 });
 
 /**
@@ -416,13 +424,13 @@ export const authMethodEntrySchema: z.ZodType<AuthMethodEntry> = z.object({
  * authentication method.
  */
 export interface AuthMethodsResponse {
-    did: string;
-    methods: AuthMethodEntry[];
+  did: string;
+  methods: AuthMethodEntry[];
 }
 
 export const authMethodsResponseSchema: z.ZodType<AuthMethodsResponse> = z.object({
-    did: z.string(),
-    methods: z.array(authMethodEntrySchema),
+  did: z.string(),
+  methods: z.array(authMethodEntrySchema),
 });
 
 /* -------------------------------------------------------------------------- */
@@ -436,19 +444,19 @@ export const authMethodsResponseSchema: z.ZodType<AuthMethodsResponse> = z.objec
  * own key when they hold one). `signedAt` is epoch milliseconds.
  */
 export interface ExportAttestation {
-    issuer: string;
-    publicKey: string;
-    alg: 'ES256K-DER-SHA256';
-    signature: string;
-    signedAt: number;
+  issuer: string;
+  publicKey: string;
+  alg: 'ES256K-DER-SHA256';
+  signature: string;
+  signedAt: number;
 }
 
 export const exportAttestationSchema: z.ZodType<ExportAttestation> = z.object({
-    issuer: z.string(),
-    publicKey: z.string(),
-    alg: z.literal('ES256K-DER-SHA256'),
-    signature: z.string(),
-    signedAt: z.number(),
+  issuer: z.string(),
+  publicKey: z.string(),
+  alg: z.literal('ES256K-DER-SHA256'),
+  signature: z.string(),
+  signedAt: z.number(),
 });
 
 /**
@@ -459,64 +467,64 @@ export const exportAttestationSchema: z.ZodType<ExportAttestation> = z.object({
  * customer re-adds must reproduce the figure Oxy charged.
  */
 export interface ExportUsageReceipt {
-    receiptId: string;
-    requestId: string;
-    settledAt: string;
-    billedAmount: string;
-    currency: string;
-    outcome: string;
-    resolvedModelReference: string;
-    servingProvider: string;
-    /** True when the charge is Oxy's fee on a BYOK request, not the model cost. */
-    platformFeeOnly: boolean;
+  receiptId: string;
+  requestId: string;
+  settledAt: string;
+  billedAmount: string;
+  currency: string;
+  outcome: string;
+  resolvedModelReference: string;
+  servingProvider: string;
+  /** True when the charge is Oxy's fee on a BYOK request, not the model cost. */
+  platformFeeOnly: boolean;
 }
 
 export const exportUsageReceiptSchema: z.ZodType<ExportUsageReceipt> = z.object({
-    receiptId: z.string(),
-    requestId: z.string(),
-    settledAt: z.string(),
-    billedAmount: z.string(),
-    currency: z.string(),
-    outcome: z.string(),
-    resolvedModelReference: z.string(),
-    servingProvider: z.string(),
-    platformFeeOnly: z.boolean(),
+  receiptId: z.string(),
+  requestId: z.string(),
+  settledAt: z.string(),
+  billedAmount: z.string(),
+  currency: z.string(),
+  outcome: z.string(),
+  resolvedModelReference: z.string(),
+  servingProvider: z.string(),
+  platformFeeOnly: z.boolean(),
 });
 
 /** One entry in the account's own journal. */
 export interface ExportLedgerEntry {
-    entryId: string;
-    kind: string;
-    currency: string;
-    createdAt: string;
+  entryId: string;
+  kind: string;
+  currency: string;
+  createdAt: string;
 }
 
 export const exportLedgerEntrySchema: z.ZodType<ExportLedgerEntry> = z.object({
-    entryId: z.string(),
-    kind: z.string(),
-    currency: z.string(),
-    createdAt: z.string(),
+  entryId: z.string(),
+  kind: z.string(),
+  currency: z.string(),
+  createdAt: z.string(),
 });
 
 /** One hold: money that was neither spent nor returned at the time it was taken. */
 export interface ExportUsageReservation {
-    reservationId: string;
-    requestId: string;
-    status: string;
-    reservedAmount: string;
-    currency: string;
-    createdAt: string;
-    expiresAt: string;
+  reservationId: string;
+  requestId: string;
+  status: string;
+  reservedAmount: string;
+  currency: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export const exportUsageReservationSchema: z.ZodType<ExportUsageReservation> = z.object({
-    reservationId: z.string(),
-    requestId: z.string(),
-    status: z.string(),
-    reservedAmount: z.string(),
-    currency: z.string(),
-    createdAt: z.string(),
-    expiresAt: z.string(),
+  reservationId: z.string(),
+  requestId: z.string(),
+  status: z.string(),
+  reservedAmount: z.string(),
+  currency: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
 });
 
 /**
@@ -532,15 +540,15 @@ export const exportUsageReservationSchema: z.ZodType<ExportUsageReservation> = z
  * rather than that anything was withheld.
  */
 export interface ExportFinancialSection {
-    receipts: ExportUsageReceipt[];
-    ledgerEntries: ExportLedgerEntry[];
-    reservations: ExportUsageReservation[];
+  receipts: ExportUsageReceipt[];
+  ledgerEntries: ExportLedgerEntry[];
+  reservations: ExportUsageReservation[];
 }
 
 export const exportFinancialSectionSchema: z.ZodType<ExportFinancialSection> = z.object({
-    receipts: z.array(exportUsageReceiptSchema),
-    ledgerEntries: z.array(exportLedgerEntrySchema),
-    reservations: z.array(exportUsageReservationSchema),
+  receipts: z.array(exportUsageReceiptSchema),
+  ledgerEntries: z.array(exportLedgerEntrySchema),
+  reservations: z.array(exportUsageReservationSchema),
 });
 
 /**
@@ -555,39 +563,39 @@ export const exportFinancialSectionSchema: z.ZodType<ExportFinancialSection> = z
  * `proof` when the user signed the bundle with their own key.
  */
 export interface ExportBundle {
-    '$schema': string;
-    exportedAt: string;
-    did: string;
-    didDocument: DidDocument;
-    profile: Record<string, unknown>;
-    verifiedDomains: VerifiedDomain[];
-    authMethods: AuthMethodEntry[];
-    signedRecords: SignedRecordEnvelope[];
-    appData: Record<string, unknown>[];
-    social: {
-        following: string[];
-        followers: string[];
-    };
-    financial: ExportFinancialSection;
-    attestation: ExportAttestation | null;
-    proof?: ExportAttestation;
+  $schema: string;
+  exportedAt: string;
+  did: string;
+  didDocument: DidDocument;
+  profile: Record<string, unknown>;
+  verifiedDomains: VerifiedDomain[];
+  authMethods: AuthMethodEntry[];
+  signedRecords: SignedRecordEnvelope[];
+  appData: Record<string, unknown>[];
+  social: {
+    following: string[];
+    followers: string[];
+  };
+  financial: ExportFinancialSection;
+  attestation: ExportAttestation | null;
+  proof?: ExportAttestation;
 }
 
 export const exportBundleSchema: z.ZodType<ExportBundle> = z.object({
-    '$schema': z.string(),
-    exportedAt: z.string(),
-    did: z.string(),
-    didDocument: didDocumentSchema,
-    profile: z.record(z.unknown()),
-    verifiedDomains: z.array(verifiedDomainSchema),
-    authMethods: z.array(authMethodEntrySchema),
-    signedRecords: z.array(signedRecordEnvelopeSchema),
-    appData: z.array(z.record(z.unknown())),
-    social: z.object({
-        following: z.array(z.string()),
-        followers: z.array(z.string()),
-    }),
-    financial: exportFinancialSectionSchema,
-    attestation: exportAttestationSchema.nullable(),
-    proof: exportAttestationSchema.optional(),
+  $schema: z.string(),
+  exportedAt: z.string(),
+  did: z.string(),
+  didDocument: didDocumentSchema,
+  profile: z.record(z.unknown()),
+  verifiedDomains: z.array(verifiedDomainSchema),
+  authMethods: z.array(authMethodEntrySchema),
+  signedRecords: z.array(signedRecordEnvelopeSchema),
+  appData: z.array(z.record(z.unknown())),
+  social: z.object({
+    following: z.array(z.string()),
+    followers: z.array(z.string()),
+  }),
+  financial: exportFinancialSectionSchema,
+  attestation: exportAttestationSchema.nullable(),
+  proof: exportAttestationSchema.optional(),
 });

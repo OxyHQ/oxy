@@ -1,6 +1,6 @@
 /**
  * Signature Verification Service
- * 
+ *
  * Handles ECDSA signature verification for the backend.
  * Used to authenticate users via their public key and digital signatures.
  */
@@ -81,7 +81,7 @@ export class SignatureService {
 
   /**
    * Verify an authentication challenge response
-   * 
+   *
    * @param publicKey - The user's public key
    * @param challenge - The original challenge string
    * @param signature - The signature of the auth message
@@ -92,7 +92,7 @@ export class SignatureService {
     publicKey: string,
     challenge: string,
     signature: string,
-    timestamp: number
+    timestamp: number,
   ): boolean {
     if (!SignatureService.isTimestampFresh(timestamp, CHALLENGE_TTL_MS)) {
       return false;
@@ -110,7 +110,7 @@ export class SignatureService {
   static verifyRegistrationSignature(
     publicKey: string,
     signature: string,
-    timestamp: number
+    timestamp: number,
   ): boolean {
     if (!SignatureService.isTimestampFresh(timestamp, MAX_SIGNATURE_AGE_MS)) {
       return false;
@@ -128,7 +128,7 @@ export class SignatureService {
     publicKey: string,
     data: Record<string, unknown>,
     signature: string,
-    timestamp: number
+    timestamp: number,
   ): boolean {
     if (!SignatureService.isTimestampFresh(timestamp, MAX_SIGNATURE_AGE_MS)) {
       return false;
@@ -136,9 +136,9 @@ export class SignatureService {
 
     // Create canonical string representation
     const sortedKeys = Object.keys(data).sort();
-    const canonicalParts = sortedKeys.map(key => `${key}:${JSON.stringify(data[key])}`);
+    const canonicalParts = sortedKeys.map((key) => `${key}:${JSON.stringify(data[key])}`);
     const canonicalString = canonicalParts.join('|');
-    
+
     const message = `request:${publicKey}:${timestamp}:${canonicalString}`;
     return SignatureService.verifySignature(message, signature, publicKey);
   }
@@ -176,4 +176,3 @@ export class SignatureService {
 }
 
 export default SignatureService;
-

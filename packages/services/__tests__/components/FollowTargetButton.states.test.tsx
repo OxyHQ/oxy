@@ -3,10 +3,18 @@ import { FollowTargetButton } from '../../src/ui/components/FollowTargetButton';
 
 let status = { globalState: 'requested', applicationMode: 'inherit', relationshipId: 'request' };
 let isFollowing = false;
-jest.mock('../../src/ui/hooks/useFollowTarget', () => ({ useFollowTarget: () => ({
-  status, isFollowing, isUnknown: false, isPending: false,
-  follow: jest.fn(), unfollow: jest.fn(), disableHere: jest.fn(), enableHere: jest.fn(),
-}) }));
+jest.mock('../../src/ui/hooks/useFollowTarget', () => ({
+  useFollowTarget: () => ({
+    status,
+    isFollowing,
+    isUnknown: false,
+    isPending: false,
+    follow: jest.fn(),
+    unfollow: jest.fn(),
+    disableHere: jest.fn(),
+    enableHere: jest.fn(),
+  }),
+}));
 
 it('preserves the requested label before the relationship is accepted', () => {
   render(<FollowTargetButton targetId="private-account" showOptions={false} />);

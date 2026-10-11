@@ -98,7 +98,12 @@ export class OxyServices {
    * built on, for the routes no namespace covers yet. GET sends `data` as the
    * query string, every other method as the body. Rejects with `OxyApiError`.
    */
-  async request<T>(method: HttpMethod, url: string, data?: unknown, options: RequestOptions = {}): Promise<T> {
+  async request<T>(
+    method: HttpMethod,
+    url: string,
+    data?: unknown,
+    options: RequestOptions = {},
+  ): Promise<T> {
     try {
       return await this.http.request<T>({
         method,
@@ -303,4 +308,3 @@ export class OxyServices {
     return this._contacts;
   }
 }
-

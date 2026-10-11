@@ -216,7 +216,10 @@ describe('verifyInclusionProof', () => {
     const entries = heads(5);
     const tree = await buildTransparencyTreeFromHeads(entries);
     const proof = inclusionProof(tree, 2);
-    const tamperedLeaf = await transparencyLeafHash({ ...entries[2], headRecordId: 'f'.repeat(64) });
+    const tamperedLeaf = await transparencyLeafHash({
+      ...entries[2],
+      headRecordId: 'f'.repeat(64),
+    });
     await expect(
       verifyInclusionProof({ leaf: tamperedLeaf, index: 2, treeSize: 5, proof, root: tree.root }),
     ).resolves.toBe(false);

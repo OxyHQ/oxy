@@ -37,10 +37,7 @@ export const discoverContactsSchema = z
         path: ['hashedEmails'],
       });
     }
-    if (
-      value.hashedEmails.length + value.hashedPhones.length >
-      MAX_HASHES_PER_REQUEST * 2
-    ) {
+    if (value.hashedEmails.length + value.hashedPhones.length > MAX_HASHES_PER_REQUEST * 2) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `Total identifiers must not exceed ${MAX_HASHES_PER_REQUEST * 2}`,

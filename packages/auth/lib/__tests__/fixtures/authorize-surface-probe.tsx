@@ -30,98 +30,94 @@
  * would surface as an unhandled rejection instead of a readable assertion.
  */
 
-import { createElement, type ReactElement } from "react"
-import { renderToStaticMarkup } from "react-dom/server"
-import { BloomThemeProvider } from "@oxy.so/bloom/theme"
-import { OxySignInRequestSurface } from "@oxy.so/services"
+import { createElement, type ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { OxySignInRequestSurface } from '@oxy.so/services';
 import {
-    ALTERNATIVE_LABEL,
-    PROBE_CASES,
-    PROBE_GLOBAL,
-    SUBORDINATE_LABEL,
-    type AuthorizeSurfaceProbeResult,
-    type ProbeCase,
-    type ProbeCaseResult,
-} from "./authorize-surface-probe-contract"
+  ALTERNATIVE_LABEL,
+  PROBE_CASES,
+  PROBE_GLOBAL,
+  SUBORDINATE_LABEL,
+  type AuthorizeSurfaceProbeResult,
+  type ProbeCase,
+  type ProbeCaseResult,
+} from './authorize-surface-probe-contract';
 
 /** Carries no real credential — the surface renders nothing derived from it. */
-const QR_PAYLOAD = "oxycommons://approve?v=1&code=probe-code&nonce=probe&exp=1"
+const QR_PAYLOAD = 'oxycommons://approve?v=1&code=probe-code&nonce=probe&exp=1';
 
 /** Handed to every case, so a surface that renders nothing cannot pass. */
 const SUBORDINATE = [
-    { key: "probe-cancel", label: SUBORDINATE_LABEL, onPress: () => undefined },
-] as const
+  { key: 'probe-cancel', label: SUBORDINATE_LABEL, onPress: () => undefined },
+] as const;
 
 const ALTERNATIVES = [
-    { key: "probe-elsewhere", label: ALTERNATIVE_LABEL, onPress: () => undefined },
-] as const
+  { key: 'probe-elsewhere', label: ALTERNATIVE_LABEL, onPress: () => undefined },
+] as const;
 
-type SurfaceProps = Parameters<typeof OxySignInRequestSurface>[0]
+type SurfaceProps = Parameters<typeof OxySignInRequestSurface>[0];
 
 const CASE_PROPS: Record<ProbeCase, SurfaceProps> = {
-    // The state the Commons lane is in on first paint, and the branch
-    // auth.oxy.so/authorize was actually rendering when it went blank.
-    [PROBE_CASES.preparing]: {
-        route: null,
-        progress: "idle",
-        qrPayload: null,
-        subordinate: SUBORDINATE,
-        alternatives: ALTERNATIVES,
-    },
-    [PROBE_CASES.qr]: {
-        route: "qr",
-        progress: "awaiting-approval",
-        qrPayload: QR_PAYLOAD,
-        subordinate: SUBORDINATE,
-        alternatives: ALTERNATIVES,
-    },
-    [PROBE_CASES.routeGlyph]: {
-        route: "await-push",
-        progress: "awaiting-approval",
-        qrPayload: null,
-        subordinate: SUBORDINATE,
-        alternatives: ALTERNATIVES,
-    },
-    // `failed` also reveals the alternatives, so this is the one case whose
-    // markup carries ALTERNATIVE_LABEL — everywhere else they stay inside
-    // Bloom's collapsed disclosure and are not rendered at all.
-    [PROBE_CASES.failed]: {
-        route: null,
-        progress: "idle",
-        qrPayload: null,
-        failed: true,
-        onRetry: () => undefined,
-        subordinate: SUBORDINATE,
-        alternatives: ALTERNATIVES,
-    },
-}
+  // The state the Commons lane is in on first paint, and the branch
+  // auth.oxy.so/authorize was actually rendering when it went blank.
+  [PROBE_CASES.preparing]: {
+    route: null,
+    progress: 'idle',
+    qrPayload: null,
+    subordinate: SUBORDINATE,
+    alternatives: ALTERNATIVES,
+  },
+  [PROBE_CASES.qr]: {
+    route: 'qr',
+    progress: 'awaiting-approval',
+    qrPayload: QR_PAYLOAD,
+    subordinate: SUBORDINATE,
+    alternatives: ALTERNATIVES,
+  },
+  [PROBE_CASES.routeGlyph]: {
+    route: 'await-push',
+    progress: 'awaiting-approval',
+    qrPayload: null,
+    subordinate: SUBORDINATE,
+    alternatives: ALTERNATIVES,
+  },
+  // `failed` also reveals the alternatives, so this is the one case whose
+  // markup carries ALTERNATIVE_LABEL — everywhere else they stay inside
+  // Bloom's collapsed disclosure and are not rendered at all.
+  [PROBE_CASES.failed]: {
+    route: null,
+    progress: 'idle',
+    qrPayload: null,
+    failed: true,
+    onRetry: () => undefined,
+    subordinate: SUBORDINATE,
+    alternatives: ALTERNATIVES,
+  },
+};
 
 /** The same theme the IdP mounts in `src/main.tsx`. */
 function themed(child: ReactElement): ReactElement {
-    return createElement(
-        BloomThemeProvider,
-        { mode: "system", colorPreset: "oxy" },
-        child,
-    )
+  return createElement(BloomThemeProvider, { mode: 'system', colorPreset: 'oxy' }, child);
 }
 
 function renderCase(props: SurfaceProps): ProbeCaseResult {
-    try {
-        return {
-            ok: true,
-            html: renderToStaticMarkup(themed(createElement(OxySignInRequestSurface, props))),
-        }
-    } catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : String(error) }
-    }
+  try {
+    return {
+      ok: true,
+      html: renderToStaticMarkup(themed(createElement(OxySignInRequestSurface, props))),
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
-const results = {} as AuthorizeSurfaceProbeResult
+const results = {} as AuthorizeSurfaceProbeResult;
 for (const name of Object.values(PROBE_CASES)) {
-    results[name] = renderCase(CASE_PROPS[name])
+  results[name] = renderCase(CASE_PROPS[name]);
 }
 
 const globalWithProbe = globalThis as typeof globalThis & {
-    [PROBE_GLOBAL]?: AuthorizeSurfaceProbeResult
-}
-globalWithProbe[PROBE_GLOBAL] = results
+  [PROBE_GLOBAL]?: AuthorizeSurfaceProbeResult;
+};
+globalWithProbe[PROBE_GLOBAL] = results;

@@ -65,7 +65,7 @@ function edit(root, caseName, replacer) {
   const after = replacer(before);
   if (after === before) {
     failures.push(
-      `${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`
+      `${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`,
     );
     return;
   }
@@ -94,7 +94,14 @@ function needsFor(root, overrides = {}) {
   return needs;
 }
 
-function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, eventName = 'pull_request') {
+function expectVerdict(
+  caseName,
+  root,
+  needs,
+  expectedCode,
+  expectedFragment,
+  eventName = 'pull_request',
+) {
   let code = 0;
   let output = '';
   const env = { ...process.env };
@@ -120,7 +127,9 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     return;
   }
   if (!output.includes(expectedFragment)) {
-    failures.push(`${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`);
+    failures.push(
+      `${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`,
+    );
   }
 }
 
@@ -140,7 +149,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     root,
     needsFor(root, { 'packages-platform': 'failure' }),
     1,
-    '`packages-platform` failed.'
+    '`packages-platform` failed.',
   );
 }
 
@@ -151,7 +160,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     root,
     needsFor(root, { 'api-build': 'cancelled' }),
     1,
-    '`api-build` was cancelled'
+    '`api-build` was cancelled',
   );
 }
 
@@ -163,15 +172,15 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
   edit(root, 'a-conditional-job-may-skip', (yaml) =>
     yaml.replace(
       '  guards:\n    name: Guards\n',
-      "  guards:\n    name: Guards\n    if: \"github.event_name == 'pull_request'\"\n"
-    )
+      '  guards:\n    name: Guards\n    if: "github.event_name == \'pull_request\'"\n',
+    ),
   );
   expectVerdict(
     'a-conditional-job-may-skip',
     root,
     needsFor(root, { guards: 'skipped' }),
     0,
-    '1 skipped for a declared reason'
+    '1 skipped for a declared reason',
   );
 }
 
@@ -184,7 +193,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     root,
     needsFor(root, { guards: 'skipped' }),
     1,
-    '`guards` was skipped, but it declares no `if:`'
+    '`guards` was skipped, but it declares no `if:`',
   );
 }
 
@@ -196,17 +205,17 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     yaml
       .replace(
         '  guards:\n    name: Guards\n',
-        "  guards:\n    name: Guards\n    if: \"github.event_name == 'push'\"\n"
+        '  guards:\n    name: Guards\n    if: "github.event_name == \'push\'"\n',
       )
       // `api-coverage` declares no `if:` of its own.
-      .replace('    needs: api-test\n', '    needs: [api-test, guards]\n')
+      .replace('    needs: api-test\n', '    needs: [api-test, guards]\n'),
   );
   expectVerdict(
     'a-skip-inherited-from-a-dependency',
     root,
     needsFor(root, { guards: 'skipped', 'api-coverage': 'skipped' }),
     0,
-    '2 skipped for a declared reason'
+    '2 skipped for a declared reason',
   );
 }
 
@@ -231,7 +240,9 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
   }
   if (output.includes('`api-coverage` was skipped')) {
-    failures.push(`a-failed-shard-fails-the-gate: the merge's inherited skip was reported as its own fault.\n${output}`);
+    failures.push(
+      `a-failed-shard-fails-the-gate: the merge's inherited skip was reported as its own fault.\n${output}`,
+    );
   }
 }
 
@@ -244,7 +255,7 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
     root,
     needsFor(root, { 'api-coverage': 'skipped' }),
     1,
-    '`api-coverage` was skipped, but it declares no `if:`'
+    '`api-coverage` was skipped, but it declares no `if:`',
   );
 }
 
@@ -255,13 +266,23 @@ function expectVerdict(caseName, root, needs, expectedCode, expectedFragment, ev
 // its own — the list is read from the real workflow, not written here, so a job
 // added later is covered the day it lands — and the named ones must still be
 // in it, so a rename that quietly empties this loop goes red too.
-const REQUIRED_JOBS = ['scope', 'guards', 'api-test', 'api-coverage', 'api-build', 'packages-platform', 'packages-apps'];
-const workflowJobs = Object.keys(Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {}).filter(
-  (id) => id !== GATE_JOB_ID
-);
+const REQUIRED_JOBS = [
+  'scope',
+  'guards',
+  'api-test',
+  'api-coverage',
+  'api-build',
+  'packages-platform',
+  'packages-apps',
+];
+const workflowJobs = Object.keys(
+  Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {},
+).filter((id) => id !== GATE_JOB_ID);
 for (const job of REQUIRED_JOBS) {
   if (!workflowJobs.includes(job)) {
-    failures.push(`every-job-is-required: \`${job}\` is not a job in ${WORKFLOW}; this list and the workflow disagree.`);
+    failures.push(
+      `every-job-is-required: \`${job}\` is not a job in ${WORKFLOW}; this list and the workflow disagree.`,
+    );
   }
 }
 for (const job of workflowJobs) {
@@ -272,7 +293,7 @@ for (const job of workflowJobs) {
     root,
     needsFor(root, { [job]: undefined }),
     1,
-    `are not dependencies of \`ci-complete\`: ${job}`
+    `are not dependencies of \`ci-complete\`: ${job}`,
   );
 }
 
@@ -283,7 +304,7 @@ for (const job of workflowJobs) {
     root,
     needsFor(root, { 'packages-apps': 'neutral' }),
     1,
-    'reported "neutral", which this gate does not recognise as a pass'
+    'reported "neutral", which this gate does not recognise as a pass',
   );
 }
 
@@ -295,15 +316,15 @@ for (const job of workflowJobs) {
   edit(root, 'a-job-missing-from-needs-fails-the-gate', (yaml) =>
     yaml.replace(
       '  guards:\n',
-      '  brand-new-suite:\n    name: Brand New Suite\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n\n  guards:\n'
-    )
+      '  brand-new-suite:\n    name: Brand New Suite\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n\n  guards:\n',
+    ),
   );
   expectVerdict(
     'a-job-missing-from-needs-fails-the-gate',
     root,
     needsFor(root, { 'brand-new-suite': undefined }),
     1,
-    'are not dependencies of `ci-complete`: brand-new-suite'
+    'are not dependencies of `ci-complete`: brand-new-suite',
   );
 }
 
@@ -315,29 +336,32 @@ for (const job of workflowJobs) {
   edit(root, 'a-path-filtered-workflow-fails-the-gate', (yaml) =>
     yaml.replace(
       '  pull_request:\n    branches: [main, develop]\n',
-      "  pull_request:\n    branches: [main, develop]\n    paths: ['packages/**']\n"
-    )
+      "  pull_request:\n    branches: [main, develop]\n    paths: ['packages/**']\n",
+    ),
   );
   expectVerdict(
     'a-path-filtered-workflow-fails-the-gate',
     root,
     needsFor(root),
     1,
-    'filters `on.pull_request` by `paths`'
+    'filters `on.pull_request` by `paths`',
   );
 }
 
 {
   const root = createFixture();
   edit(root, 'a-workflow-that-skips-main-fails-the-gate', (yaml) =>
-    yaml.replace('  pull_request:\n    branches: [main, develop]\n', '  pull_request:\n    branches: [develop]\n')
+    yaml.replace(
+      '  pull_request:\n    branches: [main, develop]\n',
+      '  pull_request:\n    branches: [develop]\n',
+    ),
   );
   expectVerdict(
     'a-workflow-that-skips-main-fails-the-gate',
     root,
     needsFor(root),
     1,
-    'which excludes `main`'
+    'which excludes `main`',
   );
 }
 
@@ -356,7 +380,13 @@ const scopedOut = (extra = {}) => ({
 
 {
   const root = createFixture();
-  expectVerdict('pr-a-scoped-out-api-suite-passes', root, needsFor(root, scopedOut()), 0, '3 skipped for a declared reason');
+  expectVerdict(
+    'pr-a-scoped-out-api-suite-passes',
+    root,
+    needsFor(root, scopedOut()),
+    0,
+    '3 skipped for a declared reason',
+  );
 }
 {
   // The one-package pull request: only the platform suite reaches it.
@@ -364,9 +394,15 @@ const scopedOut = (extra = {}) => ({
   expectVerdict(
     'pr-only-platform-runs-passes',
     root,
-    needsFor(root, scopedOut({ scope: { result: 'success', outputs: { api: 'false', platform: 'true', apps: 'false' } }, 'packages-apps': 'skipped' })),
+    needsFor(
+      root,
+      scopedOut({
+        scope: { result: 'success', outputs: { api: 'false', platform: 'true', apps: 'false' } },
+        'packages-apps': 'skipped',
+      }),
+    ),
     0,
-    '4 skipped for a declared reason'
+    '4 skipped for a declared reason',
   );
 }
 {
@@ -377,15 +413,26 @@ const scopedOut = (extra = {}) => ({
     root,
     needsFor(root, scopedOut({ 'packages-apps': 'skipped' })),
     1,
-    '`packages-apps` was skipped, but `scope` did not decide it could be'
+    '`packages-apps` was skipped, but `scope` did not decide it could be',
   );
 }
 {
   // A suite that ran and failed fails the gate, scope or no scope.
   const root = createFixture();
-  expectVerdict('pr-a-failed-scoped-suite-fails', root, needsFor(root, scopedOut({ 'packages-platform': 'failure' })), 1, '`packages-platform` failed.');
+  expectVerdict(
+    'pr-a-failed-scoped-suite-fails',
+    root,
+    needsFor(root, scopedOut({ 'packages-platform': 'failure' })),
+    1,
+    '`packages-platform` failed.',
+  );
 }
-for (const [job, output] of [['api-test', 'api'], ['api-build', 'api'], ['packages-platform', 'platform'], ['packages-apps', 'apps']]) {
+for (const [job, output] of [
+  ['api-test', 'api'],
+  ['api-build', 'api'],
+  ['packages-platform', 'platform'],
+  ['packages-apps', 'apps'],
+]) {
   // Wired to another suite's output, the job would skip on the wrong word.
   const root = createFixture();
   const wrong = output === 'apps' ? 'platform' : 'apps';
@@ -393,23 +440,50 @@ for (const [job, output] of [['api-test', 'api'], ['api-build', 'api'], ['packag
     const start = yaml.indexOf(`\n  ${job}:\n`);
     const end = yaml.indexOf('\n    steps:', start);
     const block = yaml.slice(start, end);
-    return yaml.slice(0, start) + block.replace(`needs.scope.outputs.${output} != 'false'`, `needs.scope.outputs.${wrong} != 'false'`) + yaml.slice(end);
+    return (
+      yaml.slice(0, start) +
+      block.replace(
+        `needs.scope.outputs.${output} != 'false'`,
+        `needs.scope.outputs.${wrong} != 'false'`,
+      ) +
+      yaml.slice(end)
+    );
   });
-  expectVerdict(`${job}-wired-to-the-wrong-suite`, root, needsFor(root), 1, `\`${job}\` must need \`scope\``, 'merge_group');
+  expectVerdict(
+    `${job}-wired-to-the-wrong-suite`,
+    root,
+    needsFor(root),
+    1,
+    `\`${job}\` must need \`scope\``,
+    'merge_group',
+  );
 }
 {
   const root = createFixture();
   edit(root, 'a-scoped-job-that-does-not-need-scope-fails', (yaml) =>
     yaml.replace(
       '  packages-apps:\n    name: Package Tests (apps)\n    needs: scope\n',
-      '  packages-apps:\n    name: Package Tests (apps)\n    needs: guards\n'
-    )
+      '  packages-apps:\n    name: Package Tests (apps)\n    needs: guards\n',
+    ),
   );
-  expectVerdict('a-scoped-job-that-does-not-need-scope-fails', root, needsFor(root), 1, '`packages-apps` must need `scope`');
+  expectVerdict(
+    'a-scoped-job-that-does-not-need-scope-fails',
+    root,
+    needsFor(root),
+    1,
+    '`packages-apps` must need `scope`',
+  );
 }
 {
   const root = createFixture();
-  expectVerdict('merge-group-everything-passed-passes', root, needsFor(root), 0, 'full suite: nothing skipped', 'merge_group');
+  expectVerdict(
+    'merge-group-everything-passed-passes',
+    root,
+    needsFor(root),
+    0,
+    'full suite: nothing skipped',
+    'merge_group',
+  );
 }
 for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   const root = createFixture();
@@ -419,7 +493,7 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
     needsFor(root, scopedOut()),
     1,
     `\`api-test\` was skipped on a \`${event}\` run`,
-    event
+    event,
   );
 }
 {
@@ -429,8 +503,8 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   edit(root, 'merge-group-refuses-a-declared-skip', (yaml) =>
     yaml.replace(
       '  guards:\n    name: Guards\n',
-      "  guards:\n    name: Guards\n    if: \"github.event_name == 'pull_request'\"\n"
-    )
+      '  guards:\n    name: Guards\n    if: "github.event_name == \'pull_request\'"\n',
+    ),
   );
   expectVerdict(
     'merge-group-refuses-a-declared-skip',
@@ -438,7 +512,7 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
     needsFor(root, { guards: 'skipped' }),
     1,
     '`guards` was skipped on a `merge_group` run',
-    'merge_group'
+    'merge_group',
   );
 }
 {
@@ -448,10 +522,13 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   expectVerdict(
     'merge-group-refuses-a-scoped-out-platform-suite',
     root,
-    needsFor(root, { scope: { result: 'success', outputs: { api: 'true', platform: 'false', apps: 'true' } }, 'packages-platform': 'skipped' }),
+    needsFor(root, {
+      scope: { result: 'success', outputs: { api: 'true', platform: 'false', apps: 'true' } },
+      'packages-platform': 'skipped',
+    }),
     1,
     '`packages-platform` was skipped on a `merge_group` run',
-    'merge_group'
+    'merge_group',
   );
 }
 {
@@ -459,9 +536,14 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   expectVerdict(
     'pr-a-skip-the-scope-did-not-order-fails',
     root,
-    needsFor(root, scopedOut({ scope: { result: 'success', outputs: { api: 'true', platform: 'true', apps: 'true' } } })),
+    needsFor(
+      root,
+      scopedOut({
+        scope: { result: 'success', outputs: { api: 'true', platform: 'true', apps: 'true' } },
+      }),
+    ),
     1,
-    '`api-test` was skipped, but `scope` did not decide it could be'
+    '`api-test` was skipped, but `scope` did not decide it could be',
   );
 }
 {
@@ -471,7 +553,7 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
     root,
     needsFor(root, scopedOut({ scope: { result: 'failure', outputs: { api: 'false' } } })),
     1,
-    '`scope` failed.'
+    '`scope` failed.',
   );
 }
 {
@@ -481,17 +563,32 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
     root,
     needsFor(root, scopedOut({ scope: { result: 'success', outputs: {} } })),
     1,
-    'with api=undefined'
+    'with api=undefined',
   );
 }
 {
   const root = createFixture();
-  expectVerdict('a-missing-EVENT_NAME-fails-the-gate', root, needsFor(root), 1, 'EVENT_NAME is empty or unset', null);
+  expectVerdict(
+    'a-missing-EVENT_NAME-fails-the-gate',
+    root,
+    needsFor(root),
+    1,
+    'EVENT_NAME is empty or unset',
+    null,
+  );
 }
 {
   const root = createFixture();
-  edit(root, 'a-workflow-without-merge-group-fails-the-gate', (yaml) => yaml.replace('  merge_group:\n', ''));
-  expectVerdict('a-workflow-without-merge-group-fails-the-gate', root, needsFor(root), 1, 'no longer declares an `on.merge_group` trigger');
+  edit(root, 'a-workflow-without-merge-group-fails-the-gate', (yaml) =>
+    yaml.replace('  merge_group:\n', ''),
+  );
+  expectVerdict(
+    'a-workflow-without-merge-group-fails-the-gate',
+    root,
+    needsFor(root),
+    1,
+    'no longer declares an `on.merge_group` trigger',
+  );
 }
 
 // ── The gate's own guards, so none can rot into decoration ─────────────────
@@ -499,7 +596,13 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   // No verdicts to read. Passing here would mean the job reports success having
   // measured nothing at all.
   const root = createFixture();
-  expectVerdict('a-missing-NEEDS_JSON-fails-the-gate', root, null, 1, 'NEEDS_JSON is empty or unset');
+  expectVerdict(
+    'a-missing-NEEDS_JSON-fails-the-gate',
+    root,
+    null,
+    1,
+    'NEEDS_JSON is empty or unset',
+  );
 }
 
 {
@@ -512,13 +615,16 @@ for (const event of ['merge_group', 'push', 'workflow_dispatch']) {
   // parsing, every set it computes below is empty and every check is vacuous.
   const root = createFixture();
   const yaml = readFileSync(join(root, WORKFLOW), 'utf8');
-  writeFileSync(join(root, WORKFLOW), `${yaml.split('\njobs:\n')[0]}\njobs:\n  only-one:\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n`);
+  writeFileSync(
+    join(root, WORKFLOW),
+    `${yaml.split('\njobs:\n')[0]}\njobs:\n  only-one:\n    runs-on: ubuntu-latest\n    steps:\n      - run: exit 0\n`,
+  );
   expectVerdict(
     'a-workflow-without-the-gate-job-fails-the-gate',
     root,
     { 'only-one': { result: 'success' } },
     1,
-    'is not among the jobs parsed out of'
+    'is not among the jobs parsed out of',
   );
 }
 
@@ -533,6 +639,6 @@ if (failures.length > 0) {
 
 console.log(
   `check-ci-complete.mjs behaves: ${createdFixtures.length} fixtures, covering every ` +
-  '`needs.*.result` value, the coverage guard, both workflow-trigger guards, and the gate\'s own ' +
-  'vacuity floors.'
+    "`needs.*.result` value, the coverage guard, both workflow-trigger guards, and the gate's own " +
+    'vacuity floors.',
 );

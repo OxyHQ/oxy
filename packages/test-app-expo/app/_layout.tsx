@@ -35,7 +35,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <BloomThemeProvider mode="system">
           <ConnectionStatusToasts />
-          <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={AUTH_REDIRECT_URI}>
+          <OxyProvider
+            baseURL={API_URL}
+            clientId={OXY_CLIENT_ID}
+            authRedirectUri={AUTH_REDIRECT_URI}
+          >
             <RootNavigator />
           </OxyProvider>
         </BloomThemeProvider>

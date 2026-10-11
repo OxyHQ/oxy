@@ -65,7 +65,11 @@ import { createdAt, generatedId, timestamptz } from '@oxy.so/db';
  * left is owed a delete unless another live row still uses it — rows share
  * content-addressed storage, so the old key may well be somebody else's.
  */
-export const STORAGE_OBJECT_DELETION_REASONS = ['account.deleted', 'file.deleted', 'file.relocated'] as const;
+export const STORAGE_OBJECT_DELETION_REASONS = [
+  'account.deleted',
+  'file.deleted',
+  'file.relocated',
+] as const;
 
 /** `object`: one key. `prefix`: every key under a variant directory. */
 export const STORAGE_OBJECT_DELETION_KINDS = ['object', 'prefix'] as const;
@@ -104,9 +108,7 @@ export const storageObjectDeletions = pgTable(
     /** The content hash the target stores; the shared-content guard reads it. */
     sha256: text().notNull(),
     attempts: integer().notNull().default(0),
-    nextAttemptAt: timestamptz()
-      .notNull()
-      .default(sql`now()`),
+    nextAttemptAt: timestamptz().notNull().default(sql`now()`),
     claimedAt: timestamptz(),
     claimedBy: text(),
     completedAt: timestamptz(),
@@ -117,14 +119,23 @@ export const storageObjectDeletions = pgTable(
   (t) => [
     // Recording the same account twice (a retried request) owes each target once.
     unique('storage_object_deletions_account_id_kind_target_key').on(t.accountId, t.kind, t.target),
-    check('storage_object_deletions_reason_check', sql`${t.reason} in (${sql.raw(inList(STORAGE_OBJECT_DELETION_REASONS))})`),
-    check('storage_object_deletions_kind_check', sql`${t.kind} in (${sql.raw(inList(STORAGE_OBJECT_DELETION_KINDS))})`),
+    check(
+      'storage_object_deletions_reason_check',
+      sql`${t.reason} in (${sql.raw(inList(STORAGE_OBJECT_DELETION_REASONS))})`,
+    ),
+    check(
+      'storage_object_deletions_kind_check',
+      sql`${t.kind} in (${sql.raw(inList(STORAGE_OBJECT_DELETION_KINDS))})`,
+    ),
     check(
       'storage_object_deletions_outcome_check',
       sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(STORAGE_OBJECT_DELETION_OUTCOMES))})`,
     ),
     // Finished exactly when it has an outcome.
-    check('storage_object_deletions_completed_check', sql`(${t.completedAt} is null) = (${t.outcome} is null)`),
+    check(
+      'storage_object_deletions_completed_check',
+      sql`(${t.completedAt} is null) = (${t.outcome} is null)`,
+    ),
     check('storage_object_deletions_attempts_check', sql`${t.attempts} >= 0`),
     // The worker's claim: unfinished rows in due order.
     index('storage_object_deletions_due_idx')
@@ -132,7 +143,7 @@ export const storageObjectDeletions = pgTable(
       .where(sql`${t.completedAt} is null`),
     // The expiry sweep's range predicate (`db/expiry.ts`).
     index('storage_object_deletions_completed_at_idx').on(t.completedAt),
-  ]
+  ],
 );
 
 export type StorageObjectDeletionRow = typeof storageObjectDeletions.$inferSelect;

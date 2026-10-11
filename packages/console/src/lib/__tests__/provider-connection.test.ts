@@ -67,7 +67,7 @@ describe('toProviderConnectionView', () => {
       connection({
         rotatedAt: '2026-08-02T00:00:00.000Z',
         termsAcknowledgedAt: '2026-07-01T00:00:00.000Z',
-      })
+      }),
     );
 
     expect(view.rotatedAt).toBe('2026-08-02T00:00:00.000Z');
@@ -82,7 +82,7 @@ describe('isKaanaCredentialControlUnavailable', () => {
     });
     const somethingElse = Object.assign(
       new Error('kaana_credential_control_unavailable happened, apparently'),
-      { code: 'internal_error' }
+      { code: 'internal_error' },
     );
 
     expect(isKaanaCredentialControlUnavailable(refused)).toBe(true);
@@ -100,7 +100,7 @@ describe('connectionAppliesToApplication', () => {
   it('matches an application-scoped connection only for its own application', () => {
     const own = toProviderConnectionView(connection());
     const other = toProviderConnectionView(
-      connection({ scope: { kind: 'application', accountId: owner, applicationId: 'app_2' } })
+      connection({ scope: { kind: 'application', accountId: owner, applicationId: 'app_2' } }),
     );
 
     expect(connectionAppliesToApplication(own, app, owner)).toBe(true);
@@ -109,13 +109,13 @@ describe('connectionAppliesToApplication', () => {
 
   it('matches account- and project-scoped connections on the owning account', () => {
     const accountScoped = toProviderConnectionView(
-      connection({ scope: { kind: 'account', accountId: owner } })
+      connection({ scope: { kind: 'account', accountId: owner } }),
     );
     const projectScoped = toProviderConnectionView(
-      connection({ scope: { kind: 'project', accountId: owner } })
+      connection({ scope: { kind: 'project', accountId: owner } }),
     );
     const elsewhere = toProviderConnectionView(
-      connection({ ownerAccountId: 'acct_2', scope: { kind: 'account', accountId: 'acct_2' } })
+      connection({ ownerAccountId: 'acct_2', scope: { kind: 'account', accountId: 'acct_2' } }),
     );
 
     expect(connectionAppliesToApplication(accountScoped, app, owner)).toBe(true);
@@ -129,15 +129,15 @@ describe('presentation helpers', () => {
     const scope = (value: Record<string, unknown>) => providerConnectionScopeSchema.parse(value);
 
     expect(providerConnectionScopeLabel(scope({ kind: 'account', accountId: 'a' }))).toContain(
-      'inherited'
+      'inherited',
     );
     expect(providerConnectionScopeLabel(scope({ kind: 'project', accountId: 'a' }))).toBe(
-      'Project only'
+      'Project only',
     );
     expect(
       providerConnectionScopeLabel(
-        scope({ kind: 'application', accountId: 'a', applicationId: 'b' })
-      )
+        scope({ kind: 'application', accountId: 'a', applicationId: 'b' }),
+      ),
     ).toBe('This application only');
   });
 
@@ -147,7 +147,6 @@ describe('presentation helpers', () => {
     expect(connectionStatusVariant('disabled')).toBe('secondary');
     expect(connectionStatusVariant('pending_validation')).toBe('secondary');
   });
-
 });
 
 /**
@@ -174,7 +173,7 @@ describe('providerConnectionAuditAttribution', () => {
     expect(providerConnectionAuditAttribution(platform)).toBe('by the platform');
     expect(providerConnectionAuditAttribution(service)).toBe('by a service credential');
     expect(providerConnectionAuditAttribution(platform)).not.toBe(
-      providerConnectionAuditAttribution(service)
+      providerConnectionAuditAttribution(service),
     );
   });
 
@@ -184,22 +183,22 @@ describe('providerConnectionAuditAttribution', () => {
     // this returns "by a service credential", so this assertion fails if the
     // function ever goes back to reading the id first.
     expect(providerConnectionAuditAttribution({ actorKind: 'user', actorUserId: null })).toBe(
-      'by a member'
+      'by a member',
     );
   });
 
   it('attributes a member action to a member', () => {
-    expect(
-      providerConnectionAuditAttribution({ actorKind: 'user', actorUserId: 'usr_1' })
-    ).toBe('by a member');
+    expect(providerConnectionAuditAttribution({ actorKind: 'user', actorUserId: 'usr_1' })).toBe(
+      'by a member',
+    );
   });
 
   it('falls back to the id only for rows written before the column existed', () => {
     expect(providerConnectionAuditAttribution({ actorKind: null, actorUserId: null })).toBe(
-      'by a service credential'
+      'by a service credential',
     );
     expect(providerConnectionAuditAttribution({ actorKind: null, actorUserId: 'usr_1' })).toBe(
-      'by a member'
+      'by a member',
     );
   });
 });

@@ -46,7 +46,8 @@ const DURATIONS_PATH = `${__dirname}/test-durations.json`;
 function loadDurations() {
   const parsed = JSON.parse(readFileSync(DURATIONS_PATH, 'utf8'));
   const seconds = parsed?.seconds;
-  if (!seconds || typeof seconds !== 'object') throw new Error(`${DURATIONS_PATH} has no "seconds" map`);
+  if (!seconds || typeof seconds !== 'object')
+    throw new Error(`${DURATIONS_PATH} has no "seconds" map`);
   return seconds;
 }
 
@@ -61,18 +62,25 @@ function median(values) {
  * `paths` relative to the package, returns shard number (1-based) per path.
  */
 function assignShards(paths, shardCount, seconds) {
-  if (!Number.isInteger(shardCount) || shardCount < 1) throw new Error(`bad shard count ${shardCount}`);
-  const known = paths.map((path) => seconds[path]).filter((value) => Number.isFinite(value) && value >= 0);
+  if (!Number.isInteger(shardCount) || shardCount < 1)
+    throw new Error(`bad shard count ${shardCount}`);
+  const known = paths
+    .map((path) => seconds[path])
+    .filter((value) => Number.isFinite(value) && value >= 0);
   const fallback = median(known);
   const weighted = [...new Set(paths)]
-    .map((path) => ({ path, weight: Number.isFinite(seconds[path]) && seconds[path] >= 0 ? seconds[path] : fallback }))
+    .map((path) => ({
+      path,
+      weight: Number.isFinite(seconds[path]) && seconds[path] >= 0 ? seconds[path] : fallback,
+    }))
     // Longest first; the path breaks ties so every shard computes the same order.
     .sort((a, b) => b.weight - a.weight || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const load = Array.from({ length: shardCount }, () => 0);
   const assignment = new Map();
   for (const { path, weight } of weighted) {
     let target = 0;
-    for (let index = 1; index < shardCount; index += 1) if (load[index] < load[target]) target = index;
+    for (let index = 1; index < shardCount; index += 1)
+      if (load[index] < load[target]) target = index;
     load[target] += weight;
     assignment.set(path, target + 1);
   }
@@ -85,7 +93,10 @@ class DurationBalancedSequencer extends DefaultSequencer {
   shard(tests, { shardIndex, shardCount }) {
     const seconds = loadDurations();
     const relativeOf = (test) =>
-      posix.relative(test.context.config.rootDir.replace(/\\/g, '/'), test.path.replace(/\\/g, '/'));
+      posix.relative(
+        test.context.config.rootDir.replace(/\\/g, '/'),
+        test.path.replace(/\\/g, '/'),
+      );
     const { assignment } = assignShards(tests.map(relativeOf), shardCount, seconds);
     return tests.filter((test) => assignment.get(relativeOf(test)) === shardIndex);
   }

@@ -76,10 +76,7 @@ import {
   updateBillingProfile,
   type BillingProfilePatch,
 } from '../services/accountBilling.service';
-import {
-  closeInvoicePeriod,
-  listAccountInvoices,
-} from '../services/accountInvoicing.service';
+import { closeInvoicePeriod, listAccountInvoices } from '../services/accountInvoicing.service';
 import {
   getReconciliationReport,
   listReconciliationRuns,
@@ -92,10 +89,7 @@ import {
   createBalanceTopUpCheckout,
   stripePaymentProcessorLedger,
 } from '../services/stripeAccountBilling.service';
-import {
-  resolveBillingAccount,
-  type BillingAccount,
-} from '../services/inferenceLedger.service';
+import { resolveBillingAccount, type BillingAccount } from '../services/inferenceLedger.service';
 import type { StaffLedgerActor } from '../db/schema/billingLedgerEntries';
 import { getDb } from '../config/postgres';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -207,7 +201,7 @@ const resolveTopUpPayer = asyncHandler(async (req, _res, next) => {
   billingRequest.topUpPayer = await authorizeBillingProfile(
     principalOf(billingRequest),
     accountId,
-    'billing:manage'
+    'billing:manage',
   );
   next();
 });
@@ -261,7 +255,7 @@ type BillingPrincipal =
 const billingPrincipal = (
   req: BillingRequest,
   res: Response,
-  next: (error?: unknown) => void
+  next: (error?: unknown) => void,
 ): void => {
   const header = req.headers.authorization;
   if (header !== undefined && header.startsWith('Bearer ')) {
@@ -317,7 +311,7 @@ function staffActorOf(req: BillingRequest): StaffLedgerActor {
 async function authorizeAccount(
   principal: BillingPrincipal,
   accountId: string,
-  permission: AccountPermission
+  permission: AccountPermission,
 ): Promise<void> {
   if (principal.kind === 'service') {
     if (permission !== 'billing:read') {
@@ -376,7 +370,7 @@ function callerEmail(req: BillingRequest): string | undefined {
 async function authorizeBillingProfile(
   principal: BillingPrincipal,
   accountId: string,
-  permission: AccountPermission
+  permission: AccountPermission,
 ): Promise<BillingAccount> {
   const resolution = await resolveBillingAccount(getDb(), accountId);
   if (resolution.status === 'not-provisioned') {
@@ -390,7 +384,7 @@ async function authorizeBillingProfile(
 async function authorizeBillingAccount(
   principal: BillingPrincipal,
   accountId: string,
-  permission: AccountPermission
+  permission: AccountPermission,
 ): Promise<string> {
   return (await authorizeBillingProfile(principal, accountId, permission)).accountId;
 }
@@ -421,7 +415,7 @@ router.get(
       throw new NotFoundError('No such reconciliation run');
     }
     res.json({ data: report });
-  })
+  }),
 );
 
 /**
@@ -454,7 +448,7 @@ router.get(
       case 'unknown-account':
         throw new NotFoundError('No billing profile is available for that account');
     }
-  })
+  }),
 );
 
 /**
@@ -478,7 +472,7 @@ router.post(
     const staff = principal.kind === 'user' && req.user?.isStaff === true;
     if (!staff && (body.billingMode !== undefined || body.creditLimit !== undefined)) {
       throw new ForbiddenError(
-        'Only Oxy staff may set a billing mode or a credit limit; an account cannot issue itself credit'
+        'Only Oxy staff may set a billing mode or a credit limit; an account cannot issue itself credit',
       );
     }
 
@@ -492,7 +486,7 @@ router.post(
       throw new NotFoundError('No billing profile is available for that account');
     }
     res.status(201).json({ data: result.state });
-  })
+  }),
 );
 
 /**
@@ -513,9 +507,7 @@ router.patch(
     const body = updateBillingProfileBody.parse(req.body);
     const staff = principal.kind === 'user' && req.user?.isStaff === true;
     if (!staff && (body.billingMode !== undefined || body.creditLimit !== undefined)) {
-      throw new ForbiddenError(
-        'Only Oxy staff may change a billing mode or a credit limit'
-      );
+      throw new ForbiddenError('Only Oxy staff may change a billing mode or a credit limit');
     }
 
     // An explicit field list, never a spread: this record decides whether an
@@ -539,10 +531,10 @@ router.patch(
       case 'incomplete-auto-recharge':
         throw new BadRequestError(
           'An enabled auto-recharge needs both a threshold and an amount; without them it is a ' +
-            'setting that reads as on and never fires'
+            'setting that reads as on and never fires',
         );
     }
-  })
+  }),
 );
 
 /*
@@ -617,7 +609,7 @@ router.post(
     if (body.currency !== undefined && body.currency !== billing.currency) {
       throw new BadRequestError(
         `This account is billed in ${billing.currency}; a ${body.currency} top-up would be ` +
-          'charged and then have nowhere to land'
+          'charged and then have nowhere to land',
       );
     }
 
@@ -632,11 +624,11 @@ router.post(
     if (result.status === 'amount-not-representable') {
       throw new BadRequestError(
         `${result.amount} cannot be charged exactly in this currency's minor unit; there is no ` +
-          'correct rounding of a top-up, so it is refused rather than adjusted'
+          'correct rounding of a top-up, so it is refused rather than adjusted',
       );
     }
     res.json({ data: { sessionId: result.sessionId, url: result.url } });
-  })
+  }),
 );
 
 /** `POST /billing/accounts/:accountId/portal` — payment methods and invoices. */
@@ -651,7 +643,7 @@ router.post(
     const billingAccountId = await authorizeBillingAccount(
       principalOf(req),
       accountId,
-      'billing:manage'
+      'billing:manage',
     );
 
     const { returnUrl } = accountPortalBody.parse(req.body);
@@ -662,7 +654,7 @@ router.post(
 
     const url = await createAccountPortalSession(billingAccountId, returnUrl, callerEmail(req));
     res.json({ data: { url } });
-  })
+  }),
 );
 
 /**
@@ -682,14 +674,14 @@ router.get(
     const billingAccountId = await authorizeBillingAccount(
       principalOf(req),
       accountId,
-      'billing:read'
+      'billing:read',
     );
     const attempts = await listAutoRechargeAttempts(billingAccountId);
     // Through the contract's own serializer, never hand-built here: a body
     // assembled at the route is a shape the compatibility gate cannot see.
     const data = attempts.map(toAutoRechargeAttempt);
     res.json({ data, count: data.length });
-  })
+  }),
 );
 
 /**
@@ -723,7 +715,7 @@ router.post(
       throw new NotFoundError('This account has no billing profile to credit');
     }
     res.status(result.status === 'recorded' ? 201 : 200).json({ data: result });
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -742,7 +734,7 @@ router.get(
     const billingAccountId = await authorizeBillingAccount(
       principalOf(req),
       accountId,
-      'billing:read'
+      'billing:read',
     );
     const invoices = await listAccountInvoices(billingAccountId);
     const dto: AccountInvoicesDto = {
@@ -753,7 +745,7 @@ router.get(
       rows: invoices,
     };
     res.json({ data: accountInvoicesSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -802,10 +794,10 @@ router.post(
       case 'not-invoiced':
         throw new ConflictError(
           'This account is prepaid: its charges were settled at request time, so there is ' +
-            'nothing to invoice in arrears'
+            'nothing to invoice in arrears',
         );
     }
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -839,7 +831,7 @@ router.get(
       throw new NotFoundError('No billing profile is available for that account');
     }
     res.json({ data: resolution.entitlement });
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -877,7 +869,7 @@ router.post(
       periodEnd,
     });
     res.status(201).json({ data: report });
-  })
+  }),
 );
 
 /** `GET /billing/accounts/:accountId/reconciliation` — recent passes. */
@@ -890,7 +882,7 @@ router.get(
     const { accountId } = accountBillingParams.parse(req.params);
     const runs = await listReconciliationRuns(accountId);
     res.json({ data: runs, count: runs.length });
-  })
+  }),
 );
 
 export default router;

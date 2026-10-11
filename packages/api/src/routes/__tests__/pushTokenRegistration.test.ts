@@ -92,7 +92,9 @@ async function request(
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () =>
           resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
         );
@@ -161,7 +163,10 @@ async function storedInstall(userId: string, token: string) {
 
 async function installCount(userId: string): Promise<number> {
   return (
-    await getDb().select({ token: pushTokens.token }).from(pushTokens).where(eq(pushTokens.userId, userId))
+    await getDb()
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .where(eq(pushTokens.userId, userId))
   ).length;
 }
 
@@ -353,7 +358,7 @@ describe('POST /notifications/push-token — re-registration', () => {
     });
   });
 
-  it('keeps two identities\' installs of the same token string apart', async () => {
+  it("keeps two identities' installs of the same token string apart", async () => {
     const otherUser = await insertUser();
     await request('POST', '/notifications/push-token', {
       token: 'ExponentPushToken[shared]',

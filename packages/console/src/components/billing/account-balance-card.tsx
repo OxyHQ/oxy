@@ -97,7 +97,9 @@ function CurrencyBalance({
         {billingMode !== undefined && (
           <Badge variant="secondary">{billingMode === 'prepaid' ? 'Prepaid' : 'Invoiced'}</Badge>
         )}
-        <ProvenanceBadge provenance={{ source: 'financial_ledger', consistency: 'authoritative' }} />
+        <ProvenanceBadge
+          provenance={{ source: 'financial_ledger', consistency: 'authoritative' }}
+        />
       </div>
 
       <div className="flex flex-row flex-wrap gap-12">

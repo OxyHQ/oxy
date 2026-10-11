@@ -48,10 +48,11 @@ import { systemNotificationIdFromPush } from '@/lib/notifications/system-notific
  */
 export function useForegroundNotificationHandler(): void {
   useEffect(() => {
-    void installForegroundNotificationHandler((data): ForegroundPresentation =>
-      authRequestCodeFromPush(data) !== null || systemNotificationIdFromPush(data) !== null
-        ? 'show'
-        : 'suppress',
+    void installForegroundNotificationHandler(
+      (data): ForegroundPresentation =>
+        authRequestCodeFromPush(data) !== null || systemNotificationIdFromPush(data) !== null
+          ? 'show'
+          : 'suppress',
     );
   }, []);
 }

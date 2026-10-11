@@ -12,7 +12,9 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 /** Bloom's large-title gutter (`screen-margin`), as the account dialog uses. */
 const SCREEN_MARGIN = 20;
 
-export const AccountSecurityPanelFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AccountSecurityPanelFrame: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   useSurfaceHeader({});
   return <View style={styles.body}>{children}</View>;
 };

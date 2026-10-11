@@ -135,19 +135,23 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
       maxControlledCompletionInputBudget: 126_976,
       maxOutputTokens: 2048,
       maxPricePerRequestUsd: '0.05',
-      deployments: [...['cerebras', 'groq', 'openrouter'].map((provider) => ({
-        deploymentId: provider === 'cerebras'
-          ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01'
-          : `dep_${provider}_openai_gpt_oss_120b_observed_2026_09_01`,
-        modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
-        provider,
-      })), {
-        // Existing reviewed High model; this adds one exact internal route,
-        // without changing Auto's capability classes or its upward-only ladder.
-        deploymentId: 'dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01',
-        modelReference: 'deepseek/deepseek-v4-flash-0731@observed-2026-09-01',
-        provider: 'openrouter',
-      }],
+      deployments: [
+        ...['cerebras', 'groq', 'openrouter'].map((provider) => ({
+          deploymentId:
+            provider === 'cerebras'
+              ? 'dep_cerebras_gpt_oss_120b_observed_2026_09_01'
+              : `dep_${provider}_openai_gpt_oss_120b_observed_2026_09_01`,
+          modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
+          provider,
+        })),
+        {
+          // Existing reviewed High model; this adds one exact internal route,
+          // without changing Auto's capability classes or its upward-only ladder.
+          deploymentId: 'dep_openrouter_deepseek_deepseek_v4_flash_0731_observed_2026_09_01',
+          modelReference: 'deepseek/deepseek-v4-flash-0731@observed-2026-09-01',
+          provider: 'openrouter',
+        },
+      ],
     },
   },
 ];
@@ -182,7 +186,7 @@ export type EconomicTreatmentDecision =
 export function resolveEconomicTreatment(
   principal: EconomicTreatmentPrincipal,
   relationships: readonly InternalMeteredRelationship[] = INTERNAL_METERED_RELATIONSHIPS,
-  policyVersion: string = INFERENCE_ECONOMIC_POLICY_VERSION
+  policyVersion: string = INFERENCE_ECONOMIC_POLICY_VERSION,
 ): EconomicTreatmentDecision {
   // An application that is no longer marked internal loses the exemption on
   // its next request, whatever this file still says.
@@ -193,7 +197,7 @@ export function resolveEconomicTreatment(
     (candidate) =>
       candidate.consumerApplicationId === principal.applicationId &&
       candidate.lane === principal.lane &&
-      candidate.environments.includes(principal.environment)
+      candidate.environments.includes(principal.environment),
   );
   return relationship === undefined
     ? { treatment: 'commercial', policyVersion }

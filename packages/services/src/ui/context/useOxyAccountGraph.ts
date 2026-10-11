@@ -41,7 +41,13 @@ export function useOxyAccountGraph({
   const [accounts, setAccounts] = useState<AccountNode[]>([]);
 
   const refreshAccounts = useCallback(async (): Promise<void> => {
-    if (identityBound || isolatedOAuth || !isAuthenticated || !tokenReady || !oxyServices.session.accessToken) {
+    if (
+      identityBound ||
+      isolatedOAuth ||
+      !isAuthenticated ||
+      !tokenReady ||
+      !oxyServices.session.accessToken
+    ) {
       setAccounts([]);
       return;
     }
@@ -58,18 +64,34 @@ export function useOxyAccountGraph({
         loggerUtil.debug('Failed to load accounts', { component: 'OxyContext' }, err as unknown);
       }
     }
-  }, [identityBound, isolatedOAuth, isAuthenticated, oxyServices, tokenReady, clearSessionStateRef]);
+  }, [
+    identityBound,
+    isolatedOAuth,
+    isAuthenticated,
+    oxyServices,
+    tokenReady,
+    clearSessionStateRef,
+  ]);
 
   useEffect(() => {
     if (!identityBound && !isolatedOAuth && isAuthenticated && initialized && tokenReady) {
       refreshAccounts();
       void accountDialogControllerRef.current?.refresh();
     }
-  }, [identityBound, isolatedOAuth, isAuthenticated, initialized, tokenReady, refreshAccounts, accountDialogControllerRef]);
+  }, [
+    identityBound,
+    isolatedOAuth,
+    isAuthenticated,
+    initialized,
+    tokenReady,
+    refreshAccounts,
+    accountDialogControllerRef,
+  ]);
 
   const switchToAccount = useCallback(
     async (accountId: string): Promise<void> => {
-      if (isolatedOAuth) throw new Error('An isolated OAuth session cannot switch shared device accounts');
+      if (isolatedOAuth)
+        throw new Error('An isolated OAuth session cannot switch shared device accounts');
       if (identityBound) {
         // Loud rejection, never a silent no-op: a resolved promise here would
         // read to the caller as a completed switch that simply left the user

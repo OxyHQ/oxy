@@ -101,8 +101,7 @@ export const TextInput = ({
     ...domProps(rest),
     value,
     placeholder,
-    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
-      onChangeText?.(event.target.value),
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChangeText?.(event.target.value),
   });
 
 export const Platform: {
@@ -170,4 +169,3 @@ export const I18nManager: {
   forceRTL: () => undefined,
   getConstants: () => ({ isRTL: false, doLeftAndRightSwapInRTL: true }),
 };
-

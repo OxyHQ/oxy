@@ -50,7 +50,7 @@ function nonEmpty(column: SQL | ReturnType<typeof sql>): SQL {
 export function discoverableUserPredicate(): SQL {
   const predicate = and(
     ne(users.accountStatus, 'archived'),
-    ne(users.reputationTier, 'restricted')
+    ne(users.reputationTier, 'restricted'),
   );
   // `and()` of two non-undefined arguments is always defined; the cast-free
   // narrowing keeps the return type honest for callers that compose it.
@@ -126,10 +126,7 @@ export interface PeopleSearchMatchOptions {
  * `_`) and bound as a parameter, so no input can widen the pattern or reach the
  * SQL — the same job the caller's regex-metacharacter escaping used to do.
  */
-export function peopleSearchMatch(
-  term: string,
-  options: PeopleSearchMatchOptions = {}
-): SQL {
+export function peopleSearchMatch(term: string, options: PeopleSearchMatchOptions = {}): SQL {
   const { includeDescription = true, includeLocations = false } = options;
 
   // A pasted upstream profile URL is an EXACT request, not a search phrase.
@@ -180,7 +177,7 @@ export function peopleSearchMatch(
       or(
         sql`lower(btrim(${users.username})) like ${prefix}`,
         sql`lower(${users.nameFirst}) like ${prefix}`,
-        sql`lower(${users.nameLast}) like ${prefix}`
+        sql`lower(${users.nameLast}) like ${prefix}`,
       ) ?? sql`false`
     );
   }
@@ -266,11 +263,7 @@ export function peopleSearchOrder(): SQL[] {
 export function isDiscoverableUser(
   user: { accountStatus?: string; reputationTier?: string } | null | undefined,
 ): boolean {
-  return (
-    !!user &&
-    user.accountStatus !== 'archived' &&
-    user.reputationTier !== 'restricted'
-  );
+  return !!user && user.accountStatus !== 'archived' && user.reputationTier !== 'restricted';
 }
 
 /**
@@ -316,16 +309,18 @@ export function isFederatableUser(
  * unconditionally.
  */
 export function federatedRecommendationEligibility(minResolvedAt: Date): SQL {
-  return or(
-    ne(users.type, 'federated'),
-    and(
-      eq(users.type, 'federated'),
-      nonEmpty(sql`${users.federationActorUri}`),
-      nonEmpty(sql`${users.federationDomain}`),
-      gte(users.federationLastResolvedAt, minResolvedAt),
-      isNull(users.federationUnavailableAt)
-    )
-  ) ?? sql`true`;
+  return (
+    or(
+      ne(users.type, 'federated'),
+      and(
+        eq(users.type, 'federated'),
+        nonEmpty(sql`${users.federationActorUri}`),
+        nonEmpty(sql`${users.federationDomain}`),
+        gte(users.federationLastResolvedAt, minResolvedAt),
+        isNull(users.federationUnavailableAt),
+      ),
+    ) ?? sql`true`
+  );
 }
 
 /**
@@ -353,7 +348,7 @@ export function profileQualityPredicate(): SQL {
     nonEmpty(sql`${users.nameLast}`),
     nonEmpty(sql`${users.bio}`),
     nonEmpty(sql`${users.description}`),
-    eq(users.verified, true)
+    eq(users.verified, true),
   );
   return and(nonEmpty(sql`${users.username}`), curated) ?? sql`true`;
 }
@@ -373,7 +368,7 @@ export function eligibleUserPredicate(minResolvedAt: Date): SQL {
       federatedRecommendationEligibility(minResolvedAt),
       profileQualityPredicate(),
       eq(users.isSensitive, false),
-      discoverableUserPredicate()
+      discoverableUserPredicate(),
     ) ?? sql`true`
   );
 }

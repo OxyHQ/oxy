@@ -55,7 +55,7 @@ describe('accountAuditQuerySchema', () => {
     // The service refuses a cursor it did not issue and reads from the start.
     // Validating the shape here would turn a stale bookmark into an error page.
     expect(accountAuditQuerySchema.parse({ cursor: 'not-a-real-cursor' }).cursor).toBe(
-      'not-a-real-cursor'
+      'not-a-real-cursor',
     );
   });
 });
@@ -91,11 +91,12 @@ describe('accountBillingAuditQuerySchema', () => {
     // silently — and one defaulting differently makes the documented default a
     // lie.
     expect(accountBillingAuditQuerySchema.parse({}).limit).toBe(BILLING_AUDIT_DEFAULT_LIMIT);
-    expect(accountBillingAuditQuerySchema.parse({ limit: String(BILLING_AUDIT_MAX_LIMIT) }).limit).toBe(
-      BILLING_AUDIT_MAX_LIMIT
-    );
     expect(
-      accountBillingAuditQuerySchema.safeParse({ limit: String(BILLING_AUDIT_MAX_LIMIT + 1) }).success
+      accountBillingAuditQuerySchema.parse({ limit: String(BILLING_AUDIT_MAX_LIMIT) }).limit,
+    ).toBe(BILLING_AUDIT_MAX_LIMIT);
+    expect(
+      accountBillingAuditQuerySchema.safeParse({ limit: String(BILLING_AUDIT_MAX_LIMIT + 1) })
+        .success,
     ).toBe(false);
   });
 
@@ -112,7 +113,7 @@ describe('accountBillingAuditQuerySchema', () => {
   it('refuses an unknown parameter, and carries the cursor through opaquely', () => {
     expect(accountBillingAuditQuerySchema.safeParse({ cursur: 'abc' }).success).toBe(false);
     expect(accountBillingAuditQuerySchema.parse({ cursor: 'not-a-real-cursor' }).cursor).toBe(
-      'not-a-real-cursor'
+      'not-a-real-cursor',
     );
   });
 });

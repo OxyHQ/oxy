@@ -75,9 +75,7 @@ export const ONBOARDING_FLOW_QUERY_KEY = ['onboarding', 'flow'] as const;
 
 /** Resume path for an in-progress onboarding wizard. */
 export function getOnboardingResumeHref(flow: OnboardingFlow | null): Href {
-  return flow === 'import'
-    ? '/(auth)/import-identity/username'
-    : '/(auth)/create-identity';
+  return flow === 'import' ? '/(auth)/import-identity/username' : '/(auth)/create-identity';
 }
 
 /**

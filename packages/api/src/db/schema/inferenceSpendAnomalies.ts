@@ -101,13 +101,13 @@ export const inferenceSpendAnomalies = pgTable(
     unique('inference_spend_anomalies_account_currency_hour_key').on(
       t.accountId,
       t.currency,
-      t.detectedForHour
+      t.detectedForHour,
     ),
 
     // "What has this account triggered lately", newest first — the staff read.
     index('inference_spend_anomalies_account_id_detected_for_hour_idx').on(
       t.accountId,
-      t.detectedForHour.desc()
+      t.detectedForHour.desc(),
     ),
     // "What fired across the platform in the last day", the operator's first
     // question, which is not scoped to an account.
@@ -121,10 +121,10 @@ export const inferenceSpendAnomalies = pgTable(
     // another writer reintroducing it.
     check(
       'inference_spend_anomalies_baseline_median_amount_check',
-      sql`${t.baselineMedianAmount} > 0`
+      sql`${t.baselineMedianAmount} > 0`,
     ),
     // A multiple of 1 or less flags an account for spending a normal amount.
     check('inference_spend_anomalies_threshold_multiple_check', sql`${t.thresholdMultiple} > 1`),
     check('inference_spend_anomalies_observed_days_check', sql`${t.observedDays} > 0`),
-  ]
+  ],
 );

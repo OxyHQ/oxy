@@ -20,7 +20,12 @@ import { redirectToAuthorize } from '../components/oauthNavigation';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { completeOAuthCode } from './completeOAuthCode';
 import { prepareAuthorizeRequest } from './oauthHandshake';
-import { awaitOAuthPopupResult, closeOAuthPopup, navigateOAuthPopup, openOAuthPopup } from './oauthPopup';
+import {
+  awaitOAuthPopupResult,
+  closeOAuthPopup,
+  navigateOAuthPopup,
+  openOAuthPopup,
+} from './oauthPopup';
 import type {
   OAuthPopupHandle,
   OAuthSessionCommitInput,
@@ -97,7 +102,8 @@ export async function startWebOAuthSignIn(
   // straight from the click still has gesture attribution. An explicit `null`
   // means the caller already tried and was blocked.
   const mode = options.transport ?? context.mode;
-  const popup = mode === 'popup' && options.popup === undefined ? openOAuthPopup() : options.popup ?? null;
+  const popup =
+    mode === 'popup' && options.popup === undefined ? openOAuthPopup() : (options.popup ?? null);
 
   if (mode === 'redirect') {
     closeOAuthPopup(popup);
@@ -190,11 +196,13 @@ async function startRedirectSignIn(
     ...(options.screen ? { screen: options.screen } : {}),
   });
 
-  if (!persistOAuthHandshake(
-    prepared.handshake.state,
-    prepared.handshake.codeVerifier,
-    options.redirectUri,
-  )) {
+  if (
+    !persistOAuthHandshake(
+      prepared.handshake.state,
+      prepared.handshake.codeVerifier,
+      options.redirectUri,
+    )
+  ) {
     return { status: 'failed', reason: 'handshake-storage' };
   }
 

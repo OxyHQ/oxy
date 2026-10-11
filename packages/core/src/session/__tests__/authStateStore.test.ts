@@ -71,7 +71,11 @@ describe('createWebAuthStateStore', () => {
   it('round-trips the optional deviceId + deviceSecret mint credential', async () => {
     installLocalStorage(makeFakeStorage());
     const store = createWebAuthStateStore();
-    const withCreds: PersistedAuthState = { ...SAMPLE, deviceId: 'dev-abc', deviceSecret: 'ds-secret-xyz' };
+    const withCreds: PersistedAuthState = {
+      ...SAMPLE,
+      deviceId: 'dev-abc',
+      deviceSecret: 'ds-secret-xyz',
+    };
 
     await store.save(withCreds);
     const loaded = await store.load();
@@ -142,7 +146,11 @@ describe('createWebAuthStateStore', () => {
   it('swallows a write that throws (quota / private mode) without rejecting, and the mirror keeps the session live', async () => {
     installLocalStorage(makeFakeStorage({ throwOnSet: true }));
     const store = createWebAuthStateStore();
-    const withCreds: PersistedAuthState = { ...SAMPLE, deviceId: 'dev-abc', deviceSecret: 'ds-secret-xyz' };
+    const withCreds: PersistedAuthState = {
+      ...SAMPLE,
+      deviceId: 'dev-abc',
+      deviceSecret: 'ds-secret-xyz',
+    };
 
     // The durable write threw → the store reports the persist did NOT land.
     await expect(store.save(withCreds)).resolves.toBe(false);
@@ -175,9 +183,9 @@ describe('createWebAuthStateStore', () => {
     installLocalStorage(storage);
     const store = createWebAuthStateStore();
 
-    await expect(
-      store.save({ ...SAMPLE, deviceId: 'dev-x', deviceSecret: 'ds-x' }),
-    ).resolves.toBe(false);
+    await expect(store.save({ ...SAMPLE, deviceId: 'dev-x', deviceSecret: 'ds-x' })).resolves.toBe(
+      false,
+    );
     // The durable blob never landed…
     expect(storage.getItem(AUTH_STATE_STORAGE_KEY)).toBeNull();
     // …but the mirror still serves the session for this page's lifetime.
@@ -360,9 +368,9 @@ describe('createNativeAuthStateStore', () => {
     };
     const store = createNativeAuthStateStore(storage);
 
-    await expect(
-      store.save({ ...SAMPLE, deviceId: 'dev-x', deviceSecret: 'ds-x' }),
-    ).resolves.toBe(false);
+    await expect(store.save({ ...SAMPLE, deviceId: 'dev-x', deviceSecret: 'ds-x' })).resolves.toBe(
+      false,
+    );
     expect(map.get(AUTH_STATE_STORAGE_KEY)).toBeUndefined();
     expect(await store.load()).toMatchObject({ deviceId: 'dev-x', deviceSecret: 'ds-x' });
   });
@@ -385,9 +393,9 @@ describe('createNativeAuthStateStore', () => {
     };
     const store = createNativeAuthStateStore(storage);
 
-    await expect(
-      store.save({ ...SAMPLE, deviceId: 'dev-n', deviceSecret: 'ds-n' }),
-    ).resolves.toBe(true);
+    await expect(store.save({ ...SAMPLE, deviceId: 'dev-n', deviceSecret: 'ds-n' })).resolves.toBe(
+      true,
+    );
 
     // The durable mint credential landed to disk.
     expect(map.get(AUTH_STATE_STORAGE_KEY)).toBeTruthy();

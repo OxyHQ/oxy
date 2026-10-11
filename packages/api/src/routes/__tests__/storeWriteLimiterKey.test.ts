@@ -61,7 +61,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean }; headers: Record<string, unknown> },
     res: { status: (code: number) => { json: (body: unknown) => void } },
-    next: () => void
+    next: () => void,
   ) => {
     const account = req.headers['x-test-account'];
     if (typeof account !== 'string' || account.length === 0) {
@@ -132,14 +132,20 @@ function writeReview(account: string | null, slug = 'some-app'): Promise<HttpRes
   }
   return new Promise((resolve, reject) => {
     const request = http.request(
-      { method: 'PUT', host: '127.0.0.1', port: address.port, path: `/store/apps/${slug}/review`, headers },
+      {
+        method: 'PUT',
+        host: '127.0.0.1',
+        port: address.port,
+        path: `/store/apps/${slug}/review`,
+        headers,
+      },
       (res) => {
         let raw = '';
         res.on('data', (chunk) => {
           raw += chunk;
         });
         res.on('end', () => resolve({ status: res.statusCode ?? 0, raw }));
-      }
+      },
     );
     request.on('error', reject);
     request.write(body);
@@ -165,7 +171,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
 });
 

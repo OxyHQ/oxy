@@ -53,7 +53,9 @@ const MINT_WHILE_SWITCHED: DeviceTokenMintResponse = {
   },
 };
 
-function makeMintSingleFlight(): (mint: () => Promise<DeviceSecretMintOutcome>) => Promise<DeviceSecretMintOutcome> {
+function makeMintSingleFlight(): (
+  mint: () => Promise<DeviceSecretMintOutcome>,
+) => Promise<DeviceSecretMintOutcome> {
   let inFlight: Promise<DeviceSecretMintOutcome> | null = null;
   return (mint) => {
     if (!inFlight) {
@@ -84,8 +86,9 @@ function makeOxy(overrides: OxyOverrides = {}): { oxy: OxyServices; setTokens: j
     },
     auth: {
       signInWithCommonsIdentity: overrides.signInWithCommonsIdentity ?? (async () => null),
-      requestChallenge: overrides.requestChallenge
-      ?? (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
+      requestChallenge:
+        overrides.requestChallenge ??
+        (async () => ({ challenge: 'chal-1', expiresAt: '2030-01-01T00:00:00.000Z' })),
       verifyChallenge: overrides.verifyChallenge ?? (async () => IDENTITY_SESSION),
     },
   } as unknown as OxyServices;
@@ -180,7 +183,9 @@ describe('refreshDeviceSecretArm — pinned', () => {
     await store.save(STORED);
     const { oxy } = makeOxy({
       mintFromDeviceSecret: async () => {
-        throw mint401('account_not_on_device: vault-user is not a live account of this device session');
+        throw mint401(
+          'account_not_on_device: vault-user is not a live account of this device session',
+        );
       },
     });
 

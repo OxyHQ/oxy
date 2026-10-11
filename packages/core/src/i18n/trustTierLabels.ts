@@ -10,9 +10,6 @@ import { translate } from './index';
  */
 export const EN_TRUST_TIER_LABELS: Record<TrustTier, string> = enUS.trust.tiers;
 
-export function trustTierLabel(
-  locale: string | undefined,
-  tier: TrustTier,
-): string {
+export function trustTierLabel(locale: string | undefined, tier: TrustTier): string {
   return translate(locale, `trust.tiers.${tier}`);
 }

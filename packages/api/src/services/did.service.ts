@@ -95,7 +95,10 @@ export interface DidUserInput {
   _id: string | { toString(): string };
   publicKey?: string | null;
   username?: string | null;
-  authMethods?: Array<{ type?: string | null; metadata?: { publicKey?: string | null } | null } | null> | null;
+  authMethods?: Array<{
+    type?: string | null;
+    metadata?: { publicKey?: string | null } | null;
+  } | null> | null;
   verifiedDomains?: Array<{ domain?: string | null } | null> | null;
   type?: string | null;
   federation?: { domain?: string | null } | null;
@@ -258,7 +261,11 @@ export function buildDidDocument(user: DidUserInput): DidDocument {
   }
 
   const service: DidService[] = [
-    { id: `${did}#oxy-api`, type: 'OxyApiService', serviceEndpoint: `https://api.${FEDERATION_DOMAIN}` },
+    {
+      id: `${did}#oxy-api`,
+      type: 'OxyApiService',
+      serviceEndpoint: `https://api.${FEDERATION_DOMAIN}`,
+    },
   ];
   if (handle) {
     service.push({
@@ -345,7 +352,11 @@ export function buildOxyDidDocument(): DidDocument {
     assertionMethod: activeVerificationMethodIds,
     alsoKnownAs: [`https://${FEDERATION_DOMAIN}`],
     service: [
-      { id: `${OXY_DID}#oxy-api`, type: 'OxyApiService', serviceEndpoint: `https://api.${FEDERATION_DOMAIN}` },
+      {
+        id: `${OXY_DID}#oxy-api`,
+        type: 'OxyApiService',
+        serviceEndpoint: `https://api.${FEDERATION_DOMAIN}`,
+      },
     ],
   };
 

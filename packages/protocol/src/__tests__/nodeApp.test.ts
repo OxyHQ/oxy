@@ -91,7 +91,11 @@ describe('createNodeApp', () => {
     const empty = await request(app).get('/oxy/head');
     expect(empty.body).toEqual({ seq: null, headRecordId: null, recordCount: 0 });
 
-    const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 0, prev: null });
+    const envelope = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 0,
+      prev: null,
+    });
     const recordId = await computeRecordId(envelope);
     const write = await request(app).post('/records').send(envelope);
     expect(write.status).toBe(201);
@@ -107,7 +111,12 @@ describe('createNodeApp', () => {
     const genesisId = await computeRecordId(genesis);
     await request(app).post('/records').send(genesis).expect(201);
 
-    const second = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 1, prev: genesisId, record: { step: 2 } });
+    const second = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 1,
+      prev: genesisId,
+      record: { step: 2 },
+    });
     const secondId = await computeRecordId(second);
     const res = await request(app).post('/records').send(second);
     expect(res.status).toBe(201);
@@ -117,7 +126,11 @@ describe('createNodeApp', () => {
   it('POST /records rejects a record signed by a NON-owner key (403 not_owner)', async () => {
     const { app } = buildApp(owner);
     const attacker = generateKeyPair();
-    const envelope = await buildSignedEnvelope({ privateKey: attacker.privateKey, seq: 0, prev: null });
+    const envelope = await buildSignedEnvelope({
+      privateKey: attacker.privateKey,
+      seq: 0,
+      prev: null,
+    });
     const res = await request(app).post('/records').send(envelope);
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: 'not_owner' });
@@ -132,7 +145,11 @@ describe('createNodeApp', () => {
 
   it('POST /records rejects a chain gap (422 chain_gap)', async () => {
     const { app } = buildApp(owner);
-    const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 3, prev: null });
+    const envelope = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 3,
+      prev: null,
+    });
     const res = await request(app).post('/records').send(envelope);
     expect(res.status).toBe(422);
     expect(res.body).toEqual({ error: 'chain_gap' });
@@ -162,8 +179,14 @@ describe('createNodeApp', () => {
   it('POST /sync/push verifies + appends a batch in order', async () => {
     const { app } = buildApp(owner);
     const genesis = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 0, prev: null });
-    const second = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 1, prev: await computeRecordId(genesis) });
-    const res = await request(app).post('/sync/push').send({ records: [genesis, second] });
+    const second = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 1,
+      prev: await computeRecordId(genesis),
+    });
+    const res = await request(app)
+      .post('/sync/push')
+      .send({ records: [genesis, second] });
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(2);
     expect(res.body.results.every((r: { ok: boolean }) => r.ok)).toBe(true);
@@ -174,7 +197,12 @@ describe('createNodeApp', () => {
     let prev: string | null = null;
     const ids: string[] = [];
     for (let seq = 0; seq < 4; seq += 1) {
-      const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq, prev, record: { seq } });
+      const envelope = await buildSignedEnvelope({
+        privateKey: owner.privateKey,
+        seq,
+        prev,
+        record: { seq },
+      });
       const id = await computeRecordId(envelope);
       await request(app).post('/records').send(envelope).expect(201);
       ids.push(id);
@@ -193,7 +221,9 @@ describe('createNodeApp', () => {
     const sinceCursor = await request(app).get('/oxy/log').query({ since: ids[1] });
     expect(sinceCursor.body.records.map((entry: { seq: number }) => entry.seq)).toEqual([2, 3]);
 
-    const unknownCursor = await request(app).get('/oxy/log').query({ since: 'f'.repeat(64) });
+    const unknownCursor = await request(app)
+      .get('/oxy/log')
+      .query({ since: 'f'.repeat(64) });
     expect(unknownCursor.body.records).toEqual([]);
   });
 
@@ -215,11 +245,14 @@ describe('createNodeApp', () => {
     expect(put.status).toBe(201);
     expect(put.body).toEqual({ hash, size: bytes.length });
 
-    const get = await request(app).get(`/blobs/${hash}`).buffer(true).parse((res, cb) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => cb(null, Buffer.concat(chunks)));
-    });
+    const get = await request(app)
+      .get(`/blobs/${hash}`)
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
     expect(get.status).toBe(200);
     expect(Buffer.isBuffer(get.body) ? get.body : Buffer.from(get.body)).toEqual(bytes);
   });
@@ -269,7 +302,9 @@ describe('createNodeApp', () => {
     const auth = await signBlobPin(hash, owner);
 
     const server = createServer(app);
-    await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve); });
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
     const { port } = server.address() as AddressInfo;
 
     const raw = await new Promise<string>((resolve, reject) => {
@@ -284,12 +319,14 @@ describe('createNodeApp', () => {
             'Connection: close',
             '',
             '',
-          ].join('\r\n')
+          ].join('\r\n'),
         );
       });
       let received = '';
       socket.setEncoding('utf8');
-      socket.on('data', (chunk: string) => { received += chunk; });
+      socket.on('data', (chunk: string) => {
+        received += chunk;
+      });
       socket.on('error', reject);
       socket.on('end', () => resolve(received));
     });
@@ -360,7 +397,11 @@ describe('createNodeApp', () => {
     // within the window is rejected 429 BEFORE the handler runs, regardless of
     // each request's chain outcome.
     const { app } = buildApp(owner, [], { windowMs: 60_000, max: 2 });
-    const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq: 0, prev: null });
+    const envelope = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      seq: 0,
+      prev: null,
+    });
 
     const first = await request(app).post('/records').send(envelope);
     expect(first.status).toBe(201);
@@ -379,7 +420,12 @@ describe('createNodeApp', () => {
     let prev: string | null = null;
     const ids: string[] = [];
     for (let seq = 0; seq < 3; seq += 1) {
-      const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq, prev, record: { seq } });
+      const envelope = await buildSignedEnvelope({
+        privateKey: owner.privateKey,
+        seq,
+        prev,
+        record: { seq },
+      });
       const id = await computeRecordId(envelope);
       await request(app).post('/records').send(envelope).expect(201);
       ids.push(id);
@@ -388,7 +434,9 @@ describe('createNodeApp', () => {
 
     // `?since[]=<id1>&since[]=<id2>` arrives as a string[] — the handler must
     // take the FIRST value (a tampered array can never cause type confusion).
-    const res = await request(app).get('/oxy/log').query({ 'since[]': [ids[0], ids[2]] });
+    const res = await request(app)
+      .get('/oxy/log')
+      .query({ 'since[]': [ids[0], ids[2]] });
     expect(res.status).toBe(200);
     // Cursor resolves off ids[0] → records strictly after seq 0 → [1, 2].
     expect(res.body.records.map((entry: { seq: number }) => entry.seq)).toEqual([1, 2]);
@@ -398,12 +446,19 @@ describe('createNodeApp', () => {
     const { app } = buildApp(owner);
     let prev: string | null = null;
     for (let seq = 0; seq < 4; seq += 1) {
-      const envelope = await buildSignedEnvelope({ privateKey: owner.privateKey, seq, prev, record: { seq } });
+      const envelope = await buildSignedEnvelope({
+        privateKey: owner.privateKey,
+        seq,
+        prev,
+        record: { seq },
+      });
       await request(app).post('/records').send(envelope).expect(201);
       prev = await computeRecordId(envelope);
     }
 
-    const res = await request(app).get('/oxy/log').query({ 'limit[]': ['2', '99'] });
+    const res = await request(app)
+      .get('/oxy/log')
+      .query({ 'limit[]': ['2', '99'] });
     expect(res.status).toBe(200);
     expect(res.body.records.map((entry: { seq: number }) => entry.seq)).toEqual([0, 1]);
   });

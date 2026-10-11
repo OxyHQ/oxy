@@ -3,12 +3,19 @@
  * claim, so a signature for one operation verifies for nothing else.
  */
 
-import { buildIdentityProofMessage, canonicalJson, type IdentityProofClaims } from '@oxy.so/contracts';
+import {
+  buildIdentityProofMessage,
+  canonicalJson,
+  type IdentityProofClaims,
+} from '@oxy.so/contracts';
 import { verifySignature } from '@oxy.so/protocol';
 import { digestIdentityPayload, signIdentityProof } from '../identityProof';
 import { deriveSecp256k1PublicKey } from '@oxy.so/protocol/secp256k1';
 
-const keyPair = (privateKey: string) => ({ privateKey, publicKey: deriveSecp256k1PublicKey(privateKey) });
+const keyPair = (privateKey: string) => ({
+  privateKey,
+  publicKey: deriveSecp256k1PublicKey(privateKey),
+});
 const identity = keyPair('11'.repeat(32));
 
 const claims = (overrides: Partial<IdentityProofClaims> = {}): IdentityProofClaims => ({
@@ -26,7 +33,9 @@ const claims = (overrides: Partial<IdentityProofClaims> = {}): IdentityProofClai
 
 describe('canonical JSON', () => {
   it('sorts keys at every depth and drops undefined members', () => {
-    expect(canonicalJson({ b: 1, a: { d: [3, { z: 1, y: 2 }], c: undefined } })).toBe('{"a":{"d":[3,{"y":2,"z":1}]},"b":1}');
+    expect(canonicalJson({ b: 1, a: { d: [3, { z: 1, y: 2 }], c: undefined } })).toBe(
+      '{"a":{"d":[3,{"y":2,"z":1}]},"b":1}',
+    );
   });
 
   it('digests the same payload identically whatever its key order', () => {
@@ -48,10 +57,16 @@ describe('the signed bytes', () => {
   });
 
   it('refuse malformed claims instead of signing something ambiguous', () => {
-    expect(() => buildIdentityProofMessage(claims({ action: 'anything' as never }))).toThrow('unknown action');
-    expect(() => buildIdentityProofMessage(claims({ payloadDigest: 'AB'.repeat(32) }))).toThrow('payloadDigest');
+    expect(() => buildIdentityProofMessage(claims({ action: 'anything' as never }))).toThrow(
+      'unknown action',
+    );
+    expect(() => buildIdentityProofMessage(claims({ payloadDigest: 'AB'.repeat(32) }))).toThrow(
+      'payloadDigest',
+    );
     expect(() => buildIdentityProofMessage(claims({ challenge: 'short' }))).toThrow('challenge');
-    expect(() => buildIdentityProofMessage(claims({ rootPublicKey: identity.publicKey.toUpperCase() }))).toThrow('rootPublicKey');
+    expect(() =>
+      buildIdentityProofMessage(claims({ rootPublicKey: identity.publicKey.toUpperCase() })),
+    ).toThrow('rootPublicKey');
   });
 });
 
@@ -60,7 +75,13 @@ describe('signing', () => {
     const proof = await signIdentityProof(identity, claims());
     expect(proof).toMatchObject({ v: 2, challenge: 'ab'.repeat(32), expiresAt: 1_800_000_000_000 });
 
-    expect(await verifySignature(buildIdentityProofMessage(claims()), proof.signature, identity.publicKey)).toBe(true);
+    expect(
+      await verifySignature(
+        buildIdentityProofMessage(claims()),
+        proof.signature,
+        identity.publicKey,
+      ),
+    ).toBe(true);
     for (const changed of [
       claims({ subject: 'user-2' }),
       claims({ actor: 'user-2' }),
@@ -70,12 +91,20 @@ describe('signing', () => {
       claims({ challenge: 'cd'.repeat(32) }),
       claims({ expiresAt: 1_800_000_000_001 }),
     ]) {
-      expect(await verifySignature(buildIdentityProofMessage(changed), proof.signature, identity.publicKey)).toBe(false);
+      expect(
+        await verifySignature(
+          buildIdentityProofMessage(changed),
+          proof.signature,
+          identity.publicKey,
+        ),
+      ).toBe(false);
     }
   });
 
   it('will not sign claims naming a different root', async () => {
     const other = keyPair('22'.repeat(32));
-    await expect(signIdentityProof(identity, claims({ rootPublicKey: other.publicKey }))).rejects.toThrow('different root');
+    await expect(
+      signIdentityProof(identity, claims({ rootPublicKey: other.publicKey })),
+    ).rejects.toThrow('different root');
   });
 });

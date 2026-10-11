@@ -125,7 +125,7 @@ export interface EnsureWorkloadAttributionInput {
  */
 export async function ensureWorkloadAttributionIdentity(
   input: EnsureWorkloadAttributionInput,
-  db: DatabaseOrTransaction = getDb()
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<WorkloadAttributionIdentity> {
   const credentialId = workloadAttestationHandle(input.subject);
 
@@ -176,7 +176,7 @@ export async function ensureWorkloadAttributionIdentity(
   // a concurrent delete can produce. Reporting it beats looping.
   throw new WorkloadAttributionError(
     'attributed_elsewhere',
-    `The attested identity ${credentialId} was removed while it was being materialised.`
+    `The attested identity ${credentialId} was removed while it was being materialised.`,
   );
 }
 
@@ -188,7 +188,7 @@ export async function ensureWorkloadAttributionIdentity(
 async function reconcileExistingRow(
   credentialId: string,
   input: EnsureWorkloadAttributionInput,
-  db: DatabaseOrTransaction
+  db: DatabaseOrTransaction,
 ): Promise<WorkloadAttributionIdentity | null> {
   const [existing] = await db
     .select({
@@ -207,7 +207,7 @@ async function reconcileExistingRow(
       `The attested identity ${credentialId} already records spend for application ` +
         `${existing.applicationId}; refusing to re-attribute it to ${input.applicationId}. ` +
         'Ledger history names the identity that authorised it, and an identity cannot change ' +
-        'which application it spent as. Give the new application its own role.'
+        'which application it spent as. Give the new application its own role.',
     );
   }
   if (existing.workloadIdentityId === input.bindingId) {

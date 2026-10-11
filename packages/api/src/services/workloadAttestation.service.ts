@@ -283,11 +283,17 @@ export class AwsIamAttestationVerifier implements AttestationVerifier {
      */
     const signedHeaders = /SignedHeaders=([^,]+)/.exec(authorization)?.[1] ?? '';
     if (!signedHeaders.split(';').includes(ATTESTATION_NONCE_HEADER)) {
-      throw new AttestationError('nonce_unsigned', 'The attestation does not sign the nonce header.');
+      throw new AttestationError(
+        'nonce_unsigned',
+        'The attestation does not sign the nonce header.',
+      );
     }
     const nonce = headerOf(request.headers, ATTESTATION_NONCE_HEADER);
     if (!nonce || !timingSafeEquals(nonce, expectedNonce)) {
-      throw new AttestationError('nonce_mismatch', 'The attestation answers a different challenge.');
+      throw new AttestationError(
+        'nonce_mismatch',
+        'The attestation answers a different challenge.',
+      );
     }
 
     const signedAt = parseAmzDate(headerOf(request.headers, 'x-amz-date'));
@@ -342,7 +348,10 @@ export class AwsIamAttestationVerifier implements AttestationVerifier {
       logger.warn('[WorkloadAttestation] STS unreachable', {
         reason: error instanceof Error ? error.message : 'unknown',
       });
-      throw new AttestationError('sts_unreachable', 'The attestation could not be verified right now.');
+      throw new AttestationError(
+        'sts_unreachable',
+        'The attestation could not be verified right now.',
+      );
     }
 
     const body = await response.text();
@@ -398,7 +407,10 @@ export async function verifyWorkloadAttestation(
 ): Promise<AttestedWorkload> {
   const verifier = verifiers.get(provider);
   if (!verifier) {
-    throw new AttestationError('unsupported_provider', 'That attestation provider is not supported here.');
+    throw new AttestationError(
+      'unsupported_provider',
+      'That attestation provider is not supported here.',
+    );
   }
   return verifier.verify(payload, expectedNonce);
 }

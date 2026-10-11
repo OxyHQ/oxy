@@ -101,15 +101,15 @@ describe('pushService.sendPushNotification — email notification is unchanged',
     expect(url).toBe('https://exp.host/--/api/v2/push/send');
     expect(init.method).toBe('POST');
     expect(init.headers).toEqual({
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'Accept-Encoding': 'gzip, deflate',
       'Content-Type': 'application/json',
     });
 
     // Byte-for-byte: same keys, same order, same values as before the change.
     expect(init.body).toBe(
-      '[{"to":"ExponentPushToken[email-device]","title":"Ada Lovelace","body":"Analytical Engine notes",'
-      + '"data":{"messageId":"msg-1","mailboxId":"mbox-1"},"sound":"default","channelId":"email"}]',
+      '[{"to":"ExponentPushToken[email-device]","title":"Ada Lovelace","body":"Analytical Engine notes",' +
+        '"data":{"messageId":"msg-1","mailboxId":"mbox-1"},"sound":"default","channelId":"email"}]',
     );
   });
 
@@ -165,7 +165,14 @@ describe('pushService — caller-supplied channel', () => {
     expect(sent[0].channelId).toBe('auth-approval');
     // No `categoryId` — an iOS category is what binds action buttons to a
     // notification, and an approval notification must never carry one.
-    expect(Object.keys(sent[0]).sort()).toEqual(['body', 'channelId', 'data', 'sound', 'title', 'to']);
+    expect(Object.keys(sent[0]).sort()).toEqual([
+      'body',
+      'channelId',
+      'data',
+      'sound',
+      'title',
+      'to',
+    ]);
   });
 });
 
@@ -227,12 +234,10 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
 
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        data: [
-          { status: 'ok' },
-          { status: 'error', details: { error: 'DeviceNotRegistered' } },
-        ],
-      }),
+      json: () =>
+        Promise.resolve({
+          data: [{ status: 'ok' }, { status: 'error', details: { error: 'DeviceNotRegistered' } }],
+        }),
     });
 
     const result = await pushService.sendPushToTokens({
@@ -254,9 +259,10 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
     await insertInstall(USER_ID, 'tok-live');
     fetchMock.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({
-        data: [{ status: 'error', details: { error: 'MessageTooBig' } }],
-      }),
+      json: () =>
+        Promise.resolve({
+          data: [{ status: 'error', details: { error: 'MessageTooBig' } }],
+        }),
     });
 
     const result = await pushService.sendPushToTokens({
@@ -285,7 +291,9 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const first = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)) as unknown[];
-    const second = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body)) as unknown[];
+    const second = JSON.parse(
+      String((fetchMock.mock.calls[1][1] as RequestInit).body),
+    ) as unknown[];
     expect(first).toHaveLength(100);
     expect(second).toHaveLength(50);
   });

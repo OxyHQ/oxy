@@ -9,7 +9,12 @@
  */
 import type { AuthStateStore } from '@oxy.so/core/session';
 
-const CRED_STATE = { sessionId: 'sess-1', userId: 'user-1', deviceId: 'dev-1', deviceSecret: 'ds-1' };
+const CRED_STATE = {
+  sessionId: 'sess-1',
+  userId: 'user-1',
+  deviceId: 'dev-1',
+  deviceSecret: 'ds-1',
+};
 
 /** Track every credential handed to the shared slot by the store under test. */
 function makeSharedSpy() {

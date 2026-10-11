@@ -23,4 +23,4 @@ export interface SessionAuthResponse {
     username?: string; // Optional - users may not have a username set
     avatar?: string; // file id
   };
-} 
+}

@@ -1,10 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AppIcon, Icons } from '@/constants/icons';
@@ -217,7 +212,7 @@ export default function ScanSignInScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('signInApproval.scan.a11y.scanAgain')}
                 >
-                  <Icons.refresh size='xl' fill="#fff" />
+                  <Icons.refresh size="xl" fill="#fff" />
                   <Text style={styles.controlText}>{t('signInApproval.scan.scanAgain')}</Text>
                 </TouchableOpacity>
               </>
@@ -229,11 +224,13 @@ export default function ScanSignInScreen() {
                   onPress={toggleFlash}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    flashOn ? t('signInApproval.scan.a11y.flashOff') : t('signInApproval.scan.a11y.flashOn')
+                    flashOn
+                      ? t('signInApproval.scan.a11y.flashOff')
+                      : t('signInApproval.scan.a11y.flashOn')
                   }
                   accessibilityState={{ selected: flashOn }}
                 >
-                  <AppIcon name={'flash'} size='xl' fill="#fff" />
+                  <AppIcon name={'flash'} size="xl" fill="#fff" />
                   <Text style={styles.controlText}>
                     {flashOn ? t('signInApproval.scan.flashOn') : t('signInApproval.scan.flashOff')}
                   </Text>
@@ -249,7 +246,7 @@ export default function ScanSignInScreen() {
           accessibilityRole="button"
           accessibilityLabel={t('signInApproval.scan.a11y.close')}
         >
-          <Icons.close size='xl' fill="#fff" />
+          <Icons.close size="xl" fill="#fff" />
         </TouchableOpacity>
       </CameraView>
 
@@ -309,10 +306,34 @@ const styles = StyleSheet.create({
     height: 40,
     borderColor: '#fff',
   },
-  cornerTopLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
-  cornerTopRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
-  cornerBottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
-  cornerBottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
+  cornerTopLeft: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderTopLeftRadius: 12,
+  },
+  cornerTopRight: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 12,
+  },
+  cornerBottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 12,
+  },
+  cornerBottomRight: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 12,
+  },
   bottomSection: {
     justifyContent: 'flex-start',
     alignItems: 'center',

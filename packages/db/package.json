@@ -140,7 +140,6 @@
     "postgres": "^3.4.9"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",
     "drizzle-orm": "catalog:",

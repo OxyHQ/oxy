@@ -49,7 +49,10 @@ const unique = () => randomUUID().replace(/-/g, '');
 
 async function recipient(): Promise<{ id: string; username: string }> {
   const username = `flt${unique().slice(0, 10)}`;
-  const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
   return { id: row.id, username };
 }
 
@@ -117,7 +120,9 @@ describe('storeIncomingMessage — filters decide whether the user is notified',
 
     expect(stored.mailboxId).toBe(inbox);
     expect(mockSendInboxEmailPush).toHaveBeenCalledTimes(1);
-    expect(mockEmitEmailNew).toHaveBeenCalledWith(expect.objectContaining({ id: stored.id, mailboxId: inbox }));
+    expect(mockEmitEmailNew).toHaveBeenCalledWith(
+      expect.objectContaining({ id: stored.id, mailboxId: inbox }),
+    );
   });
 
   it('does not notify for mail a rule moved out of the Inbox', async () => {

@@ -100,10 +100,7 @@ import {
 import { senderAvatars } from './schema/senderAvatars';
 import { sessions } from './schema/sessions';
 
-import {
-  API_KEY_USAGE_RETENTION_SECONDS,
-  apiKeyUsageEvents,
-} from './schema/apiKeyUsageEvents';
+import { API_KEY_USAGE_RETENTION_SECONDS, apiKeyUsageEvents } from './schema/apiKeyUsageEvents';
 import {
   INFERENCE_USAGE_RETENTION_SECONDS,
   inferenceUsageEvents,
@@ -192,10 +189,10 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: mcpOauthAccountLinkIntents.expiresAt,
     retentionSeconds: 300,
     reason:
-      'Five-minute replay-detection grace after the link deadline, matching the '
-      + 'authorization codes: approval filters expiry and atomically stamps '
-      + '`used_at`, so a spent invitation is recognised as spent rather than as '
-      + 'an unknown link.',
+      'Five-minute replay-detection grace after the link deadline, matching the ' +
+      'authorization codes: approval filters expiry and atomically stamps ' +
+      '`used_at`, so a spent invitation is recognised as spent rather than as ' +
+      'an unknown link.',
   },
   {
     table: mcpOauthAccessTokens,
@@ -294,7 +291,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     reason:
       'SECURITY parameter, not housekeeping: the row IS the used-nonce record, ' +
       'so deleting it frees its hash for reuse. The 10-minute pad is how long ' +
-      'a replay stays detectable past the nonce\'s own deadline.',
+      "a replay stays detectable past the nonce's own deadline.",
   },
   {
     table: securityActivities,
@@ -379,7 +376,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: storageObjectDeletions.completedAt,
     retentionSeconds: STORAGE_OBJECT_DELETION_RETENTION_SECONDS,
     reason:
-      'Thirty days of proof that a deleted account\'s stored uploads were ' +
+      "Thirty days of proof that a deleted account's stored uploads were " +
       'removed, keyed on COMPLETION: an unfinished row has a NULL ' +
       '`completed_at`, which no range predicate matches, so a deletion still ' +
       'retrying is never swept away with its keys.',

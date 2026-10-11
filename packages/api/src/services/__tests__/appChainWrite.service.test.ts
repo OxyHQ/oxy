@@ -27,7 +27,6 @@ import { users } from '../../db/schema/users';
 import { OXY_DID } from '../did.service';
 import { appendAppRecord, collectionIsWithinNamespaces } from '../appChainWrite.service';
 
-
 let restoreEnv: { priv?: string; pub?: string };
 
 beforeAll(async () => {
@@ -73,7 +72,9 @@ describe('collectionIsWithinNamespaces', () => {
   it('refuses a NEIGHBOURING namespace that shares the prefix as a string', () => {
     // The case a bare `startsWith` gets wrong, and the reason this function
     // exists rather than an inline `some(s => c.startsWith(s))`.
-    expect(collectionIsWithinNamespaces('app.mentionother.feed.post', ['app.mention.'])).toBe(false);
+    expect(collectionIsWithinNamespaces('app.mentionother.feed.post', ['app.mention.'])).toBe(
+      false,
+    );
   });
 
   it('treats a grant written without its trailing dot the same way', () => {
@@ -116,7 +117,11 @@ describe('appendAppRecord', () => {
     if (!result.ok) return;
 
     const [row] = await getDb()
-      .select({ nsid: signedRecords.nsid, type: signedRecords.type, envelope: signedRecords.envelope })
+      .select({
+        nsid: signedRecords.nsid,
+        type: signedRecords.type,
+        envelope: signedRecords.envelope,
+      })
       .from(signedRecords)
       .where(eq(signedRecords.recordId, result.record.recordId));
 
@@ -132,10 +137,18 @@ describe('appendAppRecord', () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
     await authorize(appId, userId);
     const first = await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'a', record: { text: '1' },
+      appId,
+      oxyUserId: userId,
+      collection: 'app.mention.feed.post',
+      rkey: 'a',
+      record: { text: '1' },
     });
     const second = await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'b', record: { text: '2' },
+      appId,
+      oxyUserId: userId,
+      collection: 'app.mention.feed.post',
+      rkey: 'b',
+      record: { text: '2' },
     });
 
     expect(first.ok && second.ok).toBe(true);
@@ -148,7 +161,11 @@ describe('appendAppRecord', () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
 
     const result = await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.syra.listen', rkey: 'x', record: {},
+      appId,
+      oxyUserId: userId,
+      collection: 'app.syra.listen',
+      rkey: 'x',
+      record: {},
     });
 
     expect(result).toEqual({ ok: false, reason: 'namespace_forbidden', detail: 'app.syra.listen' });
@@ -158,7 +175,11 @@ describe('appendAppRecord', () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
 
     const result = await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'x', record: {},
+      appId,
+      oxyUserId: userId,
+      collection: 'app.mention.feed.post',
+      rkey: 'x',
+      record: {},
     });
 
     expect(result).toEqual({ ok: false, reason: 'subject_forbidden' });
@@ -169,7 +190,11 @@ describe('appendAppRecord', () => {
     const [appId, userId] = [await application([]), await account()];
 
     const result = await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'x', record: {},
+      appId,
+      oxyUserId: userId,
+      collection: 'app.mention.feed.post',
+      rkey: 'x',
+      record: {},
     });
 
     expect(result).toMatchObject({ ok: false, reason: 'namespace_forbidden' });
@@ -177,7 +202,11 @@ describe('appendAppRecord', () => {
 
   it('refuses an application that does not exist', async () => {
     const result = await appendAppRecord({
-      appId: randomUUID(), oxyUserId: await account(), collection: 'app.mention.feed.post', rkey: 'x', record: {},
+      appId: randomUUID(),
+      oxyUserId: await account(),
+      collection: 'app.mention.feed.post',
+      rkey: 'x',
+      record: {},
     });
 
     expect(result).toMatchObject({ ok: false, reason: 'unknown_application' });
@@ -189,7 +218,11 @@ describe('appendAppRecord', () => {
     delete process.env.OXY_PRIVATE_KEY;
     try {
       const result = await appendAppRecord({
-        appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'x', record: {},
+        appId,
+        oxyUserId: userId,
+        collection: 'app.mention.feed.post',
+        rkey: 'x',
+        record: {},
       });
       expect(result).toEqual({ ok: false, reason: 'signing_disabled' });
     } finally {
@@ -200,7 +233,11 @@ describe('appendAppRecord', () => {
   it('writes nothing at all when it refuses', async () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
     await appendAppRecord({
-      appId, oxyUserId: userId, collection: 'app.syra.listen', rkey: 'x', record: {},
+      appId,
+      oxyUserId: userId,
+      collection: 'app.syra.listen',
+      rkey: 'x',
+      record: {},
     });
 
     const rows = await getDb()

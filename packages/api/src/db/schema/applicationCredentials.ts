@@ -199,8 +199,7 @@ export const APPLICATION_CREDENTIAL_ENVIRONMENTS = [
   'production',
 ] as const;
 
-export type ApplicationCredentialEnvironment =
-  (typeof APPLICATION_CREDENTIAL_ENVIRONMENTS)[number];
+export type ApplicationCredentialEnvironment = (typeof APPLICATION_CREDENTIAL_ENVIRONMENTS)[number];
 
 /**
  * Lifecycle. `pending` is an unauthenticatable two-phase handoff state;
@@ -299,10 +298,7 @@ export const applicationCredentials = pgTable(
      * these with the owning application's scopes (`intersectScopes`), so a
      * credential can never exceed its app's authority.
      */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
     status: text({ enum: APPLICATION_CREDENTIAL_STATUSES }).notNull().default('active'),
     lastUsedAt: timestamptz(),
     /**
@@ -389,25 +385,25 @@ export const applicationCredentials = pgTable(
     index('application_credentials_application_id_status_idx').on(t.applicationId, t.status),
     check(
       'application_credentials_type_check',
-      sql`${t.type} in (${sql.raw(inList(APPLICATION_CREDENTIAL_TYPES))})`
+      sql`${t.type} in (${sql.raw(inList(APPLICATION_CREDENTIAL_TYPES))})`,
     ),
     check(
       'application_credentials_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(APPLICATION_CREDENTIAL_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(APPLICATION_CREDENTIAL_ENVIRONMENTS))})`,
     ),
     check(
       'application_credentials_status_check',
-      sql`${t.status} in (${sql.raw(inList(APPLICATION_CREDENTIAL_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(APPLICATION_CREDENTIAL_STATUSES))})`,
     ),
     check(
       'application_credentials_scopes_check',
-      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`
+      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
     ),
     // A credential cannot be its own predecessor. The one-hop case of "a
     // rotation chain is acyclic", and the shape a bad write actually produces.
     check(
       'application_credentials_rotated_from_not_self_check',
-      sql`${t.rotatedFromCredentialId} <> ${t.id}`
+      sql`${t.rotatedFromCredentialId} <> ${t.id}`,
     ),
     // The machine lane, stated as a biconditional rather than the usual
     // one-direction implication, because BOTH directions are real failures the
@@ -420,14 +416,14 @@ export const applicationCredentials = pgTable(
     // evaluate to NULL and pass by accident.
     check(
       'application_credentials_machine_token_prefix_check',
-      sql`(${t.type} = 'machine') = (${t.tokenPrefix} is not null)`
+      sql`(${t.type} = 'machine') = (${t.tokenPrefix} is not null)`,
     ),
     // The two halves of one token travel together. Storing a prefix with no hash
     // would leave a credential nothing could ever verify against; a hash with no
     // prefix would leave one nothing could ever find.
     check(
       'application_credentials_machine_token_hash_check',
-      sql`(${t.tokenHash} is null) = (${t.tokenPrefix} is null)`
+      sql`(${t.tokenHash} is null) = (${t.tokenPrefix} is null)`,
     ),
     // One direction only, and deliberately: a `machine` credential must carry no
     // `secret_hash`, because that column is what the OAuth token endpoint and
@@ -437,7 +433,7 @@ export const applicationCredentials = pgTable(
     // so `secret_hash is null` says nothing about the type.
     check(
       'application_credentials_machine_no_secret_check',
-      sql`${t.type} <> 'machine' or ${t.secretHash} is null`
+      sql`${t.type} <> 'machine' or ${t.secretHash} is null`,
     ),
     // ---- the workload lane ------------------------------------------------
     // A biconditional, for the same reason the machine one is: both directions
@@ -448,7 +444,7 @@ export const applicationCredentials = pgTable(
     // `not null` used to prevent and still must.
     check(
       'application_credentials_workload_public_key_check',
-      sql`(${t.type} = 'workload') = (${t.publicKey} is null)`
+      sql`(${t.type} = 'workload') = (${t.publicKey} is null)`,
     ),
     // The handle space and the credential-id space are disjoint, as a database
     // invariant rather than as a property of how ids happen to be generated.
@@ -460,7 +456,7 @@ export const applicationCredentials = pgTable(
     // `generatedId()` is a uuid v7 and a pre-cutover id is 24 hex characters.
     check(
       'application_credentials_workload_handle_id_check',
-      sql`(${t.type} = 'workload') = starts_with(${t.id}, 'wl_')`
+      sql`(${t.type} = 'workload') = starts_with(${t.id}, 'wl_')`,
     ),
     // A workload row is INERT: nothing to compare and no authority to read.
     // `secret_hash` is what the OAuth token endpoint and the service-token mint
@@ -472,15 +468,15 @@ export const applicationCredentials = pgTable(
     // be a stale second answer to the same question.
     check(
       'application_credentials_workload_inert_check',
-      sql`${t.type} <> 'workload' or (${t.secretHash} is null and cardinality(${t.scopes}) = 0)`
+      sql`${t.type} <> 'workload' or (${t.secretHash} is null and cardinality(${t.scopes}) = 0)`,
     ),
     // The binding link belongs to the rows that materialise a binding, and to no
     // others — otherwise a real credential could be made to look like one.
     check(
       'application_credentials_workload_identity_only_check',
-      sql`${t.type} = 'workload' or ${t.workloadIdentityId} is null`
+      sql`${t.type} = 'workload' or ${t.workloadIdentityId} is null`,
     ),
-  ]
+  ],
 );
 
 /**

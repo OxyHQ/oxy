@@ -14,36 +14,36 @@
  * the auth-app-specific schemas (login, signup, lookup, token, refresh, OAuth
  * state) live locally.
  */
-import { z } from "zod"
+import { z } from 'zod';
 import {
-    currentUserResponseSchema,
-    deviceLinkedSessionsResponseSchema,
-    mcpOAuthConsentResponseSchema,
-    oauthConsentDecisionSchema,
-    publicApplicationSchema,
-    sessionStatusSchema,
-    safeParseContract,
-} from "@oxy.so/contracts"
+  currentUserResponseSchema,
+  deviceLinkedSessionsResponseSchema,
+  mcpOAuthConsentResponseSchema,
+  oauthConsentDecisionSchema,
+  publicApplicationSchema,
+  sessionStatusSchema,
+  safeParseContract,
+} from '@oxy.so/contracts';
 import type {
-    PublicApplicationResponse,
-    SessionStatusResponse,
-    ApplicationTypeContract,
-    McpOAuthConsentResponse,
-} from "@oxy.so/contracts"
+  PublicApplicationResponse,
+  SessionStatusResponse,
+  ApplicationTypeContract,
+  McpOAuthConsentResponse,
+} from '@oxy.so/contracts';
 
 // Canonical, contracts-owned schemas re-exported for local import sites.
 export {
-    currentUserResponseSchema,
-    deviceLinkedSessionsResponseSchema,
-    publicApplicationSchema,
-    sessionStatusSchema,
-}
+  currentUserResponseSchema,
+  deviceLinkedSessionsResponseSchema,
+  publicApplicationSchema,
+  sessionStatusSchema,
+};
 export type {
-    PublicApplicationResponse,
-    SessionStatusResponse,
-    ApplicationTypeContract,
-    McpOAuthConsentResponse,
-}
+  PublicApplicationResponse,
+  SessionStatusResponse,
+  ApplicationTypeContract,
+  McpOAuthConsentResponse,
+};
 
 /**
  * Decide whether the OAuth consent screen must be shown, from the raw
@@ -61,12 +61,10 @@ export type {
  * showing the consent screen, so the tightening moves in the safe direction.
  */
 export function consentRequiredFromBody(body: unknown): boolean {
-    const inner =
-        body && typeof body === "object" && "data" in body
-            ? (body as { data: unknown }).data
-            : body
-    const parsed = safeParse(oauthConsentDecisionSchema, inner)
-    return parsed ? parsed.consentRequired : true
+  const inner =
+    body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  const parsed = safeParse(oauthConsentDecisionSchema, inner);
+  return parsed ? parsed.consentRequired : true;
 }
 
 /**
@@ -76,57 +74,53 @@ export function consentRequiredFromBody(body: unknown): boolean {
  * summary from URL parameters.
  */
 export function mcpConsentFromBody(body: unknown): McpOAuthConsentResponse | null {
-    const inner =
-        body && typeof body === "object" && "data" in body
-            ? (body as { data: unknown }).data
-            : body
-    return safeParse(mcpOAuthConsentResponseSchema, inner)
+  const inner =
+    body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  return safeParse(mcpOAuthConsentResponseSchema, inner);
 }
 
 /** Only an entirely valid server context may suppress the consent screen. */
 export function mcpConsentRequiredFromBody(body: unknown): boolean {
-    return mcpConsentFromBody(body)?.consentRequired ?? true
+  return mcpConsentFromBody(body)?.consentRequired ?? true;
 }
 
 const mcpLinkIntentSchema = z.object({
-    client_name: z.string().min(1),
-    client_uri: z.string().nullable().optional(),
-    logo_uri: z.string().nullable().optional(),
-    app_slug: z.string().min(1),
-    resource: z.string().min(1),
-    scopes: z.array(z.string().min(1)),
-    already_linked: z.boolean(),
-    expires_at: z.string().min(1),
-})
+  client_name: z.string().min(1),
+  client_uri: z.string().nullable().optional(),
+  logo_uri: z.string().nullable().optional(),
+  app_slug: z.string().min(1),
+  resource: z.string().min(1),
+  scopes: z.array(z.string().min(1)),
+  already_linked: z.boolean(),
+  expires_at: z.string().min(1),
+});
 
 export type McpLinkIntent = {
-    clientName: string
-    clientUri: string | null
-    logoUri: string | null
-    appSlug: string
-    resource: string
-    scopes: string[]
-    alreadyLinked: boolean
-    expiresAt: string
-}
+  clientName: string;
+  clientUri: string | null;
+  logoUri: string | null;
+  appSlug: string;
+  resource: string;
+  scopes: string[];
+  alreadyLinked: boolean;
+  expiresAt: string;
+};
 
 export function mcpLinkIntentFromBody(body: unknown): McpLinkIntent | null {
-    const inner =
-        body && typeof body === "object" && "data" in body
-            ? (body as { data: unknown }).data
-            : body
-    const parsed = mcpLinkIntentSchema.safeParse(inner)
-    if (!parsed.success) return null
-    return {
-        clientName: parsed.data.client_name,
-        clientUri: parsed.data.client_uri ?? null,
-        logoUri: parsed.data.logo_uri ?? null,
-        appSlug: parsed.data.app_slug,
-        resource: parsed.data.resource,
-        scopes: parsed.data.scopes,
-        alreadyLinked: parsed.data.already_linked,
-        expiresAt: parsed.data.expires_at,
-    }
+  const inner =
+    body && typeof body === 'object' && 'data' in body ? (body as { data: unknown }).data : body;
+  const parsed = mcpLinkIntentSchema.safeParse(inner);
+  if (!parsed.success) return null;
+  return {
+    clientName: parsed.data.client_name,
+    clientUri: parsed.data.client_uri ?? null,
+    logoUri: parsed.data.logo_uri ?? null,
+    appSlug: parsed.data.app_slug,
+    resource: parsed.data.resource,
+    scopes: parsed.data.scopes,
+    alreadyLinked: parsed.data.already_linked,
+    expiresAt: parsed.data.expires_at,
+  };
 }
 
 /**
@@ -134,4 +128,4 @@ export function mcpLinkIntentFromBody(body: unknown): McpLinkIntent | null {
  * `null` if validation fails. Delegates to the contracts package's
  * `safeParseContract` so there is exactly one parse helper across the ecosystem.
  */
-export const safeParse = safeParseContract
+export const safeParse = safeParseContract;

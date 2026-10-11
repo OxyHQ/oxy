@@ -91,10 +91,13 @@ export const followRelationships = pgTable(
     // Same tuples as the `as const` arrays above. The drizzle `enum` is a
     // compile-time claim only; this is what stops a repair script or a future
     // service from storing a state no consumer knows how to render.
-    check('follow_relationships_state_check', sql`${t.state} in ('requested', 'active', 'rejected')`),
+    check(
+      'follow_relationships_state_check',
+      sql`${t.state} in ('requested', 'active', 'rejected')`,
+    ),
     check(
       'follow_relationships_source_check',
-      sql`${t.source} in ('app', 'federation_inbound', 'migration', 'system')`
+      sql`${t.source} in ('app', 'federation_inbound', 'migration', 'system')`,
     ),
     // "Everything this user follows" — the central list, in its sort order.
     index('follow_relationships_follower_created_idx').on(t.followerUserId, t.createdAt),
@@ -107,5 +110,5 @@ export const followRelationships = pgTable(
     index('follow_relationships_expires_at_idx')
       .on(t.expiresAt)
       .where(sql`${t.expiresAt} is not null`),
-  ]
+  ],
 );

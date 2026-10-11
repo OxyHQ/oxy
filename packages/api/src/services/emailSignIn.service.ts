@@ -43,7 +43,12 @@ import { hashEmail } from '../utils/contactHash';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendSignInEmail } from './accountEmail.mail';
-import { assertMailConfigured, consumeEmailCode, recordVerification, reserveSendBudget } from './accountEmail.service';
+import {
+  assertMailConfigured,
+  consumeEmailCode,
+  recordVerification,
+  reserveSendBudget,
+} from './accountEmail.service';
 import { clearFailures, isLockedOut, reserveAttempt } from './loginLockout.service';
 import { resolveProvenDevice, resolveProvenDeviceId } from './deviceJoin.service';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
@@ -81,11 +86,19 @@ function hashesEqual(storedHex: string, candidate: string): boolean {
 }
 
 function requestInvalid(): ApiError {
-  return new ApiError(401, 'This sign-in expired or was already used. Start again.', SIGN_IN_ERROR_CODES.requestInvalid);
+  return new ApiError(
+    401,
+    'This sign-in expired or was already used. Start again.',
+    SIGN_IN_ERROR_CODES.requestInvalid,
+  );
 }
 
 function linkInvalid(): ApiError {
-  return new ApiError(401, 'This link expired or was already used.', SIGN_IN_ERROR_CODES.linkInvalid);
+  return new ApiError(
+    401,
+    'This link expired or was already used.',
+    SIGN_IN_ERROR_CODES.linkInvalid,
+  );
 }
 
 function linkOtherDevice(): ApiError {
@@ -127,8 +140,19 @@ async function resolveTarget(identifier: string): Promise<SignInTarget> {
   const email = account?.email?.trim().toLowerCase() || null;
   // A Commons account signs in with Commons: linking deleted its email, and one
   // that still has an address is not signed in through it either.
-  if (account && email && account.kind === 'personal' && !account.publicKey && account.accountStatus === 'active') {
-    return { userId: account.id, emailHash: hashEmail(email), sendTo: email, username: account.username };
+  if (
+    account &&
+    email &&
+    account.kind === 'personal' &&
+    !account.publicKey &&
+    account.accountStatus === 'active'
+  ) {
+    return {
+      userId: account.id,
+      emailHash: hashEmail(email),
+      sendTo: email,
+      username: account.username,
+    };
   }
   return { userId: null, emailHash: hashEmail(trimmed), sendTo: null, username: null };
 }
@@ -156,7 +180,14 @@ export async function startEmailSignIn(
   // Over the send budget: answered like any other request, as a decoy that
   // sends nothing — the budget is never visible (`reserveSendBudget`).
   let retryLater = false;
-  if (!(await reserveSendBudget({ group: 'public', emailHash: target.emailHash, requesterKey, knownDevice }))) {
+  if (
+    !(await reserveSendBudget({
+      group: 'public',
+      emailHash: target.emailHash,
+      requesterKey,
+      knownDevice,
+    }))
+  ) {
     retryLater = knownDevice;
     target = { ...target, userId: null, sendTo: null };
   }
@@ -187,13 +218,24 @@ export async function startEmailSignIn(
 
   if (target.sendTo) {
     const shown = longCode ? `${code.slice(0, 5)}-${code.slice(5)}` : code;
-    sendSignInEmail(target.sendTo, { code: shown, linkToken, username: target.username }).catch((error: unknown) => {
-      logger.error('Sign-in email could not be sent', error instanceof Error ? error : new Error(String(error)), {
-        component: 'emailSignIn',
-      });
-    });
+    sendSignInEmail(target.sendTo, { code: shown, linkToken, username: target.username }).catch(
+      (error: unknown) => {
+        logger.error(
+          'Sign-in email could not be sent',
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            component: 'emailSignIn',
+          },
+        );
+      },
+    );
   }
-  return { requestId, requestSecret, expiresAt: expiresAt.getTime(), ...(retryLater ? { retryLater: true as const } : {}) };
+  return {
+    requestId,
+    requestSecret,
+    expiresAt: expiresAt.getTime(),
+    ...(retryLater ? { retryLater: true as const } : {}),
+  };
 }
 
 /**
@@ -249,7 +291,10 @@ export async function confirmEmailSignIn(
     //   (which needs the requester's own browser) keeps working throughout.
     // A decoy counts on keys of its own.
     const accountKey = request.userId ?? `request:${request.id}`;
-    const requesterBucket = serverHmacHex(SERVER_KEY_LABELS.lockoutIdentifier, `${accountKey}|${input.requesterKey}`);
+    const requesterBucket = serverHmacHex(
+      SERVER_KEY_LABELS.lockoutIdentifier,
+      `${accountKey}|${input.requesterKey}`,
+    );
     const perRequester = await reserveAttempt({
       scope: SIGNIN_CODE_REQUESTER_SCOPE,
       identifier: requesterBucket,
@@ -257,17 +302,27 @@ export async function confirmEmailSignIn(
       windowSeconds: 24 * 60 * 60,
     });
     const perAccount = await reserveAttempt(accountCeiling(accountKey));
-    const exempt = request.longCode || Boolean(request.userId && provenDevice?.accountIds.includes(request.userId));
+    const exempt =
+      request.longCode ||
+      Boolean(request.userId && provenDevice?.accountIds.includes(request.userId));
     const refuse = perRequester.locked || (perAccount.locked && !exempt);
     const checked = await consumeEmailCode(
       tx,
-      { verificationId: request.verificationId, code: normalizeEmailSignInCode(input.code), purpose: 'signin', refuse },
+      {
+        verificationId: request.verificationId,
+        code: normalizeEmailSignInCode(input.code),
+        purpose: 'signin',
+        refuse,
+      },
       now,
     );
     if ('error' in checked) return checked;
     await clearFailures({ scope: SIGNIN_CODE_REQUESTER_SCOPE, identifier: requesterBucket });
     if (!request.userId || checked.userId !== request.userId) return { error: requestInvalid() };
-    await tx.update(emailSignInRequests).set({ completedAt: now }).where(eq(emailSignInRequests.id, request.id));
+    await tx
+      .update(emailSignInRequests)
+      .set({ completedAt: now })
+      .where(eq(emailSignInRequests.id, request.id));
     return { userId: request.userId };
   });
   if ('error' in outcome) throw outcome.error;
@@ -287,7 +342,10 @@ export async function approveEmailSignInLink(
   const provenDeviceId = await resolveProvenDeviceId(input.device);
   const db = getDb();
   const [request] = await db
-    .select({ id: emailSignInRequests.id, requesterDeviceId: emailSignInRequests.requesterDeviceId })
+    .select({
+      id: emailSignInRequests.id,
+      requesterDeviceId: emailSignInRequests.requesterDeviceId,
+    })
     .from(emailSignInRequests)
     .where(
       and(
@@ -300,7 +358,11 @@ export async function approveEmailSignInLink(
     )
     .limit(1);
   if (!request) throw linkInvalid();
-  if (!request.requesterDeviceId || !provenDeviceId || provenDeviceId !== request.requesterDeviceId) {
+  if (
+    !request.requesterDeviceId ||
+    !provenDeviceId ||
+    provenDeviceId !== request.requesterDeviceId
+  ) {
     throw linkOtherDevice();
   }
   const approved = await db
@@ -324,7 +386,11 @@ export async function approveEmailSignInLink(
  * `requestSecret`, and only with the device proof the request was made with.
  */
 export async function collectEmailSignIn(
-  input: { requestId: string; requestSecret: string; device?: { deviceId: string; deviceSecret: string } },
+  input: {
+    requestId: string;
+    requestSecret: string;
+    device?: { deviceId: string; deviceSecret: string };
+  },
   now: Date = new Date(),
 ): Promise<{ userId: string; provenDeviceId: string } | EmailSignInPending> {
   const provenDeviceId = await resolveProvenDeviceId(input.device);
@@ -347,7 +413,8 @@ export async function collectEmailSignIn(
       ),
     )
     .limit(1);
-  if (!request || !hashesEqual(request.requestSecretHash, input.requestSecret)) throw requestInvalid();
+  if (!request || !hashesEqual(request.requestSecretHash, input.requestSecret))
+    throw requestInvalid();
   if (!request.approvedAt || !request.userId || !request.requesterDeviceId) {
     return { status: 'pending', expiresAt: request.expiresAt.getTime() };
   }

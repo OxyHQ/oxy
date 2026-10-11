@@ -79,7 +79,9 @@ export function getExtraAllowedOrigins(): ReadonlySet<string> {
     }
     const hostname = candidate.slice(HTTPS_PREFIX.length);
     if (!isValidHostname(hostname)) {
-      logger.warn('OXY_EXTRA_ALLOWED_ORIGINS entry rejected: invalid hostname', { entry: candidate });
+      logger.warn('OXY_EXTRA_ALLOWED_ORIGINS entry rejected: invalid hostname', {
+        entry: candidate,
+      });
       continue;
     }
     parsed.add(candidate);
@@ -268,7 +270,7 @@ export function stopOriginRegistry(): void {
 /** Test-only: set both snapshots deterministically. */
 export function setOriginSnapshotForTests(
   trusted: readonly string[],
-  thirdParty: readonly string[]
+  thirdParty: readonly string[],
 ): void {
   registry.setSnapshotForTests(trusted, thirdParty);
 }

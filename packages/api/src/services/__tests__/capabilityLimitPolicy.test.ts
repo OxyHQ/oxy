@@ -28,10 +28,16 @@ function tool(input: Partial<CatalogTool> = {}): CatalogTool {
 
 describe('capabilityLimitError', () => {
   it('accepts declared numeric and boolean constraints', () => {
-    expect(capabilityLimitError([
-      { tool: 'searchEmails', key: 'limit', value: 25 },
-      { tool: 'searchEmails', key: 'unread', value: true },
-    ], [tool()], 'mailbox')).toBeNull();
+    expect(
+      capabilityLimitError(
+        [
+          { tool: 'searchEmails', key: 'limit', value: 25 },
+          { tool: 'searchEmails', key: 'unread', value: true },
+        ],
+        [tool()],
+        'mailbox',
+      ),
+    ).toBeNull();
   });
 
   it.each([

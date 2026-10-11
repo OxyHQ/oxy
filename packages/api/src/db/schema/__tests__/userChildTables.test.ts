@@ -93,7 +93,7 @@ describe('user_locations — coordinates are named, not positional', () => {
         name: 'Nowhere',
         latitude: 91,
         longitude: 0,
-      })
+      }),
     );
     expect(pgErrorCode(outOfRange)).toBe(CHECK_VIOLATION);
 
@@ -106,7 +106,7 @@ describe('user_locations — coordinates are named, not positional', () => {
         name: 'Somewhere',
         latitude: 0,
         longitude: 91,
-      })
+      }),
     ).resolves.toBeDefined();
   });
 
@@ -118,7 +118,7 @@ describe('user_locations — coordinates are named, not positional', () => {
         locationKey: unique(),
         name: 'Half',
         latitude: 41.3874,
-      })
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -129,7 +129,7 @@ describe('user_locations — coordinates are named, not positional', () => {
     await getDb().insert(userLocations).values({ userId, locationKey, name: 'First' });
 
     const error = await rejection(
-      getDb().insert(userLocations).values({ userId, locationKey, name: 'Second' })
+      getDb().insert(userLocations).values({ userId, locationKey, name: 'Second' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
@@ -137,7 +137,7 @@ describe('user_locations — coordinates are named, not positional', () => {
     await expect(
       getDb()
         .insert(userLocations)
-        .values({ userId: await insertUser(), locationKey, name: 'Theirs' })
+        .values({ userId: await insertUser(), locationKey, name: 'Theirs' }),
     ).resolves.toBeDefined();
   });
 
@@ -146,12 +146,14 @@ describe('user_locations — coordinates are named, not positional', () => {
     // be left unpopulated by a write path that forgets it.
     const userId = await insertUser();
     const token = `zx${unique().slice(0, 10)}`;
-    await getDb().insert(userLocations).values({
-      userId,
-      locationKey: unique(),
-      name: `Casa ${token}`,
-      formattedAddress: 'Carrer Gran 4, Barcelona',
-    });
+    await getDb()
+      .insert(userLocations)
+      .values({
+        userId,
+        locationKey: unique(),
+        name: `Casa ${token}`,
+        formattedAddress: 'Carrer Gran 4, Barcelona',
+      });
 
     const byName = await getDb()
       .select({ id: userLocations.id })
@@ -159,8 +161,8 @@ describe('user_locations — coordinates are named, not positional', () => {
       .where(
         and(
           eq(userLocations.userId, userId),
-          sql`${userLocations.searchVector} @@ to_tsquery('english', ${token})`
-        )
+          sql`${userLocations.searchVector} @@ to_tsquery('english', ${token})`,
+        ),
       );
     expect(byName).toHaveLength(1);
 
@@ -170,8 +172,8 @@ describe('user_locations — coordinates are named, not positional', () => {
       .where(
         and(
           eq(userLocations.userId, userId),
-          sql`${userLocations.searchVector} @@ to_tsquery('english', 'barcelona')`
-        )
+          sql`${userLocations.searchVector} @@ to_tsquery('english', 'barcelona')`,
+        ),
       );
     expect(byAddress).toHaveLength(1);
 
@@ -183,8 +185,8 @@ describe('user_locations — coordinates are named, not positional', () => {
       .where(
         and(
           eq(userLocations.userId, userId),
-          sql`${userLocations.searchVector} @@ to_tsquery('english', 'reykjavik')`
-        )
+          sql`${userLocations.searchVector} @@ to_tsquery('english', 'reykjavik')`,
+        ),
       );
     expect(byNothing).toHaveLength(0);
   });
@@ -241,7 +243,7 @@ describe('user_ancestors — the materialized path', () => {
     await getDb().insert(userAncestors).values({ userId, depth: 0, ancestorId: first });
 
     const error = await rejection(
-      getDb().insert(userAncestors).values({ userId, depth: 0, ancestorId: second })
+      getDb().insert(userAncestors).values({ userId, depth: 0, ancestorId: second }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -251,17 +253,17 @@ describe('user_ancestors — the materialized path', () => {
     const other = await insertUser();
 
     const self = await rejection(
-      getDb().insert(userAncestors).values({ userId, depth: 0, ancestorId: userId })
+      getDb().insert(userAncestors).values({ userId, depth: 0, ancestorId: userId }),
     );
     expect(pgErrorCode(self)).toBe(CHECK_VIOLATION);
 
     const tooDeep = await rejection(
-      getDb().insert(userAncestors).values({ userId, depth: 8, ancestorId: other })
+      getDb().insert(userAncestors).values({ userId, depth: 8, ancestorId: other }),
     );
     expect(pgErrorCode(tooDeep)).toBe(CHECK_VIOLATION);
 
     await expect(
-      getDb().insert(userAncestors).values({ userId, depth: 7, ancestorId: other })
+      getDb().insert(userAncestors).values({ userId, depth: 7, ancestorId: other }),
     ).resolves.toBeDefined();
   });
 
@@ -270,7 +272,7 @@ describe('user_ancestors — the materialized path', () => {
     const error = await rejection(
       getDb()
         .insert(userAncestors)
-        .values({ userId, depth: 0, ancestorId: `ghost-${unique()}` })
+        .values({ userId, depth: 0, ancestorId: `ghost-${unique()}` }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -281,7 +283,7 @@ describe('user_auth_methods', () => {
     const userId = await insertUser();
 
     const noKey = await rejection(
-      getDb().insert(userAuthMethods).values({ userId, type: 'identity' })
+      getDb().insert(userAuthMethods).values({ userId, type: 'identity' }),
     );
     expect(pgErrorCode(noKey)).toBe(CHECK_VIOLATION);
 
@@ -290,7 +292,7 @@ describe('user_auth_methods', () => {
       getDb().execute(sql`
         insert into user_auth_methods (id, user_id, type, method_public_key)
         values (${randomUUID()}, ${userId}, 'webauthn', ${`04${unique()}`})
-      `)
+      `),
     );
     expect(pgErrorCode(passkey)).toBe(CHECK_VIOLATION);
   });
@@ -302,15 +304,16 @@ describe('user_auth_methods', () => {
       .values({ userId: await insertUser(), type: 'identity', methodPublicKey: key });
 
     const error = await rejection(
-      getDb().insert(userAuthMethods).values({
-        userId: await insertUser(),
-        type: 'identity',
-        methodPublicKey: key.toLowerCase(),
-      })
+      getDb()
+        .insert(userAuthMethods)
+        .values({
+          userId: await insertUser(),
+          type: 'identity',
+          methodPublicKey: key.toLowerCase(),
+        }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
-
 });
 
 describe('user_verified_domains', () => {
@@ -324,7 +327,7 @@ describe('user_verified_domains', () => {
     const error = await rejection(
       getDb()
         .insert(userVerifiedDomains)
-        .values({ userId, domain, verifiedAt: new Date(), method: 'well-known' })
+        .values({ userId, domain, verifiedAt: new Date(), method: 'well-known' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -338,7 +341,7 @@ describe('user_verified_domains', () => {
     await expect(
       getDb()
         .insert(userVerifiedDomains)
-        .values({ userId: await insertUser(), domain, verifiedAt: new Date(), method: 'dns-txt' })
+        .values({ userId: await insertUser(), domain, verifiedAt: new Date(), method: 'dns-txt' }),
     ).resolves.toBeDefined();
   });
 });
@@ -363,7 +366,7 @@ describe('user_link_metadata', () => {
     const error = await rejection(
       getDb()
         .insert(userLinkMetadata)
-        .values({ userId, position: 0, url: 'https://c.example', title: 'C', description: 'c' })
+        .values({ userId, position: 0, url: 'https://c.example', title: 'C', description: 'c' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -378,12 +381,21 @@ describe('deleting an account', () => {
     await getDb()
       .insert(userLocations)
       .values({ userId: root, locationKey: unique(), name: 'Home' });
-    await getDb()
-      .insert(userLinkMetadata)
-      .values({ userId: root, position: 0, url: 'https://a.example', title: 'A', description: 'a' });
+    await getDb().insert(userLinkMetadata).values({
+      userId: root,
+      position: 0,
+      url: 'https://a.example',
+      title: 'A',
+      description: 'a',
+    });
     await getDb()
       .insert(userVerifiedDomains)
-      .values({ userId: root, domain: `${unique()}.example`, verifiedAt: new Date(), method: 'dns-txt' });
+      .values({
+        userId: root,
+        domain: `${unique()}.example`,
+        verifiedAt: new Date(),
+        method: 'dns-txt',
+      });
     await getDb()
       .insert(userAuthMethods)
       .values({ userId: root, type: 'identity', methodPublicKey: `04${unique()}` });
@@ -393,11 +405,29 @@ describe('deleting an account', () => {
 
     // Owned rows are gone.
     for (const [label, rows] of [
-      ['locations', await getDb().select().from(userLocations).where(eq(userLocations.userId, root))],
-      ['links', await getDb().select().from(userLinkMetadata).where(eq(userLinkMetadata.userId, root))],
-      ['domains', await getDb().select().from(userVerifiedDomains).where(eq(userVerifiedDomains.userId, root))],
-      ['authMethods', await getDb().select().from(userAuthMethods).where(eq(userAuthMethods.userId, root))],
-      ['ancestorEdges', await getDb().select().from(userAncestors).where(eq(userAncestors.ancestorId, root))],
+      [
+        'locations',
+        await getDb().select().from(userLocations).where(eq(userLocations.userId, root)),
+      ],
+      [
+        'links',
+        await getDb().select().from(userLinkMetadata).where(eq(userLinkMetadata.userId, root)),
+      ],
+      [
+        'domains',
+        await getDb()
+          .select()
+          .from(userVerifiedDomains)
+          .where(eq(userVerifiedDomains.userId, root)),
+      ],
+      [
+        'authMethods',
+        await getDb().select().from(userAuthMethods).where(eq(userAuthMethods.userId, root)),
+      ],
+      [
+        'ancestorEdges',
+        await getDb().select().from(userAncestors).where(eq(userAncestors.ancestorId, root)),
+      ],
     ] as const) {
       expect({ [label]: rows.length }).toEqual({ [label]: 0 });
     }

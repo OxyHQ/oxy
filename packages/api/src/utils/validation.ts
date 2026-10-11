@@ -52,19 +52,14 @@ export function isValidObjectId(id: string): boolean {
  * Validates required fields in an object
  * Throws ValidationError if any required fields are missing
  */
-export function validateRequiredFields(
-  data: Record<string, unknown>,
-  fields: string[]
-): void {
-  const missing = fields.filter(field => {
+export function validateRequiredFields(data: Record<string, unknown>, fields: string[]): void {
+  const missing = fields.filter((field) => {
     const value = data[field];
     return value === undefined || value === null || value === '';
   });
 
   if (missing.length > 0) {
-    throw new ValidationError(
-      `Missing required fields: ${missing.join(', ')}`
-    );
+    throw new ValidationError(`Missing required fields: ${missing.join(', ')}`);
   }
 }
 
@@ -77,19 +72,19 @@ export function validatePagination(
   limit?: unknown,
   offset?: unknown,
   maxLimit = 100,
-  defaultLimit = 50
+  defaultLimit = 50,
 ): { limit: number; offset: number } {
   // Convert to string first, then parse
   const limitStr = limit !== undefined ? String(limit) : undefined;
   const offsetStr = offset !== undefined ? String(offset) : undefined;
 
-  const parsedLimit = limitStr !== undefined
-    ? Math.min(Math.max(Number.parseInt(limitStr, 10) || defaultLimit, 1), maxLimit)
-    : defaultLimit;
+  const parsedLimit =
+    limitStr !== undefined
+      ? Math.min(Math.max(Number.parseInt(limitStr, 10) || defaultLimit, 1), maxLimit)
+      : defaultLimit;
 
-  const parsedOffset = offsetStr !== undefined
-    ? Math.max(Number.parseInt(offsetStr, 10) || 0, 0)
-    : 0;
+  const parsedOffset =
+    offsetStr !== undefined ? Math.max(Number.parseInt(offsetStr, 10) || 0, 0) : 0;
 
   return { limit: parsedLimit, offset: parsedOffset };
 }

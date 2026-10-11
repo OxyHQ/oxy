@@ -98,8 +98,8 @@ async function seed(): Promise<void> {
     .where(
       inArray(
         inferencePublishers.slug,
-        PUBLISHERS.map((publisher) => publisher.slug)
-      )
+        PUBLISHERS.map((publisher) => publisher.slug),
+      ),
     );
 
   const present = new Set(existing.map((row) => row.slug));
@@ -125,7 +125,9 @@ async function seed(): Promise<void> {
   // actually inserted rather than what it planned to.
   const inserted = await getDb()
     .insert(inferencePublishers)
-    .values(missing.map((publisher) => ({ slug: publisher.slug, displayName: publisher.displayName })))
+    .values(
+      missing.map((publisher) => ({ slug: publisher.slug, displayName: publisher.displayName })),
+    )
     .onConflictDoNothing({ target: inferencePublishers.slug })
     .returning({ slug: inferencePublishers.slug });
 
@@ -140,7 +142,7 @@ async function seed(): Promise<void> {
 seed().catch(async (error: unknown) => {
   logger.error(
     'Inference catalogue seed failed',
-    error instanceof Error ? error : new Error(String(error))
+    error instanceof Error ? error : new Error(String(error)),
   );
   await closePostgres().catch(() => undefined);
   process.exit(1);

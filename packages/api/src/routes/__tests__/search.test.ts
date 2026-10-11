@@ -219,7 +219,10 @@ describe('GET /search — match surface', () => {
   it('finds a bridged account when the query is a pasted x.com profile URL', async () => {
     const marker = token();
     const bridged = await account({ username: `${marker}@x.com`, type: 'federated' });
-    await account({ username: `other${token()}`, description: `see https://x.com/${marker} for more` });
+    await account({
+      username: `other${token()}`,
+      description: `see https://x.com/${marker} for more`,
+    });
 
     const res = await search({ query: `https://x.com/${marker}?s=20&t=abc` });
 
@@ -229,7 +232,10 @@ describe('GET /search — match surface', () => {
   it('treats twitter.com and mobile.x.com as the same network when pasted', async () => {
     const marker = token();
     const bridged = await account({ username: `${marker}@x.com`, type: 'federated' });
-    await account({ username: `other${token()}`, description: `see https://x.com/${marker} for more` });
+    await account({
+      username: `other${token()}`,
+      description: `see https://x.com/${marker} for more`,
+    });
 
     expect(ids(await search({ query: `https://twitter.com/${marker}` }))).toEqual([bridged]);
     expect(ids(await search({ query: `https://mobile.x.com/${marker}?s=20` }))).toEqual([bridged]);

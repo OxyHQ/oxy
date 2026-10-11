@@ -1,6 +1,6 @@
 /**
  * API Error Classes
- * 
+ *
  * Standardized error handling for consistent error responses across the API.
  */
 
@@ -13,27 +13,27 @@ export const ErrorCodes = {
   FORBIDDEN: 'FORBIDDEN',
   INVALID_TOKEN: 'INVALID_TOKEN',
   MISSING_TOKEN: 'MISSING_TOKEN',
-  
+
   // Validation errors
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   BAD_REQUEST: 'BAD_REQUEST',
   MISSING_PARAMETER: 'MISSING_PARAMETER',
   INVALID_FORMAT: 'INVALID_FORMAT',
-  
+
   // Resource errors
   NOT_FOUND: 'NOT_FOUND',
   ALREADY_EXISTS: 'ALREADY_EXISTS',
   CONFLICT: 'CONFLICT',
-  
+
   // Server errors
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
   TIMEOUT: 'TIMEOUT',
-  
+
   // Network errors
   NETWORK_ERROR: 'NETWORK_ERROR',
   CONNECTION_FAILED: 'CONNECTION_FAILED',
-  
+
   // Unknown
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
 } as const;
@@ -64,14 +64,14 @@ export class ApiError extends Error {
     statusCode: number,
     message: string,
     code?: string,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
   ) {
     super(message);
     this.statusCode = statusCode;
     this.code = code || getErrorCodeFromStatus(statusCode);
     this.details = details;
     this.name = 'ApiError';
-    
+
     // Maintains proper stack trace for where error was thrown
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor);
@@ -165,12 +165,14 @@ export function handleHttpError(error: unknown): ApiError {
 
   // Handle axios errors
   if (error && typeof error === 'object' && 'response' in error) {
-    const axiosError = error as { response?: { status: number; data?: { message?: string; error?: string; code?: string } } };
+    const axiosError = error as {
+      response?: { status: number; data?: { message?: string; error?: string; code?: string } };
+    };
     if (axiosError.response) {
       const { status, data } = axiosError.response;
       const message = data?.message || data?.error || `HTTP ${status} error`;
       const code = data?.code || getErrorCodeFromStatus(status);
-      
+
       return new ApiError(status, message, code, data);
     }
   }
@@ -187,4 +189,4 @@ export function handleHttpError(error: unknown): ApiError {
 
   // Handle other errors
   return new InternalServerError(String(error) || 'Unknown error occurred');
-} 
+}

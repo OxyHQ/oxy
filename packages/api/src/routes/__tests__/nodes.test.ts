@@ -29,7 +29,9 @@ jest.mock('../../services/nodeRegistry.service', () => ({
 // F5b additions to routes/nodes.ts pull in the ObjectId validator (which loads
 // the heavy User model), the ingest queue (BullMQ), and the UserNode model.
 // Mock them so this F5a unit suite stays isolated (no DB / no BullMQ).
-jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
+jest.mock('../../utils/validation', () => ({
+  isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id),
+}));
 jest.mock('../../queue/nodeIngest.queue', () => ({ enqueueNodeIngest: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -41,19 +43,23 @@ import type { AddressInfo } from 'net';
 import nodeRoutes from '../nodes';
 import { errorHandler } from '../../middleware/errorHandler';
 
-interface JsonResponse { status: number; body: Record<string, unknown>; }
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
+}
 
 async function request(server: http.Server, method: string, path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request(
-      { method, host: '127.0.0.1', port: address.port, path },
-      (res) => {
-        let raw = '';
-        res.on('data', (c) => { raw += c; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
-      },
-    );
+    const req = http.request({ method, host: '127.0.0.1', port: address.port, path }, (res) => {
+      let raw = '';
+      res.on('data', (c) => {
+        raw += c;
+      });
+      res.on('end', () =>
+        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+      );
+    });
     req.on('error', reject);
     req.end();
   });
@@ -68,8 +74,12 @@ beforeAll((done) => {
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
-afterAll((done) => { server.close(done); });
-beforeEach(() => { jest.clearAllMocks(); });
+afterAll((done) => {
+  server.close(done);
+});
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('GET /nodes/me', () => {
   it('returns the serialized node for the caller', async () => {
@@ -89,7 +99,11 @@ describe('GET /nodes/me', () => {
     expect(res.status).toBe(200);
     expect(mockGetUserNode).toHaveBeenCalledWith(USER_ID);
     const node = res.body.node as Record<string, unknown>;
-    expect(node).toMatchObject({ endpoint: 'https://node.example.com', mode: 'pull', status: 'active' });
+    expect(node).toMatchObject({
+      endpoint: 'https://node.example.com',
+      mode: 'pull',
+      status: 'active',
+    });
     // Mongo internals are not leaked.
     expect(node.userId).toBeUndefined();
     expect(node._id).toBeUndefined();

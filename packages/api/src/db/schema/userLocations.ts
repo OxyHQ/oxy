@@ -136,7 +136,7 @@ const SEARCH_CONFIGURATION = 'english';
  */
 const SEARCH_VECTOR_EXPRESSION = sql.raw(
   `to_tsvector('${SEARCH_CONFIGURATION}', ` +
-    `coalesce(name, '') || ' ' || coalesce(formatted_address, ''))`
+    `coalesce(name, '') || ' ' || coalesce(formatted_address, ''))`,
 );
 
 export const userLocations = pgTable(
@@ -229,22 +229,22 @@ export const userLocations = pgTable(
 
     check(
       'user_locations_type_check',
-      sql`${t.type} in (${sql.raw(USER_LOCATION_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.type} in (${sql.raw(USER_LOCATION_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     // Mongo's `min`/`max` on the two coordinate paths.
     check(
       'user_locations_latitude_check',
-      sql`${t.latitude} is null or (${t.latitude} >= -90 and ${t.latitude} <= 90)`
+      sql`${t.latitude} is null or (${t.latitude} >= -90 and ${t.latitude} <= 90)`,
     ),
     check(
       'user_locations_longitude_check',
-      sql`${t.longitude} is null or (${t.longitude} >= -180 and ${t.longitude} <= 180)`
+      sql`${t.longitude} is null or (${t.longitude} >= -180 and ${t.longitude} <= 180)`,
     ),
     // Half a coordinate is not a place. Mongo permitted `{ lat }` with no `lon`,
     // and every consumer had to guard for it; here the pair is whole or absent.
     check(
       'user_locations_coordinates_complete_check',
-      sql`(${t.latitude} is null) = (${t.longitude} is null)`
+      sql`(${t.latitude} is null) = (${t.longitude} is null)`,
     ),
-  ]
+  ],
 );

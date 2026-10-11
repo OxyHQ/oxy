@@ -39,10 +39,7 @@ export const appGrants = pgTable(
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
     /** Union of every scope the user has granted this application. */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
     /** First authorization. `NOT NULL` — Mongoose defaulted it, so every row has one. */
     firstGrantedAt: timestamptz().notNull().defaultNow(),
     /** Refreshed on each authorize. What the "Connected apps" UI sorts by. */
@@ -59,5 +56,5 @@ export const appGrants = pgTable(
     // granted this app", and the index Postgres needs to cascade an application
     // delete without scanning the table.
     index('app_grants_application_id_idx').on(t.applicationId),
-  ]
+  ],
 );

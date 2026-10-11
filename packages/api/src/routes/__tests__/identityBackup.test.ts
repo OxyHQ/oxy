@@ -180,7 +180,11 @@ describe('POST /identity/backup', () => {
   });
 
   it('stores the client ISO timestamp verbatim, in its own column', async () => {
-    await request('POST', '/identity/backup', uploadBody({ createdAt: '2026-01-02T03:04:05.678Z' }));
+    await request(
+      'POST',
+      '/identity/backup',
+      uploadBody({ createdAt: '2026-01-02T03:04:05.678Z' }),
+    );
     const [stored] = await storedRows(OWNER);
     expect(stored.clientCreatedAt).toBe('2026-01-02T03:04:05.678Z');
   });
@@ -231,7 +235,7 @@ describe('GET /identity/backup/status', () => {
     });
   });
 
-  it('reports only the CALLER\'s backup, never another account\'s', async () => {
+  it("reports only the CALLER's backup, never another account's", async () => {
     currentUserId = STRANGER;
     await request('POST', '/identity/backup', uploadBody({ lookupId: freshLookupId() }));
 
@@ -256,7 +260,7 @@ describe('DELETE /identity/backup', () => {
     expect(await storedRows(OWNER)).toHaveLength(0);
   });
 
-  it('deletes only the CALLER\'s backup', async () => {
+  it("deletes only the CALLER's backup", async () => {
     currentUserId = STRANGER;
     await request('POST', '/identity/backup', uploadBody({ lookupId: freshLookupId() }));
 

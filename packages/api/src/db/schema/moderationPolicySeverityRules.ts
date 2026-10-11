@@ -62,17 +62,14 @@ export const moderationPolicySeverityRules = pgTable(
     // THE invariant: one rule per severity per version. A policy that tried to
     // price `high` twice would previously have been accepted and then resolved
     // by whichever entry the service happened to find first.
-    unique('moderation_policy_severity_rules_policy_id_severity_key').on(
-      t.policyId,
-      t.severity
-    ),
+    unique('moderation_policy_severity_rules_policy_id_severity_key').on(t.policyId, t.severity),
     check(
       'moderation_policy_severity_rules_severity_check',
-      sql`${t.severity} in (${sql.raw(MODERATION_SEVERITIES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.severity} in (${sql.raw(MODERATION_SEVERITIES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'moderation_policy_severity_rules_risk_expiry_days_check',
-      sql`${t.riskExpiryDays} is null or ${t.riskExpiryDays} > 0`
+      sql`${t.riskExpiryDays} is null or ${t.riskExpiryDays} > 0`,
     ),
-  ]
+  ],
 );

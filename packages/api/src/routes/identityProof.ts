@@ -18,7 +18,11 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
-import { identityProofChallengeRequestSchema, type IdentityProofChallengeRequest, type IdentityRootStatus } from '@oxy.so/contracts';
+import {
+  identityProofChallengeRequestSchema,
+  type IdentityProofChallengeRequest,
+  type IdentityRootStatus,
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -38,7 +42,9 @@ const challengeLimiter = rateLimit({
   message: 'Too many identity requests. Please try again later.',
   keyGenerator: (req: Request): string => {
     const userId = (req as AuthRequest).user?.id;
-    return userId ? `identity:proof-challenge:${userId}` : `identity:proof-challenge:ip:${hashedIpKey(req)}`;
+    return userId
+      ? `identity:proof-challenge:${userId}`
+      : `identity:proof-challenge:ip:${hashedIpKey(req)}`;
   },
 });
 

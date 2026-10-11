@@ -13,12 +13,7 @@
  */
 
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
-import {
-  type NodeFetch,
-  type NodeFetchInit,
-  readBoundedBytes,
-  readBoundedJson,
-} from './httpFetch';
+import { type NodeFetch, type NodeFetchInit, readBoundedBytes, readBoundedJson } from './httpFetch';
 import {
   DEFAULT_CLIENT_MAX_REDIRECTS,
   DEFAULT_CLIENT_TIMEOUT_MS,
@@ -105,7 +100,11 @@ export interface NodeClientOptions {
 }
 
 function readError(body: unknown): string | undefined {
-  if (typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string') {
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    typeof (body as { error?: unknown }).error === 'string'
+  ) {
     return (body as { error: string }).error;
   }
   return undefined;
@@ -200,7 +199,10 @@ export class NodeClient {
       headRaw !== null &&
       typeof (headRaw as { seq?: unknown }).seq === 'number' &&
       typeof (headRaw as { headRecordId?: unknown }).headRecordId === 'string'
-        ? { seq: (headRaw as { seq: number }).seq, headRecordId: (headRaw as { headRecordId: string }).headRecordId }
+        ? {
+            seq: (headRaw as { seq: number }).seq,
+            headRecordId: (headRaw as { headRecordId: string }).headRecordId,
+          }
         : null;
     return { records, count: records.length, head };
   }
@@ -231,7 +233,10 @@ export class NodeClient {
     }
     const obj = body as { recordId?: unknown; seq?: unknown };
     if (typeof obj.recordId !== 'string' || typeof obj.seq !== 'number') {
-      throw new NodeClientError(`node ${NODE_RECORDS_PATH} returned a malformed write result`, res.status);
+      throw new NodeClientError(
+        `node ${NODE_RECORDS_PATH} returned a malformed write result`,
+        res.status,
+      );
     }
     return { recordId: obj.recordId, seq: obj.seq };
   }
@@ -241,9 +246,10 @@ export class NodeClient {
    * node's per-item results. Throws {@link NodeClientError} only on a non-2xx
    * batch-level failure (`invalid_batch` / `batch_too_large`).
    */
-  async pushRecords(
-    envelopes: SignedRecordEnvelope[],
-  ): Promise<{ accepted: number; results: Array<{ ok: boolean; recordId?: string; seq?: number; reason?: string }> }> {
+  async pushRecords(envelopes: SignedRecordEnvelope[]): Promise<{
+    accepted: number;
+    results: Array<{ ok: boolean; recordId?: string; seq?: number; reason?: string }>;
+  }> {
     const res = await this.fetch(
       `${this.baseUrl}${NODE_SYNC_PUSH_PATH}`,
       this.init({
@@ -272,14 +278,20 @@ export class NodeClient {
 
   /** Fetch a content-addressed blob. Returns `null` on a 404; throws on other non-2xx. */
   async getBlob(hash: string): Promise<Buffer | null> {
-    const res = await this.fetch(`${this.baseUrl}${NODE_BLOBS_PATH}/${encodeURIComponent(hash)}`, this.init({ method: 'GET' }));
+    const res = await this.fetch(
+      `${this.baseUrl}${NODE_BLOBS_PATH}/${encodeURIComponent(hash)}`,
+      this.init({ method: 'GET' }),
+    );
     if (res.status === 404) {
       res.destroy();
       return null;
     }
     if (res.status < 200 || res.status >= 300) {
       res.destroy();
-      throw new NodeClientError(`node ${NODE_BLOBS_PATH}/:hash responded HTTP ${res.status}`, res.status);
+      throw new NodeClientError(
+        `node ${NODE_BLOBS_PATH}/:hash responded HTTP ${res.status}`,
+        res.status,
+      );
     }
     return readBoundedBytes(res, this.blobMaxBytes);
   }
@@ -290,7 +302,11 @@ export class NodeClient {
    * passes the resulting `{ publicKey, signature, timestamp }`; the client sets
    * the owner-auth headers. Throws {@link NodeClientError} on a non-2xx.
    */
-  async putBlob(hash: string, bytes: Uint8Array, auth: NodeBlobPinAuth): Promise<NodeBlobPutResult> {
+  async putBlob(
+    hash: string,
+    bytes: Uint8Array,
+    auth: NodeBlobPinAuth,
+  ): Promise<NodeBlobPutResult> {
     const res = await this.fetch(
       `${this.baseUrl}${NODE_BLOBS_PATH}/${encodeURIComponent(hash)}`,
       this.init({
@@ -315,7 +331,10 @@ export class NodeClient {
     }
     const obj = body as { hash?: unknown; size?: unknown };
     if (typeof obj.hash !== 'string' || typeof obj.size !== 'number') {
-      throw new NodeClientError(`node ${NODE_BLOBS_PATH}/:hash returned a malformed pin result`, res.status);
+      throw new NodeClientError(
+        `node ${NODE_BLOBS_PATH}/:hash returned a malformed pin result`,
+        res.status,
+      );
     }
     return { hash: obj.hash, size: obj.size };
   }

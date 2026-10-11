@@ -68,15 +68,17 @@ function claimableInboxEvents(db: Database, claimedBefore: Date, limit: number) 
   return db
     .select({ id: normalizedAppEventOutbox.id })
     .from(normalizedAppEventOutbox)
-    .where(and(
-      eq(normalizedAppEventOutbox.appId, 'inbox'),
-      isNull(normalizedAppEventOutbox.processedAt),
-      isNull(normalizedAppEventOutbox.failedAt),
-      or(
-        isNull(normalizedAppEventOutbox.claimedAt),
-        lt(normalizedAppEventOutbox.claimedAt, claimedBefore),
+    .where(
+      and(
+        eq(normalizedAppEventOutbox.appId, 'inbox'),
+        isNull(normalizedAppEventOutbox.processedAt),
+        isNull(normalizedAppEventOutbox.failedAt),
+        or(
+          isNull(normalizedAppEventOutbox.claimedAt),
+          lt(normalizedAppEventOutbox.claimedAt, claimedBefore),
+        ),
       ),
-    ))
+    )
     .orderBy(asc(normalizedAppEventOutbox.createdAt))
     .limit(limit)
     .for('update', { skipLocked: true });
@@ -93,8 +95,8 @@ export async function runNormalizedEventOutboxBatch(
   options: NormalizedEventOutboxBatchOptions,
 ): Promise<NormalizedEventOutboxBatchResult> {
   const db = getDb();
-  const batchSize = options.batchSize
-    ?? getEnvNumber('INBOX_EVENT_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE);
+  const batchSize =
+    options.batchSize ?? getEnvNumber('INBOX_EVENT_OUTBOX_BATCH_SIZE', DEFAULT_BATCH_SIZE);
   const leaseMs = options.leaseMs ?? NORMALIZED_EVENT_OUTBOX_LEASE_MS;
   const claimed = await db
     .update(normalizedAppEventOutbox)
@@ -103,10 +105,12 @@ export async function runNormalizedEventOutboxBatch(
       claimedBy: options.ownerId,
       attempts: sql`${normalizedAppEventOutbox.attempts} + 1`,
     })
-    .where(inArray(
-      normalizedAppEventOutbox.id,
-      claimableInboxEvents(db, new Date(Date.now() - leaseMs), batchSize),
-    ))
+    .where(
+      inArray(
+        normalizedAppEventOutbox.id,
+        claimableInboxEvents(db, new Date(Date.now() - leaseMs), batchSize),
+      ),
+    )
     .returning({
       id: normalizedAppEventOutbox.id,
       eventId: normalizedAppEventOutbox.eventId,
@@ -123,30 +127,42 @@ export async function runNormalizedEventOutboxBatch(
 
   for (const row of claimed) {
     if (row.attempts > NORMALIZED_EVENT_OUTBOX_MAX_ATTEMPTS) {
-      await db.update(normalizedAppEventOutbox).set({
-        failedAt: new Date(),
-        lastError: sql`coalesce(${normalizedAppEventOutbox.lastError}, 'Attempt limit reached')`,
-      }).where(and(
-        eq(normalizedAppEventOutbox.id, row.id),
-        eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
-        isNull(normalizedAppEventOutbox.processedAt),
-      ));
+      await db
+        .update(normalizedAppEventOutbox)
+        .set({
+          failedAt: new Date(),
+          lastError: sql`coalesce(${normalizedAppEventOutbox.lastError}, 'Attempt limit reached')`,
+        })
+        .where(
+          and(
+            eq(normalizedAppEventOutbox.id, row.id),
+            eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
+            isNull(normalizedAppEventOutbox.processedAt),
+          ),
+        );
       result.deadLettered += 1;
       continue;
     }
 
     try {
-      await (options.deliver ?? deliverNormalizedAppEvent)(normalizedAppEventSchema.parse(row.event));
+      await (options.deliver ?? deliverNormalizedAppEvent)(
+        normalizedAppEventSchema.parse(row.event),
+      );
     } catch (error) {
       const deadLetter = row.attempts >= NORMALIZED_EVENT_OUTBOX_MAX_ATTEMPTS;
-      await db.update(normalizedAppEventOutbox).set({
-        lastError: describeError(error),
-        ...(deadLetter ? { failedAt: new Date() } : {}),
-      }).where(and(
-        eq(normalizedAppEventOutbox.id, row.id),
-        eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
-        isNull(normalizedAppEventOutbox.processedAt),
-      ));
+      await db
+        .update(normalizedAppEventOutbox)
+        .set({
+          lastError: describeError(error),
+          ...(deadLetter ? { failedAt: new Date() } : {}),
+        })
+        .where(
+          and(
+            eq(normalizedAppEventOutbox.id, row.id),
+            eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
+            isNull(normalizedAppEventOutbox.processedAt),
+          ),
+        );
       result.failed += 1;
       if (deadLetter) result.deadLettered += 1;
       logger.warn('[NormalizedEventOutbox] Inbox delivery failed', {
@@ -158,14 +174,20 @@ export async function runNormalizedEventOutboxBatch(
       continue;
     }
 
-    const acknowledged = await db.update(normalizedAppEventOutbox).set({
-      processedAt: new Date(),
-      lastError: null,
-    }).where(and(
-      eq(normalizedAppEventOutbox.id, row.id),
-      eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
-      isNull(normalizedAppEventOutbox.processedAt),
-    )).returning({ id: normalizedAppEventOutbox.id });
+    const acknowledged = await db
+      .update(normalizedAppEventOutbox)
+      .set({
+        processedAt: new Date(),
+        lastError: null,
+      })
+      .where(
+        and(
+          eq(normalizedAppEventOutbox.id, row.id),
+          eq(normalizedAppEventOutbox.claimedBy, options.ownerId),
+          isNull(normalizedAppEventOutbox.processedAt),
+        ),
+      )
+      .returning({ id: normalizedAppEventOutbox.id });
     if (acknowledged.length === 1) result.processed += 1;
   }
 

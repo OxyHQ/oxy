@@ -128,5 +128,5 @@ export const deviceSessions = pgTable(
     unique('device_sessions_device_id_key').on(t.deviceId),
     // `background_secret_hash` is deliberately NOT indexed: it is read only
     // after the row has already been found by `device_id`.
-  ]
+  ],
 );

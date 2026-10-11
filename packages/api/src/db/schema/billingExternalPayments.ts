@@ -100,20 +100,17 @@ export const billingExternalPayments = pgTable(
     // The webhook idempotency guard, and the reconciliation lookup key.
     unique('billing_external_payments_provider_ref_key').on(t.provider, t.externalRef),
     // "What did this account pay, over this window" — the reconciliation scan.
-    index('billing_external_payments_account_occurred_at_idx').on(
-      t.accountId,
-      t.occurredAt.desc()
-    ),
+    index('billing_external_payments_account_occurred_at_idx').on(t.accountId, t.occurredAt.desc()),
     // The reverse lookup: which payment produced this entry.
     index('billing_external_payments_ledger_entry_id_idx').on(t.ledgerEntryId),
 
     check(
       'billing_external_payments_provider_check',
-      sql`${t.provider} in (${sql.raw(inList(EXTERNAL_PAYMENT_PROVIDER_VALUES))})`
+      sql`${t.provider} in (${sql.raw(inList(EXTERNAL_PAYMENT_PROVIDER_VALUES))})`,
     ),
     check(
       'billing_external_payments_external_kind_check',
-      sql`${t.externalKind} in (${sql.raw(inList(EXTERNAL_PAYMENT_KIND_VALUES))})`
+      sql`${t.externalKind} in (${sql.raw(inList(EXTERNAL_PAYMENT_KIND_VALUES))})`,
     ),
     check('billing_external_payments_currency_check', currencyCodeCheck(t.currency)),
     check('billing_external_payments_external_ref_check', sql`length(${t.externalRef}) > 0`),
@@ -121,7 +118,7 @@ export const billingExternalPayments = pgTable(
     // a zero-amount row would inflate a reconciliation's match count while
     // moving no money, which is the shape a mis-parsed webhook takes.
     check('billing_external_payments_amount_check', sql`${t.amount} > 0`),
-  ]
+  ],
 );
 
 export type BillingExternalPaymentRow = typeof billingExternalPayments.$inferSelect;

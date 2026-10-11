@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createTestDatabases } from './src/db/testDatabase';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// biome-ignore lint/style/noCommonJs: jest.workerCount.cjs is a CommonJS helper shared with the Jest config
 const { computeMaxWorkers, OXY_JEST_DATABASE_MANIFEST } = require('./jest.workerCount.cjs');
 
 /**

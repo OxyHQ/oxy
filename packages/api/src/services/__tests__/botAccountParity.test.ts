@@ -23,7 +23,10 @@ import { eq, sql } from 'drizzle-orm';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../securityActivityService', () => ({
   __esModule: true,
-  default: { logDeviceAdded: jest.fn().mockResolvedValue(undefined), logSignIn: jest.fn().mockResolvedValue(undefined) },
+  default: {
+    logDeviceAdded: jest.fn().mockResolvedValue(undefined),
+    logSignIn: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
@@ -81,7 +84,7 @@ async function botOwnedBy(ownerId: string): Promise<string> {
     parentAccountId: ownerId,
   });
   await getDb().execute(
-    sql`insert into user_ancestors (user_id, depth, ancestor_id) values (${botId}, 0, ${ownerId})`
+    sql`insert into user_ancestors (user_id, depth, ancestor_id) values (${botId}, 0, ${ownerId})`,
   );
   await getDb()
     .insert(accountMembers)
@@ -93,11 +96,27 @@ async function botOwnedBy(ownerId: string): Promise<string> {
 async function autonomousLogin(botId: string) {
   const privateKey = randomUUID().replace(/-/g, '').padStart(64, '0');
   const publicKey = SignatureService.canonicalizePublicKey(deriveSecp256k1PublicKey(privateKey));
-  await getDb().insert(userAuthMethods).values({ userId: botId, type: 'agent_key', methodPublicKey: publicKey,
-    label: 'parity', enrollmentMethod: 'governor' });
-  const claims = await requestAgentChallenge(publicKey); const timestamp = Date.now();
-  return verifyAgentChallenge(publicKey, { challenge: claims.challenge, timestamp,
-    signature: SignatureService.signMessage(buildAgentProofMessage(claims, timestamp), privateKey) }, request());
+  await getDb().insert(userAuthMethods).values({
+    userId: botId,
+    type: 'agent_key',
+    methodPublicKey: publicKey,
+    label: 'parity',
+    enrollmentMethod: 'governor',
+  });
+  const claims = await requestAgentChallenge(publicKey);
+  const timestamp = Date.now();
+  return verifyAgentChallenge(
+    publicKey,
+    {
+      challenge: claims.challenge,
+      timestamp,
+      signature: SignatureService.signMessage(
+        buildAgentProofMessage(claims, timestamp),
+        privateKey,
+      ),
+    },
+    request(),
+  );
 }
 
 async function financialSubject(sessionId: string): Promise<string> {
@@ -106,7 +125,8 @@ async function financialSubject(sessionId: string): Promise<string> {
   const subject = live.session.userId;
   const actor = live.session.operatedByUserId ?? subject;
   const access = await accountService.resolveEffectiveAccess(actor, subject, sessionId);
-  if (!access?.permissions.includes('billing:manage')) throw new Error('Financial authority denied');
+  if (!access?.permissions.includes('billing:manage'))
+    throw new Error('Financial authority denied');
   return subject;
 }
 
@@ -118,7 +138,7 @@ interface CapturedResponse {
 /** Drive `GET /session/validate/:id` the way Express would, without a server. */
 async function validate(
   sessionId: string,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<CapturedResponse> {
   const captured: CapturedResponse = { statusCode: 200, body: undefined };
   const res = {
@@ -164,10 +184,12 @@ describe('roles do not depend on kind', () => {
       const org = await account({ kind: 'organization', parentAccountId: founder });
       const person = await account();
       const bot = await botOwnedBy(founder);
-      await getDb().insert(accountMembers).values([
-        { accountId: org, memberUserId: person, role, status: 'active' },
-        { accountId: org, memberUserId: bot, role, status: 'active' },
-      ]);
+      await getDb()
+        .insert(accountMembers)
+        .values([
+          { accountId: org, memberUserId: person, role, status: 'active' },
+          { accountId: org, memberUserId: bot, role, status: 'active' },
+        ]);
 
       const personAccess = await accountService.resolveEffectiveAccess(person, org);
       const botAccess = await accountService.resolveEffectiveAccess(bot, org);
@@ -175,12 +197,12 @@ describe('roles do not depend on kind', () => {
       expect(personAccess).not.toBeNull();
       expect(botAccess?.role).toBe(personAccess?.role);
       expect([...(botAccess?.permissions ?? [])].sort()).toEqual(
-        [...(personAccess?.permissions ?? [])].sort()
+        [...(personAccess?.permissions ?? [])].sort(),
       );
       expect(await accountService.verifyActingAs(bot, org)).toBe(
-        await accountService.verifyActingAs(person, org)
+        await accountService.verifyActingAs(person, org),
       );
-    }
+    },
   );
 });
 
@@ -191,7 +213,10 @@ describe('a bot keeps its isolation', () => {
     const foreignBot = await botOwnedBy(owner);
 
     expect(await accountService.verifyActingAs(stranger, foreignBot)).toBeNull();
-    expect(await verifyDelegatedSubject(stranger, foreignBot)).toEqual({ ok: false, reason: 'forbidden' });
+    expect(await verifyDelegatedSubject(stranger, foreignBot)).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
     // Positive control: the owner who holds `account:act_as` is admitted.
     expect(await verifyDelegatedSubject(owner, foreignBot)).toEqual({ ok: true, role: 'owner' });
   });
@@ -217,7 +242,7 @@ describe('a bot keeps its isolation', () => {
     // `MANAGED_SESSION_RECHECK_MS`; that bounded window is #1522's (I03)
     // freshness contract, not a bot-specific rule.
     expect(
-      await sessionService.validateSessionById(session.sessionId, false, { useCache: false })
+      await sessionService.validateSessionById(session.sessionId, false, { useCache: false }),
     ).toBeNull();
     // A revocation, so the session is destroyed: the plain path refuses it too.
     expect(await sessionService.validateSessionById(session.sessionId, false)).toBeNull();
@@ -306,10 +331,22 @@ describe('a bot holds, receives and spends its own money like a person', () => {
         effectiveFrom: new Date(Date.now() - 60_000),
       })
       .returning({ id: priceVersions.id });
-    await getDb().insert(priceVersionUnitPrices).values([
-      { priceVersionId: version.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-      { priceVersionId: version.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
-    ]);
+    await getDb()
+      .insert(priceVersionUnitPrices)
+      .values([
+        {
+          priceVersionId: version.id,
+          unit: 'input_tokens',
+          amount: '3.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: version.id,
+          unit: 'output_tokens',
+          amount: '15.000000000000',
+          per: 1_000_000,
+        },
+      ]);
     return version.id;
   }
 
@@ -340,7 +377,10 @@ describe('a bot holds, receives and spends its own money like a person', () => {
     return { applicationId: application.id, credentialId: credential.id, received };
   }
 
-  async function spend(accountId: string, subject: { applicationId: string; credentialId: string }) {
+  async function spend(
+    accountId: string,
+    subject: { applicationId: string; credentialId: string },
+  ) {
     const priceVersionId = await priceVersion();
     const attribution = {
       accountId,
@@ -394,7 +434,9 @@ describe('a bot holds, receives and spends its own money like a person', () => {
     const person = await account();
 
     const botSession = await autonomousLogin(bot);
-    const personSession = await sessionService.createSession(person, request(), { deviceId: randomUUID() });
+    const personSession = await sessionService.createSession(person, request(), {
+      deviceId: randomUUID(),
+    });
     const botSubject = await fundedSubject(await financialSubject(botSession.sessionId));
     const personSubject = await fundedSubject(await financialSubject(personSession.sessionId));
 

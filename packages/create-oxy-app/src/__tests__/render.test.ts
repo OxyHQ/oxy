@@ -11,7 +11,9 @@ const ctx: RenderContext = {
 
 describe('renderString', () => {
   test('substitutes known tokens', () => {
-    expect(renderString('name={{APP_NAME}} slug={{APP_SLUG}}', ctx)).toBe('name=My App slug=my-app');
+    expect(renderString('name={{APP_NAME}} slug={{APP_SLUG}}', ctx)).toBe(
+      'name=My App slug=my-app',
+    );
   });
 
   test('substitutes dotted version tokens', () => {
@@ -45,7 +47,9 @@ describe('renderString', () => {
 
   test('leaves GitHub Actions ${{ }} expressions untouched', () => {
     const yaml = 'app: {{APP_SLUG}}\nregion: ${{ env.AWS_REGION }}\nsha: ${{ github.sha }}';
-    expect(renderString(yaml, ctx)).toBe('app: my-app\nregion: ${{ env.AWS_REGION }}\nsha: ${{ github.sha }}');
+    expect(renderString(yaml, ctx)).toBe(
+      'app: my-app\nregion: ${{ env.AWS_REGION }}\nsha: ${{ github.sha }}',
+    );
   });
 });
 
@@ -175,7 +179,10 @@ describe('AWS deploy template', () => {
     // The forbidden expression is assembled here rather than written out: the
     // detector is worth assuming is textual, and this assertion should not be
     // the thing that plants the string in a repository.
-    const enumeration = new RegExp(['to', 'json', '\\s*\\(\\s*', 'secrets', '\\s*\\)'].join(''), 'i');
+    const enumeration = new RegExp(
+      ['to', 'json', '\\s*\\(\\s*', 'secrets', '\\s*\\)'].join(''),
+      'i',
+    );
 
     const templateFile = path.join(
       __dirname,
@@ -202,7 +209,12 @@ describe('AWS deploy template', () => {
 
     // The named list IS the allowlist, so it has to still carry the backend's
     // runtime secrets — an empty allowlist would satisfy everything above.
-    for (const secret of ['DATABASE_URL', 'REDIS_URL', 'OXY_SERVICE_API_KEY', 'OXY_SERVICE_API_SECRET']) {
+    for (const secret of [
+      'DATABASE_URL',
+      'REDIS_URL',
+      'OXY_SERVICE_API_KEY',
+      'OXY_SERVICE_API_SECRET',
+    ]) {
       expect(rendered).toContain(`${secret}: \${{ secrets.${secret} }}`);
     }
 

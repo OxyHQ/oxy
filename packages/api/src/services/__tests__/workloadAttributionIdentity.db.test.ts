@@ -58,7 +58,7 @@ afterAll(async () => {
 });
 
 async function applicationFixture(
-  overrides: Partial<typeof applications.$inferInsert> = {}
+  overrides: Partial<typeof applications.$inferInsert> = {},
 ): Promise<string> {
   const [owner] = await getDb().insert(users).values({}).returning({ id: users.id });
   const [application] = await getDb()

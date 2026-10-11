@@ -65,15 +65,26 @@ const AUTH_ORIGIN = 'https://auth.oxy.so';
 
 let server: http.Server;
 
-async function call(method: string, path: string, body?: unknown, origin: string | null = AUTH_ORIGIN) {
+async function call(
+  method: string,
+  path: string,
+  body?: unknown,
+  origin: string | null = AUTH_ORIGIN,
+) {
   const { port } = server.address() as AddressInfo;
   const response = await fetch(`http://127.0.0.1:${port}/identity/link${path}`, {
     method,
-    headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(origin ? { origin } : {}) },
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(origin ? { origin } : {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
-  return { status: response.status, body: (text ? JSON.parse(text) : {}) as Record<string, unknown> };
+  return {
+    status: response.status,
+    body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
+  };
 }
 
 beforeAll(async () => {
@@ -88,7 +99,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
   await closePostgres();
 });
 
@@ -101,14 +114,19 @@ beforeEach(() => {
 async function emailAccount() {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
   const email = `link-${suffix}@example.test`;
-  const [row] = await getDb().insert(users).values({ username: `link${suffix}`, email }).returning({ id: users.id, username: users.username });
-  await getDb().insert(emailVerifications).values({
-    purpose: 'signin',
-    emailHash: 'ab'.repeat(32),
-    userId: row.id,
-    codeHash: 'cd'.repeat(32),
-    expiresAt: new Date(Date.now() + 60_000),
-  });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `link${suffix}`, email })
+    .returning({ id: users.id, username: users.username });
+  await getDb()
+    .insert(emailVerifications)
+    .values({
+      purpose: 'signin',
+      emailHash: 'ab'.repeat(32),
+      userId: row.id,
+      codeHash: 'cd'.repeat(32),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
   currentUserId = row.id;
   return { id: row.id, username: row.username as string, email };
 }
@@ -120,7 +138,11 @@ function commonsKey() {
 
 /** What Commons does after scanning: read the request and sign its proof. */
 async function commonsProof(linkId: string, challenge: string, key = commonsKey()) {
-  const state = (await call('GET', `/${linkId}`, undefined, null)).body as { userId: string; audience: string; expiresAt: number };
+  const state = (await call('GET', `/${linkId}`, undefined, null)).body as {
+    userId: string;
+    audience: string;
+    expiresAt: number;
+  };
   const proof = await signIdentityProof(key, {
     action: 'link_identity',
     subject: state.userId,
@@ -142,11 +164,17 @@ async function open() {
 }
 
 async function storedUser(id: string) {
-  const [row] = await getDb().select({ publicKey: users.publicKey, email: users.email }).from(users).where(eq(users.id, id));
+  const [row] = await getDb()
+    .select({ publicKey: users.publicKey, email: users.email })
+    .from(users)
+    .where(eq(users.id, id));
   return row;
 }
 
-async function reauthCode(userId: string, action: 'link_commons' | 'delete_account' = 'link_commons') {
+async function reauthCode(
+  userId: string,
+  action: 'link_commons' | 'delete_account' = 'link_commons',
+) {
   mockSendReauthCode.mockClear();
   const { verificationId } = await startReauthEmail(userId, action);
   const code = mockSendReauthCode.mock.calls[0][1] as string;
@@ -160,41 +188,87 @@ describe('linking Commons from two devices', () => {
     expect(link.qrPayload).toBe(`oxycommons://link?id=${link.linkId}&c=${link.challenge}`);
 
     const pending = await call('GET', `/${link.linkId}`, undefined, null);
-    expect(pending.body).toMatchObject({ status: 'pending', userId: account.id, username: account.username, publicKey: null });
+    expect(pending.body).toMatchObject({
+      status: 'pending',
+      userId: account.id,
+      username: account.username,
+      publicKey: null,
+    });
 
     const { key, body } = await commonsProof(link.linkId, link.challenge);
     expect((await call('POST', `/${link.linkId}/proof`, body, null)).status).toBe(200);
-    expect((await call('GET', `/${link.linkId}`, undefined, null)).body).toMatchObject({ status: 'signed', publicKey: key.publicKey });
+    expect((await call('GET', `/${link.linkId}`, undefined, null)).body).toMatchObject({
+      status: 'signed',
+      publicKey: key.publicKey,
+    });
     // Signed is not linked: nothing changes before the account confirms.
     expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
 
-    const done = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(account.id) } });
+    const done = await call('POST', `/${link.linkId}/complete`, {
+      reauth: { emailCode: await reauthCode(account.id) },
+    });
     expect(done).toEqual({ status: 200, body: { success: true } });
 
     expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
-    const methods = await getDb().select().from(userAuthMethods).where(eq(userAuthMethods.userId, account.id));
-    expect(methods.find((method) => method.type === 'identity')?.methodPublicKey).toBe(key.publicKey);
-    expect(await getDb().select().from(emailVerifications).where(eq(emailVerifications.userId, account.id))).toHaveLength(0);
+    const methods = await getDb()
+      .select()
+      .from(userAuthMethods)
+      .where(eq(userAuthMethods.userId, account.id));
+    expect(methods.find((method) => method.type === 'identity')?.methodPublicKey).toBe(
+      key.publicKey,
+    );
+    expect(
+      await getDb()
+        .select()
+        .from(emailVerifications)
+        .where(eq(emailVerifications.userId, account.id)),
+    ).toHaveLength(0);
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('completed');
   });
   it('takes the first proof only: a second key cannot replace it', async () => {
     await emailAccount();
     const link = await open();
-    expect((await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null)).status).toBe(200);
+    expect(
+      (
+        await call(
+          'POST',
+          `/${link.linkId}/proof`,
+          (
+            await commonsProof(link.linkId, link.challenge)
+          ).body,
+          null,
+        )
+      ).status,
+    ).toBe(200);
 
-    const second = await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
+    const second = await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, link.challenge)).body,
+      null,
+    );
     expect(second.status).toBe(404);
   });
 
   it('refuses a proof over another challenge, and a key another account holds', async () => {
     await emailAccount();
     const link = await open();
-    const wrong = await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, 'ef'.repeat(32))).body, null);
+    const wrong = await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, 'ef'.repeat(32))).body,
+      null,
+    );
     expect(wrong.status).toBe(401);
 
     const taken = commonsKey();
     await getDb().insert(users).values({ publicKey: taken.publicKey });
-    const res = await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge, taken)).body, null);
+    const res = await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, link.challenge, taken)).body,
+      null,
+    );
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('IDENTITY_ROOT_LINKED_ELSEWHERE');
   });
@@ -202,9 +276,16 @@ describe('linking Commons from two devices', () => {
   it('links nothing without the email code', async () => {
     const account = await emailAccount();
     const link = await open();
-    await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
+    await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, link.challenge)).body,
+      null,
+    );
 
-    const res = await call('POST', `/${link.linkId}/complete`, { assertion: { id: 'c'.repeat(20) } });
+    const res = await call('POST', `/${link.linkId}/complete`, {
+      assertion: { id: 'c'.repeat(20) },
+    });
 
     expect(res.status).toBe(400);
     expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
@@ -213,10 +294,17 @@ describe('linking Commons from two devices', () => {
   it('answers only the account that opened the request', async () => {
     const owner = await emailAccount();
     const link = await open();
-    await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null);
+    await call(
+      'POST',
+      `/${link.linkId}/proof`,
+      (await commonsProof(link.linkId, link.challenge)).body,
+      null,
+    );
 
     const intruder = await emailAccount();
-    const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(intruder.id) } });
+    const res = await call('POST', `/${link.linkId}/complete`, {
+      reauth: { emailCode: await reauthCode(intruder.id) },
+    });
     expect(res.status).toBe(404);
     expect(await storedUser(owner.id)).toEqual({ publicKey: null, email: owner.email });
   });
@@ -225,10 +313,24 @@ describe('linking Commons from two devices', () => {
     const link = await open();
     expect((await call('DELETE', `/${link.linkId}`)).status).toBe(200);
     expect((await call('GET', `/${link.linkId}`, undefined, null)).body.status).toBe('cancelled');
-    expect((await call('POST', `/${link.linkId}/proof`, (await commonsProof(link.linkId, link.challenge)).body, null)).status).toBe(404);
+    expect(
+      (
+        await call(
+          'POST',
+          `/${link.linkId}/proof`,
+          (
+            await commonsProof(link.linkId, link.challenge)
+          ).body,
+          null,
+        )
+      ).status,
+    ).toBe(404);
 
     const later = await open();
-    await getDb().update(identityLinkRequests).set({ expiresAt: new Date(Date.now() - 1000) }).where(eq(identityLinkRequests.linkId, later.linkId));
+    await getDb()
+      .update(identityLinkRequests)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(identityLinkRequests.linkId, later.linkId));
     expect((await call('GET', `/${later.linkId}`, undefined, null)).status).toBe(404);
   });
 
@@ -236,16 +338,25 @@ describe('linking Commons from two devices', () => {
     const account = await emailAccount();
     expect((await call('POST', '/', undefined, 'https://third-party.example')).status).toBe(403);
 
-    await getDb().update(users).set({ publicKey: commonsKey().publicKey }).where(eq(users.id, account.id));
+    await getDb()
+      .update(users)
+      .set({ publicKey: commonsKey().publicKey })
+      .where(eq(users.id, account.id));
     expect((await call('POST', '/')).status).toBe(409);
 
     // An email is enough to confirm with…
-    const [emailOnly] = await getDb().insert(users).values({ email: `bare-${randomUUID()}@example.test` }).returning({ id: users.id });
+    const [emailOnly] = await getDb()
+      .insert(users)
+      .values({ email: `bare-${randomUUID()}@example.test` })
+      .returning({ id: users.id });
     currentUserId = emailOnly.id;
     expect((await call('POST', '/')).status).toBe(200);
 
     // …but without an email there is nothing to confirm with.
-    const [bare] = await getDb().insert(users).values({ username: `bare${randomUUID().slice(0, 8)}` }).returning({ id: users.id });
+    const [bare] = await getDb()
+      .insert(users)
+      .values({ username: `bare${randomUUID().slice(0, 8)}` })
+      .returning({ id: users.id });
     currentUserId = bare.id;
     expect((await call('POST', '/')).status).toBe(401);
   });
@@ -272,10 +383,19 @@ describe('linking Commons from two devices', () => {
       const { account, link, key } = await signedLink();
       const emailCode = await reauthCode(account.id);
 
-      const done = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } }, 'http://localhost:8081');
+      const done = await call(
+        'POST',
+        `/${link.linkId}/complete`,
+        { reauth: { emailCode } },
+        'http://localhost:8081',
+      );
       expect(done).toEqual({ status: 200, body: { success: true } });
       expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
-      expect(mockSendSecurityNotice).toHaveBeenCalledWith(account.email, 'commons_linked', account.username);
+      expect(mockSendSecurityNotice).toHaveBeenCalledWith(
+        account.email,
+        'commons_linked',
+        account.username,
+      );
     });
 
     it('links nothing on a wrong code, and a spent code does not work twice', async () => {
@@ -283,13 +403,17 @@ describe('linking Commons from two devices', () => {
       const emailCode = await reauthCode(account.id);
       const wrong = emailCode.code === '000000' ? '111111' : '000000';
 
-      const refused = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: { ...emailCode, code: wrong } } });
+      const refused = await call('POST', `/${link.linkId}/complete`, {
+        reauth: { emailCode: { ...emailCode, code: wrong } },
+      });
       expect(refused.status).toBe(401);
       expect(refused.body.error).toBe('EMAIL_CODE_INVALID');
       expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
 
       // The request stays signed; the right code links once.
-      expect((await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } })).status).toBe(200);
+      expect(
+        (await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } })).status,
+      ).toBe(200);
       const again = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } });
       expect(again.status).toBe(404);
     });
@@ -297,7 +421,9 @@ describe('linking Commons from two devices', () => {
     it('refuses a code asked for another change (deleting the account)', async () => {
       const { account, link } = await signedLink();
       const forDeletion = await reauthCode(account.id, 'delete_account');
-      const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: forDeletion } });
+      const res = await call('POST', `/${link.linkId}/complete`, {
+        reauth: { emailCode: forDeletion },
+      });
       expect(res.status).toBe(401);
       expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
     });
@@ -313,9 +439,18 @@ describe('linking Commons from two devices', () => {
       });
       expect(done.status).toBe(200);
       expect(await storedUser(account.id)).toEqual({ publicKey: key.publicKey, email: null });
-      expect(await getDb().select().from(userPasswords).where(eq(userPasswords.userId, account.id))).toHaveLength(0);
-      expect(await getDb().select().from(userTotp).where(eq(userTotp.userId, account.id))).toHaveLength(0);
-      expect(await getDb().select().from(userTotpBackupCodes).where(eq(userTotpBackupCodes.userId, account.id))).toHaveLength(0);
+      expect(
+        await getDb().select().from(userPasswords).where(eq(userPasswords.userId, account.id)),
+      ).toHaveLength(0);
+      expect(
+        await getDb().select().from(userTotp).where(eq(userTotp.userId, account.id)),
+      ).toHaveLength(0);
+      expect(
+        await getDb()
+          .select()
+          .from(userTotpBackupCodes)
+          .where(eq(userTotpBackupCodes.userId, account.id)),
+      ).toHaveLength(0);
     });
 
     it('refuses a code sent to another account', async () => {
@@ -323,14 +458,18 @@ describe('linking Commons from two devices', () => {
       const other = await emailAccount();
       const othersCode = await reauthCode(other.id);
       currentUserId = account.id;
-      const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: othersCode } });
+      const res = await call('POST', `/${link.linkId}/complete`, {
+        reauth: { emailCode: othersCode },
+      });
       expect(res.status).toBe(401);
       expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
     });
 
     it('asks for the authenticator code too when the account has one', async () => {
       const { account, link } = await signedLink();
-      await getDb().insert(userTotp).values({ userId: account.id, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
+      await getDb()
+        .insert(userTotp)
+        .values({ userId: account.id, secretCiphertext: 'v1.x.x.x', enabledAt: new Date() });
       const emailCode = await reauthCode(account.id);
       const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode } });
       expect(res.status).toBe(401);
@@ -342,11 +481,18 @@ describe('linking Commons from two devices', () => {
       const { account, link } = await signedLink();
       const [app] = await getDb()
         .insert(applications)
-        .values({ name: 'Third party', type: 'third_party', ownerAccountId: account.id, createdByUserId: account.id })
+        .values({
+          name: 'Third party',
+          type: 'third_party',
+          ownerAccountId: account.id,
+          createdByUserId: account.id,
+        })
         .returning({ id: applications.id });
       currentApplicationId = app.id;
       try {
-        const res = await call('POST', `/${link.linkId}/complete`, { reauth: { emailCode: await reauthCode(account.id) } });
+        const res = await call('POST', `/${link.linkId}/complete`, {
+          reauth: { emailCode: await reauthCode(account.id) },
+        });
         expect(res.status).toBe(403);
         expect(await storedUser(account.id)).toEqual({ publicKey: null, email: account.email });
       } finally {

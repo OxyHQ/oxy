@@ -58,7 +58,10 @@ jest.mock('../../services/nodeRegistry.service', () => ({
   sweepNodeLiveness: jest.fn(),
 }));
 
-jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
+jest.mock('../../utils/userCache', () => ({
+  __esModule: true,
+  default: { invalidate: jest.fn() },
+}));
 jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -80,9 +83,15 @@ async function request(server: http.Server, path: string): Promise<JsonResponse>
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (c) => { raw += c; });
+        res.on('data', (c) => {
+          raw += c;
+        });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {}, headers: res.headers }),
+          resolve({
+            status: res.statusCode ?? 0,
+            body: raw.length ? JSON.parse(raw) : {},
+            headers: res.headers,
+          }),
         );
       },
     );
@@ -100,8 +109,12 @@ beforeAll((done) => {
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
-afterAll((done) => { server.close(done); });
-beforeEach(() => { jest.clearAllMocks(); });
+afterAll((done) => {
+  server.close(done);
+});
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('GET /identity/records/:userId/chain/head', () => {
   it('returns { headRecordId, seq, recordCount } when a chain exists', async () => {

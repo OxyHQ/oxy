@@ -95,8 +95,7 @@ export const validationRequests = pgTable(
     /** What is being validated. Drives the award and the slash. */
     actionType: text().notNull(),
     /** The opening application. Constraint deferred until `applications` lands. */
-    applicationId: text()
-      .references(() => applications.id, { onDelete: 'set null' }),
+    applicationId: text().references(() => applications.id, { onDelete: 'set null' }),
     /** Idempotency / dedup key for the underlying action. */
     sourceActionId: text().notNull(),
     /** The claim body the jurors inspect. */
@@ -112,10 +111,7 @@ export const validationRequests = pgTable(
     /** Hex RNG seed of the weighted-reservoir selection. Audit only. */
     rngSeed: text().notNull(),
     /** `{userId, weight}` of the candidate pool at selection time. Audit only. */
-    candidateSnapshot: jsonb()
-      .$type<ValidationCandidateSnapshotEntry[]>()
-      .notNull()
-      .default([]),
+    candidateSnapshot: jsonb().$type<ValidationCandidateSnapshotEntry[]>().notNull().default([]),
     expiresAt: timestamptz().notNull(),
     outcome: text({ enum: VALIDATION_OUTCOMES }),
     /**
@@ -145,11 +141,11 @@ export const validationRequests = pgTable(
 
     check(
       'validation_requests_status_check',
-      sql`${t.status} in (${sql.raw(inList(VALIDATION_REQUEST_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(VALIDATION_REQUEST_STATUSES))})`,
     ),
     check(
       'validation_requests_outcome_check',
-      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(VALIDATION_OUTCOMES))})`
+      sql`${t.outcome} is null or ${t.outcome} in (${sql.raw(inList(VALIDATION_OUTCOMES))})`,
     ),
     check('validation_requests_quorum_check', sql`${t.quorum} > 0`),
     // The winning side needs at least a quorum's worth of agreement; a
@@ -160,9 +156,9 @@ export const validationRequests = pgTable(
     // store `validated` with no outcome, which the tally reader cannot show.
     check(
       'validation_requests_terminal_check',
-      sql`(${t.status} in ('validated', 'rejected') and ${t.outcome} is not null and ${t.status} = ${t.outcome}) or (${t.status} in ('pending', 'quorum_met', 'expired') and ${t.outcome} is null)`
+      sql`(${t.status} in ('validated', 'rejected') and ${t.outcome} is not null and ${t.status} = ${t.outcome}) or (${t.status} in ('pending', 'quorum_met', 'expired') and ${t.outcome} is null)`,
     ),
-  ]
+  ],
 );
 
 /**
@@ -205,5 +201,5 @@ export const validationRequestValidators = pgTable(
     index('validation_request_validators_user_id_idx').on(t.userId),
     uniqueIndex('validation_request_validators_position_key').on(t.requestId, t.position),
     check('validation_request_validators_position_check', sql`${t.position} >= 0`),
-  ]
+  ],
 );

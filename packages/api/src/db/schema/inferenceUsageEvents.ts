@@ -77,10 +77,7 @@ import { bigint, check, index, integer, pgTable, text, uniqueIndex } from 'drizz
 import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
-import {
-  usageUnitColumns,
-  usageUnitsNonNegativeCheck,
-} from './ledgerColumns';
+import { usageUnitColumns, usageUnitsNonNegativeCheck } from './ledgerColumns';
 import { INFERENCE_REQUEST_OUTCOMES, USAGE_SOURCE_VALUES } from './usageReceipts';
 import { INFERENCE_ENVIRONMENTS } from './usageReservations';
 import { users } from './users';
@@ -170,11 +167,11 @@ export const inferenceUsageEvents = pgTable(
     index('inference_usage_events_account_id_created_at_idx').on(t.accountId, t.createdAt.desc()),
     index('inference_usage_events_application_id_created_at_idx').on(
       t.applicationId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     index('inference_usage_events_application_credential_id_created_at_idx').on(
       t.applicationCredentialId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // The expiry sweep's range scan. None of the compounds above LEADS with
     // `created_at`, so it needs its own.
@@ -182,32 +179,32 @@ export const inferenceUsageEvents = pgTable(
 
     check(
       'inference_usage_events_environment_check',
-      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`
+      sql`${t.environment} in (${sql.raw(inList(INFERENCE_ENVIRONMENTS))})`,
     ),
     check(
       'inference_usage_events_outcome_check',
-      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`
+      sql`${t.outcome} in (${sql.raw(inList(INFERENCE_REQUEST_OUTCOMES))})`,
     ),
     check(
       'inference_usage_events_usage_source_check',
-      sql`${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`
+      sql`${t.usageSource} in (${sql.raw(inList(USAGE_SOURCE_VALUES))})`,
     ),
     check(
       'inference_usage_events_status_code_check',
-      sql`${t.statusCode} >= 100 and ${t.statusCode} < 600`
+      sql`${t.statusCode} >= 100 and ${t.statusCode} < 600`,
     ),
     check('inference_usage_events_request_id_check', sql`length(${t.requestId}) > 0`),
     check('inference_usage_events_endpoint_check', sql`length(${t.endpoint}) > 0`),
     check(
       'inference_usage_events_requested_model_check',
-      sql`length(${t.requestedModelReference}) > 0`
+      sql`length(${t.requestedModelReference}) > 0`,
     ),
     check(
       'inference_usage_events_latency_check',
       sql`(${t.latencyMs} is null or ${t.latencyMs} >= 0)
         and (${t.timeToFirstTokenMs} is null or ${t.timeToFirstTokenMs} >= 0)
-        and ${t.routeSwitches} >= 0`
+        and ${t.routeSwitches} >= 0`,
     ),
     usageUnitsNonNegativeCheck('inference_usage_events_units_check', t),
-  ]
+  ],
 );

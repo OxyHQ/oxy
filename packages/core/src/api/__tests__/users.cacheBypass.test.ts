@@ -119,7 +119,9 @@ describe('users.get / users.byUsername cache bypass', () => {
     });
 
     it('URL-encodes the username in the request path', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'fed-1', username: 'alice@mastodon.social' }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({ id: 'fed-1', username: 'alice@mastodon.social' }),
+      );
       await oxy.users.byUsername('alice@mastodon.social');
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [url] = fetchMock.mock.calls[0] as [string];

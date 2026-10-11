@@ -1,5 +1,13 @@
 import React, { useMemo, useCallback, useState } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
@@ -43,41 +51,44 @@ export default function DevicesScreen() {
   const formatRelativeTime = useRelativeTime();
 
   // Handle device removal
-  const handleRemoveDevice = useCallback(async (deviceId: string, deviceName: string, isCurrent: boolean) => {
-    if (isCurrent) {
-      toast.warning(t('devices.detail.removeCurrentWarning'));
-      return;
-    }
+  const handleRemoveDevice = useCallback(
+    async (deviceId: string, deviceName: string, isCurrent: boolean) => {
+      if (isCurrent) {
+        toast.warning(t('devices.detail.removeCurrentWarning'));
+        return;
+      }
 
-    alert(
-      t('devices.detail.removeTitle'),
-      t('devices.detail.removeMessage', { name: deviceName }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.remove'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setActionLoading(deviceId);
-              await oxyServices?.devices.remove(deviceId);
-              // Refresh devices list
-              await refetch();
-              // On native, surface a success toast (web's list refresh is its own confirmation).
-              if (Platform.OS !== 'web') {
-                toast.success(t('devices.remove.success'));
+      alert(
+        t('devices.detail.removeTitle'),
+        t('devices.detail.removeMessage', { name: deviceName }),
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.remove'),
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setActionLoading(deviceId);
+                await oxyServices?.devices.remove(deviceId);
+                // Refresh devices list
+                await refetch();
+                // On native, surface a success toast (web's list refresh is its own confirmation).
+                if (Platform.OS !== 'web') {
+                  toast.success(t('devices.remove.success'));
+                }
+              } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : t('devices.remove.failed');
+                toast.error(message);
+              } finally {
+                setActionLoading(null);
               }
-            } catch (err: unknown) {
-              const message = err instanceof Error ? err.message : t('devices.remove.failed');
-              toast.error(message);
-            } finally {
-              setActionLoading(null);
-            }
+            },
           },
-        },
-      ]
-    );
-  }, [oxyServices, refetch, t]);
+        ],
+      );
+    },
+    [oxyServices, refetch, t],
+  );
 
   // Transform devices for UI
   const deviceItems = useMemo(() => {
@@ -98,15 +109,22 @@ export default function DevicesScreen() {
         iconColor: isCurrent ? colors.tint : colors.sidebarIconDevices,
         title: deviceName,
         subtitle: isCurrent
-          ? t('devices.item.thisDeviceLastActive', { time: formatRelativeTime(lastActive, t('common.unknown')) })
-          : t('devices.item.lastActive', { time: formatRelativeTime(lastActive, t('common.unknown')) }),
-        onPress: () => router.push({ pathname: '/(tabs)/devices/[deviceId]', params: { deviceId } }),
+          ? t('devices.item.thisDeviceLastActive', {
+              time: formatRelativeTime(lastActive, t('common.unknown')),
+            })
+          : t('devices.item.lastActive', {
+              time: formatRelativeTime(lastActive, t('common.unknown')),
+            }),
+        onPress: () =>
+          router.push({ pathname: '/(tabs)/devices/[deviceId]', params: { deviceId } }),
         showChevron: true,
         customContent: (
           <View style={styles.deviceActions}>
             {isCurrent ? (
               <View style={[styles.currentBadge, { backgroundColor: colors.tint }]}>
-                <Text style={[styles.currentBadgeText, { color: '#FFFFFF' }]}>{t('devices.item.currentBadge')}</Text>
+                <Text style={[styles.currentBadgeText, { color: '#FFFFFF' }]}>
+                  {t('devices.item.currentBadge')}
+                </Text>
               </View>
             ) : (
               <TouchableOpacity
@@ -121,7 +139,9 @@ export default function DevicesScreen() {
                 {isLoading ? (
                   <ActivityIndicator size="small" color={colors.text} />
                 ) : (
-                  <Text style={[styles.buttonText, { color: colors.text }]}>{t('common.remove')}</Text>
+                  <Text style={[styles.buttonText, { color: colors.text }]}>
+                    {t('common.remove')}
+                  </Text>
                 )}
               </TouchableOpacity>
             )}
@@ -129,15 +149,32 @@ export default function DevicesScreen() {
         ),
       };
     });
-  }, [devices, colors, formatRelativeTime, actionLoading, handleRemoveDevice, handlePressIn, router, t]);
+  }, [
+    devices,
+    colors,
+    formatRelativeTime,
+    actionLoading,
+    handleRemoveDevice,
+    handlePressIn,
+    router,
+    t,
+  ]);
 
   // Show loading state
   if (oxyLoading || loading) {
     return (
       <ScreenContentWrapper>
-        <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.container,
+            styles.loadingContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('devices.loading')}</ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+            {t('devices.loading')}
+          </ThemedText>
         </View>
       </ScreenContentWrapper>
     );
@@ -151,17 +188,19 @@ export default function DevicesScreen() {
           <View style={styles.mobileContent}>
             <ScreenHeader title={t('devices.title')} subtitle={t('devices.headerSubtitle')} />
             <View style={styles.errorContainer}>
-              <ThemedText style={[styles.errorText, { color: colors.text }]}>
-                {error}
-              </ThemedText>
+              <ThemedText style={[styles.errorText, { color: colors.text }]}>{error}</ThemedText>
               <TouchableOpacity
                 style={[styles.retryButton, { backgroundColor: colors.tint }]}
                 onPressIn={handlePressIn}
-                onPress={() => { void refetch(); }}
+                onPress={() => {
+                  void refetch();
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={t('a11y.retry')}
               >
-                <Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>{t('common.retry')}</Text>
+                <Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>
+                  {t('common.retry')}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

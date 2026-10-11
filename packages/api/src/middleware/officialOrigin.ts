@@ -39,7 +39,13 @@ function header(value: string | string[] | undefined): string | undefined {
 }
 
 function refuse(next: NextFunction): void {
-  next(new ApiError(403, 'Only official Oxy apps can do this here.', SIGN_IN_ERROR_CODES.originNotAllowed));
+  next(
+    new ApiError(
+      403,
+      'Only official Oxy apps can do this here.',
+      SIGN_IN_ERROR_CODES.originNotAllowed,
+    ),
+  );
 }
 
 /** Official Oxy apps, auth.oxy.so, and non-browser (native) clients. */

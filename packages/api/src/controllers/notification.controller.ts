@@ -56,7 +56,13 @@ import { users } from '../db/schema/users';
 import { isForeignKeyViolation } from '@oxy.so/db';
 import { logger } from '../utils/logger';
 import { sendSuccess } from '../utils/asyncHandler';
-import { UnauthorizedError, BadRequestError, NotFoundError, ConflictError, InternalServerError } from '../utils/error';
+import {
+  UnauthorizedError,
+  BadRequestError,
+  NotFoundError,
+  ConflictError,
+  InternalServerError,
+} from '../utils/error';
 import { PAGINATION } from '../utils/constants';
 import { createOxyNotificationRequestSchema } from '@oxy.so/contracts';
 import { applications } from '../db/schema/applications';
@@ -143,7 +149,7 @@ function toActorResponse(actor: ActorColumns): NotificationActorResponse {
 
 function toNotificationResponse(
   row: NotificationRow,
-  actor?: ActorColumns | null
+  actor?: ActorColumns | null,
 ): NotificationResponse {
   return {
     _id: row.id,
@@ -177,10 +183,14 @@ async function assertAllowedNotificationUrl(url: string, appId: string | undefin
   try {
     parsed = new URL(url);
   } catch {
-    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url must be an absolute URL' }] });
+    throw new BadRequestError('Invalid notification data', {
+      errors: [{ path: ['url'], message: 'url must be an absolute URL' }],
+    });
   }
   if (parsed.username || parsed.password) {
-    throw new BadRequestError('Invalid notification data', { errors: [{ path: ['url'], message: 'url cannot carry credentials' }] });
+    throw new BadRequestError('Invalid notification data', {
+      errors: [{ path: ['url'], message: 'url cannot carry credentials' }],
+    });
   }
   if (parsed.protocol === 'https:') return;
   if (parsed.protocol !== 'http:' && appId) {
@@ -202,7 +212,12 @@ async function assertAllowedNotificationUrl(url: string, appId: string | undefin
     if (registeredSchemes.has(parsed.protocol)) return;
   }
   throw new BadRequestError('Invalid notification data', {
-    errors: [{ path: ['url'], message: 'url must be https or a scheme registered by the calling application' }],
+    errors: [
+      {
+        path: ['url'],
+        message: 'url must be https or a scheme registered by the calling application',
+      },
+    ],
   });
 }
 
@@ -237,7 +252,10 @@ async function emitNotification(req: Request, notification: NotificationResponse
         createdAt: notification.createdAt,
       });
     }
-    logger.debug('Notification emitted', { type: notification.type, recipientId: notification.recipientId });
+    logger.debug('Notification emitted', {
+      type: notification.type,
+      recipientId: notification.recipientId,
+    });
   } catch (error) {
     logger.error('Error emitting notification:', error);
   }
@@ -306,7 +324,10 @@ export const getNotifications = async (req: AuthRequest, res: Response): Promise
     if (error instanceof UnauthorizedError || error instanceof BadRequestError) {
       throw error;
     }
-    logger.error('Error fetching notifications', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching notifications',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error fetching notifications');
   }
 };
@@ -324,10 +345,17 @@ export const createNotification = async (req: Request, res: Response): Promise<v
     // discarded exactly as before (the contract refuses `url` elsewhere).
     const isSystem = type === 'system';
     if (isSystem && validatedData.url !== undefined) {
-      await assertAllowedNotificationUrl(validatedData.url, (req as ServiceAuthRequest).serviceApp?.appId);
+      await assertAllowedNotificationUrl(
+        validatedData.url,
+        (req as ServiceAuthRequest).serviceApp?.appId,
+      );
     }
     const text = isSystem
-      ? { title: validatedData.title ?? null, message: validatedData.message ?? null, url: validatedData.url ?? null }
+      ? {
+          title: validatedData.title ?? null,
+          message: validatedData.message ?? null,
+          url: validatedData.url ?? null,
+        }
       : {};
 
     // The duplicate check and the insert are ONE statement: the unique index
@@ -384,7 +412,10 @@ export const createNotification = async (req: Request, res: Response): Promise<v
       });
     }
 
-    logger.error('Error creating notification', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error creating notification',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error creating notification');
   }
 };
@@ -422,7 +453,10 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
     if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
       throw error;
     }
-    logger.error('Error marking notification as read', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error marking notification as read',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error marking notification as read');
   }
 };
@@ -454,7 +488,10 @@ export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<vo
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error marking all notifications as read', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error marking all notifications as read',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error marking all notifications as read');
   }
 };
@@ -490,7 +527,10 @@ export const deleteNotification = async (req: AuthRequest, res: Response): Promi
     if (error instanceof UnauthorizedError || error instanceof NotFoundError) {
       throw error;
     }
-    logger.error('Error deleting notification', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error deleting notification',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error deleting notification');
   }
 };
@@ -518,7 +558,10 @@ export const getUnreadCount = async (req: AuthRequest, res: Response): Promise<v
     if (error instanceof UnauthorizedError) {
       throw error;
     }
-    logger.error('Error fetching unread count', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'Error fetching unread count',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     throw new InternalServerError('Error fetching unread count');
   }
 };

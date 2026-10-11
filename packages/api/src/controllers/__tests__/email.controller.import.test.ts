@@ -51,8 +51,14 @@ async function runImport(files: unknown): Promise<{ status: number; payload: unk
   let status = 200;
   let payload: unknown;
   const res = {
-    status: (code: number) => { status = code; return res; },
-    json: (body: unknown) => { payload = body; return res; },
+    status: (code: number) => {
+      status = code;
+      return res;
+    },
+    json: (body: unknown) => {
+      payload = body;
+      return res;
+    },
   } as unknown as Response;
 
   const req = { user: { id: USER_ID }, files } as unknown as Parameters<typeof importMessages>[0];
@@ -65,7 +71,7 @@ beforeEach(() => {
 });
 
 describe('importMessages req.files shape', () => {
-  it('rejects multer\'s field-keyed record shape as a bad request, not an iteration crash', async () => {
+  it("rejects multer's field-keyed record shape as a bad request, not an iteration crash", async () => {
     const files: Record<string, Express.Multer.File[]> = { files: [emlFile('one.eml')] };
 
     // BadRequestError, specifically. Without the narrowing this rejects too —
@@ -86,7 +92,7 @@ describe('importMessages req.files shape', () => {
     expect(mockImportMessages).not.toHaveBeenCalled();
   });
 
-  it('still imports the array shape multer\'s .array() actually assigns', async () => {
+  it("still imports the array shape multer's .array() actually assigns", async () => {
     mockImportMessages.mockResolvedValueOnce(2);
 
     // The vacuity floor: a guard that rejected every shape would satisfy every

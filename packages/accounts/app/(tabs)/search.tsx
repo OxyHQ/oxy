@@ -1,5 +1,12 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Platform,
+  useWindowDimensions,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '@oxy.so/bloom/theme';
@@ -54,27 +61,30 @@ export default function SearchScreen() {
   // Helper to safely extract and validate user ID. Accepts either a standard
   // `User` (with `id`) or a raw MongoDB document where the identifier is `_id`
   // (a string or an ObjectId-like value exposing `toString()`).
-  const extractUserId = useCallback((candidate: IdentifiableUser | null | undefined): string | null => {
-    if (!candidate) return null;
+  const extractUserId = useCallback(
+    (candidate: IdentifiableUser | null | undefined): string | null => {
+      if (!candidate) return null;
 
-    // Try id field first (standard User interface)
-    if (typeof candidate.id === 'string' && candidate.id.trim().length > 0) {
-      return candidate.id.trim();
-    }
+      // Try id field first (standard User interface)
+      if (typeof candidate.id === 'string' && candidate.id.trim().length > 0) {
+        return candidate.id.trim();
+      }
 
-    // Try _id field (MongoDB format)
-    const rawId = candidate._id;
-    if (typeof rawId === 'string') {
-      const trimmed = rawId.trim();
-      if (trimmed.length > 0) return trimmed;
-    } else if (rawId && typeof rawId.toString === 'function') {
-      // If _id is an ObjectId instance, convert to string
-      const idString = rawId.toString().trim();
-      if (idString.length > 0) return idString;
-    }
+      // Try _id field (MongoDB format)
+      const rawId = candidate._id;
+      if (typeof rawId === 'string') {
+        const trimmed = rawId.trim();
+        if (trimmed.length > 0) return trimmed;
+      } else if (rawId && typeof rawId.toString === 'function') {
+        // If _id is an ObjectId instance, convert to string
+        const idString = rawId.toString().trim();
+        if (idString.length > 0) return idString;
+      }
 
-    return null;
-  }, []);
+      return null;
+    },
+    [],
+  );
 
   // Blocked / restricted lists power the result filter below. They are cached
   // independently of the search term so typing does not re-fetch them.
@@ -123,17 +133,17 @@ export default function SearchScreen() {
       if (userId === currentUserId) return false; // Filter out current user
 
       const isBlocked = blockedUsers.some((blocked) => {
-        const blockedId = typeof blocked.blockedId === 'string'
-          ? blocked.blockedId
-          : (blocked.blockedId._id || '');
+        const blockedId =
+          typeof blocked.blockedId === 'string' ? blocked.blockedId : blocked.blockedId._id || '';
         return blockedId === userId;
       });
       if (isBlocked) return false;
 
       const isRestricted = restrictedUsers.some((restricted) => {
-        const restrictedId = typeof restricted.restrictedId === 'string'
-          ? restricted.restrictedId
-          : (restricted.restrictedId._id || '');
+        const restrictedId =
+          typeof restricted.restrictedId === 'string'
+            ? restricted.restrictedId
+            : restricted.restrictedId._id || '';
         return restrictedId === userId;
       });
       if (isRestricted) return false;
@@ -144,7 +154,8 @@ export default function SearchScreen() {
 
   // "Searching…" is shown while the debounced query is in flight (covers the
   // initial fetch and any background refetch after typing settles).
-  const isSearchingUsers = canSearch && (searchQueryResult.isLoading || searchQueryResult.isFetching);
+  const isSearchingUsers =
+    canSearch && (searchQueryResult.isLoading || searchQueryResult.isFetching);
 
   // Pull-to-refresh re-fetches the blocked/restricted lists and the active
   // search in parallel; `refreshing` mirrors their combined fetch state.
@@ -161,18 +172,14 @@ export default function SearchScreen() {
   }, [isAuthenticated, user?.id, canSearch, blockedQuery, restrictedQuery, searchQueryResult]);
 
   const refreshing =
-    blockedQuery.isRefetching ||
-    restrictedQuery.isRefetching ||
-    searchQueryResult.isRefetching;
+    blockedQuery.isRefetching || restrictedQuery.isRefetching || searchQueryResult.isRefetching;
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) {
       return [];
     }
     const query = searchQuery.toLowerCase();
-    return menuItems.filter(item =>
-      t(item.labelKey).toLowerCase().includes(query)
-    );
+    return menuItems.filter((item) => t(item.labelKey).toLowerCase().includes(query));
   }, [searchQuery, t]);
 
   const groupedItems = useMemo(() => {
@@ -201,29 +208,24 @@ export default function SearchScreen() {
         const displayName = user.name?.displayName ?? getNormalizedUserHandle(user) ?? '';
         const userUsername = user.username || undefined;
         const fallbackHandle = getAccountFallbackHandle(user);
-        const avatarUrl = user.avatar && oxyServices
-          ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
-          : undefined;
+        const avatarUrl =
+          user.avatar && oxyServices
+            ? oxyServices.assets.publicUrl(user.avatar, 'thumb')
+            : undefined;
 
         return {
           id: userId,
           title: displayName,
-          subtitle: user.bio
-            || (fallbackHandle ? (user.username ? `@${fallbackHandle}` : fallbackHandle) : displayName),
-          customIcon: (
-            <Avatar
-              name={displayName}
-              source={avatarUrl}
-              size={40}
-            />
-          ),
+          subtitle:
+            user.bio ||
+            (fallbackHandle
+              ? user.username
+                ? `@${fallbackHandle}`
+                : fallbackHandle
+              : displayName),
+          customIcon: <Avatar name={displayName} source={avatarUrl} size={40} />,
           customContent: (
-            <FollowButton
-              userId={userId}
-              initiallyFollowing={false}
-              size="sm"
-              theme={mode}
-            />
+            <FollowButton userId={userId} initiallyFollowing={false} size="sm" theme={mode} />
           ),
           onPress: () => {
             if (showBottomSheet) {
@@ -256,13 +258,17 @@ export default function SearchScreen() {
                   style={styles.startSearchIcon}
                 />
                 <View style={styles.titleDescriptionWrapper}>
-                  <ThemedText style={[styles.startSearchTitle, { color: colors.text }]}>{t('search.startTitle')}</ThemedText>
+                  <ThemedText style={[styles.startSearchTitle, { color: colors.text }]}>
+                    {t('search.startTitle')}
+                  </ThemedText>
                   <ThemedText style={[styles.startSearchSubtitle, { color: colors.text }]}>
                     {t('search.startSubtitle')}
                   </ThemedText>
                 </View>
                 <View style={styles.suggestionsContainer}>
-                  <ThemedText style={[styles.suggestionsTitle, { color: colors.text }]}>{t('search.suggestionsTitle')}</ThemedText>
+                  <ThemedText style={[styles.suggestionsTitle, { color: colors.text }]}>
+                    {t('search.suggestionsTitle')}
+                  </ThemedText>
                   <View style={styles.suggestionsList}>
                     {menuItems.slice(0, 6).map((item) => {
                       const iconColor = colors[item.iconColor as keyof typeof colors] as string;
@@ -276,9 +282,15 @@ export default function SearchScreen() {
                           accessibilityLabel={t('a11y.suggestion', { title: t(item.labelKey) })}
                         >
                           <View style={[styles.suggestionIcon, { backgroundColor: iconColor }]}>
-                            <MaterialCommunityIcons name={item.icon} size={20} color={darkenColor(iconColor)} />
+                            <MaterialCommunityIcons
+                              name={item.icon}
+                              size={20}
+                              color={darkenColor(iconColor)}
+                            />
                           </View>
-                          <ThemedText style={[styles.suggestionText, { color: colors.text }]}>{t(item.labelKey)}</ThemedText>
+                          <ThemedText style={[styles.suggestionText, { color: colors.text }]}>
+                            {t(item.labelKey)}
+                          </ThemedText>
                         </TouchableOpacity>
                       );
                     })}
@@ -290,10 +302,15 @@ export default function SearchScreen() {
             <>
               <View style={styles.header}>
                 <ThemedText style={styles.subtitle}>
-                  {t('search.resultsCount', { count: filteredItems.length + userSearchResultItems.length, query: searchQuery })}
+                  {t('search.resultsCount', {
+                    count: filteredItems.length + userSearchResultItems.length,
+                    query: searchQuery,
+                  })}
                 </ThemedText>
               </View>
-              {filteredItems.length === 0 && userSearchResultItems.length === 0 && !isSearchingUsers ? (
+              {filteredItems.length === 0 &&
+              userSearchResultItems.length === 0 &&
+              !isSearchingUsers ? (
                 <EmptyStateCard
                   icon="magnify"
                   title={t('search.noResults')}
@@ -303,7 +320,9 @@ export default function SearchScreen() {
                 <>
                   {filteredItems.length > 0 && (
                     <Section isFirst>
-                      <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>{t('search.screens')}</ThemedText>
+                      <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>
+                        {t('search.screens')}
+                      </ThemedText>
                       <AccountCard>
                         <GroupedSection items={groupedItems} />
                       </AccountCard>
@@ -313,13 +332,17 @@ export default function SearchScreen() {
                     <Section isFirst={filteredItems.length === 0}>
                       <View style={styles.loadingContainer}>
                         <ActivityIndicator size="small" color={colors.tint} />
-                        <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('search.searchingUsers')}</ThemedText>
+                        <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+                          {t('search.searchingUsers')}
+                        </ThemedText>
                       </View>
                     </Section>
                   )}
                   {userSearchResultItems.length > 0 && (
                     <Section isFirst={filteredItems.length === 0}>
-                      <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>{t('search.people')}</ThemedText>
+                      <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>
+                        {t('search.people')}
+                      </ThemedText>
                       <AccountCard>
                         <GroupedSection items={userSearchResultItems} />
                       </AccountCard>
@@ -451,4 +474,3 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 });
-

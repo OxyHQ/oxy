@@ -101,13 +101,15 @@ async function makeSigner(overrides: Partial<typeof users.$inferInsert> = {}): P
 
 async function makeAccount(): Promise<string> {
   const id = uniqueId();
-  await getDb().insert(users).values({ id, username: `s${id.slice(0, 12)}` });
+  await getDb()
+    .insert(users)
+    .values({ id, username: `s${id.slice(0, 12)}` });
   return id;
 }
 
 /** A signer who is ALSO in the jury-eligible pool at the given tier. */
 async function makeEligible(
-  trustTier: typeof reputationBalances.$inferInsert['trustTier'] = 'verified',
+  trustTier: (typeof reputationBalances.$inferInsert)['trustTier'] = 'verified',
 ): Promise<Signer> {
   const signer = await makeSigner();
   await getDb().insert(reputationBalances).values({ userId: signer.userId, trustTier });
@@ -116,16 +118,18 @@ async function makeEligible(
 
 async function seedSession(userId: string, deviceId: string): Promise<void> {
   const token = uniqueId();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 86_400_000),
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
 }
 
 interface OpenedRequest {
@@ -310,11 +314,11 @@ describe('selectValidators — who is even allowed in the pool', () => {
     const subject = await makeAccount();
     const neighbour = await makeEligible();
     const stranger = await makeEligible();
-    await getDb()
-      .insert(userFollows)
-      .values({ followerId: neighbour.userId, followedId: subject });
+    await getDb().insert(userFollows).values({ followerId: neighbour.userId, followedId: subject });
 
-    const { candidateSnapshot } = await selectValidators(subject, { rngSeed: `seed-${uniqueId()}` });
+    const { candidateSnapshot } = await selectValidators(subject, {
+      rngSeed: `seed-${uniqueId()}`,
+    });
 
     const candidateIds = candidateSnapshot.map((candidate) => candidate.userId);
     // The PAIR is the assertion: an exclusion rule that dropped everyone, or
@@ -331,7 +335,9 @@ describe('selectValidators — who is even allowed in the pool', () => {
     await seedSession(subject, deviceId);
     await seedSession(roommate.userId, deviceId);
 
-    const { candidateSnapshot } = await selectValidators(subject, { rngSeed: `seed-${uniqueId()}` });
+    const { candidateSnapshot } = await selectValidators(subject, {
+      rngSeed: `seed-${uniqueId()}`,
+    });
 
     const candidateIds = candidateSnapshot.map((candidate) => candidate.userId);
     expect(candidateIds).not.toContain(roommate.userId);
@@ -344,7 +350,9 @@ describe('selectValidators — who is even allowed in the pool', () => {
     const high = await makeEligible('high_trust');
     const trusted = await makeEligible('trusted');
 
-    const { candidateSnapshot } = await selectValidators(subject, { rngSeed: `seed-${uniqueId()}` });
+    const { candidateSnapshot } = await selectValidators(subject, {
+      rngSeed: `seed-${uniqueId()}`,
+    });
     const weightOf = (userId: string) =>
       candidateSnapshot.find((candidate) => candidate.userId === userId)?.weight;
 
@@ -369,7 +377,11 @@ describe('selectValidators — who is even allowed in the pool', () => {
     // being identical — which is what the stored `rng_seed` promises an auditor.
     let first = await selectValidators(subject, { rngSeed });
     let second = await selectValidators(subject, { rngSeed });
-    for (let attempt = 0; attempt < POOL_STABILITY_ATTEMPTS && poolOf(first) !== poolOf(second); attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < POOL_STABILITY_ATTEMPTS && poolOf(first) !== poolOf(second);
+      attempt += 1
+    ) {
       first = second;
       second = await selectValidators(subject, { rngSeed });
     }
@@ -473,9 +485,9 @@ describe('openValidationRequest — one open jury per source action', () => {
     expect(request.selectedValidatorIds).toHaveLength(VALIDATOR_COUNT);
     // The draw ORDER is preserved — it is part of what `rng_seed` +
     // `candidate_snapshot` let an auditor reproduce.
-    expect(
-      seats.sort((a, b) => a.position - b.position).map((seat) => seat.userId),
-    ).toEqual(request.selectedValidatorIds);
+    expect(seats.sort((a, b) => a.position - b.position).map((seat) => seat.userId)).toEqual(
+      request.selectedValidatorIds,
+    );
   });
 
   it('returns the existing jury rather than opening a second one', async () => {

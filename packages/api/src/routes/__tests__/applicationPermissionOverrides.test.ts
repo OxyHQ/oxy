@@ -37,7 +37,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: currentUserId, id: currentUserId };
     next();
@@ -119,7 +119,7 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -141,23 +141,22 @@ async function seedMember(
   accountId: string,
   memberUserId: string,
   role: AccountRole,
-  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {}
+  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {},
 ): Promise<void> {
-  await getDb().insert(accountMembers).values({
-    accountId,
-    memberUserId,
-    role,
-    inherit: true,
-    status: 'active',
-    permissionGrants: deltas.grants ?? [],
-    permissionRevokes: deltas.revokes ?? [],
-  });
+  await getDb()
+    .insert(accountMembers)
+    .values({
+      accountId,
+      memberUserId,
+      role,
+      inherit: true,
+      status: 'active',
+      permissionGrants: deltas.grants ?? [],
+      permissionRevokes: deltas.revokes ?? [],
+    });
 }
 
-async function seedApp(
-  ownerAccountId: string,
-  scopes: ApplicationScope[] = []
-): Promise<string> {
+async function seedApp(ownerAccountId: string, scopes: ApplicationScope[] = []): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
     .values({ name: 'Override App', ownerAccountId, createdByUserId: ownerAccountId, scopes })
@@ -186,7 +185,7 @@ async function seedCredential(applicationId: string): Promise<string> {
  */
 async function seedOrgWithApp(
   role: AccountRole,
-  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] }
+  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] },
 ) {
   const org = await seedAccount('organization');
   const subject = await seedAccount();
@@ -220,17 +219,28 @@ afterAll(async () => {
 describe('explicit Console Alia machine capabilities', () => {
   test('real app-update membership controls opt-in and opt-out without credential grants', async () => {
     const { subject, control, appId } = await seedOrgWithApp('admin', { revokes: ['apps:update'] });
-    await getDb().update(applications).set({ scopes: ['user:read'] }).where(eq(applications.id, appId));
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['user:read'] })
+      .where(eq(applications.id, appId));
     const payload = { scopes: ['user:read', 'alia:chat', 'inference:invoke'] };
     currentUserId = subject;
     expect((await request('PATCH', `/applications/${appId}`, payload)).status).toBe(403);
-    const read = async () => (await getDb().select().from(applications).where(eq(applications.id, appId)))[0].scopes;
+    const read = async () =>
+      (await getDb().select().from(applications).where(eq(applications.id, appId)))[0].scopes;
     expect(await read()).toEqual(['user:read']);
     currentUserId = control;
     expect((await request('PATCH', `/applications/${appId}`, payload)).status).toBe(200);
     expect(await read()).toEqual(payload.scopes);
-    expect(await getDb().select().from(applicationCredentials).where(eq(applicationCredentials.applicationId, appId))).toEqual([]);
-    expect((await request('PATCH', `/applications/${appId}`, { scopes: ['user:read'] })).status).toBe(200);
+    expect(
+      await getDb()
+        .select()
+        .from(applicationCredentials)
+        .where(eq(applicationCredentials.applicationId, appId)),
+    ).toEqual([]);
+    expect(
+      (await request('PATCH', `/applications/${appId}`, { scopes: ['user:read'] })).status,
+    ).toBe(200);
     expect(await read()).toEqual(['user:read']);
   });
 });
@@ -247,7 +257,10 @@ describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
     const credentialId = await seedCredential(appId);
 
     currentUserId = subject;
-    const revoked = await request('POST', `/applications/${appId}/credentials/${credentialId}/rotate`);
+    const revoked = await request(
+      'POST',
+      `/applications/${appId}/credentials/${credentialId}/rotate`,
+    );
     expect(revoked.status).toBe(403);
     expect(revoked.body.message).toContain('credentials:rotate');
 
@@ -256,7 +269,7 @@ describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
     currentUserId = control;
     const permitted = await request(
       'POST',
-      `/applications/${appId}/credentials/${credentialId}/rotate`
+      `/applications/${appId}/credentials/${credentialId}/rotate`,
     );
     expect(permitted.status).toBe(200);
     expect(typeof permitted.body.secret).toBe('string');
@@ -278,11 +291,15 @@ describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
     });
 
     currentUserId = subject;
-    const revoked = await request('PATCH', `/applications/${appId}`, { name: 'Renamed by revoked' });
+    const revoked = await request('PATCH', `/applications/${appId}`, {
+      name: 'Renamed by revoked',
+    });
     expect(revoked.status).toBe(403);
 
     currentUserId = control;
-    const permitted = await request('PATCH', `/applications/${appId}`, { name: 'Renamed by control' });
+    const permitted = await request('PATCH', `/applications/${appId}`, {
+      name: 'Renamed by control',
+    });
     expect(permitted.status).toBe(200);
 
     const [stored] = await getDb()
@@ -305,7 +322,9 @@ describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
     // the gate; otherwise the UI offers an action the API refuses.
     const detail = await request('GET', `/applications/${appId}`);
     expect(detail.status).toBe(200);
-    expect(detail.body.application?.callerMembership?.permissions).not.toContain('credentials:read');
+    expect(detail.body.application?.callerMembership?.permissions).not.toContain(
+      'credentials:read',
+    );
 
     const list = await request('GET', '/applications');
     expect(list.status).toBe(200);
@@ -321,7 +340,7 @@ describe('a per-member REVOKE is honoured by the application RBAC lane', () => {
     expect(controlListed.status).toBe(200);
     const controlDetail = await request('GET', `/applications/${appId}`);
     expect(controlDetail.body.application?.callerMembership?.permissions).toContain(
-      'credentials:read'
+      'credentials:read',
     );
   });
 });

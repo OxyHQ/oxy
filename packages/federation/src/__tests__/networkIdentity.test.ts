@@ -32,7 +32,10 @@ function entry(overrides: Partial<FederationBridgeEntry> = {}): FederationBridge
     network: FEDERATION_NETWORKS.x,
     operator: 'Test operator',
     software: 'TestBridge',
-    derive: upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com', 'x.com'] }),
+    derive: upstreamHandleFromProfileField({
+      fieldName: 'Official',
+      hosts: ['twitter.com', 'x.com'],
+    }),
     caseRule: 'lowercase',
     relabel: 'enabled',
     upstreamIdStability: 'recyclable',
@@ -62,17 +65,45 @@ function candidate(overrides: Partial<NetworkIdentityCandidate> = {}): NetworkId
 
 describe('createBridgeRelabeller', () => {
   it('refuses contradictory accepted profile assertions regardless of their order', () => {
-    const derive = upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['x.com'], requireRelMe: true });
-    const fields = ['alice', 'bob'].map(handle => ({ name: 'Official', value: `<a href="https://x.com/${handle}" rel="me">Official</a>` }));
+    const derive = upstreamHandleFromProfileField({
+      fieldName: 'Official',
+      hosts: ['x.com'],
+      requireRelMe: true,
+    });
+    const fields = ['alice', 'bob'].map((handle) => ({
+      name: 'Official',
+      value: `<a href="https://x.com/${handle}" rel="me">Official</a>`,
+    }));
     expect(derive(candidate({ fields }))).toBeUndefined();
     expect(derive(candidate({ fields: [...fields].reverse() }))).toBeUndefined();
     expect(derive(candidate({ fields: [fields[0], fields[0]] }))).toBe('alice');
-    expect(derive(candidate({ fields: [{ name: 'Official', value: '<a href="https://x.com/alice">Official</a>' }] }))).toBeUndefined();
+    expect(
+      derive(
+        candidate({
+          fields: [{ name: 'Official', value: '<a href="https://x.com/alice">Official</a>' }],
+        }),
+      ),
+    ).toBeUndefined();
   });
   it('repairs the observed double-HTTPS Official assertion only with the reviewed opt-in', () => {
-    const actor = candidate({ fields: [{ name: 'Official', value: '<a href="https://https://twitter.com/jordievole" rel="me">Official</a>' }] });
-    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'] })(actor)).toBeUndefined();
-    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'], repairRepeatedHttpsScheme: true })(actor)).toBe('jordievole');
+    const actor = candidate({
+      fields: [
+        {
+          name: 'Official',
+          value: '<a href="https://https://twitter.com/jordievole" rel="me">Official</a>',
+        },
+      ],
+    });
+    expect(
+      upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'] })(actor),
+    ).toBeUndefined();
+    expect(
+      upstreamHandleFromProfileField({
+        fieldName: 'Official',
+        hosts: ['twitter.com'],
+        repairRepeatedHttpsScheme: true,
+      })(actor),
+    ).toBe('jordievole');
   });
 
   it.each([
@@ -83,9 +114,17 @@ describe('createBridgeRelabeller', () => {
     'https://https://https://twitter.com/jordievole',
     'http://https://twitter.com/jordievole',
     'https://https://twitter.com/i/status/123',
-  ])('does not widen the repair into an attribution for %s', href => {
-    const actor = candidate({ fields: [{ name: 'Official', value: `<a href="${href}" rel="me">Official</a>` }] });
-    expect(upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['twitter.com'], repairRepeatedHttpsScheme: true })(actor)).toBeUndefined();
+  ])('does not widen the repair into an attribution for %s', (href) => {
+    const actor = candidate({
+      fields: [{ name: 'Official', value: `<a href="${href}" rel="me">Official</a>` }],
+    });
+    expect(
+      upstreamHandleFromProfileField({
+        fieldName: 'Official',
+        hosts: ['twitter.com'],
+        repairRepeatedHttpsScheme: true,
+      })(actor),
+    ).toBeUndefined();
   });
   it('re-labels an actor onto the network its bridge mirrors', () => {
     const identity = createBridgeRelabeller([entry()]).deriveNetworkIdentity(candidate());
@@ -96,7 +135,9 @@ describe('createBridgeRelabeller', () => {
 
   it('declines an actor from a host no entry names', () => {
     const relabeller = createBridgeRelabeller([entry()]);
-    expect(relabeller.deriveNetworkIdentity(candidate({ host: 'mastodon.social' }))).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ host: 'mastodon.social' })),
+    ).toBeUndefined();
   });
 
   it('ships no entries of its own — an empty registry re-labels nothing', () => {
@@ -104,8 +145,9 @@ describe('createBridgeRelabeller', () => {
   });
 
   it('preserves case where the entry says the handle is already canonical', () => {
-    const identity = createBridgeRelabeller([entry({ caseRule: 'preserve' })])
-      .deriveNetworkIdentity(candidate());
+    const identity = createBridgeRelabeller([
+      entry({ caseRule: 'preserve' }),
+    ]).deriveNetworkIdentity(candidate());
     expect(identity?.federatedUsername).toBe('WIRED@x.com');
   });
 });
@@ -138,56 +180,90 @@ describe('createBridgeRelabeller — derivations it refuses', () => {
   it.each([
     ['an empty string', ''],
     ['whitespace only', '   '],
-  ])('refuses a rule that yields %s, rather than collapsing a domain onto one identity', (_label, derived) => {
-    // Asserted against the relabeller's OWN guard, with a rule that returns the
-    // bad value directly. Driving it through `upstreamHandleFromPreferredUsername`
-    // would prove nothing: that helper filters empties itself, so the outer guard
-    // is never reached and the assertion passes with the guard deleted.
-    const relabeller = createBridgeRelabeller([entry({ derive: () => derived })]);
-    expect(relabeller.deriveNetworkIdentity(candidate())).toBeUndefined();
-  });
+  ])(
+    'refuses a rule that yields %s, rather than collapsing a domain onto one identity',
+    (_label, derived) => {
+      // Asserted against the relabeller's OWN guard, with a rule that returns the
+      // bad value directly. Driving it through `upstreamHandleFromPreferredUsername`
+      // would prove nothing: that helper filters empties itself, so the outer guard
+      // is never reached and the assertion passes with the guard deleted.
+      const relabeller = createBridgeRelabeller([entry({ derive: () => derived })]);
+      expect(relabeller.deriveNetworkIdentity(candidate())).toBeUndefined();
+    },
+  );
 
   it('refuses an empty preferredUsername, which we hold real actors with', () => {
     const relabeller = createBridgeRelabeller([
       entry({ derive: upstreamHandleFromPreferredUsername([/./]) }),
     ]);
     expect(relabeller.deriveNetworkIdentity(candidate({ preferredUsername: '' }))).toBeUndefined();
-    expect(relabeller.deriveNetworkIdentity(candidate({ preferredUsername: '   ' }))).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ preferredUsername: '   ' })),
+    ).toBeUndefined();
   });
 
   it('refuses a handle carrying an at-sign or a slash', () => {
     const relabeller = createBridgeRelabeller([
       entry({ derive: upstreamHandleFromPreferredUsername([/./]) }),
     ]);
-    expect(relabeller.deriveNetworkIdentity(candidate({ preferredUsername: 'a@b' }))).toBeUndefined();
-    expect(relabeller.deriveNetworkIdentity(candidate({ preferredUsername: 'a/b' }))).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ preferredUsername: 'a@b' })),
+    ).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ preferredUsername: 'a/b' })),
+    ).toBeUndefined();
   });
 
   it('derives nothing when the backlink points off the declared network', () => {
     const relabeller = createBridgeRelabeller([entry()]);
-    expect(relabeller.deriveNetworkIdentity(candidate({
-      fields: [{ name: 'Official', value: '<a href="https://example.com/wired">x</a>' }],
-    }))).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(
+        candidate({
+          fields: [{ name: 'Official', value: '<a href="https://example.com/wired">x</a>' }],
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it('derives nothing from a link that is not a bare profile path', () => {
     const relabeller = createBridgeRelabeller([entry()]);
-    expect(relabeller.deriveNetworkIdentity(candidate({
-      fields: [{ name: 'Official', value: '<a href="https://twitter.com/i/status/1">x</a>' }],
-    }))).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(
+        candidate({
+          fields: [{ name: 'Official', value: '<a href="https://twitter.com/i/status/1">x</a>' }],
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it('matches profile hosts canonically, so a www. prefix on either side still round-trips', () => {
     const relabeller = createBridgeRelabeller([
-      entry({ derive: upstreamHandleFromProfileField({ fieldName: 'Official', hosts: ['www.twitter.com'] }) }),
+      entry({
+        derive: upstreamHandleFromProfileField({
+          fieldName: 'Official',
+          hosts: ['www.twitter.com'],
+        }),
+      }),
     ]);
-    expect(relabeller.deriveNetworkIdentity(candidate({
-      fields: [{ name: 'Official', value: '<a href="https://twitter.com/WIRED" rel="me">x</a>' }],
-    proxyOf: [],
-    }))?.federatedUsername).toBe('wired@x.com');
-    expect(relabeller.deriveNetworkIdentity(candidate({
-      fields: [{ name: 'Official', value: '<a href="https://www.twitter.com/WIRED" rel="me">x</a>' }],
-    }))?.federatedUsername).toBe('wired@x.com');
+    expect(
+      relabeller.deriveNetworkIdentity(
+        candidate({
+          fields: [
+            { name: 'Official', value: '<a href="https://twitter.com/WIRED" rel="me">x</a>' },
+          ],
+          proxyOf: [],
+        }),
+      )?.federatedUsername,
+    ).toBe('wired@x.com');
+    expect(
+      relabeller.deriveNetworkIdentity(
+        candidate({
+          fields: [
+            { name: 'Official', value: '<a href="https://www.twitter.com/WIRED" rel="me">x</a>' },
+          ],
+        }),
+      )?.federatedUsername,
+    ).toBe('wired@x.com');
   });
 
   it('derives a Bluesky handle from alsoKnownAs profile URLs (Bridgy Fed pattern)', () => {
@@ -204,17 +280,18 @@ describe('createBridgeRelabeller — derivations it refuses', () => {
         },
       }),
     ]);
-    expect(relabeller.deriveNetworkIdentity(candidate({
-      host: 'bsky.brid.gy',
-      acct: 'jay.bsky.team@bsky.brid.gy',
-      preferredUsername: 'jay.bsky.team',
-      alsoKnownAs: [
-        'at://did:plc:abc123',
-        'https://bsky.app/profile/jay.bsky.team',
-      ],
-      fields: [],
-      bio: '',
-    }))?.federatedUsername).toBe('jay.bsky.team@bsky.social');
+    expect(
+      relabeller.deriveNetworkIdentity(
+        candidate({
+          host: 'bsky.brid.gy',
+          acct: 'jay.bsky.team@bsky.brid.gy',
+          preferredUsername: 'jay.bsky.team',
+          alsoKnownAs: ['at://did:plc:abc123', 'https://bsky.app/profile/jay.bsky.team'],
+          fields: [],
+          bio: '',
+        }),
+      )?.federatedUsername,
+    ).toBe('jay.bsky.team@bsky.social');
   });
 
   it('requires the marker before trusting a naming convention', () => {
@@ -223,9 +300,12 @@ describe('createBridgeRelabeller — derivations it refuses', () => {
     const relabeller = createBridgeRelabeller([
       entry({ derive: upstreamHandleFromPreferredUsername([/is a mirror bot\.$/]) }),
     ]);
-    expect(relabeller.deriveNetworkIdentity(candidate({ bio: 'I run this server.' }))).toBeUndefined();
-    expect(relabeller.deriveNetworkIdentity(candidate({ bio: 'is a mirror bot.' }))?.federatedUsername)
-      .toBe('wired@x.com');
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ bio: 'I run this server.' })),
+    ).toBeUndefined();
+    expect(
+      relabeller.deriveNetworkIdentity(candidate({ bio: 'is a mirror bot.' }))?.federatedUsername,
+    ).toBe('wired@x.com');
   });
 });
 
@@ -303,7 +383,7 @@ describe('upstream profile URLs — one declaration, both directions', () => {
 });
 
 describe('bsky.social is one network, whichever protocol an account arrives by', () => {
-  it('strips a default handle\'s redundant suffix and keeps a custom domain whole', () => {
+  it("strips a default handle's redundant suffix and keeps a custom domain whole", () => {
     expect(blueskyUsernameFromHandle('skylee1.bsky.social')).toBe('skylee1');
     expect(blueskyUsernameFromHandle('gothamist.com')).toBe('gothamist.com');
     expect(blueskyUsernameFromHandle('mayor.nyc.gov')).toBe('mayor.nyc.gov');
@@ -323,8 +403,9 @@ describe('federatedUsernameFromUpstreamUrl — the search direction', () => {
     expect(federatedUsernameFromUpstreamUrl('https://x.com/nasa')).toBe('nasa@x.com');
     expect(federatedUsernameFromUpstreamUrl('https://twitter.com/nasa')).toBe('nasa@x.com');
     expect(federatedUsernameFromUpstreamUrl('https://mobile.x.com/nasa')).toBe('nasa@x.com');
-    expect(federatedUsernameFromUpstreamUrl('https://www.instagram.com/natgeo'))
-      .toBe('natgeo@instagram.com');
+    expect(federatedUsernameFromUpstreamUrl('https://www.instagram.com/natgeo')).toBe(
+      'natgeo@instagram.com',
+    );
   });
 
   it('lowercases, because X and Instagram handles are case-insensitive', () => {
@@ -332,22 +413,26 @@ describe('federatedUsernameFromUpstreamUrl — the search direction', () => {
     expect(federatedUsernameFromUpstreamUrl('https://x.com/WIRED')).toBe('wired@x.com');
   });
 
-  it('drops a default Bluesky handle\'s redundant suffix, exactly as ingest does', () => {
+  it("drops a default Bluesky handle's redundant suffix, exactly as ingest does", () => {
     // The case a second, parallel parsing rule would get wrong: it works for X
     // with plain lowercasing and silently fails here.
-    expect(federatedUsernameFromUpstreamUrl('https://bsky.app/profile/georgemonbiot.bsky.social'))
-      .toBe('georgemonbiot@bsky.social');
-    expect(federatedUsernameFromUpstreamUrl('https://bsky.app/profile/gothamist.com'))
-      .toBe('gothamist.com@bsky.social');
+    expect(
+      federatedUsernameFromUpstreamUrl('https://bsky.app/profile/georgemonbiot.bsky.social'),
+    ).toBe('georgemonbiot@bsky.social');
+    expect(federatedUsernameFromUpstreamUrl('https://bsky.app/profile/gothamist.com')).toBe(
+      'gothamist.com@bsky.social',
+    );
   });
 
   it('agrees with what the relabeller would store for the same account', () => {
     // Ingest and search reading one declaration, asserted rather than assumed.
-    const relabeller = createBridgeRelabeller([entry({
-      host: 'mirror.example',
-      network: FEDERATION_NETWORKS.x,
-      derive: () => 'NASA',
-    })]);
+    const relabeller = createBridgeRelabeller([
+      entry({
+        host: 'mirror.example',
+        network: FEDERATION_NETWORKS.x,
+        derive: () => 'NASA',
+      }),
+    ]);
     const viaIngest = relabeller.deriveNetworkIdentity(candidate())?.federatedUsername;
     expect(federatedUsernameFromUpstreamUrl('https://x.com/NASA')).toBe(viaIngest);
   });
@@ -366,19 +451,23 @@ describe('FEP-fffd proxyOf', () => {
    * the only thing in our corpus that publishes `proxyOf` at all, which is also
    * why no shipped entry names this strategy.
    */
-  const REAL_MOMOSTR_PROXY_OF = [{
-    protocol: 'https://github.com/nostr-protocol/nostr',
-    proxied: 'npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m',
-    authoritative: true,
-  }];
+  const REAL_MOMOSTR_PROXY_OF = [
+    {
+      protocol: 'https://github.com/nostr-protocol/nostr',
+      proxied: 'npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m',
+      authoritative: true,
+    },
+  ];
 
   describe('readProxyDeclarations', () => {
     it('parses a real declaration off the wire', () => {
-      expect(readProxyDeclarations(REAL_MOMOSTR_PROXY_OF)).toEqual([{
-        protocol: 'https://github.com/nostr-protocol/nostr',
-        proxied: 'npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m',
-        authoritative: true,
-      }]);
+      expect(readProxyDeclarations(REAL_MOMOSTR_PROXY_OF)).toEqual([
+        {
+          protocol: 'https://github.com/nostr-protocol/nostr',
+          proxied: 'npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m',
+          authoritative: true,
+        },
+      ]);
     });
 
     it('defaults authoritative to false when the actor omits it', () => {
@@ -396,20 +485,24 @@ describe('FEP-fffd proxyOf', () => {
       // the flag mean what it says — and a strict check with no test for it is
       // one refactor away from silently becoming the loose one.
       for (const value of ['false', 'true', 1, {}, []]) {
-        const [parsed] = readProxyDeclarations([{ protocol: 'p', proxied: 'q', authoritative: value }]);
+        const [parsed] = readProxyDeclarations([
+          { protocol: 'p', proxied: 'q', authoritative: value },
+        ]);
         expect(parsed.authoritative).toBe(false);
       }
     });
 
     it('drops malformed entries rather than inventing fields', () => {
-      expect(readProxyDeclarations([
-        { protocol: '', proxied: 'q' },
-        { protocol: 'p', proxied: '' },
-        { protocol: 'p' },
-        'not an object',
-        null,
-        [],
-      ])).toEqual([]);
+      expect(
+        readProxyDeclarations([
+          { protocol: '', proxied: 'q' },
+          { protocol: 'p', proxied: '' },
+          { protocol: 'p' },
+          'not an object',
+          null,
+          [],
+        ]),
+      ).toEqual([]);
     });
 
     it('reads a missing or non-array proxyOf as none', () => {
@@ -431,15 +524,25 @@ describe('FEP-fffd proxyOf', () => {
 
     it('refuses a non-authoritative declaration', () => {
       // A copy does not get to stand in for the account it copied.
-      expect(derive(candidate({
-        proxyOf: [{ ...REAL_MOMOSTR_PROXY_OF[0], authoritative: false }],
-      }))).toBeUndefined();
+      expect(
+        derive(
+          candidate({
+            proxyOf: [{ ...REAL_MOMOSTR_PROXY_OF[0], authoritative: false }],
+          }),
+        ),
+      ).toBeUndefined();
     });
 
     it('refuses a protocol the entry does not accept', () => {
-      expect(derive(candidate({
-        proxyOf: [{ protocol: 'https://example.invalid/other', proxied: 'x', authoritative: true }],
-      }))).toBeUndefined();
+      expect(
+        derive(
+          candidate({
+            proxyOf: [
+              { protocol: 'https://example.invalid/other', proxied: 'x', authoritative: true },
+            ],
+          }),
+        ),
+      ).toBeUndefined();
     });
 
     it('can map the proxied identifier to a handle', () => {
@@ -447,9 +550,19 @@ describe('FEP-fffd proxyOf', () => {
         protocols: ['https://atproto.com'],
         handleFromProxied: (proxied) => proxied.replace(/^at:\/\//, '') || undefined,
       });
-      expect(mapped(candidate({
-        proxyOf: [{ protocol: 'https://atproto.com', proxied: 'at://alice.bsky.social', authoritative: true }],
-      }))).toBe('alice.bsky.social');
+      expect(
+        mapped(
+          candidate({
+            proxyOf: [
+              {
+                protocol: 'https://atproto.com',
+                proxied: 'at://alice.bsky.social',
+                authoritative: true,
+              },
+            ],
+          }),
+        ),
+      ).toBe('alice.bsky.social');
     });
   });
 
@@ -462,26 +575,35 @@ describe('FEP-fffd proxyOf', () => {
      */
     it('re-labels nothing when the actor is on no listed host', () => {
       const relabeller = createBridgeRelabeller([]);
-      expect(relabeller.deriveNetworkIdentity(candidate({
-        host: 'attacker.example',
-        proxyOf: [{ protocol: 'https://x.example', proxied: 'elonmusk', authoritative: true }],
-      }))).toBeUndefined();
+      expect(
+        relabeller.deriveNetworkIdentity(
+          candidate({
+            host: 'attacker.example',
+            proxyOf: [{ protocol: 'https://x.example', proxied: 'elonmusk', authoritative: true }],
+          }),
+        ),
+      ).toBeUndefined();
     });
 
     it('re-labels nothing from an UNLISTED host even when a listed host uses the strategy', () => {
-      const relabeller = createBridgeRelabeller([entry({
-        host: 'mirror.example',
-        derive: upstreamHandleFromProxyOf({ protocols: ['https://x.example'] }),
-      })]);
+      const relabeller = createBridgeRelabeller([
+        entry({
+          host: 'mirror.example',
+          derive: upstreamHandleFromProxyOf({ protocols: ['https://x.example'] }),
+        }),
+      ]);
       const claim = {
         proxyOf: [{ protocol: 'https://x.example', proxied: 'elonmusk', authoritative: true }],
       };
-      expect(relabeller.deriveNetworkIdentity(candidate({ host: 'attacker.example', ...claim })))
-        .toBeUndefined();
+      expect(
+        relabeller.deriveNetworkIdentity(candidate({ host: 'attacker.example', ...claim })),
+      ).toBeUndefined();
       // …and the very same claim from the REVIEWED host is honoured, which is
       // what makes the previous assertion about trust rather than about parsing.
-      expect(relabeller.deriveNetworkIdentity(candidate({ host: 'mirror.example', ...claim }))
-        ?.federatedUsername).toBe('elonmusk@x.com');
+      expect(
+        relabeller.deriveNetworkIdentity(candidate({ host: 'mirror.example', ...claim }))
+          ?.federatedUsername,
+      ).toBe('elonmusk@x.com');
     });
   });
 });
@@ -518,16 +640,17 @@ describe('upstreamHandleFromAutomatedActor', () => {
     },
   );
 
-  it('refuses an Application — that is the SERVER\'s own actor', () => {
+  it("refuses an Application — that is the SERVER's own actor", () => {
     // Mastodon publishes https://<host>/actor as an `Application` named
     // `mastodon.internal`. Accepting it would re-label the instance actor onto
     // the upstream network, which is a false attribution about the operator
     // rather than about a person, but false all the same.
-    expect(derive(candidate({ actorType: 'Application', preferredUsername: 'mastodon.internal' })))
-      .toBeUndefined();
+    expect(
+      derive(candidate({ actorType: 'Application', preferredUsername: 'mastodon.internal' })),
+    ).toBeUndefined();
   });
 
-  it('refuses a Person — the operator\'s own account is not a mirror', () => {
+  it("refuses a Person — the operator's own account is not a mirror", () => {
     expect(derive(candidate({ actorType: 'Person', preferredUsername: 'admin' }))).toBeUndefined();
     expect(derive(candidate({ actorType: 'Group' }))).toBeUndefined();
   });
@@ -536,10 +659,14 @@ describe('upstreamHandleFromAutomatedActor', () => {
     // The whole point: identity no longer depends on wording. A mirror with NO
     // notice still resolves, and a Person carrying one still does not.
     expect(derive(candidate({ bio: '' }))).toBe('PabloIglesias');
-    expect(derive(candidate({
-      actorType: 'Person',
-      bio: '(bot de x a mastodon administrado por mastox.eu, contacte con @admin)',
-    }))).toBeUndefined();
+    expect(
+      derive(
+        candidate({
+          actorType: 'Person',
+          bio: '(bot de x a mastodon administrado por mastox.eu, contacte con @admin)',
+        }),
+      ),
+    ).toBeUndefined();
   });
 
   it('refuses an actor with no preferredUsername rather than deriving an empty handle', () => {

@@ -68,12 +68,16 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = () => void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: queryKeys.signInMethods.all });
 
   if (keyed) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('signInSecurity.totp.title')} description={t('linkCommons.already')} />
+        <OxyAuthScreenHeader
+          title={t('signInSecurity.totp.title')}
+          description={t('linkCommons.already')}
+        />
       </OxyAuthScreen>
     );
   }
@@ -84,8 +88,8 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
     if (pending) return;
     setError(null);
     setPending(true);
-    oxyServices
-      .auth.totp.enroll()
+    oxyServices.auth.totp
+      .enroll()
       .then((enrollment) => {
         setCode('');
         setStep({ name: 'enroll', enrollment });
@@ -113,15 +117,23 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
     case 'codes':
       return (
         <OxyAuthScreen>
-          <OxyAuthScreenHeader title={t('signInSecurity.totp.backupTitle')} description={t('signInSecurity.totp.backupDescription')} />
-          {step.enrolling ? <AccountFlowProgress steps={enrolSteps} current={1} testID="totp-progress" /> : null}
+          <OxyAuthScreenHeader
+            title={t('signInSecurity.totp.backupTitle')}
+            description={t('signInSecurity.totp.backupDescription')}
+          />
+          {step.enrolling ? (
+            <AccountFlowProgress steps={enrolSteps} current={1} testID="totp-progress" />
+          ) : null}
           {/* One code per line, with the block's own copy button (it shows a
               check once the codes are on the clipboard). */}
           <CodeBlock
             code={step.codes.join('\n')}
             filename={t('signInSecurity.totp.remaining', { count: step.codes.length })}
             lineNumbers={false}
-            labels={{ copy: t('signInSecurity.totp.copy'), copied: t('signInSecurity.totp.copied') }}
+            labels={{
+              copy: t('signInSecurity.totp.copy'),
+              copied: t('signInSecurity.totp.copied'),
+            }}
             onCopy={copyCodes}
             testID="totp-backup-codes"
           />
@@ -146,7 +158,11 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           allowPassword={hasPassword}
           totpEnabled={false}
           submitLabel={t('signInSecurity.totp.enable')}
-          validate={() => (new RegExp(`^\\d{${TOTP_DIGITS}}$`).test(code.trim()) ? null : t('signin.errors.secondFactorInvalid'))}
+          validate={() =>
+            new RegExp(`^\\d{${TOTP_DIGITS}}$`).test(code.trim())
+              ? null
+              : t('signin.errors.secondFactorInvalid')
+          }
           onSubmit={async (reauth) => {
             const codes = await oxyServices.auth.totp.confirm(code.trim(), reauth);
             refresh();
@@ -158,12 +174,23 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           <AccountFlowProgress steps={enrolSteps} current={0} testID="totp-progress" />
           <View style={styles.plateRow}>
             <View style={[styles.plate, { borderColor: theme.colors.border }]} testID="totp-qr">
-              <QRCode value={enrollment.otpauthUri} size={QR_SIZE} backgroundColor={QR_PLATE_BG} color={QR_FOREGROUND} />
+              <QRCode
+                value={enrollment.otpauthUri}
+                size={QR_SIZE}
+                backgroundColor={QR_PLATE_BG}
+                color={QR_FOREGROUND}
+              />
             </View>
           </View>
           <View style={styles.secret}>
-            <Text style={[styles.secretLabel, { color: theme.colors.textSecondary }]}>{t('signInSecurity.totp.secretLabel')}</Text>
-            <Text selectable style={[styles.secretValue, { color: theme.colors.text }]} testID="totp-secret">
+            <Text style={[styles.secretLabel, { color: theme.colors.textSecondary }]}>
+              {t('signInSecurity.totp.secretLabel')}
+            </Text>
+            <Text
+              selectable
+              style={[styles.secretValue, { color: theme.colors.text }]}
+              testID="totp-secret"
+            >
               {enrollment.secret.replace(/(.{4})/g, '$1 ').trim()}
             </Text>
           </View>
@@ -220,7 +247,9 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
         <OxyAuthScreen>
           <OxyAuthScreenHeader
             title={t('signInSecurity.totp.title')}
-            description={totpEnabled ? t('signInSecurity.totp.enabled') : t('signInSecurity.totp.description')}
+            description={
+              totpEnabled ? t('signInSecurity.totp.enabled') : t('signInSecurity.totp.description')
+            }
           />
           {totpEnabled ? (
             <>
@@ -242,7 +271,12 @@ export const OxyAuthenticatorPanel: React.FC<OxyAuthenticatorPanelProps> = ({ on
           ) : (
             <>
               {error ? <AccountFlowErrorLine message={error} /> : null}
-              <AccountFlowAction label={t('signInSecurity.totp.setUp')} onPress={setUp} pending={pending} testID="totp-set-up" />
+              <AccountFlowAction
+                label={t('signInSecurity.totp.setUp')}
+                onPress={setUp}
+                pending={pending}
+                testID="totp-set-up"
+              />
             </>
           )}
         </OxyAuthScreen>

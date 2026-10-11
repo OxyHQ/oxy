@@ -295,7 +295,7 @@ class LocationQueryService {
     lat: number,
     lon: number,
     maxDistance = 10000,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<NearbyLocationMatch>> {
     const endTimer = performanceMonitor.startTimer('db_find_locations_near');
 
@@ -311,8 +311,8 @@ class LocationQueryService {
         .where(
           and(
             isNotNull(userLocations.geo),
-            sql`ST_DWithin(${qualified(userLocations.geo)}, ${point}, ${maxDistance})`
-          )
+            sql`ST_DWithin(${qualified(userLocations.geo)}, ${point}, ${maxDistance})`,
+          ),
         )
         // The secondary key is what Mongo lacked: two places at the same
         // distance could otherwise swap between pages of the same scan.
@@ -344,7 +344,7 @@ class LocationQueryService {
    */
   async searchLocationsByText(
     searchQuery: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<ScoredLocationMatch>> {
     try {
       const { limit = 10, skip = 0, type, country, city } = options;
@@ -356,13 +356,11 @@ class LocationQueryService {
 
       const tsQuery = sql.join(
         terms.map((term) => sql`plainto_tsquery(${SEARCH_CONFIGURATION}, ${term})`),
-        sql` || `
+        sql` || `,
       );
       const score = sql<number>`ts_rank(${qualified(userLocations.searchVector)}, ${tsQuery})`;
 
-      const filters: SQL[] = [
-        sql`${qualified(userLocations.searchVector)} @@ (${tsQuery})`,
-      ];
+      const filters: SQL[] = [sql`${qualified(userLocations.searchVector)} @@ (${tsQuery})`];
       if (type) filters.push(sql`${qualified(userLocations.type)} = ${type}`);
       if (country) filters.push(substringMatch(userLocations.country, country));
       if (city) filters.push(substringMatch(userLocations.city, city));
@@ -395,7 +393,7 @@ class LocationQueryService {
    */
   async getLocationsByType(
     type: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<LocationMatch>> {
     try {
       const { limit = 10, skip = 0, country, city } = options;
@@ -417,7 +415,7 @@ class LocationQueryService {
   async getLocationsByCountryCity(
     country: string,
     city?: string,
-    options: LocationQueryOptions = {}
+    options: LocationQueryOptions = {},
   ): Promise<LocationSearchResult<LocationMatch>> {
     try {
       const { limit = 10, skip = 0, type } = options;
@@ -449,7 +447,10 @@ class LocationQueryService {
 
       const [totals, byType, byCountry, topCities] = await Promise.all([
         db.select({ total }).from(userLocations),
-        db.select({ key: userLocations.type, total }).from(userLocations).groupBy(userLocations.type),
+        db
+          .select({ key: userLocations.type, total })
+          .from(userLocations)
+          .groupBy(userLocations.type),
         db
           .select({ key: userLocations.country, total })
           .from(userLocations)
@@ -480,7 +481,7 @@ class LocationQueryService {
         locationsByType,
         locationsByCountry,
         topCities: topCities.flatMap((row) =>
-          row.city === null ? [] : [{ city: row.city, count: Number(row.count) }]
+          row.city === null ? [] : [{ city: row.city, count: Number(row.count) }],
         ),
       };
     } catch (error) {
@@ -501,15 +502,13 @@ class LocationQueryService {
     userId: string,
     locationId: string,
     lat: number,
-    lon: number
+    lon: number,
   ): Promise<boolean> {
     try {
       const updated = await getDb()
         .update(userLocations)
         .set({ latitude: lat, longitude: lon })
-        .where(
-          and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId))
-        )
+        .where(and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId)))
         .returning({ id: userLocations.id });
 
       return updated.length > 0;
@@ -527,9 +526,7 @@ class LocationQueryService {
     try {
       const deleted = await getDb()
         .delete(userLocations)
-        .where(
-          and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId))
-        )
+        .where(and(eq(userLocations.userId, userId), eq(userLocations.locationKey, locationId)))
         .returning({ id: userLocations.id });
 
       return deleted.length > 0;
@@ -543,7 +540,7 @@ class LocationQueryService {
   private async listLocations(
     filters: SQL[],
     limit: number,
-    skip: number
+    skip: number,
   ): Promise<LocationSearchResult<LocationMatch>> {
     const rows = await getDb()
       .select(locationSelection)

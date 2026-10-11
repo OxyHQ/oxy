@@ -46,9 +46,6 @@ export const pushTokens = pgTable(
     // Mongo also declared a standalone `{userId: 1}` index. Dropped: a btree
     // index serves any leading-column prefix, so the unique above already
     // answers every `where user_id = ?` read.
-    check(
-      'push_tokens_platform_check',
-      sql`${t.platform} in ('ios', 'android', 'web')`
-    ),
-  ]
+    check('push_tokens_platform_check', sql`${t.platform} in ('ios', 'android', 'web')`),
+  ],
 );

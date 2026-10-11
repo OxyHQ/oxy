@@ -61,7 +61,7 @@ export function useFileFiltering({
           file.contentType.includes('excel') ||
           file.contentType.includes('spreadsheet') ||
           file.contentType.includes('presentation') ||
-          file.contentType.includes('powerpoint')
+          file.contentType.includes('powerpoint'),
       );
     } else if (viewMode === 'audio') {
       filteredByMode = files.filter((file) => file.contentType.startsWith('audio/'));
@@ -75,7 +75,7 @@ export function useFileFiltering({
         (file) =>
           file.filename.toLowerCase().includes(query) ||
           file.contentType.toLowerCase().includes(query) ||
-          (file.metadata?.description?.toLowerCase().includes(query))
+          file.metadata?.description?.toLowerCase().includes(query),
       );
     }
 

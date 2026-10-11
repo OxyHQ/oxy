@@ -40,7 +40,9 @@ export default function LinkAccountConfirmScreen() {
   const { t } = useTranslation();
   const { oxyServices } = useOxy();
   const { createIdentity, syncIdentity } = useIdentity();
-  const setRecoveryPhraseAcknowledged = useIdentityStore((state) => state.setRecoveryPhraseAcknowledged);
+  const setRecoveryPhraseAcknowledged = useIdentityStore(
+    (state) => state.setRecoveryPhraseAcknowledged,
+  );
   const [revealed, setRevealed] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const { id, c } = useLocalSearchParams<{ id: string; c: string }>();
@@ -60,8 +62,8 @@ export default function LinkAccountConfirmScreen() {
 
   useEffect(() => {
     if (!id || !c) return;
-    oxyServices
-      .identity.links.get(id)
+    oxyServices.identity.links
+      .get(id)
       .then((state) =>
         setStep(
           state.status === 'pending' && Date.now() < state.expiresAt
@@ -78,7 +80,10 @@ export default function LinkAccountConfirmScreen() {
       const code = (error as { code?: unknown } | null)?.code;
       setStep({
         name: 'error',
-        message: code === IDENTITY_ERROR_CODES.rootAlreadyLinked ? t('linkAccount.alreadyLinked') : t('linkAccount.failed'),
+        message:
+          code === IDENTITY_ERROR_CODES.rootAlreadyLinked
+            ? t('linkAccount.alreadyLinked')
+            : t('linkAccount.failed'),
       });
     },
     [t],
@@ -134,7 +139,14 @@ export default function LinkAccountConfirmScreen() {
     }
   }, [createIdentity, finish, fail]);
 
-  const container = [styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }];
+  const container = [
+    styles.container,
+    {
+      backgroundColor: colors.background,
+      paddingTop: insets.top + 24,
+      paddingBottom: insets.bottom + 24,
+    },
+  ];
 
   switch (step.name) {
     case 'phrase':
@@ -163,13 +175,22 @@ export default function LinkAccountConfirmScreen() {
             <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
               {t('linkAccount.confirmTitle', { username: step.username ?? '' })}
             </Text>
-            <Text style={[styles.text, { color: colors.text }]}>{t('linkAccount.confirmBody')}</Text>
+            <Text style={[styles.text, { color: colors.text }]}>
+              {t('linkAccount.confirmBody')}
+            </Text>
           </View>
           <View style={styles.actions}>
-            <Button appearance="solid" tone="accent" onPress={() => void link()} testID="link-account-confirm">
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={() => void link()}
+              testID="link-account-confirm"
+            >
               {t('linkAccount.confirmAction')}
             </Button>
-            <Button appearance="subtle" onPress={() => router.back()}>{t('common.back')}</Button>
+            <Button appearance="subtle" onPress={() => router.back()}>
+              {t('common.back')}
+            </Button>
           </View>
         </View>
       );
@@ -177,7 +198,9 @@ export default function LinkAccountConfirmScreen() {
       return (
         <View style={container}>
           <View style={styles.body}>
-            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>{t('linkAccount.codeTitle')}</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>
+              {t('linkAccount.codeTitle')}
+            </Text>
             <Text style={[styles.text, { color: colors.text }]}>{t('linkAccount.codeBody')}</Text>
             <Text
               accessibilityLabel={step.code.split('').join(' ')}
@@ -197,13 +220,21 @@ export default function LinkAccountConfirmScreen() {
       return (
         <View style={container}>
           <View style={styles.body}>
-            <Text accessibilityRole="alert" style={[styles.text, { color: colors.error }]}>{step.message}</Text>
+            <Text accessibilityRole="alert" style={[styles.text, { color: colors.error }]}>
+              {step.message}
+            </Text>
           </View>
           <View style={styles.actions}>
-            <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/link-account/scan')}>
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={() => router.replace('/(auth)/link-account/scan')}
+            >
               {t('linkAccount.scanAgain')}
             </Button>
-            <Button appearance="subtle" onPress={() => router.replace('/(auth)/welcome')}>{t('common.back')}</Button>
+            <Button appearance="subtle" onPress={() => router.replace('/(auth)/welcome')}>
+              {t('common.back')}
+            </Button>
           </View>
         </View>
       );

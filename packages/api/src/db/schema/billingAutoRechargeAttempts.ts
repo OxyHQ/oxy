@@ -110,39 +110,36 @@ export const billingAutoRechargeAttempts = pgTable(
     // pre-check and the support view.
     index('billing_auto_recharge_attempts_account_created_at_idx').on(
       t.accountId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // The sweep's retry scan: attempts left `pending` by a crashed process.
     index('billing_auto_recharge_attempts_status_idx').on(t.status),
 
     check(
       'billing_auto_recharge_attempts_status_check',
-      sql`${t.status} in (${sql.raw(inList(AUTO_RECHARGE_STATUS_VALUES))})`
+      sql`${t.status} in (${sql.raw(inList(AUTO_RECHARGE_STATUS_VALUES))})`,
     ),
     check('billing_auto_recharge_attempts_currency_check', currencyCodeCheck(t.currency)),
     check('billing_auto_recharge_attempts_amount_check', sql`${t.requestedAmount} > 0`),
-    check(
-      'billing_auto_recharge_attempts_balance_check',
-      sql`${t.balanceAtTrigger} >= 0`
-    ),
+    check('billing_auto_recharge_attempts_balance_check', sql`${t.balanceAtTrigger} >= 0`),
     // A succeeded attempt names the charge it produced. Without this an attempt
     // could report success with nothing to reconcile against, which reads
     // exactly like a successful recharge that credited nothing.
     check(
       'billing_auto_recharge_attempts_success_ref_check',
-      sql`${t.status} <> 'succeeded' or ${t.externalRef} is not null`
+      sql`${t.status} <> 'succeeded' or ${t.externalRef} is not null`,
     ),
     // A failure code belongs to a failure. An implication rather than a
     // biconditional: a processor may refuse without naming a code.
     check(
       'billing_auto_recharge_attempts_failure_code_check',
-      sql`${t.failureCode} is null or ${t.status} = 'failed'`
+      sql`${t.failureCode} is null or ${t.status} = 'failed'`,
     ),
     check(
       'billing_auto_recharge_attempts_failure_code_length_check',
-      sql`${t.failureCode} is null or length(${t.failureCode}) between 1 and 64`
+      sql`${t.failureCode} is null or length(${t.failureCode}) between 1 and 64`,
     ),
-  ]
+  ],
 );
 
 export type BillingAutoRechargeAttemptRow = typeof billingAutoRechargeAttempts.$inferSelect;

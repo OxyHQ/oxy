@@ -15,7 +15,11 @@ import { userService } from '../services/user.service';
 import blockCache, { restrictCache } from '../utils/blockCache';
 import graphCache from '../utils/graphCache';
 import { validate } from '../middleware/validate';
-import { privacyUserIdParams, targetIdParams, privacySettingsSchema } from '../schemas/privacy.schemas';
+import {
+  privacyUserIdParams,
+  targetIdParams,
+  privacySettingsSchema,
+} from '../schemas/privacy.schemas';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -149,7 +153,7 @@ const createUserListHandler = (relation: UserRelation) =>
           name: { first: row.nameFirst ?? undefined, last: row.nameLast ?? undefined },
         },
         createdAt: row.createdAt,
-      }))
+      })),
     );
   });
 
@@ -222,10 +226,7 @@ const createUserActionHandler = (relation: UserRelation, actionName: string) =>
       // The block changed the blocker's cached `blockedIds`; invalidate both
       // sides' viewer graph (symmetric, like the blockCache busts above) so the
       // next `GET /users/me/graph` recomputes fresh truth.
-      await Promise.all([
-        graphCache.invalidate(authUser.id),
-        graphCache.invalidate(targetId),
-      ]);
+      await Promise.all([graphCache.invalidate(authUser.id), graphCache.invalidate(targetId)]);
     } else {
       // Restrict is asymmetric: only the restricter's media is hidden from the
       // restricted user, so bust the single (owner, viewer) cache key.
@@ -245,12 +246,17 @@ const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
     const authUser = (req as AuthenticatedRequest).user;
 
     if (!authUser?.id) {
-      throw new UnauthorizedError("Authentication required");
+      throw new UnauthorizedError('Authentication required');
     }
 
     const deleted = await getDb()
       .delete(relation.table)
-      .where(and(inArray(relation.owner, await getEquivalentUserIds(authUser.id)), inArray(relation.counterparty, await getEquivalentUserIds(targetId))))
+      .where(
+        and(
+          inArray(relation.owner, await getEquivalentUserIds(authUser.id)),
+          inArray(relation.counterparty, await getEquivalentUserIds(targetId)),
+        ),
+      )
       .returning({ id: relation.table.id });
 
     if (deleted.length === 0) {
@@ -266,16 +272,15 @@ const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
 
       // Symmetric to blockUser: the unblock changed the blocker's cached
       // `blockedIds`, so invalidate both sides' viewer graph.
-      await Promise.all([
-        graphCache.invalidate(authUser.id),
-        graphCache.invalidate(targetId),
-      ]);
+      await Promise.all([graphCache.invalidate(authUser.id), graphCache.invalidate(targetId)]);
     } else {
       restrictCache.invalidate(authUser.id, targetId);
       await graphCache.invalidate(authUser.id);
     }
 
-    res.json({ message: `User ${actionName === 'unblock' ? 'unblocked' : 'unrestricted'} successfully` });
+    res.json({
+      message: `User ${actionName === 'unblock' ? 'unblocked' : 'unrestricted'} successfully`,
+    });
   });
 
 // Blocked users handlers
@@ -326,7 +331,7 @@ const unrestrictUser = createUserRemoveHandler(RESTRICT_RELATION, 'unrestrict');
  *       404:
  *         description: User not found.
  */
-router.get("/:id/privacy", validate({ params: privacyUserIdParams }), getPrivacySettings);
+router.get('/:id/privacy', validate({ params: privacyUserIdParams }), getPrivacySettings);
 
 /**
  * @openapi
@@ -369,7 +374,7 @@ router.get("/:id/privacy", validate({ params: privacyUserIdParams }), getPrivacy
  *       403:
  *         description: Caller is not the owner.
  */
-router.patch("/:id/privacy", validate({ params: privacyUserIdParams }), updatePrivacySettings);
+router.patch('/:id/privacy', validate({ params: privacyUserIdParams }), updatePrivacySettings);
 
 /**
  * @openapi
@@ -383,7 +388,7 @@ router.patch("/:id/privacy", validate({ params: privacyUserIdParams }), updatePr
  *       200:
  *         description: List of blocked users.
  */
-router.get("/blocked", getBlockedUsers);
+router.get('/blocked', getBlockedUsers);
 
 /**
  * @openapi
@@ -413,7 +418,7 @@ router.get("/blocked", getBlockedUsers);
  *       409:
  *         description: Already blocked.
  */
-router.post("/blocked/:targetId", validate({ params: targetIdParams }), blockUser);
+router.post('/blocked/:targetId', validate({ params: targetIdParams }), blockUser);
 
 /**
  * @openapi
@@ -432,7 +437,7 @@ router.post("/blocked/:targetId", validate({ params: targetIdParams }), blockUse
  *       200:
  *         description: User unblocked.
  */
-router.delete("/blocked/:targetId", validate({ params: targetIdParams }), unblockUser);
+router.delete('/blocked/:targetId', validate({ params: targetIdParams }), unblockUser);
 
 /**
  * @openapi
@@ -446,7 +451,7 @@ router.delete("/blocked/:targetId", validate({ params: targetIdParams }), unbloc
  *       200:
  *         description: List of restricted users.
  */
-router.get("/restricted", getRestrictedUsers);
+router.get('/restricted', getRestrictedUsers);
 
 /**
  * @openapi
@@ -474,7 +479,7 @@ router.get("/restricted", getRestrictedUsers);
  *       409:
  *         description: Already restricted.
  */
-router.post("/restricted/:targetId", validate({ params: targetIdParams }), restrictUser);
+router.post('/restricted/:targetId', validate({ params: targetIdParams }), restrictUser);
 
 /**
  * @openapi
@@ -493,6 +498,6 @@ router.post("/restricted/:targetId", validate({ params: targetIdParams }), restr
  *       200:
  *         description: User unrestricted.
  */
-router.delete("/restricted/:targetId", validate({ params: targetIdParams }), unrestrictUser);
+router.delete('/restricted/:targetId', validate({ params: targetIdParams }), unrestrictUser);
 
 export default router;

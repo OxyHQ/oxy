@@ -184,7 +184,7 @@ export interface CostCenterPlan {
 export function computeCostCenterPlan(
   spec: InternalCostCenterSpec,
   observation: CostCenterObservation,
-  platformOwnerId: string
+  platformOwnerId: string,
 ): CostCenterPlan {
   const { costCenter, usernameHolder } = observation;
 
@@ -253,9 +253,6 @@ export function computeCostCenterPlan(
 
   return {
     action: { kind: 'adopt', accountId: usernameHolder.id },
-    changes: [
-      { field: 'account', from: ABSENT, to: usernameHolder.id },
-      ...labelling,
-    ],
+    changes: [{ field: 'account', from: ABSENT, to: usernameHolder.id }, ...labelling],
   };
 }

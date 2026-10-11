@@ -68,7 +68,7 @@ export function useEffectiveRoutingPolicy(applicationId: string, enabled: boolea
         'GET',
         `/inference/routing-policies/applications/${applicationId}`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!applicationId && enabled,
     staleTime: 1000 * 30,
@@ -93,7 +93,7 @@ export function useRoutingPolicyVersions(policyId: string | undefined, enabled: 
         'GET',
         `/inference/routing-policies/${policyId ?? ''}/versions`,
         undefined,
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!policyId && enabled,
     staleTime: 1000 * 30,
@@ -111,7 +111,7 @@ export function useRoutingPolicyVersions(policyId: string | undefined, enabled: 
 export function useRouteSwitchEvents(
   applicationId: string,
   limit: number = 50,
-  enabled: boolean = true
+  enabled: boolean = true,
 ) {
   const { oxyServices, isAuthenticated, isReady } = useAuth();
 
@@ -122,7 +122,7 @@ export function useRouteSwitchEvents(
         'GET',
         `/inference/routing-policies/applications/${applicationId}/route-switches`,
         { limit },
-        { cache: false }
+        { cache: false },
       ),
     enabled: isReady && isAuthenticated && !!applicationId && enabled,
     staleTime: 1000 * 30,
@@ -147,7 +147,7 @@ export function useCreateApplicationRoutingPolicy() {
         'POST',
         `/inference/routing-policies/applications/${applicationId}`,
         controls,
-        { retry: false }
+        { retry: false },
       ),
     onSuccess: (_policy, { applicationId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.effective(applicationId) });
@@ -179,7 +179,7 @@ export function useAppendRoutingPolicyVersion() {
         'POST',
         `/inference/routing-policies/${policyId}/versions`,
         controls,
-        { retry: false }
+        { retry: false },
       ),
     onSuccess: (_policy, { policyId, applicationId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.effective(applicationId) });
@@ -209,7 +209,7 @@ export function useArchiveRoutingPolicy() {
         'POST',
         `/inference/routing-policies/${policyId}/archive`,
         {},
-        { retry: false }
+        { retry: false },
       ),
     onSuccess: (_result, { policyId, applicationId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.effective(applicationId) });

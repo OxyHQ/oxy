@@ -6,7 +6,6 @@
 type PluginEntry = string | [string, unknown] | ((config: unknown) => unknown);
 
 function pluginNames(): string[] {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const appConfig = require('../../app.config.js') as { expo: { plugins: PluginEntry[] } };
   return appConfig.expo.plugins
     .map((entry) => (typeof entry === 'string' ? entry : Array.isArray(entry) ? entry[0] : null))

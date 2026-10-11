@@ -35,7 +35,9 @@ export const mcpOauthClients = pgTable(
     redirectUris: text().array().notNull(),
     grantTypes: text().array().notNull(),
     responseTypes: text().array().notNull(),
-    tokenEndpointAuthMethod: text({ enum: ['none'] }).notNull().default('none'),
+    tokenEndpointAuthMethod: text({ enum: ['none'] })
+      .notNull()
+      .default('none'),
     clientUri: text(),
     logoUri: text(),
     status: text({ enum: MCP_OAUTH_CLIENT_STATUSES }).notNull().default('active'),
@@ -59,10 +61,7 @@ export const mcpOauthClients = pgTable(
       'mcp_oauth_clients_response_types_check',
       sql`${t.responseTypes} = array['code']::text[]`,
     ),
-    check(
-      'mcp_oauth_clients_redirect_uris_check',
-      sql`cardinality(${t.redirectUris}) > 0`,
-    ),
+    check('mcp_oauth_clients_redirect_uris_check', sql`cardinality(${t.redirectUris}) > 0`),
   ],
 );
 
@@ -71,12 +70,18 @@ export const mcpOauthGrants = pgTable(
   {
     id: generatedId(),
     /** Principal who approved the connection. */
-    principalUserId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    principalUserId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     /** Agent credential bound at approval; never replaced on an existing grant. */
     authMethodId: text(),
     /** Exact Oxy account exposed through the MCP resource. */
-    effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
-    clientRecordId: text().notNull().references(() => mcpOauthClients.id, { onDelete: 'cascade' }),
+    effectiveAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    clientRecordId: text()
+      .notNull()
+      .references(() => mcpOauthClients.id, { onDelete: 'cascade' }),
     appSlug: text().notNull(),
     resource: text().notNull(),
     audience: text().notNull(),
@@ -87,9 +92,14 @@ export const mcpOauthGrants = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    foreignKey({ name: 'mcp_oauth_grants_principal_method_fk', columns: [t.authMethodId, t.principalUserId],
-      foreignColumns: [userAuthMethods.id, userAuthMethods.userId] }).onDelete('restrict'),
-    index('mcp_oauth_grants_auth_method_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
+    foreignKey({
+      name: 'mcp_oauth_grants_principal_method_fk',
+      columns: [t.authMethodId, t.principalUserId],
+      foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
+    }).onDelete('restrict'),
+    index('mcp_oauth_grants_auth_method_idx')
+      .on(t.authMethodId)
+      .where(sql`${t.authMethodId} is not null`),
     uniqueIndex('mcp_oauth_grants_active_key')
       .on(t.principalUserId, t.effectiveAccountId, t.clientRecordId, t.resource)
       .where(sql`${t.revokedAt} is null`),
@@ -104,7 +114,9 @@ export const mcpOauthAuthorizationCodes = pgTable(
     id: generatedId(),
     /** SHA-256 verifier of the opaque code; the bearer value is never stored. */
     codeHash: text().notNull(),
-    grantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     redirectUri: text().notNull(),
     codeChallenge: text().notNull(),
     resource: text().notNull(),
@@ -127,7 +139,9 @@ export const mcpOauthAccessTokens = pgTable(
     id: generatedId(),
     /** Signed JWT id used for live revocation checks. */
     jti: text().notNull(),
-    grantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     scopes: text().array().notNull().default(sql`'{}'::text[]`),
     expiresAt: timestamptz().notNull(),
     revokedAt: timestamptz(),
@@ -146,7 +160,9 @@ export const mcpOauthRefreshTokens = pgTable(
     id: generatedId(),
     /** SHA-256 verifier of the opaque refresh token; the bearer value is never stored. */
     tokenHash: text().notNull(),
-    grantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     /** Opaque token-family correlation key, not a row id. */
     familyKey: text().notNull(),
     parentTokenId: text().references((): AnyPgColumn => mcpOauthRefreshTokens.id, {
@@ -186,7 +202,9 @@ export const mcpOauthConnections = pgTable(
   {
     id: generatedId(),
     /** The grant the MCP client holds tokens for. One connection per grant. */
-    originGrantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    originGrantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     /**
      * Which member account the client is currently acting as. NULL means the
      * origin grant's account — the state every connection starts in, and the one
@@ -215,10 +233,16 @@ export const mcpOauthConnectionAccounts = pgTable(
   'mcp_oauth_connection_accounts',
   {
     id: generatedId(),
-    connectionId: text().notNull().references(() => mcpOauthConnections.id, { onDelete: 'cascade' }),
-    grantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    connectionId: text()
+      .notNull()
+      .references(() => mcpOauthConnections.id, { onDelete: 'cascade' }),
+    grantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     /** The account this membership exposes, denormalized for the listing read. */
-    accountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    accountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     /** True for the account whose OAuth tokens the client holds. */
     isOrigin: boolean().notNull().default(false),
     revokedAt: timestamptz(),
@@ -247,9 +271,13 @@ export const mcpOauthAccountLinkIntents = pgTable(
   'mcp_oauth_account_link_intents',
   {
     id: generatedId(),
-    connectionId: text().notNull().references(() => mcpOauthConnections.id, { onDelete: 'cascade' }),
+    connectionId: text()
+      .notNull()
+      .references(() => mcpOauthConnections.id, { onDelete: 'cascade' }),
     /** The grant whose access token asked for the link. */
-    requestedByGrantId: text().notNull().references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
+    requestedByGrantId: text()
+      .notNull()
+      .references(() => mcpOauthGrants.id, { onDelete: 'cascade' }),
     /**
      * SHA-256 verifier of the opaque value in the link URL; it is never stored.
      *

@@ -1,5 +1,9 @@
 import { createSurfaceNavStack } from '../surfaceNavStack';
-import { __resetSurfaceBackBridgeForTests, pushSurfaceBackHandler, __invokeTopSurfaceBackForTests } from '../surfaceBackBridge';
+import {
+  __resetSurfaceBackBridgeForTests,
+  pushSurfaceBackHandler,
+  __invokeTopSurfaceBackForTests,
+} from '../surfaceBackBridge';
 
 describe('createSurfaceNavStack', () => {
   it('starts with a single root frame', () => {
@@ -143,7 +147,9 @@ describe('createSurfaceNavStack', () => {
       await expect(inner).resolves.toBeUndefined();
       expect(stack.getTop().route).toBe('ChangeAvatar');
       let outerSettled = false;
-      void outer.then(() => { outerSettled = true; });
+      void outer.then(() => {
+        outerSettled = true;
+      });
       await Promise.resolve();
       expect(outerSettled).toBe(false);
     });

@@ -14,16 +14,23 @@ const BALANCE: ReputationBalance = {
   negative: -10,
   breakdown: { content: 5, social: 3, trust: 8, moderation: 0, physical: 25, penalties: 10 },
   trustTier: 'new',
-  influence: { defaultWeight: 1.4, reportWeight: 1.4, moderationWeight: 0.7, rankingFeedbackWeight: 1.1 },
-  reliability: { accurateReports: 9, rejectedReports: 1, reportAccuracyScore: 0.9, abuseScore: 0.05 },
+  influence: {
+    defaultWeight: 1.4,
+    reportWeight: 1.4,
+    moderationWeight: 0.7,
+    rankingFeedbackWeight: 1.1,
+  },
+  reliability: {
+    accurateReports: 9,
+    rejectedReports: 1,
+    reportAccuracyScore: 0.9,
+    abuseScore: 0.05,
+  },
   recalculatedAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
 
-function renderStanding(
-  balance: ReputationBalance,
-  isOffline = false,
-) {
+function renderStanding(balance: ReputationBalance, isOffline = false) {
   const sources = deriveReputationSources(balance.breakdown);
   return render(
     <LocaleProvider>

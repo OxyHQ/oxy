@@ -24,7 +24,13 @@ import type { StickerPackPage, StickersClient } from './client';
 
 const StickersContext = createContext<StickersClient | null>(null);
 
-export function StickersProvider({ client, children }: { client: StickersClient; children: ReactNode }) {
+export function StickersProvider({
+  client,
+  children,
+}: {
+  client: StickersClient;
+  children: ReactNode;
+}) {
   return <StickersContext.Provider value={client}>{children}</StickersContext.Provider>;
 }
 
@@ -59,7 +65,9 @@ export function useSticker(id: string | null | undefined): UseQueryResult<Sticke
 }
 
 /** One pack with every sticker. */
-export function useStickerPack(slug: string | null | undefined): UseQueryResult<StickerPack | null> {
+export function useStickerPack(
+  slug: string | null | undefined,
+): UseQueryResult<StickerPack | null> {
   const client = useStickersClient();
   return useQuery({
     queryKey: stickerKeys.pack(slug ?? ''),
@@ -70,7 +78,9 @@ export function useStickerPack(slug: string | null | undefined): UseQueryResult<
 }
 
 /** A page of the shop. */
-export function useStickerShop(options: { offset?: number; limit?: number } = {}): UseQueryResult<StickerPackPage> {
+export function useStickerShop(
+  options: { offset?: number; limit?: number } = {},
+): UseQueryResult<StickerPackPage> {
   const client = useStickersClient();
   const offset = options.offset ?? 0;
   const limit = options.limit ?? 24;
@@ -93,7 +103,9 @@ export function useStickerSearch(emoji: string | null | undefined): UseQueryResu
 }
 
 /** The signed-in person's picker. Pass `enabled: false` while signed out. */
-export function useInstalledStickerPacks(options: { enabled?: boolean } = {}): UseQueryResult<InstalledStickerPack[]> {
+export function useInstalledStickerPacks(
+  options: { enabled?: boolean } = {},
+): UseQueryResult<InstalledStickerPack[]> {
   const client = useStickersClient();
   return useQuery({
     queryKey: stickerKeys.installed,

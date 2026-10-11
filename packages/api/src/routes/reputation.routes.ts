@@ -31,7 +31,10 @@ import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId, validatePagination } from '../utils/validation';
 import { userIdentityFields } from '../utils/userTransform';
 import reputationService, { readMetadata } from '../services/reputation.service';
-import { REPUTATION_RULES_VERSION, type ReputationRuleDefinition } from '../services/reputationRules';
+import {
+  REPUTATION_RULES_VERSION,
+  type ReputationRuleDefinition,
+} from '../services/reputationRules';
 import {
   DEFAULT_TRANSACTION_LIMIT,
   MAX_TRANSACTION_LIMIT,
@@ -82,7 +85,7 @@ const awardLimiter = rateLimit({
 function authorizeServiceAward(
   req: ServiceAuthRequest,
   actionType: string,
-  sourceActionId: string | undefined
+  sourceActionId: string | undefined,
 ): void {
   const scopes = req.serviceApp?.scopes ?? [];
   if (scopes.includes(REQUIRED_AWARD_SCOPE)) {
@@ -90,7 +93,7 @@ function authorizeServiceAward(
   }
   if (!scopes.includes(LEASE_AWARD_SCOPE)) {
     throw new ForbiddenError(
-      `Missing required scope: ${REQUIRED_AWARD_SCOPE} or ${LEASE_AWARD_SCOPE}`
+      `Missing required scope: ${REQUIRED_AWARD_SCOPE} or ${LEASE_AWARD_SCOPE}`,
     );
   }
   if (!LEASE_ACTION_TYPES.has(actionType)) {
@@ -129,7 +132,7 @@ function authorizeServiceAward(
 
 /** Shape a transaction for the HTTP response. */
 function serializeTransaction(
-  txn: Awaited<ReturnType<typeof reputationService.listTransactions>>['items'][number]
+  txn: Awaited<ReturnType<typeof reputationService.listTransactions>>['items'][number],
 ): ReputationTransaction {
   // A nullable column reads as `null`; the contract spells an absent field
   // `undefined`. `?? undefined` at the boundary keeps `exactOptionalPropertyTypes`
@@ -168,7 +171,7 @@ function serializeTransaction(
  * total. None of that is public; third parties get {@link serializePublicBalance}.
  */
 function serializeBalance(
-  balance: Awaited<ReturnType<typeof reputationService.getBalance>>
+  balance: Awaited<ReturnType<typeof reputationService.getBalance>>,
 ): ReputationBalance {
   const dto: ReputationBalance = {
     userId: balance.userId,
@@ -230,7 +233,7 @@ function serializeBalance(
  * compile, because `ReputationBalanceSummary` does not declare it.
  */
 function serializePublicBalance(
-  balance: Awaited<ReturnType<typeof reputationService.getBalance>>
+  balance: Awaited<ReturnType<typeof reputationService.getBalance>>,
 ): ReputationBalanceSummary {
   const dto: ReputationBalanceSummary = {
     userId: balance.userId,
@@ -263,7 +266,7 @@ function serializeRule(rule: ReputationRuleDefinition): ReputationRule {
  */
 function serializeLeaderboardEntry(
   balance: Awaited<ReturnType<typeof reputationService.getLeaderboard>>['items'][number],
-  rank: number
+  rank: number,
 ): ReputationLeaderboardEntry {
   // `userIdentityFields` is the SOLE definition of `id`/`name`/`username`/
   // `avatar` for every user DTO and reads the flat `name_first`/`name_last`
@@ -287,7 +290,7 @@ function serializeLeaderboardEntry(
 
 /** Shape the influence read for the HTTP response. */
 function serializeInfluenceResult(
-  result: Awaited<ReturnType<typeof reputationService.getInfluence>>
+  result: Awaited<ReturnType<typeof reputationService.getInfluence>>,
 ): ReputationInfluenceResult {
   const dto: ReputationInfluenceResult = {
     context: result.context,
@@ -316,14 +319,14 @@ router.get(
       req.query.limit,
       req.query.offset,
       MAX_LEADERBOARD_LIMIT,
-      DEFAULT_LEADERBOARD_LIMIT
+      DEFAULT_LEADERBOARD_LIMIT,
     );
     const { items, total } = await reputationService.getLeaderboard(limit, offset);
     const formatted = items.map((balance, index) =>
-      serializeLeaderboardEntry(balance, offset + index + 1)
+      serializeLeaderboardEntry(balance, offset + index + 1),
     );
     sendPaginated(res, formatted, total, limit, offset);
-  })
+  }),
 );
 
 /** GET /reputation/rules — the rules in code, with their version. */
@@ -333,7 +336,7 @@ router.get(
   asyncHandler(async (_req, res) => {
     const rules = reputationService.listRules();
     sendSuccess(res, { version: REPUTATION_RULES_VERSION, rules: rules.map(serializeRule) });
-  })
+  }),
 );
 
 /**
@@ -356,9 +359,9 @@ router.get(
     const callerId = req.user?._id?.toString();
     sendSuccess(
       res,
-      callerId === userObjectId ? serializeBalance(balance) : serializePublicBalance(balance)
+      callerId === userObjectId ? serializeBalance(balance) : serializePublicBalance(balance),
     );
-  })
+  }),
 );
 
 // =============================================================================
@@ -405,7 +408,7 @@ router.post(
     });
 
     sendSuccess(res, { transaction: serializeTransaction(txn) }, 201);
-  })
+  }),
 );
 
 // =============================================================================
@@ -445,15 +448,11 @@ router.get(
       req.query.limit,
       req.query.offset,
       MAX_TRANSACTION_LIMIT,
-      DEFAULT_TRANSACTION_LIMIT
+      DEFAULT_TRANSACTION_LIMIT,
     );
-    const { items, total } = await reputationService.listTransactions(
-      userObjectId,
-      limit,
-      offset
-    );
+    const { items, total } = await reputationService.listTransactions(userObjectId, limit, offset);
     sendPaginated(res, items.map(serializeTransaction), total, limit, offset);
-  })
+  }),
 );
 
 /**
@@ -475,7 +474,7 @@ router.get(
     const context = (req.query.context as ReputationInfluenceContext | undefined) ?? 'default';
     const result = await reputationService.getInfluence(userObjectId, context);
     sendSuccess(res, serializeInfluenceResult(result));
-  })
+  }),
 );
 
 export default router;

@@ -22,7 +22,9 @@ jest.mock('../../services/civic/publicCard.service', () => ({
 }));
 // The civic route also wires POST /attestations; mock its deps so this card-only
 // suite does not transitively load the real service + model chain.
-jest.mock('../../services/civic/realLife.service', () => ({ submitRealLifeAttestation: jest.fn() }));
+jest.mock('../../services/civic/realLife.service', () => ({
+  submitRealLifeAttestation: jest.fn(),
+}));
 jest.mock('../../services/civic/validator.service', () => ({
   openValidationRequest: jest.fn(),
   submitVote: jest.fn(),
@@ -50,7 +52,9 @@ jest.mock('../../middleware/rateLimiter', () => ({
 jest.mock('../../middleware/validate', () => ({
   validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
+jest.mock('../../utils/validation', () => ({
+  isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id),
+}));
 
 import civicRoutes from '../civic';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -88,13 +92,22 @@ interface JsonResponse {
 async function request(server: http.Server, path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (c) => { raw += c; });
-      res.on('end', () =>
-        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {}, headers: res.headers }),
-      );
-    });
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      (res) => {
+        let raw = '';
+        res.on('data', (c) => {
+          raw += c;
+        });
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body: raw.length ? JSON.parse(raw) : {},
+            headers: res.headers,
+          }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -109,8 +122,12 @@ beforeAll((done) => {
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1', done);
 });
-afterAll((done) => { server.close(done); });
-beforeEach(() => { jest.clearAllMocks(); });
+afterAll((done) => {
+  server.close(done);
+});
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 describe('GET /civic/:userId/card', () => {
   it('returns { card, attestation } with the signature present', async () => {
@@ -119,7 +136,10 @@ describe('GET /civic/:userId/card', () => {
     const res = await request(server, `/civic/${USER_ID}/card`);
 
     expect(res.status).toBe(200);
-    expect(res.body.card).toMatchObject({ did: `did:web:oxy.so:u:${USER_ID}`, trustTier: 'trusted' });
+    expect(res.body.card).toMatchObject({
+      did: `did:web:oxy.so:u:${USER_ID}`,
+      trustTier: 'trusted',
+    });
     expect((res.body.attestation as { signature?: string }).signature).toBe('deadbeef');
     // Public + CORS-open + cacheable.
     expect(res.headers['access-control-allow-origin']).toBe('*');

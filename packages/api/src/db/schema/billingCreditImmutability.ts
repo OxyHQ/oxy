@@ -20,5 +20,5 @@ END;
 $$;
 --> statement-breakpoint
 CREATE TRIGGER billing_credit_grants_guard BEFORE UPDATE OR DELETE ON billing_credit_grants FOR EACH ROW EXECUTE FUNCTION billing_credit_grant_guard();
-${['billing_credit_invoices','billing_credit_spends','billing_credit_consumptions','billing_credit_refund_observations'].map(table => `--> statement-breakpoint\nCREATE TRIGGER ${table}_immutable BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION billing_credit_immutable_history();`).join('\n')}
+${['billing_credit_invoices', 'billing_credit_spends', 'billing_credit_consumptions', 'billing_credit_refund_observations'].map((table) => `--> statement-breakpoint\nCREATE TRIGGER ${table}_immutable BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION billing_credit_immutable_history();`).join('\n')}
 `;

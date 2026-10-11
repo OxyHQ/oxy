@@ -45,12 +45,18 @@ import {
 import { emailFilters, incompleteEmailFilters } from '../db/schema/emailFilters';
 import { emailTemplates } from '../db/schema/emailTemplates';
 import { labels as labelsTable } from '../db/schema/labels';
-import { emailUnsubscribedSenders, type EmailUnsubscribeMethod } from '../db/schema/emailUnsubscribedSenders';
+import {
+  emailUnsubscribedSenders,
+  type EmailUnsubscribeMethod,
+} from '../db/schema/emailUnsubscribedSenders';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messageAttachments, type MessageAttachment } from '../db/schema/messageAttachments';
 import { messageRecipients } from '../db/schema/messageRecipients';
 import { messages, type EmailAddress, type MessageHighlight } from '../db/schema/messages';
-import { MESSAGES_PROTECTED_COLUMNS, PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import {
+  MESSAGES_PROTECTED_COLUMNS,
+  PROTECTED_COLUMNS_BY_TABLE,
+} from '../db/schema/protectedColumns';
 import { reminders } from '../db/schema/reminders';
 import { billingSubscriptions } from '../db/schema/billingSubscriptions';
 import { users } from '../db/schema/users';
@@ -110,18 +116,27 @@ function decodeEmailPageCursor(value: string, kind: EmailPageCursor['kind']): Em
     throw new BadRequestError('Invalid email pagination cursor');
   }
 
-  if (!parsed || typeof parsed !== 'object' || (parsed as { version?: unknown }).version !== 1 ||
-      (parsed as { kind?: unknown }).kind !== kind) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    (parsed as { version?: unknown }).version !== 1 ||
+    (parsed as { kind?: unknown }).kind !== kind
+  ) {
     throw new BadRequestError('Invalid email pagination cursor');
   }
 
   const candidate = parsed as Record<string, unknown>;
-  if (typeof candidate.date !== 'string' || Number.isNaN(Date.parse(candidate.date)) ||
-      typeof candidate.id !== 'string' || candidate.id.length === 0) {
+  if (
+    typeof candidate.date !== 'string' ||
+    Number.isNaN(Date.parse(candidate.date)) ||
+    typeof candidate.id !== 'string' ||
+    candidate.id.length === 0
+  ) {
     throw new BadRequestError('Invalid email pagination cursor');
   }
   if (kind === 'messages') {
-    if (typeof candidate.pinned !== 'boolean') throw new BadRequestError('Invalid email pagination cursor');
+    if (typeof candidate.pinned !== 'boolean')
+      throw new BadRequestError('Invalid email pagination cursor');
     return parsed as EmailPageCursor;
   }
   if (typeof candidate.rank !== 'number' || !Number.isFinite(candidate.rank)) {
@@ -231,7 +246,8 @@ function unquoteSearchValue(value: string): string {
   const trimmed = value.trim();
   if (
     trimmed.length >= 2 &&
-    ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'")))
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
   ) {
     return trimmed.slice(1, -1);
   }
@@ -292,13 +308,20 @@ async function renameLabelReferences(
         eq(emailFilterActions.value, from),
         inArray(
           emailFilterActions.filterId,
-          tx.select({ id: emailFilters.id }).from(emailFilters).where(eq(emailFilters.userId, userId)),
+          tx
+            .select({ id: emailFilters.id })
+            .from(emailFilters)
+            .where(eq(emailFilters.userId, userId)),
         ),
       ),
     );
 
   const searches = await tx
-    .select({ id: emailSavedSearches.id, query: emailSavedSearches.query, filters: emailSavedSearches.filters })
+    .select({
+      id: emailSavedSearches.id,
+      query: emailSavedSearches.query,
+      filters: emailSavedSearches.filters,
+    })
     .from(emailSavedSearches)
     .where(eq(emailSavedSearches.userId, userId));
   for (const search of searches) {
@@ -706,7 +729,10 @@ async function loadAttachments(
  * so the two shapes are not assignable to each other — the conversion belongs
  * at the boundary, once, rather than as a `.map()` at every send site.
  */
-async function loadOutboundAttachments(db: Database, messageId: string): Promise<MessageAttachment[]> {
+async function loadOutboundAttachments(
+  db: Database,
+  messageId: string,
+): Promise<MessageAttachment[]> {
   const rows = await db
     .select({
       fileId: messageAttachments.fileId,
@@ -1093,7 +1119,9 @@ function toContactDto(row: typeof contacts.$inferSelect): ContactDto {
 async function loadSenderIdentity(
   db: Database,
   userId: string,
-): Promise<{ username: string | null; name: { first: string | null; last: string | null } } | undefined> {
+): Promise<
+  { username: string | null; name: { first: string | null; last: string | null } } | undefined
+> {
   const [row] = await db
     .select({ username: users.username, first: users.nameFirst, last: users.nameLast })
     .from(users)
@@ -1172,7 +1200,6 @@ async function readMessageDto(db: Database, messageId: string): Promise<MessageD
   return dto;
 }
 
-
 /** What an address filter condition is compared with: each address, each name, and both together. */
 function addressCandidates(list: { name?: string | null; address: string }[]): string[] {
   return list.flatMap(({ name, address }) => {
@@ -1236,11 +1263,15 @@ class EmailService {
         await this.createWelcomeEmail(userId, inbox.id);
       }
     } catch (err) {
-      logger.error('Failed to create welcome email', err instanceof Error ? err : new Error(String(err)), {
-        component: 'EmailService',
-        method: 'provisionMailboxes',
-        userId,
-      });
+      logger.error(
+        'Failed to create welcome email',
+        err instanceof Error ? err : new Error(String(err)),
+        {
+          component: 'EmailService',
+          method: 'provisionMailboxes',
+          userId,
+        },
+      );
     }
 
     return this.listMailboxes(userId);
@@ -1253,8 +1284,20 @@ class EmailService {
   // ─── Default Labels ──────────────────────────────────────────────
 
   private static readonly DEFAULT_BUNDLES = [
-    { name: 'Promotions', icon: 'tag-outline', color: '#34A853', matchLabels: ['Shopping'], order: 0 },
-    { name: 'Social', icon: 'account-group-outline', color: '#E8710A', matchLabels: ['Social'], order: 1 },
+    {
+      name: 'Promotions',
+      icon: 'tag-outline',
+      color: '#34A853',
+      matchLabels: ['Shopping'],
+      order: 0,
+    },
+    {
+      name: 'Social',
+      icon: 'account-group-outline',
+      color: '#E8710A',
+      matchLabels: ['Social'],
+      order: 1,
+    },
     { name: 'Updates', icon: 'bell-outline', color: '#607D8B', matchLabels: ['Updates'], order: 2 },
     { name: 'Forums', icon: 'forum-outline', color: '#795548', matchLabels: ['Forums'], order: 3 },
   ];
@@ -1272,7 +1315,9 @@ class EmailService {
 
     // Sync missing default mailboxes (e.g., Archive added after user created)
     const existingSpecialUse = new Set(existing.map((m) => m.specialUse).filter(Boolean));
-    const missing = DEFAULT_MAILBOXES.filter((mb) => mb.specialUse && !existingSpecialUse.has(mb.specialUse));
+    const missing = DEFAULT_MAILBOXES.filter(
+      (mb) => mb.specialUse && !existingSpecialUse.has(mb.specialUse),
+    );
 
     if (missing.length > 0) {
       await db.insert(mailboxes).values(
@@ -1300,7 +1345,9 @@ class EmailService {
     const emailName = resolveEmailFromName(user);
     const displayName = emailName || 'there';
     const recipientName = emailName;
-    const recipientAddress = user.username ? resolveEmailAddress(user.username) : `${userId}@${EMAIL_DOMAIN}`;
+    const recipientAddress = user.username
+      ? resolveEmailAddress(user.username)
+      : `${userId}@${EMAIL_DOMAIN}`;
 
     const subject = 'Welcome to Inbox by Oxy';
     const text = [
@@ -1722,13 +1769,36 @@ class EmailService {
   async listMessages(
     userId: string,
     mailboxId: string | null,
-    options: { limit?: number; offset?: number; cursor?: string; unseenOnly?: boolean; starred?: boolean; label?: string } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
-    const { limit = 50, offset = 0, cursor: cursorToken, unseenOnly = false, starred = false, label } = options;
+    options: {
+      limit?: number;
+      offset?: number;
+      cursor?: string;
+      unseenOnly?: boolean;
+      starred?: boolean;
+      label?: string;
+    } = {},
+  ): Promise<{
+    data: MessageDto[];
+    total: number;
+    limit: number;
+    offset: number;
+    nextCursor?: string | null;
+  }> {
+    const {
+      limit = 50,
+      offset = 0,
+      cursor: cursorToken,
+      unseenOnly = false,
+      starred = false,
+      label,
+    } = options;
     const db = getDb();
     const cursorMode = cursorToken !== undefined;
     const cursor = cursorToken
-      ? decodeEmailPageCursor(cursorToken, 'messages') as Extract<EmailPageCursor, { kind: 'messages' }>
+      ? (decodeEmailPageCursor(cursorToken, 'messages') as Extract<
+          EmailPageCursor,
+          { kind: 'messages' }
+        >)
       : null;
 
     const baseWhere = and(
@@ -1741,16 +1811,18 @@ class EmailService {
     const where = and(
       baseWhere,
       ...(cursor
-        ? [or(
-            lt(messages.pinned, cursor.pinned),
-            and(
-              eq(messages.pinned, cursor.pinned),
-              or(
-                lt(messages.date, new Date(cursor.date)),
-                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+        ? [
+            or(
+              lt(messages.pinned, cursor.pinned),
+              and(
+                eq(messages.pinned, cursor.pinned),
+                or(
+                  lt(messages.date, new Date(cursor.date)),
+                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+                ),
               ),
             ),
-          )]
+          ]
         : []),
     );
 
@@ -1765,7 +1837,9 @@ class EmailService {
       db.select({ total: sql<number>`count(*)::int` }).from(messages).where(baseWhere),
     ]);
 
-    const hasMore = cursorMode ? fetchedRows.length > limit : offset + limit < (countRow?.total ?? 0);
+    const hasMore = cursorMode
+      ? fetchedRows.length > limit
+      : offset + limit < (countRow?.total ?? 0);
     const rows = cursorMode ? fetchedRows.slice(0, limit) : fetchedRows;
     const data = await toMessageDtos(db, rows);
     await this.attachThreadMetadata(userId, data);
@@ -1779,15 +1853,16 @@ class EmailService {
       offset: cursorMode ? 0 : offset,
       ...(cursorMode
         ? {
-            nextCursor: hasMore && last
-              ? encodeEmailPageCursor({
-                  version: 1,
-                  kind: 'messages',
-                  pinned: last.pinned,
-                  date: last.date.toISOString(),
-                  id: last.id,
-                })
-              : null,
+            nextCursor:
+              hasMore && last
+                ? encodeEmailPageCursor({
+                    version: 1,
+                    kind: 'messages',
+                    pinned: last.pinned,
+                    date: last.date.toISOString(),
+                    id: last.id,
+                  })
+                : null,
           }
         : {}),
     };
@@ -1876,7 +1951,10 @@ class EmailService {
   }
 
   /** Read an idempotent outbound message by its RFC Message-ID. */
-  async findMessageByRfcMessageId(userId: string, rfcMessageId: string): Promise<MessageDto | null> {
+  async findMessageByRfcMessageId(
+    userId: string,
+    rfcMessageId: string,
+  ): Promise<MessageDto | null> {
     const [row] = await getDb()
       .select({ id: messages.id })
       .from(messages)
@@ -1894,16 +1972,17 @@ class EmailService {
   async updateMessageFlags(
     userId: string,
     messageId: string,
-    flags: Partial<MessageFlagsDto>
+    flags: Partial<MessageFlagsDto>,
   ): Promise<MessageDto> {
     const db = getDb();
     const owned = and(eq(messages.id, messageId), eq(messages.userId, userId));
 
     // An empty flag set is a no-op read, not an error. Drizzle refuses a `set`
     // with no columns, and Mongo refused an empty `$set` too.
-    const [updated] = Object.keys(flags).length === 0
-      ? await db.select({ id: messages.id }).from(messages).where(owned).limit(1)
-      : await db.update(messages).set(flags).where(owned).returning({ id: messages.id });
+    const [updated] =
+      Object.keys(flags).length === 0
+        ? await db.select({ id: messages.id }).from(messages).where(owned).limit(1)
+        : await db.update(messages).set(flags).where(owned).returning({ id: messages.id });
 
     if (!updated) {
       throw new NotFoundError('Message not found');
@@ -1919,7 +1998,11 @@ class EmailService {
     return dto;
   }
 
-  async moveMessage(userId: string, messageId: string, targetMailboxId: string): Promise<MessageDto> {
+  async moveMessage(
+    userId: string,
+    messageId: string,
+    targetMailboxId: string,
+  ): Promise<MessageDto> {
     const db = getDb();
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
@@ -1970,7 +2053,10 @@ class EmailService {
   ): Promise<string | null> {
     const sentId = headers[OXY_SENT_ID_HEADER.toLowerCase()]?.trim();
     if (!sentId) return null;
-    if (extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !== recipientUsername.trim().toLowerCase()) {
+    if (
+      extractUsername(fromAddress.trim().toLowerCase())?.toLowerCase() !==
+      recipientUsername.trim().toLowerCase()
+    ) {
       return null;
     }
     const sent = await this.getMailboxBySpecialUse(userId, '\\Sent');
@@ -1978,7 +2064,13 @@ class EmailService {
     const [original] = await getDb()
       .select({ id: messages.id })
       .from(messages)
-      .where(and(eq(messages.userId, userId), eq(messages.mailboxId, sent.id), eq(messages.messageId, sentId)))
+      .where(
+        and(
+          eq(messages.userId, userId),
+          eq(messages.mailboxId, sent.id),
+          eq(messages.messageId, sentId),
+        ),
+      )
       .limit(1);
     return original?.id ?? null;
   }
@@ -1993,7 +2085,7 @@ class EmailService {
   async bulkUpdateMessageFlags(
     userId: string,
     messageIds: string[],
-    flags: Partial<MessageFlagsDto>
+    flags: Partial<MessageFlagsDto>,
   ): Promise<{ matchedCount: number; modifiedCount: number }> {
     if (messageIds.length === 0) return { matchedCount: 0, modifiedCount: 0 };
     const db = getDb();
@@ -2042,7 +2134,7 @@ class EmailService {
   async bulkMoveMessages(
     userId: string,
     messageIds: string[],
-    targetMailboxId: string
+    targetMailboxId: string,
   ): Promise<{ matchedCount: number; modifiedCount: number }> {
     const targetMailbox = await this.getMailboxById(userId, targetMailboxId);
     if (!targetMailbox) throw new NotFoundError('Target mailbox not found');
@@ -2205,7 +2297,7 @@ class EmailService {
           att.contentType,
           att.filename,
           'private',
-          { source: 'email-inbound' }
+          { source: 'email-inbound' },
         );
         storedAttachments.push({
           fileId: file.id,
@@ -2219,11 +2311,14 @@ class EmailService {
       }
     }
 
-    const totalSize =
-      params.rawSize +
-      storedAttachments.reduce((sum, a) => sum + a.size, 0);
+    const totalSize = params.rawSize + storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
-    const sentCopyOf = await this.findOwnSentOriginal(userId, params.recipientUsername, params.from.address, params.headers);
+    const sentCopyOf = await this.findOwnSentOriginal(
+      userId,
+      params.recipientUsername,
+      params.from.address,
+      params.headers,
+    );
 
     const receivedAt = new Date();
     const storedMessageId = await insertMessageWithChildren(
@@ -2319,7 +2414,10 @@ class EmailService {
     try {
       await this.applyFilters(userId, storedMessageId);
     } catch (err) {
-      logger.warn('Email filter application failed', { messageId: storedMessageId, error: String(err) });
+      logger.warn('Email filter application failed', {
+        messageId: storedMessageId,
+        error: String(err),
+      });
     }
 
     // Fire-and-forget global auto-forwarding (non-blocking, only for non-spam)
@@ -2466,7 +2564,7 @@ class EmailService {
       attachments?: MessageAttachment[];
       existingDraftId?: string;
       expectedRevision?: number;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2504,7 +2602,9 @@ class EmailService {
               eq(messages.id, existingDraftId),
               eq(messages.userId, userId),
               eq(messages.draft, true),
-              ...(draft.expectedRevision === undefined ? [] : [eq(messages.draftRevision, draft.expectedRevision)]),
+              ...(draft.expectedRevision === undefined
+                ? []
+                : [eq(messages.draftRevision, draft.expectedRevision)]),
             ),
           )
           .returning({ id: messages.id });
@@ -2546,7 +2646,13 @@ class EmailService {
         const [current] = await db
           .select({ draftRevision: messages.draftRevision })
           .from(messages)
-          .where(and(eq(messages.id, existingDraftId), eq(messages.userId, userId), eq(messages.draft, true)))
+          .where(
+            and(
+              eq(messages.id, existingDraftId),
+              eq(messages.userId, userId),
+              eq(messages.draft, true),
+            ),
+          )
           .limit(1);
         if (current) {
           throw new ConflictError('Draft changed on another device', {
@@ -2612,7 +2718,7 @@ class EmailService {
       references?: string[];
       attachments?: MessageAttachment[];
       size: number;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2664,7 +2770,11 @@ class EmailService {
   async snoozeMessage(userId: string, messageId: string, until: Date): Promise<MessageDto> {
     const db = getDb();
     const [message] = await db
-      .select({ id: messages.id, mailboxId: messages.mailboxId, snoozedUntil: messages.snoozedUntil })
+      .select({
+        id: messages.id,
+        mailboxId: messages.mailboxId,
+        snoozedUntil: messages.snoozedUntil,
+      })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
@@ -2742,9 +2852,13 @@ class EmailService {
         await this.unsnoozeMessage(msg.userId, msg.id);
         count++;
       } catch (err) {
-        logger.error('Failed to unsnooze message', err instanceof Error ? err : new Error(String(err)), {
-          messageId: msg.id,
-        });
+        logger.error(
+          'Failed to unsnooze message',
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            messageId: msg.id,
+          },
+        );
       }
     }
 
@@ -2775,7 +2889,7 @@ class EmailService {
       attachments?: MessageAttachment[];
       idempotencyKey?: string;
       scheduledAt: Date;
-    }
+    },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
     const db = getDb();
@@ -2877,12 +2991,19 @@ class EmailService {
         });
 
         // Clear scheduledAt to mark as sent
-        await db.update(messages).set({ scheduledAt: null, relayMessageId }).where(eq(messages.id, msg.id));
+        await db
+          .update(messages)
+          .set({ scheduledAt: null, relayMessageId })
+          .where(eq(messages.id, msg.id));
         count++;
       } catch (err) {
-        logger.error('Failed to send scheduled message', err instanceof Error ? err : new Error(String(err)), {
-          messageId: msg.id,
-        });
+        logger.error(
+          'Failed to send scheduled message',
+          err instanceof Error ? err : new Error(String(err)),
+          {
+            messageId: msg.id,
+          },
+        );
       }
     }
 
@@ -2933,7 +3054,12 @@ class EmailService {
     const rows = await db
       .select(MESSAGE_COLUMNS_WITH_BODY)
       .from(messages)
-      .where(inArray(messages.id, memberRows.map((row) => row.id)))
+      .where(
+        inArray(
+          messages.id,
+          memberRows.map((row) => row.id),
+        ),
+      )
       .orderBy(asc(messages.date), asc(messages.id));
 
     // A message the user sent to a list that included themselves arrives back
@@ -2942,9 +3068,7 @@ class EmailService {
     const shown = rows.filter((row) => row.sentCopyOf === null || !memberIds.has(row.sentCopyOf));
 
     const thread = await toMessageDtos(db, shown);
-    const stableThreadId = memberRows
-      .map((row) => row.id)
-      .sort()[0];
+    const stableThreadId = memberRows.map((row) => row.id).sort()[0];
     if (stableThreadId) {
       for (const message of thread) message.threadId = stableThreadId;
     }
@@ -3017,7 +3141,11 @@ class EmailService {
    * longer be removed from anything. So a rename rewrites every reference in the
    * same transaction as the row, under a lock on that row.
    */
-  async updateLabel(userId: string, labelId: string, updates: { name?: string; color?: string }): Promise<LabelDto> {
+  async updateLabel(
+    userId: string,
+    labelId: string,
+    updates: { name?: string; color?: string },
+  ): Promise<LabelDto> {
     if (isSystemLabelId(labelId)) throw new BadRequestError('System labels cannot be edited');
     if (updates.name && isSystemLabel(updates.name)) {
       throw new ConflictError(`Label "${updates.name.trim()}" already exists`);
@@ -3106,10 +3234,7 @@ class EmailService {
         .update(messages)
         .set({ labels: sql`array_remove(${messages.labels}, ${label.name})` })
         .where(
-          and(
-            eq(messages.userId, userId),
-            sql`${messages.labels} @> array[${label.name}]::text[]`,
-          ),
+          and(eq(messages.userId, userId), sql`${messages.labels} @> array[${label.name}]::text[]`),
         )
         .returning({ mailboxId: messages.mailboxId });
       await tx.delete(labelsTable).where(eq(labelsTable.id, labelId));
@@ -3215,14 +3340,17 @@ class EmailService {
    * owns it and a violation rolls the whole rule back rather than leaving a rule
    * that silently matches everything or does nothing.
    */
-  async createFilter(userId: string, data: {
-    name: string;
-    enabled: boolean;
-    conditions: FilterConditionInput[];
-    matchAll: boolean;
-    actions: FilterActionInput[];
-    order: number;
-  }): Promise<FilterDto> {
+  async createFilter(
+    userId: string,
+    data: {
+      name: string;
+      enabled: boolean;
+      conditions: FilterConditionInput[];
+      matchAll: boolean;
+      actions: FilterActionInput[];
+      order: number;
+    },
+  ): Promise<FilterDto> {
     const db = getDb();
     const [countRow] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -3246,9 +3374,7 @@ class EmailService {
       return filter.id;
     });
 
-    const [dto] = await loadFilterChildren(db, [
-      await readFilterRow(db, userId, filterId),
-    ]);
+    const [dto] = await loadFilterChildren(db, [await readFilterRow(db, userId, filterId)]);
     return dto;
   }
 
@@ -3282,9 +3408,7 @@ class EmailService {
       // A child list is REPLACED, never merged — the request carries the whole
       // ordered list, exactly as Mongo's `$set` of the array did.
       if (conditions) {
-        await tx
-          .delete(emailFilterConditions)
-          .where(eq(emailFilterConditions.filterId, filterId));
+        await tx.delete(emailFilterConditions).where(eq(emailFilterConditions.filterId, filterId));
       }
       if (actions) {
         await tx.delete(emailFilterActions).where(eq(emailFilterActions.filterId, filterId));
@@ -3395,9 +3519,7 @@ class EmailService {
         break;
       case 'has-attachment':
         // For has-attachment, operator is 'equals' and value is 'true' or 'false'
-        return value === 'true'
-          ? message.attachmentCount > 0
-          : message.attachmentCount === 0;
+        return value === 'true' ? message.attachmentCount > 0 : message.attachmentCount === 0;
       case 'size':
         return this.evaluateNumericCondition(message.size, operator, value);
       default:
@@ -3555,7 +3677,8 @@ class EmailService {
     const fromAddress = resolveEmailAddress(user.username);
     const fromName = resolveEmailFromName(user);
 
-    const recipients = (await loadRecipients(db, [message.id])).get(message.id) ?? emptyRecipients();
+    const recipients =
+      (await loadRecipients(db, [message.id])).get(message.id) ?? emptyRecipients();
     const attachments = await loadOutboundAttachments(db, message.id);
 
     // Build forwarded subject
@@ -3786,7 +3909,7 @@ class EmailService {
             att.contentType,
             att.filename,
             'private',
-            { source: 'email-import' }
+            { source: 'email-import' },
           );
           storedAttachments.push({
             fileId: uploadedFile.id,
@@ -3886,11 +4009,36 @@ class EmailService {
       label?: string;
       seen?: boolean;
       cursor?: string;
-    } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
-    const { limit = 50, offset = 0, cursor: cursorToken, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
+    } = {},
+  ): Promise<{
+    data: MessageDto[];
+    total: number;
+    limit: number;
+    offset: number;
+    nextCursor?: string | null;
+  }> {
+    const {
+      limit = 50,
+      offset = 0,
+      cursor: cursorToken,
+      mailboxId,
+      from,
+      to,
+      subject,
+      hasAttachment,
+      dateAfter,
+      dateBefore,
+      starred,
+      label,
+      seen,
+    } = options;
     const cursorMode = cursorToken !== undefined;
-    const cursor = cursorToken ? decodeEmailPageCursor(cursorToken, 'search') as Extract<EmailPageCursor, { kind: 'search' }> : null;
+    const cursor = cursorToken
+      ? (decodeEmailPageCursor(cursorToken, 'search') as Extract<
+          EmailPageCursor,
+          { kind: 'search' }
+        >)
+      : null;
 
     const fromFilter = normalizeStructuredSearchFilter(from);
     const toFilter = normalizeStructuredSearchFilter(to);
@@ -3944,21 +4092,23 @@ class EmailService {
     const where = and(
       baseWhere,
       ...(cursor
-        ? [tsQuery && rankExpression
-            ? or(
-                sql`${rankExpression} < ${cursor.rank}`,
-                and(
-                  sql`${rankExpression} = ${cursor.rank}`,
-                  or(
-                    lt(messages.date, new Date(cursor.date)),
-                    and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+        ? [
+            tsQuery && rankExpression
+              ? or(
+                  sql`${rankExpression} < ${cursor.rank}`,
+                  and(
+                    sql`${rankExpression} = ${cursor.rank}`,
+                    or(
+                      lt(messages.date, new Date(cursor.date)),
+                      and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+                    ),
                   ),
+                )
+              : or(
+                  lt(messages.date, new Date(cursor.date)),
+                  and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
                 ),
-              )
-            : or(
-                lt(messages.date, new Date(cursor.date)),
-                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
-              )]
+          ]
         : []),
     );
 
@@ -3978,9 +4128,7 @@ class EmailService {
         .orderBy(
           ...(rankExpression
             ? [
-                desc(
-                  rankExpression,
-                ),
+                desc(rankExpression),
                 // A total order: equal ranks must not shuffle between pages.
                 desc(messages.date),
                 desc(messages.id),
@@ -4001,7 +4149,9 @@ class EmailService {
     const hasMore = cursorMode ? rows.length > limit : offset + limit < total;
     const pageRows = cursorMode ? rows.slice(0, limit) : rows;
     const data = await toMessageDtos(getDb(), pageRows);
-    const last = pageRows.at(-1) as (typeof pageRows)[number] & { searchRank?: number } | undefined;
+    const last = pageRows.at(-1) as
+      | ((typeof pageRows)[number] & { searchRank?: number })
+      | undefined;
     return {
       data,
       total,
@@ -4009,15 +4159,16 @@ class EmailService {
       offset: cursorMode ? 0 : offset,
       ...(cursorMode
         ? {
-            nextCursor: hasMore && last
-              ? encodeEmailPageCursor({
-                  version: 1,
-                  kind: 'search',
-                  rank: Number(last.searchRank ?? 0),
-                  date: last.date.toISOString(),
-                  id: last.id,
-                })
-              : null,
+            nextCursor:
+              hasMore && last
+                ? encodeEmailPageCursor({
+                    version: 1,
+                    kind: 'search',
+                    rank: Number(last.searchRank ?? 0),
+                    date: last.date.toISOString(),
+                    id: last.id,
+                  })
+                : null,
           }
         : {}),
     };
@@ -4041,12 +4192,15 @@ class EmailService {
       .orderBy(asc(emailSavedSearches.order), asc(emailSavedSearches.createdAt));
   }
 
-  async createSavedSearch(userId: string, input: {
-    name: string;
-    query: string;
-    filters: SavedEmailSearchFilters;
-    order?: number;
-  }) {
+  async createSavedSearch(
+    userId: string,
+    input: {
+      name: string;
+      query: string;
+      filters: SavedEmailSearchFilters;
+      order?: number;
+    },
+  ) {
     const [created] = await getDb()
       .insert(emailSavedSearches)
       .values({
@@ -4086,7 +4240,9 @@ class EmailService {
    * definition — every message belongs to exactly one of that user's mailboxes
    * — and it cannot drift from what is actually stored, which the counter could.
    */
-  async getQuotaUsage(userId: string): Promise<{ used: number; limit: number; percentage: number }> {
+  async getQuotaUsage(
+    userId: string,
+  ): Promise<{ used: number; limit: number; percentage: number }> {
     const [row] = await getDb()
       .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
       .from(messages)
@@ -4165,7 +4321,13 @@ class EmailService {
 
   async getEmailSettings(userId: string): Promise<{
     signature?: string;
-    autoReply?: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date };
+    autoReply?: {
+      enabled: boolean;
+      subject?: string;
+      body?: string;
+      startDate?: Date;
+      endDate?: Date;
+    };
     autoForwardTo?: string;
     autoForwardKeepCopy?: boolean;
     address: string;
@@ -4193,7 +4355,13 @@ class EmailService {
     // The auto-reply sub-document is five columns now; it is reassembled here
     // so the wire keeps the nested object, and each optional part is omitted
     // when NULL exactly as an unset Mongo sub-field was.
-    const autoReply: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date } = {
+    const autoReply: {
+      enabled: boolean;
+      subject?: string;
+      body?: string;
+      startDate?: Date;
+      endDate?: Date;
+    } = {
       enabled: user.autoReplyEnabled,
     };
     if (user.autoReplySubject !== null) autoReply.subject = user.autoReplySubject;
@@ -4214,10 +4382,16 @@ class EmailService {
     userId: string,
     settings: {
       signature?: string;
-      autoReply?: { enabled: boolean; subject?: string; body?: string; startDate?: Date; endDate?: Date };
+      autoReply?: {
+        enabled: boolean;
+        subject?: string;
+        body?: string;
+        startDate?: Date;
+        endDate?: Date;
+      };
       autoForwardTo?: string;
       autoForwardKeepCopy?: boolean;
-    }
+    },
   ): Promise<void> {
     const update: Partial<typeof users.$inferInsert> = {};
     if (settings.signature !== undefined) update.emailSignature = settings.signature;
@@ -4231,7 +4405,8 @@ class EmailService {
       update.autoReplyEndDate = settings.autoReply.endDate ?? null;
     }
     if (settings.autoForwardTo !== undefined) update.autoForwardTo = settings.autoForwardTo;
-    if (settings.autoForwardKeepCopy !== undefined) update.autoForwardKeepCopy = settings.autoForwardKeepCopy;
+    if (settings.autoForwardKeepCopy !== undefined)
+      update.autoForwardKeepCopy = settings.autoForwardKeepCopy;
 
     if (Object.keys(update).length > 0) {
       await getDb().update(users).set(update).where(eq(users.id, userId));
@@ -4304,10 +4479,7 @@ class EmailService {
       .select({ id: mailboxes.id })
       .from(mailboxes)
       .where(
-        and(
-          eq(mailboxes.userId, userId),
-          inArray(mailboxes.specialUse, ['\\Inbox', '\\Archive']),
-        ),
+        and(eq(mailboxes.userId, userId), inArray(mailboxes.specialUse, ['\\Inbox', '\\Archive'])),
       );
     const mailboxIds = receivedMailboxes.map((m) => m.id);
 
@@ -4381,7 +4553,12 @@ class EmailService {
     const latestMessages = await db
       .select({ id: messages.id, headers: messages.headers })
       .from(messages)
-      .where(inArray(messages.id, senders.map((s) => s.latest_message_id)));
+      .where(
+        inArray(
+          messages.id,
+          senders.map((s) => s.latest_message_id),
+        ),
+      );
 
     const unsubscribedRows = await db
       .select({
@@ -4392,10 +4569,15 @@ class EmailService {
       .where(
         and(
           eq(emailUnsubscribedSenders.userId, userId),
-          inArray(emailUnsubscribedSenders.senderAddress, senders.map((s) => s.address)),
+          inArray(
+            emailUnsubscribedSenders.senderAddress,
+            senders.map((s) => s.address),
+          ),
         ),
       );
-    const unsubscribedAtBySender = new Map(unsubscribedRows.map((row) => [row.senderAddress, row.unsubscribedAt]));
+    const unsubscribedAtBySender = new Map(
+      unsubscribedRows.map((row) => [row.senderAddress, row.unsubscribedAt]),
+    );
 
     const headerMap = new Map<string, Record<string, string>>();
     for (const msg of latestMessages) {
@@ -4466,7 +4648,10 @@ class EmailService {
     const normalizedSender = senderAddress.trim().toLowerCase();
 
     const [already] = await db
-      .select({ method: emailUnsubscribedSenders.method, unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt })
+      .select({
+        method: emailUnsubscribedSenders.method,
+        unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt,
+      })
       .from(emailUnsubscribedSenders)
       .where(
         and(
@@ -4476,7 +4661,12 @@ class EmailService {
       )
       .limit(1);
     if (already && method !== 'block') {
-      return { success: true, method: already.method, unsubscribedAt: already.unsubscribedAt, alreadyUnsubscribed: true };
+      return {
+        success: true,
+        method: already.method,
+        unsubscribedAt: already.unsubscribedAt,
+        alreadyUnsubscribed: true,
+      };
     }
 
     const done = async (performed: EmailUnsubscribeMethod): Promise<UnsubscribeResultDto> => {
@@ -4490,7 +4680,12 @@ class EmailService {
           set: { method: performed, updatedAt: new Date() },
         })
         .returning({ unsubscribedAt: emailUnsubscribedSenders.unsubscribedAt });
-      return { success: true, method: performed, unsubscribedAt: row.unsubscribedAt, alreadyUnsubscribed: Boolean(already) };
+      return {
+        success: true,
+        method: performed,
+        unsubscribedAt: row.unsubscribedAt,
+        alreadyUnsubscribed: Boolean(already),
+      };
     };
 
     if (method === 'list-unsubscribe') {
@@ -4579,7 +4774,9 @@ class EmailService {
       }
 
       // Fall through to block if List-Unsubscribe methods fail
-      logger.info('No List-Unsubscribe available, falling back to block', { sender: senderAddress });
+      logger.info('No List-Unsubscribe available, falling back to block', {
+        sender: senderAddress,
+      });
     }
 
     // Block sender: move all messages from this sender to Spam.
@@ -4704,7 +4901,10 @@ class EmailService {
    * storeSentMessage), while inbound/import link by the Mongo _id. Unlinking
    * is a no-op when a link doesn't exist, so we clear both.
    */
-  private async deleteMessageAttachments(message: { id: string; messageId: string }): Promise<void> {
+  private async deleteMessageAttachments(message: {
+    id: string;
+    messageId: string;
+  }): Promise<void> {
     const fileIds = await getDb()
       .select({ fileId: messageAttachments.fileId })
       .from(messageAttachments)
@@ -4721,10 +4921,14 @@ class EmailService {
         try {
           await assetService.unlinkFile(fileId, 'oxy-mail', 'message', entityId);
         } catch (error) {
-          logger.error('Failed to unlink attachment file from message', error instanceof Error ? error : new Error(String(error)), {
-            fileId,
-            entityId,
-          });
+          logger.error(
+            'Failed to unlink attachment file from message',
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              fileId,
+              entityId,
+            },
+          );
         }
       }
     }
@@ -4820,9 +5024,10 @@ class EmailService {
     const db = getDb();
     const owned = and(eq(bundles.id, bundleId), eq(bundles.userId, userId));
 
-    const [bundle] = Object.keys(updates).length === 0
-      ? await db.select().from(bundles).where(owned).limit(1)
-      : await db.update(bundles).set(updates).where(owned).returning();
+    const [bundle] =
+      Object.keys(updates).length === 0
+        ? await db.select().from(bundles).where(owned).limit(1)
+        : await db.update(bundles).set(updates).where(owned).returning();
     if (!bundle) throw new NotFoundError('Bundle not found');
     return toBundleDto(bundle);
   }
@@ -4961,7 +5166,13 @@ class EmailService {
   async updateReminder(
     userId: string,
     reminderId: string,
-    updates: { text?: string; remindAt?: string; completed?: boolean; pinned?: boolean; snoozedUntil?: string | null },
+    updates: {
+      text?: string;
+      remindAt?: string;
+      completed?: boolean;
+      pinned?: boolean;
+      snoozedUntil?: string | null;
+    },
   ): Promise<ReminderDto> {
     const db = getDb();
     const updateData: Partial<typeof reminders.$inferInsert> = {};
@@ -4974,9 +5185,10 @@ class EmailService {
     }
 
     const owned = and(eq(reminders.id, reminderId), eq(reminders.userId, userId));
-    const [reminder] = Object.keys(updateData).length === 0
-      ? await db.select().from(reminders).where(owned).limit(1)
-      : await db.update(reminders).set(updateData).where(owned).returning();
+    const [reminder] =
+      Object.keys(updateData).length === 0
+        ? await db.select().from(reminders).where(owned).limit(1)
+        : await db.update(reminders).set(updateData).where(owned).returning();
     if (!reminder) throw new NotFoundError('Reminder not found');
     return toReminderDto(reminder);
   }
@@ -5029,7 +5241,10 @@ class EmailService {
     return rows.map(toTemplateDto);
   }
 
-  async createTemplate(userId: string, data: { name: string; subject?: string; body: string }): Promise<EmailTemplateDto> {
+  async createTemplate(
+    userId: string,
+    data: { name: string; subject?: string; body: string },
+  ): Promise<EmailTemplateDto> {
     const db = getDb();
     // `lower(name)`, matching `email_templates_user_id_lower_name_key` — the
     // Postgres form of Mongo's `strength: 2` collation.
@@ -5063,7 +5278,11 @@ class EmailService {
     return toTemplateDto(template);
   }
 
-  async updateTemplate(userId: string, templateId: string, updates: { name?: string; subject?: string; body?: string }): Promise<EmailTemplateDto> {
+  async updateTemplate(
+    userId: string,
+    templateId: string,
+    updates: { name?: string; subject?: string; body?: string },
+  ): Promise<EmailTemplateDto> {
     const db = getDb();
     const cleanUpdates: Partial<typeof emailTemplates.$inferInsert> = {};
     if (updates.name !== undefined) cleanUpdates.name = updates.name.trim();
@@ -5071,9 +5290,10 @@ class EmailService {
     if (updates.body !== undefined) cleanUpdates.body = updates.body;
 
     const owned = and(eq(emailTemplates.id, templateId), eq(emailTemplates.userId, userId));
-    const [template] = Object.keys(cleanUpdates).length === 0
-      ? await db.select().from(emailTemplates).where(owned).limit(1)
-      : await db.update(emailTemplates).set(cleanUpdates).where(owned).returning();
+    const [template] =
+      Object.keys(cleanUpdates).length === 0
+        ? await db.select().from(emailTemplates).where(owned).limit(1)
+        : await db.update(emailTemplates).set(cleanUpdates).where(owned).returning();
     if (!template) throw new NotFoundError('Template not found');
     return toTemplateDto(template);
   }
@@ -5195,9 +5415,10 @@ class EmailService {
     if (updates.starred !== undefined) updateData.starred = updates.starred;
 
     const owned = and(eq(contacts.id, contactId), eq(contacts.userId, userId));
-    const [contact] = Object.keys(updateData).length === 0
-      ? await db.select().from(contacts).where(owned).limit(1)
-      : await db.update(contacts).set(updateData).where(owned).returning();
+    const [contact] =
+      Object.keys(updateData).length === 0
+        ? await db.select().from(contacts).where(owned).limit(1)
+        : await db.update(contacts).set(updateData).where(owned).returning();
     if (!contact) throw new NotFoundError('Contact not found');
     return toContactDto(contact);
   }

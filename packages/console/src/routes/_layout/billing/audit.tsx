@@ -61,7 +61,7 @@ function BillingAuditPage() {
   // which a client-side sort would be a second, disagreeing definition of.
   const entries = useMemo(
     () => (query.data?.pages ?? []).flatMap((page) => page.data),
-    [query.data]
+    [query.data],
   );
 
   const refused = !canRead || (query.isError && isPermissionRefused(query.error));

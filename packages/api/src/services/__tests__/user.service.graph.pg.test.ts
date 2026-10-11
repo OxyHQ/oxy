@@ -91,8 +91,7 @@ describe('follow-graph pagination is a strict total order', () => {
     // agree), and deliberately assigned OUT of insertion order. That is what
     // makes the assertion below discriminating: heap order is insertion order,
     // so a page that is merely "in heap order" cannot also be in edge-id order.
-    const edgeIdFor = (index: number) =>
-      String((index * 7) % FOLLOWER_COUNT).padStart(24, '0');
+    const edgeIdFor = (index: number) => String((index * 7) % FOLLOWER_COUNT).padStart(24, '0');
 
     const tiedAt = new Date('2026-03-01T12:00:00.000Z');
     await getDb()
@@ -104,7 +103,7 @@ describe('follow-graph pagination is a strict total order', () => {
           followedId: targetId,
           createdAt: tiedAt,
           updatedAt: tiedAt,
-        }))
+        })),
       );
 
     byEdgeIdAscending = followerIds
@@ -113,46 +112,44 @@ describe('follow-graph pagination is a strict total order', () => {
       .map((entry) => entry.followerId);
   });
 
-  it.each([
-    ['recent' as const],
-    ['oldest' as const],
-  ])('pages %s without duplicating or skipping a tied row', async (sort) => {
-    const seen: string[] = [];
-    for (let offset = 0; offset < FOLLOWER_COUNT; offset += PAGE_SIZE) {
-      const page = await userService.getUserFollowers(targetId, {
-        limit: PAGE_SIZE,
-        offset,
-        sort,
-      });
-      expect(page.total).toBe(FOLLOWER_COUNT);
-      for (const row of page.data) {
-        expect(row.id).toBeDefined();
-        seen.push(row.id as string);
+  it.each([['recent' as const], ['oldest' as const]])(
+    'pages %s without duplicating or skipping a tied row',
+    async (sort) => {
+      const seen: string[] = [];
+      for (let offset = 0; offset < FOLLOWER_COUNT; offset += PAGE_SIZE) {
+        const page = await userService.getUserFollowers(targetId, {
+          limit: PAGE_SIZE,
+          offset,
+          sort,
+        });
+        expect(page.total).toBe(FOLLOWER_COUNT);
+        for (const row of page.data) {
+          expect(row.id).toBeDefined();
+          seen.push(row.id as string);
+        }
       }
-    }
 
-    // The two properties a partial order violates: no id twice, and none lost.
-    expect(new Set(seen).size).toBe(FOLLOWER_COUNT);
-    expect([...seen].sort()).toEqual([...followerIds].sort());
+      // The two properties a partial order violates: no id twice, and none lost.
+      expect(new Set(seen).size).toBe(FOLLOWER_COUNT);
+      expect([...seen].sort()).toEqual([...followerIds].sort());
 
-    // ...and the property that DISCRIMINATES. Set equality alone is too weak:
-    // with every `created_at` tied, Postgres returns a small heap in insertion
-    // order, so dropping the tiebreak still yields disjoint pages and the two
-    // assertions above pass against the exact bug. The edge ids were assigned
-    // out of insertion order, so ONLY the tiebreak can produce this sequence.
-    expect(seen).toEqual(
-      sort === 'oldest' ? byEdgeIdAscending : [...byEdgeIdAscending].reverse()
-    );
-  });
+      // ...and the property that DISCRIMINATES. Set equality alone is too weak:
+      // with every `created_at` tied, Postgres returns a small heap in insertion
+      // order, so dropping the tiebreak still yields disjoint pages and the two
+      // assertions above pass against the exact bug. The edge ids were assigned
+      // out of insertion order, so ONLY the tiebreak can produce this sequence.
+      expect(seen).toEqual(
+        sort === 'oldest' ? byEdgeIdAscending : [...byEdgeIdAscending].reverse(),
+      );
+    },
+  );
 
   it('orders `oldest` as the exact reverse of `recent`', async () => {
     const [recent, oldest] = await Promise.all([
       userService.getUserFollowers(targetId, { limit: FOLLOWER_COUNT, sort: 'recent' }),
       userService.getUserFollowers(targetId, { limit: FOLLOWER_COUNT, sort: 'oldest' }),
     ]);
-    expect(recent.data.map((row) => row.id)).toEqual(
-      oldest.data.map((row) => row.id).reverse()
-    );
+    expect(recent.data.map((row) => row.id)).toEqual(oldest.data.map((row) => row.id).reverse());
   });
 
   it('excludes an archived counterparty from BOTH the page and the total', async () => {
@@ -334,16 +331,14 @@ describe('public user DTO parity', () => {
       federationActorUri: 'https://remote.test/users/ada',
       federationDomain: 'remote.test',
     });
-    await getDb()
-      .insert(userLinkMetadata)
-      .values({
-        userId: id,
-        position: 0,
-        url: 'https://example.test',
-        title: 'Example',
-        description: 'An example',
-        image: null,
-      });
+    await getDb().insert(userLinkMetadata).values({
+      userId: id,
+      position: 0,
+      url: 'https://example.test',
+      title: 'Example',
+      description: 'An example',
+      image: null,
+    });
 
     const view = await userService.getPublicUserById(id);
     expect(view).not.toBeNull();
@@ -403,11 +398,9 @@ describe('public user DTO parity', () => {
 
     const view = await userService.getCurrentUser(id);
     expect(view).not.toBeNull();
-    const self = userService.formatUserResponse(
-      view as NonNullable<typeof view>,
-      undefined,
-      { includePrivateFields: true }
-    );
+    const self = userService.formatUserResponse(view as NonNullable<typeof view>, undefined, {
+      includePrivateFields: true,
+    });
     expect(self.phone).toBe('+34600000000');
     expect(self.address).toBe('1 Test Street');
     expect(self.birthday).toBe('1990-01-01');
@@ -471,7 +464,7 @@ describe('contact hashes stay generated and unreachable', () => {
     const view = await userService.getPublicUserById(id);
     expect(view).not.toHaveProperty('hashedEmail');
     expect(userService.formatUserResponse(view as NonNullable<typeof view>)).not.toHaveProperty(
-      'hashedEmail'
+      'hashedEmail',
     );
   });
 });
@@ -582,7 +575,7 @@ describe('profile writes', () => {
     await expect(
       userService.updateUserProfile(id, {
         username: (otherRow.username as string).toUpperCase(),
-      })
+      }),
     ).rejects.toThrow('Username already exists');
   });
 

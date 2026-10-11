@@ -128,7 +128,12 @@ export class FollowsApi {
 
   /** Follow a user. */
   async follow(userId: string): Promise<FollowMutationResult> {
-    const result = await this.ctx.request<FollowMutationResult>('POST', `/users/${userId}/follow`, undefined, { cache: false });
+    const result = await this.ctx.request<FollowMutationResult>(
+      'POST',
+      `/users/${userId}/follow`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate([userId]);
     return result;
   }
@@ -136,14 +141,24 @@ export class FollowsApi {
   /** Follow many users in one request (the server caps it at 200). */
   async followMany(userIds: string[]): Promise<BulkFollowResult> {
     if (userIds.length === 0) return { results: [], followedCount: 0 };
-    const result = await this.ctx.request<BulkFollowResult>('POST', '/users/follow/bulk', { userIds }, { cache: false });
+    const result = await this.ctx.request<BulkFollowResult>(
+      'POST',
+      '/users/follow/bulk',
+      { userIds },
+      { cache: false },
+    );
     this.invalidate(userIds);
     return result;
   }
 
   /** Unfollow a user. */
   async unfollow(userId: string): Promise<FollowMutationResult> {
-    const result = await this.ctx.request<FollowMutationResult>('DELETE', `/users/${userId}/follow`, undefined, { cache: false });
+    const result = await this.ctx.request<FollowMutationResult>(
+      'DELETE',
+      `/users/${userId}/follow`,
+      undefined,
+      { cache: false },
+    );
     this.invalidate([userId]);
     return result;
   }
@@ -151,14 +166,22 @@ export class FollowsApi {
   /** Unfollow many users in one request (the server caps it at 200). */
   async unfollowMany(userIds: string[]): Promise<BulkUnfollowResult> {
     if (userIds.length === 0) return { results: [], unfollowedCount: 0 };
-    const result = await this.ctx.request<BulkUnfollowResult>('POST', '/users/unfollow/bulk', { userIds }, { cache: false });
+    const result = await this.ctx.request<BulkUnfollowResult>(
+      'POST',
+      '/users/unfollow/bulk',
+      { userIds },
+      { cache: false },
+    );
     this.invalidate(userIds);
     return result;
   }
 
   /** Whether the signed-in user follows `userId`. Cached 1 minute, busted by every write. */
   async status(userId: string): Promise<{ isFollowing: boolean }> {
-    return this.ctx.request('GET', `/users/${userId}/follow-status`, undefined, { cache: true, cacheTTL: STATUS_TTL });
+    return this.ctx.request('GET', `/users/${userId}/follow-status`, undefined, {
+      cache: true,
+      cacheTTL: STATUS_TTL,
+    });
   }
 
   /**
@@ -222,10 +245,15 @@ export class FollowsApi {
    * Signed out: `[]`. Cached 2 minutes.
    */
   async mutualIds(params?: { limit?: number }): Promise<string[]> {
-    const response = await this.ctx.request<{ data: string[] }>('GET', '/users/mutual-ids', buildPaginationParams(params ?? {}), {
-      cache: true,
-      cacheTTL: GRAPH_TTL,
-    });
+    const response = await this.ctx.request<{ data: string[] }>(
+      'GET',
+      '/users/mutual-ids',
+      buildPaginationParams(params ?? {}),
+      {
+        cache: true,
+        cacheTTL: GRAPH_TTL,
+      },
+    );
     return response.data || [];
   }
 
@@ -249,10 +277,15 @@ export class FollowsApi {
    * Cached 2 minutes; follow, block and restrict writes bust it.
    */
   async viewerGraph(): Promise<ViewerGraph> {
-    const response = await this.ctx.request<{ data: ViewerGraph }>('GET', '/users/me/graph', undefined, {
-      cache: true,
-      cacheTTL: GRAPH_TTL,
-    });
+    const response = await this.ctx.request<{ data: ViewerGraph }>(
+      'GET',
+      '/users/me/graph',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: GRAPH_TTL,
+      },
+    );
     const graph = response.data;
     return {
       followingIds: graph?.followingIds || [],
@@ -284,9 +317,14 @@ export class FollowsApi {
    * 'disabled')`.) Idempotent: `removed: false` when already gone.
    */
   async unfollowTarget(relationshipId: string): Promise<UnfollowMutation> {
-    return this.ctx.request<UnfollowMutation>('DELETE', `/v2/follows/${encodeURIComponent(relationshipId)}`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<UnfollowMutation>(
+      'DELETE',
+      `/v2/follows/${encodeURIComponent(relationshipId)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /**
@@ -294,9 +332,14 @@ export class FollowsApi {
    * `effectiveState`; keep the other two for the explanation.
    */
   async targetStatus(targetId: string): Promise<FollowStatus> {
-    return this.ctx.request<FollowStatus>('GET', `/v2/follows/${encodeURIComponent(targetId)}/status`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request<FollowStatus>(
+      'GET',
+      `/v2/follows/${encodeURIComponent(targetId)}/status`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /**
@@ -334,13 +377,20 @@ export class FollowsApi {
    * on the URI, so two applications describing the same thing reach ONE row.
    * `metadata` is a display snapshot refreshed only by the providing app.
    */
-  async ensureTarget(input: EnsureFollowTargetInput): Promise<{ id: string; uri: string; kind: string; created: boolean }> {
+  async ensureTarget(
+    input: EnsureFollowTargetInput,
+  ): Promise<{ id: string; uri: string; kind: string; created: boolean }> {
     return this.ctx.request('POST', '/v2/follow-targets', input, { cache: false });
   }
 
   /** Claim a namespace for the calling application (first come; idempotent for the holder). */
   async claimNamespace(namespace: string): Promise<{ namespace: string; created: boolean }> {
-    return this.ctx.request('POST', '/v2/follow-targets/namespaces', { namespace }, { cache: false });
+    return this.ctx.request(
+      'POST',
+      '/v2/follow-targets/namespaces',
+      { namespace },
+      { cache: false },
+    );
   }
 
   /**
@@ -348,9 +398,14 @@ export class FollowsApi {
    * registered in it. Idempotent (`released: false` when already unowned).
    */
   async releaseNamespace(namespace: string): Promise<{ namespace: string; released: boolean }> {
-    return this.ctx.request('DELETE', `/v2/follow-targets/namespaces/${encodeURIComponent(namespace)}`, undefined, {
-      cache: false,
-    });
+    return this.ctx.request(
+      'DELETE',
+      `/v2/follow-targets/namespaces/${encodeURIComponent(namespace)}`,
+      undefined,
+      {
+        cache: false,
+      },
+    );
   }
 
   /**
@@ -380,13 +435,15 @@ export class FollowsApi {
     path: string,
     params?: FollowGraphParams,
   ): Promise<{ data: User[]; total: number; hasMore: boolean }> {
-    const response = await this.ctx.request<{ data: User[]; pagination: { total: number; hasMore: boolean } }>(
-      'GET',
-      path,
-      buildQueryParams(params ?? {}),
-      { cache: true, cacheTTL: GRAPH_TTL },
-    );
-    return { data: response.data || [], total: response.pagination.total, hasMore: response.pagination.hasMore };
+    const response = await this.ctx.request<{
+      data: User[];
+      pagination: { total: number; hasMore: boolean };
+    }>('GET', path, buildQueryParams(params ?? {}), { cache: true, cacheTTL: GRAPH_TTL });
+    return {
+      data: response.data || [],
+      total: response.pagination.total,
+      hasMore: response.pagination.hasMore,
+    };
   }
 
   /**

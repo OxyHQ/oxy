@@ -41,7 +41,7 @@ jest.mock('../../middleware/auth', () => ({
       oxyToken?: { principalUserId: string };
     },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: currentUserId, id: currentUserId, isStaff: false };
     if (!sessionMissing && !sessionUnreadable) {
@@ -77,7 +77,12 @@ let sessionMissing = false;
 let sessionUnreadable = false;
 let spoofedOperatorId = '';
 
-beforeEach(() => { currentOperatorId = null; sessionMissing = false; sessionUnreadable = false; spoofedOperatorId = ''; });
+beforeEach(() => {
+  currentOperatorId = null;
+  sessionMissing = false;
+  sessionUnreadable = false;
+  spoofedOperatorId = '';
+});
 
 interface JsonResponse {
   status: number;
@@ -113,7 +118,7 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -127,7 +132,7 @@ function tag(): string {
 
 async function seedAccount(
   kind: 'personal' | 'organization' | 'project',
-  parentAccountId?: string
+  parentAccountId?: string,
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
@@ -167,13 +172,15 @@ async function seedApplication(ownerAccountId: string): Promise<string> {
     .insert(applications)
     .values({ name: `App ${tag()}`, ownerAccountId })
     .returning({ id: applications.id });
-  await getDb().insert(applicationCredentials).values({
-    applicationId: row.id,
-    name: 'test',
-    publicKey: `oxy_dk_${crypto.randomBytes(16).toString('hex')}`,
-    type: 'service',
-    environment: 'production',
-  });
+  await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: row.id,
+      name: 'test',
+      publicKey: `oxy_dk_${crypto.randomBytes(16).toString('hex')}`,
+      type: 'service',
+      environment: 'production',
+    });
   return row.id;
 }
 
@@ -254,22 +261,26 @@ describe("a project-only member cannot read the organization's financial history
   it('refuses the invoice list through the project id', async () => {
     const graph = await seedGraph();
     currentUserId = graph.projectAdminId;
-    expect((await request('GET', `/billing/accounts/${graph.projectId}/invoices`)).status).toBe(404);
+    expect((await request('GET', `/billing/accounts/${graph.projectId}/invoices`)).status).toBe(
+      404,
+    );
 
     currentUserId = graph.organizationAdminId;
-    expect((await request('GET', `/billing/accounts/${graph.projectId}/invoices`)).status).toBe(200);
+    expect((await request('GET', `/billing/accounts/${graph.projectId}/invoices`)).status).toBe(
+      200,
+    );
   });
 
   it("refuses the auto-recharge history — what was charged to the organization's card", async () => {
     const graph = await seedGraph();
     currentUserId = graph.projectAdminId;
     expect(
-      (await request('GET', `/billing/accounts/${graph.projectId}/auto-recharge`)).status
+      (await request('GET', `/billing/accounts/${graph.projectId}/auto-recharge`)).status,
     ).toBe(404);
 
     currentUserId = graph.organizationAdminId;
     expect(
-      (await request('GET', `/billing/accounts/${graph.projectId}/auto-recharge`)).status
+      (await request('GET', `/billing/accounts/${graph.projectId}/auto-recharge`)).status,
     ).toBe(200);
   });
 });
@@ -333,16 +344,18 @@ describe('managed-session billing uses the verified operator membership', () => 
     currentOperatorId = stranger;
     expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(404);
   });
-  it.each(['missing', 'unreadable'] as const)('fails closed for a %s operator session', async (failure) => {
-    const { workspace, operator } = await managedBillingFixture();
-    currentUserId = workspace;
-    currentOperatorId = operator;
-    sessionMissing = failure === 'missing';
-    sessionUnreadable = failure === 'unreadable';
-    expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(404);
-  });
+  it.each(['missing', 'unreadable'] as const)(
+    'fails closed for a %s operator session',
+    async (failure) => {
+      const { workspace, operator } = await managedBillingFixture();
+      currentUserId = workspace;
+      currentOperatorId = operator;
+      sessionMissing = failure === 'missing';
+      sessionUnreadable = failure === 'unreadable';
+      expect((await request('GET', `/billing/accounts/${workspace}`)).status).toBe(404);
+    },
+  );
 });
-
 
 describe('managed-session billing writes retain account and staff gates', () => {
   it('allows a billing:manage operator to provision only the requested workspace', async () => {
@@ -351,9 +364,16 @@ describe('managed-session billing writes retain account and staff gates', () => 
     currentOperatorId = operator;
     const response = await request('POST', `/billing/accounts/${workspace}`, {});
     expect(response.status).toBe(201);
-    expect(response.body.data).toMatchObject({ billingAccountId: workspace,
-      inherited: false, profile: { accountId: workspace, currency: 'USD', billingMode: 'prepaid',
-        autoRecharge: { enabled: false } } });
+    expect(response.body.data).toMatchObject({
+      billingAccountId: workspace,
+      inherited: false,
+      profile: {
+        accountId: workspace,
+        currency: 'USD',
+        billingMode: 'prepaid',
+        autoRecharge: { enabled: false },
+      },
+    });
   });
   it('refuses provision by an unrelated operator despite a spoofed member header', async () => {
     const { workspace, operator, stranger } = await managedBillingFixture();
@@ -366,14 +386,22 @@ describe('managed-session billing writes retain account and staff gates', () => 
   });
   it('does not confer staff on a managed subject even when its operator is staff', async () => {
     const workspace = await seedAccount('organization');
-    const [operator] = await getDb().insert(users)
+    const [operator] = await getDb()
+      .insert(users)
       .values({ username: `bill-staff-${tag()}`, kind: 'personal', isStaff: true })
       .returning({ id: users.id });
     await seedMember(workspace, operator.id);
     currentUserId = workspace;
     currentOperatorId = operator.id;
-    expect((await request('POST', `/billing/accounts/${workspace}/grants`,
-      { amount: '0.01', currency: 'USD', idempotencyKey: `own-fixture-${tag()}` })).status).toBe(403);
+    expect(
+      (
+        await request('POST', `/billing/accounts/${workspace}/grants`, {
+          amount: '0.01',
+          currency: 'USD',
+          idempotencyKey: `own-fixture-${tag()}`,
+        })
+      ).status,
+    ).toBe(403);
     expect((await request('GET', `/billing/accounts/${workspace}`)).body.data).toBeNull();
   });
 });

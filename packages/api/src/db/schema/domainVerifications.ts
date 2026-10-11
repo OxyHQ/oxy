@@ -66,11 +66,11 @@ export const domainVerifications = pgTable(
     // tokens where the model promises one.
     uniqueIndex('domain_verifications_user_id_lower_domain_key').on(
       t.userId,
-      sql`lower(${t.domain})`
+      sql`lower(${t.domain})`,
     ),
     // Supports the expiry sweep in `db/expiry.ts`.
     index('domain_verifications_expires_at_idx').on(t.expiresAt),
     // Mongo's field-level `{userId: 1}` is dropped: the compound unique above
     // leads with `user_id`, and a btree serves any leading prefix.
-  ]
+  ],
 );

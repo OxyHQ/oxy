@@ -14,9 +14,10 @@ describe('auth.registerKey', () => {
 
   it('posts the username with the key, signature, timestamp and proof-of-work', async () => {
     const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
-    const request = jest
-      .spyOn(oxy, 'request')
-      .mockResolvedValue({ message: 'Identity registered successfully', user: { id: 'u1' } } as never);
+    const request = jest.spyOn(oxy, 'request').mockResolvedValue({
+      message: 'Identity registered successfully',
+      user: { id: 'u1' },
+    } as never);
 
     const res = await oxy.auth.registerKey('pub-1', 'sig-1', 1_700_000_000_000, 'alice');
 
@@ -24,7 +25,13 @@ describe('auth.registerKey', () => {
     expect(request).toHaveBeenCalledWith(
       'POST',
       '/auth/register',
-      { publicKey: 'pub-1', signature: 'sig-1', timestamp: 1_700_000_000_000, username: 'alice', powNonce: 'nonce-1' },
+      {
+        publicKey: 'pub-1',
+        signature: 'sig-1',
+        timestamp: 1_700_000_000_000,
+        username: 'alice',
+        powNonce: 'nonce-1',
+      },
       expect.objectContaining({ skipAuth: true, cache: false }),
     );
   });

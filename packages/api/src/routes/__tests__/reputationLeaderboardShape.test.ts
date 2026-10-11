@@ -260,9 +260,15 @@ describe('GET /reputation/leaderboard — ordering and eligibility', () => {
     // from the page offset, and `rank` continuing across a page boundary rather
     // than restarting. They are asserted relative to where the rows actually
     // land, which no concurrent writer can move.
-    const first = await account({ username: `first${randomUUID().replace(/-/g, '').slice(0, 10)}` });
-    const second = await account({ username: `second${randomUUID().replace(/-/g, '').slice(0, 10)}` });
-    const third = await account({ username: `third${randomUUID().replace(/-/g, '').slice(0, 10)}` });
+    const first = await account({
+      username: `first${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
+    const second = await account({
+      username: `second${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
+    const third = await account({
+      username: `third${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+    });
     await balance(first, TOP_TOTAL);
     await balance(second, TOP_TOTAL - 1);
     await balance(third, TOP_TOTAL - 2);
@@ -289,7 +295,9 @@ describe('GET /reputation/leaderboard — ordering and eligibility', () => {
   });
 
   it('excludes archived accounts and restricted tiers from the public board', async () => {
-    const visible = await account({ username: `vis${randomUUID().replace(/-/g, '').slice(0, 12)}` });
+    const visible = await account({
+      username: `vis${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+    });
     const archived = await account({
       username: `arc${randomUUID().replace(/-/g, '').slice(0, 12)}`,
       accountStatus: 'archived',

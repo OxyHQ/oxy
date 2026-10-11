@@ -8,29 +8,23 @@ export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
 };
 
-const ThemedTextComponent = ({
-  style,
-  type = 'default',
-  ...rest
-}: ThemedTextProps) => {
+const ThemedTextComponent = ({ style, type = 'default', ...rest }: ThemedTextProps) => {
   const colors = useColors();
 
-  const textStyle = useMemo(() => [
-    { color: type === 'link' ? colors.tint : colors.text },
-    type === 'default' ? styles.default : undefined,
-    type === 'title' ? styles.title : undefined,
-    type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-    type === 'subtitle' ? styles.subtitle : undefined,
-    type === 'link' ? styles.link : undefined,
-    style,
-  ], [colors.text, colors.tint, type, style]);
-
-  return (
-    <Text
-      style={textStyle}
-      {...rest}
-    />
+  const textStyle = useMemo(
+    () => [
+      { color: type === 'link' ? colors.tint : colors.text },
+      type === 'default' ? styles.default : undefined,
+      type === 'title' ? styles.title : undefined,
+      type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
+      type === 'subtitle' ? styles.subtitle : undefined,
+      type === 'link' ? styles.link : undefined,
+      style,
+    ],
+    [colors.text, colors.tint, type, style],
   );
+
+  return <Text style={textStyle} {...rest} />;
 };
 
 ThemedTextComponent.displayName = 'ThemedText';

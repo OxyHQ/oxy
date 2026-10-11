@@ -106,10 +106,7 @@ export const applicationWorkloadIdentities = pgTable(
      * means exactly what the mint did then — so every binding written before it
      * keeps behaving identically without a backfill.
      */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
 
     /**
      * When set, the binding stops working at this instant.
@@ -132,7 +129,10 @@ export const applicationWorkloadIdentities = pgTable(
      * and the resolver would answer with whichever row the planner returned
      * first.
      */
-    unique('application_workload_identities_provider_subject_key').on(table.provider, table.subject),
+    unique('application_workload_identities_provider_subject_key').on(
+      table.provider,
+      table.subject,
+    ),
     index('application_workload_identities_application_idx').on(table.applicationId),
     /**
      * Only real scopes, mirroring `application_credentials_scopes_check`.
@@ -145,7 +145,7 @@ export const applicationWorkloadIdentities = pgTable(
      */
     check(
       'application_workload_identities_scopes_check',
-      sql`${table.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`
+      sql`${table.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
     ),
   ],
 );

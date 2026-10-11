@@ -384,7 +384,9 @@ async function authorizeApplication(
     return;
   }
 
-  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, { sessionId: principal.sessionId });
+  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, {
+    sessionId: principal.sessionId,
+  });
   if (access.status === 'unknown-application' || access.status === 'no-access') {
     // Same answer either way: distinguishing them would make this an existence
     // oracle for other accounts' applications.
@@ -449,9 +451,7 @@ async function authorizeKaanaValidation(
     throw new NotFoundError('No such provider connection');
   }
   if (!live.scopes.includes('inference:byok:validate')) {
-    throw new ForbiddenError(
-      'This credential does not carry the inference:byok:validate scope',
-    );
+    throw new ForbiddenError('This credential does not carry the inference:byok:validate scope');
   }
   if (!live.capabilities.includes(KAANA_PROVIDER_CREDENTIAL_VALIDATOR_CAPABILITY)) {
     throw new ForbiddenError('This service principal is not Kaana credential validation');
@@ -1223,9 +1223,7 @@ router.post(
           'This credential generation is not ready to accept validation verdicts',
         );
       case 'stale-generation':
-        throw new ConflictError(
-          'This validation verdict targets a stale credential generation',
-        );
+        throw new ConflictError('This validation verdict targets a stale credential generation');
       case 'revoked':
         throw new ConflictError('This connection is revoked and can no longer be validated');
     }

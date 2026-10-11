@@ -55,22 +55,12 @@ import { users } from './users';
  * holds that rendering against the migration the database was actually built
  * from, so editing it without regenerating a migration fails CI.
  */
-export const APPLICATION_TYPES = [
-  'first_party',
-  'third_party',
-  'internal',
-  'system',
-] as const;
+export const APPLICATION_TYPES = ['first_party', 'third_party', 'internal', 'system'] as const;
 
 export type ApplicationType = (typeof APPLICATION_TYPES)[number];
 
 /** Lifecycle. `deleted` is a soft delete — the row and its OAuth history stay. */
-export const APPLICATION_STATUSES = [
-  'active',
-  'suspended',
-  'deleted',
-  'pending_review',
-] as const;
+export const APPLICATION_STATUSES = ['active', 'suspended', 'deleted', 'pending_review'] as const;
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
@@ -103,25 +93,16 @@ export const applications = pgTable(
     /** Gates service-token issuance and internal-only endpoints. */
     isInternal: boolean().notNull().default(false),
     /** Opaque platform capability flags — see the header. */
-    capabilities: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    capabilities: text().array().notNull().default(sql`'{}'::text[]`),
 
     // ---- OAuth -------------------------------------------------------------
     /**
      * Exact-match allowlist for the authorization-code flow. Order is the
      * author's and is preserved; matching happens in application code.
      */
-    redirectUris: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    redirectUris: text().array().notNull().default(sql`'{}'::text[]`),
     /** Granted scopes. CHECK-constrained to `APPLICATION_SCOPES` — see header. */
-    scopes: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
 
     /**
      * Lexicon namespace PREFIXES this application may append records under, on
@@ -146,10 +127,7 @@ export const applications = pgTable(
      * `config/chainCollectionPolicy.ts` — writing under your namespace does not
      * make a collection publishable.
      */
-    chainNamespaces: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    chainNamespaces: text().array().notNull().default(sql`'{}'::text[]`),
 
     // ---- webhooks ----------------------------------------------------------
     webhookUrl: text(),
@@ -200,10 +178,7 @@ export const applications = pgTable(
     // memory; leading with the owner and ordering by `created_at desc` serves
     // both, so this replaces BOTH that compound and the standalone
     // `{ownerAccountId}`.
-    index('applications_owner_account_id_created_at_idx').on(
-      t.ownerAccountId,
-      t.createdAt.desc()
-    ),
+    index('applications_owner_account_id_created_at_idx').on(t.ownerAccountId, t.createdAt.desc()),
     // `find({status:'active', capabilities: 'identity:approval'})` on every push
     // delivery. Mongo declared no index for the array, so this is ADDED, not
     // ported: `capabilities @> array['identity:approval']`.
@@ -222,13 +197,13 @@ export const applications = pgTable(
     check('applications_type_check', sql`${t.type} in (${sql.raw(inList(APPLICATION_TYPES))})`),
     check(
       'applications_status_check',
-      sql`${t.status} in (${sql.raw(inList(APPLICATION_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(APPLICATION_STATUSES))})`,
     ),
     // The array analogue of a closed value set: every element must be a known
     // scope. `<@` is containment, so an empty array trivially satisfies it.
     check(
       'applications_scopes_check',
-      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`
+      sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
     ),
-  ]
+  ],
 );

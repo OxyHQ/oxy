@@ -222,29 +222,29 @@ export const files = pgTable(
 
     check(
       'files_status_check',
-      sql`${t.status} in (${sql.raw(FILE_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(FILE_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'files_visibility_check',
       sql`${t.visibility} in (${sql.raw(
-        FILE_VISIBILITIES.map((value) => `'${value}'`).join(', ')
-      )})`
+        FILE_VISIBILITIES.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     check(
       'files_purpose_check',
-      sql`${t.purpose} in (${sql.raw(FILE_PURPOSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.purpose} in (${sql.raw(FILE_PURPOSES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'files_system_owner_check',
       sql`${t.systemOwner} is null or ${t.systemOwner} in (${sql.raw(
-        FILE_SYSTEM_OWNERS.map((value) => `'${value}'`).join(', ')
-      )})`
+        FILE_SYSTEM_OWNERS.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     // Every asset has exactly one owner: an account, or a system namespace.
     check(
       'files_owner_exclusive_check',
-      sql`(${t.ownerUserId} is null) <> (${t.systemOwner} is null)`
+      sql`(${t.ownerUserId} is null) <> (${t.systemOwner} is null)`,
     ),
     check('files_size_check', sql`${t.size} >= 0`),
-  ]
+  ],
 );

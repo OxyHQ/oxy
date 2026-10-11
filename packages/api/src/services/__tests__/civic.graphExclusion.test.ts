@@ -54,21 +54,23 @@ async function accounts(count: number): Promise<string[]> {
 async function session(
   userId: string,
   deviceId: string,
-  overrides: { isActive?: boolean; deviceFingerprint?: string } = {}
+  overrides: { isActive?: boolean; deviceFingerprint?: string } = {},
 ): Promise<void> {
   const token = unique();
-  await getDb().insert(sessions).values({
-    sessionId: `s-${token}`,
-    userId,
-    deviceId,
-    deviceType: 'mobile',
-    platform: 'ios',
-    accessToken: `at-${token}`,
-    refreshToken: `rt-${token}`,
-    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    isActive: overrides.isActive ?? true,
-    deviceFingerprint: overrides.deviceFingerprint,
-  });
+  await getDb()
+    .insert(sessions)
+    .values({
+      sessionId: `s-${token}`,
+      userId,
+      deviceId,
+      deviceType: 'mobile',
+      platform: 'ios',
+      accessToken: `at-${token}`,
+      refreshToken: `rt-${token}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      isActive: overrides.isActive ?? true,
+      deviceFingerprint: overrides.deviceFingerprint,
+    });
 }
 
 beforeAll(async () => {

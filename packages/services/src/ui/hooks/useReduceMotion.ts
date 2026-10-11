@@ -19,32 +19,32 @@ let initialized = false;
 const listeners = new Set<() => void>();
 
 const notifyAll = (): void => {
-    for (const listener of listeners) listener();
+  for (const listener of listeners) listener();
 };
 
 const setCached = (value: boolean): void => {
-    if (cachedReduceMotion === value) return;
-    cachedReduceMotion = value;
-    notifyAll();
+  if (cachedReduceMotion === value) return;
+  cachedReduceMotion = value;
+  notifyAll();
 };
 
 const subscribeReduceMotion = (notify: () => void): (() => void) => {
-    // Populate the cache the first time anyone subscribes (the platform read is
-    // async, so it cannot be a synchronous `getSnapshot`).
-    if (!initialized) {
-        initialized = true;
-        AccessibilityInfo.isReduceMotionEnabled()
-            .then(setCached)
-            .catch(() => {
-                // No preference available — the `false` default stands.
-            });
-    }
-    listeners.add(notify);
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setCached);
-    return () => {
-        listeners.delete(notify);
-        sub.remove();
-    };
+  // Populate the cache the first time anyone subscribes (the platform read is
+  // async, so it cannot be a synchronous `getSnapshot`).
+  if (!initialized) {
+    initialized = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setCached)
+      .catch(() => {
+        // No preference available — the `false` default stands.
+      });
+  }
+  listeners.add(notify);
+  const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setCached);
+  return () => {
+    listeners.delete(notify);
+    sub.remove();
+  };
 };
 
 const getSnapshot = (): boolean => cachedReduceMotion;
@@ -54,5 +54,5 @@ const getSnapshot = (): boolean => cachedReduceMotion;
 const getServerSnapshot = (): boolean => false;
 
 export function useReduceMotion(): boolean {
-    return useSyncExternalStore(subscribeReduceMotion, getSnapshot, getServerSnapshot);
+  return useSyncExternalStore(subscribeReduceMotion, getSnapshot, getServerSnapshot);
 }

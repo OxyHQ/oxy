@@ -88,19 +88,34 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 
 describe('the canonical official-application registry', () => {
   it('pins the Oxy profile registrar with no OAuth public client or workload authority', () => {
-    expect(OXY_PROFILE_REGISTRAR_SPEC).toMatchObject({ id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
-      type: 'internal', redirectUris: [], scopes: ['catalogs:write'],
-      capabilities: [catalogApplicationCapability('oxy')], publicClient: false });
+    expect(OXY_PROFILE_REGISTRAR_SPEC).toMatchObject({
+      id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+      type: 'internal',
+      redirectUris: [],
+      scopes: ['catalogs:write'],
+      capabilities: [catalogApplicationCapability('oxy')],
+      publicClient: false,
+    });
     expect(requiresPublicSeedCredential(OXY_PROFILE_REGISTRAR_SPEC)).toBe(false);
-    expect(SEED_APPS.filter(spec => !requiresPublicSeedCredential(spec))).toEqual([OXY_PROFILE_REGISTRAR_SPEC]);
-    expect(SEED_APPS.filter(spec => spec !== OXY_PROFILE_REGISTRAR_SPEC).every(requiresPublicSeedCredential)).toBe(true);
-    expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: OXY_PROFILE_REGISTRAR_APPLICATION_ID });
+    expect(SEED_APPS.filter((spec) => !requiresPublicSeedCredential(spec))).toEqual([
+      OXY_PROFILE_REGISTRAR_SPEC,
+    ]);
+    expect(
+      SEED_APPS.filter((spec) => spec !== OXY_PROFILE_REGISTRAR_SPEC).every(
+        requiresPublicSeedCredential,
+      ),
+    ).toBe(true);
+    expect(seedApplicationLookupIdentity(OXY_PROFILE_REGISTRAR_SPEC, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
+    });
   });
 
   it('plans GoWay as a pinned public sign-in application without service authority', () => {
     const spec = specNamed('GoWay');
     expect(seedApplicationLookupIdentity(spec, PLATFORM_OWNER_ID)).toEqual({
-      kind: 'id', id: GOWAY_APPLICATION_ID,
+      kind: 'id',
+      id: GOWAY_APPLICATION_ID,
     });
     expect(SEED_APPS.filter((entry) => entry.id === GOWAY_APPLICATION_ID)).toHaveLength(1);
     expect(GOWAY_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
@@ -120,8 +135,11 @@ describe('the canonical official-application registry', () => {
       ownerAccountId: PLATFORM_OWNER_ID,
       websiteUrl: 'https://goway.to',
       redirectUris: ['https://goway.to'],
-      type: 'first_party', isOfficial: true, isInternal: false,
-      scopes: ['user:read'], capabilities: [],
+      type: 'first_party',
+      isOfficial: true,
+      isInternal: false,
+      scopes: ['user:read'],
+      capabilities: [],
     });
     expect(spec.ownerAccountUsername).toBeUndefined();
     expect(spec.legacyNames).toBeUndefined();
@@ -139,7 +157,10 @@ describe('the canonical official-application registry', () => {
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
     expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
-    expect(seedApplicationLookupIdentity(nilo, PLATFORM_OWNER_ID)).toEqual({ kind: 'id', id: NILO_APPLICATION_ID });
+    expect(seedApplicationLookupIdentity(nilo, PLATFORM_OWNER_ID)).toEqual({
+      kind: 'id',
+      id: NILO_APPLICATION_ID,
+    });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
     expect(nilo.capabilities ?? []).toEqual([]);
   });
@@ -155,7 +176,8 @@ describe('the canonical official-application registry', () => {
     expect(SEED_APPS.filter((spec) => spec.id === MEDIA_WORKER_APPLICATION_ID)).toHaveLength(1);
     expect(worker.capabilities ?? []).toEqual([]);
     expect(seedApplicationLookupIdentity(worker, PLATFORM_OWNER_ID)).toEqual({
-      kind: 'id', id: MEDIA_WORKER_APPLICATION_ID,
+      kind: 'id',
+      id: MEDIA_WORKER_APPLICATION_ID,
     });
     expect(seededPrincipal(worker)).toEqual({ type: 'internal', isInternal: true });
   });
@@ -185,12 +207,7 @@ describe('the canonical official-application registry', () => {
     it('pins the exact id and the narrow scopes its service credential needs', () => {
       expect(specNamed('Homiio')).toMatchObject({
         id: HOMIIO_APPLICATION_ID,
-        scopes: [
-          'user:read',
-          'reputation:write',
-          'inference:invoke',
-          'acting-as:offline',
-        ],
+        scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
       });
       expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
     });
@@ -206,16 +223,10 @@ describe('the canonical official-application registry', () => {
 
     it('pins only the exact web and PKCE-bound native consent redirects', () => {
       const redirectUris = specNamed('Homiio').redirectUris;
-      expect(redirectUris).toEqual([
-        'https://homiio.com',
-        'homiio://oauth/consent',
-      ]);
+      expect(redirectUris).toEqual(['https://homiio.com', 'homiio://oauth/consent']);
       expect(redirectUris.every((uri) => uri === uri.trim())).toBe(true);
       expect(redirectUris.some((uri) => /\s|\*/.test(uri))).toBe(false);
-      expect(redirectUris.map((uri) => new URL(uri).protocol)).toEqual([
-        'https:',
-        'homiio:',
-      ]);
+      expect(redirectUris.map((uri) => new URL(uri).protocol)).toEqual(['https:', 'homiio:']);
     });
   });
 
@@ -300,7 +311,7 @@ describe('the canonical official-application registry', () => {
           'inference:usage:read',
           'inference:routing:read',
           'capabilities:read',
-        ])
+        ]),
       );
     });
 
@@ -375,7 +386,7 @@ describe('the canonical official-application registry', () => {
           scope !== 'capabilities:read' &&
           scope !== 'clarity:search' &&
           scope !== 'clarity:index' &&
-          !DELEGATION_SCOPES.includes(scope)
+          !DELEGATION_SCOPES.includes(scope),
       );
 
     it('searches and reads pages through Clarity, and registers no site there', () => {
@@ -433,7 +444,7 @@ describe('the canonical official-application registry', () => {
       const coordinators = SEED_APPS.filter(
         (spec) =>
           (spec.capabilities ?? []).includes(AGENCY_COORDINATE_CAPABILITY) ||
-          (spec.scopes ?? []).includes('capability-tickets:issue')
+          (spec.scopes ?? []).includes('capability-tickets:issue'),
       ).map((spec) => spec.name);
       expect(coordinators).toEqual(['Mention', 'Alia']);
     });
@@ -448,7 +459,9 @@ describe('the canonical official-application registry', () => {
     const INFERENCE_WRITE_SCOPES = ['inference:routing:write', 'inference:providers:write'];
 
     it.each(INFERENCE_WRITE_SCOPES)('no seeded application carries %s', (scope) => {
-      const holders = SEED_APPS.filter((spec) => (spec.scopes ?? []).includes(scope as ApplicationScope));
+      const holders = SEED_APPS.filter((spec) =>
+        (spec.scopes ?? []).includes(scope as ApplicationScope),
+      );
       expect(holders.map((spec) => spec.name)).toEqual([]);
     });
 
@@ -457,9 +470,7 @@ describe('the canonical official-application registry', () => {
       // that IS deliberately granted, finds its holder. Without this, a
       // `spec.scopes` field renamed tomorrow would leave every assertion above
       // green while measuring an empty array.
-      const holders = SEED_APPS.filter((spec) =>
-        (spec.scopes ?? []).includes('federation:write')
-      );
+      const holders = SEED_APPS.filter((spec) => (spec.scopes ?? []).includes('federation:write'));
       expect(holders.map((spec) => spec.name)).toEqual(['Mention']);
     });
   });
@@ -494,9 +505,7 @@ describe('the canonical official-application registry', () => {
     });
 
     it('is bound to the Noted catalog namespace and no other platform capability', () => {
-      expect(specNamed('Noted').capabilities).toEqual([
-        catalogApplicationCapability('noted'),
-      ]);
+      expect(specNamed('Noted').capabilities).toEqual([catalogApplicationCapability('noted')]);
     });
 
     it('refuses malformed catalog namespace identifiers', () => {
@@ -521,9 +530,7 @@ describe('the canonical official-application registry', () => {
     });
 
     it('cannot register a catalog outside the Inbox namespace', () => {
-      expect(specNamed('Oxy Inbox').capabilities).toEqual([
-        catalogApplicationCapability('inbox'),
-      ]);
+      expect(specNamed('Oxy Inbox').capabilities).toEqual([catalogApplicationCapability('inbox')]);
     });
   });
 

@@ -9,9 +9,7 @@ jest.mock('@/lib/biometricAuth', () => ({
   authenticate: (...args: [string?]) => authenticateMock(...args),
 }));
 
-// eslint-disable-next-line import/first
 import { useRevokeCredential } from '@/hooks/useRevokeCredential';
-// eslint-disable-next-line import/first
 import { canRevokeCredential } from '@/lib/civic/credential-display';
 
 function makeCredential(

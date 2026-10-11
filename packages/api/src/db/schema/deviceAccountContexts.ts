@@ -92,7 +92,7 @@ export const deviceAccountContexts = pgTable(
     unique('device_account_contexts_device_principal_account_key').on(
       t.deviceSessionId,
       t.principalId,
-      t.accountId
+      t.accountId,
     ),
     // "Every device/principal this account is reachable through" — the read
     // an account deletion and an `account:act_as` revocation both run.
@@ -100,5 +100,5 @@ export const deviceAccountContexts = pgTable(
     // "This person's contexts" — the switcher's own read, and the one
     // "remove this principal" walks.
     index('device_account_contexts_principal_id_idx').on(t.principalId),
-  ]
+  ],
 );

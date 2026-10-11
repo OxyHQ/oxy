@@ -45,9 +45,9 @@ export const emailFilterActions = pgTable(
     check(
       'email_filter_actions_type_check',
       sql`${t.type} in (${sql.raw(
-        EMAIL_FILTER_ACTION_TYPES.map((value) => `'${value}'`).join(', ')
-      )})`
+        EMAIL_FILTER_ACTION_TYPES.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     check('email_filter_actions_ord_check', sql`${t.ord} >= 0`),
-  ]
+  ],
 );

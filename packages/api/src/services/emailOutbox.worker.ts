@@ -20,13 +20,20 @@ export async function processEmailOutbox(): Promise<number> {
     const row = await claimEmailOutbox(workerId);
     if (!row) break;
     try {
-      const { relayMessageId } = await smtpOutbound.sendRaw({ ...row.payload, userId: row.userId, messageId: row.messageId });
+      const { relayMessageId } = await smtpOutbound.sendRaw({
+        ...row.payload,
+        userId: row.userId,
+        messageId: row.messageId,
+      });
       // A worker can crash after SMTP accepts the message but before the row
       // is marked sent. The stable RFC Message-ID makes this recovery
       // idempotent in the Sent mailbox as well.
       const existing = await emailService.findMessageByRfcMessageId(row.userId, row.messageId);
       if (!existing) {
-        const size = Buffer.byteLength(`${row.payload.text ?? ''}${row.payload.html ?? ''}`, 'utf8');
+        const size = Buffer.byteLength(
+          `${row.payload.text ?? ''}${row.payload.html ?? ''}`,
+          'utf8',
+        );
         await emailService.storeSentMessage(row.userId, {
           messageId: row.messageId,
           relayMessageId,
@@ -63,11 +70,15 @@ export async function processEmailOutbox(): Promise<number> {
       const delayIndex = Math.min(row.attempts, SMTP_OUTBOUND_CONFIG.retryDelays.length - 1);
       const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[delayIndex]);
       await markEmailOutboxFailed(row.id, error, nextAttemptAt);
-      logger.error('Durable outbound email delivery failed', error instanceof Error ? error : new Error(String(error)), {
-        outboxId: row.id,
-        messageId: row.messageId,
-        attempt: row.attempts,
-      });
+      logger.error(
+        'Durable outbound email delivery failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          outboxId: row.id,
+          messageId: row.messageId,
+          attempt: row.attempts,
+        },
+      );
       processed++;
     }
   }

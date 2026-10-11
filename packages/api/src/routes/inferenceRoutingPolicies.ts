@@ -180,7 +180,7 @@ interface RoutingRequest extends AuthRequest {
 const routingPolicyPrincipal = (
   req: RoutingRequest,
   res: Response,
-  next: (error?: unknown) => void
+  next: (error?: unknown) => void,
 ): void => {
   const header = req.headers.authorization;
   if (header !== undefined && header.startsWith('Bearer ')) {
@@ -232,7 +232,7 @@ async function authorizeApplication(
   principal: RoutingPolicyPrincipal,
   applicationId: string,
   permission: ApplicationPermission,
-  scope: 'inference:routing:read' | 'inference:routing:write'
+  scope: 'inference:routing:read' | 'inference:routing:write',
 ): Promise<void> {
   if (principal.kind === 'service') {
     if (!principal.service.scopes.includes(scope)) {
@@ -246,7 +246,9 @@ async function authorizeApplication(
     return;
   }
 
-  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, { sessionId: principal.sessionId });
+  const access = await resolveCallerApplicationAccess(principal.userId, applicationId, {
+    sessionId: principal.sessionId,
+  });
   if (access.status === 'unknown-application') {
     throw new NotFoundError('No routing policy is available for that application');
   }
@@ -265,7 +267,7 @@ async function authorizeAccount(
   principal: RoutingPolicyPrincipal,
   accountId: string,
   permission: AccountPermission,
-  scope: 'inference:routing:read' | 'inference:routing:write'
+  scope: 'inference:routing:read' | 'inference:routing:write',
 ): Promise<void> {
   if (principal.kind === 'service') {
     if (!principal.service.scopes.includes(scope)) {
@@ -297,7 +299,7 @@ async function authorizePolicy(
   principal: RoutingPolicyPrincipal,
   policyId: string,
   permissions: { readonly application: ApplicationPermission; readonly account: AccountPermission },
-  scope: 'inference:routing:read' | 'inference:routing:write'
+  scope: 'inference:routing:read' | 'inference:routing:write',
 ): Promise<StoredRoutingPolicy> {
   const stored = await getRoutingPolicy(policyId);
   if (stored === undefined) {
@@ -309,7 +311,7 @@ async function authorizePolicy(
       principal,
       stored.policy.scope.applicationId,
       permissions.application,
-      scope
+      scope,
     );
   } else {
     await authorizeAccount(principal, stored.policy.scope.accountId, permissions.account, scope);
@@ -340,7 +342,7 @@ function respondToWrite(res: Response, result: RoutingPolicyWriteResult, status:
       });
     case 'unknown-catalogue-reference':
       throw new BadRequestError(
-        `Oxy does not serve ${result.reference}, so it cannot be named by a routing policy`
+        `Oxy does not serve ${result.reference}, so it cannot be named by a routing policy`,
       );
     case 'unknown-policy':
       throw new NotFoundError('No such routing policy');
@@ -348,7 +350,7 @@ function respondToWrite(res: Response, result: RoutingPolicyWriteResult, status:
       throw new ConflictError('This routing policy is archived and can no longer be edited');
     case 'scope-taken':
       throw new ConflictError(
-        'This scope already has an active routing policy; edit it or archive it first'
+        'This scope already has an active routing policy; edit it or archive it first',
       );
   }
 }
@@ -383,12 +385,12 @@ router.get(
       principalOf(req),
       accountId,
       'inference:routing:read',
-      'inference:routing:read'
+      'inference:routing:read',
     );
 
     const policies = await listRoutingPoliciesForAccount(accountId);
     res.json({ data: policies, count: policies.length });
-  })
+  }),
 );
 
 /**
@@ -409,7 +411,7 @@ router.post(
       principal,
       accountId,
       'inference:routing:write',
-      'inference:routing:write'
+      'inference:routing:write',
     );
 
     const controls = routingPolicyControlsBody.parse(req.body);
@@ -419,7 +421,7 @@ router.post(
       createdByUserId: authorOf(principal),
     });
     respondToWrite(res, result, 201);
-  })
+  }),
 );
 
 /**
@@ -440,7 +442,7 @@ router.get(
       principalOf(req),
       applicationId,
       'inference:routing:read',
-      'inference:routing:read'
+      'inference:routing:read',
     );
 
     const resolution = await resolveEffectiveRoutingPolicy(applicationId);
@@ -452,7 +454,7 @@ router.get(
       return;
     }
     res.json({ data: resolution.stored, source: resolution.source });
-  })
+  }),
 );
 
 /**
@@ -473,7 +475,7 @@ router.post(
       principal,
       applicationId,
       'inference:routing:write',
-      'inference:routing:write'
+      'inference:routing:write',
     );
 
     // The owning account is resolved SERVER-side from the application, never
@@ -495,7 +497,7 @@ router.post(
       createdByUserId: authorOf(principal),
     });
     respondToWrite(res, result, 201);
-  })
+  }),
 );
 
 /**
@@ -518,12 +520,12 @@ router.get(
       principalOf(req),
       applicationId,
       'inference:routing:read',
-      'inference:routing:read'
+      'inference:routing:read',
     );
 
     const events = await listRouteSwitchEventsForApplication(applicationId, limit);
     res.json({ data: events, count: events.length });
-  })
+  }),
 );
 
 /**
@@ -544,12 +546,12 @@ router.get(
       principalOf(req),
       policyId,
       { application: 'inference:routing:read', account: 'inference:routing:read' },
-      'inference:routing:read'
+      'inference:routing:read',
     );
 
     const versions = await listRoutingPolicyVersions(policyId);
     res.json({ data: versions, count: versions.length });
-  })
+  }),
 );
 
 /**
@@ -571,7 +573,7 @@ router.post(
       principal,
       policyId,
       { application: 'inference:routing:write', account: 'inference:routing:write' },
-      'inference:routing:write'
+      'inference:routing:write',
     );
 
     const controls = routingPolicyControlsBody.parse(req.body);
@@ -581,7 +583,7 @@ router.post(
       createdByUserId: authorOf(principal),
     });
     respondToWrite(res, result, 201);
-  })
+  }),
 );
 
 /**
@@ -601,7 +603,7 @@ router.get(
       principalOf(req),
       policyId,
       { application: 'inference:routing:read', account: 'inference:routing:read' },
-      'inference:routing:read'
+      'inference:routing:read',
     );
 
     const stored = await getRoutingPolicy(policyId, policyVersion);
@@ -609,7 +611,7 @@ router.get(
       throw new NotFoundError('No such routing policy version');
     }
     res.json({ data: stored });
-  })
+  }),
 );
 
 /**
@@ -628,7 +630,7 @@ router.post(
       principalOf(req),
       policyId,
       { application: 'inference:routing:write', account: 'inference:routing:write' },
-      'inference:routing:write'
+      'inference:routing:write',
     );
 
     const result = await archiveRoutingPolicy(policyId);
@@ -639,7 +641,7 @@ router.post(
       throw new ConflictError('This routing policy is already archived');
     }
     res.json({ data: { routingPolicyId: result.routingPolicyId, status: 'archived' } });
-  })
+  }),
 );
 
 /**
@@ -659,10 +661,10 @@ router.get(
       principalOf(req),
       policyId,
       { application: 'inference:routing:read', account: 'inference:routing:read' },
-      'inference:routing:read'
+      'inference:routing:read',
     );
     res.json({ data: stored });
-  })
+  }),
 );
 
 export default router;

@@ -101,21 +101,25 @@ describe('GET /health', () => {
   });
 
   // MUST stay last: it destroys the database this suite is pointed at.
-  it('answers 503 once the database stops answering UNDER A LIVE POOL', async () => {
-    // The pool is open and has already served a query. Dropping the database
-    // with `FORCE` terminates its backends, so the next query on the SAME pool
-    // fails — while `client` is still a perfectly good object. A probe that
-    // reports on the handle rather than on the server cannot tell the
-    // difference, which is exactly what this asserts it does not do.
-    await dropTestDatabase(ownDatabaseUrl);
+  it(
+    'answers 503 once the database stops answering UNDER A LIVE POOL',
+    async () => {
+      // The pool is open and has already served a query. Dropping the database
+      // with `FORCE` terminates its backends, so the next query on the SAME pool
+      // fails — while `client` is still a perfectly good object. A probe that
+      // reports on the handle rather than on the server cannot tell the
+      // difference, which is exactly what this asserts it does not do.
+      await dropTestDatabase(ownDatabaseUrl);
 
-    const { status, body } = await health();
+      const { status, body } = await health();
 
-    expect(status).toBe(503);
-    expect(body.status).toBe('down');
-    expect(body.database).toBe('disconnected');
-    expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
-  }, SLOW_STEP_TIMEOUT_MS);
+      expect(status).toBe(503);
+      expect(body.status).toBe('down');
+      expect(body.database).toBe('disconnected');
+      expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
+    },
+    SLOW_STEP_TIMEOUT_MS,
+  );
 
   it('keeps answering 503 — a dead database does not heal itself', async () => {
     const { status, body } = await health();

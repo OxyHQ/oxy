@@ -45,7 +45,6 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",

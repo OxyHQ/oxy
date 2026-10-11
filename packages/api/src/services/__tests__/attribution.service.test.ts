@@ -59,7 +59,7 @@ async function seedAccount(
     /** Root FIRST, matching `user_ancestors.depth` ordering. */
     ancestors?: string[];
     accountStatus?: 'active' | 'archived';
-  } = {}
+  } = {},
 ): Promise<string> {
   const [account] = await getDb()
     .insert(users)
@@ -91,7 +91,7 @@ async function seedMember(
     status?: 'active' | 'invited' | 'removed';
     permissionGrants?: string[];
     permissionRevokes?: string[];
-  } = {}
+  } = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(accountMembers)
@@ -111,7 +111,10 @@ async function seedMember(
 
 async function seedApplication(
   ownerAccountId: string,
-  options: { status?: 'active' | 'suspended' | 'deleted' | 'pending_review'; scopes?: string[] } = {}
+  options: {
+    status?: 'active' | 'suspended' | 'deleted' | 'pending_review';
+    scopes?: string[];
+  } = {},
 ): Promise<string> {
   const [app] = await getDb()
     .insert(applications)
@@ -132,7 +135,7 @@ async function seedCredential(
     expiresAt?: Date | null;
     scopes?: string[];
     type?: 'public' | 'confidential' | 'service';
-  } = {}
+  } = {},
 ): Promise<{ id: string; publicKey: string }> {
   const publicKey = `oxy_dk_attrib${uniqueSuffix()}`;
   const [credential] = await getDb()
@@ -153,7 +156,7 @@ async function seedCredential(
 
 async function seedBillingProfile(
   accountId: string,
-  values: { creditsFree?: number; creditsPaid?: number; stripeCustomerId?: string } = {}
+  values: { creditsFree?: number; creditsPaid?: number; stripeCustomerId?: string } = {},
 ): Promise<void> {
   await getDb()
     .insert(userCredits)
@@ -537,7 +540,7 @@ describe('resolveCallerApplicationAccess — inheritance and revocation', () => 
 
     const missing = await resolveCallerApplicationAccess(
       stranger,
-      '01a00000-0000-7000-8000-000000000001'
+      '01a00000-0000-7000-8000-000000000001',
     );
     expect(missing.status).toBe('unknown-application');
 

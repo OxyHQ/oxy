@@ -34,9 +34,19 @@ import { ACCOUNT_KINDS, ACCOUNT_STATUSES, USER_TYPES, users } from '../db/schema
 import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
-import { getEquivalentUserIds, getEquivalentUserGroups, expandEquivalentUserIds, resolveCanonicalUserId, resolveExternalIdentityUsers } from './externalIdentityRegistry.service';
+import {
+  getEquivalentUserIds,
+  getEquivalentUserGroups,
+  expandEquivalentUserIds,
+  resolveCanonicalUserId,
+  resolveExternalIdentityUsers,
+} from './externalIdentityRegistry.service';
 import securityActivityService from './securityActivityService';
-import { followAccounts, removeAccountRelationships, unfollowAccounts } from './followCommand.service';
+import {
+  followAccounts,
+  removeAccountRelationships,
+  unfollowAccounts,
+} from './followCommand.service';
 import type { FollowEventCause } from '../db/schema/followEvents';
 import { sanitizeProfileUpdate } from '../utils/sanitize';
 import {
@@ -67,7 +77,11 @@ import {
   type PublicUserRow,
   type PublicUserView,
 } from '../utils/publicUserProjection';
-import { assertColorNotReserved, normalizeUserColor, isUserColorPreset } from '../utils/profileColor';
+import {
+  assertColorNotReserved,
+  normalizeUserColor,
+  isUserColorPreset,
+} from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxy.so/core';
 import { buildUserDid } from './did.service';
@@ -241,14 +255,11 @@ async function filterDiscoverableUserIds(db: Database, userIds: string[]): Promi
 /** Load a page of public rows and return them in the id order supplied. */
 async function loadPublicUsersInOrder(
   db: Database,
-  orderedIds: string[]
+  orderedIds: string[],
 ): Promise<PublicUserView[]> {
   if (orderedIds.length === 0) return [];
 
-  const rows = await db
-    .select(publicUserColumns)
-    .from(users)
-    .where(inArray(users.id, orderedIds));
+  const rows = await db.select(publicUserColumns).from(users).where(inArray(users.id, orderedIds));
 
   const byId = new Map(rows.map((row) => [row.id, row]));
   const ordered: PublicUserView[] = [];
@@ -382,9 +393,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * when the row carries no federation data — which is what a local account's
  * absent Mongo subdocument meant, and what `formatUserResponse` tests for.
  */
-function flatFederation(
-  source: { federationActorUri?: unknown; federationDomain?: unknown }
-): { actorUri?: string; domain?: string } | undefined {
+function flatFederation(source: {
+  federationActorUri?: unknown;
+  federationDomain?: unknown;
+}): { actorUri?: string; domain?: string } | undefined {
   const actorUri = stringOrUndefined(source.federationActorUri);
   const domain = stringOrUndefined(source.federationDomain);
   return actorUri || domain ? { actorUri, domain } : undefined;
@@ -650,7 +662,7 @@ export class UserService {
    */
   async updatePrivacySettings(
     userId: string,
-    settings: Partial<PrivacySettingsResponse>
+    settings: Partial<PrivacySettingsResponse>,
   ): Promise<PrivacySettingsResponse | null> {
     const columnUpdates: Record<string, boolean> = {};
     for (const [key, value] of Object.entries(settings)) {
@@ -890,7 +902,7 @@ export class UserService {
   async updateUserProfile(
     userId: string,
     updates: ProfileUpdateInput,
-    req?: Request
+    req?: Request,
   ): Promise<SelfUserView> {
     const db = getDb();
 
@@ -930,7 +942,9 @@ export class UserService {
     }
 
     // Sanitize text fields to prevent XSS
-    const sanitizedUpdates = sanitizeProfileUpdate(updates as Record<string, unknown>) as ProfileUpdateInput;
+    const sanitizedUpdates = sanitizeProfileUpdate(
+      updates as Record<string, unknown>,
+    ) as ProfileUpdateInput;
 
     // Filter and validate updates
     const filteredUpdates: Record<string, unknown> = {};
@@ -954,7 +968,7 @@ export class UserService {
       // gate. The rule itself lives in `utils/profileColor` because the account
       // graph writes this column too — see its header.
       if (key === 'color' && typeof normalizedValue === 'string') {
-        if(!isUserColorPreset(normalizedValue))throw new BadRequestError('Unknown color preset');
+        if (!isUserColorPreset(normalizedValue)) throw new BadRequestError('Unknown color preset');
         await assertColorNotReserved(normalizedValue, { accountId: userId, username: null });
       }
 
@@ -1032,9 +1046,9 @@ export class UserService {
             field: 'themePreference',
           });
         }
-        const preset=normalizeUserColor(colorPreset);
-        if(!isUserColorPreset(preset))throw new BadRequestError('Unknown color preset');
-        await assertColorNotReserved(preset,{accountId:userId,username:null});
+        const preset = normalizeUserColor(colorPreset);
+        if (!isUserColorPreset(preset)) throw new BadRequestError('Unknown color preset');
+        await assertColorNotReserved(preset, { accountId: userId, username: null });
         filteredUpdates.themePreference = { mode, colorPreset: preset };
         continue;
       }
@@ -1158,7 +1172,7 @@ export class UserService {
    */
   private async validateUniqueFields(
     userId: string,
-    updates: Record<string, unknown>
+    updates: Record<string, unknown>,
   ): Promise<void> {
     const db = getDb();
 
@@ -1170,8 +1184,8 @@ export class UserService {
         .where(
           and(
             sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
-            ne(users.id, userId)
-          )
+            ne(users.id, userId),
+          ),
         )
         .limit(1);
       if (existing) {
@@ -1185,13 +1199,10 @@ export class UserService {
    */
   async getUserFollowers(
     userId: string,
-    params: FollowGraphParams = {}
+    params: FollowGraphParams = {},
   ): Promise<PaginatedResponse<PublicUserProfile>> {
     const db = getDb();
-    const limit = Math.min(
-      params.limit || PAGINATION.DEFAULT_LIMIT,
-      PAGINATION.MAX_LIMIT
-    );
+    const limit = Math.min(params.limit || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
     const offset = params.offset || 0;
 
     const { userIds: followerIds, total } = await paginateActiveFollowUserIds(
@@ -1219,13 +1230,10 @@ export class UserService {
    */
   async getUserFollowing(
     userId: string,
-    params: FollowGraphParams = {}
+    params: FollowGraphParams = {},
   ): Promise<PaginatedResponse<PublicUserProfile>> {
     const db = getDb();
-    const limit = Math.min(
-      params.limit || PAGINATION.DEFAULT_LIMIT,
-      PAGINATION.MAX_LIMIT
-    );
+    const limit = Math.min(params.limit || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
     const offset = params.offset || 0;
 
     const { userIds: followingIds, total } = await paginateActiveFollowUserIds(
@@ -1269,13 +1277,10 @@ export class UserService {
   async getUserMutuals(
     viewerId: string | undefined,
     targetUserId: string,
-    params: FollowGraphParams = {}
+    params: FollowGraphParams = {},
   ): Promise<PaginatedResponse<PublicUserProfile>> {
     const db = getDb();
-    const limit = Math.min(
-      params.limit || PAGINATION.DEFAULT_LIMIT,
-      PAGINATION.MAX_LIMIT
-    );
+    const limit = Math.min(params.limit || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
     const offset = params.offset || 0;
 
     const empty = (): PaginatedResponse<PublicUserProfile> => ({
@@ -1309,7 +1314,7 @@ export class UserService {
       db,
       and(
         eq(userFollows.followedId, targetUserId),
-        inArray(userFollows.followerId, followingIds)
+        inArray(userFollows.followerId, followingIds),
       ) ?? sql`false`,
       'followerId',
       limit,
@@ -1354,7 +1359,7 @@ export class UserService {
    */
   async getMutualUserIds(
     viewerId: string | undefined,
-    params: { limit?: number } = {}
+    params: { limit?: number } = {},
   ): Promise<string[]> {
     if (!viewerId) {
       return [];
@@ -1363,7 +1368,7 @@ export class UserService {
     const db = getDb();
     const limit = Math.min(
       params.limit && params.limit > 0 ? params.limit : MAX_MUTUAL_IDS,
-      MAX_MUTUAL_IDS
+      MAX_MUTUAL_IDS,
     );
 
     // 1. The viewer's following set (bounded so the `IN` below stays small).
@@ -1373,7 +1378,9 @@ export class UserService {
       .where(inArray(userFollows.followerId, await getEquivalentUserIds(viewerId)))
       .limit(MAX_MUTUAL_IDS);
 
-    const followingIds = await expandEquivalentUserIds(viewerFollowing.map((follow) => follow.followedId));
+    const followingIds = await expandEquivalentUserIds(
+      viewerFollowing.map((follow) => follow.followedId),
+    );
     if (followingIds.length === 0) {
       return [];
     }
@@ -1386,8 +1393,8 @@ export class UserService {
       .where(
         and(
           inArray(userFollows.followedId, await getEquivalentUserIds(viewerId)),
-          inArray(userFollows.followerId, followingIds)
-        )
+          inArray(userFollows.followerId, followingIds),
+        ),
       )
       .orderBy(sql`${userFollows.createdAt} desc`, sql`${userFollows.id} desc`)
       .limit(limit);
@@ -1427,7 +1434,7 @@ export class UserService {
       followingLimit?: number;
       mutualLimit?: number;
       blockedLimit?: number;
-    } = {}
+    } = {},
   ): Promise<ViewerGraph> {
     if (!viewerId) {
       return { followingIds: [], mutualIds: [], blockedIds: [], restrictedIds: [] };
@@ -1436,16 +1443,12 @@ export class UserService {
     const db = getDb();
     const viewerIds = await getEquivalentUserIds(viewerId);
     const followingLimit = Math.min(
-      opts.followingLimit && opts.followingLimit > 0
-        ? opts.followingLimit
-        : MAX_FOLLOWING_IDS,
-      MAX_FOLLOWING_IDS
+      opts.followingLimit && opts.followingLimit > 0 ? opts.followingLimit : MAX_FOLLOWING_IDS,
+      MAX_FOLLOWING_IDS,
     );
     const blockedLimit = Math.min(
-      opts.blockedLimit && opts.blockedLimit > 0
-        ? opts.blockedLimit
-        : MAX_BLOCKED_IDS,
-      MAX_BLOCKED_IDS
+      opts.blockedLimit && opts.blockedLimit > 0 ? opts.blockedLimit : MAX_BLOCKED_IDS,
+      MAX_BLOCKED_IDS,
     );
 
     const [followingPage, mutualIds, blockedIds, restrictedIds] = await Promise.all([
@@ -1482,9 +1485,19 @@ export class UserService {
         .then((rows) => rows.map((row) => row.restrictedId)),
     ]);
 
-    const groups = await getEquivalentUserGroups([...followingPage, ...mutualIds, ...blockedIds, ...restrictedIds]);
-    const expand = (ids: string[]) => [...new Set(ids.flatMap(id => groups[id] ?? [id]))];
-    return { followingIds: expand(followingPage), mutualIds: expand(mutualIds), blockedIds: expand(blockedIds), restrictedIds: expand(restrictedIds) };
+    const groups = await getEquivalentUserGroups([
+      ...followingPage,
+      ...mutualIds,
+      ...blockedIds,
+      ...restrictedIds,
+    ]);
+    const expand = (ids: string[]) => [...new Set(ids.flatMap((id) => groups[id] ?? [id]))];
+    return {
+      followingIds: expand(followingPage),
+      mutualIds: expand(mutualIds),
+      blockedIds: expand(blockedIds),
+      restrictedIds: expand(restrictedIds),
+    };
   }
 
   /**
@@ -1509,7 +1522,7 @@ export class UserService {
    */
   async getFollowsOfFollowsIds(
     viewerId: string | undefined,
-    params: { limit?: number } = {}
+    params: { limit?: number } = {},
   ): Promise<string[]> {
     if (!viewerId) {
       return [];
@@ -1518,7 +1531,7 @@ export class UserService {
     const db = getDb();
     const limit = Math.min(
       params.limit && params.limit > 0 ? params.limit : MAX_FOLLOWS_OF_FOLLOWS_IDS,
-      MAX_FOLLOWS_OF_FOLLOWS_IDS
+      MAX_FOLLOWS_OF_FOLLOWS_IDS,
     );
 
     // 1. The viewer's following set, most-recent first. Bounded so both the
@@ -1556,8 +1569,8 @@ export class UserService {
         and(
           inArray(userFollows.followerId, firstHopIds),
           notInArray(userFollows.followedId, excludeIds),
-          discoverableUserPredicate()
-        )
+          discoverableUserPredicate(),
+        ),
       )
       .groupBy(userFollows.followedId)
       .orderBy(sql`count(*) desc`, sql`max(${userFollows.createdAt}) desc`)
@@ -1574,10 +1587,7 @@ export class UserService {
    * A MEASUREMENT, not a cached counter: the `_count` subdocument the Mongo
    * version read is gone, so these two numbers cannot disagree with the edges.
    */
-  private async readFollowCounts(
-    targetId: string,
-    followerId: string
-  ): Promise<FollowCounts> {
+  private async readFollowCounts(targetId: string, followerId: string): Promise<FollowCounts> {
     const db = getDb();
     const [followers, following] = await Promise.all([
       db
@@ -1617,7 +1627,7 @@ export class UserService {
   async followUser(
     followerId: string,
     targetId: string,
-    options: { cause?: FollowEventCause; source?: 'app' | 'federation_inbound' } = {}
+    options: { cause?: FollowEventCause; source?: 'app' | 'federation_inbound' } = {},
   ): Promise<FollowUserResult> {
     if (followerId === targetId) {
       throw new Error('Cannot follow yourself');
@@ -1627,7 +1637,8 @@ export class UserService {
       throw new Error('User not found');
     }
 
-    if (await this.isFollowing(followerId, targetId)) return { created: false, counts: await this.readFollowCounts(targetId, followerId) };
+    if (await this.isFollowing(followerId, targetId))
+      return { created: false, counts: await this.readFollowCounts(targetId, followerId) };
     const { created } = await followAccounts({ followerId, followedIds: [targetId], ...options });
 
     const counts = await this.readFollowCounts(targetId, followerId);
@@ -1643,7 +1654,7 @@ export class UserService {
   async unfollowUser(
     followerId: string,
     targetId: string,
-    options: { cause?: FollowEventCause } = {}
+    options: { cause?: FollowEventCause } = {},
   ): Promise<UnfollowUserResult> {
     if (followerId === targetId) {
       throw new Error('Cannot follow yourself');
@@ -1663,10 +1674,7 @@ export class UserService {
    * Follow or unfollow a user, toggling on the current relationship. Thin
    * dispatcher over the idempotent `followUser` / `unfollowUser` primitives.
    */
-  async toggleFollow(
-    currentUserId: string,
-    targetUserId: string
-  ): Promise<FollowActionResult> {
+  async toggleFollow(currentUserId: string, targetUserId: string): Promise<FollowActionResult> {
     if (await this.isFollowing(currentUserId, targetUserId)) {
       const { counts } = await this.unfollowUser(currentUserId, targetUserId);
       return { action: 'unfollow', counts };
@@ -1692,10 +1700,7 @@ export class UserService {
    *   the caller's own id, or ids that name no account).
    * @returns Per-target results and the count of NEWLY created follows.
    */
-  async bulkFollow(
-    currentUserId: string,
-    targetUserIds: string[]
-  ): Promise<BulkFollowResult> {
+  async bulkFollow(currentUserId: string, targetUserIds: string[]): Promise<BulkFollowResult> {
     const db = getDb();
 
     // Dedupe while preserving first-seen order, and drop the caller's own id
@@ -1713,10 +1718,12 @@ export class UserService {
       .where(
         and(
           inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
-          inArray(userFollows.followedId, await expandEquivalentUserIds(candidateIds))
-        )
+          inArray(userFollows.followedId, await expandEquivalentUserIds(candidateIds)),
+        ),
       );
-    const alreadyFollowedIds = new Set(await expandEquivalentUserIds(existingFollows.map((row) => row.followedId)));
+    const alreadyFollowedIds = new Set(
+      await expandEquivalentUserIds(existingFollows.map((row) => row.followedId)),
+    );
 
     // ONE batched query to verify which candidates correspond to real users.
     const existingUsers = await db
@@ -1727,7 +1734,7 @@ export class UserService {
 
     // Candidates that exist and are not yet followed are the insert set.
     const toInsertIds = candidateIds.filter(
-      (id) => existingUserIds.has(id) && !alreadyFollowedIds.has(id)
+      (id) => existingUserIds.has(id) && !alreadyFollowedIds.has(id),
     );
 
     let newlyFollowedIds: string[] = [];
@@ -1737,7 +1744,9 @@ export class UserService {
       // ONE command for the whole batch (one transaction, set-based writes).
       // A row that lost a concurrency race simply does not come back as
       // created — no error to classify. Caches are invalidated inside.
-      newlyFollowedIds = (await followAccounts({ followerId: currentUserId, followedIds: toInsertIds })).created;
+      newlyFollowedIds = (
+        await followAccounts({ followerId: currentUserId, followedIds: toInsertIds })
+      ).created;
       const newlySet = new Set(newlyFollowedIds);
       for (const id of toInsertIds) {
         if (!newlySet.has(id)) racedDuplicateIds.add(id);
@@ -1777,10 +1786,7 @@ export class UserService {
    *   or the caller's own id).
    * @returns Per-target results and the count of follows actually removed.
    */
-  async bulkUnfollow(
-    currentUserId: string,
-    targetUserIds: string[]
-  ): Promise<BulkUnfollowResult> {
+  async bulkUnfollow(currentUserId: string, targetUserIds: string[]): Promise<BulkUnfollowResult> {
     const candidateIds = dedupeTargetIds(currentUserId, targetUserIds);
 
     if (candidateIds.length === 0) {
@@ -1790,7 +1796,9 @@ export class UserService {
     // ONE command: the relationships (with their events) and the projection,
     // in one transaction. `removed` names exactly the edges THIS call deleted.
     // Caches are invalidated inside.
-    const actuallyRemovedIds = (await unfollowAccounts({ followerId: currentUserId, followedIds: candidateIds })).removed;
+    const actuallyRemovedIds = (
+      await unfollowAccounts({ followerId: currentUserId, followedIds: candidateIds })
+    ).removed;
 
     const removedSet = new Set(await expandEquivalentUserIds(actuallyRemovedIds));
     const results: BulkUnfollowEntry[] = candidateIds.map((userId) => ({
@@ -1799,7 +1807,7 @@ export class UserService {
       wasFollowing: removedSet.has(userId),
     }));
 
-    return { results, unfollowedCount: results.filter(result => result.wasFollowing).length };
+    return { results, unfollowedCount: results.filter((result) => result.wasFollowing).length };
   }
 
   /**
@@ -1815,18 +1823,15 @@ export class UserService {
    */
   async purgeUserSocialGraph(
     userId: string,
-    db: DatabaseOrTransaction = getDb()
+    db: DatabaseOrTransaction = getDb(),
   ): Promise<{ followEdgesRemoved: number }> {
-
     // The relationships behind the projection go too, with their events, so
     // the v2 graph never keeps a follow the account graph just dropped.
     await removeAccountRelationships(db, userId);
 
     const removedEdges = await db
       .delete(userFollows)
-      .where(
-        or(eq(userFollows.followerId, userId), eq(userFollows.followedId, userId))
-      )
+      .where(or(eq(userFollows.followerId, userId), eq(userFollows.followedId, userId)))
       .returning({
         followerId: userFollows.followerId,
         followedId: userFollows.followedId,
@@ -1839,9 +1844,7 @@ export class UserService {
     counterpartyIds.delete(userId);
 
     await Promise.all([
-      db
-        .delete(blocks)
-        .where(or(eq(blocks.userId, userId), eq(blocks.blockedId, userId))),
+      db.delete(blocks).where(or(eq(blocks.userId, userId), eq(blocks.blockedId, userId))),
       db
         .delete(restrictions)
         .where(or(eq(restrictions.userId, userId), eq(restrictions.restrictedId, userId))),
@@ -1855,9 +1858,7 @@ export class UserService {
     for (const counterpartyId of counterpartyIds) {
       userCache.invalidate(counterpartyId, 'graph');
     }
-    await Promise.all(
-      [userId, ...counterpartyIds].map((id) => graphCache.invalidate(id))
-    );
+    await Promise.all([userId, ...counterpartyIds].map((id) => graphCache.invalidate(id)));
 
     return { followEdgesRemoved: removedEdges.length };
   }
@@ -1878,18 +1879,28 @@ export class UserService {
    * @param oxyUserId The federated actor's Oxy user id.
    * @returns The number of follow-graph edges removed.
    */
-  async deleteFederatedActor(
-    oxyUserId: string
-  ): Promise<{ followEdgesRemoved: number }> {
-    return getDb().transaction(async tx => {
+  async deleteFederatedActor(oxyUserId: string): Promise<{ followEdgesRemoved: number }> {
+    return getDb().transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext('external-identity-registry'))`);
-      const [subject] = await tx.select({ type: users.type }).from(users).where(eq(users.id, oxyUserId)).for('update');
-      if (!subject || subject.type !== 'federated') throw new BadRequestError('Federated user not found');
+      const [subject] = await tx
+        .select({ type: users.type })
+        .from(users)
+        .where(eq(users.id, oxyUserId))
+        .for('update');
+      if (!subject || subject.type !== 'federated')
+        throw new BadRequestError('Federated user not found');
       const members = await getEquivalentUserIds(oxyUserId, tx);
-      const actors = await tx.select({ uri: externalIdentityActors.actorUri }).from(externalIdentityActors)
-        .innerJoin(externalIdentities, eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct))
-        .where(eq(externalIdentities.userId, oxyUserId)).limit(2);
-      if (members.length > 1 || actors.length > 1) throw new ConflictError('Cannot delete an identity with surviving aliases');
+      const actors = await tx
+        .select({ uri: externalIdentityActors.actorUri })
+        .from(externalIdentityActors)
+        .innerJoin(
+          externalIdentities,
+          eq(externalIdentities.canonicalAcct, externalIdentityActors.canonicalAcct),
+        )
+        .where(eq(externalIdentities.userId, oxyUserId))
+        .limit(2);
+      if (members.length > 1 || actors.length > 1)
+        throw new ConflictError('Cannot delete an identity with surviving aliases');
       const { followEdgesRemoved } = await this.purgeUserSocialGraph(oxyUserId, tx);
       await tx.delete(users).where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
       return { followEdgesRemoved };
@@ -1899,18 +1910,15 @@ export class UserService {
   /**
    * Check if current user is following target user
    */
-  async isFollowing(
-    currentUserId: string,
-    targetUserId: string
-  ): Promise<boolean> {
+  async isFollowing(currentUserId: string, targetUserId: string): Promise<boolean> {
     const [row] = await getDb()
       .select({ id: userFollows.id })
       .from(userFollows)
       .where(
         and(
           inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
-          inArray(userFollows.followedId, await getEquivalentUserIds(targetUserId))
-        )
+          inArray(userFollows.followedId, await getEquivalentUserIds(targetUserId)),
+        ),
       )
       .limit(1);
     return !!row;
@@ -1934,10 +1942,7 @@ export class UserService {
    * @param targetId The fetched profile's user id.
    * @returns `{ isFollowing, followsYou }`.
    */
-  async getViewerRelationship(
-    viewerId: string,
-    targetId: string
-  ): Promise<UserRelationship> {
+  async getViewerRelationship(viewerId: string, targetId: string): Promise<UserRelationship> {
     const groups = await getEquivalentUserGroups([viewerId, targetId]);
     const viewerIds = groups[viewerId];
     const targetIds = groups[targetId];
@@ -1951,13 +1956,13 @@ export class UserService {
         or(
           and(
             inArray(userFollows.followerId, viewerIds),
-            inArray(userFollows.followedId, targetIds)
+            inArray(userFollows.followedId, targetIds),
           ),
           and(
             inArray(userFollows.followerId, targetIds),
-            inArray(userFollows.followedId, viewerIds)
-          )
-        )
+            inArray(userFollows.followedId, viewerIds),
+          ),
+        ),
       );
 
     let isFollowing = false;
@@ -1992,7 +1997,7 @@ export class UserService {
    */
   async getFollowingStatuses(
     currentUserId: string,
-    targetIds: string[]
+    targetIds: string[],
   ): Promise<Record<string, boolean>> {
     // Dedupe requested ids preserving first-seen order; every requested id must
     // appear in the result (default false).
@@ -2024,12 +2029,13 @@ export class UserService {
       .where(
         and(
           inArray(userFollows.followerId, await getEquivalentUserIds(currentUserId)),
-          inArray(userFollows.followedId, expanded)
-        )
+          inArray(userFollows.followedId, expanded),
+        ),
       );
 
     for (const follow of follows) {
-      for (const id of requestedIds) if (groups[id]?.includes(follow.followedId)) statuses[id] = true;
+      for (const id of requestedIds)
+        if (groups[id]?.includes(follow.followedId)) statuses[id] = true;
     }
 
     return statuses;
@@ -2055,8 +2061,12 @@ export class UserService {
    * @returns Array of public user DTOs, each with `_count`.
    */
   async getUsersByIds(ids: string[]): Promise<PublicUserProfile[]> {
-    const identityUsers = await resolveExternalIdentityUsers(ids.filter(id => typeof id === 'string' && id.length > 0));
-    const candidateIds = [...new Set([...identityUsers.values()].map(identity => identity.userId))];
+    const identityUsers = await resolveExternalIdentityUsers(
+      ids.filter((id) => typeof id === 'string' && id.length > 0),
+    );
+    const candidateIds = [
+      ...new Set([...identityUsers.values()].map((identity) => identity.userId)),
+    ];
     if (candidateIds.length === 0) {
       return [];
     }
@@ -2066,17 +2076,29 @@ export class UserService {
       .from(users)
       .where(and(inArray(users.id, candidateIds), discoverableUserPredicate()));
 
-    const identityByCanonical = new Map([...identityUsers.values()].map(identity => [identity.userId, identity]));
-    return rows.map(row => {
+    const identityByCanonical = new Map(
+      [...identityUsers.values()].map((identity) => [identity.userId, identity]),
+    );
+    return rows.map((row) => {
       const identity = identityByCanonical.get(row.id);
-      return { ...this.formatUserResponse(toPublicUserView(row), { followers: row.followersCount, following: row.followingCount }),
-        externalIdentities: identity?.externalIdentities ?? [], redirectedUserIds: identity?.redirectedUserIds ?? [] };
+      return {
+        ...this.formatUserResponse(toPublicUserView(row), {
+          followers: row.followersCount,
+          following: row.followingCount,
+        }),
+        externalIdentities: identity?.externalIdentities ?? [],
+        redirectedUserIds: identity?.redirectedUserIds ?? [],
+      };
     });
   }
 
   async withExternalIdentities<T extends PublicUserProfile>(profile: T) {
     const identity = (await resolveExternalIdentityUsers([profile.id ?? ''])).get(profile.id ?? '');
-    return { ...profile, externalIdentities: identity?.externalIdentities ?? [], redirectedUserIds: identity?.redirectedUserIds ?? [] };
+    return {
+      ...profile,
+      externalIdentities: identity?.externalIdentities ?? [],
+      redirectedUserIds: identity?.redirectedUserIds ?? [],
+    };
   }
 
   /**
@@ -2098,7 +2120,7 @@ export class UserService {
   formatUserResponse(
     user: UserResponseSource,
     stats?: UserStatistics,
-    options: { includePrivateFields?: boolean } = {}
+    options: { includePrivateFields?: boolean } = {},
   ): PublicUserProfile {
     // The load-bearing identity fields (`id`, `name`, `username`, `avatar`) come
     // from the SHARED `userIdentityFields` definer, so this serializer can never
@@ -2231,9 +2253,7 @@ function dedupeTargetIds(currentUserId: string, targetUserIds: string[]): string
  * keys the caller supplied are written; a partial `userPreferences` leaves the
  * fields it omitted untouched, matching Mongoose's dot-path `set`.
  */
-function buildUserColumnUpdates(
-  filtered: Record<string, unknown>
-): Record<string, unknown> {
+function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<string, unknown> {
   const set: Record<string, unknown> = {};
 
   if (isRecord(filtered.name)) {
@@ -2272,8 +2292,10 @@ function buildUserColumnUpdates(
     const prefs = filtered.notificationPreferences;
     if (typeof prefs.pushEnabled === 'boolean') set.notificationPushEnabled = prefs.pushEnabled;
     if (typeof prefs.emailDigest === 'boolean') set.notificationEmailDigest = prefs.emailDigest;
-    if (typeof prefs.securityAlerts === 'boolean') set.notificationSecurityAlerts = prefs.securityAlerts;
-    if (typeof prefs.marketingEmails === 'boolean') set.notificationMarketingEmails = prefs.marketingEmails;
+    if (typeof prefs.securityAlerts === 'boolean')
+      set.notificationSecurityAlerts = prefs.securityAlerts;
+    if (typeof prefs.marketingEmails === 'boolean')
+      set.notificationMarketingEmails = prefs.marketingEmails;
   }
 
   if (isRecord(filtered.userPreferences)) {

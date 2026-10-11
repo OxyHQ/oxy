@@ -122,13 +122,15 @@ async function signer(): Promise<Signer> {
 
 /** Register a node for an account. Seeded directly: registration is F5a's job. */
 async function registerNode(userId: string, endpoint: string): Promise<void> {
-  await getDb().insert(userNodes).values({
-    userId,
-    endpoint,
-    nodePublicKey: 'ab'.repeat(33),
-    mode: 'pull',
-    status: 'active',
-  });
+  await getDb()
+    .insert(userNodes)
+    .values({
+      userId,
+      endpoint,
+      nodePublicKey: 'ab'.repeat(33),
+      mode: 'pull',
+      status: 'active',
+    });
 }
 
 /** Build + sign one v2 envelope for a subject. */
@@ -202,7 +204,10 @@ function serve(node: FakeNode): void {
       return jsonResult({
         records: page,
         count: page.length,
-        head: node.headRecordId === null ? null : { seq: node.headSeq, headRecordId: node.headRecordId },
+        head:
+          node.headRecordId === null
+            ? null
+            : { seq: node.headSeq, headRecordId: node.headRecordId },
       });
     }
     throw new Error(`unexpected node fetch: ${rawUrl}`);
@@ -244,7 +249,11 @@ async function storedRecords(userId: string) {
 /** The account's head row, or `undefined` when it has no chain. */
 async function headRow(userId: string) {
   const [row] = await getDb()
-    .select({ seq: repoHeads.seq, headRecordId: repoHeads.headRecordId, recordCount: repoHeads.recordCount })
+    .select({
+      seq: repoHeads.seq,
+      headRecordId: repoHeads.headRecordId,
+      recordCount: repoHeads.recordCount,
+    })
     .from(repoHeads)
     .where(eq(repoHeads.userId, userId))
     .limit(1);
@@ -426,11 +435,7 @@ describe('an envelope that fails verification is never stored', () => {
     // threat: a key the DID does not authorize can never inject a record.
     const subject = await signer();
     const forger = generateSecp256k1KeyPair();
-    const forged = envelope(
-      subject,
-      { publicKey: forger.publicKey },
-      forger.privateKey,
-    );
+    const forged = envelope(subject, { publicKey: forger.publicKey }, forger.privateKey);
     await nodeFor(subject, [forged]);
 
     await ingestFromNode(subject.userId);
@@ -485,7 +490,12 @@ describe('an envelope that fails verification is never stored', () => {
     const forger = generateSecp256k1KeyPair();
     const poisoned = envelope(
       subject,
-      { seq: 1, prev: await computeRecordId(records[0]), issuedAt: T0 + 1_000, publicKey: forger.publicKey },
+      {
+        seq: 1,
+        prev: await computeRecordId(records[0]),
+        issuedAt: T0 + 1_000,
+        publicKey: forger.publicKey,
+      },
       forger.privateKey,
     );
     await nodeFor(subject, [records[0], poisoned, records[2]]);
@@ -545,7 +555,11 @@ describe('conflict resolution', () => {
       verified: true,
     });
     // The head still names the linear branch.
-    expect(await headRow(subject.userId)).toEqual({ seq: 0, headRecordId: genesisId, recordCount: 1 });
+    expect(await headRow(subject.userId)).toEqual({
+      seq: 0,
+      headRecordId: genesisId,
+      recordCount: 1,
+    });
     // Both branches are witnessed.
     expect((await witnesses(subject.userId)).map((row) => row.recordId).sort()).toEqual(
       [genesisId, forkedId].sort(),
@@ -560,7 +574,12 @@ describe('conflict resolution', () => {
     const node = await nodeFor(subject, records);
     await ingestFromNode(subject.userId);
 
-    const forked = envelope(subject, { seq: 1, prev: 'f'.repeat(64), issuedAt: T0 + 5_000, record: { v: 'fork' } });
+    const forked = envelope(subject, {
+      seq: 1,
+      prev: 'f'.repeat(64),
+      issuedAt: T0 + 5_000,
+      record: { v: 'fork' },
+    });
     node.records = [records[0], forked];
     node.headSeq = 1;
     node.headRecordId = await computeRecordId(forked);
@@ -580,7 +599,11 @@ describe('conflict resolution', () => {
     await ingestFromNode(subject.userId);
 
     // Same record key, strictly OLDER than what Oxy already materialized.
-    const older = envelope(subject, { seq: 1, prev: await computeRecordId(records[0]), issuedAt: T0 - 1_000 });
+    const older = envelope(subject, {
+      seq: 1,
+      prev: await computeRecordId(records[0]),
+      issuedAt: T0 - 1_000,
+    });
     node.records = [records[0], older];
     node.headSeq = 1;
     node.headRecordId = await computeRecordId(older);
@@ -642,7 +665,10 @@ describe('resilience — a down node leaves the mirror stale, never wrong', () =
   it('no-ops for a REVOKED node and never writes to its row', async () => {
     const subject = await signer();
     await nodeFor(subject, await chain(subject, 1));
-    await getDb().update(userNodes).set({ status: 'revoked' }).where(eq(userNodes.userId, subject.userId));
+    await getDb()
+      .update(userNodes)
+      .set({ status: 'revoked' })
+      .where(eq(userNodes.userId, subject.userId));
     jest.clearAllMocks();
 
     await ingestFromNode(subject.userId);

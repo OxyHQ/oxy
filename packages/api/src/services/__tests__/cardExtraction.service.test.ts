@@ -96,7 +96,7 @@ async function insertUser(): Promise<string> {
 }
 
 async function insertMessage(
-  options: { userId?: string; text?: string | null; subject?: string; date?: Date } = {}
+  options: { userId?: string; text?: string | null; subject?: string; date?: Date } = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(messages)
@@ -107,7 +107,8 @@ async function insertMessage(
       fromName: 'Airline',
       fromAddress: 'noreply@airline.example',
       subject: options.subject ?? 'Your flight is confirmed',
-      text: options.text === undefined ? 'Booking reference ABC123, departing 10:00.' : options.text,
+      text:
+        options.text === undefined ? 'Booking reference ABC123, departing 10:00.' : options.text,
       size: 512,
       date: options.date ?? new Date('2026-03-04T05:06:07.000Z'),
     })
@@ -191,7 +192,7 @@ describe('storing an extracted card', () => {
           confidence: 0.93,
         },
         highlights: [],
-      })
+      }),
     );
 
     const before = Date.now();
@@ -215,7 +216,7 @@ describe('storing an extracted card', () => {
           { type: 'confirmation', value: 'ABC123', label: 'Booking ref' },
           { type: 'date', value: '2026-03-04', label: 'Departs' },
         ],
-      })
+      }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -237,7 +238,7 @@ describe('storing an extracted card', () => {
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'bill', data: { biller: 'X' }, confidence: 0.4 }, highlights: [] })
+      aiReply({ card: { type: 'bill', data: { biller: 'X' }, confidence: 0.4 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -251,7 +252,7 @@ describe('storing an extracted card', () => {
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'invitation', data: {}, confidence: 0.99 }, highlights: [] })
+      aiReply({ card: { type: 'invitation', data: {}, confidence: 0.99 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(USER_ID, messageId);
@@ -271,13 +272,13 @@ describe('storing an extracted card', () => {
     expect(stored.highlights).toEqual([]);
   });
 
-  it('leaves another account\'s message untouched', async () => {
+  it("leaves another account's message untouched", async () => {
     // The lookup is scoped by `(id, user_id)`, so from the stranger's side the
     // message does not exist — no upstream call, no write.
     const messageId = await insertMessage();
     loaded = await loadService();
     loaded.axiosPost.mockResolvedValue(
-      aiReply({ card: { type: 'trip', data: {}, confidence: 0.99 }, highlights: [] })
+      aiReply({ card: { type: 'trip', data: {}, confidence: 0.99 }, highlights: [] }),
     );
 
     await loaded.service.extractAndUpdate(STRANGER_ID, messageId);

@@ -115,7 +115,8 @@ When splitting imports: use `import type` for type-only imports, regular `import
 ## Coding Standards
 
 - TypeScript strict mode across all packages
-- Biome for linting (`biome lint --error-on-warnings`)
+- Biome 2.5.15 formats and lints the whole repository from the root `biome.jsonc` (`bun run lint`, CI `bunx biome ci .`; `bun run format` to fix formatting). The SDK packages (contracts, core, db, federation, mcp, protocol, services, stickers, telemetry, utils) also run `biome lint --error-on-warnings ./src`, so a warning fails them; the rules their existing code still trips are off for their `src/` in `biome.jsonc` until cleaned up.
+- ESLint and Prettier are gone. The Expo apps (accounts, commons, test-app-expo) keep a minimal `eslint.config.js` with only `eslint-plugin-expo`'s rules (`expo lint`, CI step `Expo ESLint`), which Biome has no equivalent for. Commons' icon-font import ban is Biome's `noRestrictedImports`.
 - No backward-compatibility re-exports — clean imports only
 - No unnecessary abstractions or over-engineering
 - `packages/core/` and `packages/contracts/` build with `tsc` (CJS + ESM + types -> `dist/`)

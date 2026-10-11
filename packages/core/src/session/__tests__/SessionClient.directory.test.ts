@@ -178,7 +178,9 @@ describe('SessionClient — device directory', () => {
 
     await client.refreshDirectory();
 
-    expect(host.makeRequest).toHaveBeenCalledWith('GET', '/session/device/directory', undefined, { cache: false });
+    expect(host.makeRequest).toHaveBeenCalledWith('GET', '/session/device/directory', undefined, {
+      cache: false,
+    });
     expect(client.getDirectory()?.revision).toBe(3);
     expect(client.getActiveContext()?.subject.accountId).toBe('org');
     expect(client.getActiveContext()?.actor.userId).toBe('nate');
@@ -223,7 +225,9 @@ describe('SessionClient — device directory', () => {
           {
             ...principal,
             contexts: principal.contexts.map((context) =>
-              context.accountId === 'org' ? { ...context, id: contextId, onDevice: false } : context,
+              context.accountId === 'org'
+                ? { ...context, id: contextId, onDevice: false }
+                : context,
             ),
           },
         ],
@@ -342,7 +346,12 @@ describe('SessionClient — device directory', () => {
 
     await client.activateContext('ctx-org');
 
-    expect(host.makeRequest).toHaveBeenCalledWith('POST', '/session/device/activate', { contextId: 'ctx-org' }, { cache: false });
+    expect(host.makeRequest).toHaveBeenCalledWith(
+      'POST',
+      '/session/device/activate',
+      { contextId: 'ctx-org' },
+      { cache: false },
+    );
     expect(client.getActiveContext()?.contextId).toBe('ctx-org');
   });
 
@@ -404,7 +413,10 @@ describe('SessionClient — device directory', () => {
           directory,
           activeToken: { accessToken: jwtFor('org'), expiresAt: 'x' },
         }),
-        '/session/device/state': () => ({ state: stateAt(directory.revision, 'org'), activeToken: null }),
+        '/session/device/state': () => ({
+          state: stateAt(directory.revision, 'org'),
+          activeToken: null,
+        }),
       },
       jwtFor('nate'),
     );
@@ -427,7 +439,10 @@ describe('SessionClient — device directory', () => {
     directory = directoryAt(5, 'ctx-nate');
     const beforeReal = host.urls.length;
     await client.activateContext('ctx-nate');
-    expect(host.urls.slice(beforeReal)).toEqual(['/session/device/activate', '/session/device/state']);
+    expect(host.urls.slice(beforeReal)).toEqual([
+      '/session/device/activate',
+      '/session/device/state',
+    ]);
     expect(posted).toEqual([{ type: 'commit', at: expect.any(Number) }]);
   });
 
@@ -452,7 +467,10 @@ describe('SessionClient — device directory', () => {
     const removalResponse = (revision: number, activeContextId: string | null) => ({
       directory: directoryAt(revision, activeContextId),
       state: stateAt(revision, activeContextId === 'ctx-org' ? 'org' : 'nate'),
-      activeToken: { accessToken: jwtFor(activeContextId === 'ctx-org' ? 'org' : 'nate'), expiresAt: 'x' },
+      activeToken: {
+        accessToken: jwtFor(activeContextId === 'ctx-org' ? 'org' : 'nate'),
+        expiresAt: 'x',
+      },
     });
 
     it('signOutContext POSTs { contextId } and applies BOTH halves from one response', async () => {
@@ -465,7 +483,12 @@ describe('SessionClient — device directory', () => {
 
       await client.signOutContext('ctx-org');
 
-      expect(host.makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { contextId: 'ctx-org' }, { cache: false });
+      expect(host.makeRequest).toHaveBeenCalledWith(
+        'POST',
+        '/session/device/signout',
+        { contextId: 'ctx-org' },
+        { cache: false },
+      );
       expect(client.getActiveContext()?.contextId).toBe('ctx-nate');
       expect(client.getState()?.activeAccountId).toBe('nate');
       expect(client.getState()?.revision).toBe(6);
@@ -483,7 +506,12 @@ describe('SessionClient — device directory', () => {
 
       await client.signOutPrincipal('p-alice');
 
-      expect(host.makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { principalId: 'p-alice' }, { cache: false });
+      expect(host.makeRequest).toHaveBeenCalledWith(
+        'POST',
+        '/session/device/signout',
+        { principalId: 'p-alice' },
+        { cache: false },
+      );
     });
 
     it('commits the replacement context bearer before any subscriber observes it', async () => {

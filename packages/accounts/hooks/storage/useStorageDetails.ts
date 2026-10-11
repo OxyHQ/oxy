@@ -105,29 +105,41 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
       { key: 'other', color: colors.textSecondary, pct: toPct(other) },
       { key: 'remaining', color: colors.border, pct: toPct(remaining) },
     ].filter((s) => s.pct > 0.2); // avoid tiny slivers that look like rendering glitches
-  }, [colors.border, colors.sidebarIconData, colors.sidebarIconPayments, colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, colors.sidebarIconSharing, colors.textSecondary, usage]);
+  }, [
+    colors.border,
+    colors.sidebarIconData,
+    colors.sidebarIconPayments,
+    colors.sidebarIconPersonalInfo,
+    colors.sidebarIconSecurity,
+    colors.sidebarIconSharing,
+    colors.textSecondary,
+    usage,
+  ]);
 
-  const handleCategoryPress = useCallback((categoryId: string, categoryName: string, bytes: number, count: number) => {
-    const sizeText = formatBytes(bytes).text;
-    const countTextKey = categoryId === 'mail'
-      ? 'storage.categories.messages'
-      : categoryId === 'photosVideos'
-        ? 'storage.categories.items'
-        : categoryId === 'recordings'
-          ? 'storage.categories.recordingsCount'
-          : 'storage.categories.files';
-    const countText = t(countTextKey, { count });
-    const percentage = usage && usage.totalLimitBytes > 0
-      ? Math.round((bytes / usage.totalLimitBytes) * 100)
-      : 0;
+  const handleCategoryPress = useCallback(
+    (categoryId: string, categoryName: string, bytes: number, count: number) => {
+      const sizeText = formatBytes(bytes).text;
+      const countTextKey =
+        categoryId === 'mail'
+          ? 'storage.categories.messages'
+          : categoryId === 'photosVideos'
+            ? 'storage.categories.items'
+            : categoryId === 'recordings'
+              ? 'storage.categories.recordingsCount'
+              : 'storage.categories.files';
+      const countText = t(countTextKey, { count });
+      const percentage =
+        usage && usage.totalLimitBytes > 0 ? Math.round((bytes / usage.totalLimitBytes) * 100) : 0;
 
-    alert(
-      categoryName,
-      t('storage.detail.summary', { size: sizeText, count: countText, percent: percentage }),
-      [{ text: t('common.ok') }]
-    );
-    // `alert` is a stable module import from @oxy.so/bloom, not a reactive value.
-  }, [formatBytes, usage, t]);
+      alert(
+        categoryName,
+        t('storage.detail.summary', { size: sizeText, count: countText, percent: percentage }),
+        [{ text: t('common.ok') }],
+      );
+      // `alert` is a stable module import from @oxy.so/bloom, not a reactive value.
+    },
+    [formatBytes, usage, t],
+  );
 
   const storageDetails = useMemo<StorageDetailItem[]>(() => {
     const cats = usage?.categories;
@@ -148,7 +160,13 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.documents'),
         subtitle: t('storage.categories.files', { count: docsCount }),
         valueText: formatBytes(safe(cats?.documents?.bytes)).text,
-        onPress: () => handleCategoryPress('documents', t('storage.categories.documents'), safe(cats?.documents?.bytes), docsCount),
+        onPress: () =>
+          handleCategoryPress(
+            'documents',
+            t('storage.categories.documents'),
+            safe(cats?.documents?.bytes),
+            docsCount,
+          ),
         showChevron: false,
       },
       {
@@ -158,7 +176,13 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.mail'),
         subtitle: t('storage.categories.messages', { count: mailCount }),
         valueText: formatBytes(safe(cats?.mail?.bytes)).text,
-        onPress: () => handleCategoryPress('mail', t('storage.categories.mail'), safe(cats?.mail?.bytes), mailCount),
+        onPress: () =>
+          handleCategoryPress(
+            'mail',
+            t('storage.categories.mail'),
+            safe(cats?.mail?.bytes),
+            mailCount,
+          ),
         showChevron: false,
       },
       {
@@ -168,7 +192,13 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.photosVideos'),
         subtitle: t('storage.categories.items', { count: photosCount }),
         valueText: formatBytes(safe(cats?.photosVideos?.bytes)).text,
-        onPress: () => handleCategoryPress('photosVideos', t('storage.categories.photosVideos'), safe(cats?.photosVideos?.bytes), photosCount),
+        onPress: () =>
+          handleCategoryPress(
+            'photosVideos',
+            t('storage.categories.photosVideos'),
+            safe(cats?.photosVideos?.bytes),
+            photosCount,
+          ),
         showChevron: false,
       },
       {
@@ -178,7 +208,13 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.recordings'),
         subtitle: t('storage.categories.recordingsCount', { count: recCount }),
         valueText: formatBytes(safe(cats?.recordings?.bytes)).text,
-        onPress: () => handleCategoryPress('recordings', t('storage.categories.recordings'), safe(cats?.recordings?.bytes), recCount),
+        onPress: () =>
+          handleCategoryPress(
+            'recordings',
+            t('storage.categories.recordings'),
+            safe(cats?.recordings?.bytes),
+            recCount,
+          ),
         showChevron: false,
       },
       {
@@ -188,7 +224,13 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.family'),
         subtitle: t('storage.categories.files', { count: famCount }),
         valueText: formatBytes(safe(cats?.family?.bytes)).text,
-        onPress: () => handleCategoryPress('family', t('storage.categories.family'), safe(cats?.family?.bytes), famCount),
+        onPress: () =>
+          handleCategoryPress(
+            'family',
+            t('storage.categories.family'),
+            safe(cats?.family?.bytes),
+            famCount,
+          ),
         showChevron: false,
       },
     ];
@@ -203,13 +245,30 @@ export function useStorageDetails(usage: AccountStorageUsageResponse | null): St
         title: t('storage.categories.other'),
         subtitle: t('storage.categories.files', { count: otherCount }),
         valueText: formatBytes(safe(cats?.other?.bytes)).text,
-        onPress: () => handleCategoryPress('other', t('storage.categories.other'), safe(cats?.other?.bytes), otherCount),
+        onPress: () =>
+          handleCategoryPress(
+            'other',
+            t('storage.categories.other'),
+            safe(cats?.other?.bytes),
+            otherCount,
+          ),
         showChevron: false,
       });
     }
 
     return items;
-  }, [colors.sidebarIconData, colors.sidebarIconPayments, colors.sidebarIconPersonalInfo, colors.sidebarIconSecurity, colors.sidebarIconSharing, colors.textSecondary, formatBytes, handleCategoryPress, usage, t]);
+  }, [
+    colors.sidebarIconData,
+    colors.sidebarIconPayments,
+    colors.sidebarIconPersonalInfo,
+    colors.sidebarIconSecurity,
+    colors.sidebarIconSharing,
+    colors.textSecondary,
+    formatBytes,
+    handleCategoryPress,
+    usage,
+    t,
+  ]);
 
   const accountInfoItems = useMemo<GroupedItem[]>(() => {
     if (!usage) return [];

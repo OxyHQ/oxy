@@ -68,14 +68,19 @@ export interface SmtpRelayConfig {
  */
 export function parseRelayList(): SmtpRelayConfig[] {
   const split = (raw: string): string[] =>
-    raw.split(',').map((part) => part.trim()).filter((part) => part.length > 0);
+    raw
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
 
   const hosts = split(getEnvVar('SMTP_RELAY_HOST', ''));
   if (hosts.length === 0) return [];
 
   const ports = split(getEnvVar('SMTP_RELAY_PORT', '587'));
   const users = split(getEnvVar('SMTP_RELAY_USER', ''));
-  const passes = getEnvVar('SMTP_RELAY_PASS', '').split(',').map((p) => p.trim());
+  const passes = getEnvVar('SMTP_RELAY_PASS', '')
+    .split(',')
+    .map((p) => p.trim());
 
   // A single value applies to every relay; otherwise entries align by position.
   const pick = (list: string[], index: number, fallback: string): string =>
@@ -88,7 +93,11 @@ export function parseRelayList(): SmtpRelayConfig[] {
       host,
       port: Number.isFinite(port) ? port : 587,
       user: pick(users, index, ''),
-      pass: pick(passes.filter((p) => p.length > 0), index, ''),
+      pass: pick(
+        passes.filter((p) => p.length > 0),
+        index,
+        '',
+      ),
     };
   });
 }
@@ -124,20 +133,20 @@ export const SPAM_CONFIG = {
 /** Storage quotas per subscription tier (in bytes) */
 export const EMAIL_QUOTAS = {
   free: {
-    storage: 5 * 1024 * 1024 * 1024,         // 5 GB
-    maxAttachmentSize: 25 * 1024 * 1024,      // 25 MB
+    storage: 5 * 1024 * 1024 * 1024, // 5 GB
+    maxAttachmentSize: 25 * 1024 * 1024, // 25 MB
     dailySendLimit: 100,
     maxRecipientsPerMessage: 50,
   },
   pro: {
-    storage: 50 * 1024 * 1024 * 1024,        // 50 GB
-    maxAttachmentSize: 50 * 1024 * 1024,      // 50 MB
+    storage: 50 * 1024 * 1024 * 1024, // 50 GB
+    maxAttachmentSize: 50 * 1024 * 1024, // 50 MB
     dailySendLimit: 1_000,
     maxRecipientsPerMessage: 100,
   },
   business: {
-    storage: 200 * 1024 * 1024 * 1024,       // 200 GB
-    maxAttachmentSize: 100 * 1024 * 1024,     // 100 MB
+    storage: 200 * 1024 * 1024 * 1024, // 200 GB
+    maxAttachmentSize: 100 * 1024 * 1024, // 100 MB
     dailySendLimit: 10_000,
     maxRecipientsPerMessage: 500,
   },

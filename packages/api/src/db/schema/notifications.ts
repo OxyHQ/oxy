@@ -96,38 +96,38 @@ export const notifications = pgTable(
       t.recipientId,
       t.actorId,
       t.type,
-      t.entityId
+      t.entityId,
     ),
     // The feed read: this recipient's notifications, newest first.
-    index('notifications_recipient_id_created_at_idx').on(
-      t.recipientId,
-      t.createdAt.desc()
-    ),
+    index('notifications_recipient_id_created_at_idx').on(t.recipientId, t.createdAt.desc()),
 
     check('notifications_type_check', sql`${t.type} in (${sql.raw(inList(NOTIFICATION_TYPES))})`),
     check(
       'notifications_entity_type_check',
-      sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`
+      sql`${t.entityType} in (${sql.raw(inList(NOTIFICATION_ENTITY_TYPES))})`,
     ),
     // Text iff `system`: a system notification without words is empty on every
     // client, and text on any other type would be a second rendering path.
     check(
       'notifications_system_text_check',
-      sql`(${t.type} = 'system') = (${t.title} is not null and ${t.message} is not null)`
+      sql`(${t.type} = 'system') = (${t.title} is not null and ${t.message} is not null)`,
     ),
-    check('notifications_app_entity_system_only_check', sql`${t.entityType} <> 'app' or ${t.type} = 'system'`),
+    check(
+      'notifications_app_entity_system_only_check',
+      sql`${t.entityType} <> 'app' or ${t.type} = 'system'`,
+    ),
     check('notifications_url_system_only_check', sql`${t.url} is null or ${t.type} = 'system'`),
     check(
       'notifications_title_length_check',
-      sql`${t.title} is null or char_length(${t.title}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_TITLE_MAX))}`
+      sql`${t.title} is null or char_length(${t.title}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_TITLE_MAX))}`,
     ),
     check(
       'notifications_message_length_check',
-      sql`${t.message} is null or char_length(${t.message}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX))}`
+      sql`${t.message} is null or char_length(${t.message}) between 1 and ${sql.raw(String(OXY_SYSTEM_NOTIFICATION_MESSAGE_MAX))}`,
     ),
     check(
       'notifications_url_length_check',
-      sql`${t.url} is null or char_length(${t.url}) between 1 and ${sql.raw(String(OXY_NOTIFICATION_URL_MAX))}`
+      sql`${t.url} is null or char_length(${t.url}) between 1 and ${sql.raw(String(OXY_NOTIFICATION_URL_MAX))}`,
     ),
-  ]
+  ],
 );

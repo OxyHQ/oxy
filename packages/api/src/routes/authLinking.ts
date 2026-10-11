@@ -162,46 +162,49 @@ router.use(requireFirstPartyForChanges);
  * user, shaped to the `authMethodsResponseSchema` contract. The identity
  * method carries its DID verification-method id (`#key-1`).
  */
-router.get('/methods', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
+router.get(
+  '/methods',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      throw new BadRequestError('User not authenticated');
+    }
 
-  const db = getDb();
-  const [account] = await db
-    .select({ publicKey: users.publicKey, createdAt: users.createdAt })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!account) {
-    throw new BadRequestError('User not found');
-  }
+    const db = getDb();
+    const [account] = await db
+      .select({ publicKey: users.publicKey, createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!account) {
+      throw new BadRequestError('User not found');
+    }
 
-  // Ordered by `linked_at`: the Mongo array was read in insertion order, and
-  // `linked_at` is the meaningful form of that. `id` (uuid v7, time-ordered)
-  // breaks a same-instant tie so the response order is total rather than
-  // whatever the heap returns.
-  const methods = await db
-    .select({
-      type: userAuthMethods.type,
-      linkedAt: userAuthMethods.linkedAt,
-    })
-    .from(userAuthMethods)
-    .where(eq(userAuthMethods.userId, userId))
-    .orderBy(userAuthMethods.linkedAt, userAuthMethods.id);
+    // Ordered by `linked_at`: the Mongo array was read in insertion order, and
+    // `linked_at` is the meaningful form of that. `id` (uuid v7, time-ordered)
+    // breaks a same-instant tie so the response order is total rather than
+    // whatever the heap returns.
+    const methods = await db
+      .select({
+        type: userAuthMethods.type,
+        linkedAt: userAuthMethods.linkedAt,
+      })
+      .from(userAuthMethods)
+      .where(eq(userAuthMethods.userId, userId))
+      .orderBy(userAuthMethods.linkedAt, userAuthMethods.id);
 
-  const response = authMethodsResponseSchema.parse({
-    did: buildUserDid(userId),
-    methods: buildAuthMethodEntries({
-      publicKey: account.publicKey,
-      authMethods: methods,
-      createdAt: account.createdAt,
-    }),
-  });
+    const response = authMethodsResponseSchema.parse({
+      did: buildUserDid(userId),
+      methods: buildAuthMethodEntries({
+        publicKey: account.publicKey,
+        authMethods: methods,
+        createdAt: account.createdAt,
+      }),
+    });
 
-  res.json(response);
-}));
+    res.json(response);
+  }),
+);
 
 /**
  * POST /api/auth/rotate/challenge
@@ -212,41 +215,45 @@ router.get('/methods', asyncHandler(async (req: AuthRequest, res: Response) => {
  * `purpose: 'rotate_key'`, so a signin challenge (default purpose) can never be
  * spent here and vice-versa.
  */
-router.post('/rotate/challenge', rotateChallengeLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
+router.post(
+  '/rotate/challenge',
+  rotateChallengeLimiter,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      throw new BadRequestError('User not authenticated');
+    }
 
-  // Bind the challenge to the authoritative user row (not the JWT/cache
-  // snapshot) so mint + complete always agree on the account's current key.
-  const [account] = await getDb()
-    .select({ publicKey: users.publicKey })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const oldPublicKey = account?.publicKey;
-  if (!oldPublicKey) {
-    throw new BadRequestError('No identity key is linked to this account — nothing to rotate.');
-  }
+    // Bind the challenge to the authoritative user row (not the JWT/cache
+    // snapshot) so mint + complete always agree on the account's current key.
+    const [account] = await getDb()
+      .select({ publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const oldPublicKey = account?.publicKey;
+    if (!oldPublicKey) {
+      throw new BadRequestError('No identity key is linked to this account — nothing to rotate.');
+    }
 
-  const challenge = SignatureService.generateChallenge();
-  const expiresAt = new Date(Date.now() + ROTATE_CHALLENGE_TTL_MS);
+    const challenge = SignatureService.generateChallenge();
+    const expiresAt = new Date(Date.now() + ROTATE_CHALLENGE_TTL_MS);
 
-  await getDb().insert(authChallenges).values({
-    publicKey: oldPublicKey,
-    challenge,
-    purpose: 'rotate_key',
-    expiresAt,
-    used: false,
-  });
+    await getDb().insert(authChallenges).values({
+      publicKey: oldPublicKey,
+      challenge,
+      purpose: 'rotate_key',
+      expiresAt,
+      used: false,
+    });
 
-  const response = rotateKeyChallengeResponseSchema.parse({
-    challenge,
-    expiresAt: expiresAt.toISOString(),
-  });
-  res.json(response);
-}));
+    const response = rotateKeyChallengeResponseSchema.parse({
+      challenge,
+      expiresAt: expiresAt.toISOString(),
+    });
+    res.json(response);
+  }),
+);
 
 /**
  * POST /api/auth/rotate/complete
@@ -273,178 +280,187 @@ router.post('/rotate/challenge', rotateChallengeLimiter, asyncHandler(async (req
  *  - the identity `user_auth_methods` row is UPDATED IN PLACE (never deleted and
  *    re-inserted), so the account never passes through `total === 0`.
  */
-router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKeyCompleteRequestSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
+router.post(
+  '/rotate/complete',
+  rotateCompleteLimiter,
+  validate({ body: rotateKeyCompleteRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      throw new BadRequestError('User not authenticated');
+    }
 
-  const { newPublicKey, challenge, signature, newKeyProof, timestamp, signOutEverywhere } = req.body as RotateKeyCompleteRequest;
-  const safeNewPublicKey = newPublicKey.trim();
+    const { newPublicKey, challenge, signature, newKeyProof, timestamp, signOutEverywhere } =
+      req.body as RotateKeyCompleteRequest;
+    const safeNewPublicKey = newPublicKey.trim();
 
-  // Defense-in-depth: pin the query-bound `challenge` to a primitive string,
-  // independent of the upstream Zod validation. Mirrors the explicit string
-  // guards in POST /auth/link.
-  if (typeof challenge !== 'string') {
-    throw new BadRequestError('challenge must be a string');
-  }
+    // Defense-in-depth: pin the query-bound `challenge` to a primitive string,
+    // independent of the upstream Zod validation. Mirrors the explicit string
+    // guards in POST /auth/link.
+    if (typeof challenge !== 'string') {
+      throw new BadRequestError('challenge must be a string');
+    }
 
-  const db = getDb();
+    const db = getDb();
 
-  // Load the authoritative account row (for the server-derived old key).
-  const [account] = await db
-    .select({ publicKey: users.publicKey })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!account) {
-    throw new BadRequestError('User not found');
-  }
+    // Load the authoritative account row (for the server-derived old key).
+    const [account] = await db
+      .select({ publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!account) {
+      throw new BadRequestError('User not found');
+    }
 
-  // 1. oldPublicKey is derived from the USER ROW — never client-supplied.
-  const oldPublicKey = account.publicKey;
-  if (!oldPublicKey) {
-    throw new BadRequestError('No identity key is linked to this account — nothing to rotate.');
-  }
+    // 1. oldPublicKey is derived from the USER ROW — never client-supplied.
+    const oldPublicKey = account.publicKey;
+    if (!oldPublicKey) {
+      throw new BadRequestError('No identity key is linked to this account — nothing to rotate.');
+    }
 
-  // Structural guards on the incoming new key.
-  if (!SignatureService.isValidPublicKey(safeNewPublicKey)) {
-    throw new BadRequestError('newPublicKey is not a valid public key');
-  }
+    // Structural guards on the incoming new key.
+    if (!SignatureService.isValidPublicKey(safeNewPublicKey)) {
+      throw new BadRequestError('newPublicKey is not a valid public key');
+    }
 
-  // Canonicalize BOTH keys (uncompressed, lowercased). The differ-check, the
-  // uniqueness query, and the write all operate on the canonical form so a
-  // re-encoded (compressed / re-cased) duplicate can never slip past them.
-  const canonicalNewPublicKey = SignatureService.canonicalizePublicKey(safeNewPublicKey);
-  const canonicalOldPublicKey = SignatureService.canonicalizePublicKey(oldPublicKey);
-  if (canonicalNewPublicKey === canonicalOldPublicKey) {
-    throw new BadRequestError('newPublicKey must differ from the current identity key');
-  }
+    // Canonicalize BOTH keys (uncompressed, lowercased). The differ-check, the
+    // uniqueness query, and the write all operate on the canonical form so a
+    // re-encoded (compressed / re-cased) duplicate can never slip past them.
+    const canonicalNewPublicKey = SignatureService.canonicalizePublicKey(safeNewPublicKey);
+    const canonicalOldPublicKey = SignatureService.canonicalizePublicKey(oldPublicKey);
+    if (canonicalNewPublicKey === canonicalOldPublicKey) {
+      throw new BadRequestError('newPublicKey must differ from the current identity key');
+    }
 
-  // 2. Timestamp freshness (recent, modest client clock skew) — BEFORE the burn, so a
-  //    stale-but-otherwise-valid request cannot consume its own challenge.
-  if (!SignatureService.isTimestampFresh(timestamp, ROTATE_SIGNATURE_MAX_AGE_MS)) {
-    throw new BadRequestError('Signature expired or invalid timestamp — please try again');
-  }
+    // 2. Timestamp freshness (recent, modest client clock skew) — BEFORE the burn, so a
+    //    stale-but-otherwise-valid request cannot consume its own challenge.
+    if (!SignatureService.isTimestampFresh(timestamp, ROTATE_SIGNATURE_MAX_AGE_MS)) {
+      throw new BadRequestError('Signature expired or invalid timestamp — please try again');
+    }
 
-  // 3. Verify the client signature proves control of the CURRENT key BEFORE
-  //    burning the challenge (mirrors signin verifyChallenge). The signed bytes
-  //    use the canonical old key so compressed/legacy encodings still match.
-  const message = JSON.stringify({
-    action: 'rotate_key',
-    userId,
-    oldPublicKey: canonicalOldPublicKey,
-    newPublicKey: safeNewPublicKey,
-    challenge,
-    timestamp,
-  });
-  if (!SignatureService.verifySignature(message, signature, oldPublicKey)) {
-    throw new BadRequestError('Invalid signature — cannot verify control of the current key');
-  }
-
-  // 4. Verify proof-of-possession of the NEW key. Without this, an attacker
-  //    could rotate their OWN account to a re-encoding of a victim's key (read
-  //    from the public DID) — passing the uniqueness check but never controlling
-  //    the private key. Requiring the new key to sign closes that.
-  const newKeyMessage = JSON.stringify({
-    action: 'rotate_key_new',
-    userId,
-    newPublicKey: safeNewPublicKey,
-    challenge,
-    timestamp,
-  });
-  if (!SignatureService.verifySignature(newKeyMessage, newKeyProof, safeNewPublicKey)) {
-    throw new BadRequestError('Invalid new-key proof — cannot verify possession of the new key');
-  }
-
-  // 5. Reject if the (canonical) new key already belongs to another account.
-  const [conflict] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(publicKeyMatches(canonicalNewPublicKey))
-    .limit(1);
-  if (conflict && conflict.id !== userId) {
-    throw new ConflictError('This identity is already linked to another account');
-  }
-
-  // 6. Atomically burn the rotate_key challenge (single-use, purpose-scoped,
-  //    bound to the account's CURRENT key). One conditional UPDATE: if it
-  //    changes no row the challenge was never minted for rotation, was for a
-  //    different key, is EXPIRED, or was already consumed — reject in every
-  //    case. The `expires_at` predicate is not delegated to the expiry sweep;
-  //    the sweep lags, and a challenge outliving its deadline is spendable for
-  //    that whole window.
-  const burned = await db
-    .update(authChallenges)
-    .set({ used: true })
-    .where(
-      and(
-        eq(authChallenges.challenge, challenge),
-        eq(authChallenges.publicKey, oldPublicKey),
-        eq(authChallenges.used, false),
-        eq(authChallenges.purpose, 'rotate_key'),
-        gt(authChallenges.expiresAt, new Date()),
-      ),
-    )
-    .returning({ id: authChallenges.id });
-  if (burned.length === 0) {
-    throw new UnauthorizedError('Invalid or expired rotation challenge');
-  }
-
-  // 7. ATOMIC REPLACE, in one transaction: swap `users.public_key`, replace the
-  //    single identity `user_auth_methods` row IN PLACE, and drop the stale
-  //    encrypted backup. The identity row is UPDATEd rather than deleted and
-  //    re-inserted, so the account never passes through zero auth methods; and
-  //    because the backup delete rides the same transaction, a committed swap
-  //    can no longer leave behind a backup that still holds the OLD key under
-  //    the OLD phrase's locator (from which restore would silently import a
-  //    stale identity).
-  try {
-    await db.transaction(async (tx) => {
-      const replaced = await tx
-        .update(userAuthMethods)
-        .set({ methodPublicKey: canonicalNewPublicKey, linkedAt: new Date() })
-        .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')))
-        .returning({ id: userAuthMethods.id });
-      if (replaced.length === 0) {
-        // The account holds a `users.public_key` with no matching method row
-        // (possible for a pre-`authMethods` account). Adding the row is still a
-        // net INCREASE in methods, so the zero-method window does not open.
-        await tx.insert(userAuthMethods).values({
-          userId,
-          type: 'identity',
-          methodPublicKey: canonicalNewPublicKey,
-        });
-      }
-
-      await tx.update(users).set({ publicKey: canonicalNewPublicKey }).where(eq(users.id, userId));
-
-      await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
+    // 3. Verify the client signature proves control of the CURRENT key BEFORE
+    //    burning the challenge (mirrors signin verifyChallenge). The signed bytes
+    //    use the canonical old key so compressed/legacy encodings still match.
+    const message = JSON.stringify({
+      action: 'rotate_key',
+      userId,
+      oldPublicKey: canonicalOldPublicKey,
+      newPublicKey: safeNewPublicKey,
+      challenge,
+      timestamp,
     });
-  } catch (error) {
-    // The read-then-check in step 5 is not atomic with this write; the unique
-    // indexes on both key columns are, so a key that was claimed elsewhere in
-    // between answers the SAME 409 rather than a 500.
-    if (isUniqueViolation(error)) {
+    if (!SignatureService.verifySignature(message, signature, oldPublicKey)) {
+      throw new BadRequestError('Invalid signature — cannot verify control of the current key');
+    }
+
+    // 4. Verify proof-of-possession of the NEW key. Without this, an attacker
+    //    could rotate their OWN account to a re-encoding of a victim's key (read
+    //    from the public DID) — passing the uniqueness check but never controlling
+    //    the private key. Requiring the new key to sign closes that.
+    const newKeyMessage = JSON.stringify({
+      action: 'rotate_key_new',
+      userId,
+      newPublicKey: safeNewPublicKey,
+      challenge,
+      timestamp,
+    });
+    if (!SignatureService.verifySignature(newKeyMessage, newKeyProof, safeNewPublicKey)) {
+      throw new BadRequestError('Invalid new-key proof — cannot verify possession of the new key');
+    }
+
+    // 5. Reject if the (canonical) new key already belongs to another account.
+    const [conflict] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(publicKeyMatches(canonicalNewPublicKey))
+      .limit(1);
+    if (conflict && conflict.id !== userId) {
       throw new ConflictError('This identity is already linked to another account');
     }
-    throw error;
-  }
-  userCache.invalidate(userId);
 
-  // 8. Optional: revoke every OTHER session (the rotating device stays signed
-  //    in) when the caller suspects the old key is compromised.
-  if (signOutEverywhere) {
-    await revokeOtherSessions(req, userId);
-  }
+    // 6. Atomically burn the rotate_key challenge (single-use, purpose-scoped,
+    //    bound to the account's CURRENT key). One conditional UPDATE: if it
+    //    changes no row the challenge was never minted for rotation, was for a
+    //    different key, is EXPIRED, or was already consumed — reject in every
+    //    case. The `expires_at` predicate is not delegated to the expiry sweep;
+    //    the sweep lags, and a challenge outliving its deadline is spendable for
+    //    that whole window.
+    const burned = await db
+      .update(authChallenges)
+      .set({ used: true })
+      .where(
+        and(
+          eq(authChallenges.challenge, challenge),
+          eq(authChallenges.publicKey, oldPublicKey),
+          eq(authChallenges.used, false),
+          eq(authChallenges.purpose, 'rotate_key'),
+          gt(authChallenges.expiresAt, new Date()),
+        ),
+      )
+      .returning({ id: authChallenges.id });
+    if (burned.length === 0) {
+      throw new UnauthorizedError('Invalid or expired rotation challenge');
+    }
 
-  const response = rotateKeyCompleteResponseSchema.parse({
-    success: true,
-    publicKey: canonicalNewPublicKey,
-    message: 'Identity key rotated successfully',
-  });
-  res.json(response);
-}));
+    // 7. ATOMIC REPLACE, in one transaction: swap `users.public_key`, replace the
+    //    single identity `user_auth_methods` row IN PLACE, and drop the stale
+    //    encrypted backup. The identity row is UPDATEd rather than deleted and
+    //    re-inserted, so the account never passes through zero auth methods; and
+    //    because the backup delete rides the same transaction, a committed swap
+    //    can no longer leave behind a backup that still holds the OLD key under
+    //    the OLD phrase's locator (from which restore would silently import a
+    //    stale identity).
+    try {
+      await db.transaction(async (tx) => {
+        const replaced = await tx
+          .update(userAuthMethods)
+          .set({ methodPublicKey: canonicalNewPublicKey, linkedAt: new Date() })
+          .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')))
+          .returning({ id: userAuthMethods.id });
+        if (replaced.length === 0) {
+          // The account holds a `users.public_key` with no matching method row
+          // (possible for a pre-`authMethods` account). Adding the row is still a
+          // net INCREASE in methods, so the zero-method window does not open.
+          await tx.insert(userAuthMethods).values({
+            userId,
+            type: 'identity',
+            methodPublicKey: canonicalNewPublicKey,
+          });
+        }
+
+        await tx
+          .update(users)
+          .set({ publicKey: canonicalNewPublicKey })
+          .where(eq(users.id, userId));
+
+        await tx.delete(identityBackups).where(eq(identityBackups.userId, userId));
+      });
+    } catch (error) {
+      // The read-then-check in step 5 is not atomic with this write; the unique
+      // indexes on both key columns are, so a key that was claimed elsewhere in
+      // between answers the SAME 409 rather than a 500.
+      if (isUniqueViolation(error)) {
+        throw new ConflictError('This identity is already linked to another account');
+      }
+      throw error;
+    }
+    userCache.invalidate(userId);
+
+    // 8. Optional: revoke every OTHER session (the rotating device stays signed
+    //    in) when the caller suspects the old key is compromised.
+    if (signOutEverywhere) {
+      await revokeOtherSessions(req, userId);
+    }
+
+    const response = rotateKeyCompleteResponseSchema.parse({
+      success: true,
+      publicKey: canonicalNewPublicKey,
+      message: 'Identity key rotated successfully',
+    });
+    res.json(response);
+  }),
+);
 
 /**
  * POST /api/auth/link
@@ -461,33 +477,41 @@ router.post('/rotate/complete', rotateCompleteLimiter, validate({ body: rotateKe
  *   authenticator); a bearer plus a key generated a moment ago is not
  *   authority.
  */
-router.post('/link', validate({ body: linkAuthMethodSchema }), asyncHandler(async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new BadRequestError('User not authenticated');
-  }
-
-  const body = req.body as LinkAuthMethodBody;
-  // Mongoose's `lowercase: true` setter on `publicKey` has no Postgres
-  // counterpart, so the normalization it performed is re-applied here.
-  const safePublicKey = body.publicKey.trim().toLowerCase();
-  if (!SignatureService.isValidPublicKey(safePublicKey)) {
-    throw new BadRequestError('publicKey is not a valid public key');
-  }
-
-  try {
-    await getDb().transaction((tx) =>
-      linkRootToAccount(tx, { userId, publicKey: safePublicKey, proof: body.proof }),
-    );
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw new ApiError(409, 'This identity is already linked to another account', IDENTITY_ERROR_CODES.rootLinkedElsewhere);
+router.post(
+  '/link',
+  validate({ body: linkAuthMethodSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      throw new BadRequestError('User not authenticated');
     }
-    throw error;
-  }
 
-  userCache.invalidate(userId);
-  res.json({ success: true, message: 'Identity linked successfully' });
-}));
+    const body = req.body as LinkAuthMethodBody;
+    // Mongoose's `lowercase: true` setter on `publicKey` has no Postgres
+    // counterpart, so the normalization it performed is re-applied here.
+    const safePublicKey = body.publicKey.trim().toLowerCase();
+    if (!SignatureService.isValidPublicKey(safePublicKey)) {
+      throw new BadRequestError('publicKey is not a valid public key');
+    }
+
+    try {
+      await getDb().transaction((tx) =>
+        linkRootToAccount(tx, { userId, publicKey: safePublicKey, proof: body.proof }),
+      );
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ApiError(
+          409,
+          'This identity is already linked to another account',
+          IDENTITY_ERROR_CODES.rootLinkedElsewhere,
+        );
+      }
+      throw error;
+    }
+
+    userCache.invalidate(userId);
+    res.json({ success: true, message: 'Identity linked successfully' });
+  }),
+);
 
 export default router;

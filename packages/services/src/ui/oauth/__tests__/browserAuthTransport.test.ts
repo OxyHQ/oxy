@@ -11,10 +11,7 @@ import {
   OXY_OAUTH_STATE_STORAGE_KEY,
 } from '@oxy.so/core';
 import { redirectToAuthorize } from '../../components/oauthNavigation';
-import {
-  startWebOAuthSignIn,
-  type WebOAuthTransportContext,
-} from '../browserAuthTransport';
+import { startWebOAuthSignIn, type WebOAuthTransportContext } from '../browserAuthTransport';
 import { OXY_OAUTH_CODE_MESSAGE_TYPE, OXY_OAUTH_ERROR_MESSAGE_TYPE } from '../oauthPopupMessages';
 import type { OAuthPopupHandle } from '../types';
 
@@ -64,7 +61,12 @@ function makeContext(
     identityBound: false,
     commitSession,
   };
-  return { ...base, ...overrides, auth: { oauth: { exchangeCode: exchangeOAuthCode } }, commitSession };
+  return {
+    ...base,
+    ...overrides,
+    auth: { oauth: { exchangeCode: exchangeOAuthCode } },
+    commitSession,
+  };
 }
 
 /** Wait for the transport to finish preparing PKCE and navigate the popup. */
@@ -110,10 +112,7 @@ describe('startWebOAuthSignIn', () => {
       expect(authorizeUrl.searchParams.get('code_challenge_method')).toBe('S256');
 
       const state = authorizeUrl.searchParams.get('state');
-      dispatchFromPopup(
-        { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'code-1', state },
-        popup,
-      );
+      dispatchFromPopup({ type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'code-1', state }, popup);
 
       await expect(pending).resolves.toEqual({ status: 'signed-in' });
       expect(mockRedirect).not.toHaveBeenCalled();
@@ -160,12 +159,20 @@ describe('startWebOAuthSignIn', () => {
       const popup = fakePopup();
       const openSpy = jest.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
 
-      const pending = startWebOAuthSignIn(context, { redirectUri: REDIRECT_URI, transport: 'popup', screen: 'signup' });
+      const pending = startWebOAuthSignIn(context, {
+        redirectUri: REDIRECT_URI,
+        transport: 'popup',
+        screen: 'signup',
+      });
       const authorizeUrl = await waitForAuthorizeUrl(popup);
       expect(authorizeUrl.searchParams.get('screen')).toBe('signup');
       expect(authorizeUrl.searchParams.get('response_mode')).toBe('web_message');
       dispatchFromPopup(
-        { type: OXY_OAUTH_CODE_MESSAGE_TYPE, code: 'code-1', state: authorizeUrl.searchParams.get('state') },
+        {
+          type: OXY_OAUTH_CODE_MESSAGE_TYPE,
+          code: 'code-1',
+          state: authorizeUrl.searchParams.get('state'),
+        },
         popup,
       );
 

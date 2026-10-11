@@ -10,7 +10,6 @@ import { setPlatformOS } from '../../utils/platform';
 jest.mock(
   'expo-secure-store',
   () => {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createSecureStoreMock } = require('./identityMocks');
     return createSecureStoreMock();
   },
@@ -34,21 +33,16 @@ jest.mock(
 
 jest.mock('@oxy.so/protocol', () => {
   const actual = jest.requireActual('@oxy.so/protocol');
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { createAsyncStorageMock } = require('./identityMocks');
   const asyncStorage = createAsyncStorageMock();
   return {
     __esModule: true,
     ...actual,
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadExpoCrypto: async () => require('expo-crypto'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadSecureStore: async () => require('expo-secure-store'),
     loadAsyncStorage: async () => ({ default: asyncStorage }),
     loadCommonsIdentityBridge: async () => null,
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     loadNodeCrypto: async () => require('node:crypto'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     getRandomBytesRN: (n: number) => require('expo-crypto').getRandomBytes(n),
   };
 });
@@ -62,7 +56,12 @@ interface SecureStoreTestHandle {
   __resetStore__: () => void;
   __getRaw__: (key: string, service?: string) => string | null;
   __simulateKeystoreDeath__: (service: string) => void;
-  __failPlan__: { failKey?: string; failOp?: 'set' | 'get'; failTimes?: number; failService?: string };
+  __failPlan__: {
+    failKey?: string;
+    failOp?: 'set' | 'get';
+    failTimes?: number;
+    failService?: string;
+  };
 }
 
 describe('KeyManager recovery mnemonic storage', () => {
@@ -120,7 +119,9 @@ describe('KeyManager recovery mnemonic storage', () => {
     ss.__failPlan__.failOp = 'set';
     ss.__failPlan__.failKey = MNEMONIC_KEY;
     ss.__failPlan__.failService = MNEMONIC_SVC;
-    await expect(KeyManager.storeRecoveryMnemonic(PHRASE)).rejects.toBeInstanceOf(IdentityUnavailableError);
+    await expect(KeyManager.storeRecoveryMnemonic(PHRASE)).rejects.toBeInstanceOf(
+      IdentityUnavailableError,
+    );
   });
 
   it('deleteRecoveryMnemonic removes the stored phrase', async () => {

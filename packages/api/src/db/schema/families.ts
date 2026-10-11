@@ -151,13 +151,10 @@ export const familyMembers = pgTable(
     // `account_members_member_user_id_status_idx`.
     index('family_members_member_user_id_status_idx').on(t.memberUserId, t.status),
 
-    check(
-      'family_members_role_check',
-      sql`${t.role} in (${sql.raw(inList(FAMILY_MEMBER_ROLES))})`
-    ),
+    check('family_members_role_check', sql`${t.role} in (${sql.raw(inList(FAMILY_MEMBER_ROLES))})`),
     check(
       'family_members_status_check',
-      sql`${t.status} in (${sql.raw(inList(FAMILY_MEMBER_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(FAMILY_MEMBER_STATUSES))})`,
     ),
-  ]
+  ],
 );

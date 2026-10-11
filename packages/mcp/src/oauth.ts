@@ -1,32 +1,26 @@
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import {
-  randomUUID,
-  sign as signBytes,
-  verify as verifyBytes,
-  type KeyObject,
-} from 'node:crypto';
+import { randomUUID, sign as signBytes, verify as verifyBytes, type KeyObject } from 'node:crypto';
 import { z } from 'zod';
 
 const MCP_ACCESS_TOKEN_ALGORITHM = 'EdDSA';
 const MCP_ACCESS_TOKEN_TYPE = 'at+jwt';
 const MAX_ISSUED_TOKEN_TTL_SECONDS = 3_600;
 
-export const mcpAccessTokenClaimsSchema = z.object({
-  iss: z.url(),
-  sub: z.string().trim().min(1),
-  aud: z.string().trim().min(1),
-  resource: z.url(),
-  client_id: z.string().trim().min(1),
-  scope: z.union([
-    z.string().trim().min(1),
-    z.array(z.string().trim().min(1)).min(1),
-  ]),
-  jti: z.string().trim().min(1),
-  iat: z.number().int().nonnegative(),
-  nbf: z.number().int().nonnegative().optional(),
-  exp: z.number().int().positive(),
-  account_id: z.string().trim().min(1),
-}).passthrough();
+export const mcpAccessTokenClaimsSchema = z
+  .object({
+    iss: z.url(),
+    sub: z.string().trim().min(1),
+    aud: z.string().trim().min(1),
+    resource: z.url(),
+    client_id: z.string().trim().min(1),
+    scope: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
+    jti: z.string().trim().min(1),
+    iat: z.number().int().nonnegative(),
+    nbf: z.number().int().nonnegative().optional(),
+    exp: z.number().int().positive(),
+    account_id: z.string().trim().min(1),
+  })
+  .passthrough();
 
 const AUTH_INFO_CLAIMS_KEY = 'oxy.accessTokenClaims';
 
@@ -49,11 +43,15 @@ export const mcpConnectionStateSchema = z.object({
   connection_id: z.string().trim().min(1),
   origin_account_id: z.string().trim().min(1),
   active_account_id: z.string().trim().min(1),
-  accounts: z.array(z.object({
-    account_id: z.string().trim().min(1),
-    is_origin: z.boolean(),
-    linked_at: z.string().trim().min(1),
-  })).default([]),
+  accounts: z
+    .array(
+      z.object({
+        account_id: z.string().trim().min(1),
+        is_origin: z.boolean(),
+        linked_at: z.string().trim().min(1),
+      }),
+    )
+    .default([]),
 });
 
 export type McpConnectionState = z.infer<typeof mcpConnectionStateSchema>;
@@ -67,11 +65,11 @@ export type McpConnectionState = z.infer<typeof mcpConnectionStateSchema>;
  */
 export function mcpConnectionStateFrom(value: unknown): McpConnectionState | null {
   if (typeof value !== 'object' || value === null) return null;
-  const parsed = mcpConnectionStateSchema.safeParse(
-    (value as Record<string, unknown>).connection,
-  );
+  const parsed = mcpConnectionStateSchema.safeParse((value as Record<string, unknown>).connection);
   if (!parsed.success) return null;
-  return parsed.data.accounts.some((account) => account.account_id === parsed.data.active_account_id)
+  return parsed.data.accounts.some(
+    (account) => account.account_id === parsed.data.active_account_id,
+  )
     ? parsed.data
     : null;
 }
@@ -159,8 +157,14 @@ export function issueMcpAccessToken(
   options: McpAccessTokenSigningOptions,
 ): { token: string; claims: McpAccessTokenClaims } {
   const ttlSeconds = options.ttlSeconds ?? 900;
-  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > MAX_ISSUED_TOKEN_TTL_SECONDS) {
-    throw new Error(`MCP access token TTL must be between 1 and ${MAX_ISSUED_TOKEN_TTL_SECONDS} seconds`);
+  if (
+    !Number.isInteger(ttlSeconds) ||
+    ttlSeconds < 1 ||
+    ttlSeconds > MAX_ISSUED_TOKEN_TTL_SECONDS
+  ) {
+    throw new Error(
+      `MCP access token TTL must be between 1 and ${MAX_ISSUED_TOKEN_TTL_SECONDS} seconds`,
+    );
   }
   if (options.privateKey.asymmetricKeyType !== 'ed25519') {
     throw new Error('MCP access tokens require an Ed25519 private key');
@@ -198,11 +202,14 @@ export function verifyMcpAccessTokenSignature(
     throw new Error('MCP access token must have three non-empty segments');
   }
   const [encodedHeader, encodedPayload, encodedSignature] = segments as [string, string, string];
-  const header = z.object({
-    alg: z.literal(MCP_ACCESS_TOKEN_ALGORITHM),
-    typ: z.literal(MCP_ACCESS_TOKEN_TYPE),
-    kid: z.string().min(1),
-  }).strict().parse(decodeJsonSegment(encodedHeader));
+  const header = z
+    .object({
+      alg: z.literal(MCP_ACCESS_TOKEN_ALGORITHM),
+      typ: z.literal(MCP_ACCESS_TOKEN_TYPE),
+      kid: z.string().min(1),
+    })
+    .strict()
+    .parse(decodeJsonSegment(encodedHeader));
   const publicKey = options.resolvePublicKey(header.kid);
   if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') {
     throw new Error('MCP access token signing key is not trusted');
@@ -245,9 +252,11 @@ export function validateMcpAccessTokenClaims(
   if (claims.resource !== options.resource) throw new Error('MCP token resource mismatch');
   if (claims.account_id !== options.accountId) throw new Error('MCP token account mismatch');
   if (claims.exp <= claims.iat) throw new Error('MCP token expiry must be after issuance');
-  if (claims.exp - claims.iat > options.maxTokenTtlSeconds) throw new Error('MCP token TTL exceeds policy');
+  if (claims.exp - claims.iat > options.maxTokenTtlSeconds)
+    throw new Error('MCP token TTL exceeds policy');
   if (claims.iat > now + tolerance) throw new Error('MCP token issued in the future');
-  if (claims.nbf !== undefined && claims.nbf > now + tolerance) throw new Error('MCP token is not active yet');
+  if (claims.nbf !== undefined && claims.nbf > now + tolerance)
+    throw new Error('MCP token is not active yet');
   if (claims.exp <= now - tolerance) throw new Error('MCP token expired');
 
   const grantedScopes = new Set(scopesOf(claims.scope));
@@ -263,7 +272,7 @@ export async function verifyMcpAccessToken(
 ): Promise<McpAccessTokenClaims> {
   const verifiedClaims = await options.verifySignature(token);
   const claims = validateMcpAccessTokenClaims(verifiedClaims, options);
-  if (!await options.validateTokenStatus({ token, claims })) {
+  if (!(await options.validateTokenStatus({ token, claims }))) {
     throw new Error('MCP token is inactive or revoked');
   }
   return claims;
@@ -305,9 +314,8 @@ export function mcpPrincipalFromAuthInfo(
   // A connection block that disagrees with the token's own account belongs to
   // another connection: ignore it rather than acting as an account this token
   // was never introspected for.
-  const usableConnection = connection && connection.origin_account_id === claims.account_id
-    ? connection
-    : null;
+  const usableConnection =
+    connection && connection.origin_account_id === claims.account_id ? connection : null;
 
   return Object.freeze({
     subject: claims.sub,

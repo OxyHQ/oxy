@@ -22,20 +22,17 @@ export function FairCoinBanner() {
     });
   }, [t]);
 
-  const storeButtonLabel = Platform.OS === 'ios'
-    ? t('payments.fairCoinBanner.appStore')
-    : Platform.OS === 'android'
-      ? t('payments.fairCoinBanner.playStore')
-      : t('payments.fairCoinBanner.download');
+  const storeButtonLabel =
+    Platform.OS === 'ios'
+      ? t('payments.fairCoinBanner.appStore')
+      : Platform.OS === 'android'
+        ? t('payments.fairCoinBanner.playStore')
+        : t('payments.fairCoinBanner.download');
 
   return (
     <View style={[styles.faircoinBanner, { backgroundColor: colors.brandFairCoinBackground }]}>
       <View style={styles.faircoinBannerContent}>
-        <Image
-          source={faircoinImage}
-          style={styles.faircoinBannerImage}
-          resizeMode="contain"
-        />
+        <Image source={faircoinImage} style={styles.faircoinBannerImage} resizeMode="contain" />
 
         <View style={styles.faircoinBannerRightContainer}>
           <View style={styles.faircoinBannerTextContainer}>
@@ -56,13 +53,17 @@ export function FairCoinBanner() {
             accessibilityHint={t('a11y.openStoreHint')}
           >
             <MaterialCommunityIcons
-              name={Platform.OS === 'ios' ? 'apple' : Platform.OS === 'android' ? 'google-play' : 'download'}
+              name={
+                Platform.OS === 'ios'
+                  ? 'apple'
+                  : Platform.OS === 'android'
+                    ? 'google-play'
+                    : 'download'
+              }
               size={18}
               color="#1A1A1A"
             />
-            <Text style={styles.faircoinBannerButtonText}>
-              {storeButtonLabel}
-            </Text>
+            <Text style={styles.faircoinBannerButtonText}>{storeButtonLabel}</Text>
           </TouchableOpacity>
         </View>
       </View>

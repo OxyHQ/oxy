@@ -282,9 +282,7 @@ describe('POST /auth/session/deny/:authorizeCode — the closed reason set', () 
 
     await post(`/auth/session/deny/${authorizeCode}`, { reason: 'not_me' });
 
-    const flagged = mockWarn.mock.calls.find(
-      (call) => call[0] === 'Auth session denied as not-me',
-    );
+    const flagged = mockWarn.mock.calls.find((call) => call[0] === 'Auth session denied as not-me');
     expect(flagged).toBeDefined();
     const detail = flagged?.[1] as Record<string, unknown>;
     expect(detail).toEqual({

@@ -46,10 +46,7 @@ function parseQuery(raw: string): Map<string, string> {
     const rawKey = eq < 0 ? pair : pair.slice(0, eq);
     const rawValue = eq < 0 ? '' : pair.slice(eq + 1);
     try {
-      params.set(
-        decodeURIComponent(rawKey),
-        decodeURIComponent(rawValue.replace(/\+/g, ' ')),
-      );
+      params.set(decodeURIComponent(rawKey), decodeURIComponent(rawValue.replace(/\+/g, ' ')));
     } catch {
       // Malformed percent-encoding — keep the raw token rather than throwing,
       // so a single bad field doesn't sink an otherwise valid `code`.

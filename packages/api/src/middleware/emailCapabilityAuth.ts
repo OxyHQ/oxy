@@ -47,13 +47,22 @@ import { authMiddleware, type AuthRequest } from './auth';
 
 // `useDefaults` writes each property's schema `default` into the canonical
 // input before the limit check reads it — see `applyLimitBoundedDefaults`.
-const schemaValidator = addFormats(new Ajv({ allErrors: true, coerceTypes: true, strict: true, useDefaults: true }));
+const schemaValidator = addFormats(
+  new Ajv({ allErrors: true, coerceTypes: true, strict: true, useDefaults: true }),
+);
 const inputValidators = new Map<string, ValidateFunction>(
-  INBOX_CAPABILITY_CATALOG.tools.map((tool) => [tool.name, schemaValidator.compile(tool.inputSchema)]),
+  INBOX_CAPABILITY_CATALOG.tools.map((tool) => [
+    tool.name,
+    schemaValidator.compile(tool.inputSchema),
+  ]),
 );
 
 type ValidatedInput =
-  | { readonly ok: true; readonly input: Record<string, unknown>; readonly supplied: ReadonlySet<string> }
+  | {
+      readonly ok: true;
+      readonly input: Record<string, unknown>;
+      readonly supplied: ReadonlySet<string>;
+    }
   | { readonly ok: false; readonly errors: readonly ErrorObject[] };
 
 /**
@@ -66,9 +75,10 @@ function validatedCanonicalInput(
   request: Request,
   invocation: CatalogInvocationMatch<CatalogTool>,
 ): ValidatedInput {
-  const body = typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body)
-    ? request.body as Record<string, unknown>
-    : {};
+  const body =
+    typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body)
+      ? (request.body as Record<string, unknown>)
+      : {};
   const input: Record<string, unknown> = {
     ...(request.method === 'GET' ? request.query : body),
     ...invocation.params,
@@ -93,19 +103,23 @@ function applyLimitBoundedDefaults(
   claims: CapabilityTicketClaims,
 ): void {
   for (const limit of claims.limits) {
-    if (limit.tool !== claims.tool || typeof limit.value !== 'number' || limit.key.includes('.')) continue;
+    if (limit.tool !== claims.tool || typeof limit.value !== 'number' || limit.key.includes('.'))
+      continue;
     const value = input[limit.key];
     if (supplied.has(limit.key) || typeof value !== 'number') continue;
     input[limit.key] = Math.min(value, limit.value);
   }
 }
 
-function schemaErrorDetails(errors: readonly ErrorObject[]): Array<{ path: string; message: string }> {
+function schemaErrorDetails(
+  errors: readonly ErrorObject[],
+): Array<{ path: string; message: string }> {
   return errors.slice(0, 10).map((error) => ({
     path: error.instancePath || '/',
-    message: error.keyword === 'additionalProperties'
-      ? `unknown property ${String((error.params as { additionalProperty?: unknown }).additionalProperty)}`
-      : error.message ?? error.keyword,
+    message:
+      error.keyword === 'additionalProperties'
+        ? `unknown property ${String((error.params as { additionalProperty?: unknown }).additionalProperty)}`
+        : (error.message ?? error.keyword),
   }));
 }
 
@@ -164,7 +178,7 @@ async function resourceScope(
     return resource.resourceId === accountId ? { accountId } : null;
   }
   if (resource.resourceType !== 'mailbox') return null;
-  if (!await mailboxBelongsToAccount(resource.resourceId, accountId)) return null;
+  if (!(await mailboxBelongsToAccount(resource.resourceId, accountId))) return null;
   return { accountId, mailboxId: resource.resourceId };
 }
 
@@ -185,14 +199,18 @@ export async function emailCapabilityAuth(
   }
 }
 
-async function executeCapabilityTicket(token: string, request: Request, response: Response): Promise<void> {
+async function executeCapabilityTicket(
+  token: string,
+  request: Request,
+  response: Response,
+): Promise<void> {
   let claims: CapabilityTicketClaims;
   try {
     const signing = capabilityTicketSigningConfig();
     claims = verifyCapabilityTicket(token, {
       audience: INBOX_CAPABILITY_CATALOG.audience,
       issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
-      resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
+      resolvePublicKey: (keyId) => (keyId === signing.keyId ? signing.publicKey : undefined),
     });
   } catch (error) {
     const code = error instanceof CapabilityTicketError ? error.code : 'invalid_claims';
@@ -248,8 +266,13 @@ async function executeCapabilityTicket(token: string, request: Request, response
   let keyHash: string | undefined;
   if (invocation.tool.idempotency === 'required' && idempotencyKey) {
     keyHash = createHash('sha256').update(idempotencyKey).digest('hex');
-    if (!await reserveCapabilityEffect(claims, keyHash)) {
-      await auditResult(claims, { allowed: false, reason: 'duplicate_effect_prevented' }, 409, keyHash);
+    if (!(await reserveCapabilityEffect(claims, keyHash))) {
+      await auditResult(
+        claims,
+        { allowed: false, reason: 'duplicate_effect_prevented' },
+        409,
+        keyHash,
+      );
       response.status(409).json({ error: 'duplicate_effect_prevented' });
       return;
     }
@@ -258,11 +281,13 @@ async function executeCapabilityTicket(token: string, request: Request, response
   // by the app's error handler is finalized and audited with ITS status.
   response.once('finish', () => {
     if (keyHash) {
-      void finalizeCapabilityEffect(claims, keyHash, response.statusCode)
-        .catch((error: unknown) => logger.error('Failed to finalize capability idempotency key', error));
+      void finalizeCapabilityEffect(claims, keyHash, response.statusCode).catch((error: unknown) =>
+        logger.error('Failed to finalize capability idempotency key', error),
+      );
     }
-    void auditResult(claims, decision, response.statusCode, keyHash)
-      .catch((error: unknown) => logger.error('Failed to persist capability audit event', error));
+    void auditResult(claims, decision, response.statusCode, keyHash).catch((error: unknown) =>
+      logger.error('Failed to persist capability audit event', error),
+    );
   });
 
   const run = INBOX_TOOLS[invocation.tool.name];

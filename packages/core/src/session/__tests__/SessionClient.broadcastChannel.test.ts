@@ -13,18 +13,41 @@ type Handler = (...args: unknown[]) => void;
 class FakeSocket {
   connected = false;
   handlers = new Map<string, Handler[]>();
-  on(event: string, cb: Handler) { const l = this.handlers.get(event) ?? []; l.push(cb); this.handlers.set(event, l); }
-  off(event: string, cb?: Handler) { if (!cb) { this.handlers.delete(event); return; } this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== cb)); }
-  connect() { this.connected = true; this.trigger('connect'); }
-  disconnect() { this.connected = false; }
-  trigger(event: string, ...args: unknown[]) { for (const h of this.handlers.get(event) ?? []) h(...args); }
+  on(event: string, cb: Handler) {
+    const l = this.handlers.get(event) ?? [];
+    l.push(cb);
+    this.handlers.set(event, l);
+  }
+  off(event: string, cb?: Handler) {
+    if (!cb) {
+      this.handlers.delete(event);
+      return;
+    }
+    this.handlers.set(
+      event,
+      (this.handlers.get(event) ?? []).filter((h) => h !== cb),
+    );
+  }
+  connect() {
+    this.connected = true;
+    this.trigger('connect');
+  }
+  disconnect() {
+    this.connected = false;
+  }
+  trigger(event: string, ...args: unknown[]) {
+    for (const h of this.handlers.get(event) ?? []) h(...args);
+  }
 }
 let fakeSocket: FakeSocket;
 const ioMock = jest.fn((_uri: string, opts?: Record<string, unknown>) => {
   if (!opts || opts.autoConnect !== false) fakeSocket.connected = true;
   return fakeSocket;
 });
-jest.mock('socket.io-client', () => ({ __esModule: true, io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])) }));
+jest.mock('socket.io-client', () => ({
+  __esModule: true,
+  io: (...args: unknown[]) => ioMock(...(args as [string, Record<string, unknown>?])),
+}));
 
 // A same-name in-process BroadcastChannel bus: postMessage delivers to every
 // OTHER open channel of the same name (never the sender) — matching the spec.
@@ -32,23 +55,43 @@ type BusEntry = { name: string; onmessage: ((event: { data: unknown }) => void) 
 const bus = new Set<BusEntry>();
 class FakeBroadcastChannel {
   private entry: BusEntry;
-  constructor(public name: string) { this.entry = { name, onmessage: null }; bus.add(this.entry); }
-  get onmessage(): ((event: { data: unknown }) => void) | null { return this.entry.onmessage; }
-  set onmessage(cb: ((event: { data: unknown }) => void) | null) { this.entry.onmessage = cb; }
+  constructor(public name: string) {
+    this.entry = { name, onmessage: null };
+    bus.add(this.entry);
+  }
+  get onmessage(): ((event: { data: unknown }) => void) | null {
+    return this.entry.onmessage;
+  }
+  set onmessage(cb: ((event: { data: unknown }) => void) | null) {
+    this.entry.onmessage = cb;
+  }
   postMessage(data: unknown) {
     for (const e of bus) {
       if (e === this.entry || e.name !== this.name) continue;
       e.onmessage?.({ data });
     }
   }
-  close() { bus.delete(this.entry); }
+  close() {
+    bus.delete(this.entry);
+  }
 }
 
 import { SessionClient, type SessionClientHost } from '../SessionClient';
 
-const STATE = (rev: number, accounts = [{ accountId: 'a1', sessionId: 's1', authuser: 0 }]): DeviceSessionState =>
-  ({ deviceId: 'd1', accounts, activeAccountId: accounts[0]?.accountId ?? null, revision: rev, updatedAt: 1720000000000 });
-const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
+const STATE = (
+  rev: number,
+  accounts = [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+): DeviceSessionState => ({
+  deviceId: 'd1',
+  accounts,
+  activeAccountId: accounts[0]?.accountId ?? null,
+  revision: rev,
+  updatedAt: 1720000000000,
+});
+const SYNC = (rev: number) => ({
+  state: STATE(rev),
+  activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' },
+});
 
 function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
   return {
@@ -63,7 +106,10 @@ function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
   };
 }
 
-const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
+const flush = async () => {
+  await Promise.resolve();
+  await Promise.resolve();
+};
 
 beforeEach(() => {
   fakeSocket = new FakeSocket();
@@ -78,14 +124,19 @@ afterEach(() => {
 describe('SessionClient BroadcastChannel cross-tab re-sync (authenticated)', () => {
   it('a local mutation wakes an authenticated same-origin sibling to re-sync (bootstrap)', async () => {
     const bMakeRequest = jest.fn().mockResolvedValue(SYNC(1));
-    const b = new SessionClient(makeHost({ makeRequest: bMakeRequest, getAccessToken: () => 'tok-b' }), {});
+    const b = new SessionClient(
+      makeHost({ makeRequest: bMakeRequest, getAccessToken: () => 'tok-b' }),
+      {},
+    );
     await b.start();
     bMakeRequest.mockClear();
     const a = new SessionClient(makeHost({ getAccessToken: () => 'tok-a' }), {});
     await a.start();
     await a.addCurrentAccount();
     await flush();
-    expect(bMakeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(bMakeRequest).toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     a.stop();
     b.stop();
   });
@@ -99,7 +150,9 @@ describe('SessionClient BroadcastChannel cross-tab re-sync (authenticated)', () 
     // to the sender, so this tab must NOT re-fetch its own device state.
     await a.addCurrentAccount();
     await flush();
-    expect(makeRequest).not.toHaveBeenCalledWith('GET', '/session/device/state', undefined, { cache: false });
+    expect(makeRequest).not.toHaveBeenCalledWith('GET', '/session/device/state', undefined, {
+      cache: false,
+    });
     a.stop();
   });
 

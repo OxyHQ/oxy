@@ -33,7 +33,10 @@ import {
 describe('intersectScopes (credential ∩ app grant)', () => {
   it('keeps only scopes present on both sides, preserving credential order', () => {
     expect(
-      intersectScopes(['signals:write', 'user:read'], ['user:read', 'files:write', 'signals:write'])
+      intersectScopes(
+        ['signals:write', 'user:read'],
+        ['user:read', 'files:write', 'signals:write'],
+      ),
     ).toEqual(['signals:write', 'user:read']);
   });
 
@@ -46,7 +49,7 @@ describe('intersectScopes (credential ∩ app grant)', () => {
 
   it('drops unknown scopes and de-duplicates', () => {
     expect(
-      intersectScopes(['user:read', 'user:read', 'bogus:scope'], ['user:read', 'bogus:scope'])
+      intersectScopes(['user:read', 'user:read', 'bogus:scope'], ['user:read', 'bogus:scope']),
     ).toEqual(['user:read']);
   });
 });
@@ -58,8 +61,8 @@ describe('unionValidScopes (additive canonical rebuild)', () => {
     expect(
       unionValidScopes(
         ['user:read', 'files:write', 'federation:write'],
-        ['user:read', 'files:write', 'federation:write', 'signals:write']
-      )
+        ['user:read', 'files:write', 'federation:write', 'signals:write'],
+      ),
     ).toEqual(['user:read', 'files:write', 'federation:write', 'signals:write']);
   });
 
@@ -71,9 +74,11 @@ describe('unionValidScopes (additive canonical rebuild)', () => {
   });
 
   it('orders canonical scopes first, then extra granted scopes, de-duplicated', () => {
-    expect(
-      unionValidScopes(['user:read', 'files:write'], ['signals:write', 'user:read'])
-    ).toEqual(['user:read', 'files:write', 'signals:write']);
+    expect(unionValidScopes(['user:read', 'files:write'], ['signals:write', 'user:read'])).toEqual([
+      'user:read',
+      'files:write',
+      'signals:write',
+    ]);
   });
 
   it('drops unknown/legacy stored scopes that can never survive a mint', () => {
@@ -81,11 +86,20 @@ describe('unionValidScopes (additive canonical rebuild)', () => {
   });
 
   it('returns the canonical set when there is nothing extra granted', () => {
-    expect(unionValidScopes(['user:read', 'files:write'], [])).toEqual(['user:read', 'files:write']);
+    expect(unionValidScopes(['user:read', 'files:write'], [])).toEqual([
+      'user:read',
+      'files:write',
+    ]);
   });
 
   it('is a no-op fixed point once the canonical list already contains the grant', () => {
-    const canonical = ['user:read', 'files:read', 'files:write', 'federation:write', 'signals:write'];
+    const canonical = [
+      'user:read',
+      'files:read',
+      'files:write',
+      'federation:write',
+      'signals:write',
+    ];
     expect(unionValidScopes(canonical, canonical)).toEqual(canonical);
   });
 });
@@ -95,7 +109,9 @@ describe('scope classification helpers', () => {
     expect(isValidApplicationScope('alia:chat')).toBe(true);
     expect(isPrivilegedScope('alia:chat')).toBe(false);
     expect(isUserConsentRequiredScope('alia:chat')).toBe(false);
-    expect(intersectScopes(['alia:chat', 'inference:invoke'], ['inference:invoke'])).toEqual(['inference:invoke']);
+    expect(intersectScopes(['alia:chat', 'inference:invoke'], ['inference:invoke'])).toEqual([
+      'inference:invoke',
+    ]);
     expect(intersectScopes([], ['alia:chat', 'inference:invoke'])).toEqual([]);
   });
   it('recognises signals:write as a valid privileged scope', () => {
@@ -216,8 +232,8 @@ describe('the inference scope family (#972 workstream 3)', () => {
     expect(
       intersectScopes(
         ['inference:invoke', 'inference:providers:write'],
-        ['inference:invoke', 'inference:providers:read']
-      )
+        ['inference:invoke', 'inference:providers:read'],
+      ),
     ).toEqual(['inference:invoke']);
   });
 
@@ -225,7 +241,7 @@ describe('the inference scope family (#972 workstream 3)', () => {
     // The other direction, so the assertion above is about the INTERSECTION and
     // not about this scope being unmintable.
     expect(
-      intersectScopes(['inference:providers:write'], ['user:read', 'inference:providers:write'])
+      intersectScopes(['inference:providers:write'], ['user:read', 'inference:providers:write']),
     ).toEqual(['inference:providers:write']);
   });
 
@@ -286,13 +302,13 @@ describe('accounts:act-as-session — minting a session AS a managed account', (
     expect(
       intersectScopes(
         ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE],
-        ['user:read', 'acting-as:offline']
-      )
+        ['user:read', 'acting-as:offline'],
+      ),
     ).toEqual(['user:read']);
     // The other direction, so the assertion above is about the INTERSECTION and
     // not about this scope being unmintable.
     expect(
-      intersectScopes([SERVICE_ACCOUNT_SWITCH_SCOPE], ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE])
+      intersectScopes([SERVICE_ACCOUNT_SWITCH_SCOPE], ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE]),
     ).toEqual([SERVICE_ACCOUNT_SWITCH_SCOPE]);
   });
 
@@ -339,7 +355,7 @@ describe('follow scopes: the user grants them, the platform never assumes them',
       'chains:write',
     ] as const;
     expect([...USER_CONSENT_REQUIRED_SCOPES].sort()).toEqual(
-      [...MUST_BE_CONSENTED, ...CONSENT_REQUIRED_BEYOND_FOLLOWS].sort()
+      [...MUST_BE_CONSENTED, ...CONSENT_REQUIRED_BEYOND_FOLLOWS].sort(),
     );
   });
 
@@ -398,7 +414,7 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     // different questions, neither substituting for the other.
     const DELIBERATELY_BOTH = ['acting-as:offline', 'chains:write'];
     const overlap = PRIVILEGED_APPLICATION_SCOPES.filter((scope) =>
-      isUserConsentRequiredScope(scope)
+      isUserConsentRequiredScope(scope),
     );
 
     expect([...overlap].sort()).toEqual([...DELIBERATELY_BOTH].sort());

@@ -52,5 +52,5 @@ export const validatorAffinities = pgTable(
     // Canonical ordering. Strict `<` also rules out a self-pair, which would be
     // an account colluding with itself.
     check('validator_affinities_canonical_pair_check', sql`${t.validatorA} < ${t.validatorB}`),
-  ]
+  ],
 );

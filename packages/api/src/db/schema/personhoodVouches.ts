@@ -75,12 +75,12 @@ export const personhoodVouches = pgTable(
 
     check(
       'personhood_vouches_status_check',
-      sql`${t.status} in (${sql.raw(inList(PERSONHOOD_VOUCH_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(PERSONHOOD_VOUCH_STATUSES))})`,
     ),
     check('personhood_vouches_stake_check', sql`${t.stakeAmount} >= 0`),
     // Vouching for yourself is not evidence. `submitVouch` already answers
     // `self_vouch`, and `graphExclusion` excludes `self`; the CHECK makes it
     // unrepresentable rather than dependent on both staying in place.
     check('personhood_vouches_not_self_check', sql`${t.voucherUserId} <> ${t.subjectUserId}`),
-  ]
+  ],
 );

@@ -7,14 +7,14 @@ import type { UsernameValidationResult } from '@/types/auth';
 
 /**
  * Hook for username validation with debouncing and availability checking
- * 
+ *
  * @param username - The username to validate
  * @param oxyServices - OxyServices instance for API calls
  * @returns Username validation state and result
  */
 export function useUsernameValidation(
   username: string,
-  oxyServices: OxyServices | null
+  oxyServices: OxyServices | null,
 ): UsernameValidationResult {
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,4 +76,3 @@ export function useUsernameValidation(
     isChecking,
   };
 }
-

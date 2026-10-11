@@ -33,11 +33,7 @@ jest.mock('../../middleware/auth', () => ({
 // route does not gate on scope, so this proves a server-to-server caller is
 // accepted by the mounted middleware chain.
 jest.mock('../../middleware/optionalAuth', () => ({
-  optionalUserOrServiceAuth: (
-    req: { serviceApp?: unknown },
-    _res: unknown,
-    next: () => void,
-  ) => {
+  optionalUserOrServiceAuth: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = {
       type: 'service',
       appId: 'app-1',
@@ -120,7 +116,9 @@ async function requestJson(
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};

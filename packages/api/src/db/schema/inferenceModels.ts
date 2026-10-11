@@ -41,7 +41,14 @@
 
 import { sql } from 'drizzle-orm';
 import { check, date, index, integer, pgTable, text, unique, boolean } from 'drizzle-orm/pg-core';
-import { createdAt, inList, textArrayLiteral, timestamptz, updatedAt, generatedId } from '@oxy.so/db';
+import {
+  createdAt,
+  inList,
+  textArrayLiteral,
+  timestamptz,
+  updatedAt,
+  generatedId,
+} from '@oxy.so/db';
 import { inferencePublishers } from './inferencePublishers';
 import { MODEL_REFERENCE_CHECK_PATTERN, SLUG_CHECK_PATTERN } from './inferenceSlug';
 
@@ -188,10 +195,7 @@ export const inferenceModels = pgTable(
      * means the model takes no effort control. Kept current by the Kaana sync,
      * including on reviewed rows: it is a serving capability, not a legal fact.
      */
-    reasoningEfforts: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    reasoningEfforts: text().array().notNull().default(sql`'{}'::text[]`),
     /**
      * `capabilities.apiFormats` (contract set 3.2.0): the request dialects a
      * route to this model can EXECUTE.
@@ -307,15 +311,15 @@ export const inferenceModels = pgTable(
      */
     check(
       'inference_models_input_modalities_check',
-      sql`cardinality(${t.inputModalities}) >= 1 and ${t.inputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_MODALITIES))}`
+      sql`cardinality(${t.inputModalities}) >= 1 and ${t.inputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_MODALITIES))}`,
     ),
     check(
       'inference_models_output_modalities_check',
-      sql`cardinality(${t.outputModalities}) >= 1 and ${t.outputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_OUTPUT_MODALITIES))}`
+      sql`cardinality(${t.outputModalities}) >= 1 and ${t.outputModalities} <@ ${sql.raw(textArrayLiteral(INFERENCE_OUTPUT_MODALITIES))}`,
     ),
     check(
       'inference_models_reasoning_efforts_check',
-      sql`${t.reasoningEfforts} <@ ${sql.raw(textArrayLiteral(MODEL_REASONING_EFFORTS))}`
+      sql`${t.reasoningEfforts} <@ ${sql.raw(textArrayLiteral(MODEL_REASONING_EFFORTS))}`,
     ),
     /**
      * Declared or undeclared, never empty — see `api_formats`. Membership and
@@ -323,7 +327,7 @@ export const inferenceModels = pgTable(
      */
     check(
       'inference_models_api_formats_check',
-      sql`${t.apiFormats} is null or (cardinality(${t.apiFormats}) >= 1 and ${t.apiFormats} <@ ${sql.raw(textArrayLiteral(INFERENCE_API_FORMATS))})`
+      sql`${t.apiFormats} is null or (cardinality(${t.apiFormats}) >= 1 and ${t.apiFormats} <@ ${sql.raw(textArrayLiteral(INFERENCE_API_FORMATS))})`,
     ),
     /**
      * `modelRealtimeCapabilitiesSchema`: both lists or neither, each non-empty
@@ -336,37 +340,37 @@ export const inferenceModels = pgTable(
      */
     check(
       'inference_models_realtime_check',
-      sql`(${t.realtimeTransports} is null and ${t.realtimeSessionKinds} is null) or (${t.realtimeTransports} is not null and ${t.realtimeSessionKinds} is not null and cardinality(${t.realtimeTransports}) >= 1 and ${t.realtimeTransports} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_TRANSPORTS))} and cardinality(${t.realtimeSessionKinds}) >= 1 and ${t.realtimeSessionKinds} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_KINDS))} and 'audio' = any(${t.inputModalities}))`
+      sql`(${t.realtimeTransports} is null and ${t.realtimeSessionKinds} is null) or (${t.realtimeTransports} is not null and ${t.realtimeSessionKinds} is not null and cardinality(${t.realtimeTransports}) >= 1 and ${t.realtimeTransports} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_TRANSPORTS))} and cardinality(${t.realtimeSessionKinds}) >= 1 and ${t.realtimeSessionKinds} <@ ${sql.raw(textArrayLiteral(REALTIME_SESSION_KINDS))} and 'audio' = any(${t.inputModalities}))`,
     ),
     check(
       'inference_models_catalogue_source_check',
-      sql`${t.catalogueSource} in (${sql.raw(inList(MODEL_CATALOGUE_SOURCES))})`
+      sql`${t.catalogueSource} in (${sql.raw(inList(MODEL_CATALOGUE_SOURCES))})`,
     ),
     check(
       'inference_models_token_limits_check',
-      sql`${t.maxContextTokens} > 0 and ${t.maxOutputTokens} > 0`
+      sql`${t.maxContextTokens} > 0 and ${t.maxOutputTokens} > 0`,
     ),
 
     /* ---- closed value sets ---------------------------------------------- */
 
     check(
       'inference_models_release_kind_check',
-      sql`${t.releaseKind} in (${sql.raw(inList(MODEL_RELEASE_KINDS))})`
+      sql`${t.releaseKind} in (${sql.raw(inList(MODEL_RELEASE_KINDS))})`,
     ),
     check(
       'inference_models_deprecation_status_check',
-      sql`${t.deprecationStatus} in (${sql.raw(inList(MODEL_DEPRECATION_STATUSES))})`
+      sql`${t.deprecationStatus} in (${sql.raw(inList(MODEL_DEPRECATION_STATUSES))})`,
     ),
 
     /* ---- reference formats ---------------------------------------------- */
 
     check(
       'inference_models_base_model_reference_format',
-      sql`${t.baseModelReference} is null or ${t.baseModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`
+      sql`${t.baseModelReference} is null or ${t.baseModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`,
     ),
     check(
       'inference_models_replacement_reference_format',
-      sql`${t.replacementModelReference} is null or ${t.replacementModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`
+      sql`${t.replacementModelReference} is null or ${t.replacementModelReference} ~ ${sql.raw(MODEL_REFERENCE_CHECK_PATTERN)}`,
     ),
 
     /**
@@ -377,7 +381,7 @@ export const inferenceModels = pgTable(
      */
     check(
       'inference_models_active_has_no_sunset',
-      sql`not (${t.deprecationStatus} = 'active' and ${t.deprecationSunsetAt} is not null)`
+      sql`not (${t.deprecationStatus} = 'active' and ${t.deprecationSunsetAt} is not null)`,
     ),
 
     /**
@@ -399,7 +403,7 @@ export const inferenceModels = pgTable(
      */
     check(
       'inference_models_reserved_namespace_is_first_party',
-      sql`not (${t.publisherSlug} = ${sql.raw(`'${RESERVED_FIRST_PARTY_PUBLISHER}'`)} and ${t.releaseKind} not in (${sql.raw(inList(FIRST_PARTY_RELEASE_KINDS))}))`
+      sql`not (${t.publisherSlug} = ${sql.raw(`'${RESERVED_FIRST_PARTY_PUBLISHER}'`)} and ${t.releaseKind} not in (${sql.raw(inList(FIRST_PARTY_RELEASE_KINDS))}))`,
     ),
 
     /** The catalogue's own read: every model of one publisher. */
@@ -409,7 +413,7 @@ export const inferenceModels = pgTable(
      * An index over a GENERATED column is ordinary — the value is stored.
      */
     index('inference_models_model_id_idx').on(t.modelId),
-  ]
+  ],
 );
 
 export type InferenceModelRow = typeof inferenceModels.$inferSelect;

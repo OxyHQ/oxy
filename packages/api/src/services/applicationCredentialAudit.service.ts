@@ -71,7 +71,7 @@ const failureCooldown = new Map<string, number>();
 export function shouldSuppressFailureAudit(
   credentialId: string,
   reason: CredentialValidationFailureReason,
-  now: number = Date.now()
+  now: number = Date.now(),
 ): boolean {
   const key = `${credentialId}:${reason}`;
   const until = failureCooldown.get(key);
@@ -129,7 +129,7 @@ export interface CredentialLifecycleEvent {
  */
 export async function recordCredentialLifecycleEvent(
   writer: Writer,
-  event: CredentialLifecycleEvent
+  event: CredentialLifecycleEvent,
 ): Promise<void> {
   await writer.insert(applicationCredentialAuditEvents).values({
     applicationId: event.applicationId,
@@ -160,24 +160,26 @@ export interface CredentialValidationFailure {
  * fire-and-forget would flatten into one.
  */
 export async function recordCredentialValidationFailure(
-  failure: CredentialValidationFailure
+  failure: CredentialValidationFailure,
 ): Promise<boolean> {
   if (shouldSuppressFailureAudit(failure.credentialId, failure.reason)) {
     return false;
   }
 
   try {
-    await getDb().insert(applicationCredentialAuditEvents).values({
-      applicationId: failure.applicationId,
-      credentialId: failure.credentialId,
-      eventType: 'validation_failed',
-      reason: failure.reason,
-      // Never an actor: a refused bearer has nobody behind it, and the table's
-      // own CHECK refuses one anyway.
-      actorUserId: null,
-      environment: failure.environment,
-      metadata: failure.metadata ?? {},
-    });
+    await getDb()
+      .insert(applicationCredentialAuditEvents)
+      .values({
+        applicationId: failure.applicationId,
+        credentialId: failure.credentialId,
+        eventType: 'validation_failed',
+        reason: failure.reason,
+        // Never an actor: a refused bearer has nobody behind it, and the table's
+        // own CHECK refuses one anyway.
+        actorUserId: null,
+        environment: failure.environment,
+        metadata: failure.metadata ?? {},
+      });
     return true;
   } catch (error) {
     logger.error(
@@ -187,7 +189,7 @@ export async function recordCredentialValidationFailure(
         component: 'applicationCredentialAudit',
         credentialId: failure.credentialId,
         reason: failure.reason,
-      }
+      },
     );
     return false;
   }
@@ -242,7 +244,7 @@ export interface CredentialAuditTrailEntry {
  */
 export async function listCredentialAuditTrail(
   credentialId: string,
-  limit: number
+  limit: number,
 ): Promise<readonly CredentialAuditTrailEntry[]> {
   const rows = await getDb()
     .select({
@@ -257,7 +259,7 @@ export async function listCredentialAuditTrail(
     .where(eq(applicationCredentialAuditEvents.credentialId, credentialId))
     .orderBy(
       desc(applicationCredentialAuditEvents.createdAt),
-      desc(applicationCredentialAuditEvents.id)
+      desc(applicationCredentialAuditEvents.id),
     )
     .limit(limit);
 
@@ -279,7 +281,7 @@ export async function listCredentialAuditTrail(
  */
 export async function listCredentialAuditEvents(
   credentialId: string,
-  limit = 50
+  limit = 50,
 ): Promise<(typeof applicationCredentialAuditEvents.$inferSelect)[]> {
   return getDb()
     .select()
@@ -297,7 +299,7 @@ export async function listCredentialAuditEvents(
  */
 export async function listCredentialAuditEventsOfType(
   credentialId: string,
-  eventType: CredentialAuditEventType
+  eventType: CredentialAuditEventType,
 ): Promise<(typeof applicationCredentialAuditEvents.$inferSelect)[]> {
   return getDb()
     .select()
@@ -305,8 +307,8 @@ export async function listCredentialAuditEventsOfType(
     .where(
       and(
         eq(applicationCredentialAuditEvents.credentialId, credentialId),
-        eq(applicationCredentialAuditEvents.eventType, eventType)
-      )
+        eq(applicationCredentialAuditEvents.eventType, eventType),
+      ),
     )
     .orderBy(sql`${applicationCredentialAuditEvents.createdAt} desc`);
 }
@@ -315,16 +317,42 @@ export async function listCredentialAuditEventsOfType(
  * AWS authentication and exact-plan validation belong to the bounded operator CLI.
  * No arbitrary metadata or credential material is accepted by this audit writer.
  */
-export async function recordOperationalCredentialLifecycleEvent(writer: Writer, event: {
-  applicationId: string; credentialId: string; eventType: 'created' | 'revoked';
-  environment: ApplicationCredentialEnvironment; type: string;
-  operatorArn: string; authorizationSha256: string; nonce: string;
-}): Promise<void> {
-  if (!/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(event.operatorArn)
-    || !/^[a-f0-9]{64}$/.test(event.authorizationSha256) || !/^[a-f0-9]{24}$/.test(event.nonce)
-    || event.applicationId !== '6a2f851751b784a86fd0e934' || event.environment !== 'production' || event.type !== 'service') throw new Error('invalid_operational_credential_audit');
-  await writer.insert(applicationCredentialAuditEvents).values({ applicationId: event.applicationId,
-    credentialId: event.credentialId, eventType: event.eventType, actorUserId: null,
-    environment: event.environment, metadata: { type: event.type, actorKind: 'operational_canary',
-      operatorArn: event.operatorArn, authorizationSha256: event.authorizationSha256, nonce: event.nonce } });
+export async function recordOperationalCredentialLifecycleEvent(
+  writer: Writer,
+  event: {
+    applicationId: string;
+    credentialId: string;
+    eventType: 'created' | 'revoked';
+    environment: ApplicationCredentialEnvironment;
+    type: string;
+    operatorArn: string;
+    authorizationSha256: string;
+    nonce: string;
+  },
+): Promise<void> {
+  if (
+    !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
+      event.operatorArn,
+    ) ||
+    !/^[a-f0-9]{64}$/.test(event.authorizationSha256) ||
+    !/^[a-f0-9]{24}$/.test(event.nonce) ||
+    event.applicationId !== '6a2f851751b784a86fd0e934' ||
+    event.environment !== 'production' ||
+    event.type !== 'service'
+  )
+    throw new Error('invalid_operational_credential_audit');
+  await writer.insert(applicationCredentialAuditEvents).values({
+    applicationId: event.applicationId,
+    credentialId: event.credentialId,
+    eventType: event.eventType,
+    actorUserId: null,
+    environment: event.environment,
+    metadata: {
+      type: event.type,
+      actorKind: 'operational_canary',
+      operatorArn: event.operatorArn,
+      authorizationSha256: event.authorizationSha256,
+      nonce: event.nonce,
+    },
+  });
 }

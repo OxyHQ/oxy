@@ -27,7 +27,10 @@ export interface OxyDeleteAccountPanelProps {
   onCancel?: () => void;
 }
 
-export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ onDeleted, onCancel }) => {
+export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({
+  onDeleted,
+  onCancel,
+}) => {
   const { t } = useI18n();
   const { user, oxyServices, logout } = useOxy();
   const keyed = Boolean(user?.publicKey);
@@ -38,7 +41,10 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
   if (deleted) {
     return (
       <OxyAuthScreen>
-        <OxyAuthScreenHeader title={t('deleteAccount.keyless.done')} description={t('deleteAccount.keyless.doneDescription')} />
+        <OxyAuthScreenHeader
+          title={t('deleteAccount.keyless.done')}
+          description={t('deleteAccount.keyless.doneDescription')}
+        />
       </OxyAuthScreen>
     );
   }
@@ -47,7 +53,9 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
     return (
       <OxyAuthScreen>
         <OxyAuthScreenHeader title={t('deleteAccount.handoff.commonsTitle')} />
-        <AccountFlowNotice testID="delete-account-keyed">{t('deleteAccount.keyless.keyed')}</AccountFlowNotice>
+        <AccountFlowNotice testID="delete-account-keyed">
+          {t('deleteAccount.keyless.keyed')}
+        </AccountFlowNotice>
       </OxyAuthScreen>
     );
   }
@@ -64,7 +72,9 @@ export const OxyDeleteAccountPanel: React.FC<OxyDeleteAccountPanelProps> = ({ on
       totpEnabled={methods.data.totpEnabled}
       submitLabel={t('deleteAccount.keyless.action')}
       destructive
-      validate={() => (confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username }))}
+      validate={() =>
+        confirmText.trim() === username ? null : t('deleteAccount.confirmLabel', { username })
+      }
       onSubmit={async (proof) => {
         if (!proof.emailCode) throw new Error(t('reauth.errors.invalid'));
         // The last word before it is gone: the proof is ready, and nothing has

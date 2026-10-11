@@ -14,10 +14,9 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
     const duration = Date.now() - startTime;
     const route = req.route?.path;
     const routeTemplate = typeof route === 'string' ? `${req.baseUrl}${route}` : 'unmatched';
-    const operation = typeof route === 'string'
-      ? `${req.method} ${routeTemplate}`
-      : `${req.method} unmatched`;
-    
+    const operation =
+      typeof route === 'string' ? `${req.method} ${routeTemplate}` : `${req.method} unmatched`;
+
     // Record the metric
     performanceMonitor.recordMetric(operation, duration, {
       method: req.method,

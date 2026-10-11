@@ -5,9 +5,7 @@
   "repo": "https://github.com/OxyHQ/OxyHQServices",
   "category": "sdk",
   "versioned": true,
-  "versions": [
-    "main"
-  ],
+  "versions": ["main"],
   "latestVersion": "main",
   "deprecatedVersions": [],
   "defaultVersion": "main",

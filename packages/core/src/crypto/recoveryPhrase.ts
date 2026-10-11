@@ -1,9 +1,9 @@
 /**
  * Recovery Phrase Service - BIP39 Mnemonic Generation
- * 
+ *
  * Handles generation and restoration of recovery phrases (mnemonic seeds)
  * for backing up and restoring user identities.
- * 
+ *
  * Note: This module requires the polyfill to be loaded first (done via crypto/index.ts)
  *
  * Oxy recovery phrases are English-only, so the English wordlist is imported by
@@ -26,7 +26,7 @@ function toHex(data: Uint8Array | ArrayLike<number>): string {
   // Convert to array of numbers if needed
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
@@ -234,8 +234,15 @@ export class RecoveryPhraseService {
 
     const seed = await mnemonicToSeed(normalizedPhrase);
     const salt = utf8(BACKUP_KDF_SALT);
-    const backupKey = hkdfSha256(seed, salt, utf8(BACKUP_KDF_ENCRYPTION_INFO), BACKUP_MATERIAL_LENGTH);
-    const lookupId = toHex(hkdfSha256(seed, salt, utf8(BACKUP_KDF_LOOKUP_INFO), BACKUP_MATERIAL_LENGTH));
+    const backupKey = hkdfSha256(
+      seed,
+      salt,
+      utf8(BACKUP_KDF_ENCRYPTION_INFO),
+      BACKUP_MATERIAL_LENGTH,
+    );
+    const lookupId = toHex(
+      hkdfSha256(seed, salt, utf8(BACKUP_KDF_LOOKUP_INFO), BACKUP_MATERIAL_LENGTH),
+    );
 
     return { backupKey, lookupId };
   }
@@ -307,7 +314,7 @@ export class RecoveryPhraseService {
    */
   static async derivePublicKeyFromPhrase(phrase: string): Promise<string> {
     const normalizedPhrase = phrase.trim().toLowerCase();
-    
+
     if (!validateMnemonic(normalizedPhrase, wordlist)) {
       throw new Error('Invalid recovery phrase');
     }
@@ -329,10 +336,8 @@ export class RecoveryPhraseService {
    * Convert a word array to a phrase string
    */
   static wordsToPhrase(words: string[]): string {
-    return words.map(w => w.toLowerCase().trim()).join(' ');
+    return words.map((w) => w.toLowerCase().trim()).join(' ');
   }
 }
 
 export default RecoveryPhraseService;
-
-

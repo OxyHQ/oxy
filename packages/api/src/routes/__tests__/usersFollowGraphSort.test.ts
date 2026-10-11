@@ -84,7 +84,9 @@ async function getJson(server: http.Server, path: string): Promise<JsonResponse>
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             const parsed = raw.length > 0 ? JSON.parse(raw) : {};

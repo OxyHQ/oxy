@@ -32,7 +32,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     if (currentUserId.length > 0) {
       req.user = { _id: currentUserId, id: currentUserId, isStaff: currentUserIsStaff };
@@ -89,7 +89,7 @@ interface JsonResponse {
 function request(
   method: 'GET' | 'POST' | 'PUT',
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -123,7 +123,7 @@ function request(
           }
           resolve({ status: res.statusCode ?? 0, body: parsed });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -268,7 +268,7 @@ function ingestionBody(options: ManifestOptions) {
 const ALIA = 'alia';
 
 async function seedStaffUser(
-  staffCapabilities: readonly StaffCapability[] = ['inference:catalogue:publish']
+  staffCapabilities: readonly StaffCapability[] = ['inference:catalogue:publish'],
 ): Promise<string> {
   const [row] = await getDb()
     .insert(users)
@@ -297,8 +297,8 @@ async function publishRevision(modelId: string, revisionLabel: string): Promise<
     .where(
       and(
         eq(inferenceModelRevisions.modelId, model.id),
-        eq(inferenceModelRevisions.revision, revisionLabel)
-      )
+        eq(inferenceModelRevisions.revision, revisionLabel),
+      ),
     );
 
   // Ingestion writes `is_current = false` on purpose. Promoting a revision is a
@@ -360,7 +360,7 @@ afterAll(async () => {
     process.env.INFERENCE_CATALOGUE_AUDIENCE = ORIGINAL_CATALOGUE_AUDIENCE;
   }
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -421,8 +421,8 @@ describe('POST /inference/admin/model-releases', () => {
       .where(
         and(
           eq(inferenceModelRevisions.modelId, model.id),
-          eq(inferenceModelRevisions.revision, revision)
-        )
+          eq(inferenceModelRevisions.revision, revision),
+        ),
       );
 
     expect(revisionRow.modelCardUrl).toBe('https://alia.onl/models/card');
@@ -454,7 +454,10 @@ describe('POST /inference/admin/model-releases', () => {
 
     // "digests", PLURAL: the whole signed inventory, not only the served one.
     const artifacts = await db
-      .select({ path: inferenceModelReleaseArtifacts.path, digest: inferenceModelReleaseArtifacts.digest })
+      .select({
+        path: inferenceModelReleaseArtifacts.path,
+        digest: inferenceModelReleaseArtifacts.digest,
+      })
       .from(inferenceModelReleaseArtifacts)
       .where(eq(inferenceModelReleaseArtifacts.releaseId, release.id));
     expect(artifacts.map((row) => row.digest).sort()).toEqual([digest('b'), digest('c')].sort());
@@ -488,9 +491,9 @@ describe('POST /inference/admin/model-releases', () => {
 
     // Control: the contract really does add this key, so its absence below is a
     // fact about the stored bytes and not about the fixture.
-    expect(
-      modelSafetyMetadataSchema.parse(body.manifest.revision.safety).knownLimitations
-    ).toEqual([]);
+    expect(modelSafetyMetadataSchema.parse(body.manifest.revision.safety).knownLimitations).toEqual(
+      [],
+    );
 
     await request('POST', `${ADMIN}/model-releases`, body);
 
@@ -531,12 +534,16 @@ describe('POST /inference/admin/model-releases', () => {
   it('refuses a different release that reuses a revision label', async () => {
     const modelSlug = `m${suffix()}`;
     const revision = `r${suffix()}`;
-    await request('POST', `${ADMIN}/model-releases`, ingestionBody({ publisher: ALIA, modelSlug, revision }));
+    await request(
+      'POST',
+      `${ADMIN}/model-releases`,
+      ingestionBody({ publisher: ALIA, modelSlug, revision }),
+    );
 
     const second = await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug, revision })
+      ingestionBody({ publisher: ALIA, modelSlug, revision }),
     );
     expect(second.status).toBe(409);
     expect(String(second.body.message)).toContain('already in the catalogue');
@@ -547,7 +554,7 @@ describe('POST /inference/admin/model-releases', () => {
     await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug, revision: `r${suffix()}` })
+      ingestionBody({ publisher: ALIA, modelSlug, revision: `r${suffix()}` }),
     );
 
     const relicensed = await request(
@@ -558,7 +565,7 @@ describe('POST /inference/admin/model-releases', () => {
         modelSlug,
         revision: `r${suffix()}`,
         licenseId: 'LicenseRef-Alia-2.0',
-      })
+      }),
     );
     expect(relicensed.status).toBe(409);
     expect(String(relicensed.body.message)).toContain('licence');
@@ -574,7 +581,11 @@ describe('POST /inference/admin/model-releases', () => {
   });
 
   it('requires the publish capability, not merely staff', async () => {
-    const body = ingestionBody({ publisher: ALIA, modelSlug: `m${suffix()}`, revision: `r${suffix()}` });
+    const body = ingestionBody({
+      publisher: ALIA,
+      modelSlug: `m${suffix()}`,
+      revision: `r${suffix()}`,
+    });
 
     currentUserId = await seedStaffUser([]);
     const refused = await request('POST', `${ADMIN}/model-releases`, body);
@@ -593,7 +604,7 @@ describe('POST /inference/admin/model-releases', () => {
     const response = await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug: `m${suffix()}`, revision: `r${suffix()}` })
+      ingestionBody({ publisher: ALIA, modelSlug: `m${suffix()}`, revision: `r${suffix()}` }),
     );
     expect(response.status).toBe(403);
     expect(response.body).toEqual(STAFF_REFUSAL);
@@ -605,7 +616,7 @@ describe('PUT /inference/admin/revisions/:revisionId/gpai-documentation', () => 
     await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug, revision })
+      ingestionBody({ publisher: ALIA, modelSlug, revision }),
     );
     const [model] = await getDb()
       .select({ id: inferenceModels.id })
@@ -617,8 +628,8 @@ describe('PUT /inference/admin/revisions/:revisionId/gpai-documentation', () => 
       .where(
         and(
           eq(inferenceModelRevisions.modelId, model.id),
-          eq(inferenceModelRevisions.revision, revision)
-        )
+          eq(inferenceModelRevisions.revision, revision),
+        ),
       );
     return row.id;
   }
@@ -673,7 +684,7 @@ describe('PUT /inference/admin/revisions/:revisionId/gpai-documentation', () => 
     const missing = await request(
       'PUT',
       `${ADMIN}/revisions/rev_nothing/gpai-documentation`,
-      DOCUMENTATION
+      DOCUMENTATION,
     );
     expect(missing.status).toBe(404);
 
@@ -681,7 +692,7 @@ describe('PUT /inference/admin/revisions/:revisionId/gpai-documentation', () => 
     const refused = await request(
       'PUT',
       `${ADMIN}/revisions/rev_nothing/gpai-documentation`,
-      DOCUMENTATION
+      DOCUMENTATION,
     );
     expect(refused.status).toBe(403);
   });
@@ -694,7 +705,7 @@ describe('GET /models/:publisher/:model/documentation', () => {
     await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug, revision })
+      ingestionBody({ publisher: ALIA, modelSlug, revision }),
     );
     const modelId = `${ALIA}/${modelSlug}`;
     await publishRevision(modelId, revision);
@@ -706,7 +717,7 @@ describe('GET /models/:publisher/:model/documentation', () => {
 
     const response = await request(
       'GET',
-      `${MODELS}/${modelId}/documentation?revision=${revision}`
+      `${MODELS}/${modelId}/documentation?revision=${revision}`,
     );
     expect(response.status).toBe(200);
 
@@ -714,9 +725,7 @@ describe('GET /models/:publisher/:model/documentation', () => {
     expect(data.reference).toBe(`${modelId}@${revision}`);
     expect(data.modelCardUrl).toBe('https://alia.onl/models/card');
     expect(data.artifactDigest).toBe(digest('b'));
-    expect(data.evaluations).toEqual([
-      { suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' },
-    ]);
+    expect(data.evaluations).toEqual([{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }]);
     expect(data.safety).toEqual({
       safetyCardUrl: 'https://alia.onl/models/safety',
       contentFilteringDefault: 'strict',
@@ -732,7 +741,7 @@ describe('GET /models/:publisher/:model/documentation', () => {
 
     const response = await request(
       'GET',
-      `${MODELS}/${modelId}/documentation?revision=${revision}`
+      `${MODELS}/${modelId}/documentation?revision=${revision}`,
     );
     const gpai = (response.body.data as Record<string, unknown>).gpai as Record<string, unknown>;
 
@@ -761,7 +770,7 @@ describe('GET /models/:publisher/:model/documentation', () => {
       .from(inferenceModelGpaiDocumentation)
       .innerJoin(
         inferenceModelRevisions,
-        eq(inferenceModelGpaiDocumentation.modelRevisionId, inferenceModelRevisions.id)
+        eq(inferenceModelGpaiDocumentation.modelRevisionId, inferenceModelRevisions.id),
       )
       .where(eq(inferenceModelRevisions.revision, revision));
     expect(row.trainingComputeFlops).toBe('4.2e25');
@@ -791,12 +800,12 @@ describe('GET /models/:publisher/:model/documentation', () => {
     await request(
       'POST',
       `${ADMIN}/model-releases`,
-      ingestionBody({ publisher: ALIA, modelSlug, revision })
+      ingestionBody({ publisher: ALIA, modelSlug, revision }),
     );
 
     const unpublished = await request(
       'GET',
-      `${MODELS}/${ALIA}/${modelSlug}/documentation?revision=${revision}`
+      `${MODELS}/${ALIA}/${modelSlug}/documentation?revision=${revision}`,
     );
     const absent = await request('GET', `${MODELS}/${ALIA}/nothing-here/documentation`);
 

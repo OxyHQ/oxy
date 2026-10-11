@@ -37,7 +37,11 @@ async function rejection(query: Promise<unknown>): Promise<unknown> {
   throw new Error('Expected the query to be rejected by a constraint, but it succeeded.');
 }
 
-function link(userId: string, accountKey: string, extra: Partial<typeof userLinkedAccounts.$inferInsert> = {}) {
+function link(
+  userId: string,
+  accountKey: string,
+  extra: Partial<typeof userLinkedAccounts.$inferInsert> = {},
+) {
   return getDb()
     .insert(userLinkedAccounts)
     .values({
@@ -54,19 +58,29 @@ function link(userId: string, accountKey: string, extra: Partial<typeof userLink
 }
 
 /** A challenge row for `userId`, returning to a first-party app. */
-async function challenge(userId: string, extra: Partial<typeof linkedAccountOauthChallenges.$inferInsert> = {}) {
+async function challenge(
+  userId: string,
+  extra: Partial<typeof linkedAccountOauthChallenges.$inferInsert> = {},
+) {
   const [app] = await getDb()
     .insert(applications)
-    .values({ name: `Move ${randomUUID()}`, ownerAccountId: userId, type: 'first_party', redirectUris: ['oxymove://linked'] })
+    .values({
+      name: `Move ${randomUUID()}`,
+      ownerAccountId: userId,
+      type: 'first_party',
+      redirectUris: ['oxymove://linked'],
+    })
     .returning({ id: applications.id });
-  return getDb().insert(linkedAccountOauthChallenges).values({
-    userId,
-    network: 'activitypub',
-    clientApplicationId: app.id,
-    returnTo: 'oxymove://linked',
-    expiresAt: new Date(Date.now() + 60_000),
-    ...extra,
-  });
+  return getDb()
+    .insert(linkedAccountOauthChallenges)
+    .values({
+      userId,
+      network: 'activitypub',
+      clientApplicationId: app.id,
+      returnTo: 'oxymove://linked',
+      expiresAt: new Date(Date.now() + 60_000),
+      ...extra,
+    });
 }
 
 beforeAll(async () => {
@@ -87,10 +101,16 @@ describe('user_linked_accounts — one live claim per external account', () => {
   it('frees the account once the live claim is revoked, and keeps the history', async () => {
     const key = `bob-${randomUUID().slice(0, 8)}@mastodon.example`;
     const [first] = await link(await user(), key);
-    await getDb().update(userLinkedAccounts).set({ revokedAt: new Date() }).where(eq(userLinkedAccounts.id, first.id));
+    await getDb()
+      .update(userLinkedAccounts)
+      .set({ revokedAt: new Date() })
+      .where(eq(userLinkedAccounts.id, first.id));
     const [second] = await link(await user(), key);
     expect(second.id).not.toBe(first.id);
-    const rows = await getDb().select({ id: userLinkedAccounts.id }).from(userLinkedAccounts).where(eq(userLinkedAccounts.accountKey, key));
+    const rows = await getDb()
+      .select({ id: userLinkedAccounts.id })
+      .from(userLinkedAccounts)
+      .where(eq(userLinkedAccounts.accountKey, key));
     expect(rows).toHaveLength(2);
   });
 
@@ -128,7 +148,9 @@ describe('user_linked_accounts — closed value sets', () => {
       select column_name from information_schema.columns
       where table_name in ('user_linked_accounts', 'linked_account_oauth_challenges', 'mastodon_app_registrations')
     `);
-    const names = (Array.isArray(rows) ? rows : (rows as { rows: Array<{ column_name: string }> }).rows).map((row) => row.column_name);
+    const names = (
+      Array.isArray(rows) ? rows : (rows as { rows: Array<{ column_name: string }> }).rows
+    ).map((row) => row.column_name);
     expect(names.length).toBeGreaterThan(20);
     expect(names.filter((name) => /token|refresh|access/i.test(name))).toEqual([]);
   });
@@ -142,7 +164,14 @@ describe('linked_account_oauth_challenges', () => {
 
   it('stores only a SHA-256 hex link code hash', async () => {
     const error = await rejection(
-      challenge(await user(), { status: 'verified', accountKey: 'a@b.example', actorUri: 'https://b.example/users/a', handle: '@a@b.example', host: 'b.example', linkCodeHash: 'raw-code' }),
+      challenge(await user(), {
+        status: 'verified',
+        accountKey: 'a@b.example',
+        actorUri: 'https://b.example/users/a',
+        handle: '@a@b.example',
+        host: 'b.example',
+        linkCodeHash: 'raw-code',
+      }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -164,7 +193,9 @@ describe('deleting the local user', () => {
     const [row] = await link(owner, `carol-${randomUUID().slice(0, 8)}@mastodon.example`);
     await challenge(owner);
     await getDb().delete(users).where(eq(users.id, owner));
-    expect(await getDb().select().from(userLinkedAccounts).where(eq(userLinkedAccounts.id, row.id))).toEqual([]);
+    expect(
+      await getDb().select().from(userLinkedAccounts).where(eq(userLinkedAccounts.id, row.id)),
+    ).toEqual([]);
     expect(
       await getDb()
         .select({ id: linkedAccountOauthChallenges.id })

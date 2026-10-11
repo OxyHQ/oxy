@@ -69,15 +69,38 @@ export const createOxyNotificationRequestSchema = z
   })
   .superRefine((value, context) => {
     if (value.type === 'system') {
-      if (value.actorId !== value.recipientId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['actorId'], message: 'a system notification is from the recipient\'s own account' });
-      if (!value.title) context.addIssue({ code: z.ZodIssueCode.custom, path: ['title'], message: 'title is required for a system notification' });
-      if (!value.message) context.addIssue({ code: z.ZodIssueCode.custom, path: ['message'], message: 'message is required for a system notification' });
+      if (value.actorId !== value.recipientId)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['actorId'],
+          message: "a system notification is from the recipient's own account",
+        });
+      if (!value.title)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['title'],
+          message: 'title is required for a system notification',
+        });
+      if (!value.message)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['message'],
+          message: 'message is required for a system notification',
+        });
     } else {
       if (value.url !== undefined) {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['url'], message: 'url is only stored for a system notification' });
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['url'],
+          message: 'url is only stored for a system notification',
+        });
       }
       if (value.entityType === 'app') {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['entityType'], message: "entityType 'app' is only valid for a system notification" });
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['entityType'],
+          message: "entityType 'app' is only valid for a system notification",
+        });
       }
     }
   });

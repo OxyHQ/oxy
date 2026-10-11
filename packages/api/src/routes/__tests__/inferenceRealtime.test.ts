@@ -43,9 +43,15 @@ import {
   KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
 } from '../../config/kaanaDataPlane';
 import { closePostgres, connectPostgres } from '../../config/postgres';
-import { createHttpKaanaClient, KAANA_DEPLOYMENTS_QUERY_PATH } from '../../services/httpKaanaClient';
+import {
+  createHttpKaanaClient,
+  KAANA_DEPLOYMENTS_QUERY_PATH,
+} from '../../services/httpKaanaClient';
 import { KAANA_REALTIME_PATH, createKaanaRealtimeClient } from '../../services/kaanaRealtimeClient';
-import { heldRealtimeSessionCount, realtimeTimings } from '../../services/inferenceRealtime.service';
+import {
+  heldRealtimeSessionCount,
+  realtimeTimings,
+} from '../../services/inferenceRealtime.service';
 import { logger } from '../../utils/logger';
 import { attachRealtimeEdge } from '../inferenceRealtime';
 import { attestFixtureDeployments } from '../__fixtures__/kaanaRuntimeFixtures';
@@ -92,7 +98,10 @@ interface Kaana {
 
 async function startKaana(): Promise<Kaana> {
   const connections: UpstreamConnection[] = [];
-  const waiters: { resolve: (connection: UpstreamConnection) => void; reject: (error: Error) => void }[] = [];
+  const waiters: {
+    resolve: (connection: UpstreamConnection) => void;
+    reject: (error: Error) => void;
+  }[] = [];
   const server = http.createServer((req, res) => {
     // The one-shot hop admission uses: exact-id attestation.
     const chunks: Buffer[] = [];
@@ -100,7 +109,10 @@ async function startKaana(): Promise<Kaana> {
     req.on('end', () => {
       void (async () => {
         const body = Buffer.concat(chunks);
-        if (req.url !== KAANA_DEPLOYMENTS_QUERY_PATH || !verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, req.headers, body)) {
+        if (
+          req.url !== KAANA_DEPLOYMENTS_QUERY_PATH ||
+          !verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, req.headers, body)
+        ) {
           res.writeHead(401).end();
           return;
         }
@@ -130,7 +142,8 @@ async function startKaana(): Promise<Kaana> {
         const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
         if (first === undefined) {
           first = bytes;
-          const verified = !isBinary && verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, req.headers, bytes);
+          const verified =
+            !isBinary && verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, req.headers, bytes);
           const connection: UpstreamConnection = {
             headers: req.headers,
             firstFrame: bytes,
@@ -184,7 +197,7 @@ class Emitter {
   sequence = 0;
   constructor(
     readonly request: RealtimeSessionRequest,
-    public socket: WebSocket
+    public socket: WebSocket,
   ) {}
 
   get requestId(): string {
@@ -197,7 +210,9 @@ class Emitter {
 
   event(payload: Record<string, unknown>): number {
     const sequence = this.sequence++;
-    this.socket.send(JSON.stringify({ schemaVersion: 1, requestId: this.requestId, sequence, ...payload }));
+    this.socket.send(
+      JSON.stringify({ schemaVersion: 1, requestId: this.requestId, sequence, ...payload }),
+    );
     return sequence;
   }
 
@@ -242,7 +257,11 @@ class Emitter {
     });
   }
 
-  closed(units: UsageQuantity[], reason = 'client_closed', usageSource = 'provider_reported'): void {
+  closed(
+    units: UsageQuantity[],
+    reason = 'client_closed',
+    usageSource = 'provider_reported',
+  ): void {
     this.event({
       type: 'session.closed',
       reason,
@@ -269,7 +288,7 @@ class Emitter {
         routeSwitches: 0,
         startedAt: now,
         completedAt: now,
-      })
+      }),
     );
   }
 }
@@ -299,7 +318,9 @@ async function withEdge(run: (harness: Harness) => Promise<void>): Promise<void>
   process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
   const systemFetch = globalThis.fetch;
   globalThis.fetch = (async (input, init) => {
-    const requested = new URL(typeof input === 'string' ? input : input instanceof URL ? input : input.url);
+    const requested = new URL(
+      typeof input === 'string' ? input : input instanceof URL ? input : input.url,
+    );
     expect(requested.origin).toBe('https://kaana.ai');
     return systemFetch(`http://127.0.0.1:${kaana.port}${requested.pathname}`, init);
   }) as typeof fetch;
@@ -326,7 +347,8 @@ async function withEdge(run: (harness: Harness) => Promise<void>): Promise<void>
 
   const connect = (token: string, model?: string): Promise<Customer> =>
     new Promise((resolve, reject) => {
-      const path = model === undefined ? '/v1/realtime' : `/v1/realtime?model=${encodeURIComponent(model)}`;
+      const path =
+        model === undefined ? '/v1/realtime' : `/v1/realtime?model=${encodeURIComponent(model)}`;
       const socket = new WebSocket(`ws://127.0.0.1:${port}${path}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -350,11 +372,15 @@ async function withEdge(run: (harness: Harness) => Promise<void>): Promise<void>
         }
       };
       socket.on('message', (data: RawData) => {
-        events.push(JSON.parse(Buffer.from(data as Buffer).toString('utf8')) as Record<string, unknown>);
+        events.push(
+          JSON.parse(Buffer.from(data as Buffer).toString('utf8')) as Record<string, unknown>,
+        );
         pump();
       });
       const closed = new Promise<{ code: number; reason: string }>((resolveClosed) => {
-        socket.on('close', (code, reason) => resolveClosed({ code, reason: reason.toString('utf8') }));
+        socket.on('close', (code, reason) =>
+          resolveClosed({ code, reason: reason.toString('utf8') }),
+        );
       });
       socket.on('upgrade', (response) => {
         const requestId = String(response.headers['x-oxy-request-id']);
@@ -370,7 +396,7 @@ async function withEdge(run: (harness: Harness) => Promise<void>): Promise<void>
                 pump();
               }),
             send: (payload) => socket.send(JSON.stringify(payload)),
-          })
+          }),
         );
       });
       socket.on('error', reject);
@@ -395,7 +421,7 @@ async function withEdge(run: (harness: Harness) => Promise<void>): Promise<void>
 }
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
-  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(EDGE_ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 const ORIGINAL_GRACE = realtimeTimings.reportGraceMs;
 
@@ -473,7 +499,9 @@ async function opened(harness: Harness, fixture: AudioFixture, frame = openFrame
   const upstream = harness.kaana.nextConnection();
   customer.send(frame);
   const connection = await upstream;
-  const request = realtimeSessionRequestSchema.parse(JSON.parse(connection.firstFrame.toString('utf8')));
+  const request = realtimeSessionRequestSchema.parse(
+    JSON.parse(connection.firstFrame.toString('utf8')),
+  );
   const emit = new Emitter(request, connection.socket);
   emit.created();
   await customer.next('session.created');
@@ -502,12 +530,20 @@ describe('the signed first frame', () => {
         maxOutputAudioBytes: 28_800_000,
         maxResponses: 2,
       });
-      expect(request.authorizedRoutes.map((route) => route.deploymentId)).toEqual(fixture.deploymentIds);
-      expect(request.authorizedRoutes.every((route) => route.substitution === 'same_model')).toBe(true);
+      expect(request.authorizedRoutes.map((route) => route.deploymentId)).toEqual(
+        fixture.deploymentIds,
+      );
+      expect(request.authorizedRoutes.every((route) => route.substitution === 'same_model')).toBe(
+        true,
+      );
 
       // The positive control: the same headers over different bytes do not verify.
-      const tampered = Buffer.from(connection.firstFrame.toString('utf8').replace('Be brief.', 'Be long.'));
-      expect(verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, connection.headers, tampered)).toBe(false);
+      const tampered = Buffer.from(
+        connection.firstFrame.toString('utf8').replace('Be brief.', 'Be long.'),
+      );
+      expect(
+        verifyEdgeSignature(EDGE_KEY_ID, edgeKeys.publicKey, connection.headers, tampered),
+      ).toBe(false);
 
       emit.closed([]);
       emit.report([], 'failed');
@@ -623,7 +659,10 @@ describe('a session, relayed and settled', () => {
       const forwarded = await connection.nextCommand();
       expect(forwarded).toEqual(append);
       emit.accepted(forwarded);
-      expect(await customer.next('command.accepted')).toMatchObject({ commandId: 'c-1', sequence: 1 });
+      expect(await customer.next('command.accepted')).toMatchObject({
+        commandId: 'c-1',
+        sequence: 1,
+      });
 
       emit.response(RESPONSE_UNITS);
       expect(await customer.next('output_audio.delta')).toMatchObject({ format: 'pcm16_24khz' });
@@ -740,7 +779,10 @@ describe('a dropped customer', () => {
 
       const second = await harness.connect(fixture.token);
       const upstream = harness.kaana.nextConnection();
-      const resume = command(customer.requestId, 'r-1', { type: 'session.resume', afterSequence: 1 });
+      const resume = command(customer.requestId, 'r-1', {
+        type: 'session.resume',
+        afterSequence: 1,
+      });
       second.send(resume);
       const resumed = await upstream;
       expect(resumed.verified).toBe(true);
@@ -771,7 +813,11 @@ describe('a dropped customer', () => {
       const other = await harness.connect(stranger.token);
       other.send(command(customer.requestId, 'r-1', { type: 'session.resume', afterSequence: 0 }));
       const refusal = await other.next('error');
-      expect(refusal).toMatchObject({ fatal: true, sequence: 0, error: { code: 'invalid_request' } });
+      expect(refusal).toMatchObject({
+        fatal: true,
+        sequence: 0,
+        error: { code: 'invalid_request' },
+      });
       expect((await other.closed).code).toBe(1008);
       expect(harness.kaana.connections).toHaveLength(1);
       emit.closed([]);
@@ -789,7 +835,9 @@ describe('a dropped customer', () => {
         const upstream = harness.kaana.nextConnection();
         customer.send(openFrame());
         const connection = await upstream;
-        const request = realtimeSessionRequestSchema.parse(JSON.parse(connection.firstFrame.toString('utf8')));
+        const request = realtimeSessionRequestSchema.parse(
+          JSON.parse(connection.firstFrame.toString('utf8')),
+        );
         const emit = new Emitter(request, connection.socket);
         emit.created(0);
         emit.response(RESPONSE_UNITS);
@@ -818,7 +866,7 @@ describe('refusals before a session exists', () => {
     harness: Harness,
     token: string,
     model: string | undefined,
-    frame: unknown
+    frame: unknown,
   ): Promise<{ error: Record<string, unknown>; code: number }> {
     const customer = await harness.connect(token, model);
     customer.send(frame);
@@ -856,7 +904,12 @@ describe('refusals before a session exists', () => {
   it('refuses a model that declares no realtime sessions, before any hold or upstream', async () => {
     const fixture = await makeAudioFixture({ realtime: null });
     await withEdge(async (harness) => {
-      const refused = await refusedWith(harness, fixture.token, fixture.modelReference, openFrame());
+      const refused = await refusedWith(
+        harness,
+        fixture.token,
+        fixture.modelReference,
+        openFrame(),
+      );
       expect(refused.error).toMatchObject({ code: 'unsupported_modality' });
       expect(refused.error.message).toContain('does not hold realtime conversation sessions');
       expect(harness.kaana.connections).toHaveLength(0);
@@ -878,7 +931,7 @@ describe('refusals before a session exists', () => {
             turnDetection: { type: 'none' },
             inputAudioTranscription: {},
           },
-        })
+        }),
       );
       expect(refused.error).toMatchObject({ code: 'unsupported_modality', param: 'kind' });
       expect(await reservationsFor(fixture.accountId)).toHaveLength(0);
@@ -892,9 +945,12 @@ describe('refusals before a session exists', () => {
         harness,
         fixture.token,
         fixture.modelReference,
-        openFrame({ limits: { maxDurationMs: 60_000, idleTimeoutMs: 120_000 } })
+        openFrame({ limits: { maxDurationMs: 60_000, idleTimeoutMs: 120_000 } }),
       );
-      expect(refused.error).toMatchObject({ code: 'invalid_request', param: 'limits.idleTimeoutMs' });
+      expect(refused.error).toMatchObject({
+        code: 'invalid_request',
+        param: 'limits.idleTimeoutMs',
+      });
       expect(refused.code).toBe(1008);
       expect(await reservationsFor(fixture.accountId)).toHaveLength(0);
       expect(harness.kaana.connections).toHaveLength(0);
@@ -1005,8 +1061,14 @@ describe('a duration-priced (xAI-shaped) route', () => {
             inputAudioFormat: 'g711_ulaw',
             turnDetection: { type: 'none' },
           },
-          limits: { maxResponses: 1, maxDurationMs: 60_000, maxInputAudioBytes: 480_000, maxOutputAudioBytes: 480_000, maxTextItems: 0 },
-        })
+          limits: {
+            maxResponses: 1,
+            maxDurationMs: 60_000,
+            maxInputAudioBytes: 480_000,
+            maxOutputAudioBytes: 480_000,
+            maxTextItems: 0,
+          },
+        }),
       );
       const [reservation] = await reservationsFor(fixture.accountId);
       // 480 000 bytes ÷ 8 = 60 000 ms each way (no output format signed:
@@ -1083,7 +1145,7 @@ describe('a duration-priced (xAI-shaped) route', () => {
       const { customer, connection, emit } = await opened(
         harness,
         fixture,
-        voiceFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } })
+        voiceFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } }),
       );
       const first = textItem(customer.requestId, 'c-1');
       const forwarded: unknown[] = [
@@ -1099,7 +1161,13 @@ describe('a duration-priced (xAI-shaped) route', () => {
           item: {
             type: 'message',
             role: 'user',
-            content: [{ type: 'input_audio', format: 'pcm16_24khz', data: Buffer.from('speech').toString('base64') }],
+            content: [
+              {
+                type: 'input_audio',
+                format: 'pcm16_24khz',
+                data: Buffer.from('speech').toString('base64'),
+              },
+            ],
           },
         }),
         command(customer.requestId, 'c-4', { type: 'input_audio.commit' }),
@@ -1149,7 +1217,7 @@ describe('a token-priced route is relayed exactly as before', () => {
       const { customer, connection, emit } = await opened(
         harness,
         fixture,
-        openFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } })
+        openFrame({ limits: { maxResponses: 2, maxDurationMs: 60_000, maxTextItems: 1 } }),
       );
       const [reservation] = await reservationsFor(fixture.accountId);
       // The token ceiling alone, as in 'holds spend against the signed limits'.

@@ -44,6 +44,8 @@ export function getNormalizedUserHandle(user: UserHandleInput | null | undefined
  * Compatibility alias for the first public name shipped with this helper.
  * Prefer {@link getNormalizedUserHandle} in new code.
  */
-export function getCanonicalUserHandle(user: CanonicalUserHandleInput | null | undefined): string | null {
+export function getCanonicalUserHandle(
+  user: CanonicalUserHandleInput | null | undefined,
+): string | null {
   return getNormalizedUserHandle(user);
 }

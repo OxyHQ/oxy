@@ -30,7 +30,11 @@ jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
 jest.mock('../senderAvatar.service', () => ({ getAvatarPathsBatch: jest.fn() }));
 jest.mock('../aiLabeling.service', () => ({ aiLabelingService: {} }));
 jest.mock('../cardExtraction.service', () => ({ cardExtractionService: {} }));
-jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: { send: jest.fn() }, default: {} }));
+jest.mock('../smtp.outbound', () => ({
+  __esModule: true,
+  smtpOutbound: { send: jest.fn() },
+  default: {},
+}));
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
@@ -61,9 +65,9 @@ describe('emailService.fetchUnsubscribeUrl — SSRF-safe routing', () => {
   });
 
   it('rejects a non-https unsubscribe URL before calling safeFetch', async () => {
-    await expect(svc.fetchUnsubscribeUrl('http://list.example/unsub', { method: 'GET' })).rejects.toThrow(
-      /HTTPS/i,
-    );
+    await expect(
+      svc.fetchUnsubscribeUrl('http://list.example/unsub', { method: 'GET' }),
+    ).rejects.toThrow(/HTTPS/i);
     expect(mockSafeFetch).not.toHaveBeenCalled();
   });
 

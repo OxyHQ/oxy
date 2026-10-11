@@ -1,33 +1,34 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
-import {  defineConfig } from 'vite'
-import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
-import viteReact from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import reactNativeWeb from 'vite-plugin-react-native-web'
-import type {Plugin} from 'vite';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite';
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite';
+import viteReact from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+import reactNativeWeb from 'vite-plugin-react-native-web';
+import type { Plugin } from 'vite';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
-const reactNativeCssBabel = require('react-native-css/babel')
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const reactNativeCssBabel = require('react-native-css/babel');
 
-const emptyModule = resolve(__dirname, './src/empty-module.js')
+const emptyModule = resolve(__dirname, './src/empty-module.js');
 
 // Single source of truth for the app display name: public/manifest.json
 // `short_name`. Read once at config load, then injected both as a global
 // constant (__APP_NAME__) for React code and as an `%APP_NAME%` token in
 // index.html. The literal app name lives ONLY in manifest.json.
-const manifestPath = resolve(__dirname, './public/manifest.json')
-const appName = (JSON.parse(readFileSync(manifestPath, 'utf8')) as { short_name: string }).short_name
+const manifestPath = resolve(__dirname, './public/manifest.json');
+const appName = (JSON.parse(readFileSync(manifestPath, 'utf8')) as { short_name: string })
+  .short_name;
 
 const appNamePlugin: Plugin = {
   name: 'oxy-app-name',
   transformIndexHtml(html) {
-    return html.replaceAll('%APP_NAME%', appName)
+    return html.replaceAll('%APP_NAME%', appName);
   },
-}
+};
 
 // The console runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
 // `@oxy.so/services` React Native graph bundles through the maintained
@@ -79,6 +80,6 @@ const config = defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
   },
-}))
+}));
 
-export default config
+export default config;

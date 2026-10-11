@@ -3,20 +3,20 @@ import type React from 'react';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { type ViewStyle, type TextStyle, type StyleProp, Platform } from 'react-native';
 import {
-    logger,
-    generatePkcePair,
-    generateOAuthState,
-    buildOAuthAuthorizeUrl,
-    type PublicApplication,
+  logger,
+  generatePkcePair,
+  generateOAuthState,
+  buildOAuthAuthorizeUrl,
+  type PublicApplication,
 } from '@oxy.so/core';
 import { useAuthStore } from '../stores/authStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
-    SocialButton,
-    socialButtonLabel,
-    type SocialButtonAction,
-    type SocialButtonAppearance,
-    type SocialButtonSize,
+  SocialButton,
+  socialButtonLabel,
+  type SocialButtonAction,
+  type SocialButtonAppearance,
+  type SocialButtonSize,
 } from '@oxy.so/bloom/social-button';
 import { toast } from '@oxy.so/bloom/toast';
 import { useOxy } from '../context/OxyContext';
@@ -33,124 +33,124 @@ import type { OAuthPopupHandle } from '../oauth/types';
  * transport (`useOxy().startWebOAuthSignIn`) and never uses this callback.
  */
 export interface OxyOAuthResult {
-    /** Deep-link URL the native auth session returned to (`?code=…&state=…`), or `null` if unobserved. */
-    redirectUrl: string | null;
-    /** The CSRF `state` sent on the authorize request; the RP must match it on return. */
-    state: string;
-    /** The PKCE `code_verifier` to replay on the token exchange. */
-    codeVerifier: string;
+  /** Deep-link URL the native auth session returned to (`?code=…&state=…`), or `null` if unobserved. */
+  redirectUrl: string | null;
+  /** The CSRF `state` sent on the authorize request; the RP must match it on return. */
+  state: string;
+  /** The PKCE `code_verifier` to replay on the token exchange. */
+  codeVerifier: string;
 }
 
 /** The label's verb: "Sign in with Oxy", "Continue with Oxy" or "Sign up with Oxy". */
 export type OxySignInButtonAction = SocialButtonAction;
 
 export interface OxySignInButtonProps {
-    /**
-     * Shorthand for {@link OxySignInButtonProps.appearance}: `contained` is the
-     * filled button in the theme accent (`colorful`); `default` and `outline`
-     * are the outlined button with the Oxy mark (`white`).
-     * @default 'default'
-     */
-    variant?: 'default' | 'outline' | 'contained';
+  /**
+   * Shorthand for {@link OxySignInButtonProps.appearance}: `contained` is the
+   * filled button in the theme accent (`colorful`); `default` and `outline`
+   * are the outlined button with the Oxy mark (`white`).
+   * @default 'default'
+   */
+  variant?: 'default' | 'outline' | 'contained';
 
-    /**
-     * Bloom `SocialButton` appearance — `colorful`, `white` or `black`. Wins
-     * over `variant` when both are given.
-     */
-    appearance?: SocialButtonAppearance;
+  /**
+   * Bloom `SocialButton` appearance — `colorful`, `white` or `black`. Wins
+   * over `variant` when both are given.
+   */
+  appearance?: SocialButtonAppearance;
 
-    /**
-     * The label's verb, localized: `signIn` — "Sign in with Oxy", `continue` —
-     * "Continue with Oxy", `signUp` — "Sign up with Oxy".
-     * @default 'signIn'
-     */
-    action?: OxySignInButtonAction;
+  /**
+   * The label's verb, localized: `signIn` — "Sign in with Oxy", `continue` —
+   * "Continue with Oxy", `signUp` — "Sign up with Oxy".
+   * @default 'signIn'
+   */
+  action?: OxySignInButtonAction;
 
-    /** `md` (36 tall, 300 wide) or `sm` (32 × 250). @default 'md' */
-    size?: SocialButtonSize;
+  /** `md` (36 tall, 300 wide) or `sm` (32 × 250). @default 'md' */
+  size?: SocialButtonSize;
 
-    /** Fill the container's width instead of the fixed 300 / 250. */
-    fullWidth?: boolean;
+  /** Fill the container's width instead of the fixed 300 / 250. */
+  fullWidth?: boolean;
 
-    /** A circular button showing only the Oxy mark; the label becomes its accessible name. */
-    iconOnly?: boolean;
+  /** A circular button showing only the Oxy mark; the label becomes its accessible name. */
+  iconOnly?: boolean;
 
-    /**
-     * Optional function to handle button press
-     * If not provided, the button will use the showBottomSheet method from OxyContext
-     */
-    onPress?: () => void;
+  /**
+   * Optional function to handle button press
+   * If not provided, the button will use the showBottomSheet method from OxyContext
+   */
+  onPress?: () => void;
 
-    /**
-     * Additional styles for the button container
-     */
-    style?: StyleProp<ViewStyle>;
+  /**
+   * Additional styles for the button container
+   */
+  style?: StyleProp<ViewStyle>;
 
-    /**
-     * Additional styles for the button text
-     */
-    textStyle?: StyleProp<TextStyle>;
+  /**
+   * Additional styles for the button text
+   */
+  textStyle?: StyleProp<TextStyle>;
 
-    /**
-     * Overrides the button label. When omitted the label is the localized
-     * {@link OxySignInButtonProps.action} phrase.
-     *
-     * @default localized "Sign in with Oxy"
-     */
-    text?: string;
+  /**
+   * Overrides the button label. When omitted the label is the localized
+   * {@link OxySignInButtonProps.action} phrase.
+   *
+   * @default localized "Sign in with Oxy"
+   */
+  text?: string;
 
-    /**
-     * Whether to disable the button
-     * @default false
-     */
-    disabled?: boolean;
+  /**
+   * Whether to disable the button
+   * @default false
+   */
+  disabled?: boolean;
 
-    /**
-     * Whether to show the button even if user is already authenticated
-     * @default false
-     */
-    showWhenAuthenticated?: boolean;
+  /**
+   * Whether to show the button even if user is already authenticated
+   * @default false
+   */
+  showWhenAuthenticated?: boolean;
 
-    /**
-     * Exact registered redirect URI the OAuth authorization code is returned to.
-     * REQUIRED only for third-party (`type: 'third_party'`) applications, which
-     * sign in via OAuth + PKCE against `auth.oxy.so`. First-party / official apps
-     * open the in-app dialog and ignore this prop. If a third-party app resolves
-     * without it, the button logs an error and does nothing (it will not invent a
-     * redirect URI).
-     */
-    oauthRedirectUri?: string;
+  /**
+   * Exact registered redirect URI the OAuth authorization code is returned to.
+   * REQUIRED only for third-party (`type: 'third_party'`) applications, which
+   * sign in via OAuth + PKCE against `auth.oxy.so`. First-party / official apps
+   * open the in-app dialog and ignore this prop. If a third-party app resolves
+   * without it, the button logs an error and does nothing (it will not invent a
+   * redirect URI).
+   */
+  oauthRedirectUri?: string;
 
-    /**
-     * Native only: receives the OAuth handshake after a third-party auth session
-     * so the RP can finish the token exchange. On web the SDK completes the flow
-     * itself — the popup transport keeps the handshake in memory, and the
-     * redirect transport reads it back from `sessionStorage` — so this is never
-     * called there. A native third-party sign-in with NO `onOAuthResult` handler
-     * cannot complete (the `state` + `code_verifier` are lost) and logs a warning.
-     *
-     * @example
-     * ```tsx
-     * <OxySignInButton
-     *   oauthRedirectUri="myapp://oauth/callback"
-     *   onOAuthResult={({ redirectUrl, state, codeVerifier }) => {
-     *     if (!redirectUrl) return;
-     *     const code = new URL(redirectUrl).searchParams.get('code');
-     *     // → POST /auth/oauth/token, form-urlencoded:
-     *     //   grant_type=authorization_code&code=…&redirect_uri=…&client_id=…&code_verifier=…
-     *   }}
-     * />
-     * ```
-     */
-    onOAuthResult?: (result: OxyOAuthResult) => void;
-    /** Opt in to the shared SDK native finalizer. Mutually exclusive with onOAuthResult. */
-    nativeOAuthCompletion?: 'sdk';
+  /**
+   * Native only: receives the OAuth handshake after a third-party auth session
+   * so the RP can finish the token exchange. On web the SDK completes the flow
+   * itself — the popup transport keeps the handshake in memory, and the
+   * redirect transport reads it back from `sessionStorage` — so this is never
+   * called there. A native third-party sign-in with NO `onOAuthResult` handler
+   * cannot complete (the `state` + `code_verifier` are lost) and logs a warning.
+   *
+   * @example
+   * ```tsx
+   * <OxySignInButton
+   *   oauthRedirectUri="myapp://oauth/callback"
+   *   onOAuthResult={({ redirectUrl, state, codeVerifier }) => {
+   *     if (!redirectUrl) return;
+   *     const code = new URL(redirectUrl).searchParams.get('code');
+   *     // → POST /auth/oauth/token, form-urlencoded:
+   *     //   grant_type=authorization_code&code=…&redirect_uri=…&client_id=…&code_verifier=…
+   *   }}
+   * />
+   * ```
+   */
+  onOAuthResult?: (result: OxyOAuthResult) => void;
+  /** Opt in to the shared SDK native finalizer. Mutually exclusive with onOAuthResult. */
+  nativeOAuthCompletion?: 'sdk';
 }
 
 const ACTION_KEYS: Record<OxySignInButtonAction, string> = {
-    signIn: 'accountSwitcher.signInWithOxy',
-    continue: 'accountSwitcher.continueWithOxy',
-    signUp: 'accountSwitcher.signUpWithOxy',
+  signIn: 'accountSwitcher.signInWithOxy',
+  continue: 'accountSwitcher.continueWithOxy',
+  signUp: 'accountSwitcher.signUpWithOxy',
 };
 
 /**
@@ -177,295 +177,305 @@ const ACTION_KEYS: Record<OxySignInButtonAction, string> = {
  * ```
  */
 export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
-    variant = 'default',
-    appearance,
-    action = 'signIn',
-    size = 'md',
-    fullWidth = false,
-    iconOnly = false,
-    onPress,
-    style,
-    textStyle,
-    text,
-    disabled = false,
-    showWhenAuthenticated = false,
-    oauthRedirectUri,
-    onOAuthResult,
-    nativeOAuthCompletion,
+  variant = 'default',
+  appearance,
+  action = 'signIn',
+  size = 'md',
+  fullWidth = false,
+  iconOnly = false,
+  onPress,
+  style,
+  textStyle,
+  text,
+  disabled = false,
+  showWhenAuthenticated = false,
+  oauthRedirectUri,
+  onOAuthResult,
+  nativeOAuthCompletion,
 }) => {
-    const { t } = useI18n();
-    const { openAccountDialog, oxyServices, clientId, webAuthMode, startWebOAuthSignIn, startNativeOAuthSignIn } = useOxy();
-    const { isAuthenticated, isLoading } = useAuthStore(
-        useShallow((state) => ({ isAuthenticated: state.isAuthenticated, isLoading: state.isLoading }))
-    );
-    // Tracks whether the unified account dialog is open so we can show
-    // "Signing in..." while it is. The manager reports visibility on every
-    // change regardless of platform or what opened/closed it.
-    const [isModalOpen, setIsModalOpen] = useState(false);
+  const { t } = useI18n();
+  const {
+    openAccountDialog,
+    oxyServices,
+    clientId,
+    webAuthMode,
+    startWebOAuthSignIn,
+    startNativeOAuthSignIn,
+  } = useOxy();
+  const { isAuthenticated, isLoading } = useAuthStore(
+    useShallow((state) => ({ isAuthenticated: state.isAuthenticated, isLoading: state.isLoading })),
+  );
+  // Tracks whether the unified account dialog is open so we can show
+  // "Signing in..." while it is. The manager reports visibility on every
+  // change regardless of platform or what opened/closed it.
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-    useEffect(() => subscribeToAccountDialog(setIsModalOpen), []);
+  useEffect(() => subscribeToAccountDialog(setIsModalOpen), []);
 
-    // The application's public identity is resolved lazily on first press and its
-    // promise cached, so rapid taps share one in-flight resolve. The cache is
-    // KEYED on the identity inputs (clientId + the oxyServices instance): if
-    // either changes the cache is invalidated and re-resolved — without a
-    // useEffect. A rejected resolve clears the cache so a later press can retry.
-    const appResolutionRef = useRef<{
-        clientId: string;
-        oxyServices: typeof oxyServices;
-        promise: Promise<PublicApplication>;
-    } | null>(null);
-    // Re-entrancy guard: a routing pass may await network + crypto before it
-    // redirects, so block a second concurrent press from racing the sessionStorage
-    // handshake against a different PKCE pair.
-    const routingRef = useRef(false);
-    // Popup mode only opens a window for applications that could actually need
-    // one: `oauthRedirectUri` is required for (and only for) third-party OAuth,
-    // so an official app never flashes a popup open and closed while its
-    // in-app dialog loads.
-    const shouldPreOpenPopup =
-        Platform.OS === 'web' && webAuthMode === 'popup' && Boolean(oauthRedirectUri);
+  // The application's public identity is resolved lazily on first press and its
+  // promise cached, so rapid taps share one in-flight resolve. The cache is
+  // KEYED on the identity inputs (clientId + the oxyServices instance): if
+  // either changes the cache is invalidated and re-resolved — without a
+  // useEffect. A rejected resolve clears the cache so a later press can retry.
+  const appResolutionRef = useRef<{
+    clientId: string;
+    oxyServices: typeof oxyServices;
+    promise: Promise<PublicApplication>;
+  } | null>(null);
+  // Re-entrancy guard: a routing pass may await network + crypto before it
+  // redirects, so block a second concurrent press from racing the sessionStorage
+  // handshake against a different PKCE pair.
+  const routingRef = useRef(false);
+  // Popup mode only opens a window for applications that could actually need
+  // one: `oauthRedirectUri` is required for (and only for) third-party OAuth,
+  // so an official app never flashes a popup open and closed while its
+  // in-app dialog loads.
+  const shouldPreOpenPopup =
+    Platform.OS === 'web' && webAuthMode === 'popup' && Boolean(oauthRedirectUri);
 
-    const resolvePublicApplication = useCallback((): Promise<PublicApplication> | null => {
-        if (!clientId) return null;
-        const cached = appResolutionRef.current;
-        if (cached && cached.clientId === clientId && cached.oxyServices === oxyServices) {
-            return cached.promise;
-        }
-        const promise = oxyServices.apps.getPublic(clientId, { cache: false }).catch((error) => {
-            // Only clear if this is still the live entry (a later resolve may have
-            // replaced it after a clientId/oxyServices change).
-            if (appResolutionRef.current?.promise === promise) {
-                appResolutionRef.current = null;
-            }
-            throw error;
+  const resolvePublicApplication = useCallback((): Promise<PublicApplication> | null => {
+    if (!clientId) return null;
+    const cached = appResolutionRef.current;
+    if (cached && cached.clientId === clientId && cached.oxyServices === oxyServices) {
+      return cached.promise;
+    }
+    const promise = oxyServices.apps.getPublic(clientId, { cache: false }).catch((error) => {
+      // Only clear if this is still the live entry (a later resolve may have
+      // replaced it after a clientId/oxyServices change).
+      if (appResolutionRef.current?.promise === promise) {
+        appResolutionRef.current = null;
+      }
+      throw error;
+    });
+    appResolutionRef.current = { clientId, oxyServices, promise };
+    return promise;
+  }, [clientId, oxyServices]);
+
+  // A press that cannot reach a sign-in surface must SAY so. Without this the
+  // only trace of an aborted sign-in was a console line, so the button read as
+  // simply dead — the SDK owns this so no relying party has to wire it up.
+  // `ToastOutlet` is already mounted by `OxyProvider`.
+  const notifyNotConfigured = useCallback(
+    (appName: string) => {
+      toast.error(t('signin.errors.notConfigured'), {
+        description: t('signin.errors.notConfiguredDescription', { app: appName }),
+      });
+    },
+    [t],
+  );
+  const notifyFailed = useCallback(() => {
+    toast.error(t('signin.errors.failed'), {
+      description: t('signin.errors.failedDescription'),
+    });
+  }, [t]);
+
+  // Official / first-party surface: the in-app account + sign-in dialog.
+  const startOfficialSignIn = useCallback(() => {
+    openAccountDialog('signin');
+  }, [openAccountDialog]);
+
+  // Third-party surface: an OAuth 2.0 authorization-code + PKCE flow against
+  // auth.oxy.so. No FedCM, no SSO bounce, no Oxy session cookies.
+  //
+  // Web delegates to the ONE shared transport (`startWebOAuthSignIn`), which
+  // owns popup-vs-redirect selection, the popup lifecycle, the code exchange,
+  // and the session commit. Native keeps its in-app auth session and hands the
+  // handshake to the RP, which owns that exchange.
+  const startThirdPartyOAuth = useCallback(
+    async (app: PublicApplication, popup: OAuthPopupHandle | null): Promise<void> => {
+      if (!clientId) {
+        closeOAuthPopup(popup);
+        startOfficialSignIn();
+        return;
+      }
+      if (!oauthRedirectUri) {
+        closeOAuthPopup(popup);
+        logger.error(
+          'OxySignInButton: a third_party application requires the `oauthRedirectUri` prop to start the OAuth flow; sign-in aborted',
+          undefined,
+          { component: 'OxySignInButton', clientId, application: app.name },
+        );
+        notifyNotConfigured(app.name);
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        const result = await startWebOAuthSignIn({
+          redirectUri: oauthRedirectUri,
+          // In popup mode the window was claimed during the press (see
+          // `handlePress`); `null` means the browser blocked it and the
+          // transport falls back to a redirect. `undefined` (redirect
+          // mode) lets the transport decide for itself.
+          ...(shouldPreOpenPopup ? { popup } : {}),
         });
-        appResolutionRef.current = { clientId, oxyServices, promise };
-        return promise;
-    }, [clientId, oxyServices]);
-
-    // A press that cannot reach a sign-in surface must SAY so. Without this the
-    // only trace of an aborted sign-in was a console line, so the button read as
-    // simply dead — the SDK owns this so no relying party has to wire it up.
-    // `ToastOutlet` is already mounted by `OxyProvider`.
-    const notifyNotConfigured = useCallback(
-        (appName: string) => {
-            toast.error(t('signin.errors.notConfigured'), {
-                description: t('signin.errors.notConfiguredDescription', { app: appName }),
-            });
-        },
-        [t],
-    );
-    const notifyFailed = useCallback(() => {
-        toast.error(t('signin.errors.failed'), {
-            description: t('signin.errors.failedDescription'),
-        });
-    }, [t]);
-
-    // Official / first-party surface: the in-app account + sign-in dialog.
-    const startOfficialSignIn = useCallback(() => {
-        openAccountDialog('signin');
-    }, [openAccountDialog]);
-
-    // Third-party surface: an OAuth 2.0 authorization-code + PKCE flow against
-    // auth.oxy.so. No FedCM, no SSO bounce, no Oxy session cookies.
-    //
-    // Web delegates to the ONE shared transport (`startWebOAuthSignIn`), which
-    // owns popup-vs-redirect selection, the popup lifecycle, the code exchange,
-    // and the session commit. Native keeps its in-app auth session and hands the
-    // handshake to the RP, which owns that exchange.
-    const startThirdPartyOAuth = useCallback(
-        async (app: PublicApplication, popup: OAuthPopupHandle | null): Promise<void> => {
-            if (!clientId) {
-                closeOAuthPopup(popup);
-                startOfficialSignIn();
-                return;
-            }
-            if (!oauthRedirectUri) {
-                closeOAuthPopup(popup);
-                logger.error(
-                    'OxySignInButton: a third_party application requires the `oauthRedirectUri` prop to start the OAuth flow; sign-in aborted',
-                    undefined,
-                    { component: 'OxySignInButton', clientId, application: app.name },
-                );
-                notifyNotConfigured(app.name);
-                return;
-            }
-
-            if (Platform.OS === 'web') {
-                const result = await startWebOAuthSignIn({
-                    redirectUri: oauthRedirectUri,
-                    // In popup mode the window was claimed during the press (see
-                    // `handlePress`); `null` means the browser blocked it and the
-                    // transport falls back to a redirect. `undefined` (redirect
-                    // mode) lets the transport decide for itself.
-                    ...(shouldPreOpenPopup ? { popup } : {}),
-                });
-                if (result.status === 'failed') {
-                    logger.warn(
-                        `OxySignInButton: web sign-in failed (${result.reason})`,
-                        { component: 'OxySignInButton', application: app.name },
-                        result.description,
-                    );
-                    notifyFailed();
-                }
-                return;
-            }
-
-            if (nativeOAuthCompletion === 'sdk') {
-                if (onOAuthResult) { notifyNotConfigured(app.name); return; }
-                const result = await startNativeOAuthSignIn({ redirectUri: oauthRedirectUri });
-                if (result.status === 'failed') notifyFailed();
-                if (result.status === 'unsupported') notifyNotConfigured(app.name);
-                return;
-            }
-
-            // Native: open the in-app auth session, then hand the handshake to the
-            // RP so it can complete the token exchange from its deep-link callback.
-            const [pkce, state] = await Promise.all([generatePkcePair(), generateOAuthState()]);
-            const authorizeUrl = buildOAuthAuthorizeUrl({
-                clientId,
-                redirectUri: oauthRedirectUri,
-                state,
-                codeChallenge: pkce.codeChallenge,
-            });
-            const { redirectUrl } = await openAuthorizeUrlNative(authorizeUrl, oauthRedirectUri);
-            if (onOAuthResult) {
-                onOAuthResult({ redirectUrl, state, codeVerifier: pkce.codeVerifier });
-                return;
-            }
-            logger.warn(
-                'OxySignInButton: native third-party sign-in cannot complete without an `onOAuthResult` handler; the code exchange is the RP\'s responsibility (state + code_verifier were not surfaced)',
-                { component: 'OxySignInButton', application: app.name },
-            );
-            notifyNotConfigured(app.name);
-        },
-        [
-            clientId,
-            oauthRedirectUri,
-            onOAuthResult,
-            nativeOAuthCompletion,
-            startNativeOAuthSignIn,
-            startOfficialSignIn,
-            startWebOAuthSignIn,
-            shouldPreOpenPopup,
-            notifyNotConfigured,
-            notifyFailed,
-        ],
-    );
-
-    // Resolve the Application once, then route: third-party → OAuth; first-party
-    // / official → the in-app dialog. An unresolved client must fail closed:
-    // opening the privileged device-session dialog without a known first-party
-    // classification could downgrade a third-party OAuth + PKCE flow. Every path
-    // that does NOT reach the OAuth lane closes the pre-opened popup, so an
-    // aborted press can never leave an empty window on screen.
-    const routeSignIn = useCallback(
-        async (popup: OAuthPopupHandle | null): Promise<void> => {
-            if (routingRef.current) {
-                closeOAuthPopup(popup);
-                return;
-            }
-            routingRef.current = true;
-            try {
-                const resolving = resolvePublicApplication();
-                if (!resolving) {
-                    closeOAuthPopup(popup);
-                    notifyNotConfigured('this app');
-                    return;
-                }
-                let app: PublicApplication;
-                try {
-                    app = await resolving;
-                } catch (error) {
-                    closeOAuthPopup(popup);
-                    logger.warn(
-                        'OxySignInButton: could not resolve the application; sign-in aborted',
-                        { component: 'OxySignInButton', clientId },
-                        error,
-                    );
-                    notifyFailed();
-                    return;
-                }
-                if (classifyApplicationSessionLane(app) === 'oauth') {
-                    await startThirdPartyOAuth(app, popup);
-                    return;
-                }
-                closeOAuthPopup(popup);
-                startOfficialSignIn();
-            } catch (error) {
-                // `handlePress` fires this without awaiting, so an unexpected
-                // throw (a rejected native auth session, a crypto failure) would
-                // otherwise vanish into an unhandled rejection with the button
-                // left looking inert.
-                closeOAuthPopup(popup);
-                logger.error(
-                    'OxySignInButton: sign-in routing threw; sign-in aborted',
-                    error instanceof Error ? error : new Error(String(error)),
-                    { component: 'OxySignInButton', clientId },
-                );
-                notifyFailed();
-            } finally {
-                appResolutionRef.current = null;
-                routingRef.current = false;
-            }
-        },
-        [
-            resolvePublicApplication,
-            startOfficialSignIn,
-            startThirdPartyOAuth,
-            clientId,
-            notifyNotConfigured,
-            notifyFailed,
-        ],
-    );
-
-    // Defer to a caller-supplied handler, otherwise route by application type.
-    //
-    // The popup is opened HERE, synchronously, before the async application
-    // resolve: `window.open` only survives while the click is still being
-    // handled, so a window opened after that first `await` is silently blocked.
-    const handlePress = useCallback(() => {
-        if (onPress) {
-            onPress();
-            return;
+        if (result.status === 'failed') {
+          logger.warn(
+            `OxySignInButton: web sign-in failed (${result.reason})`,
+            { component: 'OxySignInButton', application: app.name },
+            result.description,
+          );
+          notifyFailed();
         }
-        void routeSignIn(shouldPreOpenPopup ? openOAuthPopup() : null);
-    }, [onPress, routeSignIn, shouldPreOpenPopup]);
+        return;
+      }
 
-    // Don't show the button if already authenticated (unless explicitly overridden)
-    if (isAuthenticated && !showWhenAuthenticated) return null;
+      if (nativeOAuthCompletion === 'sdk') {
+        if (onOAuthResult) {
+          notifyNotConfigured(app.name);
+          return;
+        }
+        const result = await startNativeOAuthSignIn({ redirectUri: oauthRedirectUri });
+        if (result.status === 'failed') notifyFailed();
+        if (result.status === 'unsupported') notifyNotConfigured(app.name);
+        return;
+      }
 
-    const isButtonDisabled = disabled || isLoading || isModalOpen;
+      // Native: open the in-app auth session, then hand the handshake to the
+      // RP so it can complete the token exchange from its deep-link callback.
+      const [pkce, state] = await Promise.all([generatePkcePair(), generateOAuthState()]);
+      const authorizeUrl = buildOAuthAuthorizeUrl({
+        clientId,
+        redirectUri: oauthRedirectUri,
+        state,
+        codeChallenge: pkce.codeChallenge,
+      });
+      const { redirectUrl } = await openAuthorizeUrlNative(authorizeUrl, oauthRedirectUri);
+      if (onOAuthResult) {
+        onOAuthResult({ redirectUrl, state, codeVerifier: pkce.codeVerifier });
+        return;
+      }
+      logger.warn(
+        "OxySignInButton: native third-party sign-in cannot complete without an `onOAuthResult` handler; the code exchange is the RP's responsibility (state + code_verifier were not surfaced)",
+        { component: 'OxySignInButton', application: app.name },
+      );
+      notifyNotConfigured(app.name);
+    },
+    [
+      clientId,
+      oauthRedirectUri,
+      onOAuthResult,
+      nativeOAuthCompletion,
+      startNativeOAuthSignIn,
+      startOfficialSignIn,
+      startWebOAuthSignIn,
+      shouldPreOpenPopup,
+      notifyNotConfigured,
+      notifyFailed,
+    ],
+  );
 
-    // `contained` is the filled button in the theme accent; `default` and
-    // `outline` are the outlined button carrying the Oxy mark.
-    const resolvedAppearance: SocialButtonAppearance =
-        appearance ?? (variant === 'contained' ? 'colorful' : 'white');
+  // Resolve the Application once, then route: third-party → OAuth; first-party
+  // / official → the in-app dialog. An unresolved client must fail closed:
+  // opening the privileged device-session dialog without a known first-party
+  // classification could downgrade a third-party OAuth + PKCE flow. Every path
+  // that does NOT reach the OAuth lane closes the pre-opened popup, so an
+  // aborted press can never leave an empty window on screen.
+  const routeSignIn = useCallback(
+    async (popup: OAuthPopupHandle | null): Promise<void> => {
+      if (routingRef.current) {
+        closeOAuthPopup(popup);
+        return;
+      }
+      routingRef.current = true;
+      try {
+        const resolving = resolvePublicApplication();
+        if (!resolving) {
+          closeOAuthPopup(popup);
+          notifyNotConfigured('this app');
+          return;
+        }
+        let app: PublicApplication;
+        try {
+          app = await resolving;
+        } catch (error) {
+          closeOAuthPopup(popup);
+          logger.warn(
+            'OxySignInButton: could not resolve the application; sign-in aborted',
+            { component: 'OxySignInButton', clientId },
+            error,
+          );
+          notifyFailed();
+          return;
+        }
+        if (classifyApplicationSessionLane(app) === 'oauth') {
+          await startThirdPartyOAuth(app, popup);
+          return;
+        }
+        closeOAuthPopup(popup);
+        startOfficialSignIn();
+      } catch (error) {
+        // `handlePress` fires this without awaiting, so an unexpected
+        // throw (a rejected native auth session, a crypto failure) would
+        // otherwise vanish into an unhandled rejection with the button
+        // left looking inert.
+        closeOAuthPopup(popup);
+        logger.error(
+          'OxySignInButton: sign-in routing threw; sign-in aborted',
+          error instanceof Error ? error : new Error(String(error)),
+          { component: 'OxySignInButton', clientId },
+        );
+        notifyFailed();
+      } finally {
+        appResolutionRef.current = null;
+        routingRef.current = false;
+      }
+    },
+    [
+      resolvePublicApplication,
+      startOfficialSignIn,
+      startThirdPartyOAuth,
+      clientId,
+      notifyNotConfigured,
+      notifyFailed,
+    ],
+  );
 
-    // A key missing from every dictionary comes back as the key itself; fall
-    // back to Bloom's English phrase rather than render a dotted path.
-    const actionKey = ACTION_KEYS[action];
-    const translated = t(actionKey);
-    const label = text ?? (translated === actionKey ? socialButtonLabel('Oxy', action) : translated);
+  // Defer to a caller-supplied handler, otherwise route by application type.
+  //
+  // The popup is opened HERE, synchronously, before the async application
+  // resolve: `window.open` only survives while the click is still being
+  // handled, so a window opened after that first `await` is silently blocked.
+  const handlePress = useCallback(() => {
+    if (onPress) {
+      onPress();
+      return;
+    }
+    void routeSignIn(shouldPreOpenPopup ? openOAuthPopup() : null);
+  }, [onPress, routeSignIn, shouldPreOpenPopup]);
 
-    return (
-        <SocialButton
-            brand="oxy"
-            action={action}
-            appearance={resolvedAppearance}
-            size={size}
-            fullWidth={fullWidth}
-            iconOnly={iconOnly}
-            onPress={handlePress}
-            disabled={isButtonDisabled}
-            style={style}
-            textStyle={textStyle}
-            accessibilityLabel={iconOnly ? label : undefined}
-        >
-            {isLoading || isModalOpen ? t('signin.status.signingIn') : label}
-        </SocialButton>
-    );
+  // Don't show the button if already authenticated (unless explicitly overridden)
+  if (isAuthenticated && !showWhenAuthenticated) return null;
+
+  const isButtonDisabled = disabled || isLoading || isModalOpen;
+
+  // `contained` is the filled button in the theme accent; `default` and
+  // `outline` are the outlined button carrying the Oxy mark.
+  const resolvedAppearance: SocialButtonAppearance =
+    appearance ?? (variant === 'contained' ? 'colorful' : 'white');
+
+  // A key missing from every dictionary comes back as the key itself; fall
+  // back to Bloom's English phrase rather than render a dotted path.
+  const actionKey = ACTION_KEYS[action];
+  const translated = t(actionKey);
+  const label = text ?? (translated === actionKey ? socialButtonLabel('Oxy', action) : translated);
+
+  return (
+    <SocialButton
+      brand="oxy"
+      action={action}
+      appearance={resolvedAppearance}
+      size={size}
+      fullWidth={fullWidth}
+      iconOnly={iconOnly}
+      onPress={handlePress}
+      disabled={isButtonDisabled}
+      style={style}
+      textStyle={textStyle}
+      accessibilityLabel={iconOnly ? label : undefined}
+    >
+      {isLoading || isModalOpen ? t('signin.status.signingIn') : label}
+    </SocialButton>
+  );
 };
 
 export default OxySignInButton;

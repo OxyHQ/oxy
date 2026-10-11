@@ -7,10 +7,7 @@ import { SessionClient, type SessionClientHost } from '../SessionClient';
 import type { MinimalSocket, SocketIOFactory } from '../socketLoader';
 import { logger } from '../../logger';
 import { setPlatformOS } from '../../utils/platform';
-import {
-  AccountDialogController,
-  createAccountDialogController,
-} from '../accountDialogController';
+import { AccountDialogController, createAccountDialogController } from '../accountDialogController';
 
 // A SessionClient whose applied state can be driven directly (applyState is
 // protected on the base) — mirrors the existing TestClient pattern.
@@ -94,7 +91,11 @@ function state(
 ): DeviceSessionState {
   return {
     deviceId: 'device-1',
-    accounts: accounts.map((a) => ({ accountId: a.accountId, sessionId: a.sessionId, authuser: 0 })),
+    accounts: accounts.map((a) => ({
+      accountId: a.accountId,
+      sessionId: a.sessionId,
+      authuser: 0,
+    })),
     activeAccountId,
     revision,
     updatedAt: 1_720_000_000_000,
@@ -142,7 +143,12 @@ interface OxyMock {
   clearTokens: jest.Mock;
   /** The namespaced client the controller calls — views over the mocks above. */
   baseURL: string;
-  session: { readonly accessToken: string | null; onChange: jest.Mock; setAccessToken: jest.Mock; clear: jest.Mock };
+  session: {
+    readonly accessToken: string | null;
+    onChange: jest.Mock;
+    setAccessToken: jest.Mock;
+    clear: jest.Mock;
+  };
   auth: {
     signInWithCommonsIdentity: jest.Mock;
     claimSession: jest.Mock;
@@ -487,7 +493,16 @@ describe('AccountDialogController — auth-gated directory read', () => {
     controller.start();
     await flush();
     // A device change used to refetch profiles for any newly-seen account id.
-    sc.set(state([{ accountId: 'a1', sessionId: 's1' }, { accountId: 'a2', sessionId: 's2' }], 'a2', 2));
+    sc.set(
+      state(
+        [
+          { accountId: 'a1', sessionId: 's1' },
+          { accountId: 'a2', sessionId: 's2' },
+        ],
+        'a2',
+        2,
+      ),
+    );
     await flush();
 
     // ADR 0002's whole point: the client holds ONE caller's account graph and
@@ -556,7 +571,9 @@ describe('AccountDialogController — sign in with Oxy', () => {
 
     await controller.signInWithOxy();
 
-    expect(commitSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-shared' }));
+    expect(commitSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'sess-shared' }),
+    );
     expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1' }));
     expect(controller.getSnapshot().view).toBe('accounts');
     // Terminal SUCCESS — the surface gets one frame to show "Identity confirmed".
@@ -742,7 +759,7 @@ describe('AccountDialogController — sign in with Oxy', () => {
   });
 });
 
-describe('AccountDialogController — startInlineQr (the sign-in entry\'s embedded QR)', () => {
+describe("AccountDialogController — startInlineQr (the sign-in entry's embedded QR)", () => {
   const pending = (code: string) => ({
     sessionToken: `secret-${code}`,
     authorizeCode: code,
@@ -783,7 +800,9 @@ describe('AccountDialogController — startInlineQr (the sign-in entry\'s embedd
 
   it('gives way to a sign-in the person chooses, withdrawing its own request', async () => {
     const { controller, oxy } = makeHarness();
-    oxy.startCommonsSignIn.mockResolvedValueOnce(pending('INLINE')).mockResolvedValueOnce(pending('ASKED'));
+    oxy.startCommonsSignIn
+      .mockResolvedValueOnce(pending('INLINE'))
+      .mockResolvedValueOnce(pending('ASKED'));
     await controller.startInlineQr();
 
     await controller.showQr();
@@ -805,10 +824,10 @@ describe('AccountDialogController — Commons availability (canOpenApp)', () => 
     status: 'pending' as const,
   };
 
-  function makeController(opts: {
-    openUrl?: jest.Mock;
-    canOpenApp?: jest.Mock;
-  }): { controller: AccountDialogController; oxy: OxyMock } {
+  function makeController(opts: { openUrl?: jest.Mock; canOpenApp?: jest.Mock }): {
+    controller: AccountDialogController;
+    oxy: OxyMock;
+  } {
     const oxy = makeOxy();
     oxy.startCommonsSignIn.mockResolvedValue(START_HANDLE);
     oxy.pollCommonsSignIn.mockResolvedValue({ authorized: false, status: 'pending' });
@@ -871,7 +890,9 @@ describe('AccountDialogController — Commons availability (canOpenApp)', () => 
     await flush();
 
     expect(openUrl).not.toHaveBeenCalled();
-    expect(controller.getSnapshot().signIn.qrPayload).toBe('oxycommons://approve?v=1&code=AUTH-CODE');
+    expect(controller.getSnapshot().signIn.qrPayload).toBe(
+      'oxycommons://approve?v=1&code=AUTH-CODE',
+    );
     expect(controller.getSnapshot().commonsAvailability).toBe('unknown');
     controller.cancelSignIn();
   });
@@ -910,13 +931,35 @@ describe('AccountDialogController — /auth-session socket (instant QR wake)', (
     disconnected = false;
     handlers = new Map<string, Handler[]>();
     emitted: Array<{ event: string; args: unknown[] }> = [];
-    on(event: string, cb: Handler) { const l = this.handlers.get(event) ?? []; l.push(cb); this.handlers.set(event, l); }
-    off(event: string, cb?: Handler) { if (!cb) { this.handlers.delete(event); return; } this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== cb)); }
-    emit(event: string, ...args: unknown[]) { this.emitted.push({ event, args }); }
-    connect() { this.connected = true; }
-    disconnect() { this.connected = false; this.disconnected = true; }
+    on(event: string, cb: Handler) {
+      const l = this.handlers.get(event) ?? [];
+      l.push(cb);
+      this.handlers.set(event, l);
+    }
+    off(event: string, cb?: Handler) {
+      if (!cb) {
+        this.handlers.delete(event);
+        return;
+      }
+      this.handlers.set(
+        event,
+        (this.handlers.get(event) ?? []).filter((h) => h !== cb),
+      );
+    }
+    emit(event: string, ...args: unknown[]) {
+      this.emitted.push({ event, args });
+    }
+    connect() {
+      this.connected = true;
+    }
+    disconnect() {
+      this.connected = false;
+      this.disconnected = true;
+    }
     /** Simulate a server→client push on this socket. */
-    server(event: string, payload?: unknown) { for (const h of this.handlers.get(event) ?? []) h(payload); }
+    server(event: string, payload?: unknown) {
+      for (const h of this.handlers.get(event) ?? []) h(payload);
+    }
   }
 
   const START_HANDLE = {
@@ -927,7 +970,13 @@ describe('AccountDialogController — /auth-session socket (instant QR wake)', (
     status: 'pending' as const,
   };
 
-  function makeSocketHarness(): { controller: AccountDialogController; oxy: OxyMock; created: () => FakeAuthSocket | null; factory: jest.Mock; commitSession: jest.Mock } {
+  function makeSocketHarness(): {
+    controller: AccountDialogController;
+    oxy: OxyMock;
+    created: () => FakeAuthSocket | null;
+    factory: jest.Mock;
+    commitSession: jest.Mock;
+  } {
     const oxy = makeOxy();
     oxy.startCommonsSignIn.mockResolvedValue(START_HANDLE);
     let socket: FakeAuthSocket | null = null;
@@ -949,9 +998,17 @@ describe('AccountDialogController — /auth-session socket (instant QR wake)', (
 
   it('connects to /auth-session, joins the flow room, and wakes the claim on auth_update — no timer advance', async () => {
     const { controller, oxy, created, factory, commitSession } = makeSocketHarness();
-    oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-1', status: 'authorized' });
+    oxy.pollCommonsSignIn.mockResolvedValue({
+      authorized: true,
+      sessionId: 'sess-1',
+      status: 'authorized',
+    });
     oxy.claimSessionByToken.mockResolvedValue({
-      accessToken: 'access-1', sessionId: 'sess-1', deviceId: 'device-1', expiresAt: '2030-01-01T00:00:00Z', user: user('a1'),
+      accessToken: 'access-1',
+      sessionId: 'sess-1',
+      deviceId: 'device-1',
+      expiresAt: '2030-01-01T00:00:00Z',
+      user: user('a1'),
     });
 
     await controller.showQr();
@@ -1319,7 +1376,11 @@ describe('AccountDialogController — automatic delivery selection (#691 phase 5
         ),
         openUrl,
       });
-      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-1', status: 'authorized' });
+      oxy.pollCommonsSignIn.mockResolvedValue({
+        authorized: true,
+        sessionId: 'sess-1',
+        status: 'authorized',
+      });
       oxy.claimSessionByToken.mockResolvedValue({
         accessToken: 'access-1',
         sessionId: 'sess-1',
@@ -1677,7 +1738,10 @@ describe('AccountDialogController — cancellation converges (#691 phase 5)', ()
     jest.useFakeTimers();
     try {
       const oxy = makeOxy();
-      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+      oxy.startCommonsSignIn.mockResolvedValue({
+        ...DELIVERY_HANDLE,
+        expiresAt: Date.now() + 600_000,
+      });
       oxy.pollCommonsSignIn.mockResolvedValue({ authorized: false, status: 'pending' });
       let socket: { disconnected: boolean } | null = null;
       const factory = jest.fn((): MinimalSocket => {
@@ -1856,7 +1920,9 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
     expect(await controller.activateContext('ctx-alice-org')).toBe(true);
 
     expect(urls).toContain('/session/device/activate');
-    expect(bodies[urls.indexOf('/session/device/activate')]).toEqual({ contextId: 'ctx-alice-org' });
+    expect(bodies[urls.indexOf('/session/device/activate')]).toEqual({
+      contextId: 'ctx-alice-org',
+    });
     // Reported while running, cleared after — a row can show a spinner.
     expect(inFlight).toContain('ctx-alice-org');
     expect(controller.getSnapshot().activatingContextId).toBeNull();
@@ -1974,7 +2040,10 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
     await controller.refresh();
     let release: () => void = () => undefined;
     jest.spyOn(sc, 'signOutContext').mockImplementation(
-      () => new Promise<void>((resolve) => { release = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
     );
     const principalSpy = jest.spyOn(sc, 'signOutPrincipal').mockResolvedValue(undefined);
 
@@ -2069,15 +2138,13 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
   it('lets a newer attempt win over a slower earlier one', async () => {
     const { controller, oxy } = makeHarness();
     const first = deferred<unknown>();
-    oxy.startCommonsSignIn
-      .mockReturnValueOnce(first.promise)
-      .mockResolvedValueOnce({
-        sessionToken: 'tok-2',
-        authorizeCode: 'CODE-2',
-        qrPayload: 'oxycommons://approve?code=CODE-2',
-        expiresAt: Date.now() + 600_000,
-        status: 'pending',
-      });
+    oxy.startCommonsSignIn.mockReturnValueOnce(first.promise).mockResolvedValueOnce({
+      sessionToken: 'tok-2',
+      authorizeCode: 'CODE-2',
+      qrPayload: 'oxycommons://approve?code=CODE-2',
+      expiresAt: Date.now() + 600_000,
+      status: 'pending',
+    });
 
     const slow = controller.showQr();
     await controller.showQr();
@@ -2126,8 +2193,15 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
     jest.useFakeTimers();
     try {
       const { controller, oxy, commitSession, onSignedIn } = makeHarness();
-      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
-      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      oxy.startCommonsSignIn.mockResolvedValue({
+        ...DELIVERY_HANDLE,
+        expiresAt: Date.now() + 600_000,
+      });
+      oxy.pollCommonsSignIn.mockResolvedValue({
+        authorized: true,
+        sessionId: 'sess-claimed',
+        status: 'authorized',
+      });
       const claim = deferred<typeof CLAIMED_SESSION>();
       oxy.claimSessionByToken.mockReturnValue(claim.promise);
 
@@ -2152,8 +2226,15 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
     jest.useFakeTimers();
     try {
       const { controller, oxy, commitSession } = makeHarness();
-      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
-      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      oxy.startCommonsSignIn.mockResolvedValue({
+        ...DELIVERY_HANDLE,
+        expiresAt: Date.now() + 600_000,
+      });
+      oxy.pollCommonsSignIn.mockResolvedValue({
+        authorized: true,
+        sessionId: 'sess-claimed',
+        status: 'authorized',
+      });
       oxy.claimSessionByToken.mockResolvedValue(CLAIMED_SESSION);
 
       await controller.showQr();
@@ -2174,8 +2255,15 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
     try {
       const { controller, oxy, commitSession, onSignedIn } = makeHarness();
       commitSession.mockRejectedValue(new Error('persist failed'));
-      oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
-      oxy.pollCommonsSignIn.mockResolvedValue({ authorized: true, sessionId: 'sess-claimed', status: 'authorized' });
+      oxy.startCommonsSignIn.mockResolvedValue({
+        ...DELIVERY_HANDLE,
+        expiresAt: Date.now() + 600_000,
+      });
+      oxy.pollCommonsSignIn.mockResolvedValue({
+        authorized: true,
+        sessionId: 'sess-claimed',
+        status: 'authorized',
+      });
       oxy.claimSessionByToken.mockResolvedValue(CLAIMED_SESSION);
 
       await controller.showQr();
@@ -2202,7 +2290,10 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
       accessToken: 'access-shared',
       user: { id: 'a1', username: 'user_a1' },
     });
-    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    oxy.startCommonsSignIn.mockResolvedValue({
+      ...DELIVERY_HANDLE,
+      expiresAt: Date.now() + 600_000,
+    });
 
     await controller.signInWithOxy();
 
@@ -2215,7 +2306,10 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
   it('classifies an unreachable server as a network failure', async () => {
     const { controller, oxy } = makeHarness();
     oxy.startCommonsSignIn.mockRejectedValue(
-      Object.assign(new Error('Network error - failed to connect to server'), { code: 'NETWORK_ERROR', status: 0 }),
+      Object.assign(new Error('Network error - failed to connect to server'), {
+        code: 'NETWORK_ERROR',
+        status: 0,
+      }),
     );
 
     await controller.showQr();
@@ -2226,7 +2320,10 @@ describe('AccountDialogController — an abandoned attempt stays abandoned', () 
 
   it('moves the attempt identity on every new attempt, and keeps it on the failure it belongs to', async () => {
     const { controller, oxy } = makeHarness({ clientId: null });
-    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    oxy.startCommonsSignIn.mockResolvedValue({
+      ...DELIVERY_HANDLE,
+      expiresAt: Date.now() + 600_000,
+    });
 
     await controller.showQr();
     const firstFailure = controller.getSnapshot().signIn.attempt;
@@ -2247,14 +2344,16 @@ describe('AccountDialogController — "Try again" repeats the user\'s choice', (
     await controller.signInWithOxy();
     expect(controller.getSnapshot().signIn.phase).toBe('error');
 
-    oxy.startCommonsSignIn.mockResolvedValue({ ...DELIVERY_HANDLE, expiresAt: Date.now() + 600_000 });
+    oxy.startCommonsSignIn.mockResolvedValue({
+      ...DELIVERY_HANDLE,
+      expiresAt: Date.now() + 600_000,
+    });
     await controller.retrySignIn();
 
     expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledTimes(2);
     expect(controller.getSnapshot().signIn.phase).toBe('waiting');
     controller.cancelSignIn();
   });
-
 });
 
 describe('AccountDialogController — device mutations report their own outcome', () => {
@@ -2432,7 +2531,10 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
         urls.push(url);
         if (url === '/session/device/directory') return deviceDirectory('ctx-qa', options.withOrg);
         if (url === '/session/device/activate') {
-          return { directory: { ...deviceDirectory('ctx-qa-org', true), revision: 5 }, activeToken: null };
+          return {
+            directory: { ...deviceDirectory('ctx-qa-org', true), revision: 5 },
+            activeToken: null,
+          };
         }
         return undefined;
       }),
@@ -2479,7 +2581,9 @@ describe('AccountDialogController — choosing a device account row (OxyHQ/oxy#1
     expect(await controller.chooseContext('ctx-qa')).toBe('signing-in');
 
     expect(oxy.signInWithCommonsIdentity).toHaveBeenCalledWith({ plantTokens: false });
-    expect(commitSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'sess-shared' }));
+    expect(commitSession).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'sess-shared' }),
+    );
     expect(onSignedIn).toHaveBeenCalledWith(expect.objectContaining({ id: 'qa' }));
     expect(controller.getSnapshot().hasSession).toBe(true);
     expect(controller.getSnapshot().signIn.phase).toBe('completed');

@@ -250,7 +250,11 @@ export const deviceJoinCodeResponseSchema = z.object({
  */
 export const deviceJoinRequestSchema = z.object({
   code: z.string().min(1).max(256),
-  codeVerifier: z.string().min(43).max(128).regex(/^[A-Za-z0-9._~-]+$/),
+  codeVerifier: z
+    .string()
+    .min(43)
+    .max(128)
+    .regex(/^[A-Za-z0-9._~-]+$/),
   clientId: z.string().min(1).max(256),
   redirectUri: z.string().url().max(2048),
 });

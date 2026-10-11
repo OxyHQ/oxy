@@ -81,10 +81,18 @@ describe('describeFollowButton', () => {
     [{ ...known, isFollowing: false }, 'Follow @nate', undefined],
     [{ ...known, isFollowing: true, isPending: true }, 'Following @nate', undefined],
     [{ ...known, isFollowing: false, isPending: true }, 'Follow @nate', undefined],
-    [{ ...known, isKnown: false, isFollowing: false }, 'Checking whether you follow @nate', undefined],
+    [
+      { ...known, isKnown: false, isFollowing: false },
+      'Checking whether you follow @nate',
+      undefined,
+    ],
     [{ ...known, username: undefined, isFollowing: true }, 'Following', 'Unfollows this account'],
     [{ ...known, username: undefined, isFollowing: false }, 'Follow', undefined],
-    [{ ...known, username: undefined, isKnown: false, isFollowing: false }, 'Checking follow status', undefined],
+    [
+      { ...known, username: undefined, isKnown: false, isFollowing: false },
+      'Checking follow status',
+      undefined,
+    ],
   ])('%o reads "%s"', (input, label, hint) => {
     expect(describeFollowButton(input)).toEqual(
       hint ? { accessibilityLabel: label, accessibilityHint: hint } : { accessibilityLabel: label },
@@ -103,18 +111,24 @@ describe('describeFollowAllButton', () => {
   const labels = { followAllLabel: 'Follow all', followedAllLabel: 'Following' };
 
   it('names the state and counts the accounts in the hint', () => {
-    expect(describeFollowAllButton({ ...labels, allFollowing: false, isPending: false, count: 3 })).toEqual({
+    expect(
+      describeFollowAllButton({ ...labels, allFollowing: false, isPending: false, count: 3 }),
+    ).toEqual({
       accessibilityLabel: 'Follow all',
       accessibilityHint: 'Follows all 3 accounts',
     });
-    expect(describeFollowAllButton({ ...labels, allFollowing: true, isPending: false, count: 1 })).toEqual({
+    expect(
+      describeFollowAllButton({ ...labels, allFollowing: true, isPending: false, count: 1 }),
+    ).toEqual({
       accessibilityLabel: 'Following',
       accessibilityHint: 'Unfollows all 1 account',
     });
   });
 
   it('drops the hint while the bulk write is in flight', () => {
-    expect(describeFollowAllButton({ ...labels, allFollowing: true, isPending: true, count: 3 })).toEqual({
+    expect(
+      describeFollowAllButton({ ...labels, allFollowing: true, isPending: true, count: 3 }),
+    ).toEqual({
       accessibilityLabel: 'Following',
     });
   });
@@ -138,14 +152,20 @@ describe('FollowButton hands Bloom a name that follows the state', () => {
   it('reads "Follow @nate" while it shows Follow', () => {
     mockFollowState = { isFollowing: false, isKnown: true, isLoading: false };
     render(<FollowButton userId="nate-id" username="nate" />);
-    expect(lastBloomProps()).toMatchObject({ following: false, accessibilityLabel: 'Follow @nate' });
+    expect(lastBloomProps()).toMatchObject({
+      following: false,
+      accessibilityLabel: 'Follow @nate',
+    });
     expect(lastBloomProps()?.accessibilityHint).toBeUndefined();
   });
 
   it('keeps the shown state while a write is pending', () => {
     mockFollowState = { isFollowing: true, isKnown: true, isLoading: true };
     render(<FollowButton userId="nate-id" username="nate" />);
-    expect(lastBloomProps()).toMatchObject({ loading: true, accessibilityLabel: 'Following @nate' });
+    expect(lastBloomProps()).toMatchObject({
+      loading: true,
+      accessibilityLabel: 'Following @nate',
+    });
     expect(lastBloomProps()?.accessibilityHint).toBeUndefined();
   });
 
@@ -178,7 +198,12 @@ describe('FollowTargetButton names the state it shows', () => {
     ['following', { globalState: 'following', applicationMode: 'inherit' }, true, 'Following'],
     ['requested', { globalState: 'requested', applicationMode: 'inherit' }, true, 'Requested'],
     ['off here', { globalState: 'following', applicationMode: 'disabled' }, true, 'Off here'],
-    ['not following', { globalState: 'not_following', applicationMode: 'inherit' }, false, 'Follow'],
+    [
+      'not following',
+      { globalState: 'not_following', applicationMode: 'inherit' },
+      false,
+      'Follow',
+    ],
   ])('%s', (_name, status, isFollowing, label) => {
     mockTarget = {
       status: { ...status, relationshipId: null },
@@ -191,10 +216,12 @@ describe('FollowTargetButton names the state it shows', () => {
   });
 });
 
-
-it.each(['sm', 'md', 'lg'] as const)('forwards canonical %s geometry in both follow modes', size => {
-  render(<FollowButton userId="nate-id" size={size} />);
-  expect(lastBloomProps()?.size).toBe(size);
-  render(<FollowButton userIds={['a', 'b']} size={size} />);
-  expect(lastBloomProps()?.size).toBe(size);
-});
+it.each(['sm', 'md', 'lg'] as const)(
+  'forwards canonical %s geometry in both follow modes',
+  (size) => {
+    render(<FollowButton userId="nate-id" size={size} />);
+    expect(lastBloomProps()?.size).toBe(size);
+    render(<FollowButton userIds={['a', 'b']} size={size} />);
+    expect(lastBloomProps()?.size).toBe(size);
+  },
+);

@@ -33,32 +33,32 @@ const MULTIBASE_BASE58BTC_PREFIX = 'z';
  * independent of the compile target). Leading zero bytes map to leading `'1'`s.
  */
 function base58btcEncode(bytes: Uint8Array): string {
-    let zeros = 0;
-    while (zeros < bytes.length && bytes[zeros] === 0) {
-        zeros++;
-    }
+  let zeros = 0;
+  while (zeros < bytes.length && bytes[zeros] === 0) {
+    zeros++;
+  }
 
-    // Repeated division of the big-endian byte array by 58, collecting remainders.
-    // `digits` holds the base-58 result least-significant first.
-    const digits: number[] = [];
-    for (let i = zeros; i < bytes.length; i++) {
-        let carry = bytes[i];
-        for (let j = 0; j < digits.length; j++) {
-            carry += digits[j] << 8;
-            digits[j] = carry % 58;
-            carry = (carry / 58) | 0;
-        }
-        while (carry > 0) {
-            digits.push(carry % 58);
-            carry = (carry / 58) | 0;
-        }
+  // Repeated division of the big-endian byte array by 58, collecting remainders.
+  // `digits` holds the base-58 result least-significant first.
+  const digits: number[] = [];
+  for (let i = zeros; i < bytes.length; i++) {
+    let carry = bytes[i];
+    for (let j = 0; j < digits.length; j++) {
+      carry += digits[j] << 8;
+      digits[j] = carry % 58;
+      carry = (carry / 58) | 0;
     }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
 
-    let out = BASE58_ALPHABET[0].repeat(zeros);
-    for (let i = digits.length - 1; i >= 0; i--) {
-        out += BASE58_ALPHABET[digits[i]];
-    }
-    return out;
+  let out = BASE58_ALPHABET[0].repeat(zeros);
+  for (let i = digits.length - 1; i >= 0; i--) {
+    out += BASE58_ALPHABET[digits[i]];
+  }
+  return out;
 }
 
 /**
@@ -68,9 +68,7 @@ function base58btcEncode(bytes: Uint8Array): string {
  * secp256k1 point.
  */
 function compressSecp256k1PublicKey(publicKeyHex: string): Uint8Array {
-    return Uint8Array.from(
-        Buffer.from(normalizeSecp256k1PublicKey(publicKeyHex, true), 'hex'),
-    );
+  return Uint8Array.from(Buffer.from(normalizeSecp256k1PublicKey(publicKeyHex, true), 'hex'));
 }
 
 /**
@@ -82,9 +80,9 @@ function compressSecp256k1PublicKey(publicKeyHex: string): Uint8Array {
  * @throws when `publicKeyHex` is not a valid secp256k1 public key.
  */
 export function secp256k1PublicKeyToMultikey(publicKeyHex: string): string {
-    const compressed = compressSecp256k1PublicKey(publicKeyHex);
-    const prefixed = new Uint8Array(SECP256K1_MULTICODEC_PREFIX.length + compressed.length);
-    prefixed.set(SECP256K1_MULTICODEC_PREFIX, 0);
-    prefixed.set(compressed, SECP256K1_MULTICODEC_PREFIX.length);
-    return MULTIBASE_BASE58BTC_PREFIX + base58btcEncode(prefixed);
+  const compressed = compressSecp256k1PublicKey(publicKeyHex);
+  const prefixed = new Uint8Array(SECP256K1_MULTICODEC_PREFIX.length + compressed.length);
+  prefixed.set(SECP256K1_MULTICODEC_PREFIX, 0);
+  prefixed.set(compressed, SECP256K1_MULTICODEC_PREFIX.length);
+  return MULTIBASE_BASE58BTC_PREFIX + base58btcEncode(prefixed);
 }

@@ -20,10 +20,7 @@ import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/OxyContext';
 import { toast } from '@oxy.so/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
-import {
-  clearedFieldsFromProfileUpdate,
-  upsertCachedUser,
-} from '../queries/userCache';
+import { clearedFieldsFromProfileUpdate, upsertCachedUser } from '../queries/userCache';
 
 /**
  * Update user profile with optimistic updates and offline queue support
@@ -35,10 +32,8 @@ export const useUpdateProfile = () => {
   return useMutation({
     mutationKey: [...mutationKeys.account.updateProfile],
     mutationFn: async (updates: UserProfileUpdate) => {
-      return authenticatedApiCall<User>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.users.updateMe(updates)
+      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
+        oxyServices.users.updateMe(updates),
       );
     },
     // Optimistic update
@@ -47,16 +42,16 @@ export const useUpdateProfile = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
 
       // Snapshot previous value
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       // Optimistically update
       if (previousUser) {
         const optimisticUser: User = {
           ...previousUser,
           ...updates,
-          name: updates.name
-            ? { ...previousUser.name, ...updates.name }
-            : previousUser.name,
+          name: updates.name ? { ...previousUser.name, ...updates.name } : previousUser.name,
         };
         queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), optimisticUser);
 
@@ -86,7 +81,9 @@ export const useUpdateProfile = () => {
           });
         }
         if (activeSessionId) {
-          const currentProfile = queryClient.getQueryData<User>(queryKeys.users.profile(activeSessionId));
+          const currentProfile = queryClient.getQueryData<User>(
+            queryKeys.users.profile(activeSessionId),
+          );
           if (currentProfile) {
             queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), {
               ...currentProfile,
@@ -148,7 +145,9 @@ export const useUploadAvatar = () => {
     },
     onMutate: async (file) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       // Optimistically set a temporary avatar (using file URI as placeholder)
       if (previousUser) {
@@ -176,7 +175,9 @@ export const useUploadAvatar = () => {
           });
         }
         if (activeSessionId) {
-          const currentProfile = queryClient.getQueryData<User>(queryKeys.users.profile(activeSessionId));
+          const currentProfile = queryClient.getQueryData<User>(
+            queryKeys.users.profile(activeSessionId),
+          );
           if (currentProfile) {
             queryClient.setQueryData<User>(queryKeys.users.profile(activeSessionId), {
               ...currentProfile,
@@ -192,10 +193,10 @@ export const useUploadAvatar = () => {
       if (activeSessionId) {
         queryClient.setQueryData(queryKeys.users.profile(activeSessionId), data);
       }
-      
+
       // Update authStore so frontend components see the changes immediately
       useAuthStore.getState().setUser(data);
-      
+
       // Invalidate all related queries to refresh everywhere, including the
       // sessions cache so other-account avatars update too.
       invalidateUserQueries(queryClient);
@@ -256,7 +257,7 @@ export const useUpdateAccountSettings = () => {
       const updatedPrivacy = await authenticatedApiCall<PrivacySettings>(
         oxyServices,
         activeSessionId,
-        () => oxyServices.privacy.updateSettings(updates, userId)
+        () => oxyServices.privacy.updateSettings(updates, userId),
       );
       // Rebuild against the dispatch-time snapshot, NOT the live cache.
       // The cache may have been mutated by a sibling write between
@@ -269,7 +270,9 @@ export const useUpdateAccountSettings = () => {
     },
     onMutate: async ({ updates }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.settings() });
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       if (previousUser) {
         queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
@@ -289,7 +292,9 @@ export const useUpdateAccountSettings = () => {
         const previousPrivacy = context.previousUser.privacySettings ?? {};
         const changedKeys = Object.keys(updates) as Array<keyof PrivacySettings>;
         const partialPrivacyRollback = changedKeys.reduce<Partial<PrivacySettings>>((acc, key) => {
-          (acc as Record<string, unknown>)[key as string] = (previousPrivacy as Record<string, unknown>)[key as string];
+          (acc as Record<string, unknown>)[key as string] = (
+            previousPrivacy as Record<string, unknown>
+          )[key as string];
           return acc;
         }, {});
 
@@ -327,7 +332,8 @@ export const useUpdateAccountSettings = () => {
   return {
     ...mutation,
     mutate: (updates: Partial<PrivacySettings>): void => {
-      const currentUser = user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const currentUser =
+        user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
       if (!currentUser) {
         toast.error('Cannot update account settings: no current user');
         return;
@@ -335,7 +341,8 @@ export const useUpdateAccountSettings = () => {
       mutation.mutate({ updates, currentUser });
     },
     mutateAsync: async (updates: Partial<PrivacySettings>): Promise<User> => {
-      const currentUser = user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const currentUser =
+        user ?? queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
       if (!currentUser) {
         throw new Error('Cannot update account settings: no current user');
       }
@@ -353,16 +360,20 @@ export const useUpdatePrivacySettings = () => {
 
   return useMutation({
     mutationKey: [...mutationKeys.account.updatePrivacySettings],
-    mutationFn: async ({ settings, userId }: { settings: Partial<PrivacySettings>; userId?: string }) => {
+    mutationFn: async ({
+      settings,
+      userId,
+    }: {
+      settings: Partial<PrivacySettings>;
+      userId?: string;
+    }) => {
       const targetUserId = userId || user?.id;
       if (!targetUserId) {
         throw new Error('User ID is required');
       }
 
-      return authenticatedApiCall<PrivacySettings>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.privacy.updateSettings(settings, targetUserId)
+      return authenticatedApiCall<PrivacySettings>(oxyServices, activeSessionId, () =>
+        oxyServices.privacy.updateSettings(settings, targetUserId),
       );
     },
     // Optimistic update
@@ -375,8 +386,12 @@ export const useUpdatePrivacySettings = () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
 
       // Snapshot previous values
-      const previousPrivacySettings = queryClient.getQueryData(queryKeys.privacy.settings(targetUserId));
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousPrivacySettings = queryClient.getQueryData(
+        queryKeys.privacy.settings(targetUserId),
+      );
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       // Optimistically update privacy settings
       if (previousPrivacySettings) {
@@ -414,7 +429,9 @@ export const useUpdatePrivacySettings = () => {
           (acc as Record<string, unknown>)[key as string] = previousPrivacy[key as string];
           return acc;
         }, {});
-        const currentPrivacy = queryClient.getQueryData<PrivacySettings>(queryKeys.privacy.settings(targetUserId));
+        const currentPrivacy = queryClient.getQueryData<PrivacySettings>(
+          queryKeys.privacy.settings(targetUserId),
+        );
         if (currentPrivacy) {
           queryClient.setQueryData<PrivacySettings>(queryKeys.privacy.settings(targetUserId), {
             ...currentPrivacy,
@@ -425,7 +442,10 @@ export const useUpdatePrivacySettings = () => {
 
       // Rollback the accounts.current() user.privacySettings (partial)
       if (context?.previousUser && changedKeys.length > 0) {
-        const previousPrivacy = (context.previousUser.privacySettings ?? {}) as Record<string, unknown>;
+        const previousPrivacy = (context.previousUser.privacySettings ?? {}) as Record<
+          string,
+          unknown
+        >;
         const partialPrivacyRollback = changedKeys.reduce<Partial<PrivacySettings>>((acc, key) => {
           (acc as Record<string, unknown>)[key as string] = previousPrivacy[key as string];
           return acc;
@@ -478,7 +498,9 @@ export const useUpdatePrivacySettings = () => {
         }),
       );
 
-      const currentUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const currentUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
       if (currentUser) {
         const updatedUser: User = {
           ...currentUser,
@@ -508,7 +530,14 @@ interface UploadedFile {
   size?: number;
   createdAt?: string;
   metadata?: Record<string, unknown>;
-  variants?: Array<{ type: string; key: string; width?: number; height?: number; readyAt?: string; metadata?: Record<string, unknown> }>;
+  variants?: Array<{
+    type: string;
+    key: string;
+    width?: number;
+    height?: number;
+    readyAt?: string;
+    metadata?: Record<string, unknown>;
+  }>;
 }
 
 /** Upload result type that supports both single file and batch responses */
@@ -530,15 +559,15 @@ export const useUpdateNotificationPreferences = () => {
   return useMutation({
     mutationKey: [...mutationKeys.account.updateNotificationPreferences],
     mutationFn: async (preferences: Partial<NotificationPreferences>) => {
-      return authenticatedApiCall<User>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.users.updateMe({ notificationPreferences: preferences })
+      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
+        oxyServices.users.updateMe({ notificationPreferences: preferences }),
       );
     },
     onMutate: async (preferences) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       if (previousUser) {
         queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
@@ -563,9 +592,7 @@ export const useUpdateNotificationPreferences = () => {
         }
       }
       toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Failed to update notification preferences'
+        error instanceof Error ? error.message : 'Failed to update notification preferences',
       );
     },
     onSuccess: (data) => {
@@ -588,15 +615,15 @@ export const useUpdateUserPreferences = () => {
   return useMutation({
     mutationKey: [...mutationKeys.account.updateUserPreferences],
     mutationFn: async (preferences: Partial<UserPreferences>) => {
-      return authenticatedApiCall<User>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.users.updateMe({ userPreferences: preferences })
+      return authenticatedApiCall<User>(oxyServices, activeSessionId, () =>
+        oxyServices.users.updateMe({ userPreferences: preferences }),
       );
     },
     onMutate: async (preferences) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.accounts.current(activeSessionId) });
-      const previousUser = queryClient.getQueryData<User>(queryKeys.accounts.current(activeSessionId));
+      const previousUser = queryClient.getQueryData<User>(
+        queryKeys.accounts.current(activeSessionId),
+      );
 
       if (previousUser) {
         queryClient.setQueryData<User>(queryKeys.accounts.current(activeSessionId), {
@@ -644,16 +671,14 @@ export const useRevokeConnectedApp = () => {
     mutationKey: [...mutationKeys.connectedApps.revoke],
     mutationFn: async (applicationId: string) => {
       return authenticatedApiCall<void>(oxyServices, activeSessionId, () =>
-        oxyServices.apps.connected.revoke(applicationId)
+        oxyServices.apps.connected.revoke(applicationId),
       );
     },
     onSuccess: () => {
       invalidateConnectedAppsQueries(queryClient);
     },
     onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to revoke connected app'
-      );
+      toast.error(error instanceof Error ? error.message : 'Failed to revoke connected app');
     },
   });
 };
@@ -677,10 +702,8 @@ export const useUploadFile = () => {
       metadata?: AssetMetadata;
       onProgress?: (progress: number) => void;
     }) => {
-      return authenticatedApiCall<UploadResult>(
-        oxyServices,
-        activeSessionId,
-        () => oxyServices.assets.upload(file, { visibility, metadata, onProgress })
+      return authenticatedApiCall<UploadResult>(oxyServices, activeSessionId, () =>
+        oxyServices.assets.upload(file, { visibility, metadata, onProgress }),
       );
     },
   });

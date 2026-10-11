@@ -39,10 +39,7 @@ module.exports = {
       },
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'pan',
-      permissions: [
-        'android.permission.USE_BIOMETRIC',
-        'android.permission.USE_FINGERPRINT',
-      ],
+      permissions: ['android.permission.USE_BIOMETRIC', 'android.permission.USE_FINGERPRINT'],
       package: APP_ID,
     },
     ios: {
@@ -85,8 +82,7 @@ module.exports = {
       [
         'expo-local-authentication',
         {
-          faceIDPermission:
-            'Allow $(PRODUCT_NAME) to use Face ID to protect your identity.',
+          faceIDPermission: 'Allow $(PRODUCT_NAME) to use Face ID to protect your identity.',
         },
       ],
       [

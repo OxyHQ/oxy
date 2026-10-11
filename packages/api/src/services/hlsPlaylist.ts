@@ -36,8 +36,14 @@ export function isHlsRenditionVariant(variantType: string): boolean {
  * relocation copied segments still has them only under the private one. Only
  * the repair reads these.
  */
-export function legacySegmentKeys(playlistKey: string, renditionType: string, uri: string): string[] {
+export function legacySegmentKeys(
+  playlistKey: string,
+  renditionType: string,
+  uri: string,
+): string[] {
   const name = `${renditionType}_${uri}.ts`;
-  const otherSpelling = isPublicKey(playlistKey) ? stripPublicPrefix(playlistKey) : applyPublicPrefix(playlistKey);
+  const otherSpelling = isPublicKey(playlistKey)
+    ? stripPublicPrefix(playlistKey)
+    : applyPublicPrefix(playlistKey);
   return [playlistSiblingKey(playlistKey, name), playlistSiblingKey(otherSpelling, name)];
 }

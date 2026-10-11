@@ -39,9 +39,13 @@ function hangingFetch(): { fetch: typeof globalThis.fetch; calls: () => number }
       calls++;
       return new Promise<Response>((_resolve, reject) => {
         const signal = init?.signal;
-        const fail = (): void => reject(new DOMException('The operation was aborted.', 'AbortError'));
+        const fail = (): void =>
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
         if (!signal) return;
-        if (signal.aborted) { fail(); return; }
+        if (signal.aborted) {
+          fail();
+          return;
+        }
         signal.addEventListener('abort', fail, { once: true });
       });
     }) as typeof globalThis.fetch,
@@ -74,7 +78,10 @@ describe('HttpService cancellation', () => {
 
   it('never calls fetch for a signal that was already aborted', async () => {
     let calls = 0;
-    globalThis.fetch = (async () => { calls++; return jsonResponse({}); }) as typeof globalThis.fetch;
+    globalThis.fetch = (async () => {
+      calls++;
+      return jsonResponse({});
+    }) as typeof globalThis.fetch;
 
     const http = new HttpService({ baseURL: 'https://api.test' });
     const controller = new AbortController();
@@ -125,11 +132,19 @@ describe('HttpService cancellation', () => {
     const removed: unknown[] = [];
     const realAdd = controller.signal.addEventListener.bind(controller.signal);
     const realRemove = controller.signal.removeEventListener.bind(controller.signal);
-    jest.spyOn(controller.signal, 'addEventListener').mockImplementation(((type: string, fn: never, opts: never) => {
+    jest.spyOn(controller.signal, 'addEventListener').mockImplementation(((
+      type: string,
+      fn: never,
+      opts: never,
+    ) => {
       if (type === 'abort') added.push(fn);
       return realAdd(type as 'abort', fn, opts);
     }) as never);
-    jest.spyOn(controller.signal, 'removeEventListener').mockImplementation(((type: string, fn: never, opts: never) => {
+    jest.spyOn(controller.signal, 'removeEventListener').mockImplementation(((
+      type: string,
+      fn: never,
+      opts: never,
+    ) => {
       if (type === 'abort') removed.push(fn);
       return realRemove(type as 'abort', fn, opts);
     }) as never);
@@ -138,7 +153,11 @@ describe('HttpService cancellation', () => {
     // A React Query query signal is reused across the query's whole lifetime,
     // so a listener left behind per request is an unbounded leak, not a nit.
     for (let i = 0; i < 5; i++) {
-      await http.get(`/thing-${i}`, { signal: controller.signal, cache: false, deduplicate: false });
+      await http.get(`/thing-${i}`, {
+        signal: controller.signal,
+        cache: false,
+        deduplicate: false,
+      });
     }
 
     expect(added.length).toBeGreaterThan(0);
@@ -154,7 +173,9 @@ describe('HttpService cancellation', () => {
         return jsonResponse({ ok: true });
       }
       // Cancelled requests never get here; if one does, it would hold a slot.
-      return new Promise<Response>(() => { /* never settles */ });
+      return new Promise<Response>(() => {
+        /* never settles */
+      });
     }) as typeof globalThis.fetch;
 
     const http = new HttpService({
@@ -223,9 +244,9 @@ describe('HttpService timeout', () => {
       requestTimeout: 20,
     });
 
-    await expect(
-      http.get('/slow', { cache: false, retryOnTimeout: true }),
-    ).rejects.toMatchObject({ code: ErrorCodes.TIMEOUT });
+    await expect(http.get('/slow', { cache: false, retryOnTimeout: true })).rejects.toMatchObject({
+      code: ErrorCodes.TIMEOUT,
+    });
 
     expect(calls()).toBe(3);
   });
@@ -290,7 +311,8 @@ describe('HttpService timeout', () => {
   });
 
   it('arms no timer past a request that threw before returning', async () => {
-    globalThis.fetch = (async () => jsonResponse({ error: 'nope' }, 404)) as typeof globalThis.fetch;
+    globalThis.fetch = (async () =>
+      jsonResponse({ error: 'nope' }, 404)) as typeof globalThis.fetch;
     jest.useFakeTimers({ doNotFake: ['nextTick'] });
 
     const http = new HttpService({

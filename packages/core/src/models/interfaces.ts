@@ -225,7 +225,7 @@ export interface User {
    */
   themePreference?: ThemePreference;
   /** Product-specific personalization; never inferred from generic premium. */
-  personalization?: {mentionMono:{allowed:boolean;expiresAt:string|null}};
+  personalization?: { mentionMono: { allowed: boolean; expiresAt: string | null } };
   /**
    * The authenticated viewer's relationship to THIS profile. Populated ONLY on
    * single-profile fetches (`getProfileByUsername` / `getUserById`) when the
@@ -340,12 +340,14 @@ export interface Transaction {
 
 export interface BlockedUser {
   _id?: string;
-  blockedId: string | {
-    _id: string;
-    username: string;
-    avatar?: string;
-    name?: { displayName?: string };
-  };
+  blockedId:
+    | string
+    | {
+        _id: string;
+        username: string;
+        avatar?: string;
+        name?: { displayName?: string };
+      };
   userId: string;
   createdAt?: string;
   blockedAt?: string;
@@ -355,12 +357,14 @@ export interface BlockedUser {
 
 export interface RestrictedUser {
   _id?: string;
-  restrictedId: string | {
-    _id: string;
-    username: string;
-    avatar?: string;
-    name?: { displayName?: string };
-  };
+  restrictedId:
+    | string
+    | {
+        _id: string;
+        username: string;
+        avatar?: string;
+        name?: { displayName?: string };
+      };
   userId: string;
   createdAt?: string;
   restrictedAt?: string;
@@ -792,7 +796,7 @@ export interface AccountStorageUsageResponse {
 /**
  * Security activity event types
  */
-export type SecurityEventType = 
+export type SecurityEventType =
   | 'sign_in'
   | 'sign_out'
   | 'email_changed'
@@ -815,17 +819,17 @@ export type SecurityEventSeverity = 'low' | 'medium' | 'high' | 'critical';
  * Maps each event type to its default severity level
  */
 export const SECURITY_EVENT_SEVERITY_MAP: Record<SecurityEventType, SecurityEventSeverity> = {
-  'sign_in': 'low',
-  'sign_out': 'low',
-  'profile_updated': 'low',
-  'email_changed': 'medium',
-  'device_added': 'medium',
-  'device_removed': 'medium',
-  'security_settings_changed': 'medium',
-  'account_recovery': 'high',
-  'private_key_exported': 'high',
-  'backup_created': 'high',
-  'suspicious_activity': 'critical',
+  sign_in: 'low',
+  sign_out: 'low',
+  profile_updated: 'low',
+  email_changed: 'medium',
+  device_added: 'medium',
+  device_removed: 'medium',
+  security_settings_changed: 'medium',
+  account_recovery: 'high',
+  private_key_exported: 'high',
+  backup_created: 'high',
+  suspicious_activity: 'critical',
 };
 
 /**
@@ -899,4 +903,3 @@ export interface UpdateDeviceNameResponse {
   message: string;
   deviceName: string;
 }
-

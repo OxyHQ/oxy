@@ -19,9 +19,7 @@ describe('native product-agent account planning', () => {
   });
 
   it('normalizes only an adopted legacy account with the same effective title', () => {
-    expect(classifyNativeProductAgentDisplayName(legacyHomiio)).toBe(
-      'normalize_legacy',
-    );
+    expect(classifyNativeProductAgentDisplayName(legacyHomiio)).toBe('normalize_legacy');
   });
 
   it.each([

@@ -102,7 +102,9 @@ export async function recordAccountDeletedEvent(
   if (recipients.length > 0) {
     await tx
       .insert(accountEventDeliveries)
-      .values(recipients.map((application) => ({ eventId: event.id, applicationId: application.id })));
+      .values(
+        recipients.map((application) => ({ eventId: event.id, applicationId: application.id })),
+      );
   }
 
   return { eventId: event.id, recipients: recipients.length };
@@ -176,7 +178,9 @@ export async function listAccountEventsForApplication(
   options: { after?: string; limit?: number; now?: Date } = {},
 ): Promise<AccountEventFeedPage> {
   const limit = Math.min(Math.max(options.limit ?? 100, 1), ACCOUNT_EVENT_FEED_MAX_LIMIT);
-  const settledBefore = new Date((options.now ?? new Date()).getTime() - ACCOUNT_EVENT_FEED_SETTLE_MS);
+  const settledBefore = new Date(
+    (options.now ?? new Date()).getTime() - ACCOUNT_EVENT_FEED_SETTLE_MS,
+  );
   const rows = await getDb()
     .select({
       id: accountEvents.id,

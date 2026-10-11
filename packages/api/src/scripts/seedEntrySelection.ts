@@ -73,7 +73,7 @@ export interface SeedEntryVocabulary {
 export function selectSeedEntries<T extends NamedSeedEntry>(
   entries: readonly T[],
   raw: string | undefined,
-  vocabulary: SeedEntryVocabulary
+  vocabulary: SeedEntryVocabulary,
 ): T[] {
   if (raw === undefined) {
     return [...entries];
@@ -88,7 +88,7 @@ export function selectSeedEntries<T extends NamedSeedEntry>(
     throw new Error(
       `${vocabulary.envVar} was set but names no ${vocabulary.singular}. Unset it to seed ` +
         `every ${vocabulary.singular}, or name the ones this run may touch — it is never ` +
-        'read as "all".'
+        'read as "all".',
     );
   }
 
@@ -99,7 +99,7 @@ export function selectSeedEntries<T extends NamedSeedEntry>(
   if (unknown.length > 0) {
     throw new Error(
       `${vocabulary.envVar} names unknown ${vocabulary.singular}(s): [${unknown.join(', ')}]. ` +
-        `Known ${vocabulary.plural}: [${entries.map((entry) => entry.name).join(', ')}].`
+        `Known ${vocabulary.plural}: [${entries.map((entry) => entry.name).join(', ')}].`,
     );
   }
 
@@ -117,7 +117,7 @@ export function selectSeedEntriesByLegacyNames<T extends IdentifiedSeedEntry>(
   entries: readonly T[],
   raw: string | undefined,
   vocabulary: SeedEntryVocabulary,
-  exactIdEnvVar: string
+  exactIdEnvVar: string,
 ): T[] {
   const selected = selectSeedEntries(entries, raw, vocabulary);
   if (raw === undefined) {
@@ -129,7 +129,7 @@ export function selectSeedEntriesByLegacyNames<T extends IdentifiedSeedEntry>(
     throw new Error(
       `${vocabulary.envVar} cannot select ${vocabulary.singular}(s) with declared exact ids: ` +
         `[${identified.map((entry) => entry.name).join(', ')}]. Use ${exactIdEnvVar} with the ` +
-        'declared immutable id instead.'
+        'declared immutable id instead.',
     );
   }
 
@@ -149,12 +149,12 @@ export function selectSeedEntriesByLegacyNames<T extends IdentifiedSeedEntry>(
 export function selectSeedEntriesByExactIds<T extends IdentifiedSeedEntry>(
   entries: readonly T[],
   raw: string,
-  vocabulary: SeedEntryVocabulary
+  vocabulary: SeedEntryVocabulary,
 ): T[] {
   if (raw.length === 0) {
     throw new Error(
       `${vocabulary.envVar} was set but names no ${vocabulary.singular} id. ` +
-        `Name at least one exact declared id; an empty value is never read as "all".`
+        `Name at least one exact declared id; an empty value is never read as "all".`,
     );
   }
 
@@ -162,13 +162,13 @@ export function selectSeedEntriesByExactIds<T extends IdentifiedSeedEntry>(
   if (requested.some((id) => id !== id.trim())) {
     throw new Error(
       `${vocabulary.envVar} contains whitespace around a ${vocabulary.singular} id. ` +
-        'Every id must byte-match the declared immutable id; values are never normalized.'
+        'Every id must byte-match the declared immutable id; values are never normalized.',
     );
   }
   if (requested.some((id) => id.length === 0)) {
     throw new Error(
       `${vocabulary.envVar} contains an empty ${vocabulary.singular} id. ` +
-        'Every comma-separated value must be an exact declared id.'
+        'Every comma-separated value must be an exact declared id.',
     );
   }
 
@@ -176,7 +176,7 @@ export function selectSeedEntriesByExactIds<T extends IdentifiedSeedEntry>(
   if (duplicateRequests.length > 0) {
     throw new Error(
       `${vocabulary.envVar} repeats ${vocabulary.singular} id(s): ` +
-        `[${[...new Set(duplicateRequests)].join(', ')}]. Each id must appear exactly once.`
+        `[${[...new Set(duplicateRequests)].join(', ')}]. Each id must appear exactly once.`,
     );
   }
 
@@ -187,7 +187,7 @@ export function selectSeedEntriesByExactIds<T extends IdentifiedSeedEntry>(
     }
     if (entriesById.has(entry.id)) {
       throw new Error(
-        `Canonical ${vocabulary.singular} registry declares duplicate exact id ${entry.id}.`
+        `Canonical ${vocabulary.singular} registry declares duplicate exact id ${entry.id}.`,
       );
     }
     entriesById.set(entry.id, entry);
@@ -197,7 +197,7 @@ export function selectSeedEntriesByExactIds<T extends IdentifiedSeedEntry>(
   if (unknown.length > 0) {
     throw new Error(
       `${vocabulary.envVar} names unknown ${vocabulary.singular} id(s): [${unknown.join(', ')}]. ` +
-        `Known exact ids: [${[...entriesById.keys()].join(', ')}].`
+        `Known exact ids: [${[...entriesById.keys()].join(', ')}].`,
     );
   }
 

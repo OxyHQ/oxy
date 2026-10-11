@@ -21,9 +21,8 @@ export interface OxyMcpServiceRequestOptions {
 
 export function validateOxyEndpoint(value: string): string {
   const url = new URL(value);
-  const loopback = url.hostname === 'localhost'
-    || url.hostname === '127.0.0.1'
-    || url.hostname === '[::1]';
+  const loopback =
+    url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
   if (url.protocol !== 'https:' && !(loopback && url.protocol === 'http:')) {
     throw new Error('Oxy MCP endpoints must use HTTPS outside local development');
   }
@@ -41,10 +40,12 @@ function timeout(options: OxyMcpServiceRequestOptions): number {
   return timeoutMs;
 }
 
-const oauthErrorSchema = z.object({
-  error: z.string().trim().min(1),
-  error_description: z.string().trim().min(1).optional(),
-}).passthrough();
+const oauthErrorSchema = z
+  .object({
+    error: z.string().trim().min(1),
+    error_description: z.string().trim().min(1).optional(),
+  })
+  .passthrough();
 
 /** An OAuth-shaped refusal from Oxy, carried with its code so callers can branch. */
 export class OxyMcpRequestError extends Error {
@@ -92,17 +93,17 @@ export async function postOxyServiceJson(
       continue;
     }
     if (!response.ok) {
-      const payload = await response.json().catch(() => null) as unknown;
+      const payload = (await response.json().catch(() => null)) as unknown;
       const parsed = oauthErrorSchema.safeParse(payload);
       throw new OxyMcpRequestError(
         response.status,
         parsed.success ? parsed.data.error : 'request_failed',
         parsed.success
-          ? parsed.data.error_description ?? parsed.data.error
+          ? (parsed.data.error_description ?? parsed.data.error)
           : `Oxy MCP request failed (${response.status})`,
       );
     }
-    return await response.json() as unknown;
+    return (await response.json()) as unknown;
   }
 
   throw new Error('Oxy MCP request failed after service-token refresh');

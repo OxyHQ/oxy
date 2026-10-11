@@ -13,7 +13,7 @@ import { useTranslation } from '@/lib/i18n';
 
 /**
  * Check if running in Expo Go
- * 
+ *
  * Push notifications are not available in Expo Go (SDK 53+),
  * so we skip notification permission requests in this environment
  */
@@ -36,10 +36,10 @@ interface UseAuthHandlersOptions {
 
 /**
  * Hook for shared authentication handlers (sign in, notifications)
- * 
+ *
  * Provides reusable handlers for sign-in and notification permission requests
  * that are shared between create-identity and import-identity flows
- * 
+ *
  * @param options - Configuration options
  * @returns Handlers and state for authentication flow
  */
@@ -53,7 +53,7 @@ export function useAuthHandlers({
   const router = useRouter();
   const { t } = useTranslation();
   const [isRequestingNotifications, setIsRequestingNotifications] = useState(false);
-  
+
   // Constants for retry logic
   const SIGN_IN_RETRY_DELAY_MS = 500;
   const MAX_SIGN_IN_RETRIES = 1;
@@ -62,10 +62,10 @@ export function useAuthHandlers({
 
   /**
    * Wait for authentication state to be confirmed
-   * 
+   *
    * Polls the auth store to ensure isAuthenticated is true before proceeding
    * This ensures the auth state is fully propagated before navigation
-   * 
+   *
    * Note: Always polls the store directly to get the latest state, even if
    * the prop suggests authentication status
    */
@@ -111,86 +111,91 @@ export function useAuthHandlers({
    * - Waits for auth state to be confirmed before navigation
    * (The username is not set here: it is registered with the key at the
    * username step.)
-   * 
+   *
    * Updates the auth store and navigates to home screen on success
    */
-  const completeSignIn = useCallback(async (options?: { navigateOnSuccess?: boolean }): Promise<boolean> => {
-    setSigningIn(true);
-    setAuthError(null);
+  const completeSignIn = useCallback(
+    async (options?: { navigateOnSuccess?: boolean }): Promise<boolean> => {
+      setSigningIn(true);
+      setAuthError(null);
 
-    let lastError: unknown = null;
-    let signInSuccess = false;
+      let lastError: unknown = null;
+      let signInSuccess = false;
 
-    // The session sign-in requires the device's public key as the identity
-    // credential; resolve it from the local KeyManager before authenticating.
-    // `getPublicKey()` now THROWS `IdentityUnavailableError` when storage is
-    // locked/unreadable (as opposed to returning `null` for a genuine absence) —
-    // catch it so a momentarily-locked keystore surfaces a retriable error
-    // rather than the misleading "No identity found on this device".
-    let publicKey: string | null;
-    try {
-      publicKey = await KeyManager.getPublicKey();
-    } catch (error: unknown) {
-      setAuthError(extractAuthErrorMessage(error, t('auth.errors.couldNotReadIdentity')));
-      setSigningIn(false);
-      return false;
-    }
-    if (!publicKey) {
-      setAuthError(t('auth.errors.noIdentityFound'));
-      setSigningIn(false);
-      return false;
-    }
-
-    // Retry logic for sign-in
-    for (let attempt = 0; attempt <= MAX_SIGN_IN_RETRIES; attempt++) {
+      // The session sign-in requires the device's public key as the identity
+      // credential; resolve it from the local KeyManager before authenticating.
+      // `getPublicKey()` now THROWS `IdentityUnavailableError` when storage is
+      // locked/unreadable (as opposed to returning `null` for a genuine absence) —
+      // catch it so a momentarily-locked keystore surfaces a retriable error
+      // rather than the misleading "No identity found on this device".
+      let publicKey: string | null;
       try {
-        await signIn(publicKey);
-        signInSuccess = true;
-        break;
-      } catch (err: unknown) {
-        lastError = err;
-        const isNetworkError = isNetworkOrTimeoutError(err);
+        publicKey = await KeyManager.getPublicKey();
+      } catch (error: unknown) {
+        setAuthError(extractAuthErrorMessage(error, t('auth.errors.couldNotReadIdentity')));
+        setSigningIn(false);
+        return false;
+      }
+      if (!publicKey) {
+        setAuthError(t('auth.errors.noIdentityFound'));
+        setSigningIn(false);
+        return false;
+      }
 
-        // If network error and we have retries left, wait and retry
-        if (isNetworkError && attempt < MAX_SIGN_IN_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, SIGN_IN_RETRY_DELAY_MS));
-          continue;
-        }
+      // Retry logic for sign-in
+      for (let attempt = 0; attempt <= MAX_SIGN_IN_RETRIES; attempt++) {
+        try {
+          await signIn(publicKey);
+          signInSuccess = true;
+          break;
+        } catch (err: unknown) {
+          lastError = err;
+          const isNetworkError = isNetworkOrTimeoutError(err);
 
-        // If not a network error or no retries left, throw
-        if (!isNetworkError) {
-          throw err;
+          // If network error and we have retries left, wait and retry
+          if (isNetworkError && attempt < MAX_SIGN_IN_RETRIES) {
+            await new Promise((resolve) => setTimeout(resolve, SIGN_IN_RETRY_DELAY_MS));
+            continue;
+          }
+
+          // If not a network error or no retries left, throw
+          if (!isNetworkError) {
+            throw err;
+          }
         }
       }
-    }
 
-    // If connecting the identity failed after retries, show error
-    if (!signInSuccess) {
-      setAuthError(extractAuthErrorMessage(lastError, "Couldn't connect your identity. Please try again."));
+      // If connecting the identity failed after retries, show error
+      if (!signInSuccess) {
+        setAuthError(
+          extractAuthErrorMessage(lastError, "Couldn't connect your identity. Please try again."),
+        );
+        setSigningIn(false);
+        return false;
+      }
+
+      // Wait for auth state to be confirmed
+      await waitForAuthState();
+
+      // Small delay to ensure auth state is fully propagated
+      await new Promise((resolve) => setTimeout(resolve, STORE_UPDATE_DELAY_MS));
+
+      // Clear all auth flow state BEFORE navigation to prevent overlay/opacity issues
+      setAuthError(null);
       setSigningIn(false);
-      return false;
-    }
 
-    // Wait for auth state to be confirmed
-    await waitForAuthState();
+      // Use requestAnimationFrame to ensure state updates are applied before navigation
+      await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    // Small delay to ensure auth state is fully propagated
-    await new Promise(resolve => setTimeout(resolve, STORE_UPDATE_DELAY_MS));
+      if (options?.navigateOnSuccess !== false) {
+        // Navigate to the post-auth tab shell - use push as per Expo Router standard
+        router.push('/(tabs)/(id)');
+      }
 
-    // Clear all auth flow state BEFORE navigation to prevent overlay/opacity issues
-    setAuthError(null);
-    setSigningIn(false);
-    
-    // Use requestAnimationFrame to ensure state updates are applied before navigation
-    await new Promise(resolve => requestAnimationFrame(resolve));
-
-    if (options?.navigateOnSuccess !== false) {
-      // Navigate to the post-auth tab shell - use push as per Expo Router standard
-      router.push('/(tabs)/(id)');
-    }
-
-    return true;
-  }, [router, signIn, setAuthError, setSigningIn, waitForAuthState, t]);
+      return true;
+    },
+    [router, signIn, setAuthError, setSigningIn, waitForAuthState, t],
+  );
 
   const handleSignIn = useCallback(async () => {
     await completeSignIn({ navigateOnSuccess: true });
@@ -255,4 +260,3 @@ export function useAuthHandlers({
     isRequestingNotifications,
   };
 }
-

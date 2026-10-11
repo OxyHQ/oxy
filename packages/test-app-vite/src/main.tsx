@@ -1,11 +1,11 @@
-import { createRoot } from "react-dom/client"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { OxyProvider } from "@oxy.so/services"
-import { BloomThemeProvider } from "@oxy.so/bloom/theme"
-import { ConnectionStatusToasts } from "@oxy.so/bloom/connection-status"
+import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { OxyProvider } from '@oxy.so/services';
+import { BloomThemeProvider } from '@oxy.so/bloom/theme';
+import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
 
-import "./index.css"
-import App from "./App.tsx"
+import './index.css';
+import App from './App.tsx';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,24 +14,24 @@ const queryClient = new QueryClient({
       gcTime: 1000 * 60 * 30,
       retry: 1,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: "always",
+      refetchOnReconnect: 'always',
     },
     mutations: {
       retry: 1,
     },
   },
-})
+});
 
-const oxyBaseUrl = import.meta.env.VITE_OXY_URL || "https://api.oxy.so"
+const oxyBaseUrl = import.meta.env.VITE_OXY_URL || 'https://api.oxy.so';
 // Optional, for running against a local stack: the app's registered client id
 // (the browser bridge and the QR sign-in need one) and the IdP's authorize URL
 // (the bridge opens that origin's `/bridge`).
-const oxyClientId = import.meta.env.VITE_OXY_CLIENT_ID || undefined
-const oxyAuthorizeUrl = import.meta.env.VITE_OXY_AUTHORIZE_URL || undefined
+const oxyClientId = import.meta.env.VITE_OXY_CLIENT_ID || undefined;
+const oxyAuthorizeUrl = import.meta.env.VITE_OXY_AUTHORIZE_URL || undefined;
 
-const rootElement = document.getElementById("root")
+const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error('Root element "#root" not found')
+  throw new Error('Root element "#root" not found');
 }
 
 // Intentionally NO <StrictMode>: on web, react-native-web's Modal (used by
@@ -53,5 +53,5 @@ createRoot(rootElement).render(
         <App />
       </OxyProvider>
     </BloomThemeProvider>
-  </QueryClientProvider>
-)
+  </QueryClientProvider>,
+);

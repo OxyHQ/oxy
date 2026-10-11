@@ -23,9 +23,7 @@ const UNSHIPPED_LOCALE = 'nl-NL';
 describe('reputationCategoryLabel', () => {
   it('covers the whole vocabulary', () => {
     expect(REPUTATION_CATEGORIES.length).toBeGreaterThanOrEqual(7);
-    expect(Object.keys(EN_REPUTATION_CATEGORY_LABELS)).toHaveLength(
-      REPUTATION_CATEGORIES.length,
-    );
+    expect(Object.keys(EN_REPUTATION_CATEGORY_LABELS)).toHaveLength(REPUTATION_CATEGORIES.length);
   });
 
   it.each([...SHIPPED_LOCALES, REGION_VARIANT, UNSHIPPED_LOCALE])(

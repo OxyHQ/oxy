@@ -36,15 +36,15 @@
  * edges.
  */
 
-import type { Request, Response } from "express";
-import { and, count, eq, gte, lte, sql, type SQL } from "drizzle-orm";
-import type { AuthRequest } from "../middleware/auth";
-import { getDb } from "../config/postgres";
-import { qualified } from "@oxy.so/db";
-import { ANALYTICS_PERIODS, userAnalytics } from "../db/schema/userAnalytics";
-import { userFollows } from "../db/schema/userFollows";
-import { users } from "../db/schema/users";
-import { getDateRange } from "./utils/dateUtils";
+import type { Request, Response } from 'express';
+import { and, count, eq, gte, lte, sql, type SQL } from 'drizzle-orm';
+import type { AuthRequest } from '../middleware/auth';
+import { getDb } from '../config/postgres';
+import { qualified } from '@oxy.so/db';
+import { ANALYTICS_PERIODS, userAnalytics } from '../db/schema/userAnalytics';
+import { userFollows } from '../db/schema/userFollows';
+import { users } from '../db/schema/users';
+import { getDateRange } from './utils/dateUtils';
 import { logger } from '../utils/logger';
 
 const getAuthenticatedAnalyticsUserId = (req: Request) => (req as AuthRequest).user?._id;
@@ -169,7 +169,9 @@ function serializeAnalyticsRow(row: typeof userAnalytics.$inferSelect): Analytic
  * Empty when the account does not exist, which is what `userStats?._count || {}`
  * produced for a `findById` that found nothing.
  */
-async function readGrowth(userId: string): Promise<{ followers: number; following: number } | Record<string, never>> {
+async function readGrowth(
+  userId: string,
+): Promise<{ followers: number; following: number } | Record<string, never>> {
   const db = getDb();
   const [account] = await db
     .select({ id: users.id })
@@ -195,7 +197,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
   try {
     const userID = getAuthenticatedAnalyticsUserId(req);
     if (!userID) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ message: 'Authentication required' });
     }
     const userId = String(userID);
 
@@ -211,8 +213,8 @@ export const getAnalytics = async (req: Request, res: Response) => {
               eq(userAnalytics.userId, userId),
               eq(userAnalytics.period, period),
               gte(userAnalytics.date, startDate),
-              lte(userAnalytics.date, endDate)
-            )
+              lte(userAnalytics.date, endDate),
+            ),
           )
           .orderBy(userAnalytics.date)
       : [];
@@ -224,8 +226,8 @@ export const getAnalytics = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching analytics:', error);
     res.status(500).json({
-      message: "Error fetching analytics",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: 'Error fetching analytics',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -266,10 +268,7 @@ type AnalyticsCounterColumn =
 
 type AnalyticsIncrement = Partial<Record<AnalyticsCounterColumn, number>>;
 
-const buildAnalyticsIncrement = (
-  type: unknown,
-  data: unknown,
-): AnalyticsIncrement | null => {
+const buildAnalyticsIncrement = (type: unknown, data: unknown): AnalyticsIncrement | null => {
   if (typeof type !== 'string' || !(type in ANALYTICS_INCREMENT_TYPE_COLUMNS)) {
     return null;
   }
@@ -299,7 +298,7 @@ export const updateAnalytics = async (req: Request, res: Response) => {
   try {
     const userID = getAuthenticatedAnalyticsUserId(req);
     if (!userID) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ message: 'Authentication required' });
     }
     const userId = String(userID);
 
@@ -328,20 +327,18 @@ export const updateAnalytics = async (req: Request, res: Response) => {
 
     await getDb()
       .insert(userAnalytics)
-      .values(
-        ANALYTICS_PERIODS.map((period) => ({ userId, period, date, ...increment }))
-      )
+      .values(ANALYTICS_PERIODS.map((period) => ({ userId, period, date, ...increment })))
       .onConflictDoUpdate({
         target: [userAnalytics.userId, userAnalytics.period, userAnalytics.date],
         set: bumped,
       });
 
-    res.json({ message: "Analytics updated successfully" });
+    res.json({ message: 'Analytics updated successfully' });
   } catch (error) {
     logger.error('Error updating analytics:', error);
     res.status(500).json({
-      message: "Error updating analytics",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: 'Error updating analytics',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };
@@ -365,7 +362,7 @@ export const updateAnalytics = async (req: Request, res: Response) => {
 export const getContentViewers = (req: Request, res: Response) => {
   const userID = getAuthenticatedAnalyticsUserId(req);
   if (!userID) {
-    return res.status(401).json({ message: "Authentication required" });
+    return res.status(401).json({ message: 'Authentication required' });
   }
 
   res.json([]);
@@ -386,7 +383,7 @@ export const getFollowerDetails = async (req: Request, res: Response) => {
   try {
     const userID = getAuthenticatedAnalyticsUserId(req);
     if (!userID) {
-      return res.status(401).json({ message: "Authentication required" });
+      return res.status(401).json({ message: 'Authentication required' });
     }
     const userId = String(userID);
 
@@ -435,8 +432,8 @@ export const getFollowerDetails = async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching follower details:', error);
     res.status(500).json({
-      message: "Error fetching follower details",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: 'Error fetching follower details',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 };

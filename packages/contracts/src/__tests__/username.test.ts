@@ -62,7 +62,7 @@ describe('usernameSchema', () => {
       'accepts the cost-centre slug %s',
       (slug) => {
         expect(usernameSchema.safeParse(slug).success).toBe(true);
-      }
+      },
     );
   });
 
@@ -77,7 +77,10 @@ describe('usernameSchema', () => {
       ['alice!', 'punctuation'],
       ['alice@oxy.so', 'the federated form belongs to another namespace'],
       ['añejo', 'non-ASCII'],
-      ['ali ce', 'a non-breaking space is invisible, and would produce two identical-looking accounts'],
+      [
+        'ali ce',
+        'a non-breaking space is invisible, and would produce two identical-looking accounts',
+      ],
     ])('rejects %s (%s)', (username) => {
       expect(usernameSchema.safeParse(username).success).toBe(false);
     });
@@ -88,14 +91,14 @@ describe('usernameSchema', () => {
       'rejects %s: a handle starts and ends alphanumeric',
       (username) => {
         expect(usernameSchema.safeParse(username).success).toBe(false);
-      }
+      },
     );
 
     it.each(['a--b', 'a__b', 'a-_b', 'a_-b'])(
       'rejects %s: never two separators in a row',
       (username) => {
         expect(usernameSchema.safeParse(username).success).toBe(false);
-      }
+      },
     );
   });
 
@@ -161,7 +164,7 @@ describe('reserved usernames', () => {
     'rejects %s: comparison folds case and trims, like the unique index',
     (candidate) => {
       expect(usernameSchema.safeParse(candidate).success).toBe(false);
-    }
+    },
   );
 
   it('says the name is reserved, not that the shape is wrong', () => {
@@ -175,7 +178,7 @@ describe('reserved usernames', () => {
     'does not reach %s: a substring is not a separated segment',
     (candidate) => {
       expect(usernameSchema.safeParse(candidate).success).toBe(true);
-    }
+    },
   );
 
   it('reaches a bot handle too, since the bot schema only tightens the base policy', () => {
@@ -191,14 +194,14 @@ describe('reserved usernames', () => {
       'rejects %s',
       (candidate) => {
         expect(usernameSchema.safeParse(candidate).success).toBe(false);
-      }
+      },
     );
 
     it.each(['superman', 'modern', 'grassroot', 'homeowner', 'ecosystem', 'helper'])(
       'accepts %s: no separator isolates the reserved word from the rest',
       (candidate) => {
         expect(usernameSchema.safeParse(candidate).success).toBe(true);
-      }
+      },
     );
 
     /**
@@ -210,7 +213,7 @@ describe('reserved usernames', () => {
       'accepts the cost-centre slug %s: alia is exempt from segment matching',
       (candidate) => {
         expect(usernameSchema.safeParse(candidate).success).toBe(true);
-      }
+      },
     );
 
     it('still refuses the bare word the segment exemption is about', () => {
@@ -220,12 +223,9 @@ describe('reserved usernames', () => {
 });
 
 describe('usernames that are only digits', () => {
-  it.each(['123', '1234', '0000', '9'.repeat(USERNAME_MAX_LENGTH)])(
-    'rejects %s',
-    (candidate) => {
-      expect(usernameSchema.safeParse(candidate).success).toBe(false);
-    }
-  );
+  it.each(['123', '1234', '0000', '9'.repeat(USERNAME_MAX_LENGTH)])('rejects %s', (candidate) => {
+    expect(usernameSchema.safeParse(candidate).success).toBe(false);
+  });
 
   it('says the number is the problem', () => {
     const parsed = usernameSchema.safeParse('1234');
@@ -238,7 +238,7 @@ describe('usernames that are only digits', () => {
     'accepts %s: at least one non-digit keeps it a handle, not a number',
     (candidate) => {
       expect(usernameSchema.safeParse(candidate).success).toBe(true);
-    }
+    },
   );
 });
 
@@ -285,10 +285,14 @@ describe('stripDisallowedUsernameCharacters', () => {
 describe('a slug generator can be built on this without re-deriving it', () => {
   /** The shape of Alia's generator, expressed against the policy instead of a copy. */
   function suggest(displayName: string): string | null {
-    const slug = stripDisallowedUsernameCharacters(
-      displayName.trim().replace(/\s+/g, '-')
-    ).replace(/[-_]{2,}/g, '-');
-    const trimmed = slug.replace(/^[-_]+/, '').replace(/[-_]+$/, '').slice(0, USERNAME_MAX_LENGTH);
+    const slug = stripDisallowedUsernameCharacters(displayName.trim().replace(/\s+/g, '-')).replace(
+      /[-_]{2,}/g,
+      '-',
+    );
+    const trimmed = slug
+      .replace(/^[-_]+/, '')
+      .replace(/[-_]+$/, '')
+      .slice(0, USERNAME_MAX_LENGTH);
     return isValidUsername(trimmed) ? trimmed : null;
   }
 
@@ -358,7 +362,7 @@ describe('a bot account labels itself in its handle', () => {
       'accepts %s, because the index cannot tell it from the lower-case form',
       (username) => {
         expect(botUsernameSchema.safeParse(username).success).toBe(true);
-      }
+      },
     );
 
     it('returns the handle as typed, capitals and all', () => {
@@ -403,7 +407,7 @@ describe('a bot account labels itself in its handle', () => {
       expect(botUsernameSchema.safeParse('-mybot').success).toBe(false);
       expect(botUsernameSchema.safeParse('my--bot').success).toBe(false);
       expect(botUsernameSchema.safeParse(`${'a'.repeat(USERNAME_MAX_LENGTH)}bot`).success).toBe(
-        false
+        false,
       );
     });
   });
@@ -419,14 +423,14 @@ describe('a bot account labels itself in its handle', () => {
       '%s is governed by the unchanged policy',
       (kind) => {
         expect(usernameSchemaForAccountKind(kind)).toBe(usernameSchema);
-      }
+      },
     );
 
     it.each(['personal', 'organization', 'project', 'channel'] as const)(
       'a %s account may hold a handle that does not end in bot',
       (kind) => {
         expect(usernameSchemaForAccountKind(kind).safeParse('community-guide').success).toBe(true);
-      }
+      },
     );
 
     it.each(['personal', 'organization', 'project', 'channel'] as const)(
@@ -435,12 +439,12 @@ describe('a bot account labels itself in its handle', () => {
         // The rule says what a bot's handle must look like, not that the label is
         // reserved. `robot` and `abbot` are ordinary words.
         expect(usernameSchemaForAccountKind(kind).safeParse('abbot').success).toBe(true);
-      }
+      },
     );
 
     it('bot is the only kind that gets a different schema', () => {
       const branched = ACCOUNT_KINDS.filter(
-        (kind) => usernameSchemaForAccountKind(kind) !== usernameSchema
+        (kind) => usernameSchemaForAccountKind(kind) !== usernameSchema,
       );
 
       expect(branched).toEqual(['bot']);
@@ -470,7 +474,7 @@ describe('a bot account labels itself in its handle', () => {
       (handle) => {
         expect(usernameSchema.safeParse(handle).success).toBe(false);
         expect(botUsernameSchema.safeParse(handle).success).toBe(false);
-      }
+      },
     );
   });
 });

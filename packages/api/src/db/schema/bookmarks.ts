@@ -30,5 +30,5 @@ export const bookmarks = pgTable(
   // Every read of a bookmark is "this user's bookmarks". Mongo declared no index
   // at all here, so that read was a collection scan; a supporting index is the
   // schema this table would have had if it had been designed on Postgres.
-  (t) => [index('bookmarks_user_id_idx').on(t.userId)]
+  (t) => [index('bookmarks_user_id_idx').on(t.userId)],
 );

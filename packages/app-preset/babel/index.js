@@ -20,9 +20,7 @@
 module.exports = function oxyBabelPreset(api) {
   api.cache(true);
   return {
-    presets: [
-      ['babel-preset-expo', { unstable_transformImportMeta: true }],
-    ],
+    presets: [['babel-preset-expo', { unstable_transformImportMeta: true }]],
     plugins: [
       // The module-resolver must come first for correct module resolution.
       [

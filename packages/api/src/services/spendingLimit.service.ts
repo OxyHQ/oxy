@@ -143,7 +143,7 @@ export async function evaluateSpendingLimits(
   scope: SpendingScope,
   currency: string,
   additionalAmount: string,
-  recordNotifications = true
+  recordNotifications = true,
 ): Promise<SpendingLimitEvaluation> {
   const ancestorRows = await tx
     .select({ ancestorId: userAncestors.ancestorId })
@@ -161,9 +161,9 @@ export async function evaluateSpendingLimits(
         or(
           inArray(spendingLimits.scopeAccountId, accountScopeTargets),
           eq(spendingLimits.scopeApplicationId, scope.applicationId),
-          eq(spendingLimits.scopeApplicationCredentialId, scope.applicationCredentialId)
-        )
-      )
+          eq(spendingLimits.scopeApplicationCredentialId, scope.applicationCredentialId),
+        ),
+      ),
     );
 
   if (applicable.length === 0) {
@@ -174,7 +174,7 @@ export async function evaluateSpendingLimits(
     tx,
     applicable.map((row) => row.id),
     currency,
-    additionalAmount
+    additionalAmount,
   );
 
   const softStopsPassed: SpendingLimitVerdict[] = [];
@@ -217,7 +217,7 @@ export async function readSpendingLimitUtilization(
   tx: DatabaseOrTransaction,
   limitIds: readonly string[],
   currency: string,
-  additionalAmount: string
+  additionalAmount: string,
 ): Promise<SpendingLimitUtilizationRow[]> {
   if (limitIds.length === 0) return [];
 
@@ -334,7 +334,7 @@ export async function readSpendingLimitUtilization(
         (t.current_spend + ${additionalAmount}::numeric > t.limit_amount) as exceeded
       from totalled t
       order by t.enforcement, t.id
-    `
+    `,
   );
 }
 
@@ -354,7 +354,7 @@ export async function readSpendingLimitUtilization(
  */
 async function recordThresholdCrossings(
   tx: DatabaseOrTransaction,
-  rows: readonly SpendingLimitUtilizationRow[]
+  rows: readonly SpendingLimitUtilizationRow[],
 ): Promise<void> {
   const candidates = rows.filter((row) => row.alert_threshold_bps.length > 0);
   if (candidates.length === 0) return;
@@ -375,7 +375,7 @@ async function recordThresholdCrossings(
         where ${row.projected_spend}::numeric
               >= ${row.limit_amount}::numeric * threshold.bps
                  / ${sql.raw(String(BASIS_POINTS))}::numeric
-      `
+      `,
     );
     for (const bps of decision?.crossed ?? []) {
       crossings.push({
@@ -417,7 +417,7 @@ export interface SpendingLimitAlertRow {
  */
 export async function listSpendingLimitAlerts(
   accountId: string,
-  limit = 50
+  limit = 50,
 ): Promise<SpendingLimitAlertRow[]> {
   const rows = await executeRows<{
     id: string;
@@ -441,7 +441,7 @@ export async function listSpendingLimitAlerts(
       where sl.account_id = ${accountId}
       order by n.created_at desc
       limit ${limit}
-    `
+    `,
   );
 
   return rows.map((row) => ({

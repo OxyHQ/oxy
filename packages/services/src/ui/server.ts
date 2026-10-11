@@ -38,23 +38,20 @@ export const ProfileScreen = noopComponent;
 export const useAuthStore = noopHook;
 
 // Toast (noop)
-export const toast = Object.assign(
-    () => {},
-    {
-        success: () => {},
-        error: () => {},
-        info: () => {},
-        warning: () => {},
-        loading: () => {},
-        dismiss: () => {},
-    }
-);
+export const toast = Object.assign(() => {}, {
+  success: () => {},
+  error: () => {},
+  info: () => {},
+  warning: () => {},
+  loading: () => {},
+  dismiss: () => {},
+});
 
 // Error handler utilities (pure functions work everywhere)
 export {
-    handleAuthError,
-    isInvalidSessionError,
-    isTimeoutOrNetworkError,
-    extractErrorMessage,
+  handleAuthError,
+  isInvalidSessionError,
+  isTimeoutOrNetworkError,
+  extractErrorMessage,
 } from './utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './utils/errorHandlers';

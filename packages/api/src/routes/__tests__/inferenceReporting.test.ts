@@ -44,7 +44,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string }; oxyToken?: { principalUserId: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: currentUserId, id: currentUserId };
     if (!sessionMissing && !sessionUnreadable) {
@@ -78,7 +78,10 @@ import { usageReservations } from '../../db/schema/usageReservations';
 import { userAncestors } from '../../db/schema/userAncestors';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import reportingRouter, { REPORTING_SERVICE_READS_PER_15_MINUTES, reportingServiceRateLimitKey } from '../inferenceReporting';
+import reportingRouter, {
+  REPORTING_SERVICE_READS_PER_15_MINUTES,
+  reportingServiceRateLimitKey,
+} from '../inferenceReporting';
 import type { AccountRole } from '../../utils/accountRoles';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
@@ -89,7 +92,12 @@ let sessionMissing = false;
 let sessionUnreadable = false;
 let spoofedOperatorId = '';
 
-beforeEach(() => { currentOperatorId = null; sessionMissing = false; sessionUnreadable = false; spoofedOperatorId = ''; });
+beforeEach(() => {
+  currentOperatorId = null;
+  sessionMissing = false;
+  sessionUnreadable = false;
+  spoofedOperatorId = '';
+});
 
 interface JsonResponse {
   status: number;
@@ -101,7 +109,7 @@ interface JsonResponse {
 function request(
   method: 'GET' | 'POST' | 'PATCH',
   path: string,
-  options: { token?: string; body?: unknown } = {}
+  options: { token?: string; body?: unknown } = {},
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = options.body === undefined ? undefined : JSON.stringify(options.body);
@@ -137,7 +145,7 @@ function request(
           }
           resolve({ status: res.statusCode ?? 0, body, raw, headers: res.headers });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -164,7 +172,7 @@ async function seedAccount(kind: 'personal' | 'organization' | 'project' = 'pers
 async function seedMember(
   accountId: string,
   memberUserId: string,
-  role: AccountRole
+  role: AccountRole,
 ): Promise<void> {
   await getDb()
     .insert(accountMembers)
@@ -227,7 +235,7 @@ async function provisionBalance(
     invoicedOutstanding?: string;
     billingMode?: 'prepaid' | 'invoiced';
     creditLimit?: string;
-  } = {}
+  } = {},
 ): Promise<void> {
   await getDb()
     .insert(billingProfiles)
@@ -369,25 +377,21 @@ async function seedReservation(input: {
   return row.id;
 }
 
-function serviceToken(input: {
-  appId: string;
-  ownerAccountId: string;
-  scopes: string[];
-}): string {
+function serviceToken(input: { appId: string; ownerAccountId: string; scopes: string[] }): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: input.appId,
-      appName: 'Fixture App',
-      credentialId: `cred-${tag()}`,
-      ownerAccountId: input.ownerAccountId,
-      environment: 'production',
-      scopes: input.scopes,
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: input.appId,
+    appName: 'Fixture App',
+    credentialId: `cred-${tag()}`,
+    ownerAccountId: input.ownerAccountId,
+    environment: 'production',
+    scopes: input.scopes,
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 /** An owner account with one application, one credential and a balance. */
@@ -416,7 +420,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -440,7 +444,7 @@ describe('a usage aggregate and a billed total come from different tables', () =
 
     const usage = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`,
     );
     expect(usage.status).toBe(200);
     const usageData = usage.body.data as {
@@ -458,7 +462,7 @@ describe('a usage aggregate and a billed total come from different tables', () =
     // something here. The ledger holds nothing, so it reports nothing.
     const spend = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`,
     );
     expect(spend.status).toBe(200);
     const spendData = spend.body.data as {
@@ -487,7 +491,7 @@ describe('a usage aggregate and a billed total come from different tables', () =
 
     const spend = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`,
     );
     expect(spend.status).toBe(200);
     const spendData = spend.body.data as {
@@ -501,7 +505,7 @@ describe('a usage aggregate and a billed total come from different tables', () =
     // …and the usage report, reading only the rollups, has nothing to say.
     const usage = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`,
     );
     expect(usage.status).toBe(200);
     expect((usage.body.data as { rows: unknown[] }).rows).toEqual([]);
@@ -527,7 +531,7 @@ describe('a usage aggregate and a billed total come from different tables', () =
     currentUserId = tenant.owner;
     const usage = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`,
     );
     expect(usage.status).toBe(200);
     // Named against the receipt's amount specifically: if the usage surface ever
@@ -568,11 +572,12 @@ describe('an aggregate over more than one row adds', () => {
     currentUserId = tenant.owner;
     const usage = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}&groupBy=day`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}&groupBy=day`,
     );
     expect(usage.status).toBe(200);
-    const rows = (usage.body.data as { rows: { requestCount: number; units: Record<string, number> }[] })
-      .rows;
+    const rows = (
+      usage.body.data as { rows: { requestCount: number; units: Record<string, number> }[] }
+    ).rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].requestCount).toBe(5);
     // "30004000" is what a JavaScript `+` over two driver-decoded strings gives.
@@ -596,7 +601,7 @@ describe('an aggregate over more than one row adds', () => {
     currentUserId = tenant.owner;
     const spend = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}&groupBy=day`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}&groupBy=day`,
     );
     expect(spend.status).toBe(200);
     const totals = (spend.body.data as { totals: { billedAmount: string; receiptCount: number }[] })
@@ -624,11 +629,16 @@ describe('an aggregate over more than one row adds', () => {
     currentUserId = tenant.owner;
     const spend = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`,
     );
     const totals = (
       spend.body.data as {
-        totals: { billedAmount: string; refundedAmount: string; netAmount: string; receiptCount: number }[];
+        totals: {
+          billedAmount: string;
+          refundedAmount: string;
+          netAmount: string;
+          receiptCount: number;
+        }[];
       }
     ).totals;
     expect(totals[0].receiptCount).toBe(1);
@@ -690,7 +700,7 @@ describe('another account is not readable, and is not an existence oracle', () =
     currentUserId = developer;
     const refused = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`,
     );
     // 403, not 404: this caller legitimately reaches the account, and telling
     // them they lack a permission reveals nothing they did not already know.
@@ -703,7 +713,7 @@ describe('another account is not readable, and is not an existence oracle', () =
     currentUserId = analyst;
     const permitted = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/spend?${WINDOW}`,
     );
     expect(permitted.status).toBe(200);
   });
@@ -720,7 +730,7 @@ describe('a balance keeps purchased, promotional and reserved apart', () => {
 
     const response = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/balance`
+      `/inference/reporting/accounts/${tenant.account}/balance`,
     );
     expect(response.status).toBe(200);
     const data = response.body.data as {
@@ -747,7 +757,7 @@ describe('a balance keeps purchased, promotional and reserved apart', () => {
 
     const response = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/balance`
+      `/inference/reporting/accounts/${tenant.account}/balance`,
     );
     expect(response.status).toBe(200);
     const data = response.body.data as { provisioned: boolean; balances: unknown[] };
@@ -779,7 +789,7 @@ describe('a hold is not a charge', () => {
     currentUserId = tenant.owner;
     const held = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/reservations`
+      `/inference/reporting/accounts/${tenant.account}/reservations`,
     );
     expect(held.status).toBe(200);
     const heldData = held.body.data as {
@@ -794,7 +804,7 @@ describe('a hold is not a charge', () => {
     // The charges list is the other side and is empty: nothing was settled.
     const charges = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/charges?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/charges?${WINDOW}`,
     );
     expect(charges.status).toBe(200);
     expect((charges.body.data as { rows: unknown[] }).rows).toEqual([]);
@@ -815,7 +825,7 @@ describe('a hold is not a charge', () => {
     currentUserId = tenant.owner;
     const charges = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/charges?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/charges?${WINDOW}`,
     );
     expect(charges.status).toBe(200);
     const rows = (
@@ -859,17 +869,18 @@ describe('an organization can see its projects, but only when it asks', () => {
 
     const own = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}`,
     );
     expect(own.status).toBe(200);
     expect((own.body.data as { rows: unknown[] }).rows).toEqual([]);
 
     const subtree = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}&includeDescendants=true&groupBy=account`
+      `/inference/reporting/accounts/${tenant.account}/usage?${WINDOW}&includeDescendants=true&groupBy=account`,
     );
     expect(subtree.status).toBe(200);
-    const rows = (subtree.body.data as { rows: { accountId: string; requestCount: number }[] }).rows;
+    const rows = (subtree.body.data as { rows: { accountId: string; requestCount: number }[] })
+      .rows;
     expect(rows).toHaveLength(1);
     expect(rows[0].accountId).toBe(project);
     expect(rows[0].requestCount).toBe(7);
@@ -897,7 +908,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'monthly',
           limitAmount: '100',
         },
-      }
+      },
     );
     expect(refused.status).toBe(403);
     expect(String(refused.body.message)).toContain('billing:manage');
@@ -915,7 +926,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           limitAmount: '100',
           alertThresholdBps: [7500],
         },
-      }
+      },
     );
     expect(created.status).toBe(201);
     const budget = created.body.data as {
@@ -948,7 +959,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'monthly',
           limitAmount: '50',
         },
-      }
+      },
     );
     expect(refused.status).toBe(404);
 
@@ -965,7 +976,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'monthly',
           limitAmount: '50',
         },
-      }
+      },
     );
     expect(missing.status).toBe(404);
     expect(missing.body.message).toBe(refused.body.message);
@@ -995,7 +1006,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'total',
           limitAmount: '10',
         },
-      }
+      },
     );
     expect(created.status).toBe(201);
 
@@ -1018,7 +1029,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
 
     const listed = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/spending-limits`
+      `/inference/reporting/accounts/${tenant.account}/spending-limits`,
     );
     expect(listed.status).toBe(200);
     const rows = (
@@ -1046,16 +1057,14 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'daily',
           limitAmount: '20',
         },
-      }
+      },
     );
     expect(created.status).toBe(201);
     const budgetId = (created.body.data as { spendingLimitId: string }).spendingLimitId;
 
-    const updated = await request(
-      'PATCH',
-      `/inference/reporting/spending-limits/${budgetId}`,
-      { body: { limitAmount: '40', enforcement: 'soft_stop', status: 'disabled' } }
-    );
+    const updated = await request('PATCH', `/inference/reporting/spending-limits/${budgetId}`, {
+      body: { limitAmount: '40', enforcement: 'soft_stop', status: 'disabled' },
+    });
     expect(updated.status).toBe(200);
     const view = updated.body.data as {
       limitAmount: string;
@@ -1066,11 +1075,9 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
     expect(view.enforcement).toBe('soft_stop');
     expect(view.status).toBe('disabled');
 
-    const repointed = await request(
-      'PATCH',
-      `/inference/reporting/spending-limits/${budgetId}`,
-      { body: { scopeAccountId: 'somewhere-else' } }
-    );
+    const repointed = await request('PATCH', `/inference/reporting/spending-limits/${budgetId}`, {
+      body: { scopeAccountId: 'somewhere-else' },
+    });
     expect(repointed.status).toBe(400);
   });
 
@@ -1087,17 +1094,15 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
           period: 'weekly',
           limitAmount: '30',
         },
-      }
+      },
     );
     const budgetId = (created.body.data as { spendingLimitId: string }).spendingLimitId;
 
     const stranger = await seedAccount();
     currentUserId = stranger;
-    const refused = await request(
-      'PATCH',
-      `/inference/reporting/spending-limits/${budgetId}`,
-      { body: { limitAmount: '1000' } }
-    );
+    const refused = await request('PATCH', `/inference/reporting/spending-limits/${budgetId}`, {
+      body: { limitAmount: '1000' },
+    });
     expect(refused.status).toBe(404);
 
     // Same refusal, word for word, as a budget id that does not exist — so the
@@ -1105,7 +1110,7 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
     const missing = await request(
       'PATCH',
       '/inference/reporting/spending-limits/budget-that-does-not-exist',
-      { body: { limitAmount: '1000' } }
+      { body: { limitAmount: '1000' } },
     );
     expect(missing.status).toBe(404);
     expect(missing.body.message).toBe(refused.body.message);
@@ -1114,11 +1119,9 @@ describe('a budget needs billing:manage and cannot escape its account', () => {
     // POSITIVE CONTROL: the owner's identical edit succeeds, so the 404 above
     // was the gate rather than a broken route.
     currentUserId = tenant.owner;
-    const permitted = await request(
-      'PATCH',
-      `/inference/reporting/spending-limits/${budgetId}`,
-      { body: { limitAmount: '1000' } }
-    );
+    const permitted = await request('PATCH', `/inference/reporting/spending-limits/${budgetId}`, {
+      body: { limitAmount: '1000' },
+    });
     expect(permitted.status).toBe(200);
   });
 });
@@ -1147,7 +1150,7 @@ describe('a service credential reaches only its own application', () => {
     const response = await request(
       'GET',
       `/inference/reporting/applications/${tenant.applicationId}/usage?${WINDOW}`,
-      { token }
+      { token },
     );
     expect(response.status).toBe(200);
     const rows = (response.body.data as { rows: { requestCount: number }[] }).rows;
@@ -1167,7 +1170,7 @@ describe('a service credential reaches only its own application', () => {
     const refused = await request(
       'GET',
       `/inference/reporting/applications/${mine.applicationId}/usage?${WINDOW}`,
-      { token: unscoped }
+      { token: unscoped },
     );
     expect(refused.status).toBe(403);
     expect(String(refused.body.message)).toContain('inference:usage:read');
@@ -1180,7 +1183,7 @@ describe('a service credential reaches only its own application', () => {
     const crossTenant = await request(
       'GET',
       `/inference/reporting/applications/${theirs.applicationId}/usage?${WINDOW}`,
-      { token: scoped }
+      { token: scoped },
     );
     expect(crossTenant.status).toBe(404);
 
@@ -1188,7 +1191,7 @@ describe('a service credential reaches only its own application', () => {
     const own = await request(
       'GET',
       `/inference/reporting/applications/${mine.applicationId}/usage?${WINDOW}`,
-      { token: scoped }
+      { token: scoped },
     );
     expect(own.status).toBe(200);
   });
@@ -1204,7 +1207,7 @@ describe('a service credential reaches only its own application', () => {
     const refused = await request(
       'GET',
       `/inference/reporting/accounts/${tenant.account}/balance`,
-      { token }
+      { token },
     );
     expect(refused.status).toBe(404);
 
@@ -1212,7 +1215,7 @@ describe('a service credential reaches only its own application', () => {
     currentUserId = tenant.owner;
     const permitted = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/balance`
+      `/inference/reporting/accounts/${tenant.account}/balance`,
     );
     expect(permitted.status).toBe(200);
   });
@@ -1237,7 +1240,7 @@ describe('a service credential reaches only its own application', () => {
     currentUserId = tenant.owner;
     const response = await request(
       'GET',
-      `/inference/reporting/applications/${tenant.applicationId}/spend?${WINDOW}&groupBy=resolvedModel,provider`
+      `/inference/reporting/applications/${tenant.applicationId}/spend?${WINDOW}&groupBy=resolvedModel,provider`,
     );
     expect(response.status).toBe(200);
     const rows = (
@@ -1273,7 +1276,7 @@ describe('the reconciliation export renders the ledger, and only the ledger', ()
     currentUserId = tenant.owner;
     const response = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/charges/export?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/charges/export?${WINDOW}`,
     );
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/csv');
@@ -1296,7 +1299,7 @@ describe('the reconciliation export renders the ledger, and only the ledger', ()
     currentUserId = stranger;
     const refused = await request(
       'GET',
-      `/inference/reporting/accounts/${tenant.account}/charges/export?${WINDOW}`
+      `/inference/reporting/accounts/${tenant.account}/charges/export?${WINDOW}`,
     );
     expect(refused.status).toBe(404);
   });
@@ -1307,14 +1310,16 @@ describe('the reconciliation export renders the ledger, and only the ledger', ()
 describe('service rate-limit partitioning', () => {
   it('uses exact app+credential buckets and service-sized budgets', () => {
     const requestFor = (appId: string, credentialId: string) =>
-      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<typeof reportingServiceRateLimitKey>[0];
+      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<
+        typeof reportingServiceRateLimitKey
+      >[0];
 
     expect(reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
     expect(reportingServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
-      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(reportingServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
-      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      reportingServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(REPORTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
   });
@@ -1335,24 +1340,37 @@ describe('managed-session billing uses the verified operator membership', () => 
     currentOperatorId = operator;
     const response = await request('GET', `/inference/reporting/accounts/${workspace}/balance`);
     expect(response.status).toBe(200);
-    expect(response.body.data).toMatchObject({ accountId: workspace, provisioned: false, balances: [] });
+    expect(response.body.data).toMatchObject({
+      accountId: workspace,
+      provisioned: false,
+      balances: [],
+    });
     currentUserId = operator;
     currentOperatorId = null;
-    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(200);
+    expect(
+      (await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status,
+    ).toBe(200);
   });
   it('refuses an unrelated operator although the subject is the target workspace', async () => {
     const { workspace, operator, stranger } = await managedBillingFixture();
     spoofedOperatorId = operator;
     currentUserId = workspace;
     currentOperatorId = stranger;
-    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(404);
+    expect(
+      (await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status,
+    ).toBe(404);
   });
-  it.each(['missing', 'unreadable'] as const)('fails closed for a %s operator session', async (failure) => {
-    const { workspace, operator } = await managedBillingFixture();
-    currentUserId = workspace;
-    currentOperatorId = operator;
-    sessionMissing = failure === 'missing';
-    sessionUnreadable = failure === 'unreadable';
-    expect((await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status).toBe(404);
-  });
+  it.each(['missing', 'unreadable'] as const)(
+    'fails closed for a %s operator session',
+    async (failure) => {
+      const { workspace, operator } = await managedBillingFixture();
+      currentUserId = workspace;
+      currentOperatorId = operator;
+      sessionMissing = failure === 'missing';
+      sessionUnreadable = failure === 'unreadable';
+      expect(
+        (await request('GET', `/inference/reporting/accounts/${workspace}/balance`)).status,
+      ).toBe(404);
+    },
+  );
 });

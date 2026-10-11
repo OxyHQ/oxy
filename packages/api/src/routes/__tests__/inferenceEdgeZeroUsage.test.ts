@@ -101,8 +101,8 @@ function json(response: RawResponse): Record<string, unknown> {
 async function withServer(
   kaanaClient: KaanaClient,
   run: (
-    request: (path: string, body: unknown, headers: Record<string, string>) => Promise<RawResponse>
-  ) => Promise<void>
+    request: (path: string, body: unknown, headers: Record<string, string>) => Promise<RawResponse>,
+  ) => Promise<void>,
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
@@ -115,7 +115,7 @@ async function withServer(
   const request = (
     path: string,
     body: unknown,
-    headers: Record<string, string>
+    headers: Record<string, string>,
   ): Promise<RawResponse> => {
     const { port } = server.address() as AddressInfo;
     const payload = JSON.stringify(body);
@@ -136,9 +136,9 @@ async function withServer(
           const chunks: Buffer[] = [];
           res.on('data', (chunk: Buffer) => chunks.push(chunk));
           res.on('end', () =>
-            resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') })
+            resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }),
           );
-        }
+        },
       );
       req.on('error', reject);
       req.write(payload);
@@ -170,7 +170,7 @@ const ROLLOUT_ENVIRONMENT = {
 } as const;
 
 const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
-  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -292,10 +292,30 @@ async function makeFixture(): Promise<Fixture> {
 
   await db.insert(priceVersionUnitPrices).values([
     { priceVersionId: priceVersion.id, unit: 'requests', amount: '0.000000000000', per: 1 },
-    { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'cached_input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'output_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'reasoning_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
   ]);
 
   await db.insert(inferenceDeployments).values({
@@ -353,7 +373,7 @@ async function makeFixture(): Promise<Fixture> {
 function kaanaReporting(
   units: readonly { unit: 'input_tokens' | 'output_tokens'; quantity: number }[],
   provider: string,
-  seen: InferenceRequest[]
+  seen: InferenceRequest[],
 ): KaanaClient {
   return {
     attestDeployments: attestFixtureDeployments,
@@ -478,7 +498,9 @@ describe('a completed report that metered nothing', () => {
     // And it is NOT the ledger refusal: nothing reported a settlement failure,
     // which is what distinguishes this half from the next test.
     expect(
-      mockedLogger.error.mock.calls.filter((call) => call[0] === 'inference.edge.settlement_failed')
+      mockedLogger.error.mock.calls.filter(
+        (call) => call[0] === 'inference.edge.settlement_failed',
+      ),
     ).toHaveLength(0);
   });
 
@@ -496,7 +518,7 @@ describe('a completed report that metered nothing', () => {
           { unit: 'output_tokens', quantity: 0 },
         ],
         fixture.provider,
-        seen
+        seen,
       ),
       async (request) => {
         const response = await request('/v1/responses', body(fixture), bearer(fixture.token));
@@ -504,7 +526,7 @@ describe('a completed report that metered nothing', () => {
         // 200 would hand the customer a free completion no invoice can explain.
         expect(response.status).not.toBe(200);
         expect(json(response)).toMatchObject({ code: 'internal_error' });
-      }
+      },
     );
 
     expect(seen).toHaveLength(1);
@@ -525,7 +547,7 @@ describe('a completed report that metered nothing', () => {
     // Nothing was taken: the total across both buckets is unchanged.
     expect(Number(after.purchased) + Number(after.reserved)).toBeCloseTo(
       Number(before.purchased) + Number(before.reserved),
-      9
+      9,
     );
   });
 
@@ -537,14 +559,14 @@ describe('a completed report that metered nothing', () => {
       kaanaReporting([{ unit: 'input_tokens', quantity: 0 }], fixture.provider, seen),
       async (request) => {
         await request('/v1/responses', body(fixture), bearer(fixture.token));
-      }
+      },
     );
 
     // The generation happened and could not be charged for; that is an Oxy-side
     // failure and it has to be visible, because the customer's refund arrives
     // silently via the sweeper and would otherwise be the only trace.
     const settlementFailures = mockedLogger.error.mock.calls.filter(
-      (call) => call[0] === 'inference.edge.settlement_failed'
+      (call) => call[0] === 'inference.edge.settlement_failed',
     );
     expect(settlementFailures).toHaveLength(1);
     expect(settlementFailures[0][1]).toBeInstanceOf(Error);
@@ -565,7 +587,7 @@ describe('a completed report that metered nothing', () => {
         // The same fixture, the same path, one non-zero unit — served. Without
         // this, every assertion above is also what a wholly broken edge produces.
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const { receipts, reservations } = await ledgerStateOf(fixture.accountId);
@@ -580,7 +602,9 @@ describe('a completed report that metered nothing', () => {
 
     // And no settlement failure was logged — the pair to the loudness assertion.
     expect(
-      mockedLogger.error.mock.calls.filter((call) => call[0] === 'inference.edge.settlement_failed')
+      mockedLogger.error.mock.calls.filter(
+        (call) => call[0] === 'inference.edge.settlement_failed',
+      ),
     ).toHaveLength(0);
   });
 });

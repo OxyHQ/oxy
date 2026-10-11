@@ -231,38 +231,35 @@ export const moderationEffects = pgTable(
       t.incidentId,
       t.principalId,
       t.effectType,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     unique('moderation_effects_event_id_key').on(t.eventId),
 
     // Reversal resolves every effect a decision revision produced.
     index('moderation_effects_decision_id_decision_revision_idx').on(
       t.decisionId,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     // Reconciliation walks an incident's effects across revisions, in revision
     // order — see the header for why this is not `(incident_id, created_at)`.
     index('moderation_effects_incident_id_decision_revision_idx').on(
       t.incidentId,
-      t.decisionRevision
+      t.decisionRevision,
     ),
     // "My own consequences", newest first.
-    index('moderation_effects_principal_id_applied_at_idx').on(
-      t.principalId,
-      t.appliedAt.desc()
-    ),
+    index('moderation_effects_principal_id_applied_at_idx').on(t.principalId, t.appliedAt.desc()),
 
     check(
       'moderation_effects_effect_type_check',
-      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`
+      sql`${t.effectType} in (${sql.raw(inList(MODERATION_EFFECT_TYPES))})`,
     ),
     check(
       'moderation_effects_status_check',
-      sql`${t.status} in (${sql.raw(inList(MODERATION_EFFECT_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(MODERATION_EFFECT_STATUSES))})`,
     ),
     check(
       'moderation_effects_severity_check',
-      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`
+      sql`${t.severity} in (${sql.raw(inList(MODERATION_SEVERITIES))})`,
     ),
     check('moderation_effects_decision_revision_check', sql`${t.decisionRevision} >= 0`),
     // A reversal is whole or absent: `status = 'reversed'` and a `reversed_at`
@@ -270,7 +267,7 @@ export const moderationEffects = pgTable(
     // every reader had to guard for it.
     check(
       'moderation_effects_reversal_complete_check',
-      sql`(${t.status} = 'reversed') = (${t.reversedAt} is not null)`
+      sql`(${t.status} = 'reversed') = (${t.reversedAt} is not null)`,
     ),
-  ]
+  ],
 );

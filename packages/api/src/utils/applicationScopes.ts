@@ -411,7 +411,7 @@ export const FOLLOW_APPLICATION_SCOPES = [
 ] as const satisfies readonly ApplicationScope[];
 
 const FOLLOW_APPLICATION_SCOPE_SET: ReadonlySet<string> = new Set<string>(
-  FOLLOW_APPLICATION_SCOPES
+  FOLLOW_APPLICATION_SCOPES,
 );
 
 /** True when `scope` is authority over the user's follow graph. */
@@ -518,7 +518,7 @@ export const USER_CONSENT_REQUIRED_SCOPES = [
 ] as const satisfies readonly ApplicationScope[];
 
 const USER_CONSENT_REQUIRED_SCOPE_SET: ReadonlySet<string> = new Set<string>(
-  USER_CONSENT_REQUIRED_SCOPES
+  USER_CONSENT_REQUIRED_SCOPES,
 );
 
 /** True when `scope` may never be auto-approved on the user's behalf. */
@@ -549,7 +549,7 @@ export function userConsentRequiredScopes(requested: readonly string[]): string[
 export const SERVICE_ACCOUNT_SWITCH_SCOPE: ApplicationScope = 'accounts:act-as-session';
 
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
-  PRIVILEGED_APPLICATION_SCOPES
+  PRIVILEGED_APPLICATION_SCOPES,
 );
 
 const APPLICATION_SCOPE_SET: ReadonlySet<string> = new Set<string>(APPLICATION_SCOPES);
@@ -582,7 +582,7 @@ export const PAYMENTS_APPLICATION_SCOPES = [
 ] as const satisfies readonly ApplicationScope[];
 
 const PAYMENTS_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
-  PAYMENTS_APPLICATION_SCOPES
+  PAYMENTS_APPLICATION_SCOPES,
 );
 
 /** True when `scope` is one of the Peable Gateway scopes. */
@@ -600,7 +600,7 @@ export function isPaymentsScope(scope: string): scope is ApplicationScope {
  */
 export function intersectScopes(
   credentialScopes: readonly string[],
-  appScopes: readonly string[]
+  appScopes: readonly string[],
 ): ApplicationScope[] {
   const granted = new Set<string>(appScopes);
   const result: ApplicationScope[] = [];
@@ -640,11 +640,12 @@ export function intersectScopes(
  */
 export function workloadBindingScopes(
   bindingScopes: readonly string[],
-  appScopes: readonly string[]
+  appScopes: readonly string[],
 ): ApplicationScope[] {
   if (bindingScopes.length > 0) return intersectScopes(bindingScopes, appScopes);
   return appScopes.filter(
-    (scope): scope is ApplicationScope => isValidApplicationScope(scope) && !isPrivilegedScope(scope)
+    (scope): scope is ApplicationScope =>
+      isValidApplicationScope(scope) && !isPrivilegedScope(scope),
   );
 }
 
@@ -666,7 +667,7 @@ export function workloadBindingScopes(
  */
 export function unionValidScopes(
   canonicalScopes: readonly string[],
-  existingScopes: readonly string[]
+  existingScopes: readonly string[],
 ): ApplicationScope[] {
   const result: ApplicationScope[] = [];
   const seen = new Set<string>();

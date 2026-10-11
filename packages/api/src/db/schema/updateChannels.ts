@@ -45,5 +45,5 @@ export const updateChannels = pgTable(
     // upsert. Mongo's standalone `{applicationId}` is dropped: a btree serves
     // any leading prefix, which also covers cascading an application delete.
     unique('update_channels_application_id_name_key').on(t.applicationId, t.name),
-  ]
+  ],
 );

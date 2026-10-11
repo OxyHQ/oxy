@@ -39,7 +39,7 @@ function requestJson(
   target: http.Server,
   method: string,
   path: string,
-  payload?: unknown
+  payload?: unknown,
 ): Promise<JsonResponse> {
   const address = target.address();
   if (address === null || typeof address === 'string') {
@@ -72,7 +72,7 @@ function requestJson(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (body) req.write(body);
@@ -87,7 +87,7 @@ let currentIsStaff = false;
 const insertedNames: string[] = [];
 
 async function seedTopic(
-  fields: Partial<typeof topics.$inferInsert> & { name: string; slug: string }
+  fields: Partial<typeof topics.$inferInsert> & { name: string; slug: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(topics)
@@ -130,7 +130,7 @@ beforeEach(async () => {
     (req: { user?: unknown }, _res: unknown, next: () => void) => {
       req.user = { _id: 'user-id', id: 'user-id', isStaff: currentIsStaff };
       next();
-    }
+    },
   );
 });
 
@@ -281,8 +281,16 @@ describe('/topics response shape', () => {
 
 describe('/topics search — Mongo `$text` semantics', () => {
   it('matches on ANY term, not all of them', async () => {
-    await seedTopic({ name: 'urban gardening', slug: 'urban-gardening', displayName: 'Urban Gardening' });
-    await seedTopic({ name: 'quantum physics', slug: 'quantum-physics', displayName: 'Quantum Physics' });
+    await seedTopic({
+      name: 'urban gardening',
+      slug: 'urban-gardening',
+      displayName: 'Urban Gardening',
+    });
+    await seedTopic({
+      name: 'quantum physics',
+      slug: 'quantum-physics',
+      displayName: 'Quantum Physics',
+    });
 
     const res = await requestJson(server, 'GET', '/topics/search?q=gardening%20physics');
 

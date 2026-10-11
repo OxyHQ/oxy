@@ -6,24 +6,12 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@oxy.so/services": [
-        "../services/src"
-      ],
-      "@oxy.so/services/*": [
-        "../services/src/*"
-      ],
-      "@oxy.so/services/core": [
-        "../services/src/core"
-      ],
-      "@oxy.so/services/full": [
-        "../services/src"
-      ],
-      "@oxy.so/services/ui": [
-        "../services/src/ui"
-      ]
+      "@/*": ["./*"],
+      "@oxy.so/services": ["../services/src"],
+      "@oxy.so/services/*": ["../services/src/*"],
+      "@oxy.so/services/core": ["../services/src/core"],
+      "@oxy.so/services/full": ["../services/src"],
+      "@oxy.so/services/ui": ["../services/src/ui"]
     }
   },
   "include": [
@@ -36,8 +24,5 @@
     "nativewind-env.d.ts"
   ],
   "extends": "expo/tsconfig.base",
-  "exclude": [
-    "node_modules",
-    "../services/src/**/__tests__/**"
-  ]
+  "exclude": ["node_modules", "../services/src/**/__tests__/**"]
 }

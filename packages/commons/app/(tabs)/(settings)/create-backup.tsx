@@ -9,11 +9,7 @@ import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  ImportantBanner,
-  KeyboardAwareScrollViewWrapper,
-  StackHeader,
-} from '@/components/ui';
+import { ImportantBanner, KeyboardAwareScrollViewWrapper, StackHeader } from '@/components/ui';
 import { PhraseInputGrid } from '@/components/auth/PhraseInputGrid';
 import { useTranslation } from '@/lib/i18n';
 import { authenticate } from '@/lib/biometricAuth';
@@ -50,8 +46,8 @@ export default function CreateBackupScreen() {
 
   const [identityStatus, setIdentityStatus] = useState<IdentityStatus>('checking');
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
-  const [phraseWords, setPhraseWords] = useState<string[]>(
-    () => new Array(RECOVERY_PHRASE_LENGTH).fill(''),
+  const [phraseWords, setPhraseWords] = useState<string[]>(() =>
+    new Array(RECOVERY_PHRASE_LENGTH).fill(''),
   );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -162,49 +158,55 @@ export default function CreateBackupScreen() {
 
   const handleDelete = useCallback(() => {
     if (!oxyServices) return;
-    alert(
-      t('backup.deleteConfirmTitle'),
-      t('backup.deleteConfirmBody'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('backup.delete'),
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setIsDeleting(true);
-              try {
-                await oxyServices.identity.backup.delete();
-                setBackupStatus({ exists: false });
-                toast.success(t('backup.deleteSuccess'));
-              } catch (err: unknown) {
-                toast.error(err instanceof Error ? err.message : t('backup.deleteFailed'));
-              } finally {
-                setIsDeleting(false);
-              }
-            })();
-          },
+    alert(t('backup.deleteConfirmTitle'), t('backup.deleteConfirmBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('backup.delete'),
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setIsDeleting(true);
+            try {
+              await oxyServices.identity.backup.delete();
+              setBackupStatus({ exists: false });
+              toast.success(t('backup.deleteSuccess'));
+            } catch (err: unknown) {
+              toast.error(err instanceof Error ? err.message : t('backup.deleteFailed'));
+            } finally {
+              setIsDeleting(false);
+            }
+          })();
         },
-      ],
-    );
+      },
+    ]);
   }, [oxyServices, t]);
 
   if (identityStatus === 'checking') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper
+        reserveTabBarFootprint
+        reserveTopInset
+        contentContainerStyle={styles.content}
+      >
         <StackHeader
           title={t('backup.title')}
           onBack={() => router.back()}
           backAccessibilityLabel={t('common.back')}
         />
-        <Text style={[styles.muted, { color: colors.textSecondary }]}>{t('backup.checkingStatus')}</Text>
+        <Text style={[styles.muted, { color: colors.textSecondary }]}>
+          {t('backup.checkingStatus')}
+        </Text>
       </KeyboardAwareScrollViewWrapper>
     );
   }
 
   if (identityStatus === 'unavailable') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper
+        reserveTabBarFootprint
+        reserveTopInset
+        contentContainerStyle={styles.content}
+      >
         <StackHeader
           title={t('backup.title')}
           subtitle={t('backup.unavailableSubtitle')}
@@ -221,7 +223,11 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'missing') {
     return (
-      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper
+        reserveTabBarFootprint
+        reserveTopInset
+        contentContainerStyle={styles.content}
+      >
         <StackHeader
           title={t('backup.missingTitle')}
           subtitle={t('backup.missingSubtitle')}
@@ -230,10 +236,22 @@ export default function CreateBackupScreen() {
         />
         <ImportantBanner>{t('backup.missingBanner')}</ImportantBanner>
         <View className="flex-row gap-space-12 mt-space-8">
-          <Button appearance="outline" tone="neutral" onPress={() => router.back()} className="flex-1">
+          <Button
+            appearance="outline"
+            tone="neutral"
+            onPress={() => router.back()}
+            className="flex-1"
+          >
             {t('backup.goBack')}
           </Button>
-          <Button appearance="solid" tone="accent" onPress={() => router.replace('/(auth)/welcome')} className="flex-1">{t('backup.setupIdentity')}</Button>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={() => router.replace('/(auth)/welcome')}
+            className="flex-1"
+          >
+            {t('backup.setupIdentity')}
+          </Button>
         </View>
       </KeyboardAwareScrollViewWrapper>
     );
@@ -242,7 +260,11 @@ export default function CreateBackupScreen() {
   const backupExists = backupStatus?.exists === true;
 
   return (
-    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint reserveTopInset contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper
+      reserveTabBarFootprint
+      reserveTopInset
+      contentContainerStyle={styles.content}
+    >
       <StackHeader
         title={t('backup.title')}
         subtitle={t('backup.subtitle')}
@@ -251,9 +273,15 @@ export default function CreateBackupScreen() {
       />
 
       {/* Current backup status */}
-      <View style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View
+        style={[styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
         <View style={styles.statusRow}>
-          <AppIcon name={backupExists ? 'checkCircle' : 'offline'} size='md' fill={backupExists ? colors.success : colors.textSecondary} />
+          <AppIcon
+            name={backupExists ? 'checkCircle' : 'offline'}
+            size="md"
+            fill={backupExists ? colors.success : colors.textSecondary}
+          />
           <Text style={[styles.statusTitle, { color: colors.text }]}>
             {backupExists ? t('backup.existsTrue') : t('backup.existsFalse')}
           </Text>
@@ -269,13 +297,19 @@ export default function CreateBackupScreen() {
           </Text>
         )}
         {backupExists && (
-          <Button appearance="subtle" onPress={handleDelete} loading={isDeleting} disabled={isDeleting || isSubmitting} className="mt-space-8 self-start">{isDeleting ? t('backup.deleting') : t('backup.delete')}</Button>
+          <Button
+            appearance="subtle"
+            onPress={handleDelete}
+            loading={isDeleting}
+            disabled={isDeleting || isSubmitting}
+            className="mt-space-8 self-start"
+          >
+            {isDeleting ? t('backup.deleting') : t('backup.delete')}
+          </Button>
         )}
       </View>
 
-      <Admonition type="info">
-        {t('backup.howItWorks')}
-      </Admonition>
+      <Admonition type="info">{t('backup.howItWorks')}</Admonition>
 
       {/* Phrase re-prompt */}
       <View className="gap-space-8">
@@ -295,7 +329,20 @@ export default function CreateBackupScreen() {
 
         {error && <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>}
 
-        <Button appearance="solid" tone="accent" onPress={handleCreate} loading={isSubmitting} disabled={isSubmitting || isDeleting} className="mt-space-16">{isSubmitting ? t('backup.creating') : backupExists ? t('backup.replace') : t('backup.create')}</Button>
+        <Button
+          appearance="solid"
+          tone="accent"
+          onPress={handleCreate}
+          loading={isSubmitting}
+          disabled={isSubmitting || isDeleting}
+          className="mt-space-16"
+        >
+          {isSubmitting
+            ? t('backup.creating')
+            : backupExists
+              ? t('backup.replace')
+              : t('backup.create')}
+        </Button>
       </View>
     </KeyboardAwareScrollViewWrapper>
   );

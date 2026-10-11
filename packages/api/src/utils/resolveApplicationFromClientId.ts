@@ -33,9 +33,7 @@ import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
 import { isCredentialUsable } from './credentialUsability';
 
-export async function resolveApplicationIdFromClientId(
-  clientId: string,
-): Promise<string | null> {
+export async function resolveApplicationIdFromClientId(clientId: string): Promise<string | null> {
   const [row] = await getDb()
     .select({
       applicationId: applications.id,
@@ -44,12 +42,7 @@ export async function resolveApplicationIdFromClientId(
     })
     .from(applicationCredentials)
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
-    .where(
-      and(
-        eq(applicationCredentials.publicKey, clientId),
-        eq(applications.status, 'active'),
-      ),
-    )
+    .where(and(eq(applicationCredentials.publicKey, clientId), eq(applications.status, 'active')))
     .limit(1);
 
   // The rotation-grace predicate stays in application code rather than becoming

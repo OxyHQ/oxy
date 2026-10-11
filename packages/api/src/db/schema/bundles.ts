@@ -69,5 +69,5 @@ export const bundles = pgTable(
   // Mongo also declared a standalone `{userId}`; dropped, since this index
   // leads with `user_id`. No index backs the `order` sort: a user holds a
   // handful of bundles and sorting them is free.
-  (t) => [uniqueIndex('bundles_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)]
+  (t) => [uniqueIndex('bundles_user_id_lower_name_key').on(t.userId, sql`lower(${t.name})`)],
 );

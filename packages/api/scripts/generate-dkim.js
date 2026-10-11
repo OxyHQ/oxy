@@ -125,7 +125,9 @@ console.log(`3. SPF Record (authorizes your IP to send):`);
 console.log(`   Name: ${domain}    Type: TXT    Value: v=spf1 ip4:YOUR_SERVER_IP -all`);
 console.log('');
 console.log(`4. DMARC Record (policy for failed checks):`);
-console.log(`   Name: _dmarc.${domain}    Type: TXT    Value: v=DMARC1; p=reject; rua=mailto:dmarc@${domain}`);
+console.log(
+  `   Name: _dmarc.${domain}    Type: TXT    Value: v=DMARC1; p=reject; rua=mailto:dmarc@${domain}`,
+);
 console.log('');
 console.log(`5. Reverse DNS / PTR (set via your hosting provider):`);
 console.log(`   YOUR_SERVER_IP → mail.${domain}`);

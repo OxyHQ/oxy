@@ -1,18 +1,25 @@
-import {cancelStoredPeablePersonalSource,loadPeablePersonalManagement} from '../services/peablePersonalManagement.service';
-import {assertPersistedBillingNamespace,readPersistedBillingNamespace} from '../config/billingNamespace';
+import {
+  cancelStoredPeablePersonalSource,
+  loadPeablePersonalManagement,
+} from '../services/peablePersonalManagement.service';
+import {
+  assertPersistedBillingNamespace,
+  readPersistedBillingNamespace,
+} from '../config/billingNamespace';
 import { ApiError } from '../utils/error';
 import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
 import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
 import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
-import { cancelProductSubscriptionSchema, productSubscriptionsResponseSchema, subscriptionCreditGrantsResponseSchema,
-} from "@oxy.so/contracts";
-import { and, count, desc, eq, inArray, isNull, lte, or ,
-	sql,
-} from "drizzle-orm";
-import { type Request, type Response, Router } from "express";
+import {
+  cancelProductSubscriptionSchema,
+  productSubscriptionsResponseSchema,
+  subscriptionCreditGrantsResponseSchema,
+} from '@oxy.so/contracts';
+import { and, count, desc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { type Request, type Response, Router } from 'express';
 import Stripe from 'stripe';
-import { z } from "zod";
+import { z } from 'zod';
 import { getDb } from '../config/postgres';
 import { addCredits } from '../db/credits';
 import { billingCreditGrants } from '../db/schema/billingCreditGrants';
@@ -23,77 +30,92 @@ import {
   subscriptionPeriodIdempotencyPredicate,
 } from '../db/schema/billingTransactions';
 import {
-	accessGrants,
-	accessOfferSegments,
-	accessSubscriptionSources,
-} from "../db/schema/productAccess";
+  accessGrants,
+  accessOfferSegments,
+  accessSubscriptionSources,
+} from '../db/schema/productAccess';
 import { userCredits } from '../db/schema/userCredits';
 import { accessProviderPeriods } from '../db/schema/productProviderEvidence';
-import { type AuthRequest, authMiddleware } from "../middleware/auth";
+import { type AuthRequest, authMiddleware } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import {
-  cancelCreditSubscriptionSchema, namedProductCancellationResponseSchema, pendingProductCancellationResponseSchema, creditSubscriptionsResponseSchema, namedCreditCancellationResponseSchema,
+  cancelCreditSubscriptionSchema,
+  namedProductCancellationResponseSchema,
+  pendingProductCancellationResponseSchema,
+  creditSubscriptionsResponseSchema,
+  namedCreditCancellationResponseSchema,
   checkoutCreditsSchema,
   checkoutSubscriptionSchema,
   portalSchema,
   transactionsQuerySchema,
 } from '../schemas/billing.schemas';
-import { applyReconciledPeriodInvoice } from "../services/applySubscriptionPeriodCredits.service";
-import { reconcileProductAccessFinancialState } from "../services/productAccessPersistence.service";
+import { applyReconciledPeriodInvoice } from '../services/applySubscriptionPeriodCredits.service';
+import { reconcileProductAccessFinancialState } from '../services/productAccessPersistence.service';
 import {
-	loadProductBillingCatalogue,
-	prepareStripeProductPeriod,
-} from "../services/productBillingCatalogue.service";
+  loadProductBillingCatalogue,
+  prepareStripeProductPeriod,
+} from '../services/productBillingCatalogue.service';
 import {
-	type ProductProviderPeriodInput,
-	recordProductProviderPeriod,
-} from "../services/productProviderEvidence.service";
+  type ProductProviderPeriodInput,
+  recordProductProviderPeriod,
+} from '../services/productProviderEvidence.service';
 import {
-	BALANCE_TOP_UP_METADATA_TYPE,
-	getOrCreateAccountStripeCustomer,
+  BALANCE_TOP_UP_METADATA_TYPE,
+  getOrCreateAccountStripeCustomer,
   handleBalanceTopUpCompleted,
   handleBalanceTopUpPaymentIntent,
-  } from "../services/stripeAccountBilling.service";
+} from '../services/stripeAccountBilling.service';
 import {
-	allInvoiceLines,
-	paidPeriodForUpgrade,
-	reconcilePaidCreditPeriod,
-	subscriptionProcessorBinding,
-} from "../services/stripeSubscriptionEvidence.service";
+  allInvoiceLines,
+  paidPeriodForUpgrade,
+  reconcilePaidCreditPeriod,
+  subscriptionProcessorBinding,
+} from '../services/stripeSubscriptionEvidence.service';
 import {
   type StripeEventResult,
   recordStripeEventOutcome,
   recordStripeEventReceived,
-} from "../services/stripeWebhookEvents.service";
+} from '../services/stripeWebhookEvents.service';
 import {
-	grantSubscriptionCredits,
-	lockSubscriptionCreditAccount,
-	recordCreditRefundSnapshot,
-} from "../services/subscriptionCreditLedger.service";
+  grantSubscriptionCredits,
+  lockSubscriptionCreditAccount,
+  recordCreditRefundSnapshot,
+} from '../services/subscriptionCreditLedger.service';
 import {
-	FREE_PERIOD_PROMOTIONS,
-	resolveFreePeriodPromotion,
-} from "../services/subscriptionPromotionPolicy";
+  FREE_PERIOD_PROMOTIONS,
+  resolveFreePeriodPromotion,
+} from '../services/subscriptionPromotionPolicy';
 import {
   type BillingSubscriptionResponse,
   type BillingTransactionResponse,
   toBillingSubscriptionResponse,
   toBillingTransactionResponse,
-} from "../utils/billingResponse";
-import { logger } from "../utils/logger";
-import { isAllowedRedirect } from "../utils/redirectAllowlist";
-import { getBillingStripe } from "../utils/billingStripe";
-import {
-  getOrCreateUserCredits } from "./credits";
+} from '../utils/billingResponse';
+import { logger } from '../utils/logger';
+import { isAllowedRedirect } from '../utils/redirectAllowlist';
+import { getBillingStripe } from '../utils/billingStripe';
+import { getOrCreateUserCredits } from './credits';
 
 /** Financial lifecycle belongs to the verified source, including an empty bundle. */
-async function assertProductSourceEvidence(source: typeof accessSubscriptionSources.$inferSelect): Promise<void> {
-  const [evidence] = await getDb().select({ id: accessProviderPeriods.id }).from(accessProviderPeriods).where(and(
-    eq(accessProviderPeriods.sourceId, source.id), eq(accessProviderPeriods.provider, source.provider),
-    eq(accessProviderPeriods.providerAccountRef, source.providerAccountRef), eq(accessProviderPeriods.mode, source.mode),
-    eq(accessProviderPeriods.environment, source.environment), eq(accessProviderPeriods.providerSubscriptionId, source.providerSubscriptionId),
-    eq(accessProviderPeriods.payerAccountId, source.payerAccountId), eq(accessProviderPeriods.beneficiaryAccountId, source.beneficiaryAccountId),
-  )).limit(1);
+async function assertProductSourceEvidence(
+  source: typeof accessSubscriptionSources.$inferSelect,
+): Promise<void> {
+  const [evidence] = await getDb()
+    .select({ id: accessProviderPeriods.id })
+    .from(accessProviderPeriods)
+    .where(
+      and(
+        eq(accessProviderPeriods.sourceId, source.id),
+        eq(accessProviderPeriods.provider, source.provider),
+        eq(accessProviderPeriods.providerAccountRef, source.providerAccountRef),
+        eq(accessProviderPeriods.mode, source.mode),
+        eq(accessProviderPeriods.environment, source.environment),
+        eq(accessProviderPeriods.providerSubscriptionId, source.providerSubscriptionId),
+        eq(accessProviderPeriods.payerAccountId, source.payerAccountId),
+        eq(accessProviderPeriods.beneficiaryAccountId, source.beneficiaryAccountId),
+      ),
+    )
+    .limit(1);
   if (!evidence) throw new Error('Named subscription has no matching paid-period evidence');
 }
 
@@ -142,7 +164,7 @@ const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{1,150}$/;
 function checkoutIdempotencyKey(
   req: Request,
   kind: 'credits' | 'subscription',
-  userId: string
+  userId: string,
 ): string | null | undefined {
   const raw = req.get('Idempotency-Key');
   if (raw === undefined) return undefined;
@@ -185,8 +207,22 @@ const CREDIT_PACKAGES = [
 ];
 
 const SUBSCRIPTION_PLANS = [
-  { id: 'pro_monthly', name: 'Pro', creditsPerMonth: 10000, price: 2999, stripePriceId: process.env.STRIPE_PRO_PRICE_ID || '', currency: 'usd' },
-  { id: 'business_monthly', name: 'Business', creditsPerMonth: 50000, price: 9999, stripePriceId: process.env.STRIPE_BUSINESS_PRICE_ID || '', currency: 'usd' },
+  {
+    id: 'pro_monthly',
+    name: 'Pro',
+    creditsPerMonth: 10000,
+    price: 2999,
+    stripePriceId: process.env.STRIPE_PRO_PRICE_ID || '',
+    currency: 'usd',
+  },
+  {
+    id: 'business_monthly',
+    name: 'Business',
+    creditsPerMonth: 50000,
+    price: 9999,
+    stripePriceId: process.env.STRIPE_BUSINESS_PRICE_ID || '',
+    currency: 'usd',
+  },
 ];
 
 /**
@@ -209,68 +245,95 @@ router.get('/plans', async (_req: Request, res: Response) => {
  * Create a Stripe checkout session for a one-time credit purchase. Returns
  * a session ID and a hosted-page URL to redirect the user to.
  */
-router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCreditsSchema }), async (req: AuthRequest, res: Response) => {
-  try {
-    const { packageId, successUrl, cancelUrl } = req.body;
-    const userId = req.user?._id?.toString();
-    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+router.post(
+  '/checkout/credits',
+  authMiddleware,
+  validate({ body: checkoutCreditsSchema }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { packageId, successUrl, cancelUrl } = req.body;
+      const userId = req.user?._id?.toString();
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    if (!isAllowedRedirect(successUrl) || !isAllowedRedirect(cancelUrl)) {
-      logger.warn('Rejected checkout/credits request with disallowed redirect URL', {
-        userId,
-        successUrl,
-        cancelUrl,
-      });
-      return res.status(400).json(INVALID_REDIRECT_RESPONSE);
-    }
+      if (!isAllowedRedirect(successUrl) || !isAllowedRedirect(cancelUrl)) {
+        logger.warn('Rejected checkout/credits request with disallowed redirect URL', {
+          userId,
+          successUrl,
+          cancelUrl,
+        });
+        return res.status(400).json(INVALID_REDIRECT_RESPONSE);
+      }
 
-    const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
-    if (!pkg) return res.status(400).json({ error: 'Invalid package ID' });
+      const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
+      if (!pkg) return res.status(400).json({ error: 'Invalid package ID' });
 
-    const idempotencyKey = checkoutIdempotencyKey(req, 'credits', userId);
-    if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
+      const idempotencyKey = checkoutIdempotencyKey(req, 'credits', userId);
+      if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
 
-    const email = req.user?.email;
-    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
+      const email = req.user?.email;
+      const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-    const session = await (await getBillingStripe()).checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: pkg.currency,
-          product_data: { name: pkg.name, description: `${pkg.credits.toLocaleString()} API credits` },
-          unit_amount: pkg.price,
+      const session = await (await getBillingStripe()).checkout.sessions.create(
+        {
+          customer: customerId,
+          payment_method_types: ['card'],
+          line_items: [
+            {
+              price_data: {
+                currency: pkg.currency,
+                product_data: {
+                  name: pkg.name,
+                  description: `${pkg.credits.toLocaleString()} API credits`,
+                },
+                unit_amount: pkg.price,
+              },
+              quantity: 1,
+            },
+          ],
+          mode: 'payment',
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: {
+            userId,
+            type: 'credit_purchase',
+            packageId: pkg.id,
+            credits: pkg.credits.toString(),
+          },
         },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: { userId, type: 'credit_purchase', packageId: pkg.id, credits: pkg.credits.toString() },
-    }, idempotencyKey ? { idempotencyKey } : undefined);
+        idempotencyKey ? { idempotencyKey } : undefined,
+      );
 
-    res.json({ sessionId: session.id, url: session.url });
-  } catch (error) {
-    if (isStripeIdempotencyError(error)) {
-      return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (error) {
+      if (isStripeIdempotencyError(error)) {
+        return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
+      }
+      logger.error('Error creating checkout session:', error);
+      res.status(500).json({ error: 'Failed to create checkout session' });
     }
-    logger.error('Error creating checkout session:', error);
-    res.status(500).json({ error: 'Failed to create checkout session' });
-  }
-});
+  },
+);
 
 /** Public personal-plan discovery is separate from authenticated customer rights. */
 /** Inert until an approved provider adapter is wired in a separately authorized change. */
-router.post('/checkout/personal-plan', authMiddleware, validate({ body: personalPlanCheckoutRequestSchema }), async (req: AuthRequest, res: Response) => {
-  const subject = req.user?._id?.toString();
-  if (!subject) return res.status(401).json({ error: 'Authentication required' });
-  try { return res.json(await startPersonalPlanCheckout(subject, personalPlanCheckoutRequestSchema.parse(req.body))); }
-  catch (error) {
-    if (error instanceof ApiError) return res.status(error.statusCode).json({ error: error.code });
-    return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
-  }
-});
+router.post(
+  '/checkout/personal-plan',
+  authMiddleware,
+  validate({ body: personalPlanCheckoutRequestSchema }),
+  async (req: AuthRequest, res: Response) => {
+    const subject = req.user?._id?.toString();
+    if (!subject) return res.status(401).json({ error: 'Authentication required' });
+    try {
+      return res.json(
+        await startPersonalPlanCheckout(subject, personalPlanCheckoutRequestSchema.parse(req.body)),
+      );
+    } catch (error) {
+      if (error instanceof ApiError)
+        return res.status(error.statusCode).json({ error: error.code });
+      return res.status(503).json({ error: 'CHECKOUT_NOT_CONFIGURED' });
+    }
+  },
+);
 
 router.get('/personal-plans', async (_req: Request, res: Response) => {
   res.set('Cache-Control', 'no-store');
@@ -285,185 +348,263 @@ router.get('/personal-plans', async (_req: Request, res: Response) => {
  * @response 200 productSubscriptionsResponseSchema Source lifecycle and paid segment provenance.
  */
 router.get('/product-subscriptions', authMiddleware, async (req: AuthRequest, res: Response) => {
-  const userId = req.user?._id?.toString(); if (!userId) return res.status(401).json({ error: 'Authentication required' });
-  if (req.query.expectedSubjectAccountId !== undefined && req.query.expectedSubjectAccountId !== userId)
+  const userId = req.user?._id?.toString();
+  if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  if (
+    req.query.expectedSubjectAccountId !== undefined &&
+    req.query.expectedSubjectAccountId !== userId
+  )
     return res.status(403).json({ error: 'Signed-in subject changed' });
   try {
-    const peableManagement=await loadPeablePersonalManagement();
-    const namespace=peableManagement?peableManagement.configuration.namespace:await assertBillingDatabaseNamespace(getDb());
-    if(peableManagement)assertPersistedBillingNamespace(await readPersistedBillingNamespace(getDb()),namespace);
-    const catalogue = await loadProductBillingCatalogue(); const now = Date.now();
-    const sources = await getDb().select().from(accessSubscriptionSources).where(and(eq(accessSubscriptionSources.mode, namespace.mode), eq(accessSubscriptionSources.environment, namespace.environment), or(eq(accessSubscriptionSources.payerAccountId, userId), eq(accessSubscriptionSources.beneficiaryAccountId, userId))));
-    const subscriptions = await Promise.all(sources.map(async source => {
-      const segments = await getDb().select().from(accessOfferSegments).where(eq(accessOfferSegments.subscriptionId, source.id)).orderBy(accessOfferSegments.periodStart, accessOfferSegments.id);
-      const offers = await Promise.all(segments.map(async segment => {
-        const grants = await getDb().select({ productId: accessGrants.productId }).from(accessGrants).where(eq(accessGrants.sourceSegmentId, segment.id));
-        return { segmentId: segment.id, offerId: segment.offerId, offerVersion: segment.offerVersion, origin: segment.origin,
-          displayName: catalogue.displayNames.offers[`${segment.offerId}@${segment.offerVersion}`] ?? (segment.origin === 'bundle' ? 'Bundle subscription' : 'Product subscription'),
-          period: { start: segment.periodStart.toISOString(), end: segment.periodEnd.toISOString() },
-          current: ['active','trialing'].includes(source.status) && segment.periodStart.getTime() <= now && segment.periodEnd.getTime() > now,
-          products: [...new Set(grants.map(grant => grant.productId))].map(id => ({ id, displayName: catalogue.displayNames.products[id] ?? 'Product' })) };
-      }));
-      return { sourceId: source.id, status: source.status, period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
-        cancelAtPeriodEnd: source.cancelAtPeriodEnd, canCancel: source.payerAccountId === userId && (source.provider === 'stripe' || (source.provider === 'peable' && source.beneficiaryAccountId===userId && !!peableManagement && source.providerAccountRef===peableManagement.configuration.merchantId))
-          && source.mode === namespace.mode && source.environment === namespace.environment && (source.provider==='peable' ? ['active','trialing','past_due','unpaid'] : ['active','trialing']).includes(source.status), offers };
-    }));
-    res.set('Cache-Control', 'no-store'); return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
-  } catch (error) { logger.error('Product source read failed', error); return res.status(500).json({ error: 'Product source read failed' }); }
+    const peableManagement = await loadPeablePersonalManagement();
+    const namespace = peableManagement
+      ? peableManagement.configuration.namespace
+      : await assertBillingDatabaseNamespace(getDb());
+    if (peableManagement)
+      assertPersistedBillingNamespace(await readPersistedBillingNamespace(getDb()), namespace);
+    const catalogue = await loadProductBillingCatalogue();
+    const now = Date.now();
+    const sources = await getDb()
+      .select()
+      .from(accessSubscriptionSources)
+      .where(
+        and(
+          eq(accessSubscriptionSources.mode, namespace.mode),
+          eq(accessSubscriptionSources.environment, namespace.environment),
+          or(
+            eq(accessSubscriptionSources.payerAccountId, userId),
+            eq(accessSubscriptionSources.beneficiaryAccountId, userId),
+          ),
+        ),
+      );
+    const subscriptions = await Promise.all(
+      sources.map(async (source) => {
+        const segments = await getDb()
+          .select()
+          .from(accessOfferSegments)
+          .where(eq(accessOfferSegments.subscriptionId, source.id))
+          .orderBy(accessOfferSegments.periodStart, accessOfferSegments.id);
+        const offers = await Promise.all(
+          segments.map(async (segment) => {
+            const grants = await getDb()
+              .select({ productId: accessGrants.productId })
+              .from(accessGrants)
+              .where(eq(accessGrants.sourceSegmentId, segment.id));
+            return {
+              segmentId: segment.id,
+              offerId: segment.offerId,
+              offerVersion: segment.offerVersion,
+              origin: segment.origin,
+              displayName:
+                catalogue.displayNames.offers[`${segment.offerId}@${segment.offerVersion}`] ??
+                (segment.origin === 'bundle' ? 'Bundle subscription' : 'Product subscription'),
+              period: {
+                start: segment.periodStart.toISOString(),
+                end: segment.periodEnd.toISOString(),
+              },
+              current:
+                ['active', 'trialing'].includes(source.status) &&
+                segment.periodStart.getTime() <= now &&
+                segment.periodEnd.getTime() > now,
+              products: [...new Set(grants.map((grant) => grant.productId))].map((id) => ({
+                id,
+                displayName: catalogue.displayNames.products[id] ?? 'Product',
+              })),
+            };
+          }),
+        );
+        return {
+          sourceId: source.id,
+          status: source.status,
+          period: { start: source.periodStart.toISOString(), end: source.periodEnd.toISOString() },
+          cancelAtPeriodEnd: source.cancelAtPeriodEnd,
+          canCancel:
+            source.payerAccountId === userId &&
+            (source.provider === 'stripe' ||
+              (source.provider === 'peable' &&
+                source.beneficiaryAccountId === userId &&
+                !!peableManagement &&
+                source.providerAccountRef === peableManagement.configuration.merchantId)) &&
+            source.mode === namespace.mode &&
+            source.environment === namespace.environment &&
+            (source.provider === 'peable'
+              ? ['active', 'trialing', 'past_due', 'unpaid']
+              : ['active', 'trialing']
+            ).includes(source.status),
+          offers,
+        };
+      }),
+    );
+    res.set('Cache-Control', 'no-store');
+    return res.json(productSubscriptionsResponseSchema.parse({ subscriptions }));
+  } catch (error) {
+    logger.error('Product source read failed', error);
+    return res.status(500).json({ error: 'Product source read failed' });
+  }
 });
 
 /** Read attributable credits only; financial money remains in its separate ledger.
  * @response 200 subscriptionCreditGrantsResponseSchema Credit provenance and conserved remaining quantities.
  */
-router.get(
-	"/credit-grants",
-	authMiddleware,
-	async (req: AuthRequest, res: Response) => {
-		const userId = req.user?._id?.toString();
-		if (!userId)
-			return res.status(401).json({ error: "Authentication required" });
-		try {
-			const rows = await getDb()
-				.select()
-				.from(billingCreditGrants)
-				.where(eq(billingCreditGrants.userId, userId))
-				.orderBy(billingCreditGrants.createdAt, billingCreditGrants.id);
-			res.set("Cache-Control", "no-store");
-			return res.json(
-				subscriptionCreditGrantsResponseSchema.parse({
-					grants: rows.map((row) => ({
-						id: row.id,
-						invoiceId: row.invoiceId,
-						origin: row.sourceType,
-						period: {
-							start: row.periodStart.toISOString(),
-							end: row.periodEnd.toISOString(),
-						},
-						granted: row.granted,
-						consumed: row.consumed,
-						clawed: row.clawed,
-						remaining: row.granted - row.consumed - row.clawed,
-						promotionId: row.promotionId,
-						createdAt: row.createdAt.toISOString(),
-					})),
-				}),
-			);
-		} catch (error) {
-			logger.error("Credit grant read failed", error);
-			return res.status(500).json({ error: "Credit grant read failed" });
-		}
-	},
-);
+router.get('/credit-grants', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const userId = req.user?._id?.toString();
+  if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    const rows = await getDb()
+      .select()
+      .from(billingCreditGrants)
+      .where(eq(billingCreditGrants.userId, userId))
+      .orderBy(billingCreditGrants.createdAt, billingCreditGrants.id);
+    res.set('Cache-Control', 'no-store');
+    return res.json(
+      subscriptionCreditGrantsResponseSchema.parse({
+        grants: rows.map((row) => ({
+          id: row.id,
+          invoiceId: row.invoiceId,
+          origin: row.sourceType,
+          period: {
+            start: row.periodStart.toISOString(),
+            end: row.periodEnd.toISOString(),
+          },
+          granted: row.granted,
+          consumed: row.consumed,
+          clawed: row.clawed,
+          remaining: row.granted - row.consumed - row.clawed,
+          promotionId: row.promotionId,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      }),
+    );
+  } catch (error) {
+    logger.error('Credit grant read failed', error);
+    return res.status(500).json({ error: 'Credit grant read failed' });
+  }
+});
 
 /** A cancellation addresses one commercial source and never changes privacy choices.
  * @response 200 namedProductCancellationResponseSchema Named source will cancel at its period end.
  * @response 202 pendingProductCancellationResponseSchema Provider accepted cancellation; local reconciliation is pending.
  */
 router.post(
-	"/product-subscriptions/cancel",
-	authMiddleware, validate({ body: cancelProductSubscriptionSchema }),
-	async (req: AuthRequest, res: Response) => {
-		const userId = req.user?._id?.toString();
-		if (!userId)
-			return res.status(401).json({ error: "Authentication required" });
-		const parsed = cancelProductSubscriptionSchema.safeParse(req.body);
-		if (!parsed.success)
-			return res.status(400).json({ error: "Invalid named source" });
-		if (parsed.success && parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
+  '/product-subscriptions/cancel',
+  authMiddleware,
+  validate({ body: cancelProductSubscriptionSchema }),
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const parsed = cancelProductSubscriptionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid named source' });
+    if (
+      parsed.success &&
+      parsed.data.expectedSubjectAccountId &&
+      parsed.data.expectedSubjectAccountId !== userId
+    )
+      return res.status(403).json({ error: 'Signed-in subject changed' });
     let providerConfirmed = false;
-	try {
-			const [source] = await getDb()
-				.select()
-				.from(accessSubscriptionSources)
-				.where(
-					and(
-						eq(accessSubscriptionSources.id, parsed.data.sourceId),
-						eq(accessSubscriptionSources.payerAccountId, userId),
-					),
-				);
-      if(source?.provider==='peable'){
+    try {
+      const [source] = await getDb()
+        .select()
+        .from(accessSubscriptionSources)
+        .where(
+          and(
+            eq(accessSubscriptionSources.id, parsed.data.sourceId),
+            eq(accessSubscriptionSources.payerAccountId, userId),
+          ),
+        );
+      if (source?.provider === 'peable') {
         await assertProductSourceEvidence(source);
-        if(!parsed.data.expectedSubjectAccountId||!parsed.data.actionId)return res.status(400).json({error:'Expected subject and cancellation action ID required'});
-        const answer=await cancelStoredPeablePersonalSource(userId,source.id,parsed.data.actionId);
-        return res.status('reconciliationPending' in answer?202:200).json(answer);
+        if (!parsed.data.expectedSubjectAccountId || !parsed.data.actionId)
+          return res
+            .status(400)
+            .json({ error: 'Expected subject and cancellation action ID required' });
+        const answer = await cancelStoredPeablePersonalSource(
+          userId,
+          source.id,
+          parsed.data.actionId,
+        );
+        return res.status('reconciliationPending' in answer ? 202 : 200).json(answer);
       }
       const namespace = await assertBillingDatabaseNamespace(getDb());
-			if (
-				!source ||
-				source.provider !== "stripe" ||
-				source.mode !== namespace.mode ||
-				source.environment !== namespace.environment
-			)
-				return res.status(404)
-					.json({ error: "Named subscription source unavailable" });
-			await assertProductSourceEvidence(source);
+      if (
+        !source ||
+        source.provider !== 'stripe' ||
+        source.mode !== namespace.mode ||
+        source.environment !== namespace.environment
+      )
+        return res.status(404).json({ error: 'Named subscription source unavailable' });
+      await assertProductSourceEvidence(source);
 
-			const observed = new Date();
-			const current = await (await getBillingStripe()).subscriptions.retrieve(
-				source.providerSubscriptionId,
-			);
-			const binding = await subscriptionProcessorBinding(current.livemode);
-			if (
-				binding !==
-					JSON.stringify([
-						"stripe",
-						source.providerAccountRef,
-						source.mode,
-						source.environment,
-					]) ||
-				current.id !== source.providerSubscriptionId || current.items.has_more || current.items.data.length !== 1 ||
-				stripeIdOf(current.customer) !==
-					(
-						await getDb()
-							.select({ customer: userCredits.stripeCustomerId })
-							.from(userCredits)
-							.where(eq(userCredits.userId, userId))
-					)[0]?.customer
-			)
-				throw new Error("Named subscription provider or payer differs");
-			const updated = await (await getBillingStripe()).subscriptions.update(
-				source.providerSubscriptionId,
-				{ cancel_at_period_end: true },
-			);
-			if (
-				updated.id !== current.id ||
-				updated.livemode !== current.livemode ||
-				stripeIdOf(updated.customer) !== stripeIdOf(current.customer) ||
-				updated.cancel_at_period_end !== true
-			)
-				throw new Error("Provider did not confirm named cancellation");
-			providerConfirmed = true;
-      if (updated.items.has_more || updated.items.data.length !== 1) throw new Error('Confirmed cancellation snapshot cannot be projected');
-			const item = updated.items.data[0];
-			await reconcileProductAccessFinancialState({
-				sourceId: source.id,
-				beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
-        provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
-				providerBinding: {
-					providerAccountRef: source.providerAccountRef,
-					mode: namespace.mode,
-					environment: namespace.environment,
-				},
-				providerObservedAt: observed,
-				status: updated.status,
-				period: {
-					start: new Date(item.current_period_start * 1000).toISOString(),
-					end: new Date(item.current_period_end * 1000).toISOString(),
-				},
-				cancelAtPeriodEnd: true,
-			});
-      const [reconciled] = await getDb().select({ cancelAtPeriodEnd: accessSubscriptionSources.cancelAtPeriodEnd }).from(accessSubscriptionSources).where(eq(accessSubscriptionSources.id, source.id));
+      const observed = new Date();
+      const current = await (await getBillingStripe()).subscriptions.retrieve(
+        source.providerSubscriptionId,
+      );
+      const binding = await subscriptionProcessorBinding(current.livemode);
+      if (
+        binding !==
+          JSON.stringify(['stripe', source.providerAccountRef, source.mode, source.environment]) ||
+        current.id !== source.providerSubscriptionId ||
+        current.items.has_more ||
+        current.items.data.length !== 1 ||
+        stripeIdOf(current.customer) !==
+          (
+            await getDb()
+              .select({ customer: userCredits.stripeCustomerId })
+              .from(userCredits)
+              .where(eq(userCredits.userId, userId))
+          )[0]?.customer
+      )
+        throw new Error('Named subscription provider or payer differs');
+      const updated = await (await getBillingStripe()).subscriptions.update(
+        source.providerSubscriptionId,
+        { cancel_at_period_end: true },
+      );
+      if (
+        updated.id !== current.id ||
+        updated.livemode !== current.livemode ||
+        stripeIdOf(updated.customer) !== stripeIdOf(current.customer) ||
+        updated.cancel_at_period_end !== true
+      )
+        throw new Error('Provider did not confirm named cancellation');
+      providerConfirmed = true;
+      if (updated.items.has_more || updated.items.data.length !== 1)
+        throw new Error('Confirmed cancellation snapshot cannot be projected');
+      const item = updated.items.data[0];
+      await reconcileProductAccessFinancialState({
+        sourceId: source.id,
+        beneficiaryAccountId: source.beneficiaryAccountId,
+        payerAccountId: source.payerAccountId,
+        provider: source.provider,
+        providerSubscriptionId: source.providerSubscriptionId,
+        providerBinding: {
+          providerAccountRef: source.providerAccountRef,
+          mode: namespace.mode,
+          environment: namespace.environment,
+        },
+        providerObservedAt: observed,
+        status: updated.status,
+        period: {
+          start: new Date(item.current_period_start * 1000).toISOString(),
+          end: new Date(item.current_period_end * 1000).toISOString(),
+        },
+        cancelAtPeriodEnd: true,
+      });
+      const [reconciled] = await getDb()
+        .select({ cancelAtPeriodEnd: accessSubscriptionSources.cancelAtPeriodEnd })
+        .from(accessSubscriptionSources)
+        .where(eq(accessSubscriptionSources.id, source.id));
       if (!reconciled?.cancelAtPeriodEnd) throw new Error('Local cancellation is not reconciled');
-			return res.json({ sourceId: source.id, cancelAtPeriodEnd: true });
-		} catch (error) {
-			logger.error("Named product cancellation failed", error);
-      if(error instanceof ApiError)return res.status(error.statusCode).json({error:error.code});
-      if (providerConfirmed) return res.status(202).json({ sourceId: parsed.data.sourceId, reconciliationPending: true });
-			return res
-				.status(500)
-				.json({ error: "Named product cancellation failed" });
-		}
-	},
+      return res.json({ sourceId: source.id, cancelAtPeriodEnd: true });
+    } catch (error) {
+      logger.error('Named product cancellation failed', error);
+      if (error instanceof ApiError)
+        return res.status(error.statusCode).json({ error: error.code });
+      if (providerConfirmed)
+        return res
+          .status(202)
+          .json({ sourceId: parsed.data.sourceId, reconciliationPending: true });
+      return res.status(500).json({ error: 'Named product cancellation failed' });
+    }
+  },
 );
 
 /**
@@ -471,309 +612,270 @@ router.post(
  * checkout URL.
  */
 router.post(
-	"/checkout/subscription",
-	authMiddleware,
-	validate({ body: checkoutSubscriptionSchema }),
-	async (req: AuthRequest, res: Response) => {
-		try {
-			const { planId, successUrl, cancelUrl } = req.body;
-			const userId = req.user?._id?.toString();
-			if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  '/checkout/subscription',
+  authMiddleware,
+  validate({ body: checkoutSubscriptionSchema }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { planId, successUrl, cancelUrl } = req.body;
+      const userId = req.user?._id?.toString();
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-			if (!isAllowedRedirect(successUrl) || !isAllowedRedirect(cancelUrl)) {
-				logger.warn(
-					"Rejected checkout/subscription request with disallowed redirect URL",
-					{
-						userId,
-						successUrl,
-						cancelUrl,
-					},
-				);
-				return res.status(400).json(INVALID_REDIRECT_RESPONSE);
-			}
+      if (!isAllowedRedirect(successUrl) || !isAllowedRedirect(cancelUrl)) {
+        logger.warn('Rejected checkout/subscription request with disallowed redirect URL', {
+          userId,
+          successUrl,
+          cancelUrl,
+        });
+        return res.status(400).json(INVALID_REDIRECT_RESPONSE);
+      }
 
-			const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
-			if (!plan || !plan.stripePriceId)
-				return res.status(400).json({ error: "Invalid plan ID" });
+      const plan = SUBSCRIPTION_PLANS.find((p) => p.id === planId);
+      if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
 
-			const idempotencyKey = checkoutIdempotencyKey(
-				req,
-				"subscription",
-				userId,
-			);
-			if (idempotencyKey === null)
-				return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
+      const idempotencyKey = checkoutIdempotencyKey(req, 'subscription', userId);
+      if (idempotencyKey === null) return res.status(400).json(INVALID_IDEMPOTENCY_KEY_RESPONSE);
 
-			const email = req.user?.email;
-			const customerId = await getOrCreateAccountStripeCustomer(userId, email);
+      const email = req.user?.email;
+      const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-			const session = await (await getBillingStripe()).checkout.sessions.create(
-				{
-					customer: customerId,
-					payment_method_types: ["card"],
-					line_items: [{ price: plan.stripePriceId, quantity: 1 }],
-					mode: "subscription",
-					success_url: successUrl,
-					cancel_url: cancelUrl,
-					metadata: { userId, planId: plan.id },
-				},
-				idempotencyKey ? { idempotencyKey } : undefined,
-			);
+      const session = await (await getBillingStripe()).checkout.sessions.create(
+        {
+          customer: customerId,
+          payment_method_types: ['card'],
+          line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+          mode: 'subscription',
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          metadata: { userId, planId: plan.id },
+        },
+        idempotencyKey ? { idempotencyKey } : undefined,
+      );
 
-			res.json({ sessionId: session.id, url: session.url });
-		} catch (error) {
-			if (isStripeIdempotencyError(error)) {
-				return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
-			}
-			logger.error("Error creating subscription checkout:", error);
-			res.status(500).json({ error: "Failed to create subscription checkout" });
-		}
-	},
+      res.json({ sessionId: session.id, url: session.url });
+    } catch (error) {
+      if (isStripeIdempotencyError(error)) {
+        return res.status(409).json(IDEMPOTENCY_KEY_REUSED_RESPONSE);
+      }
+      logger.error('Error creating subscription checkout:', error);
+      res.status(500).json({ error: 'Failed to create subscription checkout' });
+    }
+  },
 );
 
 /** Plural API-credit plans are kept separate from product-access sources.
  * @response 200 creditSubscriptionsResponseSchema Current and historic API-credit subscription mirrors.
  */
-router.get(
-	"/subscriptions",
-	authMiddleware,
-	async (req: AuthRequest, res: Response) => {
-		const userId = req.user?._id?.toString();
-		if (!userId)
-			return res.status(401).json({ error: "Authentication required" });
-		try {
-			const rows = await getDb()
-				.select()
-				.from(billingSubscriptions)
-				.where(eq(billingSubscriptions.userId, userId))
-				.orderBy(billingSubscriptions.createdAt, billingSubscriptions.id);
-			res.set("Cache-Control", "no-store");
-			return res.json({
-				subscriptions: rows.map(toBillingSubscriptionResponse),
-			});
-		} catch (error) {
-			logger.error("Plural credit subscription read failed", error);
-			return res.status(500).json({ error: "Subscription read failed" });
-		}
-	},
-);
+router.get('/subscriptions', authMiddleware, async (req: AuthRequest, res: Response) => {
+  const userId = req.user?._id?.toString();
+  if (!userId) return res.status(401).json({ error: 'Authentication required' });
+  try {
+    const rows = await getDb()
+      .select()
+      .from(billingSubscriptions)
+      .where(eq(billingSubscriptions.userId, userId))
+      .orderBy(billingSubscriptions.createdAt, billingSubscriptions.id);
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      subscriptions: rows.map(toBillingSubscriptionResponse),
+    });
+  } catch (error) {
+    logger.error('Plural credit subscription read failed', error);
+    return res.status(500).json({ error: 'Subscription read failed' });
+  }
+});
 
 /** Select one API-credit mirror; a product source and a legacy plan are never cancelled implicitly.
  * @response 200 namedCreditCancellationResponseSchema The selected credit mirror.
  */
 router.post(
-	"/subscriptions/cancel",
-	authMiddleware, validate({ body: cancelCreditSubscriptionSchema }),
-	async (req: AuthRequest, res: Response) => {
-		const userId = req.user?._id?.toString();
-		if (!userId)
-			return res.status(401).json({ error: "Authentication required" });
-		const parsed = cancelCreditSubscriptionSchema.safeParse(req.body);
-		if (!parsed.success)
-			return res.status(400).json({ error: "Invalid named subscription" });
-		if (parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId) return res.status(403).json({ error: 'Signed-in subject changed' });
-		try {
-			const [row] = await getDb()
-				.select()
-				.from(billingSubscriptions)
-				.where(
-					and(
-						eq(billingSubscriptions.id, parsed.data.subscriptionId),
-						eq(billingSubscriptions.userId, userId),
-					),
-				);
-			if (!row)
-				return res.status(404).json({ error: "Subscription not found" });
-			const current = await (await getBillingStripe()).subscriptions.retrieve(
-				row.stripeSubscriptionId,
-			);
-			const customer = (
-				await getDb()
-					.select({ id: userCredits.stripeCustomerId })
-					.from(userCredits)
-					.where(eq(userCredits.userId, userId))
-			)[0]?.id;
-			if (
-				current.id !== row.stripeSubscriptionId ||
-				stripeIdOf(current.customer) !== customer
-			)
-				throw new Error("Provider subscription payer differs");
-			await subscriptionProcessorBinding(current.livemode);
-			const updated = await (await getBillingStripe()).subscriptions.update(
-				row.stripeSubscriptionId,
-				{ cancel_at_period_end: true },
-			);
-			if (
-				updated.id !== current.id ||
-				updated.livemode !== current.livemode ||
-				stripeIdOf(updated.customer) !== customer ||
-				!updated.cancel_at_period_end
-			)
-				throw new Error("Provider did not confirm named cancellation");
-			const [mirror] = await getDb()
-				.update(billingSubscriptions)
-				.set({ cancelAtPeriodEnd: true })
-				.where(eq(billingSubscriptions.id, row.id))
-				.returning();
-			return res.json({ subscription: toBillingSubscriptionResponse(mirror) });
-		} catch (error) {
-			logger.error("Named credit cancellation failed", error);
-			return res.status(500).json({ error: "Named cancellation failed" });
-		}
-	},
+  '/subscriptions/cancel',
+  authMiddleware,
+  validate({ body: cancelCreditSubscriptionSchema }),
+  async (req: AuthRequest, res: Response) => {
+    const userId = req.user?._id?.toString();
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
+    const parsed = cancelCreditSubscriptionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Invalid named subscription' });
+    if (parsed.data.expectedSubjectAccountId && parsed.data.expectedSubjectAccountId !== userId)
+      return res.status(403).json({ error: 'Signed-in subject changed' });
+    try {
+      const [row] = await getDb()
+        .select()
+        .from(billingSubscriptions)
+        .where(
+          and(
+            eq(billingSubscriptions.id, parsed.data.subscriptionId),
+            eq(billingSubscriptions.userId, userId),
+          ),
+        );
+      if (!row) return res.status(404).json({ error: 'Subscription not found' });
+      const current = await (await getBillingStripe()).subscriptions.retrieve(
+        row.stripeSubscriptionId,
+      );
+      const customer = (
+        await getDb()
+          .select({ id: userCredits.stripeCustomerId })
+          .from(userCredits)
+          .where(eq(userCredits.userId, userId))
+      )[0]?.id;
+      if (current.id !== row.stripeSubscriptionId || stripeIdOf(current.customer) !== customer)
+        throw new Error('Provider subscription payer differs');
+      await subscriptionProcessorBinding(current.livemode);
+      const updated = await (await getBillingStripe()).subscriptions.update(
+        row.stripeSubscriptionId,
+        { cancel_at_period_end: true },
+      );
+      if (
+        updated.id !== current.id ||
+        updated.livemode !== current.livemode ||
+        stripeIdOf(updated.customer) !== customer ||
+        !updated.cancel_at_period_end
+      )
+        throw new Error('Provider did not confirm named cancellation');
+      const [mirror] = await getDb()
+        .update(billingSubscriptions)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(billingSubscriptions.id, row.id))
+        .returning();
+      return res.json({ subscription: toBillingSubscriptionResponse(mirror) });
+    } catch (error) {
+      logger.error('Named credit cancellation failed', error);
+      return res.status(500).json({ error: 'Named cancellation failed' });
+    }
+  },
 );
 
 /**
  * Get the user's current active subscription (or `null`).
  */
-router.get(
-	"/subscription",
-	authMiddleware,
-	async (req: AuthRequest, res: Response) => {
-		try {
-			const userId = req.user?._id?.toString();
-			if (!userId)
-				return res.status(401).json({ error: "Authentication required" });
+router.get('/subscription', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id?.toString();
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-			const rows = await getDb()
-				.select()
-				.from(billingSubscriptions)
-				.where(
-					and(
-						eq(billingSubscriptions.userId, userId),
-						inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES),
-					),
-				)
-				.limit(2);
-			if (rows.length > 1)
-				return res
-					.status(409)
-					.json({
-						error: "MULTIPLE_SUBSCRIPTIONS",
-						message: "Select a named subscription from the plural view",
-					});
-			const [row] = rows;
+    const rows = await getDb()
+      .select()
+      .from(billingSubscriptions)
+      .where(
+        and(
+          eq(billingSubscriptions.userId, userId),
+          inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES),
+        ),
+      )
+      .limit(2);
+    if (rows.length > 1)
+      return res.status(409).json({
+        error: 'MULTIPLE_SUBSCRIPTIONS',
+        message: 'Select a named subscription from the plural view',
+      });
+    const [row] = rows;
 
-			// `null`, not `undefined`: the Mongoose `findOne` returned null and
-			// `res.json` emitted `"subscription": null`. Dropping the key entirely is a
-			// different shape.
-			const subscription: BillingSubscriptionResponse | null = row
-				? toBillingSubscriptionResponse(row)
-				: null;
+    // `null`, not `undefined`: the Mongoose `findOne` returned null and
+    // `res.json` emitted `"subscription": null`. Dropping the key entirely is a
+    // different shape.
+    const subscription: BillingSubscriptionResponse | null = row
+      ? toBillingSubscriptionResponse(row)
+      : null;
 
-			res.json({ subscription });
-		} catch (error) {
-			logger.error("Error fetching subscription:", error);
-			res.status(500).json({ error: "Failed to fetch subscription" });
-		}
-	},
-);
+    res.json({ subscription });
+  } catch (error) {
+    logger.error('Error fetching subscription:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription' });
+  }
+});
 
 /**
  * Cancel the user's current subscription at the end of the billing
  * period. Sets `cancel_at_period_end=true` on the Stripe subscription so
  * the user keeps access until the period closes.
  */
-router.post(
-	"/subscription/cancel",
-	authMiddleware,
-	async (req: AuthRequest, res: Response) => {
-		try {
-			const userId = req.user?._id?.toString();
-			if (!userId)
-				return res.status(401).json({ error: "Authentication required" });
+router.post('/subscription/cancel', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?._id?.toString();
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-			const db = getDb();
-			const rows = await db
-				.select()
-				.from(billingSubscriptions)
-				.where(
-					and(
-						eq(billingSubscriptions.userId, userId),
-						inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES),
-					),
-				)
-				.limit(2);
-			if (rows.length > 1)
-				return res
-					.status(409)
-					.json({
-						error: "MULTIPLE_SUBSCRIPTIONS",
-						message: "Select a named subscription source",
-					});
-			const [subscription] = rows;
+    const db = getDb();
+    const rows = await db
+      .select()
+      .from(billingSubscriptions)
+      .where(
+        and(
+          eq(billingSubscriptions.userId, userId),
+          inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES),
+        ),
+      )
+      .limit(2);
+    if (rows.length > 1)
+      return res.status(409).json({
+        error: 'MULTIPLE_SUBSCRIPTIONS',
+        message: 'Select a named subscription source',
+      });
+    const [subscription] = rows;
 
-			if (!subscription)
-				return res.status(404).json({ error: "No active subscription found" });
+    if (!subscription) return res.status(404).json({ error: 'No active subscription found' });
 
-			await (await getBillingStripe()).subscriptions.update(
-				subscription.stripeSubscriptionId,
-				{
-					cancel_at_period_end: true,
-				},
-			);
+    await (await getBillingStripe()).subscriptions.update(subscription.stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    });
 
-			// Stripe is the authority and has accepted the change; mirror it locally and
-			// answer with the row as it now stands, not with the pre-update copy.
-			const [updated] = await db
-				.update(billingSubscriptions)
-				.set({ cancelAtPeriodEnd: true })
-				.where(eq(billingSubscriptions.id, subscription.id))
-				.returning();
+    // Stripe is the authority and has accepted the change; mirror it locally and
+    // answer with the row as it now stands, not with the pre-update copy.
+    const [updated] = await db
+      .update(billingSubscriptions)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(billingSubscriptions.id, subscription.id))
+      .returning();
 
-			res.json({
-				message: "Subscription will be canceled at end of billing period",
-				subscription: toBillingSubscriptionResponse(updated),
-			});
-		} catch (error) {
-			logger.error("Error canceling subscription:", error);
-			res.status(500).json({ error: "Failed to cancel subscription" });
-		}
-	},
-);
+    res.json({
+      message: 'Subscription will be canceled at end of billing period',
+      subscription: toBillingSubscriptionResponse(updated),
+    });
+  } catch (error) {
+    logger.error('Error canceling subscription:', error);
+    res.status(500).json({ error: 'Failed to cancel subscription' });
+  }
+});
 
 /**
  * Paginated list of the user's billing transactions (one-time purchases
  * and subscription invoices). Default limit 20, max 100.
  */
 router.get(
-	"/transactions",
-	authMiddleware,
-	validate({ query: transactionsQuerySchema }),
-	async (req: AuthRequest, res: Response) => {
-		try {
-			const userId = req.user?._id?.toString();
-			if (!userId)
-				return res.status(401).json({ error: "Authentication required" });
+  '/transactions',
+  authMiddleware,
+  validate({ query: transactionsQuerySchema }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?._id?.toString();
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-			const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-			const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-			const db = getDb();
-			const [rows, [totals]] = await Promise.all([
-				db
-					.select()
-					.from(billingTransactions)
-					.where(eq(billingTransactions.userId, userId))
-					.orderBy(desc(billingTransactions.createdAt))
-					.limit(limit)
-					.offset(offset),
-				db
-					.select({ value: count() })
-					.from(billingTransactions)
-					.where(eq(billingTransactions.userId, userId)),
-			]);
+      const db = getDb();
+      const [rows, [totals]] = await Promise.all([
+        db
+          .select()
+          .from(billingTransactions)
+          .where(eq(billingTransactions.userId, userId))
+          .orderBy(desc(billingTransactions.createdAt))
+          .limit(limit)
+          .offset(offset),
+        db
+          .select({ value: count() })
+          .from(billingTransactions)
+          .where(eq(billingTransactions.userId, userId)),
+      ]);
 
-			const transactions: BillingTransactionResponse[] = rows.map(
-				toBillingTransactionResponse,
-			);
+      const transactions: BillingTransactionResponse[] = rows.map(toBillingTransactionResponse);
 
-			res.json({ transactions, total: totals.value });
-		} catch (error) {
-			logger.error("Error fetching transactions:", error);
-			res.status(500).json({ error: "Failed to fetch transactions" });
-		}
-	},
+      res.json({ transactions, total: totals.value });
+    } catch (error) {
+      logger.error('Error fetching transactions:', error);
+      res.status(500).json({ error: 'Failed to fetch transactions' });
+    }
+  },
 );
 
 /**
@@ -782,39 +884,38 @@ router.get(
  * subscription.
  */
 router.post(
-	"/portal",
-	authMiddleware,
-	validate({ body: portalSchema }),
-	async (req: AuthRequest, res: Response) => {
-		try {
-			const userId = req.user?._id?.toString();
-			if (!userId)
-				return res.status(401).json({ error: "Authentication required" });
+  '/portal',
+  authMiddleware,
+  validate({ body: portalSchema }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user?._id?.toString();
+      if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-			const { returnUrl } = req.body;
+      const { returnUrl } = req.body;
 
-			if (!isAllowedRedirect(returnUrl)) {
-				logger.warn("Rejected portal request with disallowed return URL", {
-					userId,
-					returnUrl,
-				});
-				return res.status(400).json(INVALID_RETURN_URL_RESPONSE);
-			}
+      if (!isAllowedRedirect(returnUrl)) {
+        logger.warn('Rejected portal request with disallowed return URL', {
+          userId,
+          returnUrl,
+        });
+        return res.status(400).json(INVALID_RETURN_URL_RESPONSE);
+      }
 
-			const email = req.user?.email;
-			const customerId = await getOrCreateAccountStripeCustomer(userId, email);
+      const email = req.user?.email;
+      const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
-			const session = await (await getBillingStripe()).billingPortal.sessions.create({
-				customer: customerId,
-				return_url: returnUrl,
-			});
+      const session = await (await getBillingStripe()).billingPortal.sessions.create({
+        customer: customerId,
+        return_url: returnUrl,
+      });
 
-			res.json({ url: session.url });
-		} catch (error) {
-			logger.error("Error creating portal session:", error);
-			res.status(500).json({ error: "Failed to create portal session" });
-		}
-	},
+      res.json({ url: session.url });
+    } catch (error) {
+      logger.error('Error creating portal session:', error);
+      res.status(500).json({ error: 'Failed to create portal session' });
+    }
+  },
 );
 
 /**
@@ -827,62 +928,59 @@ router.post(
  * queryable row rather than a log line. A handler that throws is recorded as
  * `failed` and answered 500, which is what makes Stripe redeliver it.
  */
-router.post("/webhook", async (req: Request, res: Response) => {
-	const sig = req.headers["stripe-signature"] as string;
-	if (!sig) return res.status(400).json({ error: "Missing stripe-signature" });
+router.post('/webhook', async (req: Request, res: Response) => {
+  const sig = req.headers['stripe-signature'] as string;
+  if (!sig) return res.status(400).json({ error: 'Missing stripe-signature' });
 
-	let webhookSecret: string;
-	try {
-		webhookSecret = getWebhookSecret();
-	} catch {
-		logger.error("STRIPE_WEBHOOK_SECRET is not configured");
-		return res.status(500).json({ error: "Webhook not configured" });
-	}
+  let webhookSecret: string;
+  try {
+    webhookSecret = getWebhookSecret();
+  } catch {
+    logger.error('STRIPE_WEBHOOK_SECRET is not configured');
+    return res.status(500).json({ error: 'Webhook not configured' });
+  }
 
-	let event: Stripe.Event;
-	try {
-		event = await (await getBillingStripe()).webhooks.constructEventAsync(
+  let event: Stripe.Event;
+  try {
+    event = await (await getBillingStripe()).webhooks.constructEventAsync(
       req.body,
       sig,
       webhookSecret,
       undefined,
       Stripe.createSubtleCryptoProvider(),
     );
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		logger.error("Webhook verification failed:", message);
-		return res.status(400).json({ error: `Webhook Error: ${message}` });
-	}
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error('Webhook verification failed:', message);
+    return res.status(400).json({ error: `Webhook Error: ${message}` });
+  }
 
-	try {
-		if (!(await recordStripeEventReceived(event))) {
-			// Already reached a terminal outcome. The grant paths are idempotent on
-			// their own, so this only saves a second run; it guards nothing.
-			return res.json({ received: true });
-		}
+  try {
+    if (!(await recordStripeEventReceived(event))) {
+      // Already reached a terminal outcome. The grant paths are idempotent on
+      // their own, so this only saves a second run; it guards nothing.
+      return res.json({ received: true });
+    }
 
-		const result = await dispatchStripeEvent(event);
-		await recordStripeEventOutcome(event.id, result.outcome, result.detail);
-		res.json({ received: true });
-	} catch (error) {
-		logger.error("Error handling webhook:", error);
-		try {
-			await recordStripeEventOutcome(
-				event.id,
-				"failed",
-				error instanceof Error ? error.message : String(error),
-			);
-		} catch (recordError) {
-			logger.error("Could not record webhook failure", {
-				eventId: event.id,
-				error:
-					recordError instanceof Error
-						? recordError.message
-						: String(recordError),
-			});
-		}
-		res.status(500).json({ error: "Webhook handler error" });
-	}
+    const result = await dispatchStripeEvent(event);
+    await recordStripeEventOutcome(event.id, result.outcome, result.detail);
+    res.json({ received: true });
+  } catch (error) {
+    logger.error('Error handling webhook:', error);
+    try {
+      await recordStripeEventOutcome(
+        event.id,
+        'failed',
+        error instanceof Error ? error.message : String(error),
+      );
+    } catch (recordError) {
+      logger.error('Could not record webhook failure', {
+        eventId: event.id,
+        error: recordError instanceof Error ? recordError.message : String(recordError),
+      });
+    }
+    res.status(500).json({ error: 'Webhook handler error' });
+  }
 });
 
 async function dispatchStripeEvent(event: Stripe.Event): Promise<StripeEventResult> {
@@ -909,7 +1007,7 @@ async function dispatchStripeEvent(event: Stripe.Event): Promise<StripeEventResu
       // BOTH events; both handlers compose the same idempotency key from the
       // same intent id, so the second one writes nothing.
       const result = await handleBalanceTopUpPaymentIntent(
-        event.data.object as Stripe.PaymentIntent
+        event.data.object as Stripe.PaymentIntent,
       );
       if (result.status === 'ignored') {
         if (result.reason !== 'not-a-balance-top-up') {
@@ -979,7 +1077,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   // Re-validate credits against known packages to prevent metadata manipulation
   const pkg = CREDIT_PACKAGES.find((p) => p.id === metadata.packageId);
   if (!pkg) {
-    logger.warn('Webhook checkout: unrecognized packageId in metadata', { packageId: metadata.packageId, sessionId: session.id });
+    logger.warn('Webhook checkout: unrecognized packageId in metadata', {
+      packageId: metadata.packageId,
+      sessionId: session.id,
+    });
     return;
   }
 
@@ -994,7 +1095,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
-  const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+  const paymentIntentId =
+    typeof session.payment_intent === 'string' ? session.payment_intent : null;
   if (!paymentIntentId) {
     // No payment intent means no idempotency key, and granting without one is
     // how the original bug paid out twice. Refuse rather than grant unguarded.
@@ -1052,7 +1154,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     // next redelivery tries again.
     if (!(await addCredits(tx, userId, credits, 'paid'))) {
       throw new Error(
-        `Credit grant did not apply for user ${userId} (payment intent ${paymentIntentId})`
+        `Credit grant did not apply for user ${userId} (payment intent ${paymentIntentId})`,
       );
     }
     logger.info(`Added ${credits} credits to user ${userId}`);
@@ -1092,11 +1194,14 @@ function stripeIdOf(value: string | { id: string } | null | undefined): string |
  * on the evidence of a paid invoice — never by a subscription changing state.
  */
 async function syncSubscriptionFromProvider(
-  eventSubscription: Stripe.Subscription, event?: Stripe.Event
+  eventSubscription: Stripe.Subscription,
+  event?: Stripe.Event,
 ): Promise<StripeEventResult> {
   // Taken BEFORE the request: whatever Stripe answers is at least as new as this.
   const readStartedAt = new Date();
-  const subscription = await (await getBillingStripe()).subscriptions.retrieve(eventSubscription.id);
+  const subscription = await (await getBillingStripe()).subscriptions.retrieve(
+    eventSubscription.id,
+  );
 
   const customerId = stripeIdOf(subscription.customer);
   const userId = customerId ? await accountForStripeCustomer(customerId) : null;
@@ -1104,25 +1209,53 @@ async function syncSubscriptionFromProvider(
     return { outcome: 'ignored', detail: 'no account for the Stripe customer' };
   }
 
-  if (subscription.id !== eventSubscription.id || (event && subscription.livemode !== event.livemode)
-    || subscription.items.has_more || subscription.items.data.length !== 1) throw new Error('Provider lifecycle attribution or items differ');
+  if (
+    subscription.id !== eventSubscription.id ||
+    (event && subscription.livemode !== event.livemode) ||
+    subscription.items.has_more ||
+    subscription.items.data.length !== 1
+  )
+    throw new Error('Provider lifecycle attribution or items differ');
   const processor = await subscriptionProcessorBinding(subscription.livemode, event?.account);
-  const [, providerAccountRef, mode, environment] = z.tuple([z.literal('stripe'), z.string().min(1), z.enum(['live','test']), z.string().min(1)]).parse(JSON.parse(processor));
-  const productSources = await getDb().select().from(accessSubscriptionSources).where(and(
-    eq(accessSubscriptionSources.provider, 'stripe'), eq(accessSubscriptionSources.providerAccountRef, providerAccountRef),
-    eq(accessSubscriptionSources.mode, mode), eq(accessSubscriptionSources.environment, environment),
-    eq(accessSubscriptionSources.providerSubscriptionId, subscription.id)));
+  const [, providerAccountRef, mode, environment] = z
+    .tuple([z.literal('stripe'), z.string().min(1), z.enum(['live', 'test']), z.string().min(1)])
+    .parse(JSON.parse(processor));
+  const productSources = await getDb()
+    .select()
+    .from(accessSubscriptionSources)
+    .where(
+      and(
+        eq(accessSubscriptionSources.provider, 'stripe'),
+        eq(accessSubscriptionSources.providerAccountRef, providerAccountRef),
+        eq(accessSubscriptionSources.mode, mode),
+        eq(accessSubscriptionSources.environment, environment),
+        eq(accessSubscriptionSources.providerSubscriptionId, subscription.id),
+      ),
+    );
   const subscriptionItem = subscription.items.data[0];
   let productState: 'updated' | 'stale' | 'replayed' | undefined;
   for (const source of productSources) {
-    if (source.payerAccountId !== userId) throw new Error('Product lifecycle payer or binding differs');
+    if (source.payerAccountId !== userId)
+      throw new Error('Product lifecycle payer or binding differs');
     await assertProductSourceEvidence(source);
-    productState = await reconcileProductAccessFinancialState({ sourceId: source.id,
-      beneficiaryAccountId: source.beneficiaryAccountId, payerAccountId: source.payerAccountId,
-      provider: source.provider, providerSubscriptionId: source.providerSubscriptionId,
-      providerBinding: { providerAccountRef, ...billingNamespaceSchema.parse({ mode, environment }) }, providerObservedAt: readStartedAt,
-      status: subscription.status, period: { start: new Date(subscriptionItem.current_period_start * 1000).toISOString(), end: new Date(subscriptionItem.current_period_end * 1000).toISOString() },
-      cancelAtPeriodEnd: subscription.cancel_at_period_end });
+    productState = await reconcileProductAccessFinancialState({
+      sourceId: source.id,
+      beneficiaryAccountId: source.beneficiaryAccountId,
+      payerAccountId: source.payerAccountId,
+      provider: source.provider,
+      providerSubscriptionId: source.providerSubscriptionId,
+      providerBinding: {
+        providerAccountRef,
+        ...billingNamespaceSchema.parse({ mode, environment }),
+      },
+      providerObservedAt: readStartedAt,
+      status: subscription.status,
+      period: {
+        start: new Date(subscriptionItem.current_period_start * 1000).toISOString(),
+        end: new Date(subscriptionItem.current_period_end * 1000).toISOString(),
+      },
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    });
   }
   const priceId = subscriptionItem.price.id;
   const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId);
@@ -1135,7 +1268,7 @@ async function syncSubscriptionFromProvider(
   };
   const heldReadIsOlder = or(
     isNull(billingSubscriptions.providerSyncedAt),
-    lte(billingSubscriptions.providerSyncedAt, readStartedAt)
+    lte(billingSubscriptions.providerSyncedAt, readStartedAt),
   );
   const db = getDb();
 
@@ -1208,20 +1341,27 @@ async function currentInvoiceEvidence(event: Stripe.Event): Promise<Stripe.Invoi
   // `subscription`. Their presence is not a version discriminator. Modern
   // parent/pricing fields may themselves be null for non-recurring lines.
   const legacyLine = (line: Stripe.InvoiceLineItem) =>
-    (line.parent === undefined || line.pricing === undefined)
-    && ('price' in line || 'subscription' in line);
+    (line.parent === undefined || line.pricing === undefined) &&
+    ('price' in line || 'subscription' in line);
   const legacyInvoice = invoice.parent === undefined && 'subscription' in historical;
   if (!legacyInvoice && !invoice.lines.data.some(legacyLine)) return invoice;
 
   const current = await (await getBillingStripe()).invoices.retrieve(invoice.id);
-  const expectedSubscription = stripeIdOf(historical.subscription)
-    ?? stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  const expectedSubscription =
+    stripeIdOf(historical.subscription) ??
+    stripeIdOf(invoice.parent?.subscription_details?.subscription);
   const actualSubscription = stripeIdOf(current.parent?.subscription_details?.subscription);
-  if (current.id !== invoice.id || current.object !== 'invoice'
-    || typeof event.livemode !== 'boolean' || current.livemode !== event.livemode
-    || stripeIdOf(current.customer) !== stripeIdOf(invoice.customer)
-    || actualSubscription !== expectedSubscription) {
-    throw new Error('Historical invoice retrieval returned contradictory identity, mode or attribution');
+  if (
+    current.id !== invoice.id ||
+    current.object !== 'invoice' ||
+    typeof event.livemode !== 'boolean' ||
+    current.livemode !== event.livemode ||
+    stripeIdOf(current.customer) !== stripeIdOf(invoice.customer) ||
+    actualSubscription !== expectedSubscription
+  ) {
+    throw new Error(
+      'Historical invoice retrieval returned contradictory identity, mode or attribution',
+    );
   }
   if (current.parent === undefined || current.lines.data.some(legacyLine)) {
     throw new Error('Historical invoice retrieval did not return the configured SDK API shape');
@@ -1256,127 +1396,127 @@ function linePriceId(line: Stripe.InvoiceLineItem): string | null {
  * is not granted again.
  */
 async function handleInvoicePaid(
-	invoice: Stripe.Invoice,
-	event: Stripe.Event,
+  invoice: Stripe.Invoice,
+  event: Stripe.Event,
 ): Promise<StripeEventResult> {
-	const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
-	if (invoice.livemode !== event.livemode) throw new Error('Invoice mode differs from authenticated delivery');
-	if (!subscriptionId) {
+  const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  if (invoice.livemode !== event.livemode)
+    throw new Error('Invoice mode differs from authenticated delivery');
+  if (!subscriptionId) {
     return { outcome: 'ignored', detail: 'invoice is not for a subscription' };
   }
-	if (invoice.status !== 'paid') {
+  if (invoice.status !== 'paid') {
     return { outcome: 'not_granted', detail: `invoice status is ${invoice.status ?? 'null'}` };
   }
-	if (invoice.billing_reason === 'subscription_update') return handlePaidSubscriptionChange(invoice, event);
-	if (!invoice.billing_reason || !PERIOD_OPENING_BILLING_REASONS.has(invoice.billing_reason)) {
+  if (invoice.billing_reason === 'subscription_update')
+    return handlePaidSubscriptionChange(invoice, event);
+  if (!invoice.billing_reason || !PERIOD_OPENING_BILLING_REASONS.has(invoice.billing_reason)) {
     return {
       outcome: 'not_granted',
       detail: `billing_reason ${invoice.billing_reason ?? 'null'} does not open a credit period`,
     };
   }
 
-	const customerId = stripeIdOf(invoice.customer);
-	const userId = customerId ? await accountForStripeCustomer(customerId) : null;
-	if (!customerId || !userId) {
+  const customerId = stripeIdOf(invoice.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!customerId || !userId) {
     return { outcome: 'not_granted', detail: 'no account for the Stripe customer' };
   }
 
-	const productPeriod = await prepareStripeProductPeriod(
-		invoice,
-		event,
-		userId,
-		await loadProductBillingCatalogue(),
-	);
-	if (invoice.amount_paid <= 0) {
-		// Approved P2 starts with an empty registry; no illustrative promotion is active.
-		return handleFreeSubscriptionPeriod(
-			invoice,
-			event,
-			userId,
-			customerId,
-			subscriptionId,
-		);
-	}
+  const productPeriod = await prepareStripeProductPeriod(
+    invoice,
+    event,
+    userId,
+    await loadProductBillingCatalogue(),
+  );
+  if (invoice.amount_paid <= 0) {
+    // Approved P2 starts with an empty registry; no illustrative promotion is active.
+    return handleFreeSubscriptionPeriod(invoice, event, userId, customerId, subscriptionId);
+  }
 
-	// Stripe embeds only the first page. Inspect every line before accepting a
-	// recurring period; an early known-price line may be a proration.
-	const lines = [...invoice.lines.data];
-	let page = invoice.lines;
-	const seenCursors = new Set<string>();
-	while (page.has_more) {
+  // Stripe embeds only the first page. Inspect every line before accepting a
+  // recurring period; an early known-price line may be a proration.
+  const lines = [...invoice.lines.data];
+  let page = invoice.lines;
+  const seenCursors = new Set<string>();
+  while (page.has_more) {
     const cursor = page.data.at(-1)?.id;
     if (!cursor || seenCursors.has(cursor) || seenCursors.size >= 100) {
       throw new Error('Invoice line pagination made no progress; refusing incomplete evidence');
     }
     seenCursors.add(cursor);
-    page = await (await getBillingStripe()).invoices.listLineItems(invoice.id, { limit: 100, starting_after: cursor });
+    page = await (await getBillingStripe()).invoices.listLineItems(invoice.id, {
+      limit: 100,
+      starting_after: cursor,
+    });
     lines.push(...page.data);
   }
-	const candidates = lines.filter((candidate) => {
-		const parent = candidate.parent;
-		const details = parent?.subscription_item_details;
-		return (
-			parent?.type === "subscription_item_details" &&
-			details?.subscription === subscriptionId &&
-			details.proration === false
-		);
-	});
-	const planLines = candidates.filter((candidate) => {
-		const priceId = linePriceId(candidate);
-		return (
-			priceId &&
-			SUBSCRIPTION_PLANS.some((entry) => entry.stripePriceId === priceId)
-		);
-	});
-	if (planLines.length === 0) {
-		if (productPeriod) return recordProductOnlyInvoice(productPeriod);
-		return { outcome: 'not_granted', detail: 'no invoice line for a plan price this API sells' };
-	}
-	// Our checkout sells one recurring item at quantity one. An ambiguous
-	// invoice needs a reviewed mapping, never an arbitrary first line.
-	if (candidates.length !== 1 || planLines.length !== 1) {
+  const candidates = lines.filter((candidate) => {
+    const parent = candidate.parent;
+    const details = parent?.subscription_item_details;
+    return (
+      parent?.type === 'subscription_item_details' &&
+      details?.subscription === subscriptionId &&
+      details.proration === false
+    );
+  });
+  const planLines = candidates.filter((candidate) => {
+    const priceId = linePriceId(candidate);
+    return priceId && SUBSCRIPTION_PLANS.some((entry) => entry.stripePriceId === priceId);
+  });
+  if (planLines.length === 0) {
+    if (productPeriod) return recordProductOnlyInvoice(productPeriod);
+    return { outcome: 'not_granted', detail: 'no invoice line for a plan price this API sells' };
+  }
+  // Our checkout sells one recurring item at quantity one. An ambiguous
+  // invoice needs a reviewed mapping, never an arbitrary first line.
+  if (candidates.length !== 1 || planLines.length !== 1) {
     return { outcome: 'not_granted', detail: 'ambiguous recurring invoice lines or periods' };
   }
-	const [line] = planLines;
-	const plan = SUBSCRIPTION_PLANS.find(
-		(entry) => entry.stripePriceId === linePriceId(line),
-	);
-	if (!plan) throw new Error('Validated plan line has no configured plan');
-	if (line.currency !== invoice.currency || line.quantity !== 1 || line.amount <= 0
-    || !Number.isSafeInteger(line.period.start) || !Number.isSafeInteger(line.period.end)
-    || line.period.start <= 0 || line.period.end <= line.period.start) {
-    return { outcome: 'not_granted', detail: 'recurring line currency, quantity, amount or period is invalid' };
+  const [line] = planLines;
+  const plan = SUBSCRIPTION_PLANS.find((entry) => entry.stripePriceId === linePriceId(line));
+  if (!plan) throw new Error('Validated plan line has no configured plan');
+  if (
+    line.currency !== invoice.currency ||
+    line.quantity !== 1 ||
+    line.amount <= 0 ||
+    !Number.isSafeInteger(line.period.start) ||
+    !Number.isSafeInteger(line.period.end) ||
+    line.period.start <= 0 ||
+    line.period.end <= line.period.start
+  ) {
+    return {
+      outcome: 'not_granted',
+      detail: 'recurring line currency, quantity, amount or period is invalid',
+    };
   }
-	if (invoice.currency !== plan.currency) {
+  if (invoice.currency !== plan.currency) {
     return {
       outcome: 'not_granted',
       detail: `invoice currency ${invoice.currency} does not match plan currency ${plan.currency}`,
     };
   }
 
-	const providerAccountRef = await subscriptionProcessorBinding(
-		invoice.livemode,
-		event.account,
-	);
-	const periodStart = new Date(line.period.start * 1000);
-	const amountDetail =
-		invoice.amount_paid === plan.price
-			? undefined
-			: `amount_paid ${invoice.amount_paid} differs from plan price ${plan.price} ${plan.currency}`;
-	const credits = plan.creditsPerMonth;
-	const planName = plan.name;
+  const providerAccountRef = await subscriptionProcessorBinding(invoice.livemode, event.account);
+  const periodStart = new Date(line.period.start * 1000);
+  const amountDetail =
+    invoice.amount_paid === plan.price
+      ? undefined
+      : `amount_paid ${invoice.amount_paid} differs from plan price ${plan.price} ${plan.currency}`;
+  const credits = plan.creditsPerMonth;
+  const planName = plan.name;
 
-	return getDb().transaction(async (tx): Promise<StripeEventResult> => {
-		if (productPeriod)
-			await recordProductProviderPeriod(productPeriod, tx, {
-				verifiedHistoricalPaidEvidence: true,
-			});
-		// Lock the account before a receipt FK obtains a weaker parent lock.
-		await lockSubscriptionCreditAccount(tx, userId);
-		// Same shape as `handleCheckoutCompleted`: the receipt is the idempotency
-		// claim, `billing_transactions_subscription_period_key` makes winning it
-		// atomic, and the grant is conditional on having won.
-		const [receipt] = await tx
+  return getDb().transaction(async (tx): Promise<StripeEventResult> => {
+    if (productPeriod)
+      await recordProductProviderPeriod(productPeriod, tx, {
+        verifiedHistoricalPaidEvidence: true,
+      });
+    // Lock the account before a receipt FK obtains a weaker parent lock.
+    await lockSubscriptionCreditAccount(tx, userId);
+    // Same shape as `handleCheckoutCompleted`: the receipt is the idempotency
+    // claim, `billing_transactions_subscription_period_key` makes winning it
+    // atomic, and the grant is conditional on having won.
+    const [receipt] = await tx
       .insert(billingTransactions)
       .values({
         userId,
@@ -1406,345 +1546,381 @@ async function handleInvoicePaid(
       })
       .returning({ id: billingTransactions.id });
 
-		if (!receipt) {
-			logger.info("Skipping duplicate subscription credit grant", {
-				subscriptionId,
-				invoiceId: invoice.id,
-				periodStart: periodStart.toISOString(),
-				userId,
-			});
-			return { outcome: "duplicate", detail: "the period was already granted" };
-		}
+    if (!receipt) {
+      logger.info('Skipping duplicate subscription credit grant', {
+        subscriptionId,
+        invoiceId: invoice.id,
+        periodStart: periodStart.toISOString(),
+        userId,
+      });
+      return { outcome: 'duplicate', detail: 'the period was already granted' };
+    }
 
-		// The receipt suppresses every replay, so a silently-failed grant would
-		// never be retried. Throw: the transaction rolls back, the claim is
-		// released, and Stripe's redelivery tries again.
-		await grantSubscriptionCredits(tx, { userId, transactionId: receipt.id, providerAccountRef,
-      invoiceId: invoice.id, subscriptionId, sourceType: 'subscription_payment',
-      periodStart, periodEnd: new Date(line.period.end * 1000), currency: invoice.currency,
-      amountPaid: invoice.amount_paid, granted: credits });
-		return { outcome: 'granted', detail: amountDetail };
-	});
+    // The receipt suppresses every replay, so a silently-failed grant would
+    // never be retried. Throw: the transaction rolls back, the claim is
+    // released, and Stripe's redelivery tries again.
+    await grantSubscriptionCredits(tx, {
+      userId,
+      transactionId: receipt.id,
+      providerAccountRef,
+      invoiceId: invoice.id,
+      subscriptionId,
+      sourceType: 'subscription_payment',
+      periodStart,
+      periodEnd: new Date(line.period.end * 1000),
+      currency: invoice.currency,
+      amountPaid: invoice.amount_paid,
+      granted: credits,
+    });
+    return { outcome: 'granted', detail: amountDetail };
+  });
 }
 
 /** P2 has an empty approved registry; only future reviewed declarations may award. */
 async function handleFreeSubscriptionPeriod(
-	invoice: Stripe.Invoice,
-	event: Stripe.Event,
-	userId: string,
-	customerId: string,
-	subscriptionId: string,
+  invoice: Stripe.Invoice,
+  event: Stripe.Event,
+  userId: string,
+  customerId: string,
+  subscriptionId: string,
 ): Promise<StripeEventResult> {
-	if (!FREE_PERIOD_PROMOTIONS.length)
-		return {
-			outcome: "not_granted",
-			detail: "zero-amount invoice without a declared promotion",
-		};
-	if (invoice.amount_paid !== 0)
-		throw new Error("Promotion invoice amount differs");
-	const lines = (await allInvoiceLines(invoice)).filter(
-		(line) =>
-			line.parent?.subscription_item_details?.subscription === subscriptionId,
-	);
-	if (
-		lines.length !== 1 ||
-		lines[0].quantity !== 1 ||
-		lines[0].parent?.subscription_item_details?.proration !== false
-	)
-		throw new Error("Promotion invoice line is ambiguous");
-	const line = lines[0];
-	const plan = SUBSCRIPTION_PLANS.find(
-		(value) => value.stripePriceId && value.stripePriceId === linePriceId(line),
-	);
-	if (
-		!plan ||
-		line.currency !== invoice.currency ||
-		invoice.currency !== plan.currency
-	)
-		throw new Error("Promotion plan currency differs");
-	const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
-	if (
-		subscription.id !== subscriptionId ||
-		subscription.livemode !== invoice.livemode ||
-		stripeIdOf(subscription.customer) !== customerId
-	)
-		throw new Error("Promotion subscription attribution differs");
-	const expanded = await (await getBillingStripe()).invoices.retrieve(invoice.id, {
-		expand: ["discounts"],
-	});
-	if (
-		expanded.id !== invoice.id ||
-		expanded.livemode !== invoice.livemode ||
-		expanded.amount_paid !== 0 ||
-		stripeIdOf(expanded.customer) !== customerId ||
-		stripeIdOf(expanded.parent?.subscription_details?.subscription) !==
-			subscriptionId
-	)
-		throw new Error("Promotion invoice evidence changed");
-	const applied = new Set(
-		(expanded.total_discount_amounts ?? [])
-			.filter((value) => value.amount > 0)
-			.map((value) => stripeIdOf(value.discount)),
-	);
-	const couponIds = expanded.discounts.flatMap((discount) =>
-		typeof discount !== "string" &&
-		applied.has(discount.id) &&
-		discount.source.type === "coupon"
-			? [stripeIdOf(discount.source.coupon)].filter(
-					(value): value is string => value !== null,
-				)
-			: [],
-	);
-	const promotion = resolveFreePeriodPromotion({
-		planId: plan.id,
-		amountPaid: 0,
-		trialCoversPeriod:
-			typeof subscription.trial_start === "number" &&
-			typeof subscription.trial_end === "number" &&
-			subscription.trial_start <= line.period.start &&
-			subscription.trial_end >= line.period.end,
-		couponIds,
-	});
-	if (!promotion)
-		return {
-			outcome: "not_granted",
-			detail: "zero-amount invoice without a declared promotion",
-		};
-	const providerAccountRef = await subscriptionProcessorBinding(
-		invoice.livemode,
-		event.account,
-	);
-	return getDb().transaction(async (tx) => {
-		await lockSubscriptionCreditAccount(tx, userId);
-		if (promotion.oncePerAccount) {
-			const [previous] = await tx
-				.select({ id: billingCreditGrants.id })
-				.from(billingCreditGrants)
-				.where(
-					and(
-						eq(billingCreditGrants.userId, userId),
-						eq(billingCreditGrants.oncePerAccountPromotionId, promotion.id),
-					),
-				);
-			if (previous)
-				return {
-					outcome: "not_granted",
-					detail: "declared once-per-account promotion was already granted",
-				};
-		}
-		const [receipt] = await tx
-			.insert(billingTransactions)
-			.values({
-				userId,
-				stripeCustomerId: customerId,
-				stripeInvoiceId: invoice.id,
-				stripeSubscriptionId: subscriptionId,
-				stripeSubscriptionPeriodStart: new Date(line.period.start * 1000),
-				type: "subscription_promotional_grant",
-				promotionId: promotion.id,
-				amountMinorUnits: 0,
-				currency: invoice.currency,
-				credits: promotion.credits,
-				status: "completed",
-			})
-			.onConflictDoNothing({
-				target: [
-					billingTransactions.stripeSubscriptionId,
-					billingTransactions.stripeSubscriptionPeriodStart,
-					billingTransactions.type,
-				],
-				where: sql`${billingTransactions.type} = 'subscription_promotional_grant' and ${billingTransactions.stripeSubscriptionId} is not null and ${billingTransactions.stripeSubscriptionPeriodStart} is not null`,
-			})
-			.returning();
-		if (!receipt)
-			return {
-				outcome: "duplicate",
-				detail: "promotional period already granted",
-			};
-		await grantSubscriptionCredits(tx, {
-			userId,
-			transactionId: receipt.id,
-			providerAccountRef,
-			invoiceId: invoice.id,
-			subscriptionId,
-			sourceType: "subscription_promotional_grant",
-			promotionId: promotion.id,
-			oncePerAccountPromotionId: promotion.oncePerAccount ? promotion.id : null,
-			periodStart: new Date(line.period.start * 1000),
-			periodEnd: new Date(line.period.end * 1000),
-			currency: invoice.currency,
-			amountPaid: 0,
-			granted: promotion.credits,
-		});
-		return {
-			outcome: "granted",
-			detail: `declared promotion ${promotion.id}; credits ${promotion.credits}`,
-		};
-	});
+  if (!FREE_PERIOD_PROMOTIONS.length)
+    return {
+      outcome: 'not_granted',
+      detail: 'zero-amount invoice without a declared promotion',
+    };
+  if (invoice.amount_paid !== 0) throw new Error('Promotion invoice amount differs');
+  const lines = (await allInvoiceLines(invoice)).filter(
+    (line) => line.parent?.subscription_item_details?.subscription === subscriptionId,
+  );
+  if (
+    lines.length !== 1 ||
+    lines[0].quantity !== 1 ||
+    lines[0].parent?.subscription_item_details?.proration !== false
+  )
+    throw new Error('Promotion invoice line is ambiguous');
+  const line = lines[0];
+  const plan = SUBSCRIPTION_PLANS.find(
+    (value) => value.stripePriceId && value.stripePriceId === linePriceId(line),
+  );
+  if (!plan || line.currency !== invoice.currency || invoice.currency !== plan.currency)
+    throw new Error('Promotion plan currency differs');
+  const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
+  if (
+    subscription.id !== subscriptionId ||
+    subscription.livemode !== invoice.livemode ||
+    stripeIdOf(subscription.customer) !== customerId
+  )
+    throw new Error('Promotion subscription attribution differs');
+  const expanded = await (await getBillingStripe()).invoices.retrieve(invoice.id, {
+    expand: ['discounts'],
+  });
+  if (
+    expanded.id !== invoice.id ||
+    expanded.livemode !== invoice.livemode ||
+    expanded.amount_paid !== 0 ||
+    stripeIdOf(expanded.customer) !== customerId ||
+    stripeIdOf(expanded.parent?.subscription_details?.subscription) !== subscriptionId
+  )
+    throw new Error('Promotion invoice evidence changed');
+  const applied = new Set(
+    (expanded.total_discount_amounts ?? [])
+      .filter((value) => value.amount > 0)
+      .map((value) => stripeIdOf(value.discount)),
+  );
+  const couponIds = expanded.discounts.flatMap((discount) =>
+    typeof discount !== 'string' && applied.has(discount.id) && discount.source.type === 'coupon'
+      ? [stripeIdOf(discount.source.coupon)].filter((value): value is string => value !== null)
+      : [],
+  );
+  const promotion = resolveFreePeriodPromotion({
+    planId: plan.id,
+    amountPaid: 0,
+    trialCoversPeriod:
+      typeof subscription.trial_start === 'number' &&
+      typeof subscription.trial_end === 'number' &&
+      subscription.trial_start <= line.period.start &&
+      subscription.trial_end >= line.period.end,
+    couponIds,
+  });
+  if (!promotion)
+    return {
+      outcome: 'not_granted',
+      detail: 'zero-amount invoice without a declared promotion',
+    };
+  const providerAccountRef = await subscriptionProcessorBinding(invoice.livemode, event.account);
+  return getDb().transaction(async (tx) => {
+    await lockSubscriptionCreditAccount(tx, userId);
+    if (promotion.oncePerAccount) {
+      const [previous] = await tx
+        .select({ id: billingCreditGrants.id })
+        .from(billingCreditGrants)
+        .where(
+          and(
+            eq(billingCreditGrants.userId, userId),
+            eq(billingCreditGrants.oncePerAccountPromotionId, promotion.id),
+          ),
+        );
+      if (previous)
+        return {
+          outcome: 'not_granted',
+          detail: 'declared once-per-account promotion was already granted',
+        };
+    }
+    const [receipt] = await tx
+      .insert(billingTransactions)
+      .values({
+        userId,
+        stripeCustomerId: customerId,
+        stripeInvoiceId: invoice.id,
+        stripeSubscriptionId: subscriptionId,
+        stripeSubscriptionPeriodStart: new Date(line.period.start * 1000),
+        type: 'subscription_promotional_grant',
+        promotionId: promotion.id,
+        amountMinorUnits: 0,
+        currency: invoice.currency,
+        credits: promotion.credits,
+        status: 'completed',
+      })
+      .onConflictDoNothing({
+        target: [
+          billingTransactions.stripeSubscriptionId,
+          billingTransactions.stripeSubscriptionPeriodStart,
+          billingTransactions.type,
+        ],
+        where: sql`${billingTransactions.type} = 'subscription_promotional_grant' and ${billingTransactions.stripeSubscriptionId} is not null and ${billingTransactions.stripeSubscriptionPeriodStart} is not null`,
+      })
+      .returning();
+    if (!receipt)
+      return {
+        outcome: 'duplicate',
+        detail: 'promotional period already granted',
+      };
+    await grantSubscriptionCredits(tx, {
+      userId,
+      transactionId: receipt.id,
+      providerAccountRef,
+      invoiceId: invoice.id,
+      subscriptionId,
+      sourceType: 'subscription_promotional_grant',
+      promotionId: promotion.id,
+      oncePerAccountPromotionId: promotion.oncePerAccount ? promotion.id : null,
+      periodStart: new Date(line.period.start * 1000),
+      periodEnd: new Date(line.period.end * 1000),
+      currency: invoice.currency,
+      amountPaid: 0,
+      granted: promotion.credits,
+    });
+    return {
+      outcome: 'granted',
+      detail: `declared promotion ${promotion.id}; credits ${promotion.credits}`,
+    };
+  });
 }
 
 /** Product-only invoices still commit source/segment/grants/evidence/delivery together. */
 async function recordProductOnlyInvoice(
-	input: ProductProviderPeriodInput,
+  input: ProductProviderPeriodInput,
 ): Promise<StripeEventResult> {
-	const access = await recordProductProviderPeriod(input, undefined, {
-		verifiedHistoricalPaidEvidence: true,
-	});
-	return {
-		outcome: access.status === "recorded" ? "granted" : "duplicate",
-		detail: "explicit product offer; no API credit or monetary grant",
-	};
+  const access = await recordProductProviderPeriod(input, undefined, {
+    verifiedHistoricalPaidEvidence: true,
+  });
+  return {
+    outcome: access.status === 'recorded' ? 'granted' : 'duplicate',
+    detail: 'explicit product offer; no API credit or monetary grant',
+  };
 }
 
 /** P1: verified full period evidence before locks; mutable delivery order is irrelevant. */
 async function handlePaidSubscriptionChange(
-	invoice: Stripe.Invoice,
-	event: Stripe.Event,
+  invoice: Stripe.Invoice,
+  event: Stripe.Event,
 ): Promise<StripeEventResult> {
-	if (invoice.amount_paid <= 0) return { outcome: 'not_granted', detail: 'unpaid or zero-amount plan change grants no credits' };
-	const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
-	const customerId = stripeIdOf(invoice.customer);
-	const userId = customerId ? await accountForStripeCustomer(customerId) : null;
-	if (!subscriptionId || !customerId || !userId) return { outcome: 'not_granted', detail: 'subscription invoice attribution is unavailable' };
-	const productPeriod = await prepareStripeProductPeriod(
-		invoice,
-		event,
-		userId,
-		await loadProductBillingCatalogue(),
-	);
-	if (
-		productPeriod &&
-		!SUBSCRIPTION_PLANS.some(
-			(plan) =>
-				plan.stripePriceId &&
-				plan.stripePriceId === productPeriod.paidLine.priceId,
-		)
-	)
-		return recordProductOnlyInvoice(productPeriod);
-	const providerAccountRef = await subscriptionProcessorBinding(
-		invoice.livemode,
-		event.account,
-	);
-	const [frozen] = await getDb()
-		.select({ receipt: billingTransactions, grant: billingCreditGrants })
-		.from(billingTransactions)
-		.innerJoin(
-			billingCreditGrants,
-			eq(billingCreditGrants.transactionId, billingTransactions.id),
-		)
-		.where(
-			and(
-				eq(billingTransactions.stripeInvoiceId, invoice.id),
-				eq(billingTransactions.type, "subscription_proration"),
-			),
-		);
-	if (frozen) {
-		const lines = await allInvoiceLines(invoice);
-		const recurring = lines.filter(
-			(line) =>
-				line.parent?.subscription_item_details?.subscription === subscriptionId,
-		);
-		if (
-			frozen.receipt.userId !== userId ||
-			frozen.receipt.stripeSubscriptionId !== subscriptionId ||
-			frozen.receipt.amountMinorUnits !== invoice.amount_paid ||
-			frozen.receipt.currency !== invoice.currency ||
-			frozen.grant.providerAccountRef !== providerAccountRef ||
-			recurring.length !== 2 ||
-			recurring.some(
-				(line) =>
-					line.quantity !== 1 ||
-					line.currency !== invoice.currency ||
-					line.parent?.subscription_item_details?.proration !== true ||
-					line.period.end * 1000 !== frozen.grant.periodEnd.getTime() ||
-					line.period.start * 1000 < frozen.grant.periodStart.getTime() ||
-					!SUBSCRIPTION_PLANS.some(
-						(plan) =>
-							plan.stripePriceId && plan.stripePriceId === linePriceId(line),
-					),
-			)
-		) {
-			throw new Error(
-				"Historical upgrade invoice differs from its frozen financial receipt",
-			);
-		}
-		if (productPeriod)
-			await getDb().transaction((tx) =>
-				recordProductProviderPeriod(productPeriod, tx, {
-					verifiedHistoricalPaidEvidence: true,
-				}),
-			);
-		return {
-			outcome: "duplicate",
-			detail:
-				"historical upgrade receipt was already granted; current source unchanged",
-		};
-	}
-	const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
-	if (
-		subscription.id !== subscriptionId ||
-		subscription.livemode !== invoice.livemode ||
-		stripeIdOf(subscription.customer) !== customerId ||
-		subscription.items.has_more ||
-		subscription.items.data.length !== 1
-	)
-		throw new Error("Current subscription evidence is ambiguous");
-	const period = await paidPeriodForUpgrade(
-		invoice,
-		subscriptionId,
-		SUBSCRIPTION_PLANS,
-	);
-	const assignments = await reconcilePaidCreditPeriod({
-		subscriptionId,
-		customerId,
-		livemode: invoice.livemode,
-		...period,
-		plans: SUBSCRIPTION_PLANS,
-	});
-	// Mirror synchronization is outside the financial transaction and grants nothing.
-	await syncSubscriptionFromProvider(subscription);
-	return applyReconciledPeriodInvoice({
-		userId,
-		customerId,
-		subscriptionId,
-		providerAccountRef,
-		productPeriod,
-		...period,
-		invoiceId: invoice.id,
-		assignments,
-	});
+  if (invoice.amount_paid <= 0)
+    return {
+      outcome: 'not_granted',
+      detail: 'unpaid or zero-amount plan change grants no credits',
+    };
+  const subscriptionId = stripeIdOf(invoice.parent?.subscription_details?.subscription);
+  const customerId = stripeIdOf(invoice.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!subscriptionId || !customerId || !userId)
+    return { outcome: 'not_granted', detail: 'subscription invoice attribution is unavailable' };
+  const productPeriod = await prepareStripeProductPeriod(
+    invoice,
+    event,
+    userId,
+    await loadProductBillingCatalogue(),
+  );
+  if (
+    productPeriod &&
+    !SUBSCRIPTION_PLANS.some(
+      (plan) => plan.stripePriceId && plan.stripePriceId === productPeriod.paidLine.priceId,
+    )
+  )
+    return recordProductOnlyInvoice(productPeriod);
+  const providerAccountRef = await subscriptionProcessorBinding(invoice.livemode, event.account);
+  const [frozen] = await getDb()
+    .select({ receipt: billingTransactions, grant: billingCreditGrants })
+    .from(billingTransactions)
+    .innerJoin(billingCreditGrants, eq(billingCreditGrants.transactionId, billingTransactions.id))
+    .where(
+      and(
+        eq(billingTransactions.stripeInvoiceId, invoice.id),
+        eq(billingTransactions.type, 'subscription_proration'),
+      ),
+    );
+  if (frozen) {
+    const lines = await allInvoiceLines(invoice);
+    const recurring = lines.filter(
+      (line) => line.parent?.subscription_item_details?.subscription === subscriptionId,
+    );
+    if (
+      frozen.receipt.userId !== userId ||
+      frozen.receipt.stripeSubscriptionId !== subscriptionId ||
+      frozen.receipt.amountMinorUnits !== invoice.amount_paid ||
+      frozen.receipt.currency !== invoice.currency ||
+      frozen.grant.providerAccountRef !== providerAccountRef ||
+      recurring.length !== 2 ||
+      recurring.some(
+        (line) =>
+          line.quantity !== 1 ||
+          line.currency !== invoice.currency ||
+          line.parent?.subscription_item_details?.proration !== true ||
+          line.period.end * 1000 !== frozen.grant.periodEnd.getTime() ||
+          line.period.start * 1000 < frozen.grant.periodStart.getTime() ||
+          !SUBSCRIPTION_PLANS.some(
+            (plan) => plan.stripePriceId && plan.stripePriceId === linePriceId(line),
+          ),
+      )
+    ) {
+      throw new Error('Historical upgrade invoice differs from its frozen financial receipt');
+    }
+    if (productPeriod)
+      await getDb().transaction((tx) =>
+        recordProductProviderPeriod(productPeriod, tx, {
+          verifiedHistoricalPaidEvidence: true,
+        }),
+      );
+    return {
+      outcome: 'duplicate',
+      detail: 'historical upgrade receipt was already granted; current source unchanged',
+    };
+  }
+  const subscription = await (await getBillingStripe()).subscriptions.retrieve(subscriptionId);
+  if (
+    subscription.id !== subscriptionId ||
+    subscription.livemode !== invoice.livemode ||
+    stripeIdOf(subscription.customer) !== customerId ||
+    subscription.items.has_more ||
+    subscription.items.data.length !== 1
+  )
+    throw new Error('Current subscription evidence is ambiguous');
+  const period = await paidPeriodForUpgrade(invoice, subscriptionId, SUBSCRIPTION_PLANS);
+  const assignments = await reconcilePaidCreditPeriod({
+    subscriptionId,
+    customerId,
+    livemode: invoice.livemode,
+    ...period,
+    plans: SUBSCRIPTION_PLANS,
+  });
+  // Mirror synchronization is outside the financial transaction and grants nothing.
+  await syncSubscriptionFromProvider(subscription);
+  return applyReconciledPeriodInvoice({
+    userId,
+    customerId,
+    subscriptionId,
+    providerAccountRef,
+    productPeriod,
+    ...period,
+    invoiceId: invoice.id,
+    assignments,
+  });
 }
 
 /** P3 supports one fully allocated charge per invoice; split payments fail closed. */
 async function handleSubscriptionCreditRefund(event: Stripe.Event): Promise<StripeEventResult> {
   const delivered = event.data.object as Stripe.Charge;
   const charge = await (await getBillingStripe()).charges.retrieve(delivered.id);
-  if (charge.id !== delivered.id || charge.livemode !== event.livemode) throw new Error('Refund charge identity or mode differs');
+  if (charge.id !== delivered.id || charge.livemode !== event.livemode)
+    throw new Error('Refund charge identity or mode differs');
   const intentId = stripeIdOf(charge.payment_intent);
-  if (!intentId) return { outcome: 'ignored', detail: 'refund has no invoice payment intent; legacy/purchased credits are unchanged' };
+  if (!intentId)
+    return {
+      outcome: 'ignored',
+      detail: 'refund has no invoice payment intent; legacy/purchased credits are unchanged',
+    };
   const providerAccountRef = await subscriptionProcessorBinding(charge.livemode, event.account);
-  const allocations = await (await getBillingStripe()).invoicePayments.list({ payment: { type: 'payment_intent', payment_intent: intentId }, status: 'paid', limit: 100 });
-  if (allocations.has_more || allocations.data.length > 1) throw new Error('Refund invoice payment allocation is ambiguous');
-  if (allocations.data.length === 0) return { outcome: 'ignored', detail: 'charge has no invoice allocation; purchased/legacy credits unchanged' };
-  const payment = allocations.data[0]; const invoiceId = stripeIdOf(payment.invoice);
-  if (!invoiceId || stripeIdOf(payment.payment.payment_intent) !== intentId || payment.livemode !== charge.livemode
-    || payment.status !== 'paid' || payment.amount_paid !== charge.amount || payment.currency !== charge.currency) throw new Error('Refund invoice payment attribution differs');
+  const allocations = await (await getBillingStripe()).invoicePayments.list({
+    payment: { type: 'payment_intent', payment_intent: intentId },
+    status: 'paid',
+    limit: 100,
+  });
+  if (allocations.has_more || allocations.data.length > 1)
+    throw new Error('Refund invoice payment allocation is ambiguous');
+  if (allocations.data.length === 0)
+    return {
+      outcome: 'ignored',
+      detail: 'charge has no invoice allocation; purchased/legacy credits unchanged',
+    };
+  const payment = allocations.data[0];
+  const invoiceId = stripeIdOf(payment.invoice);
+  if (
+    !invoiceId ||
+    stripeIdOf(payment.payment.payment_intent) !== intentId ||
+    payment.livemode !== charge.livemode ||
+    payment.status !== 'paid' ||
+    payment.amount_paid !== charge.amount ||
+    payment.currency !== charge.currency
+  )
+    throw new Error('Refund invoice payment attribution differs');
   const invoice = await (await getBillingStripe()).invoices.retrieve(invoiceId);
-  if (invoice.id !== invoiceId || invoice.livemode !== charge.livemode || invoice.status !== 'paid'
-    || invoice.amount_paid !== charge.amount || invoice.currency !== charge.currency
-    || stripeIdOf(invoice.customer) !== stripeIdOf(charge.customer)) throw new Error('Refund payment does not fully cover the paid invoice');
-  if (!stripeIdOf(invoice.parent?.subscription_details?.subscription)) return { outcome: 'ignored', detail: 'refund is not a subscription credit invoice' };
-  const payments = await (await getBillingStripe()).invoicePayments.list({ invoice: invoiceId, status: 'paid', limit: 100 });
-  if (payments.has_more || payments.data.length !== 1 || payments.data[0].id !== payment.id) throw new Error('Multiple invoice payments are unsupported for credit refunds');
-  const customerId = stripeIdOf(invoice.customer); const userId = customerId ? await accountForStripeCustomer(customerId) : null;
-  if (!userId || !charge.paid || !charge.captured) throw new Error('Refund account or captured payment is unavailable');
-  if (delivered.amount !== charge.amount || delivered.currency !== charge.currency
-    || stripeIdOf(delivered.customer) !== customerId || stripeIdOf(delivered.payment_intent) !== intentId
-    || !Number.isSafeInteger(delivered.amount_refunded) || delivered.amount_refunded < 0
-    || delivered.amount_refunded > charge.amount_refunded) throw new Error('Signed refund snapshot contradicts the current captured payment');
-  const result = await recordCreditRefundSnapshot(getDb(), { userId, providerAccountRef, invoiceId, eventId: event.id,
-    chargeId: charge.id, currency: charge.currency, amountPaid: charge.amount, amountRefunded: delivered.amount_refunded });
-  return { outcome: 'processed', detail: `subscription refund removed ${result.removed} unconsumed tracked credits; legacy/purchased credits unchanged` };
+  if (
+    invoice.id !== invoiceId ||
+    invoice.livemode !== charge.livemode ||
+    invoice.status !== 'paid' ||
+    invoice.amount_paid !== charge.amount ||
+    invoice.currency !== charge.currency ||
+    stripeIdOf(invoice.customer) !== stripeIdOf(charge.customer)
+  )
+    throw new Error('Refund payment does not fully cover the paid invoice');
+  if (!stripeIdOf(invoice.parent?.subscription_details?.subscription))
+    return { outcome: 'ignored', detail: 'refund is not a subscription credit invoice' };
+  const payments = await (await getBillingStripe()).invoicePayments.list({
+    invoice: invoiceId,
+    status: 'paid',
+    limit: 100,
+  });
+  if (payments.has_more || payments.data.length !== 1 || payments.data[0].id !== payment.id)
+    throw new Error('Multiple invoice payments are unsupported for credit refunds');
+  const customerId = stripeIdOf(invoice.customer);
+  const userId = customerId ? await accountForStripeCustomer(customerId) : null;
+  if (!userId || !charge.paid || !charge.captured)
+    throw new Error('Refund account or captured payment is unavailable');
+  if (
+    delivered.amount !== charge.amount ||
+    delivered.currency !== charge.currency ||
+    stripeIdOf(delivered.customer) !== customerId ||
+    stripeIdOf(delivered.payment_intent) !== intentId ||
+    !Number.isSafeInteger(delivered.amount_refunded) ||
+    delivered.amount_refunded < 0 ||
+    delivered.amount_refunded > charge.amount_refunded
+  )
+    throw new Error('Signed refund snapshot contradicts the current captured payment');
+  const result = await recordCreditRefundSnapshot(getDb(), {
+    userId,
+    providerAccountRef,
+    invoiceId,
+    eventId: event.id,
+    chargeId: charge.id,
+    currency: charge.currency,
+    amountPaid: charge.amount,
+    amountRefunded: delivered.amount_refunded,
+  });
+  return {
+    outcome: 'processed',
+    detail: `subscription refund removed ${result.removed} unconsumed tracked credits; legacy/purchased credits unchanged`,
+  };
 }
 
 export default router;

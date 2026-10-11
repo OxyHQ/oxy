@@ -64,8 +64,6 @@ function rejectCookieAuthenticatedRequests(req: Request, res: Response, next: Ne
 
 router.use(rejectCookieAuthenticatedRequests);
 
-
-
 export const feedbackRateLimit = rateLimit({
   prefix: 'rl:email:feedback:',
   windowMs: 60 * 1000,
@@ -100,11 +98,12 @@ export function isAmazonSigningCertUrl(raw: string): boolean {
   // characters and a careless `endsWith` accepts it; only fixing the POSITION
   // of every label rejects it.
   const labels = url.hostname.toLowerCase().split('.');
-  const suffix = labels.slice(-2).join('.') === 'amazonaws.com'
-    ? labels.slice(0, -2)
-    : labels.slice(-3).join('.') === 'amazonaws.com.cn'
-      ? labels.slice(0, -3)
-      : null;
+  const suffix =
+    labels.slice(-2).join('.') === 'amazonaws.com'
+      ? labels.slice(0, -2)
+      : labels.slice(-3).join('.') === 'amazonaws.com.cn'
+        ? labels.slice(0, -3)
+        : null;
   if (suffix === null) return false;
 
   // Exactly `sns.<region>` in front of it — no deeper subdomain.
@@ -133,7 +132,10 @@ export interface SnsEnvelope {
  * envelope came from this deployment's SES feedback topic. Bind both
  * confirmations and notifications to the exact feedback topic ARN.
  */
-export function isAuthorizedSnsTopic(topicArn: string | undefined, expectedTopicArn: string): boolean {
+export function isAuthorizedSnsTopic(
+  topicArn: string | undefined,
+  expectedTopicArn: string,
+): boolean {
   return expectedTopicArn.length > 0 && topicArn === expectedTopicArn;
 }
 
@@ -144,11 +146,12 @@ export function isAuthorizedSnsTopic(topicArn: string | undefined, expectedTopic
  * signature pass for the wrong reason.
  */
 export function snsStringToSign(msg: SnsEnvelope): string | null {
-  const fields = msg.Type === 'Notification'
-    ? ['Message', 'MessageId', 'Subject', 'Timestamp', 'TopicArn', 'Type']
-    : msg.Type === 'SubscriptionConfirmation' || msg.Type === 'UnsubscribeConfirmation'
-      ? ['Message', 'MessageId', 'SubscribeURL', 'Timestamp', 'Token', 'TopicArn', 'Type']
-      : null;
+  const fields =
+    msg.Type === 'Notification'
+      ? ['Message', 'MessageId', 'Subject', 'Timestamp', 'TopicArn', 'Type']
+      : msg.Type === 'SubscriptionConfirmation' || msg.Type === 'UnsubscribeConfirmation'
+        ? ['Message', 'MessageId', 'SubscribeURL', 'Timestamp', 'Token', 'TopicArn', 'Type']
+        : null;
   if (!fields) return null;
 
   let out = '';
@@ -304,7 +307,8 @@ async function applySesNotification(notification: SesNotification): Promise<numb
         address: recipient.emailAddress,
         reason,
         source: 'ses',
-        diagnostic: recipient.diagnosticCode ?? recipient.status ?? notification.bounce.bounceSubType ?? null,
+        diagnostic:
+          recipient.diagnosticCode ?? recipient.status ?? notification.bounce.bounceSubType ?? null,
         reportedAt,
         userId: null, // A bounce is a property of the address, not of the sender.
       });
@@ -370,7 +374,10 @@ router.post(
       // anyway: a signature is only as good as the certificate it was checked
       // against, and this keeps the two independent.
       const confirmed = await fetchAmazonUrl(body.SubscribeURL);
-      logger.info('SNS subscription confirmation', { ok: Boolean(confirmed), topic: body.TopicArn });
+      logger.info('SNS subscription confirmation', {
+        ok: Boolean(confirmed),
+        topic: body.TopicArn,
+      });
       res.status(200).json({ confirmed: Boolean(confirmed) });
       return;
     }

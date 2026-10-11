@@ -32,7 +32,9 @@ async function account(input: {
     })
     .returning({ id: users.id });
   if (input.identityMethod) {
-    await getDb().insert(userAuthMethods).values({ userId: row.id, type: 'identity', methodPublicKey: hexKey() });
+    await getDb()
+      .insert(userAuthMethods)
+      .values({ userId: row.id, type: 'identity', methodPublicKey: hexKey() });
   }
   return row.id;
 }
@@ -72,7 +74,11 @@ it('counts only key-less local personal accounts, split by how they sign in', as
   expect(after.samples.emailOnly).toContain(emailOnly);
   expect(after.samples.noSignIn).toContain(noSignIn);
   expect(after.samples.linkedKeyMissing).toContain(linkedKeyMissing);
-  const sampled = [...after.samples.emailOnly, ...after.samples.noSignIn, ...after.samples.linkedKeyMissing];
+  const sampled = [
+    ...after.samples.emailOnly,
+    ...after.samples.noSignIn,
+    ...after.samples.linkedKeyMissing,
+  ];
   expect(sampled).not.toContain(withKey);
   expect(sampled).not.toContain(federated);
 });

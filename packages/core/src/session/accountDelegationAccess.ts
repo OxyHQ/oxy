@@ -14,24 +14,20 @@
  * API's already-resolved relationship and effective permissions identically.
  */
 
-import { isDelegatedActAsEligibleKind } from "@oxy.so/contracts";
-import type {
-	AccountKind,
-	AccountMember,
-	AccountRelationship,
-} from "../api/accounts";
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import type { AccountKind, AccountMember, AccountRelationship } from '../api/accounts';
 
 export interface AccountDelegationAccess {
-	/** The caller owns the account or has a live membership in it. */
-	readonly hasStanding: boolean;
-	/** The account may be delegated and the caller holds effective `account:act_as`. */
-	readonly canActAs: boolean;
+  /** The caller owns the account or has a live membership in it. */
+  readonly hasStanding: boolean;
+  /** The account may be delegated and the caller holds effective `account:act_as`. */
+  readonly canActAs: boolean;
 }
 
 export type AccountDelegationNode = {
-	kind?: AccountKind | null;
-	relationship?: AccountRelationship;
-	callerMembership?: AccountMember | null;
+  kind?: AccountKind | null;
+  relationship?: AccountRelationship;
+  callerMembership?: AccountMember | null;
 };
 
 /**
@@ -47,26 +43,23 @@ export type AccountDelegationNode = {
  * authoritative: an explicit `account:act_as` revoke must remain a revoke.
  */
 export function resolveAccountDelegationAccess(
-	node: AccountDelegationNode,
+  node: AccountDelegationNode,
 ): AccountDelegationAccess {
-	const membership = node.callerMembership;
-	const activeMembership = membership?.status === "active";
-	const hasStanding =
-		node.relationship === "self" ||
-		node.relationship === "owner" ||
-		activeMembership;
+  const membership = node.callerMembership;
+  const activeMembership = membership?.status === 'active';
+  const hasStanding =
+    node.relationship === 'self' || node.relationship === 'owner' || activeMembership;
 
-	if (!hasStanding || !isDelegatedActAsEligibleKind(node.kind)) {
-		return { hasStanding, canActAs: false };
-	}
+  if (!hasStanding || !isDelegatedActAsEligibleKind(node.kind)) {
+    return { hasStanding, canActAs: false };
+  }
 
-	if (membership !== null && membership !== undefined) {
-		return {
-			hasStanding,
-			canActAs:
-				activeMembership && membership.permissions.includes("account:act_as"),
-		};
-	}
+  if (membership !== null && membership !== undefined) {
+    return {
+      hasStanding,
+      canActAs: activeMembership && membership.permissions.includes('account:act_as'),
+    };
+  }
 
-	return { hasStanding, canActAs: node.relationship === "owner" };
+  return { hasStanding, canActAs: node.relationship === 'owner' };
 }

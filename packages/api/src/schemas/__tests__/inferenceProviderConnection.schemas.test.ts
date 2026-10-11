@@ -16,9 +16,7 @@ describe('provider credential transport boundary', () => {
 
   it('accepts an opaque visible-ASCII provider key for create and rotate', () => {
     expect(providerCredentialBody.safeParse(create).success).toBe(true);
-    expect(
-      providerConnectionRotateBody.safeParse({ secret: create.secret }).success,
-    ).toBe(true);
+    expect(providerConnectionRotateBody.safeParse({ secret: create.secret }).success).toBe(true);
   });
 
   it.each([
@@ -111,12 +109,8 @@ describe('provider credential transport boundary', () => {
     ['non-ASCII', 'credencial-ñ'],
   ] as const) {
     it(`refuses ${name} before Kaana custody`, () => {
-      expect(
-        providerCredentialBody.safeParse({ ...create, secret }).success,
-      ).toBe(false);
-      expect(providerConnectionRotateBody.safeParse({ secret }).success).toBe(
-        false,
-      );
+      expect(providerCredentialBody.safeParse({ ...create, secret }).success).toBe(false);
+      expect(providerConnectionRotateBody.safeParse({ secret }).success).toBe(false);
     });
   }
 });

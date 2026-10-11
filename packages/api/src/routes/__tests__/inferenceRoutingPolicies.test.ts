@@ -61,7 +61,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     if (currentUserId.length > 0) {
       req.user = { _id: currentUserId, id: currentUserId };
@@ -85,7 +85,10 @@ import { applications } from '../../db/schema/applications';
 import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRoutingPolicyVersions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import routingPolicyRouter, { ROUTING_SERVICE_READS_PER_15_MINUTES, routingServiceRateLimitKey } from '../inferenceRoutingPolicies';
+import routingPolicyRouter, {
+  ROUTING_SERVICE_READS_PER_15_MINUTES,
+  routingServiceRateLimitKey,
+} from '../inferenceRoutingPolicies';
 import {
   appPermissionsForAccountAccess,
   permissionsForAccountRole,
@@ -108,7 +111,7 @@ interface JsonResponse {
 function request(
   method: 'GET' | 'POST' | 'DELETE',
   path: string,
-  options: { token?: string; body?: unknown; delegatedUserId?: string } = {}
+  options: { token?: string; body?: unknown; delegatedUserId?: string } = {},
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = options.body === undefined ? undefined : JSON.stringify(options.body);
@@ -146,7 +149,7 @@ function request(
           }
           resolve({ status: res.statusCode ?? 0, body, raw });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -173,7 +176,7 @@ async function seedAccount(kind: 'personal' | 'organization' = 'personal'): Prom
 async function seedMember(
   accountId: string,
   memberUserId: string,
-  role: AccountRole
+  role: AccountRole,
 ): Promise<void> {
   await getDb()
     .insert(accountMembers)
@@ -202,18 +205,18 @@ function serviceToken(input: {
 }): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
-      type: 'service',
-      appId: input.appId,
-      appName: 'Routing Fixture App',
-      credentialId: `cred-${tag()}`,
-      ownerAccountId: input.ownerAccountId,
-      environment: 'production',
-      scopes: [...input.scopes],
-      iss: 'oxy-auth',
-      aud: 'oxy-api',
-      iat: issuedAt,
-      exp: issuedAt + 300,
-    });
+    type: 'service',
+    appId: input.appId,
+    appName: 'Routing Fixture App',
+    credentialId: `cred-${tag()}`,
+    ownerAccountId: input.ownerAccountId,
+    environment: 'production',
+    scopes: [...input.scopes],
+    iss: 'oxy-auth',
+    aud: 'oxy-api',
+    iat: issuedAt,
+    exp: issuedAt + 300,
+  });
 }
 
 const READ_SCOPE = 'inference:routing:read';
@@ -287,7 +290,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -353,27 +356,25 @@ describe('the two lanes are dispatched, and neither is optional', () => {
     // 200 proves the fall-through happened, and a 401/403 would prove it did not.
     const genuineIssuedAt = Math.floor(Date.now() / 1_000);
     const genuine = signServiceTokenEd25519({
-        type: 'service',
-        appId: tenant.applicationId,
-        appName: 'Forged',
-        credentialId: 'cred-forged',
-        ownerAccountId: tenant.accountId,
-        environment: 'production',
-        scopes: [READ_SCOPE, WRITE_SCOPE],
-        iss: 'oxy-auth',
-        aud: 'oxy-api',
-        iat: genuineIssuedAt,
-        exp: genuineIssuedAt + 300,
-      });
+      type: 'service',
+      appId: tenant.applicationId,
+      appName: 'Forged',
+      credentialId: 'cred-forged',
+      ownerAccountId: tenant.accountId,
+      environment: 'production',
+      scopes: [READ_SCOPE, WRITE_SCOPE],
+      iss: 'oxy-auth',
+      aud: 'oxy-api',
+      iat: genuineIssuedAt,
+      exp: genuineIssuedAt + 300,
+    });
     // Same header and claims, a signature no Oxy key produced.
     const forged = `${genuine.split('.').slice(0, 2).join('.')}.${Buffer.alloc(64, 1).toString('base64url')}`;
 
     currentUserId = tenant.ownerUserId;
-    const throughUserLane = await request(
-      'GET',
-      `${MOUNT}/applications/${tenant.applicationId}`,
-      { token: forged }
-    );
+    const throughUserLane = await request('GET', `${MOUNT}/applications/${tenant.applicationId}`, {
+      token: forged,
+    });
     expect(throughUserLane.status).toBe(200);
 
     // And with no user behind it, the forged token authorises nothing — the
@@ -715,24 +716,26 @@ describe('a user bearer is authorised through the account graph', () => {
       appPermissionsForAccountAccess({
         role: 'editor',
         permissions: permissionsForAccountRole('editor'),
-      })
+      }),
     ).toContain('app:update');
     expect((await request('GET', `${MOUNT}/${policyId}`)).status).toBe(200);
 
     // CONTROL: a per-member GRANT restores it, which is the point of naming the
     // power — the narrowing is expressible, not a wall.
     const granted = await seedAccount();
-    await getDb().insert(accountMembers).values({
-      accountId: tenant.accountId,
-      memberUserId: granted,
-      role: 'editor',
-      inherit: true,
-      status: 'active',
-      permissionGrants: ['inference:routing:write'],
-    });
+    await getDb()
+      .insert(accountMembers)
+      .values({
+        accountId: tenant.accountId,
+        memberUserId: granted,
+        role: 'editor',
+        inherit: true,
+        status: 'active',
+        permissionGrants: ['inference:routing:write'],
+      });
     currentUserId = granted;
     expect(
-      (await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() })).status
+      (await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() })).status,
     ).toBe(201);
   });
 
@@ -790,14 +793,16 @@ describe('a user bearer is authorised through the account graph', () => {
     const policyId = await createApplicationPolicy(tenant);
 
     const admin = await seedAccount();
-    await getDb().insert(accountMembers).values({
-      accountId: tenant.accountId,
-      memberUserId: admin,
-      role: 'admin',
-      inherit: true,
-      status: 'active',
-      permissionRevokes: ['inference:routing:write'],
-    });
+    await getDb()
+      .insert(accountMembers)
+      .values({
+        accountId: tenant.accountId,
+        memberUserId: admin,
+        role: 'admin',
+        inherit: true,
+        status: 'active',
+        permissionRevokes: ['inference:routing:write'],
+      });
 
     currentUserId = admin;
     const refused = await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() });
@@ -817,7 +822,7 @@ describe('a user bearer is authorised through the account graph', () => {
       appPermissionsForAccountAccess({
         role: 'admin',
         permissions: resolveEffectivePermissions('admin', [], ['inference:routing:write']),
-      })
+      }),
     ).toContain('app:update');
 
     // CONTROL: an unrevoked admin writes the identical body.
@@ -868,8 +873,8 @@ describe('a written version is attributed to the principal that authored it', ()
       .where(
         and(
           eq(inferenceRoutingPolicyVersions.routingPolicyId, policyId),
-          eq(inferenceRoutingPolicyVersions.version, 1)
-        )
+          eq(inferenceRoutingPolicyVersions.version, 1),
+        ),
       );
 
     expect(version.createdByUserId).toBe(tenant.accountId);
@@ -983,7 +988,10 @@ describe('the literal path segments win over the parameterised ones', () => {
     const tenant = await seedTenant();
 
     currentUserId = tenant.ownerUserId;
-    const owned = await request('GET', `${MOUNT}/applications/${tenant.applicationId}/route-switches`);
+    const owned = await request(
+      'GET',
+      `${MOUNT}/applications/${tenant.applicationId}/route-switches`,
+    );
     expect(owned.status).toBe(200);
     expect(owned.body).toMatchObject({ data: [], count: 0 });
 
@@ -991,7 +999,7 @@ describe('the literal path segments win over the parameterised ones', () => {
     currentUserId = await seedAccount();
     const refused = await request(
       'GET',
-      `${MOUNT}/applications/${tenant.applicationId}/route-switches`
+      `${MOUNT}/applications/${tenant.applicationId}/route-switches`,
     );
     expect(refused.status).toBe(404);
     expect(refused.body).toMatchObject({
@@ -1120,8 +1128,7 @@ describe('a contradictory policy is a 400 carrying the contract’s own issues',
     expect(refused.status).toBe(409);
     expect(refused.body).toMatchObject({
       error: 'CONFLICT',
-      message:
-        'This scope already has an active routing policy; edit it or archive it first',
+      message: 'This scope already has an active routing policy; edit it or archive it first',
     });
   });
 });
@@ -1131,14 +1138,16 @@ describe('a contradictory policy is a 400 carrying the contract’s own issues',
 describe('service rate-limit partitioning', () => {
   it('uses exact app+credential buckets and service-sized budgets', () => {
     const requestFor = (appId: string, credentialId: string) =>
-      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<typeof routingServiceRateLimitKey>[0];
+      ({ serviceApp: { appId, credentialId } }) as unknown as Parameters<
+        typeof routingServiceRateLimitKey
+      >[0];
 
     expect(routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
     expect(routingServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
-      routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      routingServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(routingServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
-      routingServiceRateLimitKey(requestFor('app-a', 'cred-a'))
+      routingServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(ROUTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
   });

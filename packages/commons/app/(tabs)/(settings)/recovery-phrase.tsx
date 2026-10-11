@@ -7,12 +7,7 @@ import { useRouter } from 'expo-router';
 import { Icons } from '@/constants/icons';
 import { KeyManager, IdentityUnavailableError } from '@oxy.so/core/crypto';
 import { Button } from '@oxy.so/bloom/button';
-import {
-  Screen,
-  StackHeader,
-  Section,
-  STATE_MIN_HEIGHT,
-} from '@/components/ui';
+import { Screen, StackHeader, Section, STATE_MIN_HEIGHT } from '@/components/ui';
 import { RecoveryPhraseGrid } from '@/components/identity/RecoveryPhraseGrid';
 import { useColors } from '@/hooks/useColors';
 import { authenticate, canUseBiometrics, getErrorMessage } from '@/lib/biometricAuth';
@@ -92,12 +87,13 @@ export default function RecoveryPhraseScreen() {
 
       {state.kind === 'revealed' ? (
         <Section>
-          <Admonition type="error">
-            {t('settings.recoveryPhrase.warning')}
-          </Admonition>
+          <Admonition type="error">{t('settings.recoveryPhrase.warning')}</Admonition>
 
           <View
-            style={[styles.phraseGrid, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[
+              styles.phraseGrid,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
           >
             <RecoveryPhraseGrid words={state.words} textColor={colors.text} />
           </View>
@@ -136,7 +132,7 @@ export default function RecoveryPhraseScreen() {
       ) : (
         <Section>
           <View className="items-center gap-space-8 py-space-16">
-            <Icons.shield size='2xl' fill={colors.tint} />
+            <Icons.shield size="2xl" fill={colors.tint} />
             <Text style={[styles.lockedTitle, { color: colors.text }]}>
               {t('settings.recoveryPhrase.lockedTitle')}
             </Text>
@@ -145,11 +141,17 @@ export default function RecoveryPhraseScreen() {
             </Text>
           </View>
 
-          <Admonition type="warning">
-            {t('settings.recoveryPhrase.warning')}
-          </Admonition>
+          <Admonition type="warning">{t('settings.recoveryPhrase.warning')}</Admonition>
 
-          <Button appearance="solid" tone="accent" onPress={reveal} loading={state.kind === 'authenticating'} disabled={state.kind === 'authenticating'}>{t('settings.recoveryPhrase.revealButton')}</Button>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={reveal}
+            loading={state.kind === 'authenticating'}
+            disabled={state.kind === 'authenticating'}
+          >
+            {t('settings.recoveryPhrase.revealButton')}
+          </Button>
         </Section>
       )}
     </Screen>

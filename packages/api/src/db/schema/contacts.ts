@@ -53,7 +53,7 @@ const SEARCH_CONFIGURATION = 'english';
  * nothing.
  */
 const SEARCH_VECTOR_EXPRESSION = sql.raw(
-  `to_tsvector('${SEARCH_CONFIGURATION}', coalesce(name, '') || ' ' || coalesce(email, ''))`
+  `to_tsvector('${SEARCH_CONFIGURATION}', coalesce(name, '') || ' ' || coalesce(email, ''))`,
 );
 
 export const contacts = pgTable(
@@ -98,5 +98,5 @@ export const contacts = pgTable(
     // `starred = true` is ever queried (`email.controller.ts:835`), so the
     // partial index is smaller and answers the same read.
     index('contacts_starred_idx').on(t.userId).where(sql`${t.starred}`),
-  ]
+  ],
 );

@@ -128,7 +128,11 @@ async function applicationFixture(overrides: Partial<typeof applications.$inferI
       scopes: ['user:read'],
       ...overrides,
     })
-    .returning({ id: applications.id, name: applications.name, ownerAccountId: applications.ownerAccountId });
+    .returning({
+      id: applications.id,
+      name: applications.name,
+      ownerAccountId: applications.ownerAccountId,
+    });
   createdApplicationIds.push(application.id);
   return application;
 }
@@ -138,13 +142,15 @@ async function bind(
   subject: string,
   options: { expiresAt?: Date; scopes?: string[] } = {},
 ) {
-  await getDb().insert(applicationWorkloadIdentities).values({
-    applicationId,
-    provider: 'aws-iam',
-    subject,
-    ...(options.scopes ? { scopes: options.scopes } : {}),
-    ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
-  });
+  await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId,
+      provider: 'aws-iam',
+      subject,
+      ...(options.scopes ? { scopes: options.scopes } : {}),
+      ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
+    });
 }
 
 /** The scopes a token actually carries, or a failure naming why there is none. */
@@ -245,7 +251,7 @@ describe('workload-identity mint', () => {
     // Refusing beats minting a token whose first reservation would fail, and beats
     // relabelling the spend the role already made.
     expect((await readCredentialRow(workloadAttestationHandle(subject)))?.applicationId).toBe(
-      first.id
+      first.id,
     );
   });
 
@@ -271,12 +277,19 @@ describe('workload-identity mint', () => {
     const nonce = 'never-issued-nonce-for-the-log-test';
     try {
       await expect(
-        exchangeWorkloadAttestation({ provider: 'aws-iam', nonce, attestation: { subject: SUBJECT, answersNonce: nonce } }),
+        exchangeWorkloadAttestation({
+          provider: 'aws-iam',
+          nonce,
+          attestation: { subject: SUBJECT, answersNonce: nonce },
+        }),
       ).rejects.toMatchObject({ reason: 'unknown_challenge' });
-      expect(warn).toHaveBeenCalledWith('[WorkloadIdentity] attestation refused', expect.objectContaining({
-        provider: 'aws-iam',
-        reason: 'unknown_challenge',
-      }));
+      expect(warn).toHaveBeenCalledWith(
+        '[WorkloadIdentity] attestation refused',
+        expect.objectContaining({
+          provider: 'aws-iam',
+          reason: 'unknown_challenge',
+        }),
+      );
       expect(JSON.stringify(warn.mock.calls)).not.toContain(nonce);
     } finally {
       warn.mockRestore();
@@ -339,7 +352,7 @@ describe('workload-identity mint', () => {
    * grants rather than reading them off the binding.
    */
   describe('scopes', () => {
-    it('gives the application\'s non-privileged grants when the binding names none', async () => {
+    it("gives the application's non-privileged grants when the binding names none", async () => {
       // The pre-existing behaviour, pinned. Every binding written before the
       // scopes column reads as this case, so this is the assertion that says a
       // deployment carrying old rows is unchanged by the column arriving.

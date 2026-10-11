@@ -1,8 +1,19 @@
 import type { DeviceDirectory, DeviceSessionState } from '@oxy.so/contracts';
 import type { ClientSession, User } from '@oxy.so/core';
 import type { DeviceContext } from '@oxy.so/core/session';
-import { accountIdsOf, activeSessionIdOf, activeUserOf, deviceStateToClientSessions, resolveActiveContext } from '@oxy.so/core/session';
-import { mergeSessions as mergeSessionLists, normalizeAndSortSessions, normalizeUserIdentity, sessionsArraysEqual } from '@oxy.so/core';
+import {
+  accountIdsOf,
+  activeSessionIdOf,
+  activeUserOf,
+  deviceStateToClientSessions,
+  resolveActiveContext,
+} from '@oxy.so/core/session';
+import {
+  mergeSessions as mergeSessionLists,
+  normalizeAndSortSessions,
+  normalizeUserIdentity,
+  sessionsArraysEqual,
+} from '@oxy.so/core';
 import type { IdentitySessionBinding } from '../session/identityBinding';
 import type { OxyRuntimeSnapshot, OxyRuntimeStatus, OxyTokenStatus } from './types';
 
@@ -157,7 +168,10 @@ export interface OxyRuntime {
    * round-trip. The authoritative projection overwrites it a moment later; both
    * write the SAME field, so there is still exactly one owner.
    */
-  mergeSessions(incoming: ClientSession[], options?: { merge?: boolean; preserveSessionIds?: string[] }): void;
+  mergeSessions(
+    incoming: ClientSession[],
+    options?: { merge?: boolean; preserveSessionIds?: string[] },
+  ): void;
   setActiveSessionId(sessionId: string | null): void;
 
   /**
@@ -430,7 +444,10 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     if (!latest || latest.revision !== capturedRevision) {
       return;
     }
-    if (identity && (pinnedAccountId === null || activeSessionIdOf(latest, pinnedAccountId) === null)) {
+    if (
+      identity &&
+      (pinnedAccountId === null || activeSessionIdOf(latest, pinnedAccountId) === null)
+    ) {
       // Either no verified pin, or the pinned account left this device's session
       // set. Leave the current projection untouched and re-derive from the key.
       onIdentityUnbound?.(identity, latest.revision);

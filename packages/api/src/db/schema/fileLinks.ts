@@ -70,7 +70,7 @@ export const fileLinks = pgTable(
       t.app,
       t.entityType,
       t.entityId,
-      t.createdBy
+      t.createdBy,
     ),
     // "Everything this user linked" — Mongo's standalone `{links.createdBy}`.
     index('file_links_created_by_idx').on(t.createdBy),
@@ -78,5 +78,5 @@ export const fileLinks = pgTable(
     // `{links.entityId}` are dropped: the compound above leads with `app`, and
     // neither of the other two is ever queried without it. Listing one file's
     // links needs no index of its own — the unique above leads with `file_id`.
-  ]
+  ],
 );

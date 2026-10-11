@@ -59,5 +59,5 @@ export const nodeIngestWitnesses = pgTable(
     // Per-user audit reads, newest first. `record_id`'s unique constraint
     // already serves the idempotency lookup, so it gets no second index.
     index('node_ingest_witnesses_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
-  ]
+  ],
 );

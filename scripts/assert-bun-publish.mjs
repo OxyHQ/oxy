@@ -19,9 +19,7 @@ const userAgent = process.env.npm_config_user_agent ?? '';
 const execPath = process.env.npm_execpath ?? '';
 
 const viaBun =
-  userAgent.includes('bun/') ||
-  execPath.includes('bun') ||
-  process.env.BUN_PUBLISH === '1';
+  userAgent.includes('bun/') || execPath.includes('bun') || process.env.BUN_PUBLISH === '1';
 
 if (!viaBun) {
   console.error(

@@ -330,8 +330,13 @@ router.get(
       }
     }
 
-    const limitRaw = typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : Number.NaN;
-    const records = await getPublicLogSince(userId, sinceSeq, Number.isFinite(limitRaw) ? limitRaw : undefined);
+    const limitRaw =
+      typeof req.query.limit === 'string' ? Number.parseInt(req.query.limit, 10) : Number.NaN;
+    const records = await getPublicLogSince(
+      userId,
+      sinceSeq,
+      Number.isFinite(limitRaw) ? limitRaw : undefined,
+    );
 
     const page: LogPageResponse = { records, count: records.length };
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -528,7 +533,11 @@ router.post(
     }
 
     const [pending] = await getDb()
-      .select({ id: domainVerifications.id, token: domainVerifications.token, expiresAt: domainVerifications.expiresAt })
+      .select({
+        id: domainVerifications.id,
+        token: domainVerifications.token,
+        expiresAt: domainVerifications.expiresAt,
+      })
       .from(domainVerifications)
       .where(
         and(
@@ -543,7 +552,9 @@ router.post(
     // bounded lag into a live credential (`schema/CONVENTIONS.md`, "Expiry",
     // class (A)).
     if (!pending || pending.expiresAt.getTime() <= Date.now()) {
-      throw new BadRequestError('No active verification challenge for this domain. Request one first.');
+      throw new BadRequestError(
+        'No active verification challenge for this domain. Request one first.',
+      );
     }
 
     let method: (typeof VERIFIED_DOMAIN_METHODS)[number] | null = null;
@@ -554,7 +565,9 @@ router.post(
     }
 
     if (!method) {
-      throw new BadRequestError('Domain ownership could not be verified. Publish the DNS-TXT record or well-known file and try again.');
+      throw new BadRequestError(
+        'Domain ownership could not be verified. Publish the DNS-TXT record or well-known file and try again.',
+      );
     }
 
     const verifiedAt = new Date();

@@ -29,64 +29,64 @@
  * package cannot declare `sideEffects: false`.
  */
 
-import { afterAll, describe, expect, test } from "bun:test"
-import { rm } from "node:fs/promises"
-import { resolve } from "node:path"
-import { build } from "vite"
+import { afterAll, describe, expect, test } from 'bun:test';
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { build } from 'vite';
 import {
-    ALTERNATIVE_LABEL,
-    PROBE_CASES,
-    PROBE_GLOBAL,
-    SUBORDINATE_LABEL,
-    type AuthorizeSurfaceProbeResult,
-} from "./fixtures/authorize-surface-probe-contract"
+  ALTERNATIVE_LABEL,
+  PROBE_CASES,
+  PROBE_GLOBAL,
+  SUBORDINATE_LABEL,
+  type AuthorizeSurfaceProbeResult,
+} from './fixtures/authorize-surface-probe-contract';
 
-const PACKAGE_ROOT = resolve(import.meta.dir, "../..")
-const PROBE_ENTRY = resolve(import.meta.dir, "fixtures/authorize-surface-probe.tsx")
+const PACKAGE_ROOT = resolve(import.meta.dir, '../..');
+const PROBE_ENTRY = resolve(import.meta.dir, 'fixtures/authorize-surface-probe.tsx');
 /** Inside `dist/`, which is already git-ignored, so no new ignore rule is needed. */
-const OUT_DIR = resolve(PACKAGE_ROOT, "dist/__authorize-surface-probe")
-const BUNDLE = resolve(OUT_DIR, "probe.js")
+const OUT_DIR = resolve(PACKAGE_ROOT, 'dist/__authorize-surface-probe');
+const BUNDLE = resolve(OUT_DIR, 'probe.js');
 
 async function buildAndEvaluateProbe(): Promise<AuthorizeSurfaceProbeResult> {
-    await build({
-        root: PACKAGE_ROOT,
-        // The app's real config — plugins, aliases and platform-extension
-        // resolution included. A bespoke config here would test a bundle the IdP
-        // never ships.
-        configFile: resolve(PACKAGE_ROOT, "vite.config.ts"),
-        mode: "production",
-        logLevel: "error",
-        build: {
-            outDir: OUT_DIR,
-            emptyOutDir: true,
-            // Unminified so a failure names the component instead of a mangled
-            // identifier. Minification does not change how modules are linked,
-            // which is the whole subject of this test.
-            minify: false,
-            rollupOptions: {
-                input: PROBE_ENTRY,
-                output: { entryFileNames: "probe.js", format: "es" },
-            },
-        },
-    })
+  await build({
+    root: PACKAGE_ROOT,
+    // The app's real config — plugins, aliases and platform-extension
+    // resolution included. A bespoke config here would test a bundle the IdP
+    // never ships.
+    configFile: resolve(PACKAGE_ROOT, 'vite.config.ts'),
+    mode: 'production',
+    logLevel: 'error',
+    build: {
+      outDir: OUT_DIR,
+      emptyOutDir: true,
+      // Unminified so a failure names the component instead of a mangled
+      // identifier. Minification does not change how modules are linked,
+      // which is the whole subject of this test.
+      minify: false,
+      rollupOptions: {
+        input: PROBE_ENTRY,
+        output: { entryFileNames: 'probe.js', format: 'es' },
+      },
+    },
+  });
 
-    // `react-native-web` installs its style sheet at module scope and reads the
-    // global `ShadowRoot` that every browser exposes; `setup-dom.ts` mirrors it
-    // onto `globalThis` for exactly this reason.
-    await import(BUNDLE)
+  // `react-native-web` installs its style sheet at module scope and reads the
+  // global `ShadowRoot` that every browser exposes; `setup-dom.ts` mirrors it
+  // onto `globalThis` for exactly this reason.
+  await import(BUNDLE);
 
-    const probe = (
-        globalThis as typeof globalThis & {
-            [PROBE_GLOBAL]?: AuthorizeSurfaceProbeResult
-        }
-    )[PROBE_GLOBAL]
-
-    if (!probe) {
-        throw new Error(
-            `The built probe did not report on globalThis.${PROBE_GLOBAL} — it threw before it could.`,
-        )
+  const probe = (
+    globalThis as typeof globalThis & {
+      [PROBE_GLOBAL]?: AuthorizeSurfaceProbeResult;
     }
-    return probe
+  )[PROBE_GLOBAL];
+
+  if (!probe) {
+    throw new Error(
+      `The built probe did not report on globalThis.${PROBE_GLOBAL} — it threw before it could.`,
+    );
+  }
+  return probe;
 }
 
 /**
@@ -95,44 +95,44 @@ async function buildAndEvaluateProbe(): Promise<AuthorizeSurfaceProbeResult> {
  * for a full Vite build each time. Deliberately not wrapped in a per-test
  * timeout — that would only measure the assertions, which are instant.
  */
-const probe = await buildAndEvaluateProbe()
+const probe = await buildAndEvaluateProbe();
 
 afterAll(async () => {
-    await rm(OUT_DIR, { recursive: true, force: true })
-})
+  await rm(OUT_DIR, { recursive: true, force: true });
+});
 
-describe("the production bundle renders OxySignInRequestSurface, not undefined", () => {
-    for (const name of Object.values(PROBE_CASES)) {
-        test(`${name}: every element in the tree is a real component`, () => {
-            const result = probe[name]
-            expect(result).toBeDefined()
-            // Asserted before `ok`, so a failure carries React's own message
-            // ("Minified React error #130 … args[]=undefined") rather than just
-            // `false`.
-            expect(result.error).toBeUndefined()
-            expect(result.ok).toBe(true)
+describe('the production bundle renders OxySignInRequestSurface, not undefined', () => {
+  for (const name of Object.values(PROBE_CASES)) {
+    test(`${name}: every element in the tree is a real component`, () => {
+      const result = probe[name];
+      expect(result).toBeDefined();
+      // Asserted before `ok`, so a failure carries React's own message
+      // ("Minified React error #130 … args[]=undefined") rather than just
+      // `false`.
+      expect(result.error).toBeUndefined();
+      expect(result.ok).toBe(true);
 
-            // A surface that rendered NOTHING would also satisfy "did not throw",
-            // so require content: the always-visible subordinate link is on
-            // every branch.
-            expect(result.html ?? "").toContain(SUBORDINATE_LABEL)
-        })
-    }
+      // A surface that rendered NOTHING would also satisfy "did not throw",
+      // so require content: the always-visible subordinate link is on
+      // every branch.
+      expect(result.html ?? '').toContain(SUBORDINATE_LABEL);
+    });
+  }
 
-    test("the preparing branch draws its leading visual", () => {
-        // Bloom's `Loading`, named: `963f6e57` once swapped it for React
-        // Native's `ActivityIndicator` because `@oxy.so/bloom/loading`
-        // tree-shook to undefined in this bundle. It no longer does (Bloom
-        // 4.35.0), and the case above proves every element is real.
-        const html = probe[PROBE_CASES.preparing].html ?? ""
-        expect(html).toContain('role="progressbar"')
-        expect(html).toContain("bloomSpinnerRotate")
-    })
+  test('the preparing branch draws its leading visual', () => {
+    // Bloom's `Loading`, named: `963f6e57` once swapped it for React
+    // Native's `ActivityIndicator` because `@oxy.so/bloom/loading`
+    // tree-shook to undefined in this bundle. It no longer does (Bloom
+    // 4.35.0), and the case above proves every element is real.
+    const html = probe[PROBE_CASES.preparing].html ?? '';
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain('bloomSpinnerRotate');
+  });
 
-    test("the failed branch reveals the alternatives plainly", () => {
-        // Everywhere else they sit inside Bloom's collapsed disclosure and are
-        // not rendered at all, so this is the one case that proves the revealed
-        // path builds its links.
-        expect(probe[PROBE_CASES.failed].html ?? "").toContain(ALTERNATIVE_LABEL)
-    })
-})
+  test('the failed branch reveals the alternatives plainly', () => {
+    // Everywhere else they sit inside Bloom's collapsed disclosure and are
+    // not rendered at all, so this is the one case that proves the revealed
+    // path builds its links.
+    expect(probe[PROBE_CASES.failed].html ?? '').toContain(ALTERNATIVE_LABEL);
+  });
+});

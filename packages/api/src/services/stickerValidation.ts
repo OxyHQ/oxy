@@ -62,7 +62,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** A numeric top-level field of the Lottie document, by its Lottie name. */
-function finiteNumber(document: Record<string, unknown>, field: 'w' | 'h' | 'fr' | 'ip' | 'op'): number {
+function finiteNumber(
+  document: Record<string, unknown>,
+  field: 'w' | 'h' | 'fr' | 'ip' | 'op',
+): number {
   const value = document[field];
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new BadRequestError(`Lottie animation is missing a numeric "${field}"`);
@@ -112,7 +115,7 @@ function roundNumbers(_key: string, value: unknown): unknown {
 export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnimation {
   if (buffer.length > STICKER_MAX_UPLOAD_BYTES) {
     throw new BadRequestError(
-      `Lottie animation is ${buffer.length} bytes; the upload limit is ${STICKER_MAX_UPLOAD_BYTES}`
+      `Lottie animation is ${buffer.length} bytes; the upload limit is ${STICKER_MAX_UPLOAD_BYTES}`,
     );
   }
 
@@ -131,14 +134,14 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
   const size = STICKER_CANVAS_SIZES.find((allowed) => allowed === width && allowed === height);
   if (size === undefined) {
     throw new BadRequestError(
-      `Sticker canvas is ${width}×${height}; it must be square, one of ${STICKER_CANVAS_SIZES.join(', ')}`
+      `Sticker canvas is ${width}×${height}; it must be square, one of ${STICKER_CANVAS_SIZES.join(', ')}`,
     );
   }
 
   const frameRate = finiteNumber(document, 'fr');
   if (frameRate <= 0 || frameRate > STICKER_MAX_FRAME_RATE) {
     throw new BadRequestError(
-      `Sticker frame rate is ${frameRate}; it must be above 0 and at most ${STICKER_MAX_FRAME_RATE}`
+      `Sticker frame rate is ${frameRate}; it must be above 0 and at most ${STICKER_MAX_FRAME_RATE}`,
     );
   }
 
@@ -148,7 +151,7 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
   const durationMs = Math.round(((outPoint - inPoint) / frameRate) * 1000);
   if (durationMs <= 0 || durationMs > STICKER_MAX_DURATION_MS) {
     throw new BadRequestError(
-      `Sticker loop is ${durationMs}ms; it must be above 0 and at most ${STICKER_MAX_DURATION_MS}ms`
+      `Sticker loop is ${durationMs}ms; it must be above 0 and at most ${STICKER_MAX_DURATION_MS}ms`,
     );
   }
 
@@ -160,7 +163,7 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
   const json = Buffer.from(JSON.stringify(document, roundNumbers));
   if (json.length > STICKER_MAX_ANIMATION_BYTES) {
     throw new BadRequestError(
-      `Lottie animation is ${json.length} bytes after normalization; the limit is ${STICKER_MAX_ANIMATION_BYTES}`
+      `Lottie animation is ${json.length} bytes after normalization; the limit is ${STICKER_MAX_ANIMATION_BYTES}`,
     );
   }
 
@@ -171,10 +174,13 @@ export function normalizeStickerAnimation(buffer: Buffer): NormalizedStickerAnim
  * A supplied fallback is checked by decoding it, not by trusting the declared
  * type: `sharp` reads the real format and dimensions from the bytes.
  */
-export async function validateStickerFallback(buffer: Buffer, declaredMime: string): Promise<string> {
+export async function validateStickerFallback(
+  buffer: Buffer,
+  declaredMime: string,
+): Promise<string> {
   if (buffer.length > STICKER_MAX_FALLBACK_BYTES) {
     throw new BadRequestError(
-      `Fallback image is ${buffer.length} bytes; the limit is ${STICKER_MAX_FALLBACK_BYTES}`
+      `Fallback image is ${buffer.length} bytes; the limit is ${STICKER_MAX_FALLBACK_BYTES}`,
     );
   }
 
@@ -185,13 +191,14 @@ export async function validateStickerFallback(buffer: Buffer, declaredMime: stri
     throw new BadRequestError('Fallback is not a readable image');
   }
 
-  const mime = metadata.format === 'webp' ? 'image/webp' : metadata.format === 'png' ? 'image/png' : null;
+  const mime =
+    metadata.format === 'webp' ? 'image/webp' : metadata.format === 'png' ? 'image/png' : null;
   if (!mime || mime !== declaredMime) {
     throw new BadRequestError(`Fallback must be one of ${STICKER_FALLBACK_MIME_TYPES.join(', ')}`);
   }
   if (metadata.width !== STICKER_FALLBACK_SIZE || metadata.height !== STICKER_FALLBACK_SIZE) {
     throw new BadRequestError(
-      `Fallback is ${metadata.width}×${metadata.height}; it must be ${STICKER_FALLBACK_SIZE}×${STICKER_FALLBACK_SIZE}`
+      `Fallback is ${metadata.width}×${metadata.height}; it must be ${STICKER_FALLBACK_SIZE}×${STICKER_FALLBACK_SIZE}`,
     );
   }
   return mime;

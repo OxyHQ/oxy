@@ -335,11 +335,10 @@ export function buildWeightProfiles(): Record<string, WeightProfile> {
  */
 export function resolveWeightProfile(
   clientId?: string,
-  overrides?: Partial<Record<RecommendationSignal, number>>
+  overrides?: Partial<Record<RecommendationSignal, number>>,
 ): RecommendationWeights {
   const profiles = buildWeightProfiles();
-  const profile =
-    (clientId && profiles[clientId]) || DEFAULT_WEIGHT_PROFILE;
+  const profile = (clientId && profiles[clientId]) || DEFAULT_WEIGHT_PROFILE;
 
   const resolved: RecommendationWeights = { ...profile.weights };
 

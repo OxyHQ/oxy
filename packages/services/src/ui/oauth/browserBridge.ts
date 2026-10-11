@@ -122,7 +122,11 @@ export function readBridgeMessage(
   const data = event.data as Record<string, unknown> | null;
   if (typeof data !== 'object' || data === null) return { kind: 'ignore' };
   if (data.state !== context.expectedState) return { kind: 'ignore' };
-  if (data.type === OXY_BRIDGE_CODE_MESSAGE_TYPE && typeof data.code === 'string' && data.code.length > 0) {
+  if (
+    data.type === OXY_BRIDGE_CODE_MESSAGE_TYPE &&
+    typeof data.code === 'string' &&
+    data.code.length > 0
+  ) {
     return { kind: 'code', code: data.code };
   }
   if (data.type === OXY_BRIDGE_ERROR_MESSAGE_TYPE && typeof data.error === 'string') {
@@ -153,10 +157,16 @@ export type BrowserBridgeResult =
  * Drive an opened bridge window to a device credential for this app. Settles
  * exactly once, closes the window whatever the outcome, and never rejects.
  */
-export async function runBrowserBridge(options: RunBrowserBridgeOptions): Promise<BrowserBridgeResult> {
+export async function runBrowserBridge(
+  options: RunBrowserBridgeOptions,
+): Promise<BrowserBridgeResult> {
   const { popup, bridgeOrigin, oxyServices, clientId, redirectUri } = options;
   const host = bridgeHost();
-  if (!host || typeof host.addEventListener !== 'function' || typeof host.removeEventListener !== 'function') {
+  if (
+    !host ||
+    typeof host.addEventListener !== 'function' ||
+    typeof host.removeEventListener !== 'function'
+  ) {
     closeBridgeWindow(popup);
     return { ok: false, reason: 'no-browser' };
   }
@@ -204,7 +214,12 @@ export async function runBrowserBridge(options: RunBrowserBridgeOptions): Promis
 
 function awaitBridgeMessage(
   host: BridgeHost,
-  context: { popup: OAuthPopupHandle; expectedOrigin: string; expectedState: string; timeoutMs: number },
+  context: {
+    popup: OAuthPopupHandle;
+    expectedOrigin: string;
+    expectedState: string;
+    timeoutMs: number;
+  },
 ): Promise<{ kind: 'code'; code: string } | { kind: 'closed' | 'timed-out' | 'bridge-error' }> {
   return new Promise((resolve) => {
     let settled = false;
@@ -220,7 +235,9 @@ function awaitBridgeMessage(
       // The bridge posts and THEN closes; let an already-queued message win.
       closeGrace = setTimeout(() => settle({ kind: 'closed' }), CLOSE_GRACE_MS);
     }, CLOSE_POLL_INTERVAL_MS);
-    function settle(outcome: { kind: 'code'; code: string } | { kind: 'closed' | 'timed-out' | 'bridge-error' }): void {
+    function settle(
+      outcome: { kind: 'code'; code: string } | { kind: 'closed' | 'timed-out' | 'bridge-error' },
+    ): void {
       if (settled) return;
       settled = true;
       host.removeEventListener?.('message', onMessage);

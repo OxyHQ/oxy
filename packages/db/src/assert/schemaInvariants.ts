@@ -59,7 +59,7 @@ async function applicationTables(db: SqlExecutor): Promise<string[]> {
     select table_name from information_schema.tables
     where table_schema = 'public' and table_type = 'BASE TABLE'
     order by table_name
-  `
+  `,
   );
   return rows.map((row) => row.table_name);
 }
@@ -70,7 +70,7 @@ async function allColumns(db: SqlExecutor): Promise<ColumnRow[]> {
     sql`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public'
-    `
+    `,
   );
 }
 
@@ -82,7 +82,7 @@ async function timestampWithoutTimeZoneColumns(db: SqlExecutor): Promise<ColumnR
     sql`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public' and data_type = 'timestamp without time zone'
-    `
+    `,
   );
 }
 
@@ -98,7 +98,7 @@ async function emptyStringDefaultColumns(db: SqlExecutor): Promise<ColumnDefault
       select table_name, column_name, column_default
       from information_schema.columns
       where table_schema = 'public' and column_default ~ ${"^''::"}
-    `
+    `,
   );
 }
 
@@ -115,7 +115,7 @@ async function tablesMissingPrimaryKey(db: SqlExecutor): Promise<string[]> {
             and c.table_name = t.table_name
             and c.constraint_type = 'PRIMARY KEY'
         )
-    `
+    `,
   );
   return rows.map((row) => row.table_name);
 }
@@ -126,7 +126,7 @@ async function mongooseArtifactColumns(db: SqlExecutor): Promise<ColumnRow[]> {
     sql`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public' and column_name in ('__v', '_id')
-    `
+    `,
   );
 }
 
@@ -138,7 +138,7 @@ async function mongooseArtifactColumns(db: SqlExecutor): Promise<ColumnRow[]> {
  */
 export async function findSchemaInvariantViolations(
   db: SqlExecutor,
-  options: SchemaInvariantOptions
+  options: SchemaInvariantOptions,
 ): Promise<InvariantViolation[]> {
   const violations: InvariantViolation[] = [];
 

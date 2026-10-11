@@ -88,7 +88,7 @@ async function uploadedAsset(sha256 = sha256Hex()): Promise<string> {
 /** A create-update request with every referenced asset already uploaded. */
 async function createRequest(
   applicationId: string,
-  overrides: Partial<CreateUpdateRequest> = {}
+  overrides: Partial<CreateUpdateRequest> = {},
 ): Promise<CreateUpdateRequest> {
   return {
     applicationId,
@@ -156,7 +156,7 @@ async function refuseDirectiveDeletes(channelId: string): Promise<() => Promise<
           'the rollback-to-embedded directive was DELETED: replacing it must be one statement that never removes the row';
       end
       $fn$
-    `)
+    `),
   );
   await getDb().execute(
     sql.raw(`
@@ -164,11 +164,11 @@ async function refuseDirectiveDeletes(channelId: string): Promise<() => Promise<
       before delete on update_channel_rollbacks
       for each row when (old.channel_id = '${channelId}')
       execute function oxy_test_refuse_rollback_delete()
-    `)
+    `),
   );
   return async () => {
     await getDb().execute(
-      sql.raw(`drop trigger if exists ${triggerName} on update_channel_rollbacks`)
+      sql.raw(`drop trigger if exists ${triggerName} on update_channel_rollbacks`),
     );
   };
 }
@@ -319,9 +319,9 @@ describe('completeAssets', () => {
 
   test('rejects an asset that was never initialised', async () => {
     const applicationId = await application();
-    await expect(
-      publishService.completeAssets(applicationId, [sha256Hex()])
-    ).rejects.toThrow(/never initialised/i);
+    await expect(publishService.completeAssets(applicationId, [sha256Hex()])).rejects.toThrow(
+      /never initialised/i,
+    );
   });
 });
 
@@ -333,7 +333,7 @@ describe('createUpdate', () => {
     const update = await publishService.createUpdate(input);
 
     expect(update.id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
     expect(update.channel).toBe(input.channel);
     expect(update.status).toBe('published');
@@ -362,7 +362,9 @@ describe('createUpdate', () => {
     const applicationId = await application();
     const first = await createRequest(applicationId);
     await publishService.createUpdate(first);
-    await publishService.createUpdate(await createRequest(applicationId, { channel: first.channel }));
+    await publishService.createUpdate(
+      await createRequest(applicationId, { channel: first.channel }),
+    );
 
     const channels = await getDb()
       .select({ id: updateChannels.id })
@@ -370,8 +372,8 @@ describe('createUpdate', () => {
       .where(
         and(
           eq(updateChannels.applicationId, applicationId),
-          eq(updateChannels.name, first.channel)
-        )
+          eq(updateChannels.name, first.channel),
+        ),
       );
     expect(channels).toHaveLength(1);
   });
@@ -386,7 +388,9 @@ describe('createUpdate', () => {
     // A directive for a DIFFERENT tuple must survive the publish untouched.
     await publishService.rollbackToEmbedded(applicationId, input.channel, '2.0.0', 'ios');
 
-    await publishService.createUpdate(await createRequest(applicationId, { channel: input.channel }));
+    await publishService.createUpdate(
+      await createRequest(applicationId, { channel: input.channel }),
+    );
 
     const remaining = await storedRollbacks(channelId);
     expect(remaining.map((entry) => entry.runtimeVersion)).toEqual(['2.0.0']);
@@ -404,7 +408,7 @@ describe('createUpdate', () => {
       publishService.createUpdate({
         ...input,
         assets: [...input.assets, { sha256: pending, key: 'd', contentType: 'image/png' }],
-      })
+      }),
     ).rejects.toThrow(/not uploaded/i);
 
     // A publish is one transaction: the channel it would have created on demand
@@ -433,13 +437,13 @@ describe('rollbackToEmbedded — one idempotent statement', () => {
       applicationId,
       input.channel,
       '1.0.0',
-      'ios'
+      'ios',
     );
     const second = await publishService.rollbackToEmbedded(
       applicationId,
       input.channel,
       '1.0.0',
-      'ios'
+      'ios',
     );
 
     // Exactly one row: the composite primary key makes a duplicate for the same
@@ -452,7 +456,7 @@ describe('rollbackToEmbedded — one idempotent statement', () => {
     // between the two rollbacks would never be told to roll back at all.
     const storedCommitTime = rows[0].commitTime.getTime();
     const commitTimeOfTheFirstRollback = new Date(
-      first.rollbacksToEmbedded[0].commitTime
+      first.rollbacksToEmbedded[0].commitTime,
     ).getTime();
     expect(rows[0].commitTime.toISOString()).toBe(second.rollbacksToEmbedded[0].commitTime);
     expect(storedCommitTime).toBeGreaterThan(commitTimeOfTheFirstRollback);
@@ -475,7 +479,7 @@ describe('rollbackToEmbedded — one idempotent statement', () => {
         applicationId,
         input.channel,
         '1.0.0',
-        'ios'
+        'ios',
       );
       expect(replaced.rollbacksToEmbedded).toHaveLength(1);
     } finally {
@@ -495,8 +499,8 @@ describe('rollbackToEmbedded — one idempotent statement', () => {
     // endpoint's `.find()` then resolved arbitrarily.
     const results = await Promise.all(
       Array.from({ length: 4 }, () =>
-        publishService.rollbackToEmbedded(applicationId, input.channel, '1.0.0', 'ios')
-      )
+        publishService.rollbackToEmbedded(applicationId, input.channel, '1.0.0', 'ios'),
+      ),
     );
 
     expect(results).toHaveLength(4);
@@ -516,7 +520,7 @@ describe('rollback', () => {
       .set({ createdAt: new Date(Date.now() - 60_000) })
       .where(eq(appUpdates.updateId, previous.id));
     const head = await publishService.createUpdate(
-      await createRequest(applicationId, { channel: input.channel })
+      await createRequest(applicationId, { channel: input.channel }),
     );
 
     const result = await publishService.rollback(applicationId, input.channel, '1.0.0', 'ios');
@@ -545,10 +549,10 @@ describe('rollback', () => {
     await publishService.createUpdate(input);
 
     await expect(
-      publishService.rollback(applicationId, input.channel, '9.9.9', 'ios')
+      publishService.rollback(applicationId, input.channel, '9.9.9', 'ios'),
     ).rejects.toThrow(/no published update/i);
     await expect(
-      publishService.rollback(applicationId, 'never-created', '1.0.0', 'ios')
+      publishService.rollback(applicationId, 'never-created', '1.0.0', 'ios'),
     ).rejects.toThrow(/not found/i);
   });
 });
@@ -588,9 +592,9 @@ describe('promote', () => {
 
   test('throws when the source update does not exist', async () => {
     const applicationId = await application();
-    await expect(
-      publishService.promote(applicationId, randomUUID(), 'preview')
-    ).rejects.toThrow(/not found/i);
+    await expect(publishService.promote(applicationId, randomUUID(), 'preview')).rejects.toThrow(
+      /not found/i,
+    );
   });
 });
 
@@ -612,9 +616,9 @@ describe('setRollout', () => {
     const applicationId = await application();
     const update = await publishService.createUpdate(await createRequest(applicationId));
 
-    await expect(
-      publishService.setRollout(await application(), update.id, 25)
-    ).rejects.toThrow(/not found/i);
+    await expect(publishService.setRollout(await application(), update.id, 25)).rejects.toThrow(
+      /not found/i,
+    );
   });
 });
 
@@ -628,7 +632,7 @@ describe('reads', () => {
       applicationId,
       'zulu',
       '1.0.0',
-      'ios'
+      'ios',
     );
 
     const channels = await publishService.listChannels(applicationId);
@@ -653,7 +657,7 @@ describe('reads', () => {
       .set({ createdAt: new Date(Date.now() - 60_000) })
       .where(eq(appUpdates.updateId, first.id));
     const second = await publishService.createUpdate(
-      await createRequest(applicationId, { channel: input.channel, platform: 'android' })
+      await createRequest(applicationId, { channel: input.channel, platform: 'android' }),
     );
 
     const all = await publishService.listUpdates(applicationId);
@@ -665,7 +669,7 @@ describe('reads', () => {
       applicationId,
       input.channel,
       '1.0.0',
-      'android'
+      'android',
     );
     expect(androidOnly.map((update) => update.id)).toEqual([second.id]);
 

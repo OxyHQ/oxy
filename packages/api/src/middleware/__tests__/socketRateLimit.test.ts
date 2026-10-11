@@ -40,7 +40,7 @@ function createMockSocket(id = 'socket-1'): MockSocket {
       return next;
     },
     _fireDisconnect() {
-      (listeners['disconnect'] ?? []).forEach(fn => fn());
+      (listeners['disconnect'] ?? []).forEach((fn) => fn());
     },
   };
 }

@@ -67,7 +67,7 @@ export const updateChannelRollbacks = pgTable(
     }),
     check(
       'update_channel_rollbacks_platform_check',
-      sql`${t.platform} in (${sql.raw(inList(UPDATE_PLATFORMS))})`
+      sql`${t.platform} in (${sql.raw(inList(UPDATE_PLATFORMS))})`,
     ),
-  ]
+  ],
 );

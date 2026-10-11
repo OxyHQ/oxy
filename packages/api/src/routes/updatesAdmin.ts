@@ -29,12 +29,7 @@ import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serv
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
-import {
-  ForbiddenError,
-  NotFoundError,
-  UnauthorizedError,
-  ValidationError,
-} from '../utils/error';
+import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema';
@@ -75,7 +70,7 @@ const readLimiter = rateLimit({
 function authenticatePrincipal(
   req: UpdatesAdminRequest,
   res: express.Response,
-  next: express.NextFunction
+  next: express.NextFunction,
 ): void {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
@@ -127,7 +122,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
   const access = await accountService.resolveEffectiveAccess(
     operatorId,
     application.ownerAccountId,
-    req.sessionId
+    req.sessionId,
   );
   if (!access) {
     throw new ForbiddenError('You do not have access to this application');
@@ -164,7 +159,7 @@ router.post(
     await authorizeForApp(req, body.applicationId);
     const result = await publishService.initAssets(body.applicationId, body.assets);
     sendSuccess(res, result);
-  })
+  }),
 );
 
 router.post(
@@ -175,7 +170,7 @@ router.post(
     await authorizeForApp(req, body.applicationId);
     const result = await publishService.completeAssets(body.applicationId, body.sha256s);
     sendSuccess(res, result);
-  })
+  }),
 );
 
 // ============================================================================
@@ -190,7 +185,7 @@ router.post(
     await authorizeForApp(req, body.applicationId);
     const update = await publishService.createUpdate(body);
     sendSuccess(res, { update });
-  })
+  }),
 );
 
 router.patch(
@@ -202,10 +197,10 @@ router.patch(
     const update = await publishService.setRollout(
       body.applicationId,
       req.params.updateId,
-      body.rolloutPercent
+      body.rolloutPercent,
     );
     sendSuccess(res, { update });
-  })
+  }),
 );
 
 // ============================================================================
@@ -222,10 +217,10 @@ router.post(
       body.applicationId,
       req.params.channel,
       body.runtimeVersion,
-      body.platform
+      body.platform,
     );
     sendSuccess(res, result);
-  })
+  }),
 );
 
 router.post(
@@ -238,10 +233,10 @@ router.post(
       body.applicationId,
       req.params.channel,
       body.runtimeVersion,
-      body.platform
+      body.platform,
     );
     sendSuccess(res, { channel });
-  })
+  }),
 );
 
 router.post(
@@ -254,10 +249,10 @@ router.post(
       body.applicationId,
       body.updateId,
       body.toChannel ?? req.params.channel,
-      body.rolloutPercent
+      body.rolloutPercent,
     );
     sendSuccess(res, { update });
-  })
+  }),
 );
 
 // ============================================================================
@@ -280,7 +275,7 @@ router.get(
     await authorizeForApp(req, query.applicationId);
     const channels = await publishService.listChannels(query.applicationId);
     sendSuccess(res, { channels });
-  })
+  }),
 );
 
 router.get(
@@ -294,10 +289,10 @@ router.get(
       req.params.channel,
       query.runtimeVersion,
       query.platform,
-      query.limit
+      query.limit,
     );
     sendSuccess(res, { updates });
-  })
+  }),
 );
 
 router.get(
@@ -311,10 +306,10 @@ router.get(
       undefined,
       query.runtimeVersion,
       query.platform,
-      query.limit
+      query.limit,
     );
     sendSuccess(res, { updates });
-  })
+  }),
 );
 
 logger.debug('Oxy Updates admin routes registered');

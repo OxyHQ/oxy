@@ -27,11 +27,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { qualified } from '@oxy.so/db';
-import {
-  MESSAGE_CARD_TYPES,
-  messages,
-  type MessageHighlight,
-} from '../db/schema/messages';
+import { MESSAGE_CARD_TYPES, messages, type MessageHighlight } from '../db/schema/messages';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import { logger } from '../utils/logger';
 import { CARD_EXTRACTION_CONFIG } from '../config/email.config';

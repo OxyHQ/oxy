@@ -107,7 +107,7 @@ export type SeedApplicationLookupIdentity =
  */
 export function seedApplicationLookupIdentity(
   spec: SeedAppSpec,
-  createdByUserId: string
+  createdByUserId: string,
 ): SeedApplicationLookupIdentity {
   return spec.id === undefined
     ? { kind: 'legacy-name', name: spec.name, createdByUserId }
@@ -336,9 +336,13 @@ export const OXY_PROFILE_REGISTRAR_APPLICATION_ID = 'dce95bde-49ef-4f05-83b3-c4d
 export const OXY_PROFILE_REGISTRAR_SPEC: SeedAppSpec = {
   id: OXY_PROFILE_REGISTRAR_APPLICATION_ID,
   name: 'Oxy Profile Catalogue Registrar',
-  description: 'Internal canonical profile catalogue registrar; no user sign-in or workload binding.',
-  type: 'internal', redirectUris: [], scopes: ['catalogs:write'],
-  capabilities: [catalogApplicationCapability('oxy')], publicClient: false,
+  description:
+    'Internal canonical profile catalogue registrar; no user sign-in or workload binding.',
+  type: 'internal',
+  redirectUris: [],
+  scopes: ['catalogs:write'],
+  capabilities: [catalogApplicationCapability('oxy')],
+  publicClient: false,
 };
 
 export function requiresPublicSeedCredential(spec: SeedAppSpec): boolean {
@@ -379,12 +383,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://inbox.oxy.so',
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
-    scopes: [
-      'user:read',
-      'inference:invoke',
-      'catalogs:write',
-      'capability-events:publish',
-    ],
+    scopes: ['user:read', 'inference:invoke', 'catalogs:write', 'capability-events:publish'],
     capabilities: [catalogApplicationCapability('inbox')],
   },
   {
@@ -603,11 +602,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy courier/transport app — send packages, food, and moves.',
     websiteUrl: 'https://moovo.now',
     type: 'first_party',
-    redirectUris: [
-      'https://moovo.now',
-      'https://go.moovo.now',
-      'https://hub.moovo.now',
-    ],
+    redirectUris: ['https://moovo.now', 'https://go.moovo.now', 'https://hub.moovo.now'],
   },
   {
     id: MEDIA_WORKER_APPLICATION_ID,
@@ -630,7 +625,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     // URIs of the linked-accounts flow: `isAllowedRedirectUri` matches exactly
     // (only a bare `https://host/` is folded to its origin), so `…/linked`
     // must be registered on its own for `returnTo` to be accepted.
-    redirectUris: ['https://move.oxy.so', 'oxymove://', 'https://move.oxy.so/linked', 'oxymove://linked'],
+    redirectUris: [
+      'https://move.oxy.so',
+      'oxymove://',
+      'https://move.oxy.so/linked',
+      'oxymove://linked',
+    ],
     // `linked-accounts:read` reads which external accounts a user proved they
     // own (the import source). `files:user-media:write` uploads imported media
     // as files OWNED BY that user (`POST /assets/service/user-media`) without

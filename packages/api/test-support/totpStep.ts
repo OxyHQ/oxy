@@ -9,5 +9,6 @@
  */
 export async function awayFromTotpStepEdge(): Promise<void> {
   const intoStep = Date.now() % 30_000;
-  if (intoStep > 20_000) await new Promise((resolve) => setTimeout(resolve, 30_000 - intoStep + 50));
+  if (intoStep > 20_000)
+    await new Promise((resolve) => setTimeout(resolve, 30_000 - intoStep + 50));
 }

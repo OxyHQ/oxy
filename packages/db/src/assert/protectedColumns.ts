@@ -43,8 +43,10 @@ import type { InvariantViolation } from './schemaInvariants';
 export type ProtectedColumnRegistry = Readonly<Record<string, readonly string[]>>;
 
 /** The protected property names of `T` under `Reg`, or `never` if none apply. */
-type ProtectedNameOf<T extends PgTable, Reg extends ProtectedColumnRegistry> =
-  T['_']['name'] extends keyof Reg ? Reg[T['_']['name']][number] : never;
+type ProtectedNameOf<
+  T extends PgTable,
+  Reg extends ProtectedColumnRegistry,
+> = T['_']['name'] extends keyof Reg ? Reg[T['_']['name']][number] : never;
 
 /** `T`'s columns with every column `Reg` protects removed, at the type level. */
 export type PublicColumns<T extends PgTable, Reg extends ProtectedColumnRegistry> = Omit<
@@ -99,7 +101,7 @@ export type PublicColumns<T extends PgTable, Reg extends ProtectedColumnRegistry
  */
 export function publicColumns<T extends PgTable, const Reg extends ProtectedColumnRegistry>(
   table: T,
-  registry: Reg
+  registry: Reg,
 ): PublicColumns<T, Reg> {
   const name = getTableName(table);
   const withheld = new Set<string>(name in registry ? registry[name] : []);
@@ -198,7 +200,7 @@ async function findPatternViolations(
   check: string,
   pattern: RegExp,
   files: readonly string[],
-  sourceDir: string
+  sourceDir: string,
 ): Promise<InvariantViolation[]> {
   const violations: InvariantViolation[] = [];
   for (const file of files) {
@@ -237,7 +239,7 @@ async function findPatternViolations(
  * own tree should be).
  */
 export async function findImplicitWholeRowReads(
-  options: ImplicitReadScanOptions
+  options: ImplicitReadScanOptions,
 ): Promise<InvariantViolation[]> {
   const files = await sourceFiles(options.sourceDir);
 
@@ -257,7 +259,7 @@ export async function findImplicitWholeRowReads(
   // `db.select().from(users)` / `.select().from(users,` — the argument-less
   // form returns EVERY column.
   const bareSelectPattern = new RegExp(
-    `\\.select\\(\\s*\\)[\\s\\S]{0,120}?\\.from\\(\\s*(?:${tableNames.join('|')})\\s*[,)]`
+    `\\.select\\(\\s*\\)[\\s\\S]{0,120}?\\.from\\(\\s*(?:${tableNames.join('|')})\\s*[,)]`,
   );
   // `db.query.users.findFirst()` also returns every column unless a
   // `columns:` projection is passed, and that projection is easy to omit
@@ -265,12 +267,17 @@ export async function findImplicitWholeRowReads(
   const relationalQueryPattern = new RegExp(`\\.query\\.(?:${tableNames.join('|')})\\b`);
 
   return [
-    ...(await findPatternViolations('implicit_select_all', bareSelectPattern, files, options.sourceDir)),
+    ...(await findPatternViolations(
+      'implicit_select_all',
+      bareSelectPattern,
+      files,
+      options.sourceDir,
+    )),
     ...(await findPatternViolations(
       'implicit_relational_query',
       relationalQueryPattern,
       files,
-      options.sourceDir
+      options.sourceDir,
     )),
   ];
 }

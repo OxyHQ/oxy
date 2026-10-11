@@ -33,6 +33,7 @@ const DEFAULT_COMMONS_LANDING_URL = 'https://oxy.so/commons';
  */
 export function getCommonsAcquisitionUrl(platformOS: 'ios' | 'android' | string): string {
   const links = getCommonsStoreLinks();
-  const storeUrl = platformOS === 'ios' ? links.ios : platformOS === 'android' ? links.android : undefined;
+  const storeUrl =
+    platformOS === 'ios' ? links.ios : platformOS === 'android' ? links.android : undefined;
   return storeUrl ?? process.env.EXPO_PUBLIC_COMMONS_LANDING_URL ?? DEFAULT_COMMONS_LANDING_URL;
 }

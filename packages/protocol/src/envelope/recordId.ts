@@ -23,10 +23,7 @@ export async function sha256(message: string): Promise<string> {
   // In React Native, use expo-crypto
   if (isReactNative()) {
     const Crypto = await loadExpoCrypto();
-    return Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      message,
-    );
+    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, message);
   }
 
   if (isNodeJS()) {

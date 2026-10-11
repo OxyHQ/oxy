@@ -12,7 +12,8 @@ jest.mock('@/hooks/usePreventScreenCapture', () => ({
 jest.mock('@/components/ui', () => {
   const R = jest.requireActual<typeof import('react')>('react');
   return {
-    Button: ({ children }: { children?: React.ReactNode }) => R.createElement('button', null, children),
+    Button: ({ children }: { children?: React.ReactNode }) =>
+      R.createElement('button', null, children),
     KeyboardAwareScrollViewWrapper: ({ children }: { children?: React.ReactNode }) =>
       R.createElement('div', null, children),
   };

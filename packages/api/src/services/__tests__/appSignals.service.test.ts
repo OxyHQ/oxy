@@ -53,21 +53,19 @@ async function account(rankWeight?: number): Promise<string> {
 /** The member's per-app roll-up row, or undefined. */
 async function readSignal(
   applicationId: string,
-  userId: string
+  userId: string,
 ): Promise<typeof appUserSignals.$inferSelect | undefined> {
   const [row] = await getDb()
     .select()
     .from(appUserSignals)
-    .where(
-      and(eq(appUserSignals.applicationId, applicationId), eq(appUserSignals.userId, userId))
-    )
+    .where(and(eq(appUserSignals.applicationId, applicationId), eq(appUserSignals.userId, userId)))
     .limit(1);
   return row;
 }
 
 /** Every endorsement edge recorded for an application. */
 async function readEdges(
-  applicationId: string
+  applicationId: string,
 ): Promise<(typeof appEndorsementEdges.$inferSelect)[]> {
   return getDb()
     .select()

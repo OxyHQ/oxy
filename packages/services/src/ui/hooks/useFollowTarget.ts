@@ -56,18 +56,18 @@ export interface UseFollowTargetResult {
 
 export function useFollowTarget(
   targetId: string | undefined,
-  options?: { initialStatus?: FollowStatus }
+  options?: { initialStatus?: FollowStatus },
 ): UseFollowTargetResult {
   const { oxyServices, canUsePrivateApi } = useOxy();
 
   const status = useFollowTargetStore(
-    useCallback((s) => (targetId ? s.statuses[targetId] : undefined), [targetId])
+    useCallback((s) => (targetId ? s.statuses[targetId] : undefined), [targetId]),
   );
   const isPending = useFollowTargetStore(
-    useCallback((s) => (targetId ? (s.pending[targetId] ?? false) : false), [targetId])
+    useCallback((s) => (targetId ? (s.pending[targetId] ?? false) : false), [targetId]),
   );
   const error = useFollowTargetStore(
-    useCallback((s) => (targetId ? s.errors[targetId] : undefined), [targetId])
+    useCallback((s) => (targetId ? s.errors[targetId] : undefined), [targetId]),
   );
 
   const initialStatus = options?.initialStatus;
@@ -119,7 +119,7 @@ export function useFollowTarget(
     async (
       optimistic: FollowStatus,
       run: () => Promise<FollowStatus | undefined>,
-      failureMessage: string
+      failureMessage: string,
     ): Promise<boolean> => {
       if (!targetId) return false;
       const store = useFollowTargetStore.getState();
@@ -142,7 +142,7 @@ export function useFollowTarget(
         useFollowTargetStore.getState().setPending(targetId, false);
       }
     },
-    [targetId]
+    [targetId],
   );
 
   const current = status ?? UNKNOWN_FOLLOW_STATUS;
@@ -161,10 +161,10 @@ export function useFollowTarget(
         // than reconstructing one: `effectiveState`'s derivation lives there,
         // and a client recomputing it is a second implementation of one rule.
         async () => (await oxyServices.follows.followTarget(targetId, opts)).status,
-        'Could not follow'
+        'Could not follow',
       );
     },
-    [targetId, current, mutate, oxyServices]
+    [targetId, current, mutate, oxyServices],
   );
 
   const unfollow = useCallback(async () => {
@@ -176,7 +176,7 @@ export function useFollowTarget(
         await oxyServices.follows.unfollowTarget(relationshipId);
         return { ...UNKNOWN_FOLLOW_STATUS };
       },
-      'Could not unfollow'
+      'Could not unfollow',
     );
   }, [targetId, current.relationshipId, mutate, oxyServices]);
 
@@ -190,7 +190,7 @@ export function useFollowTarget(
         await oxyServices.follows.setApplicationMode(relationshipId, 'disabled');
         return optimistic;
       },
-      'Could not change this app’s setting for this follow'
+      'Could not change this app’s setting for this follow',
     );
   }, [targetId, current, mutate, oxyServices]);
 
@@ -204,7 +204,7 @@ export function useFollowTarget(
         await oxyServices.follows.restoreInheritance(relationshipId);
         return optimistic;
       },
-      'Could not change this app’s setting for this follow'
+      'Could not change this app’s setting for this follow',
     );
   }, [targetId, current, mutate, oxyServices]);
 

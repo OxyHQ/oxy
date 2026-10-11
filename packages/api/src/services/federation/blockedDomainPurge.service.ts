@@ -265,7 +265,10 @@ async function classifyActorFiles(
  * leaving it to be retried on the next pass. Returns whether it succeeded so
  * the caller only counts real deletions.
  */
-async function deleteFileBestEffort(fileId: string, context: Record<string, unknown>): Promise<boolean> {
+async function deleteFileBestEffort(
+  fileId: string,
+  context: Record<string, unknown>,
+): Promise<boolean> {
   try {
     await assetService.deleteFile(fileId, true);
     return true;
@@ -315,10 +318,7 @@ export async function purgeBlockedDomain(
   }
 
   const spellings = candidateDomainSpellings(canonicalDomain);
-  const matchWhere = and(
-    eq(users.type, 'federated'),
-    inArray(users.federationDomain, spellings),
-  );
+  const matchWhere = and(eq(users.type, 'federated'), inArray(users.federationDomain, spellings));
 
   const actorsMatched = await countActors(matchWhere);
   // Scan in `id` order from the cursor. The ordering is what makes `afterId` a
@@ -390,10 +390,7 @@ export async function purgeBlockedDomain(
     const username = candidate.username ?? '';
     result.actorsProcessed += 1;
 
-    const { callerOwned, otherAppIds } = await classifyActorFiles(
-      oxyUserId,
-      callerAppId,
-    );
+    const { callerOwned, otherAppIds } = await classifyActorFiles(oxyUserId, callerAppId);
 
     result.localFollowersAffected += await countLocalFollowers(oxyUserId);
 
@@ -414,9 +411,8 @@ export async function purgeBlockedDomain(
         .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
       userCache.invalidate(oxyUserId);
     }
-    const retentionReason = otherAppIds.length > 0
-      ? 'other_application_files'
-      : 'application_references_unknown';
+    const retentionReason =
+      otherAppIds.length > 0 ? 'other_application_files' : 'application_references_unknown';
     result.actorsRetained.push({
       oxyUserId,
       username,

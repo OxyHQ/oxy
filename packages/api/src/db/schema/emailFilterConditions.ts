@@ -40,15 +40,15 @@ export const emailFilterConditions = pgTable(
     check(
       'email_filter_conditions_field_check',
       sql`${t.field} in (${sql.raw(
-        EMAIL_FILTER_CONDITION_FIELDS.map((value) => `'${value}'`).join(', ')
-      )})`
+        EMAIL_FILTER_CONDITION_FIELDS.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     check(
       'email_filter_conditions_operator_check',
       sql`${t.operator} in (${sql.raw(
-        EMAIL_FILTER_CONDITION_OPERATORS.map((value) => `'${value}'`).join(', ')
-      )})`
+        EMAIL_FILTER_CONDITION_OPERATORS.map((value) => `'${value}'`).join(', '),
+      )})`,
     ),
     check('email_filter_conditions_ord_check', sql`${t.ord} >= 0`),
-  ]
+  ],
 );

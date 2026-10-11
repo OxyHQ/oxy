@@ -25,10 +25,16 @@ describe('system notification push contract', () => {
 
   it('refuses another push type and an empty id', () => {
     expect(
-      oxySystemNotificationPushDataSchema.safeParse({ type: 'oxy_inbox_new_message', notificationId: 'n1' }).success,
+      oxySystemNotificationPushDataSchema.safeParse({
+        type: 'oxy_inbox_new_message',
+        notificationId: 'n1',
+      }).success,
     ).toBe(false);
     expect(
-      oxySystemNotificationPushDataSchema.safeParse({ type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE, notificationId: '' }).success,
+      oxySystemNotificationPushDataSchema.safeParse({
+        type: OXY_SYSTEM_NOTIFICATION_PUSH_TYPE,
+        notificationId: '',
+      }).success,
     ).toBe(false);
   });
 });

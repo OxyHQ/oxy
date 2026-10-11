@@ -499,8 +499,9 @@ describe('the opaque-origin guard', () => {
     expect(matchesRegisteredOrigin(new Set(['null']), 'null')).toBe(false);
     expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'null')).toBe(false);
     // Positive control: an ordinary origin in that same set still matches.
-    expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'https://rp.example'))
-      .toBe(true);
+    expect(
+      matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'https://rp.example'),
+    ).toBe(true);
   });
 });
 
@@ -674,8 +675,7 @@ describe('GET /auth/oauth/client/:clientId — public metadata lookup', () => {
 
   it('removes legacy credential query parameters from the public icon projection', async () => {
     const app = await application({
-      icon:
-        'https://cdn.example.test/homiio.svg?size=64&token=secret-marker&access_token=second-marker&authorization=third-marker#app',
+      icon: 'https://cdn.example.test/homiio.svg?size=64&token=secret-marker&access_token=second-marker&authorization=third-marker#app',
     });
     const clientId = await credential(app.id);
 

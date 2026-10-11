@@ -19,26 +19,31 @@ import type { OxyLanguageConfig } from '../types/navigation';
  * when this config is supplied, so an app with no i18n of its own pays
  * nothing.
  */
-export function LanguageBridge({ supportedLocales, fallbackLocale, onChange, onError }: OxyLanguageConfig): null {
-    const { currentLanguage } = useOxy();
-    const resolvedLocale = useMemo(
-        () => coerceToSupportedLocale(currentLanguage, supportedLocales, fallbackLocale),
-        [currentLanguage, supportedLocales, fallbackLocale],
-    );
+export function LanguageBridge({
+  supportedLocales,
+  fallbackLocale,
+  onChange,
+  onError,
+}: OxyLanguageConfig): null {
+  const { currentLanguage } = useOxy();
+  const resolvedLocale = useMemo(
+    () => coerceToSupportedLocale(currentLanguage, supportedLocales, fallbackLocale),
+    [currentLanguage, supportedLocales, fallbackLocale],
+  );
 
-    // Refs, not effect dependencies: an inline `onChange`/`onError` (the common
-    // case) must not re-fire the effect on every render — only a genuine
-    // change in the RESOLVED locale should call it again.
-    const onChangeRef = useRef(onChange);
-    onChangeRef.current = onChange;
-    const onErrorRef = useRef(onError);
-    onErrorRef.current = onError;
+  // Refs, not effect dependencies: an inline `onChange`/`onError` (the common
+  // case) must not re-fire the effect on every render — only a genuine
+  // change in the RESOLVED locale should call it again.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
-    useEffect(() => {
-        Promise.resolve(onChangeRef.current(resolvedLocale)).catch((error: unknown) => {
-            onErrorRef.current?.(error, resolvedLocale);
-        });
-    }, [resolvedLocale]);
+  useEffect(() => {
+    Promise.resolve(onChangeRef.current(resolvedLocale)).catch((error: unknown) => {
+      onErrorRef.current?.(error, resolvedLocale);
+    });
+  }, [resolvedLocale]);
 
-    return null;
+  return null;
 }

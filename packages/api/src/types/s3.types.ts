@@ -1,6 +1,6 @@
 /**
  * S3 Service Types
- * 
+ *
  * Centralized type definitions for S3 storage operations.
  */
 

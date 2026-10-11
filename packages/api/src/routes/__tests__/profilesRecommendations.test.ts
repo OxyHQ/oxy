@@ -39,7 +39,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { recommendationResponseSchema, safeParseContract } from '@oxy.so/contracts';
 
-
 /** The principal the mocked dual-auth middleware attaches. */
 let currentUserId: string | undefined;
 let currentServiceApp: { appId: string; scopes: string[] } | undefined;
@@ -50,7 +49,13 @@ jest.mock('../../middleware/optionalAuth', () => ({
   optionalUserOrServiceAuth: (
     req: {
       user?: { _id: string };
-      serviceApp?: { type: string; appId: string; appName: string; credentialId: string; scopes: string[] };
+      serviceApp?: {
+        type: string;
+        appId: string;
+        appName: string;
+        credentialId: string;
+        scopes: string[];
+      };
     },
     _res: unknown,
     next: () => void,
@@ -470,7 +475,7 @@ describe('GET /profiles/recommendations — scored ranking', () => {
     expect(scores[1]).toBeGreaterThan(scores[2]);
   });
 
-  it('carries each account\'s accent colour', async () => {
+  it("carries each account's accent colour", async () => {
     const teal = await account({ username: handle('teal'), avatar: 'file_a', color: 'teal' });
     const amber = await account({ username: handle('amber'), avatar: 'file_b', color: 'amber' });
     const { viewer } = await viewerWithOverlap([teal, amber]);

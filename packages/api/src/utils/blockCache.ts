@@ -20,7 +20,7 @@ class BlockCache {
       maxSize: 100000,
       defaultTTL: 60 * 1000, // 1 minute
       cleanupInterval: 60 * 1000, // 1 minute
-      ...config
+      ...config,
     };
 
     this.startCleanupTimer();
@@ -61,7 +61,7 @@ class BlockCache {
     this.cache.set(key, {
       isBlocked,
       timestamp: Date.now(),
-      ttl: ttl || this.config.defaultTTL
+      ttl: ttl || this.config.defaultTTL,
     });
   }
 
@@ -102,7 +102,7 @@ class BlockCache {
     } else {
       const entries = Array.from(this.cache.entries());
       entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-      
+
       const toEvict = entries.slice(0, Math.min(count, entries.length));
       for (const [key] of toEvict) {
         this.cache.delete(key);
@@ -138,7 +138,7 @@ class BlockCache {
   getStats(): { size: number; maxSize: number } {
     return {
       size: this.cache.size,
-      maxSize: this.config.maxSize
+      maxSize: this.config.maxSize,
     };
   }
 
@@ -154,4 +154,3 @@ const blockCache = new BlockCache();
 const restrictCache = new BlockCache();
 export { restrictCache };
 export default blockCache;
-

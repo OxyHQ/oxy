@@ -44,7 +44,7 @@ async function btreeIndexedColumns(db: SqlExecutor): Promise<Set<string>> {
       join pg_am am on am.oid = i.relam
       join pg_attribute a on a.attrelid = t.oid and a.attnum = x.indkey[0]
       where am.amname = 'btree'
-    `
+    `,
   );
   return new Set(rows.map((row) => `${row.table_name}.${row.column_name}`));
 }
@@ -56,7 +56,7 @@ async function btreeIndexedColumns(db: SqlExecutor): Promise<Set<string>> {
  */
 export async function findUnsupportedExpiryColumns(
   db: SqlExecutor,
-  targets: readonly ExpirySweepTarget[]
+  targets: readonly ExpirySweepTarget[],
 ): Promise<InvariantViolation[]> {
   const indexed = await btreeIndexedColumns(db);
 

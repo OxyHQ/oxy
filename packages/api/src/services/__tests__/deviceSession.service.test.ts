@@ -105,8 +105,7 @@ async function storedCredentialHashes(device: string): Promise<string[]> {
   return rows.map((row) => row.secretHash);
 }
 
-const sha256 = (value: string) =>
-  nodeCrypto.createHash('sha256').update(value).digest('hex');
+const sha256 = (value: string) => nodeCrypto.createHash('sha256').update(value).digest('hex');
 
 beforeAll(async () => {
   await connectPostgres();
@@ -133,10 +132,8 @@ describe('projectState', () => {
         backgroundSecretExpiresAt: null,
         revision: 2,
         updatedAt: new Date(1720000000000),
-        accounts: [
-          { accountId: 'a1', sessionId: 's1', authuser: 0, operatedByUserId: null },
-        ],
-      })
+        accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0, operatedByUserId: null }],
+      }),
     ).toEqual({
       deviceId: 'd1',
       accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
@@ -156,9 +153,7 @@ describe('projectState', () => {
       backgroundSecretExpiresAt: null,
       revision: 1,
       updatedAt: new Date(1720000000000),
-      accounts: [
-        { accountId: 'org1', sessionId: 's-org', authuser: 0, operatedByUserId: 'op1' },
-      ],
+      accounts: [{ accountId: 'org1', sessionId: 's-org', authuser: 0, operatedByUserId: 'op1' }],
     });
     expect(state.accounts[0].operatedByUserId).toBe('op1');
   });
@@ -289,7 +284,7 @@ describe('addAccount', () => {
     expect(stored.backgroundSecretAccountId).toBeNull();
     expect(stored.backgroundSecretExpiresAt).toBeNull();
     expect(
-      await deviceSessionService.mintFromBackgroundSecret(device, credential?.secret as string)
+      await deviceSessionService.mintFromBackgroundSecret(device, credential?.secret as string),
     ).toEqual({ ok: false, reason: 'background_credential_invalid' });
     expect(mockGetAccessToken).not.toHaveBeenCalled();
   });
@@ -340,7 +335,7 @@ describe('addAccount', () => {
     const { state } = await deviceSessionService.addAccount(
       device,
       { accountId: a2, sessionId: 's2' },
-      { activate: 'if-empty' }
+      { activate: 'if-empty' },
     );
 
     expect(state.activeAccountId).toBe(a1);
@@ -355,7 +350,7 @@ describe('addAccount', () => {
     const { state } = await deviceSessionService.addAccount(
       device,
       { accountId: a2, sessionId: 's2' },
-      { activate: 'if-empty' }
+      { activate: 'if-empty' },
     );
 
     expect(state.activeAccountId).toBe(a2);
@@ -699,8 +694,12 @@ describe('issueDeviceSecret', () => {
     expect((await storedCredentialHashes(device)).sort()).toEqual(
       [sha256(first as string), sha256(second as string)].sort(),
     );
-    expect((await deviceSessionService.getStateBySecret(device, first as string))?.activeAccountId).toBe(a1);
-    expect((await deviceSessionService.getStateBySecret(device, second as string))?.activeAccountId).toBe(a1);
+    expect(
+      (await deviceSessionService.getStateBySecret(device, first as string))?.activeAccountId,
+    ).toBe(a1);
+    expect(
+      (await deviceSessionService.getStateBySecret(device, second as string))?.activeAccountId,
+    ).toBe(a1);
   });
 
   it('keeps at most 32 holders per device, evicting the least recently used', async () => {
@@ -754,7 +753,10 @@ describe('getStateBySecret', () => {
     const secret = await deviceSessionService.issueDeviceSecret(device);
     const hash = sha256(secret as string);
     const stale = new Date(Date.now() - 2 * 3_600_000);
-    await getDb().update(deviceCredentials).set({ lastUsedAt: stale }).where(eq(deviceCredentials.secretHash, hash));
+    await getDb()
+      .update(deviceCredentials)
+      .set({ lastUsedAt: stale })
+      .where(eq(deviceCredentials.secretHash, hash));
 
     await deviceSessionService.getStateBySecret(device, secret as string);
     const [touched] = await getDb()
@@ -808,7 +810,7 @@ describe('background credential', () => {
 
     const minted = await deviceSessionService.mintFromBackgroundSecret(
       device,
-      issued?.secret as string
+      issued?.secret as string,
     );
     expect(minted).toEqual({
       ok: true,
@@ -845,7 +847,7 @@ describe('background credential', () => {
       .set({ backgroundSecretExpiresAt: new Date(Date.now() - 1000) })
       .where(eq(deviceSessions.deviceId, device));
     expect(
-      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string)
+      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string),
     ).toEqual({ ok: false, reason: 'background_credential_invalid' });
   });
 
@@ -865,12 +867,12 @@ describe('background credential', () => {
       .where(
         and(
           eq(deviceAccountContexts.deviceSessionId, row.id),
-          eq(deviceAccountContexts.accountId, a2)
-        )
+          eq(deviceAccountContexts.accountId, a2),
+        ),
       );
 
     expect(
-      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string)
+      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string),
     ).toEqual({ ok: false, reason: 'account_not_on_device' });
   });
 });
@@ -953,7 +955,7 @@ describe('resolveTokenForAccount / resolveActiveToken', () => {
       expiresAt: '2026-07-07T00:00:00.000Z',
     });
     expect(
-      await deviceSessionService.resolveActiveToken({ ...state, activeAccountId: null })
+      await deviceSessionService.resolveActiveToken({ ...state, activeAccountId: null }),
     ).toBeNull();
   });
 });
@@ -1064,7 +1066,7 @@ describe('foreign keys enforce what the service assumes', () => {
       sessionId: 's-org',
       operatedByUserId: op1,
     });
-    expect((await storedAccounts(device))).toHaveLength(1);
+    expect(await storedAccounts(device)).toHaveLength(1);
 
     await getDb().delete(users).where(eq(users.id, op1));
 

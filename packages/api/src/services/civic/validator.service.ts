@@ -55,10 +55,7 @@ import { isSockPuppetRelation } from './graphExclusion';
 import { verifyAndStoreRecord } from '../signedRecord.service';
 import { reputationService } from '../reputation.service';
 import { isSelfIssuedByUser } from '../did.service';
-import {
-  PEER_VALIDATED_ACTION,
-  VALIDATION_CORRECT_ACTION,
-} from '../../utils/reputation.constants';
+import { PEER_VALIDATED_ACTION, VALIDATION_CORRECT_ACTION } from '../../utils/reputation.constants';
 import {
   VALIDATOR_POOL_TIERS,
   VALIDATOR_COUNT,
@@ -243,7 +240,9 @@ async function juryOf(requestId: string): Promise<string[]> {
 }
 
 /** A request plus its jury, or `null` when there is no such request. */
-export async function getValidationRequest(requestId: string): Promise<ValidationRequestView | null> {
+export async function getValidationRequest(
+  requestId: string,
+): Promise<ValidationRequestView | null> {
   const [request] = await getDb()
     .select()
     .from(validationRequests)
@@ -436,15 +435,17 @@ export async function submitVote(
     .where(eq(reputationBalances.userId, validatorUserId))
     .limit(1);
   try {
-    await getDb().insert(validationVotes).values({
-      requestId,
-      validatorUserId,
-      verdict,
-      envelope,
-      publicKey: envelope.publicKey,
-      recordId: stored.record.recordId,
-      stakeWeight: validatorWeight(balance?.trustTier ?? 'trusted'),
-    });
+    await getDb()
+      .insert(validationVotes)
+      .values({
+        requestId,
+        validatorUserId,
+        verdict,
+        envelope,
+        publicKey: envelope.publicKey,
+        recordId: stored.record.recordId,
+        stakeWeight: validatorWeight(balance?.trustTier ?? 'trusted'),
+      });
   } catch (error) {
     if (isUniqueViolation(error, REQUEST_VALIDATOR_UNIQUE)) {
       return { ok: false, reason: 'already_voted' };
@@ -491,7 +492,11 @@ export async function tallyAndResolve(requestId: string): Promise<ValidationRequ
   if (!request) {
     return 'expired';
   }
-  if (request.status === 'validated' || request.status === 'rejected' || request.status === 'expired') {
+  if (
+    request.status === 'validated' ||
+    request.status === 'rejected' ||
+    request.status === 'expired'
+  ) {
     return request.status;
   }
 
@@ -652,7 +657,10 @@ export type DenyResult =
  * (so a now-complete set can resolve, or lapse to `expired` if it can no longer
  * reach quorum). Replacement-juror selection is a future enhancement.
  */
-export async function denyValidation(requestId: string, validatorUserId: string): Promise<DenyResult> {
+export async function denyValidation(
+  requestId: string,
+  validatorUserId: string,
+): Promise<DenyResult> {
   const [request] = await getDb()
     .select({ status: validationRequests.status })
     .from(validationRequests)
@@ -718,7 +726,10 @@ export async function getValidatorInbox(validatorUserId: string): Promise<Valida
     .limit(100);
 
   return Promise.all(
-    rows.map(async (row) => ({ ...row.request, selectedValidatorIds: await juryOf(row.request.id) })),
+    rows.map(async (row) => ({
+      ...row.request,
+      selectedValidatorIds: await juryOf(row.request.id),
+    })),
   );
 }
 

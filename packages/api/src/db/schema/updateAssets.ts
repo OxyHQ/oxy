@@ -87,12 +87,9 @@ export const updateAssets = pgTable(
     // high-entropy `sha256` the unique above answers directly.
     check(
       'update_assets_status_check',
-      sql`${t.status} in (${sql.raw(inList(UPDATE_ASSET_STATUSES))})`
+      sql`${t.status} in (${sql.raw(inList(UPDATE_ASSET_STATUSES))})`,
     ),
-    check(
-      'update_assets_sha256_check',
-      sql`${t.sha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`
-    ),
+    check('update_assets_sha256_check', sql`${t.sha256} ~ ${sql.raw(`'${SHA256_HEX_PATTERN}'`)}`),
     check('update_assets_size_check', sql`${t.size} >= 0`),
-  ]
+  ],
 );

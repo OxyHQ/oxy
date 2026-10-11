@@ -35,4 +35,3 @@ export interface UsernameAvailabilityResult {
   available: boolean;
   message?: string;
 }
-

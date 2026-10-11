@@ -84,12 +84,7 @@ export type RoutingPolicyTargetKind = (typeof ROUTING_POLICY_TARGET_KINDS)[numbe
  * constraint set and has no such signal to sort by. The two sets are checked
  * against their own contracts in `__tests__/inferenceRoutingPolicy.test.ts`.
  */
-export const ROUTING_POLICY_OPTIMISATIONS = [
-  'price',
-  'latency',
-  'throughput',
-  'balanced',
-] as const;
+export const ROUTING_POLICY_OPTIMISATIONS = ['price', 'latency', 'throughput', 'balanced'] as const;
 
 export type RoutingPolicyOptimisation = (typeof ROUTING_POLICY_OPTIMISATIONS)[number];
 
@@ -229,10 +224,7 @@ export const inferenceRoutingPolicyVersions = pgTable(
      * a rolling deploy writes versions without this column, and an empty list is
      * exactly the unrestricted meaning those versions had.
      */
-    allowedRoutingProfileIds: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    allowedRoutingProfileIds: text().array().notNull().default(sql`'{}'::text[]`),
 
     // ---- capacity and credentials -------------------------------------------
 
@@ -276,19 +268,19 @@ export const inferenceRoutingPolicyVersions = pgTable(
 
     check(
       'inference_routing_policy_versions_optimise_for_check',
-      sql`${t.optimiseFor} in (${sql.raw(inList(ROUTING_POLICY_OPTIMISATIONS))})`
+      sql`${t.optimiseFor} in (${sql.raw(inList(ROUTING_POLICY_OPTIMISATIONS))})`,
     ),
     check(
       'inference_routing_policy_versions_byok_check',
-      sql`${t.byokPreference} in (${sql.raw(inList(ROUTING_POLICY_PREFERENCES))})`
+      sql`${t.byokPreference} in (${sql.raw(inList(ROUTING_POLICY_PREFERENCES))})`,
     ),
     check(
       'inference_routing_policy_versions_capacity_check',
-      sql`${t.dedicatedCapacity} in (${sql.raw(inList(ROUTING_POLICY_PREFERENCES))})`
+      sql`${t.dedicatedCapacity} in (${sql.raw(inList(ROUTING_POLICY_PREFERENCES))})`,
     ),
     check(
       'inference_routing_policy_versions_target_kind_check',
-      sql`${t.defaultTargetKind} is null or ${t.defaultTargetKind} in (${sql.raw(inList(ROUTING_POLICY_TARGET_KINDS))})`
+      sql`${t.defaultTargetKind} is null or ${t.defaultTargetKind} in (${sql.raw(inList(ROUTING_POLICY_TARGET_KINDS))})`,
     ),
 
     /**
@@ -327,7 +319,7 @@ export const inferenceRoutingPolicyVersions = pgTable(
         ${t.defaultTargetKind} is not distinct from 'model'
         and ${t.defaultRoutingProfileId} is null
         and ((${t.defaultModelId} is null) <> (${t.defaultModelRevisionId} is null))
-      )`
+      )`,
     ),
 
     /**
@@ -339,11 +331,11 @@ export const inferenceRoutingPolicyVersions = pgTable(
      */
     check(
       'inference_routing_policy_versions_provider_conflict',
-      sql`not (${t.providerAllowlist} && ${t.providerDenylist})`
+      sql`not (${t.providerAllowlist} && ${t.providerDenylist})`,
     ),
     check(
       'inference_routing_policy_versions_region_conflict',
-      sql`not (${t.allowedRegions} && ${t.deniedRegions})`
+      sql`not (${t.allowedRegions} && ${t.deniedRegions})`,
     ),
 
     /**
@@ -353,7 +345,7 @@ export const inferenceRoutingPolicyVersions = pgTable(
      */
     check(
       'inference_routing_policy_versions_fallback_conflict',
-      sql`not (${t.fallbackDisabled} and ${t.sameModelDeploymentFallback})`
+      sql`not (${t.fallbackDisabled} and ${t.sameModelDeploymentFallback})`,
     ),
 
     /**
@@ -362,26 +354,25 @@ export const inferenceRoutingPolicyVersions = pgTable(
      */
     check(
       'inference_routing_policy_versions_hosting_conflict',
-      sql`not (${t.oxyHostedOnly} and ${t.byokPreference} = 'require')`
+      sql`not (${t.oxyHostedOnly} and ${t.byokPreference} = 'require')`,
     ),
 
     check(
       'inference_routing_policy_versions_currency_format',
-      sql`${t.priceCeilingCurrency} is null or ${currencyCodeCheck(t.priceCeilingCurrency)}`
+      sql`${t.priceCeilingCurrency} is null or ${currencyCodeCheck(t.priceCeilingCurrency)}`,
     ),
     check(
       'inference_routing_policy_versions_request_cap_check',
       sql`${t.maxPricePerRequestAmount} is null
-        or (${t.maxPricePerRequestAmount} >= 0 and ${t.priceCeilingCurrency} is not null)`
+        or (${t.maxPricePerRequestAmount} >= 0 and ${t.priceCeilingCurrency} is not null)`,
     ),
 
     /** "The version in force for this policy" — the resolution read. */
     index('inference_routing_policy_versions_policy_id_idx').on(t.routingPolicyId, t.version),
-  ]
+  ],
 );
 
-export type InferenceRoutingPolicyVersionRow =
-  typeof inferenceRoutingPolicyVersions.$inferSelect;
+export type InferenceRoutingPolicyVersionRow = typeof inferenceRoutingPolicyVersions.$inferSelect;
 
 /**
  * The one column an UPDATE may touch — superseding a version is not editing it.

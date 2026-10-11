@@ -19,12 +19,7 @@ export const PRODUCT_API_CATALOGUE = {
       name: 'Clarity Search, Indexing & News',
       status: 'beta',
       documentation: 'https://clarity.oxy.so/docs',
-      scopes: [
-        'clarity:search',
-        'clarity:index',
-        'clarity:sites:manage',
-        'clarity:usage:read',
-      ],
+      scopes: ['clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read'],
       endpoints: [
         '/v1/search',
         '/v1/news',

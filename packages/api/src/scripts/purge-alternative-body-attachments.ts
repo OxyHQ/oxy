@@ -55,7 +55,13 @@ export async function purgeAlternativeBodyAttachments(options: {
 }): Promise<PurgeStats> {
   const db = getDb();
   const batchSize = options.batchSize ?? 200;
-  const stats: PurgeStats = { matched: 0, removed: 0, bytesReclaimed: 0, messagesTouched: 0, errors: 0 };
+  const stats: PurgeStats = {
+    matched: 0,
+    removed: 0,
+    bytesReclaimed: 0,
+    messagesTouched: 0,
+    errors: 0,
+  };
   const touched = new Set<string>();
   const types = [...ALTERNATIVE_BODY_TYPES];
   let after = '';
@@ -121,10 +127,14 @@ export async function purgeAlternativeBodyAttachments(options: {
         stats.bytesReclaimed += row.size;
       } catch (error) {
         stats.errors += 1;
-        logger.error('Could not remove an alternative-body attachment', error instanceof Error ? error : new Error(String(error)), {
-          attachmentId: row.id,
-          messageId: row.messageRowId,
-        });
+        logger.error(
+          'Could not remove an alternative-body attachment',
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            attachmentId: row.id,
+            messageId: row.messageRowId,
+          },
+        );
       }
     }
 
@@ -149,7 +159,12 @@ async function main(): Promise<void> {
       apply,
       batchSize: Number(process.env.BATCH_SIZE) || undefined,
     });
-    logger.info(apply ? 'Alternative-body attachments purged' : 'DRY RUN — alternative-body attachments that would be purged', { ...stats });
+    logger.info(
+      apply
+        ? 'Alternative-body attachments purged'
+        : 'DRY RUN — alternative-body attachments that would be purged',
+      { ...stats },
+    );
     if (stats.errors > 0) process.exitCode = 1;
   } finally {
     await closePostgres();
@@ -158,7 +173,10 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main().catch((error: unknown) => {
-    logger.error('purge-alternative-body-attachments failed', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'purge-alternative-body-attachments failed',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     process.exit(1);
   });
 }

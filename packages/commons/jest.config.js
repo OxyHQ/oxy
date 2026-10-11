@@ -24,10 +24,8 @@ module.exports = {
       },
     ],
   },
-  testMatch: [
-    '<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)',
-  ],
-    moduleNameMapper: {
+  testMatch: ['<rootDir>/__tests__/**/*.(test|spec).(ts|tsx)'],
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^@oxy.so/core$': '<rootDir>/../core/src/index.ts',
     '^@oxy.so/core/(session|crypto|civic|inference|server)$': '<rootDir>/../core/src/$1/index.ts',
@@ -36,8 +34,7 @@ module.exports = {
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
     // Mock heavy native modules with lightweight stubs.
     '^react-native$': '<rootDir>/__mocks__/react-native.ts',
-    '^@react-native-async-storage/async-storage$':
-      '<rootDir>/__mocks__/async-storage.ts',
+    '^@react-native-async-storage/async-storage$': '<rootDir>/__mocks__/async-storage.ts',
     '^@oxy.so/services$': '<rootDir>/__mocks__/oxy-services.ts',
     // The push adapter ships behind its own entry point. It maps to the SAME
     // stub as the barrel so a test asserting on `installForegroundNotificationHandler`
@@ -61,10 +58,8 @@ module.exports = {
     '^@oxy.so/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^@oxy.so/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.ts',
-    '^react-native-keyboard-controller$':
-      '<rootDir>/__mocks__/react-native-keyboard-controller.ts',
-    '^react-native-safe-area-context$':
-      '<rootDir>/__mocks__/react-native-safe-area-context.ts',
+    '^react-native-keyboard-controller$': '<rootDir>/__mocks__/react-native-keyboard-controller.ts',
+    '^react-native-safe-area-context$': '<rootDir>/__mocks__/react-native-safe-area-context.ts',
     '^@shopify/react-native-skia$': '<rootDir>/__mocks__/react-native-skia.tsx',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',

@@ -18,7 +18,7 @@
  * This is TEST-ONLY: it lives in the test preload and never affects the Vite
  * app build or the worker, which keep consuming the built package.
  */
-import { mock } from "bun:test"
-import * as contractsSource from "../../../contracts/src/index"
+import { mock } from 'bun:test';
+import * as contractsSource from '../../../contracts/src/index';
 
-mock.module("@oxy.so/contracts", () => contractsSource)
+mock.module('@oxy.so/contracts', () => contractsSource);

@@ -36,7 +36,10 @@ export async function logoutIsolatedOAuthSession(input: {
   clearSessionState: () => Promise<void>;
 }): Promise<LogoutResult> {
   if (input.targetSessionId && input.targetSessionId !== input.session.sessionId) {
-    return { status: 'failed', error: new Error('An isolated OAuth session may sign out only itself') };
+    return {
+      status: 'failed',
+      error: new Error('An isolated OAuth session may sign out only itself'),
+    };
   }
   try {
     await input.revokeSelf(input.session.sessionId);

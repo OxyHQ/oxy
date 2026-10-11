@@ -35,9 +35,7 @@ describe('trustTierLabel', () => {
   );
 
   it('falls back to English for a language with no tier translations', () => {
-    expect(trustTierLabel('de-DE', 'high_trust')).toBe(
-      EN_TRUST_TIER_LABELS.high_trust,
-    );
+    expect(trustTierLabel('de-DE', 'high_trust')).toBe(EN_TRUST_TIER_LABELS.high_trust);
   });
 
   it('resolves a region variant through its base language', () => {

@@ -80,11 +80,22 @@ function stubStore(overrides: Partial<RecordStore> = {}): RecordStore {
 const FAR_FUTURE_NOW = 1_700_000_000_000 + 1_000;
 
 describe('checkContinuity', () => {
-  const head = (headRecordId: string, seq: number): ChainHead => ({ headRecordId, seq, recordCount: seq + 1 });
+  const head = (headRecordId: string, seq: number): ChainHead => ({
+    headRecordId,
+    seq,
+    recordCount: seq + 1,
+  });
 
   it('accepts a v1 record (unchained) regardless of head', async () => {
     const env = await signEnvelope(
-      { version: 1, type: 'identity', subject: SUBJECT, issuer: SUBJECT, record: { a: 1 }, issuedAt: 1 },
+      {
+        version: 1,
+        type: 'identity',
+        subject: SUBJECT,
+        issuer: SUBJECT,
+        record: { a: 1 },
+        issuedAt: 1,
+      },
       PRIVATE_KEY,
     );
     expect(checkContinuity(head('a'.repeat(64), 3), env)).toEqual({ ok: true });
@@ -102,7 +113,10 @@ describe('checkContinuity', () => {
 
   it('rejects a wrong prev as chain_fork', async () => {
     const env = await signEnvelope(v2Fields({ seq: 1, prev: 'b'.repeat(64) }), PRIVATE_KEY);
-    expect(checkContinuity(head('a'.repeat(64), 0), env)).toEqual({ ok: false, reason: 'chain_fork' });
+    expect(checkContinuity(head('a'.repeat(64), 0), env)).toEqual({
+      ok: false,
+      reason: 'chain_fork',
+    });
   });
 
   it('rejects a seq gap (correct prev) as bad_seq', async () => {
@@ -157,7 +171,9 @@ describe('isAuthorizedKey', () => {
 describe('verifyEnvelope', () => {
   it('accepts a fresh, well-signed genesis record', async () => {
     const env = await signEnvelope(v2Fields(), PRIVATE_KEY);
-    await expect(verifyEnvelope(stubStore(), resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW })).resolves.toEqual({
+    await expect(
+      verifyEnvelope(stubStore(), resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW }),
+    ).resolves.toEqual({
       ok: true,
     });
   });
@@ -186,7 +202,9 @@ describe('verifyEnvelope', () => {
       const stripped = { ...env };
       delete (stripped as Record<string, unknown>)[field];
       await expect(
-        verifyEnvelope(stubStore(), resolver(SELF_RESOLVED), stripped as SignedRecordEnvelope, { now: FAR_FUTURE_NOW }),
+        verifyEnvelope(stubStore(), resolver(SELF_RESOLVED), stripped as SignedRecordEnvelope, {
+          now: FAR_FUTURE_NOW,
+        }),
       ).resolves.toEqual({ ok: false, reason: 'invalid_envelope' });
     },
   );
@@ -203,7 +221,9 @@ describe('verifyEnvelope', () => {
   it('rejects an unauthorized key as public_key_not_a_current_verification_method', async () => {
     const env = await signEnvelope(v2Fields(), PRIVATE_KEY);
     await expect(
-      verifyEnvelope(stubStore(), resolver({ currentPublicKeys: ['cafe'] }), env, { now: FAR_FUTURE_NOW }),
+      verifyEnvelope(stubStore(), resolver({ currentPublicKeys: ['cafe'] }), env, {
+        now: FAR_FUTURE_NOW,
+      }),
     ).resolves.toEqual({ ok: false, reason: 'public_key_not_a_current_verification_method' });
   });
 
@@ -224,7 +244,9 @@ describe('verifyEnvelope', () => {
   it('rejects an issuedAt not newer than the latest stored record as stale_issued_at', async () => {
     const env = await signEnvelope(v2Fields({ issuedAt: 1_700_000_000_000 }), PRIVATE_KEY);
     const store = stubStore({ latestIssuedAtForKey: async () => 1_700_000_000_000 });
-    await expect(verifyEnvelope(store, resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW })).resolves.toEqual({
+    await expect(
+      verifyEnvelope(store, resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW }),
+    ).resolves.toEqual({
       ok: false,
       reason: 'stale_issued_at',
     });
@@ -249,7 +271,9 @@ describe('verifyAndAppend', () => {
       }),
     );
     const store = stubStore({ append });
-    const result = await verifyAndAppend(store, resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW });
+    const result = await verifyAndAppend(store, resolver(SELF_RESOLVED), env, {
+      now: FAR_FUTURE_NOW,
+    });
     expect(result.ok).toBe(true);
     expect(append).toHaveBeenCalledTimes(1);
     const [subject, passedEnv, recordId] = append.mock.calls[0];
@@ -260,10 +284,15 @@ describe('verifyAndAppend', () => {
   });
 
   it('does NOT append when verification fails', async () => {
-    const tampered = { ...(await signEnvelope(v2Fields(), PRIVATE_KEY)), record: { x: 'tampered' } };
+    const tampered = {
+      ...(await signEnvelope(v2Fields(), PRIVATE_KEY)),
+      record: { x: 'tampered' },
+    };
     const append = jest.fn();
     const store = stubStore({ append });
-    const result = await verifyAndAppend(store, resolver(SELF_RESOLVED), tampered, { now: FAR_FUTURE_NOW });
+    const result = await verifyAndAppend(store, resolver(SELF_RESOLVED), tampered, {
+      now: FAR_FUTURE_NOW,
+    });
     expect(result).toEqual({ ok: false, reason: 'bad_signature' });
     expect(append).not.toHaveBeenCalled();
   });
@@ -271,7 +300,9 @@ describe('verifyAndAppend', () => {
   it('surfaces the store chain_conflict backstop', async () => {
     const env = await signEnvelope(v2Fields(), PRIVATE_KEY);
     const store = stubStore({ append: async () => ({ ok: false, reason: 'chain_conflict' }) });
-    await expect(verifyAndAppend(store, resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW })).resolves.toEqual({
+    await expect(
+      verifyAndAppend(store, resolver(SELF_RESOLVED), env, { now: FAR_FUTURE_NOW }),
+    ).resolves.toEqual({
       ok: false,
       reason: 'chain_conflict',
     });

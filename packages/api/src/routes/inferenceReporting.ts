@@ -202,7 +202,7 @@ interface ReportingRequest extends AuthRequest {
 const reportingPrincipal = (
   req: ReportingRequest,
   res: Response,
-  next: (error?: unknown) => void
+  next: (error?: unknown) => void,
 ): void => {
   const header = req.headers.authorization;
   if (header !== undefined && header.startsWith('Bearer ')) {
@@ -264,7 +264,7 @@ async function authorizeAccount(
   principal: ReportingPrincipal,
   accountId: string,
   permission: AccountPermission,
-  notFound: string = ACCOUNT_NOT_FOUND
+  notFound: string = ACCOUNT_NOT_FOUND,
 ): Promise<void> {
   if (principal.kind === 'service') {
     throw new NotFoundError(notFound);
@@ -285,7 +285,7 @@ async function authorizeAccount(
 async function authorizeApplication(
   principal: ReportingPrincipal,
   applicationId: string,
-  permission: ApplicationPermission
+  permission: ApplicationPermission,
 ): Promise<void> {
   if (principal.kind === 'service') {
     if (!principal.service.scopes.includes('inference:usage:read')) {
@@ -370,7 +370,7 @@ router.get(
           };
 
     res.json({ data: accountBalanceSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -402,7 +402,7 @@ router.get(
     });
 
     res.json({ data: usageReportSchema.parse(usageDto(query, usage)) });
-  })
+  }),
 );
 
 /**
@@ -434,7 +434,7 @@ router.get(
     });
 
     res.json({ data: spendReportSchema.parse(spendDto(query, spend)) });
-  })
+  }),
 );
 
 /**
@@ -471,7 +471,7 @@ router.get(
           currency: row.currency,
           createdAt: row.createdAt,
           expiresAt: row.expiresAt,
-        })
+        }),
       ),
       totals: held.totals.map((total) => ({
         currency: total.currency,
@@ -481,7 +481,7 @@ router.get(
       truncated: held.truncated,
     };
     res.json({ data: pendingReservationsSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -520,7 +520,7 @@ router.get(
       truncated: charges.truncated,
     };
     res.json({ data: settledChargesSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -571,13 +571,13 @@ router.get(
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="oxy-charges-${query.from}-to-${query.to}.csv"`
+      `attachment; filename="oxy-charges-${query.from}-to-${query.to}.csv"`,
     );
     // A truncated export is a silently short invoice, so it is announced in a
     // header rather than only in a field nothing in a CSV reader can show.
     res.setHeader('X-Oxy-Export-Truncated', validated.truncated ? 'true' : 'false');
     res.send(renderChargesCsv(charges.rows));
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -608,7 +608,7 @@ router.get(
       rows: rows.map(spendingLimitDto),
     };
     res.json({ data: spendingLimitsSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -649,7 +649,7 @@ router.get(
       })),
     };
     res.json({ data: spendingLimitAlertsSchema.parse(dto) });
-  })
+  }),
 );
 
 /**
@@ -690,14 +690,14 @@ router.post(
         principal,
         owner.ownerAccountId,
         'billing:manage',
-        BUDGET_TARGET_NOT_FOUND
+        BUDGET_TARGET_NOT_FOUND,
       );
     }
 
     const created = await createSpendingLimit(accountId, body);
     if (created.status === 'scope-taken') {
       throw new ConflictError(
-        'That scope already has a budget for this period; edit it or disable it first'
+        'That scope already has a budget for this period; edit it or disable it first',
       );
     }
 
@@ -707,7 +707,7 @@ router.post(
       throw new NotFoundError(BUDGET_NOT_FOUND);
     }
     res.status(201).json({ data: spendingLimitViewOf(view) });
-  })
+  }),
 );
 
 /**
@@ -745,7 +745,7 @@ router.patch(
       throw new NotFoundError(BUDGET_NOT_FOUND);
     }
     res.json({ data: spendingLimitViewOf(view) });
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -779,7 +779,7 @@ router.get(
     });
 
     res.json({ data: usageReportSchema.parse(usageDto(query, usage)) });
-  })
+  }),
 );
 
 /**
@@ -810,7 +810,7 @@ router.get(
     });
 
     res.json({ data: spendReportSchema.parse(spendDto(query, spend)) });
-  })
+  }),
 );
 
 /* -------------------------------------------------------------------------- */
@@ -829,7 +829,7 @@ router.get(
  */
 function usageDto(
   query: { from: string; to: string; groupBy: readonly UsageDimension[] },
-  usage: UsageAggregateResult
+  usage: UsageAggregateResult,
 ): UsageReportDto {
   const dto: UsageReportDto = {
     schemaVersion: 1,
@@ -851,7 +851,7 @@ function usageDto(
         requestCount: row.requestCount,
         errorCount: row.errorCount,
         units: row.units,
-      })
+      }),
     ),
     truncated: usage.truncated,
   };
@@ -861,7 +861,7 @@ function usageDto(
 /** The spend response, with its provenance stamp. */
 function spendDto(
   query: { from: string; to: string; groupBy: readonly SpendDimension[] },
-  spend: SpendAggregateResult
+  spend: SpendAggregateResult,
 ): SpendReportDto {
   const dto: SpendReportDto = {
     schemaVersion: 1,
@@ -885,7 +885,7 @@ function spendDto(
         billedAmount: row.billedAmount,
         refundedAmount: row.refundedAmount,
         netAmount: row.netAmount,
-      })
+      }),
     ),
     totals: spend.totals.map(
       (total): SpendTotalDto => ({
@@ -894,7 +894,7 @@ function spendDto(
         billedAmount: total.billedAmount,
         refundedAmount: total.refundedAmount,
         netAmount: total.netAmount,
-      })
+      }),
     ),
     truncated: spend.truncated,
   };
@@ -1059,7 +1059,7 @@ function renderChargesCsv(rows: readonly SettledChargeRow[]): string {
         String(row.units.session_milliseconds),
       ]
         .map(csvCell)
-        .join(',')
+        .join(','),
     );
   }
   return `${lines.join('\r\n')}\r\n`;

@@ -23,12 +23,10 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 
 const mockFinalizeOAuthAuthorization = jest.fn();
-const mockAuthMiddleware = jest.fn(
-  (req: { user?: unknown }, _res: unknown, next: () => void) => {
-    req.user = { _id: 'bearer-user' };
-    next();
-  },
-);
+const mockAuthMiddleware = jest.fn((req: { user?: unknown }, _res: unknown, next: () => void) => {
+  req.user = { _id: 'bearer-user' };
+  next();
+});
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (...args: unknown[]) =>

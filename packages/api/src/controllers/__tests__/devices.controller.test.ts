@@ -44,7 +44,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { id: string; _id: string; email?: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { id: currentUserId, _id: currentUserId, email: 'owner@example.test' };
     next();
@@ -222,7 +222,7 @@ describe('GET /devices', () => {
     });
   });
 
-  it('never lists another account\'s session on a SHARED device id', async () => {
+  it("never lists another account's session on a SHARED device id", async () => {
     const deviceId = randomUUID();
     const stranger = await insertUser();
     await insertSession({ userId: stranger, deviceId, deviceName: 'Stranger laptop' });
@@ -252,7 +252,7 @@ describe('GET /devices', () => {
     expect(devices.map((device) => device.deviceId)).toEqual([live]);
   });
 
-  it('flags the CURRENT device from the requesting token\'s session', async () => {
+  it("flags the CURRENT device from the requesting token's session", async () => {
     const currentDevice = randomUUID();
     const otherDevice = randomUUID();
     currentSessionId = await insertSession({ userId: currentUserId, deviceId: currentDevice });
@@ -299,7 +299,7 @@ describe('GET /devices', () => {
 });
 
 describe('DELETE /devices/:deviceId', () => {
-  it('deactivates ONLY the caller\'s sessions on that device', async () => {
+  it("deactivates ONLY the caller's sessions on that device", async () => {
     const deviceId = randomUUID();
     const stranger = await insertUser();
     const mine = await insertSession({ userId: currentUserId, deviceId });
@@ -327,7 +327,7 @@ describe('DELETE /devices/:deviceId', () => {
     });
   });
 
-  it('404s when the device holds no session of the caller\'s, even if someone else is on it', async () => {
+  it("404s when the device holds no session of the caller's, even if someone else is on it", async () => {
     const deviceId = randomUUID();
     const stranger = await insertUser();
     await insertSession({ userId: stranger, deviceId });

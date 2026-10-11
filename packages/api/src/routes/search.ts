@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from "express";
+import express, { type Request, type Response } from 'express';
 import { and } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
@@ -23,9 +23,9 @@ type ValidatedSearchQuery = {
   limit: number;
 };
 
-router.get("/", validate({ query: searchQuerySchema }), async (req: Request, res: Response) => {
+router.get('/', validate({ query: searchQuerySchema }), async (req: Request, res: Response) => {
   try {
-    const { query, type = "all", page, limit } = req.query as unknown as ValidatedSearchQuery;
+    const { query, type = 'all', page, limit } = req.query as unknown as ValidatedSearchQuery;
     const skip = (page - 1) * limit;
 
     // Strip a single leading `@` so handle-style queries match stored usernames
@@ -40,19 +40,14 @@ router.get("/", validate({ query: searchQuerySchema }), async (req: Request, res
       pagination: { page: number; limit: number; hasMore: boolean };
     } = { users: [], pagination: { page, limit, hasMore: false } };
 
-    if (type === "all" || type === "users") {
+    if (type === 'all' || type === 'users') {
       // Ordered BEFORE paging (`peopleSearchOrder` ends on the unique `id`) so
       // offset pagination is a strict total order and a row can never appear on
       // two pages or be skipped between them.
       const rows = await getDb()
         .select(publicUserColumns)
         .from(users)
-        .where(
-          and(
-            peopleSearchPredicate(),
-            peopleSearchMatch(term, { includeLocations: true })
-          )
-        )
+        .where(and(peopleSearchPredicate(), peopleSearchMatch(term, { includeLocations: true })))
         .orderBy(...peopleSearchOrder())
         .offset(skip)
         .limit(limit);
@@ -78,8 +73,8 @@ router.get("/", validate({ query: searchQuerySchema }), async (req: Request, res
   } catch (error) {
     logger.error('Search error:', error);
     res.status(500).json({
-      message: "Error performing search",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: 'Error performing search',
+      error: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

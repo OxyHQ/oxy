@@ -1,15 +1,34 @@
 import { Router, type Response } from 'express';
-import { subjectProductAccessQuerySchema, subjectProductGrantSnapshotSchema } from '@oxy.so/contracts';
-import { productAccessResponseSchema, productAccessParamsSchema } from '../schemas/productAccess.schemas';
-import { authMiddleware, serviceAuthMiddleware, type AuthRequest, type ServiceAuthRequest } from '../middleware/auth';
+import {
+  subjectProductAccessQuerySchema,
+  subjectProductGrantSnapshotSchema,
+} from '@oxy.so/contracts';
+import {
+  productAccessResponseSchema,
+  productAccessParamsSchema,
+} from '../schemas/productAccess.schemas';
+import {
+  authMiddleware,
+  serviceAuthMiddleware,
+  type AuthRequest,
+  type ServiceAuthRequest,
+} from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { parseValidatedRequestValue, validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { UnauthorizedError } from '../utils/error';
-import { readAuthorizedSubjectProductAccess, readAuthorizedSubjectProductGrantSnapshot, readServiceAuthorizedSubjectProductGrantSnapshot } from '../services/productAccessAuthorization.service';
+import {
+  readAuthorizedSubjectProductAccess,
+  readAuthorizedSubjectProductGrantSnapshot,
+  readServiceAuthorizedSubjectProductGrantSnapshot,
+} from '../services/productAccessAuthorization.service';
 
 const router = Router();
-const readLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, prefix: 'rl:product:access:read:' });
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  prefix: 'rl:product:access:read:',
+});
 // The shared user authentication boundary accepts no anonymous/service shortcut.
 /**
  * Read the effective subject's rights for the session's application product.
@@ -24,32 +43,56 @@ const readLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 600, prefix: 'rl:
  * @response 404 Error Subject or product audience unavailable.
  * @response 503 Error Product configuration missing or inconsistent.
  */
-router.get('/:productId/access/:subjectAccountId', authMiddleware, readLimiter, validate({ params: productAccessParamsSchema }),
+router.get(
+  '/:productId/access/:subjectAccountId',
+  authMiddleware,
+  readLimiter,
+  validate({ params: productAccessParamsSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     if (!req.oxyToken) throw new UnauthorizedError();
-    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
-      productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
+    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, {
+      schemaVersion: 1,
+      productId: req.params.productId,
+      subjectAccountId: req.params.subjectAccountId,
+    });
     const data = await readAuthorizedSubjectProductAccess(req.oxyToken, query);
     res.set('Cache-Control', 'no-store');
     res.json(productAccessResponseSchema.parse({ data }));
-  }));
-router.get('/:productId/access/:subjectAccountId/grants', authMiddleware, readLimiter, validate({ params: productAccessParamsSchema }),
+  }),
+);
+router.get(
+  '/:productId/access/:subjectAccountId/grants',
+  authMiddleware,
+  readLimiter,
+  validate({ params: productAccessParamsSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     if (!req.oxyToken) throw new UnauthorizedError();
-    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
-      productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
+    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, {
+      schemaVersion: 1,
+      productId: req.params.productId,
+      subjectAccountId: req.params.subjectAccountId,
+    });
     const data = await readAuthorizedSubjectProductGrantSnapshot(req.oxyToken, query);
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
-  }));
+  }),
+);
 /** No impersonation header: the exact path subject must hold live offline consent. */
-router.get('/:productId/access/:subjectAccountId/service-grants', serviceAuthMiddleware, readLimiter, validate({ params: productAccessParamsSchema }),
+router.get(
+  '/:productId/access/:subjectAccountId/service-grants',
+  serviceAuthMiddleware,
+  readLimiter,
+  validate({ params: productAccessParamsSchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: Response) => {
     if (!req.serviceApp) throw new UnauthorizedError();
-    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, { schemaVersion: 1,
-      productId: req.params.productId, subjectAccountId: req.params.subjectAccountId });
+    const query = parseValidatedRequestValue(subjectProductAccessQuerySchema, {
+      schemaVersion: 1,
+      productId: req.params.productId,
+      subjectAccountId: req.params.subjectAccountId,
+    });
     const data = await readServiceAuthorizedSubjectProductGrantSnapshot(req.serviceApp, query);
     res.set('Cache-Control', 'no-store');
     res.json({ data: subjectProductGrantSnapshotSchema.parse(data) });
-  }));
+  }),
+);
 export default router;

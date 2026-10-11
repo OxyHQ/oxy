@@ -90,7 +90,13 @@ async function probe(url: string, init?: RequestInit): Promise<FetchOutcome> {
       headers: res.headers,
     };
   } catch (err) {
-    return { status: 0, contentType: '', body: '', headers: new Headers(), error: err instanceof Error ? err.message : String(err) };
+    return {
+      status: 0,
+      contentType: '',
+      body: '',
+      headers: new Headers(),
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -196,17 +202,27 @@ async function checkBridgePage(hostBase: string): Promise<void> {
  * that re-adds the endpoint (200 JSON + provider_urls) fails.
  */
 async function checkWebIdentityGone(hostBase: string): Promise<void> {
-  const out = await probe(`${hostBase}/.well-known/web-identity`, { headers: { Accept: 'application/json' } });
+  const out = await probe(`${hostBase}/.well-known/web-identity`, {
+    headers: { Accept: 'application/json' },
+  });
   if (out.error) {
     record('web-identity removed', false, `request failed: ${out.error}`);
     return;
   }
   const json = out.contentType.includes('application/json') ? parseJson(out.body) : null;
   if (out.status === 200 && json && Array.isArray(json.provider_urls)) {
-    record('web-identity removed', false, 'FedCM manifest is STILL served (provider_urls present) — endpoint not deleted');
+    record(
+      'web-identity removed',
+      false,
+      'FedCM manifest is STILL served (provider_urls present) — endpoint not deleted',
+    );
     return;
   }
-  record('web-identity removed', true, `no FedCM manifest (status ${out.status}, ${out.contentType || 'no content-type'})`);
+  record(
+    'web-identity removed',
+    true,
+    `no FedCM manifest (status ${out.status}, ${out.contentType || 'no content-type'})`,
+  );
 }
 
 /**
@@ -236,7 +252,8 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
   }
   // The rest of the holder policy (ADR 0028 D2): this origin opens roots.
   if (!csp.includes("form-action 'none'")) missing.push("form-action 'none'");
-  if (out.headers.get('referrer-policy') !== 'no-referrer') missing.push('Referrer-Policy: no-referrer');
+  if (out.headers.get('referrer-policy') !== 'no-referrer')
+    missing.push('Referrer-Policy: no-referrer');
   if (!out.headers.get('permissions-policy')?.includes('publickey-credentials-get=()')) {
     missing.push('Permissions-Policy with WebAuthn off (ADR 0030)');
   }
@@ -246,7 +263,11 @@ async function checkSecurityHeaders(hostBase: string): Promise<void> {
     record('security headers', false, `missing: ${missing.join('; ')}`);
     return;
   }
-  record('security headers', true, 'strict CSP (no beacon or analytics hosts), X-Frame-Options and the holder policy present');
+  record(
+    'security headers',
+    true,
+    'strict CSP (no beacon or analytics hosts), X-Frame-Options and the holder policy present',
+  );
 }
 
 async function run(): Promise<void> {
@@ -262,7 +283,9 @@ async function run(): Promise<void> {
   await checkSecurityHeaders(PRIMARY_TARGET);
 
   const failed = results.filter((r) => !r.ok);
-  log(`\n${failed.length === 0 ? 'OK' : 'FAILED'}: ${results.length - failed.length}/${results.length} checks passed.`);
+  log(
+    `\n${failed.length === 0 ? 'OK' : 'FAILED'}: ${results.length - failed.length}/${results.length} checks passed.`,
+  );
   if (failed.length > 0) {
     logError(`\n${failed.length} assertion(s) failed:`);
     for (const f of failed) {

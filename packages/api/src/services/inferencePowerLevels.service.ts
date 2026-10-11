@@ -110,7 +110,7 @@ export type PowerEffortTarget = (typeof POWER_EFFORT_TARGETS)[number];
  */
 export function resolvePowerLevelEffort(
   target: PowerEffortTarget,
-  accepted: readonly string[]
+  accepted: readonly string[],
 ): ReasoningEffort | undefined {
   const rank = (effort: string): number =>
     POWER_EFFORT_TARGETS.indexOf(effort as PowerEffortTarget);
@@ -146,10 +146,14 @@ export interface AutoPowerDecision {
   /** Semantic recommendation and fallback status are separate from feature floors. */
   readonly classification?:
     | { readonly source: 'deterministic'; readonly reason: string; readonly version: string }
-    | { readonly source: 'jev'; readonly version: string; readonly modelReference: string;
+    | {
+        readonly source: 'jev';
+        readonly version: string;
+        readonly modelReference: string;
         readonly recommendedLevel: AutoPowerLevel;
         /** The provider's own confidence in its reply; metadata, never a routing input. */
-        readonly providerConfidence: number };
+        readonly providerConfidence: number;
+      };
 }
 
 /** A replaceable decision; the edge depends on this shape, not on the rules. */
@@ -162,7 +166,7 @@ export interface AutoPowerLevelContext {
 
 export type AutoPowerLevelResolver = (
   features: AutoRoutingFeatures,
-  context?: AutoPowerLevelContext
+  context?: AutoPowerLevelContext,
 ) => AutoPowerDecision | Promise<AutoPowerDecision>;
 
 /** Thresholds, named so the documentation and the tests quote one source. */
@@ -234,7 +238,7 @@ export const classifyAutoPowerLevel = (features: AutoRoutingFeatures): AutoPower
  */
 export function autoLadder(
   decided: unknown,
-  allowed: (level: ConcretePowerLevel) => boolean
+  allowed: (level: ConcretePowerLevel) => boolean,
 ): ConcretePowerLevel[] {
   if (!isAutoPowerLevel(decided)) return [];
   return AUTO_POWER_LEVELS.slice(AUTO_POWER_LEVELS.indexOf(decided)).filter(allowed);
@@ -287,7 +291,7 @@ export async function powerLevelEfforts(): Promise<
  */
 export async function powerClassModelIds(
   powerClass: ModelPowerClass,
-  deploymentWhere: SQL | undefined
+  deploymentWhere: SQL | undefined,
 ): Promise<string[]> {
   const rows = await getDb()
     .selectDistinct({ modelId: inferenceModels.modelId })
@@ -296,14 +300,14 @@ export async function powerClassModelIds(
     .innerJoin(inferenceModelRevisions, eq(inferenceModelRevisions.modelId, inferenceModels.id))
     .innerJoin(
       inferenceDeployments,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id),
     )
     .where(
       and(
         eq(inferenceModelPowerClasses.powerClass, powerClass),
         eq(inferenceModelRevisions.isCurrent, true),
-        deploymentWhere
-      )
+        deploymentWhere,
+      ),
     );
   return rows
     .flatMap((row) => (row.modelId === null ? [] : [row.modelId]))
@@ -312,7 +316,7 @@ export async function powerClassModelIds(
 
 /** The reviewed class of each of `modelIds` that has one. */
 export async function powerClassesOf(
-  modelIds: readonly string[]
+  modelIds: readonly string[],
 ): Promise<ReadonlyMap<string, ModelPowerClass>> {
   if (modelIds.length === 0) return new Map();
   const rows = await getDb()

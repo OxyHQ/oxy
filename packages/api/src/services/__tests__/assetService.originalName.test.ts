@@ -41,7 +41,9 @@ import fileCache from '../../utils/fileCache';
 
 jest.mock('../variantService', () => ({
   VariantService: class {
-    constructor(_s3: unknown) { /* no-op */ }
+    constructor(_s3: unknown) {
+      /* no-op */
+    }
     generateVariants = jest.fn(() => Promise.resolve());
   },
 }));
@@ -141,12 +143,15 @@ describe('every path that writes original_name normalises it', () => {
       'image/png',
     );
 
-    await service.completeUpload({
-      fileId: init.fileId,
-      originalName: MESSY_NAME,
-      size: content.length,
-      mime: 'image/png',
-    }, uploader);
+    await service.completeUpload(
+      {
+        fileId: init.fileId,
+        originalName: MESSY_NAME,
+        size: content.length,
+        mime: 'image/png',
+      },
+      uploader,
+    );
 
     expect(await storedName(init.fileId)).toBe(CLEAN_NAME);
   });

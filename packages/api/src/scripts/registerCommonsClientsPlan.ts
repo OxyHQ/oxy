@@ -162,7 +162,9 @@ function formatList(values: readonly string[]): string {
 }
 
 /** Project a persisted application onto the fields this registration owns. */
-export function readApplicationState(application: ReadableApplication): ApplicationRegistrationState {
+export function readApplicationState(
+  application: ReadableApplication,
+): ApplicationRegistrationState {
   return {
     status: application.status,
     type: application.type,
@@ -183,7 +185,7 @@ export function readApplicationState(application: ReadableApplication): Applicat
  */
 export function computeApplicationPlan(
   current: ApplicationRegistrationState | null,
-  target: ApplicationRegistrationTarget
+  target: ApplicationRegistrationTarget,
 ): ApplicationRegistrationPlan {
   const desired: ApplicationRegistrationState = {
     status: 'active',
@@ -288,7 +290,7 @@ export function computeApplicationPlan(
 export function applyApplicationPlan<TOwnerId>(
   target: MutableApplicationFields<TOwnerId>,
   plan: ApplicationRegistrationPlan,
-  ownerAccountId: TOwnerId
+  ownerAccountId: TOwnerId,
 ): ApplicationRegistrationField[] {
   const written: ApplicationRegistrationField[] = [];
 

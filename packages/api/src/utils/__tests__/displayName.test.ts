@@ -30,7 +30,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
         name: { first: 'Jane', last: 'Doe' },
         username: 'janedoe',
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toBe('Jane Doe');
   });
 
@@ -39,7 +39,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { first: 'Cher' },
         username: 'mononym',
-      })
+      }),
     ).toBe('Cher');
   });
 
@@ -48,7 +48,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { last: 'Prince' },
         username: 'theartist',
-      })
+      }),
     ).toBe('Prince');
   });
 
@@ -56,7 +56,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
     expect(
       composeDisplayName({
         name: { first: 'Jane', last: 'Doe', displayName: '  Janey  ' },
-      })
+      }),
     ).toBe('Janey');
   });
 
@@ -66,7 +66,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
         name: { first: '', last: '' },
         username: 'fallbackuser',
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -78,7 +78,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
     expect(
       composeDisplayName({
         publicKey: '0x1234567890abcdef1234567890abcdef',
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -91,7 +91,7 @@ describe('composeDisplayName (User.name.displayName — real name only)', () => 
       composeDisplayName({
         name: { first: 'Ada', last: 'Lovelace' },
         username: 'ada',
-      })
+      }),
     ).toBe('Ada Lovelace');
   });
 });
@@ -121,7 +121,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: 'Jane', last: 'Doe' },
         username: 'janedoe',
-      })
+      }),
     ).toEqual({
       first: 'Jane',
       last: 'Doe',
@@ -135,7 +135,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: '', last: '' },
         username: 'janedoe',
-      })
+      }),
     ).toEqual({});
   });
 
@@ -143,7 +143,7 @@ describe('formatUserNameResponse', () => {
     expect(
       formatUserNameResponse({
         publicKey: '0x1234567890abcdef',
-      })
+      }),
     ).toEqual({});
   });
 
@@ -152,7 +152,7 @@ describe('formatUserNameResponse', () => {
       formatUserNameResponse({
         name: { first: 'Cher' },
         username: 'mononym',
-      })
+      }),
     ).toEqual({ first: 'Cher', full: 'Cher', displayName: 'Cher' });
   });
 });

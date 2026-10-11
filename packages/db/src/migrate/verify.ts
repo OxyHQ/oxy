@@ -95,7 +95,7 @@ export interface LedgerHashMismatch {
 export function assertAppliedMigrations(
   entries: readonly JournalEntryWithHash[],
   rows: readonly AppliedMigrationRow[],
-  requiredTags: readonly string[]
+  requiredTags: readonly string[],
 ): void {
   const entriesByTag = new Map(entries.map((entry) => [entry.tag, entry]));
   const rowsByWhen = new Map(rows.map((row) => [row.whenMillis, row]));
@@ -111,7 +111,7 @@ export function assertAppliedMigrations(
     }
     if (row.hash !== entry.hash) {
       throw new Error(
-        `Required migration ${tag} is recorded with a different SQL hash than this image.`
+        `Required migration ${tag} is recorded with a different SQL hash than this image.`,
       );
     }
   }
@@ -162,7 +162,7 @@ export function readJournalWithHashes(folder: string): JournalEntryWithHash[] {
         `Migration journal lists ${entry.tag} but ${path} cannot be read: \
 ${error instanceof Error ? error.message : String(error)}. A journal entry \
 without its .sql is a half-applied rename or an interrupted rebase, not a \
-migration that can be verified.`
+migration that can be verified.`,
       );
     }
     return { ...entry, hash: createHash('sha256').update(bytes).digest('hex') };
@@ -218,7 +218,7 @@ export async function readAppliedRows(client: postgres.Sql): Promise<AppliedMigr
  */
 export function compareLedger(
   entries: readonly JournalEntryWithHash[],
-  rows: readonly AppliedMigrationRow[]
+  rows: readonly AppliedMigrationRow[],
 ): LedgerComparison {
   const rowsByWhen = new Map(rows.map((row) => [row.whenMillis, row]));
   const entriesByWhen = new Map(entries.map((entry) => [entry.when, entry]));
@@ -255,7 +255,7 @@ export function compareLedger(
  */
 export async function verifyMigrationLedger(
   client: postgres.Sql,
-  migrationsFolder: string
+  migrationsFolder: string,
 ): Promise<LedgerComparison> {
   const entries = readJournalWithHashes(migrationsFolder);
   const rows = await readAppliedRows(client);
@@ -291,7 +291,7 @@ export function formatLedgerComparison(comparison: LedgerComparison): string {
     ...(comparison.hashMismatches.length === 0
       ? ['  (none)']
       : comparison.hashMismatches.map(
-          (m) => `  ${m.tag}\n    journal ${m.journalHash}\n    ledger  ${m.ledgerHash}`
+          (m) => `  ${m.tag}\n    journal ${m.journalHash}\n    ledger  ${m.ledgerHash}`,
         )),
   ];
   return lines.join('\n');

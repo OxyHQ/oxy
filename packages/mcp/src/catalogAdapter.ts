@@ -82,8 +82,9 @@ export function normalizeToolResult(
     );
   }
 
-  const content = result.content
-    ?? (structuredContent === undefined
+  const content =
+    result.content ??
+    (structuredContent === undefined
       ? []
       : [{ type: 'text' as const, text: JSON.stringify(structuredContent) }]);
 
@@ -106,9 +107,7 @@ export function createCatalogMcpToolDefinitions(
       return {
         tool,
         inputSchema: jsonObjectSchemaToZod(tool.inputSchema),
-        outputSchema: tool.outputSchema
-          ? jsonObjectSchemaToZod(tool.outputSchema)
-          : undefined,
+        outputSchema: tool.outputSchema ? jsonObjectSchemaToZod(tool.outputSchema) : undefined,
         handler,
       };
     });
@@ -121,43 +120,50 @@ export function registerCatalogWithMcp(
   options: CatalogMcpRegistrationOptions,
 ): void {
   for (const definition of createCatalogMcpToolDefinitions(catalog, handlers)) {
-    server.registerTool(definition.tool.name, {
-      description: definition.tool.description,
-      inputSchema: definition.inputSchema,
-      ...(definition.outputSchema ? { outputSchema: definition.outputSchema } : {}),
-      annotations: {
-        readOnlyHint: definition.tool.effect === 'read',
-        destructiveHint: definition.tool.effect !== 'read' && definition.tool.rollback === 'none',
-        idempotentHint: definition.tool.idempotency !== 'none',
+    server.registerTool(
+      definition.tool.name,
+      {
+        description: definition.tool.description,
+        inputSchema: definition.inputSchema,
+        ...(definition.outputSchema ? { outputSchema: definition.outputSchema } : {}),
+        annotations: {
+          readOnlyHint: definition.tool.effect === 'read',
+          destructiveHint: definition.tool.effect !== 'read' && definition.tool.rollback === 'none',
+          idempotentHint: definition.tool.idempotency !== 'none',
+        },
+        _meta: {
+          'oxy/appId': catalog.appId,
+          'oxy/toolVersion': definition.tool.version,
+          'oxy/requiredCapabilities': definition.tool.requiredCapabilities,
+          'oxy/resourceTypes': definition.tool.resourceTypes,
+        },
       },
-      _meta: {
-        'oxy/appId': catalog.appId,
-        'oxy/toolVersion': definition.tool.version,
-        'oxy/requiredCapabilities': definition.tool.requiredCapabilities,
-        'oxy/resourceTypes': definition.tool.resourceTypes,
+      async (untrustedInput, request): Promise<CallToolResult> => {
+        const input = requireRecord(
+          definition.inputSchema.parse(untrustedInput),
+          `${definition.tool.name} input`,
+        );
+        const principal = mcpPrincipalFromAuthInfo(request.authInfo, {
+          ...options.authentication,
+          requiredScopes: definition.tool.requiredCapabilities,
+        });
+        const context = Object.freeze({
+          appId: catalog.appId,
+          tool: definition.tool,
+          principal,
+          request,
+        });
+        const authorization = await options.authorize(input, context);
+        if (!authorization.allowed) {
+          throw new Error(`MCP authorization denied: ${authorization.reason}`);
+        }
+        // The acting account, not the token's own: a connection may cover several
+        // accounts, and the app must serve exactly the member Oxy selected.
+        if (authorization.effectiveAccountId !== principal.activeAccountId) {
+          throw new Error('MCP authorization account binding mismatch');
+        }
+        return normalizeToolResult(definition, await definition.handler(input, context));
       },
-    }, async (untrustedInput, request): Promise<CallToolResult> => {
-      const input = requireRecord(definition.inputSchema.parse(untrustedInput), `${definition.tool.name} input`);
-      const principal = mcpPrincipalFromAuthInfo(request.authInfo, {
-        ...options.authentication,
-        requiredScopes: definition.tool.requiredCapabilities,
-      });
-      const context = Object.freeze({
-        appId: catalog.appId,
-        tool: definition.tool,
-        principal,
-        request,
-      });
-      const authorization = await options.authorize(input, context);
-      if (!authorization.allowed) {
-        throw new Error(`MCP authorization denied: ${authorization.reason}`);
-      }
-      // The acting account, not the token's own: a connection may cover several
-      // accounts, and the app must serve exactly the member Oxy selected.
-      if (authorization.effectiveAccountId !== principal.activeAccountId) {
-        throw new Error('MCP authorization account binding mismatch');
-      }
-      return normalizeToolResult(definition, await definition.handler(input, context));
-    });
+    );
   }
 }

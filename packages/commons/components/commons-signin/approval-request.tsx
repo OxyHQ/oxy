@@ -148,7 +148,7 @@ export function ApprovalRequest({
               </Text>
             )}
           </View>
-          <Icons.link size='sm' fill={colors.textTertiary} />
+          <Icons.link size="sm" fill={colors.textTertiary} />
           <View
             className="h-14 w-14 items-center justify-center rounded-2xl"
             style={[styles.tile, { backgroundColor: colors.primarySubtle }]}
@@ -182,7 +182,7 @@ export function ApprovalRequest({
 
         {originVerified && application.isOfficial ? (
           <View className="mt-1.5 flex-row items-center gap-1">
-            <Icons.verified size='xs' fill={colors.tint} />
+            <Icons.verified size="xs" fill={colors.tint} />
             <Text style={[styles.provenance, { color: colors.tint }]}>
               {t('signInApproval.approve.officialBadge')}
             </Text>
@@ -230,10 +230,7 @@ export function ApprovalRequest({
               <Text style={[styles.fieldLabel, { color: colors.textTertiary }]}>
                 {t('signInApproval.approve.willActAs', { app: appName })}
               </Text>
-              <Text
-                testID="approval-acting-as"
-                style={[styles.fieldValue, { color: colors.text }]}
-              >
+              <Text testID="approval-acting-as" style={[styles.fieldValue, { color: colors.text }]}>
                 {subjectLabel(subject)}
               </Text>
             </View>
@@ -252,15 +249,13 @@ export function ApprovalRequest({
         {scopeLines.length > 0 ? (
           scopeLines.map((line) => (
             <View key={line.scope} className="flex-row items-start gap-2">
-              <Icons.check size='sm' fill={colors.success} />
-              <Text style={[styles.scopeText, { color: colors.text }]}>
-                {scopeText(line, t)}
-              </Text>
+              <Icons.check size="sm" fill={colors.success} />
+              <Text style={[styles.scopeText, { color: colors.text }]}>{scopeText(line, t)}</Text>
             </View>
           ))
         ) : (
           <View className="flex-row items-start gap-2">
-            <Icons.check size='sm' fill={colors.success} />
+            <Icons.check size="sm" fill={colors.success} />
             <Text style={[styles.scopeText, { color: colors.text }]}>
               {t('signInApproval.approve.receivesBasic')}
             </Text>
@@ -270,9 +265,7 @@ export function ApprovalRequest({
 
       {confirmationIssue ? (
         <View testID="approval-confirmation-issue" className="px-5 pt-3">
-          <Admonition type="info">
-            {t(confirmationIssueKey(confirmationIssue))}
-          </Admonition>
+          <Admonition type="info">{t(confirmationIssueKey(confirmationIssue))}</Admonition>
         </View>
       ) : null}
 

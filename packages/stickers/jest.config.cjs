@@ -6,17 +6,20 @@ module.exports = {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      diagnostics: false,
-      tsconfig: {
-        module: 'commonjs',
-        moduleResolution: 'node',
-        isolatedModules: true,
-        target: 'es2020',
-        jsx: 'react-jsx',
-        lib: ['es2020', 'dom'],
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: {
+          module: 'commonjs',
+          moduleResolution: 'node',
+          isolatedModules: true,
+          target: 'es2020',
+          jsx: 'react-jsx',
+          lib: ['es2020', 'dom'],
+        },
       },
-    }],
+    ],
   },
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts?(x)'],
 };

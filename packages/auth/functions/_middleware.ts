@@ -5,5 +5,11 @@ type PagesContext = EdgeOptions['ctx'] & Pick<EdgeOptions, 'request' | 'env' | '
 
 // Edge activity for every request the auth.oxy.so Pages project serves.
 export function onRequest(context: PagesContext): Promise<Response> {
-  return observeEdgeRequest({ service: 'auth', request: context.request, env: context.env, ctx: context, next: () => context.next() });
+  return observeEdgeRequest({
+    service: 'auth',
+    request: context.request,
+    env: context.env,
+    ctx: context,
+    next: () => context.next(),
+  });
 }

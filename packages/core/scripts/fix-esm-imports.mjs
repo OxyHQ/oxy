@@ -103,10 +103,7 @@ async function walk(dir) {
       // e.g. a named import becomes a default import plus destructuring.
       for (const pkg of CJS_PACKAGES) {
         // Named imports: import { x, y as z } from 'pkg'
-        const namedRe = new RegExp(
-          `import\\s*\\{([^}]+)\\}\\s*from\\s*['"]${pkg}['"];?`,
-          'g',
-        );
+        const namedRe = new RegExp(`import\\s*\\{([^}]+)\\}\\s*from\\s*['"]${pkg}['"];?`, 'g');
         updated = updated.replace(namedRe, (_, names) => {
           const safeName = '_cjs_' + pkg.replace(/[^a-zA-Z0-9]/g, '_');
           // Convert `x as Y` to `x: Y` for destructuring

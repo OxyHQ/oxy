@@ -203,7 +203,7 @@ function unitsOf(row: Record<string, unknown>): UsageUnitTotals {
  */
 export async function resolveReportingAccounts(
   accountId: string,
-  includeDescendants: boolean
+  includeDescendants: boolean,
 ): Promise<string[]> {
   if (!includeDescendants) return [accountId];
 
@@ -303,7 +303,7 @@ interface UsageDimensionFields {
 function placeUsageDimension(
   into: UsageDimensionFields,
   dimension: UsageDimension,
-  value: string
+  value: string,
 ): void {
   switch (dimension) {
     case 'day':
@@ -352,7 +352,7 @@ export async function aggregateUsage(query: UsageQuery): Promise<UsageAggregateR
   assertScoped(query);
 
   const selections = query.groupBy.map(
-    (dimension, index) => `${USAGE_DIMENSION_SQL[dimension]} as dim_${index}`
+    (dimension, index) => `${USAGE_DIMENSION_SQL[dimension]} as dim_${index}`,
   );
   const grouping = query.groupBy.map((dimension) => USAGE_DIMENSION_SQL[dimension]);
   const unitSums = UNIT_COLUMNS.map((column) => `sum(r.${column})::bigint::text as ${column}`);
@@ -387,7 +387,7 @@ export async function aggregateUsage(query: UsageQuery): Promise<UsageAggregateR
       group by ${sql.raw(grouping.join(', '))}
       order by ${sql.raw(grouping.join(', '))}
       limit ${query.limit + 1}
-    `
+    `,
   );
 
   return {
@@ -440,7 +440,7 @@ interface SpendDimensionFields {
 function placeSpendDimension(
   into: SpendDimensionFields,
   dimension: SpendDimension,
-  value: string
+  value: string,
 ): void {
   switch (dimension) {
     case 'day':
@@ -573,7 +573,7 @@ export async function aggregateSpend(query: SpendQuery): Promise<SpendAggregateR
   assertScoped(query);
 
   const selections = query.groupBy.map(
-    (dimension, index) => `${SPEND_DIMENSION_SQL[dimension]} as dim_${index}`
+    (dimension, index) => `${SPEND_DIMENSION_SQL[dimension]} as dim_${index}`,
   );
   const grouping = [
     ...query.groupBy.map((dimension) => SPEND_DIMENSION_SQL[dimension]),
@@ -598,7 +598,7 @@ export async function aggregateSpend(query: SpendQuery): Promise<SpendAggregateR
       group by ${sql.raw(grouping.join(', '))}
       order by ${sql.raw(grouping.join(', '))}
       limit ${query.limit + 1}
-    `
+    `,
   );
 
   const totals = await executeRows<Record<string, unknown>>(
@@ -614,7 +614,7 @@ export async function aggregateSpend(query: SpendQuery): Promise<SpendAggregateR
       from r
       group by r.currency
       order by r.currency
-    `
+    `,
   );
 
   return {
@@ -745,7 +745,7 @@ export async function readAccountBalance(accountId: string): Promise<AccountBala
       join ${billingProfiles} bp on bp.account_id = ab.account_id
       where ab.account_id = ${billing.accountId}
       order by ab.currency
-    `
+    `,
   );
 
   return {
@@ -819,7 +819,7 @@ export async function listPendingReservations(query: {
         and res.status = 'held'
       order by res.created_at desc, res.id
       limit ${query.limit + 1}
-    `
+    `,
   );
 
   const totals = await executeRows<Record<string, unknown>>(
@@ -834,22 +834,24 @@ export async function listPendingReservations(query: {
         and res.status = 'held'
       group by res.currency
       order by res.currency
-    `
+    `,
   );
 
   return {
     truncated: rows.length > query.limit,
-    rows: rows.slice(0, query.limit).map((row): PendingReservation => ({
-      reservationId: String(row.id),
-      requestId: String(row.request_id),
-      applicationId: String(row.application_id),
-      applicationCredentialId: String(row.application_credential_id),
-      environment: asEnum(ENVIRONMENTS, row.environment, 'environment'),
-      reservedAmount: String(row.reserved_amount),
-      currency: String(row.currency),
-      createdAt: String(row.created_at),
-      expiresAt: String(row.expires_at),
-    })),
+    rows: rows.slice(0, query.limit).map(
+      (row): PendingReservation => ({
+        reservationId: String(row.id),
+        requestId: String(row.request_id),
+        applicationId: String(row.application_id),
+        applicationCredentialId: String(row.application_credential_id),
+        environment: asEnum(ENVIRONMENTS, row.environment, 'environment'),
+        reservedAmount: String(row.reserved_amount),
+        currency: String(row.currency),
+        createdAt: String(row.created_at),
+        expiresAt: String(row.expires_at),
+      }),
+    ),
     totals: totals.map((row) => ({
       currency: String(row.currency),
       reservationCount: toCount(row.reservation_count),
@@ -958,34 +960,36 @@ export async function listSettledCharges(query: {
         }
       order by r.settled_at desc, r.id
       limit ${query.limit + 1}
-    `
+    `,
   );
 
   return {
     truncated: rows.length > query.limit,
-    rows: rows.slice(0, query.limit).map((row): SettledChargeRow => ({
-      receiptId: String(row.id),
-      requestId: String(row.request_id),
-      ...(row.generation_id === null ? {} : { generationId: String(row.generation_id) }),
-      ...(row.reservation_id === null ? {} : { reservationId: String(row.reservation_id) }),
-      ...(row.corrects_receipt_id === null
-        ? {}
-        : { correctsReceiptId: String(row.corrects_receipt_id) }),
-      applicationId: String(row.application_id),
-      applicationCredentialId: String(row.application_credential_id),
-      environment: asEnum(ENVIRONMENTS, row.environment, 'environment'),
-      outcome: asEnum(OUTCOMES, row.outcome, 'outcome'),
-      usageSource: asEnum(USAGE_SOURCES, row.usage_source, 'usage_source'),
-      resolvedModelReference: String(row.resolved_model_reference),
-      servingProvider: String(row.serving_provider),
-      platformFeeOnly: row.platform_fee_only === true,
-      billedAmount: String(row.billed_amount),
-      refundedAmount: String(row.refunded_amount),
-      netAmount: String(row.net_amount),
-      currency: String(row.currency),
-      settledAt: String(row.settled_at),
-      units: unitsOf(row),
-    })),
+    rows: rows.slice(0, query.limit).map(
+      (row): SettledChargeRow => ({
+        receiptId: String(row.id),
+        requestId: String(row.request_id),
+        ...(row.generation_id === null ? {} : { generationId: String(row.generation_id) }),
+        ...(row.reservation_id === null ? {} : { reservationId: String(row.reservation_id) }),
+        ...(row.corrects_receipt_id === null
+          ? {}
+          : { correctsReceiptId: String(row.corrects_receipt_id) }),
+        applicationId: String(row.application_id),
+        applicationCredentialId: String(row.application_credential_id),
+        environment: asEnum(ENVIRONMENTS, row.environment, 'environment'),
+        outcome: asEnum(OUTCOMES, row.outcome, 'outcome'),
+        usageSource: asEnum(USAGE_SOURCES, row.usage_source, 'usage_source'),
+        resolvedModelReference: String(row.resolved_model_reference),
+        servingProvider: String(row.serving_provider),
+        platformFeeOnly: row.platform_fee_only === true,
+        billedAmount: String(row.billed_amount),
+        refundedAmount: String(row.refunded_amount),
+        netAmount: String(row.net_amount),
+        currency: String(row.currency),
+        settledAt: String(row.settled_at),
+        units: unitsOf(row),
+      }),
+    ),
   };
 }
 
@@ -1057,7 +1061,7 @@ export async function listSpendingLimits(accountId: string): Promise<SpendingLim
       id: limit.id,
       limitAmount: limit.limitAmount,
       currentSpend: spendByLimit.get(limit.id)?.currentSpend ?? '0',
-    }))
+    })),
   );
 
   return configured.map((limit) => {
@@ -1106,16 +1110,16 @@ export async function listSpendingLimits(accountId: string): Promise<SpendingLim
  */
 async function deriveLimitUtilization(
   db: DatabaseOrTransaction,
-  limits: readonly { id: string; limitAmount: string; currentSpend: string }[]
+  limits: readonly { id: string; limitAmount: string; currentSpend: string }[],
 ): Promise<Map<string, { currentSpend: string; remaining: string; utilizationBps: number }>> {
   if (limits.length === 0) return new Map();
 
   const values = sql.join(
     limits.map(
       (limit) =>
-        sql`(${limit.id}::text, ${limit.limitAmount}::numeric, ${limit.currentSpend}::numeric)`
+        sql`(${limit.id}::text, ${limit.limitAmount}::numeric, ${limit.currentSpend}::numeric)`,
     ),
-    sql`, `
+    sql`, `,
   );
 
   const rows = await executeRows<Record<string, unknown>>(
@@ -1128,7 +1132,7 @@ async function deriveLimitUtilization(
         -- limit_amount > 0 is a CHECK on the column, so this cannot divide by zero.
         least(10000, floor(l.spend * 10000 / l.cap))::int as utilization_bps
       from (values ${values}) as l(id, cap, spend)
-    `
+    `,
   );
 
   return new Map(
@@ -1139,7 +1143,7 @@ async function deriveLimitUtilization(
         remaining: String(row.remaining),
         utilizationBps: toCount(row.utilization_bps),
       },
-    ])
+    ]),
   );
 }
 
@@ -1159,7 +1163,7 @@ export type SpendingLimitScopeOwner =
  * oracle.
  */
 export async function resolveSpendingLimitScopeOwner(
-  body: SpendingLimitCreateBody
+  body: SpendingLimitCreateBody,
 ): Promise<SpendingLimitScopeOwner> {
   const db = getDb();
 
@@ -1204,7 +1208,7 @@ export type CreateSpendingLimitResult =
  */
 export async function createSpendingLimit(
   accountId: string,
-  body: SpendingLimitCreateBody
+  body: SpendingLimitCreateBody,
 ): Promise<CreateSpendingLimitResult> {
   const [row] = await getDb()
     .insert(spendingLimits)
@@ -1237,7 +1241,7 @@ export type UpdateSpendingLimitResult =
 /** Edit a budget's ceiling, enforcement, alerts or status. Never its scope. */
 export async function updateSpendingLimit(
   spendingLimitId: string,
-  body: SpendingLimitUpdateBody
+  body: SpendingLimitUpdateBody,
 ): Promise<UpdateSpendingLimitResult> {
   const [row] = await getDb()
     .update(spendingLimits)
@@ -1257,9 +1261,7 @@ export async function updateSpendingLimit(
 }
 
 /** One budget's owning account, for authorising a read or an edit of it. */
-export async function readSpendingLimitOwner(
-  spendingLimitId: string
-): Promise<string | undefined> {
+export async function readSpendingLimitOwner(spendingLimitId: string): Promise<string | undefined> {
   const [row] = await getDb()
     .select({ accountId: spendingLimits.accountId })
     .from(spendingLimits)

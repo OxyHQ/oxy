@@ -58,10 +58,7 @@ import {
   type OxyUserChangeReason,
   type OxyUserInvalidationEvent,
 } from '@oxy.so/contracts';
-import {
-  evictOxyIdentityCache,
-  type OxyIdentityCacheEvictor,
-} from '../utils/identityCacheSweep';
+import { evictOxyIdentityCache, type OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
 
 /**
  * The publish surface of a Redis client. Both `ioredis` and `node-redis`

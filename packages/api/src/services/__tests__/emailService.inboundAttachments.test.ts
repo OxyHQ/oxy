@@ -305,11 +305,14 @@ describe('storeIncomingMessage — the message itself', () => {
       .from(normalizedAppEventOutbox)
       .where(inArray(normalizedAppEventOutbox.eventId, eventIds));
     expect(events).toHaveLength(2);
-    expect(events.every(({ event }) =>
-      event.accountId === user.id
-      && event.resource.effectiveAccountId === user.id
-      && event.resource.resourceId === stored.mailboxId
-    )).toBe(true);
+    expect(
+      events.every(
+        ({ event }) =>
+          event.accountId === user.id &&
+          event.resource.effectiveAccountId === user.id &&
+          event.resource.resourceId === stored.mailboxId,
+      ),
+    ).toBe(true);
     const newEmail = events.find(({ event }) => event.type === 'new_email')?.event;
     expect(newEmail?.data).toMatchObject({ snippet: 'Body', folder: 'inbox' });
   });
@@ -322,7 +325,12 @@ describe('storeIncomingMessage — the message itself', () => {
     const events = await getDb()
       .select({ event: normalizedAppEventOutbox.event })
       .from(normalizedAppEventOutbox)
-      .where(inArray(normalizedAppEventOutbox.eventId, [`${spam.id}:new_email`, `${spam.id}:email_needs_reply`]));
+      .where(
+        inArray(normalizedAppEventOutbox.eventId, [
+          `${spam.id}:new_email`,
+          `${spam.id}:email_needs_reply`,
+        ]),
+      );
     expect(events.map(({ event }) => event.type)).toEqual(['new_email']);
     expect(events[0]?.event.data).toMatchObject({ folder: 'spam' });
     expect(String(events[0]?.event.data.snippet).length).toBeLessThanOrEqual(140);
@@ -353,10 +361,7 @@ describe('storeIncomingMessage — the message itself', () => {
     const stored = await emailService.storeIncomingMessage(
       baseParams(user.username, {
         from: { name: '  Alice  ', address: '  Alice@Example.COM ' },
-        to: [
-          { name: 'Bob', address: ' BOB@Oxy.SO ' },
-          { address: 'Carol@Example.com' },
-        ],
+        to: [{ name: 'Bob', address: ' BOB@Oxy.SO ' }, { address: 'Carol@Example.com' }],
         cc: [{ address: 'Dave@Example.com' }],
       }),
     );
@@ -370,7 +375,11 @@ describe('storeIncomingMessage — the message itself', () => {
     expect(stored.bcc).toEqual([]);
 
     const rows = await getDb()
-      .select({ kind: messageRecipients.kind, ord: messageRecipients.ord, address: messageRecipients.address })
+      .select({
+        kind: messageRecipients.kind,
+        ord: messageRecipients.ord,
+        address: messageRecipients.address,
+      })
       .from(messageRecipients)
       .where(eq(messageRecipients.messageId, stored.id))
       .orderBy(asc(messageRecipients.kind), asc(messageRecipients.ord));

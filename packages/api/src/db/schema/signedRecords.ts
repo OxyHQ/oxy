@@ -180,7 +180,10 @@ export const signedRecords = pgTable(
       .on(t.userId, t.createdAt, t.id)
       .where(sql`${t.nsid} is not null and ${t.verified}`),
 
-    check('signed_records_type_check', sql`${t.type} in (${sql.raw(inList(OXY_SIGNED_RECORD_TYPES))})`),
+    check(
+      'signed_records_type_check',
+      sql`${t.type} in (${sql.raw(inList(OXY_SIGNED_RECORD_TYPES))})`,
+    ),
     // `signedRecordEnvelopeSchema` requires `seq` to be a non-negative integer
     // on v2 and forbids it entirely on v1.
     check('signed_records_seq_check', sql`${t.seq} is null or ${t.seq} >= 0`),
@@ -200,9 +203,12 @@ export const signedRecords = pgTable(
     // into a guaranteed CHECK violation; migration `0009` relaxes it.
     check(
       'signed_records_chain_completeness_check',
-      sql`(${t.seq} is null and ${t.recordId} is null and ${t.nsid} is null and ${t.rkey} is null) or (${t.recordId} is not null and ${t.nsid} is not null and ${t.rkey} is not null)`
+      sql`(${t.seq} is null and ${t.recordId} is null and ${t.nsid} is null and ${t.rkey} is null) or (${t.recordId} is not null and ${t.nsid} is not null and ${t.rkey} is not null)`,
     ),
     // A record cannot chain from itself.
-    check('signed_records_prev_not_self_check', sql`${t.prev} is null or ${t.prev} <> ${t.recordId}`),
-  ]
+    check(
+      'signed_records_prev_not_self_check',
+      sql`${t.prev} is null or ${t.prev} <> ${t.recordId}`,
+    ),
+  ],
 );

@@ -33,13 +33,7 @@ export type NativeProductAgentAccountProjection = Pick<
 
 export type NativeProductAgentBoundApplication = Pick<
   typeof applications.$inferSelect,
-  | 'id'
-  | 'ownerAccountId'
-  | 'type'
-  | 'status'
-  | 'isOfficial'
-  | 'isInternal'
-  | 'createdByUserId'
+  'id' | 'ownerAccountId' | 'type' | 'status' | 'isOfficial' | 'isInternal' | 'createdByUserId'
 >;
 
 export const NATIVE_PRODUCT_AGENT_DRIFT_TARGETS = [
@@ -62,8 +56,7 @@ export const NATIVE_PRODUCT_AGENT_DRIFT_TARGETS = [
   'clarity_backend_credential',
 ] as const;
 
-export type NativeProductAgentDriftTarget =
-  (typeof NATIVE_PRODUCT_AGENT_DRIFT_TARGETS)[number];
+export type NativeProductAgentDriftTarget = (typeof NATIVE_PRODUCT_AGENT_DRIFT_TARGETS)[number];
 
 export const NATIVE_PRODUCT_AGENT_DRIFT_FIELDS = [
   'id',
@@ -96,8 +89,7 @@ export const NATIVE_PRODUCT_AGENT_DRIFT_FIELDS = [
   'createdByUserId',
 ] as const;
 
-export type NativeProductAgentDriftField =
-  (typeof NATIVE_PRODUCT_AGENT_DRIFT_FIELDS)[number];
+export type NativeProductAgentDriftField = (typeof NATIVE_PRODUCT_AGENT_DRIFT_FIELDS)[number];
 
 export class NativeProductAgentStateDriftError extends Error {
   constructor(
@@ -221,9 +213,7 @@ function nativeProductAgentBootstrapGenericFailureCode(
   error: unknown,
 ): NativeProductAgentBootstrapGenericFailureCode {
   const record =
-    error !== null && typeof error === 'object'
-      ? (error as Record<string, unknown>)
-      : null;
+    error !== null && typeof error === 'object' ? (error as Record<string, unknown>) : null;
   const code = typeof record?.code === 'string' ? record.code : '';
   const message = error instanceof Error ? error.message : '';
 

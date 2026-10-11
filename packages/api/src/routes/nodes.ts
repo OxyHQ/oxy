@@ -18,7 +18,13 @@ import { Router, type Request, type Response } from 'express';
 import { and, eq, ne } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ApiError, ErrorCodes, InternalServerError, NotFoundError, UnauthorizedError } from '../utils/error';
+import {
+  ApiError,
+  ErrorCodes,
+  InternalServerError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { getDb } from '../config/postgres';
@@ -224,7 +230,11 @@ router.post(
       switch (result.reason) {
         case 'oxy_key_unconfigured':
         case 'managed_endpoint_unconfigured':
-          throw new ApiError(503, 'Managed vaults are not available right now', ErrorCodes.SERVICE_UNAVAILABLE);
+          throw new ApiError(
+            503,
+            'Managed vaults are not available right now',
+            ErrorCodes.SERVICE_UNAVAILABLE,
+          );
         case 'user_not_found':
           throw new NotFoundError('User not found');
         default:

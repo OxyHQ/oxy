@@ -63,7 +63,11 @@ import { lockLiveAgentKeyForAuthorization } from './agentKeyAuthority.service';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
-import { intersectScopes, isUserConsentRequiredScope, userConsentRequiredScopes } from '../utils/applicationScopes';
+import {
+  intersectScopes,
+  isUserConsentRequiredScope,
+  userConsentRequiredScopes,
+} from '../utils/applicationScopes';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import {
   issueAuthCode,
@@ -156,7 +160,7 @@ async function recordAppGrant(
   userId: string,
   applicationId: string,
   scopes: string[],
-  now: Date
+  now: Date,
 ): Promise<void> {
   await db
     .insert(appGrants)
@@ -179,7 +183,6 @@ async function recordAppGrant(
     });
 }
 
-
 export interface PersistOAuthAuthorizationInput {
   decision: OAuthConsentDecision;
   /**
@@ -196,12 +199,16 @@ export interface PersistOAuthAuthorizationInput {
  * them cannot be stored; nothing is then left behind and no code exists.
  */
 export async function persistOAuthAuthorization(
-  input: PersistOAuthAuthorizationInput
+  input: PersistOAuthAuthorizationInput,
 ): Promise<IssueCodeResult> {
   const { decision, code } = input;
   return getDb().transaction(async (tx) => {
     if (code.authMethod) {
-      await lockLiveAgentKeyForAuthorization(tx, code.authMethod, code.operatedByUserId ?? code.userId);
+      await lockLiveAgentKeyForAuthorization(
+        tx,
+        code.authMethod,
+        code.operatedByUserId ?? code.userId,
+      );
     }
     if (decision.recordGrant || decision.clearsActingAsRevocation) {
       await bumpServiceActingAsEpoch(code.userId, code.appId, tx);

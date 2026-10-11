@@ -120,10 +120,7 @@ const ORPHANED_MARK_PATTERN = new RegExp(DISPLAY_NAME_ORPHANED_MARK_SOURCE, 'gu'
  * A preceding combining mark counts as letter-like, so an accent between the base
  * letter and the separator does not make it look unflanked.
  */
-const UNFLANKED_SEPARATOR_PATTERN = new RegExp(
-  DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE,
-  'gu'
-);
+const UNFLANKED_SEPARATOR_PATTERN = new RegExp(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE, 'gu');
 
 /**
  * Produce a clean display name from arbitrary (possibly federated/untrusted)
@@ -165,7 +162,7 @@ export function cleanDisplayName(raw: string): string {
       .replace(SHORTCODE_PATTERN, ' ')
       .replace(DISALLOWED_PATTERN, ' ')
       .replace(ORPHANED_MARK_PATTERN, '')
-      .replace(UNFLANKED_SEPARATOR_PATTERN, ' ')
+      .replace(UNFLANKED_SEPARATOR_PATTERN, ' '),
   );
 
   if (collapsed.length <= MAX_DISPLAY_NAME_LENGTH) {

@@ -8,7 +8,11 @@ import {
 import { attachQueryPersistence } from '../../src/ui/hooks/queryClient';
 import { createMemoryStorage, type StorageInterface } from '../../src/ui/utils/storageHelpers';
 
-const CONFIG: AccountQueriesConfig = { roots: ['thread'], memoryOnlyRoots: ['search'], mutationKeys: [['app', 'star']] };
+const CONFIG: AccountQueriesConfig = {
+  roots: ['thread'],
+  memoryOnlyRoots: ['search'],
+  mutationKeys: [['app', 'star']],
+};
 const THREAD = ['thread', 'm1'];
 const blobKey = (id: string) => `${ACCOUNT_QUERY_CACHE_KEY}:${id}`;
 
@@ -36,12 +40,18 @@ function mount(client: QueryClient, storage: StorageInterface | null, config = C
 }
 
 function pausedMutation(client: QueryClient, mutationKey: string[]) {
-  const mutation = client.getMutationCache().build(client, { mutationKey, mutationFn: async () => undefined });
+  const mutation = client
+    .getMutationCache()
+    .build(client, { mutationKey, mutationFn: async () => undefined });
   mutation.state.isPaused = true;
   return mutation;
 }
 
-async function writeFor(storage: StorageInterface, accountId: string, write: (client: QueryClient) => void) {
+async function writeFor(
+  storage: StorageInterface,
+  accountId: string,
+  write: (client: QueryClient) => void,
+) {
   const client = new QueryClient();
   const persistence = mount(client, storage);
   persistence.activate(accountId);
@@ -130,7 +140,12 @@ describe('account query persistence', () => {
     await until(persistence);
 
     expect(client.getQueryData(THREAD)).toBeUndefined();
-    expect(client.getMutationCache().getAll().map((m) => m.options.mutationKey)).toEqual([['app', 'star']]);
+    expect(
+      client
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey),
+    ).toEqual([['app', 'star']]);
   });
 
   it("deletes the signed-out account's cache", async () => {

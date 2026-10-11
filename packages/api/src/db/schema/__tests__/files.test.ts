@@ -67,7 +67,7 @@ async function owner(): Promise<string> {
 
 /** A minimal live asset. Every field the schema requires, nothing more. */
 async function insertFile(
-  values: Partial<typeof files.$inferInsert> & { sha256: string }
+  values: Partial<typeof files.$inferInsert> & { sha256: string },
 ): Promise<string> {
   const [row] = await getDb()
     .insert(files)
@@ -111,7 +111,7 @@ describe('files — the per-owner partial uniques on sha256', () => {
           storageKey: `assets/${unique()}`,
           ownerUserId,
           status: 'trash',
-        })
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -152,16 +152,18 @@ describe('files — the per-owner partial uniques on sha256', () => {
     // same bytes alongside it.
     const sha256 = unique();
     const systemRow = (systemOwner: '__federation__' | '__federation_media_cache__') =>
-      getDb().insert(files).values({
-        sha256,
-        size: 1,
-        mime: 'image/png',
-        ext: 'png',
-        storageKey: `assets/${unique()}`,
-        ownerUserId: null,
-        systemOwner,
-        status: 'active',
-      });
+      getDb()
+        .insert(files)
+        .values({
+          sha256,
+          size: 1,
+          mime: 'image/png',
+          ext: 'png',
+          storageKey: `assets/${unique()}`,
+          ownerUserId: null,
+          systemOwner,
+          status: 'active',
+        });
 
     await systemRow('__federation_media_cache__');
     await expect(systemRow('__federation__')).resolves.toBeDefined();
@@ -195,7 +197,7 @@ describe('files — the per-owner partial uniques on sha256', () => {
     expect(rows).toHaveLength(2);
   });
 
-  it('releases the owner\'s claim when its live row becomes a tombstone', async () => {
+  it("releases the owner's claim when its live row becomes a tombstone", async () => {
     const sha256 = unique();
     const ownerUserId = await owner();
     const id = await insertFile({ sha256, ownerUserId, status: 'active' });
@@ -214,7 +216,7 @@ describe('files — the per-owner partial uniques on sha256', () => {
     await insertFile({ sha256, ownerUserId, status: 'active' });
 
     const error = await rejection(
-      getDb().update(files).set({ status: 'active' }).where(eq(files.id, tombstone))
+      getDb().update(files).set({ status: 'active' }).where(eq(files.id, tombstone)),
     );
 
     expect(pgConstraint(error)).toBe(OWNER_KEY);
@@ -231,29 +233,32 @@ describe('files — the per-owner partial uniques on sha256', () => {
   it.each([
     [OWNER_KEY, 'owner_user_id'],
     [SYSTEM_KEY, 'system_owner'],
-  ])('%s derives its predicate from FILE_LIVE_STATUSES and keys on (sha256, %s)', async (indexName, column) => {
-    // The index predicate and the constant must be one statement. Reading the
-    // catalogue is what proves the derivation happened rather than a matching
-    // literal being typed twice and later diverging.
-    const [row] = await getDb().execute<{ indexdef: string }>(sql`
+  ])(
+    '%s derives its predicate from FILE_LIVE_STATUSES and keys on (sha256, %s)',
+    async (indexName, column) => {
+      // The index predicate and the constant must be one statement. Reading the
+      // catalogue is what proves the derivation happened rather than a matching
+      // literal being typed twice and later diverging.
+      const [row] = await getDb().execute<{ indexdef: string }>(sql`
       select indexdef from pg_indexes
       where schemaname = 'public' and indexname = ${indexName}
     `);
 
-    expect(row).toBeDefined();
-    expect(row.indexdef).toContain('CREATE UNIQUE INDEX');
-    expect(row.indexdef).toContain(`(sha256, ${column})`);
-    expect(row.indexdef).toContain(`${column} IS NOT NULL`);
-    for (const status of FILE_LIVE_STATUSES) {
-      expect(row.indexdef).toContain(`'${status}'`);
-    }
-    // And the tombstone status must NOT be in the predicate.
-    const tombstoned = FILE_STATUSES.filter(
-      (status) => !(FILE_LIVE_STATUSES as readonly string[]).includes(status)
-    );
-    expect(tombstoned).toEqual(['deleted']);
-    expect(row.indexdef).not.toContain(`'deleted'`);
-  });
+      expect(row).toBeDefined();
+      expect(row.indexdef).toContain('CREATE UNIQUE INDEX');
+      expect(row.indexdef).toContain(`(sha256, ${column})`);
+      expect(row.indexdef).toContain(`${column} IS NOT NULL`);
+      for (const status of FILE_LIVE_STATUSES) {
+        expect(row.indexdef).toContain(`'${status}'`);
+      }
+      // And the tombstone status must NOT be in the predicate.
+      const tombstoned = FILE_STATUSES.filter(
+        (status) => !(FILE_LIVE_STATUSES as readonly string[]).includes(status),
+      );
+      expect(tombstoned).toEqual(['deleted']);
+      expect(row.indexdef).not.toContain(`'deleted'`);
+    },
+  );
 });
 
 describe('files — one owner, user or system', () => {
@@ -296,13 +301,13 @@ describe('files — one owner, user or system', () => {
       getDb().execute(sql`
         insert into files (id, sha256, size, mime, ext, storage_key, owner_user_id, system_owner)
         values (${unique()}, ${unique()}, 1, 'image/png', 'png', ${unique()}, ${await owner()}, '__federation__')
-      `)
+      `),
     );
     const neither = await rejection(
       getDb().execute(sql`
         insert into files (id, sha256, size, mime, ext, storage_key)
         values (${unique()}, ${unique()}, 1, 'image/png', 'png', ${unique()})
-      `)
+      `),
     );
 
     expect(pgConstraint(both)).toBe('files_owner_exclusive_check');
@@ -311,7 +316,7 @@ describe('files — one owner, user or system', () => {
 
   it('refuses a user id that is not an account — the constraint Mongo could not have', async () => {
     const error = await rejection(
-      insertFile({ sha256: unique(), ownerUserId: `ghost-${unique()}` })
+      insertFile({ sha256: unique(), ownerUserId: `ghost-${unique()}` }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -322,7 +327,7 @@ describe('files — one owner, user or system', () => {
       getDb().execute(sql`
         insert into files (id, sha256, size, mime, ext, storage_key, system_owner)
         values (${unique()}, ${unique()}, 1, 'image/png', 'png', ${unique()}, '__made_up__')
-      `)
+      `),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -339,10 +344,12 @@ describe('files — usage count is derived, never stored', () => {
 
     const userId = await owner();
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
-    await getDb().insert(fileLinks).values([
-      { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
-      { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
-    ]);
+    await getDb()
+      .insert(fileLinks)
+      .values([
+        { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
+        { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
+      ]);
 
     const [{ count }] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
@@ -366,7 +373,7 @@ describe('file_links', () => {
     const error = await rejection(
       getDb()
         .insert(fileLinks)
-        .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy: await owner() })
+        .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy: await owner() }),
     );
 
     // A DIFFERENT creator, deliberately: `linkFile` ignores `createdBy` when it
@@ -377,13 +384,15 @@ describe('file_links', () => {
   it('scopes the link to its creator with a real foreign key', async () => {
     const fileId = await insertFile({ sha256: unique() });
     const error = await rejection(
-      getDb().insert(fileLinks).values({
-        fileId,
-        app: 'mention',
-        entityType: 'post',
-        entityId: unique(),
-        createdBy: `ghost-${unique()}`,
-      })
+      getDb()
+        .insert(fileLinks)
+        .values({
+          fileId,
+          app: 'mention',
+          entityType: 'post',
+          entityId: unique(),
+          createdBy: `ghost-${unique()}`,
+        }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
@@ -403,9 +412,13 @@ describe('file_links', () => {
   it('goes with the file', async () => {
     const userId = await owner();
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
-    await getDb()
-      .insert(fileLinks)
-      .values({ fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId });
+    await getDb().insert(fileLinks).values({
+      fileId,
+      app: 'mention',
+      entityType: 'post',
+      entityId: unique(),
+      createdBy: userId,
+    });
 
     await getDb().delete(files).where(eq(files.id, fileId));
 
@@ -420,16 +433,18 @@ describe('file_links', () => {
 describe('file_variants', () => {
   it('round-trips a rendition with its shape-less renderer metadata', async () => {
     const fileId = await insertFile({ sha256: unique(), mime: 'video/mp4', ext: 'mp4' });
-    await getDb().insert(fileVariants).values({
-      fileId,
-      type: '720p',
-      key: `variants/${unique()}`,
-      width: 1280,
-      height: 720,
-      size: 4_000_000,
-      readyAt: new Date(),
-      metadata: { videoCodec: 'libx264', preset: 'fast' },
-    });
+    await getDb()
+      .insert(fileVariants)
+      .values({
+        fileId,
+        type: '720p',
+        key: `variants/${unique()}`,
+        width: 1280,
+        height: 720,
+        size: 4_000_000,
+        readyAt: new Date(),
+        metadata: { videoCodec: 'libx264', preset: 'fast' },
+      });
 
     const [row] = await getDb()
       .select()
@@ -447,10 +462,12 @@ describe('file_variants', () => {
     // selects on `ready_at` — so two rows for one type is a legitimate
     // intermediate state rather than a violation.
     const fileId = await insertFile({ sha256: unique(), mime: 'video/mp4', ext: 'mp4' });
-    await getDb().insert(fileVariants).values([
-      { fileId, type: '720p', key: `variants/${unique()}`, readyAt: new Date() },
-      { fileId, type: '720p', key: `variants/${unique()}` },
-    ]);
+    await getDb()
+      .insert(fileVariants)
+      .values([
+        { fileId, type: '720p', key: `variants/${unique()}`, readyAt: new Date() },
+        { fileId, type: '720p', key: `variants/${unique()}` },
+      ]);
 
     const ready = await getDb()
       .select({ id: fileVariants.id })
@@ -522,10 +539,13 @@ describe('message_attachments — ON DELETE no action on file_id', () => {
       getDb().execute(sql`
         with gone as (delete from messages where id = ${messageId} returning id)
         delete from files where id = ${fileId} and (select count(*) from gone) = 1
-      `)
+      `),
     ).resolves.toBeDefined();
 
-    const remaining = await getDb().select({ id: files.id }).from(files).where(eq(files.id, fileId));
+    const remaining = await getDb()
+      .select({ id: files.id })
+      .from(files)
+      .where(eq(files.id, fileId));
     expect(remaining).toEqual([]);
   });
 });

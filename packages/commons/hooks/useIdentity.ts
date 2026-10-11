@@ -2,13 +2,30 @@ import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy, useAuthStore, handleAuthError } from '@oxy.so/services';
-import { KeyManager, RecoveryPhraseService, IdentityAlreadyExistsError, IdentityPersistError, IdentityUnavailableError, readIdentityMarker } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  RecoveryPhraseService,
+  IdentityAlreadyExistsError,
+  IdentityPersistError,
+  IdentityUnavailableError,
+  readIdentityMarker,
+} from '@oxy.so/core/crypto';
 import { useBiometricSignIn } from './useBiometricSignIn';
-import { useIdentityStore, persistIdentitySyncState, persistOnboardingComplete, persistOnboardingFlow, persistPendingUsername } from './identity/identityStore';
+import {
+  useIdentityStore,
+  persistIdentitySyncState,
+  persistOnboardingComplete,
+  persistOnboardingFlow,
+  persistPendingUsername,
+} from './identity/identityStore';
 import { useNetworkReconnect } from './identity/useNetworkReconnect';
 import { useSyncIdentity, type UseSyncIdentityResult } from './identity/useSyncIdentity';
 import { isIdentityPreflightRefusal, IdentityMayExistError } from './identity/identityErrors';
-import { ONBOARDING_IDENTITY_QUERY_KEY, ONBOARDING_COMPLETE_QUERY_KEY, ONBOARDING_FLOW_QUERY_KEY } from './useOnboardingStatus';
+import {
+  ONBOARDING_IDENTITY_QUERY_KEY,
+  ONBOARDING_COMPLETE_QUERY_KEY,
+  ONBOARDING_FLOW_QUERY_KEY,
+} from './useOnboardingStatus';
 
 const REGISTER_ERROR_CODE = 'REGISTER_ERROR';
 
@@ -58,7 +75,10 @@ export interface UseIdentityResult {
    * directly and (online) signs in if the key has an account. No phrase is
    * persisted, so the re-reveal surface correctly reports none.
    */
-  importIdentityFromPrivateKey: (privateKeyHex: string, opts?: { skipSync?: boolean }) => Promise<ImportIdentityResult>;
+  importIdentityFromPrivateKey: (
+    privateKeyHex: string,
+    opts?: { skipSync?: boolean },
+  ) => Promise<ImportIdentityResult>;
   /** Sync local identity with server (when online); see `useSyncIdentity`. */
   syncIdentity: UseSyncIdentityResult['syncIdentity'];
   /** Check if device has an identity stored */
@@ -92,125 +112,125 @@ export const useIdentity = (): UseIdentityResult => {
   // the on-mount integrity/backup effect — so its public surface is unchanged.
   const { syncIdentity, isIdentitySynced, identitySyncState } = useSyncIdentity();
 
-  const createIdentity = useCallback(
-    async (): Promise<{ recoveryPhrase: string[] }> => {
-      // Serialize concurrent calls. Without this guard a fast double-tap
-      // or React strict-mode double effect would generate (and persist)
-      // two separate identities, losing access to the first one. The
-      // recovery phrase shown to the user would only match the LAST one
-      // written, so a user who already wrote down the first phrase would
-      // be locked out.
-      if (inFlightCreateIdentity) {
-        return inFlightCreateIdentity;
+  const createIdentity = useCallback(async (): Promise<{ recoveryPhrase: string[] }> => {
+    // Serialize concurrent calls. Without this guard a fast double-tap
+    // or React strict-mode double effect would generate (and persist)
+    // two separate identities, losing access to the first one. The
+    // recovery phrase shown to the user would only match the LAST one
+    // written, so a user who already wrote down the first phrase would
+    // be locked out.
+    if (inFlightCreateIdentity) {
+      return inFlightCreateIdentity;
+    }
+
+    const run = async (): Promise<{ recoveryPhrase: string[] }> => {
+      // Pre-flight interlock (four independent locks against silently
+      // overwriting a real identity). Use a DIRECT, cache-bypassing verdict —
+      // never the poisoned in-memory cache the old `getPublicKey()` preflight
+      // trusted:
+      //   - `present`     → a healthy identity exists → resume/sign-in UX.
+      //   - `unavailable` → storage is unreadable (locked keychain) → REFUSE;
+      //                     a locked keystore is not a blank device.
+      //   - `lost`        → keys gone but a marker records a prior identity →
+      //                     REFUSE and route to recovery, never overwrite.
+      //   - `absent`      → additionally re-check the independent marker store
+      //                     in case one landed concurrently (fourth lock).
+      const status = await KeyManager.getIdentityStatus({ bypassCache: true });
+      if (status.state === 'present') {
+        // Caller routes this to sign-in or a confirmation screen.
+        throw new IdentityAlreadyExistsError(status.publicKey);
+      }
+      if (status.state === 'unavailable') {
+        throw new IdentityUnavailableError(
+          'Cannot create an identity while identity storage is unavailable.',
+          status.cause,
+        );
+      }
+      if (status.state === 'lost') {
+        throw new IdentityMayExistError(status.marker.publicKey);
+      }
+      const concurrentMarker = await readIdentityMarker();
+      if (concurrentMarker) {
+        throw new IdentityMayExistError(concurrentMarker.publicKey);
       }
 
-      const run = async (): Promise<{ recoveryPhrase: string[] }> => {
-        // Pre-flight interlock (four independent locks against silently
-        // overwriting a real identity). Use a DIRECT, cache-bypassing verdict —
-        // never the poisoned in-memory cache the old `getPublicKey()` preflight
-        // trusted:
-        //   - `present`     → a healthy identity exists → resume/sign-in UX.
-        //   - `unavailable` → storage is unreadable (locked keychain) → REFUSE;
-        //                     a locked keystore is not a blank device.
-        //   - `lost`        → keys gone but a marker records a prior identity →
-        //                     REFUSE and route to recovery, never overwrite.
-        //   - `absent`      → additionally re-check the independent marker store
-        //                     in case one landed concurrently (fourth lock).
-        const status = await KeyManager.getIdentityStatus({ bypassCache: true });
-        if (status.state === 'present') {
-          // Caller routes this to sign-in or a confirmation screen.
-          throw new IdentityAlreadyExistsError(status.publicKey);
-        }
-        if (status.state === 'unavailable') {
-          throw new IdentityUnavailableError(
-            'Cannot create an identity while identity storage is unavailable.',
-            status.cause,
-          );
-        }
-        if (status.state === 'lost') {
-          throw new IdentityMayExistError(status.marker.publicKey);
-        }
-        const concurrentMarker = await readIdentityMarker();
-        if (concurrentMarker) {
-          throw new IdentityMayExistError(concurrentMarker.publicKey);
-        }
-
-        let words: string[];
-        try {
-          ({ words } = await RecoveryPhraseService.generateIdentityWithRecovery());
-        } catch (genError) {
-          // Generation/persistence failed — there is no identity stored
-          // locally, no phrase the user could have written down, and no
-          // server state. Safe to surface the error as-is.
-          console.error('[useIdentity] Failed to generate identity', genError);
-          throw genError;
-        }
-
-        // From this point on, the identity exists locally. If we throw,
-        // we MUST still return the phrase to the caller so it can be
-        // shown to the user — losing it permanently would lock them out
-        // the next time they wipe the app.
-
-        // Persist the phrase into its dedicated device-only keychain slot so the
-        // user can re-reveal it from Settings later. Best-effort: a storage
-        // failure must never fail identity creation — the phrase is still
-        // returned to the caller for the mandatory acknowledgement screen.
-        try {
-          await KeyManager.storeRecoveryMnemonic(words.join(' '));
-        } catch (mnemonicError) {
-          console.warn('[useIdentity] Failed to persist recovery mnemonic for re-reveal', mnemonicError);
-        }
-
-        setSynced(false);
-        await persistIdentitySyncState(false);
-        // A brand-new identity has NOT finished onboarding yet. Reset the
-        // local milestone so this identity starts fresh — otherwise a stale
-        // `true` left by a prior (deleted) identity on the same device would
-        // route the new one straight to the vault, skipping its onboarding
-        // wizard. It flips back to `true` only when THIS identity genuinely
-        // completes (username + session) in `useOnboardingStatus`.
-        await persistOnboardingComplete(false);
-        await persistOnboardingFlow('create');
-        // A username chosen for a previous (deleted) identity is not this one's.
-        await persistPendingUsername(null);
-
-        // No registration here: `POST /auth/register` carries the username, so
-        // the account is created at the username step — never as a key alone.
-        return { recoveryPhrase: words };
-      };
-
-      inFlightCreateIdentity = run();
+      let words: string[];
       try {
-        const result = await inFlightCreateIdentity;
-        // Identity now exists on-device → refresh the shared onboarding probes so
-        // routing (`useOnboardingStatus`) reflects both the new identity AND its
-        // reset onboarding-complete milestone without a per-component re-check.
-        queryClient.invalidateQueries({ queryKey: ONBOARDING_IDENTITY_QUERY_KEY });
-        queryClient.invalidateQueries({ queryKey: ONBOARDING_COMPLETE_QUERY_KEY });
-        queryClient.invalidateQueries({ queryKey: ONBOARDING_FLOW_QUERY_KEY });
-        return result;
-      } catch (error) {
-        // The typed preflight refusals (already-exists / may-exist / storage-
-        // unavailable) are NOT hard failures — the caller maps them to the
-        // resume / recovery / retry UX. Only genuinely unexpected errors get the
-        // generic "Failed to create identity" toast.
-        if (!isIdentityPreflightRefusal(error)) {
-          handleAuthError(error, {
-            defaultMessage: 'Failed to create identity',
-            code: REGISTER_ERROR_CODE,
-            setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
-            logger: __DEV__ ? console.warn : undefined,
-          });
-        }
-        setSynced(false);
-        await persistIdentitySyncState(false).catch(() => undefined);
-        throw error;
-      } finally {
-        inFlightCreateIdentity = null;
+        ({ words } = await RecoveryPhraseService.generateIdentityWithRecovery());
+      } catch (genError) {
+        // Generation/persistence failed — there is no identity stored
+        // locally, no phrase the user could have written down, and no
+        // server state. Safe to surface the error as-is.
+        console.error('[useIdentity] Failed to generate identity', genError);
+        throw genError;
       }
-    },
-    [setSynced, queryClient],
-  );
+
+      // From this point on, the identity exists locally. If we throw,
+      // we MUST still return the phrase to the caller so it can be
+      // shown to the user — losing it permanently would lock them out
+      // the next time they wipe the app.
+
+      // Persist the phrase into its dedicated device-only keychain slot so the
+      // user can re-reveal it from Settings later. Best-effort: a storage
+      // failure must never fail identity creation — the phrase is still
+      // returned to the caller for the mandatory acknowledgement screen.
+      try {
+        await KeyManager.storeRecoveryMnemonic(words.join(' '));
+      } catch (mnemonicError) {
+        console.warn(
+          '[useIdentity] Failed to persist recovery mnemonic for re-reveal',
+          mnemonicError,
+        );
+      }
+
+      setSynced(false);
+      await persistIdentitySyncState(false);
+      // A brand-new identity has NOT finished onboarding yet. Reset the
+      // local milestone so this identity starts fresh — otherwise a stale
+      // `true` left by a prior (deleted) identity on the same device would
+      // route the new one straight to the vault, skipping its onboarding
+      // wizard. It flips back to `true` only when THIS identity genuinely
+      // completes (username + session) in `useOnboardingStatus`.
+      await persistOnboardingComplete(false);
+      await persistOnboardingFlow('create');
+      // A username chosen for a previous (deleted) identity is not this one's.
+      await persistPendingUsername(null);
+
+      // No registration here: `POST /auth/register` carries the username, so
+      // the account is created at the username step — never as a key alone.
+      return { recoveryPhrase: words };
+    };
+
+    inFlightCreateIdentity = run();
+    try {
+      const result = await inFlightCreateIdentity;
+      // Identity now exists on-device → refresh the shared onboarding probes so
+      // routing (`useOnboardingStatus`) reflects both the new identity AND its
+      // reset onboarding-complete milestone without a per-component re-check.
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_IDENTITY_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_COMPLETE_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_FLOW_QUERY_KEY });
+      return result;
+    } catch (error) {
+      // The typed preflight refusals (already-exists / may-exist / storage-
+      // unavailable) are NOT hard failures — the caller maps them to the
+      // resume / recovery / retry UX. Only genuinely unexpected errors get the
+      // generic "Failed to create identity" toast.
+      if (!isIdentityPreflightRefusal(error)) {
+        handleAuthError(error, {
+          defaultMessage: 'Failed to create identity',
+          code: REGISTER_ERROR_CODE,
+          setAuthError: (msg: string) => useAuthStore.setState({ error: msg }),
+          logger: __DEV__ ? console.warn : undefined,
+        });
+      }
+      setSynced(false);
+      await persistIdentitySyncState(false).catch(() => undefined);
+      throw error;
+    } finally {
+      inFlightCreateIdentity = null;
+    }
+  }, [setSynced, queryClient]);
 
   /**
    * After an import: sign in if the key already has an account. A key with no
@@ -294,7 +314,10 @@ export const useIdentity = (): UseIdentityResult => {
         try {
           await KeyManager.storeRecoveryMnemonic(phrase);
         } catch (mnemonicError) {
-          console.warn('[useIdentity] Failed to persist recovery mnemonic for re-reveal', mnemonicError);
+          console.warn(
+            '[useIdentity] Failed to persist recovery mnemonic for re-reveal',
+            mnemonicError,
+          );
         }
 
         setSynced(false);
@@ -308,7 +331,9 @@ export const useIdentity = (): UseIdentityResult => {
 
         // Offline: skip the round-trip rather than stall on a ~19s DNS timeout.
         if (opts?.skipSync) {
-          console.warn('[useIdentity] Offline during import — identity stored locally, server sync deferred');
+          console.warn(
+            '[useIdentity] Offline during import — identity stored locally, server sync deferred',
+          );
           return { synced: false, needsUsername: false };
         }
 
@@ -394,7 +419,10 @@ export const useIdentity = (): UseIdentityResult => {
         try {
           await KeyManager.deleteRecoveryMnemonic();
         } catch (mnemonicError) {
-          console.warn('[useIdentity] Failed to clear stale recovery mnemonic after private-key import', mnemonicError);
+          console.warn(
+            '[useIdentity] Failed to clear stale recovery mnemonic after private-key import',
+            mnemonicError,
+          );
         }
 
         setSynced(false);
@@ -404,7 +432,9 @@ export const useIdentity = (): UseIdentityResult => {
         await persistPendingUsername(null);
 
         if (opts?.skipSync) {
-          console.warn('[useIdentity] Offline during private-key import — identity stored locally, server sync deferred');
+          console.warn(
+            '[useIdentity] Offline during private-key import — identity stored locally, server sync deferred',
+          );
           return { synced: false, needsUsername: false };
         }
 
@@ -459,10 +489,14 @@ export const useIdentity = (): UseIdentityResult => {
         if (hasIdentityValue) {
           const isValid = await KeyManager.verifyIdentityIntegrity();
           if (!isValid) {
-            console.error('[useIdentity] Identity integrity check FAILED — attempting backup restore');
+            console.error(
+              '[useIdentity] Identity integrity check FAILED — attempting backup restore',
+            );
             const restored = await KeyManager.restoreIdentityFromBackup();
             if (!restored) {
-              console.error('[useIdentity] Backup restore FAILED — identity is unrecoverable from this device');
+              console.error(
+                '[useIdentity] Backup restore FAILED — identity is unrecoverable from this device',
+              );
             } else {
               console.warn('[useIdentity] Identity restored from on-device backup');
             }

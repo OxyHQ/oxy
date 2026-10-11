@@ -87,11 +87,11 @@ export const transactions = pgTable(
 
     check(
       'transactions_type_check',
-      sql`${t.type} in (${sql.raw(TRANSACTION_TYPES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.type} in (${sql.raw(TRANSACTION_TYPES.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'transactions_status_check',
-      sql`${t.status} in (${sql.raw(TRANSACTION_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(TRANSACTION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
     // Mongoose's `min: 0`. Direction is carried by `type`, never by the sign of
     // the amount, so a negative row would be unreadable by every consumer.
@@ -102,5 +102,5 @@ export const transactions = pgTable(
     // exist and turn a cosmetic invariant into a failed backfill on financial
     // data nobody can audit first.
     check('transactions_amount_check', sql`${t.amount} >= 0`),
-  ]
+  ],
 );

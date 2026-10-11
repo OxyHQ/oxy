@@ -10,7 +10,11 @@ import { ToastOutlet } from '@oxy.so/bloom/toast';
 import { logger as loggerUtil } from '@oxy.so/core';
 import { RequireOxyAuth } from './RequireOxyAuth';
 import { attachQueryPersistence, createQueryClient } from '../hooks/queryClient';
-import { createMemoryStorage, createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
+import {
+  createMemoryStorage,
+  createPlatformStorage,
+  type StorageInterface,
+} from '../utils/storageHelpers';
 import { isNetConnectivityOnline } from '../utils/netConnectivity';
 import { KeyboardBoundary } from './KeyboardBoundary';
 import { ProductAnalyticsObserver } from '../analytics/productAnalytics';
@@ -18,9 +22,9 @@ import { LanguageBridge } from './LanguageBridge';
 import { BloomLocaleBridge } from './BloomLocaleBridge';
 
 const bootStyles = StyleSheet.create({
-    providerRoot: {
-        flex: 1,
-    },
+  providerRoot: {
+    flex: 1,
+  },
 });
 
 // Detect if running on web
@@ -76,204 +80,207 @@ const isWeb = Platform.OS === 'web';
  * ```
  */
 const OxyProvider: FC<OxyProviderProps> = ({
-    oxyServices,
-    children,
-    onAuthStateChange,
-    productAnalytics,
-    storageKeyPrefix,
-    clientId,
-    baseURL,
-    authWebUrl,
-    authRedirectUri,
-    authorizeBaseUrl,
-    sessionMode = 'account',
-    webAuthMode = 'popup',
-    queryClient: providedQueryClient,
-    accountQueries,
-    requireAuth = 'off',
-    backgroundSession = false,
-    language,
+  oxyServices,
+  children,
+  onAuthStateChange,
+  productAnalytics,
+  storageKeyPrefix,
+  clientId,
+  baseURL,
+  authWebUrl,
+  authRedirectUri,
+  authorizeBaseUrl,
+  sessionMode = 'account',
+  webAuthMode = 'popup',
+  queryClient: providedQueryClient,
+  accountQueries,
+  requireAuth = 'off',
+  backgroundSession = false,
+  language,
 }) => {
+  // Storage + persistence wiring.
+  //
+  // The QueryClient exists synchronously so cache I/O can never delay the app
+  // tree's first render. Persistence hydrates in the background; TanStack's
+  // persisted-client timestamps prevent older stored data from replacing a
+  // newer query that settled while restore was in flight.
+  const queryClientRef = useRef<ReturnType<typeof createQueryClient> | null>(null);
+  const persistenceUnsubRef = useRef<(() => void) | null>(null);
+  const ownsQueryClientRef = useRef(providedQueryClient === undefined);
+  // `accountQueries` is read once, at mount, like the client itself.
+  const accountQueriesRef = useRef(accountQueries);
+  const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
 
-    // Storage + persistence wiring.
-    //
-    // The QueryClient exists synchronously so cache I/O can never delay the app
-    // tree's first render. Persistence hydrates in the background; TanStack's
-    // persisted-client timestamps prevent older stored data from replacing a
-    // newer query that settled while restore was in flight.
-    const queryClientRef = useRef<ReturnType<typeof createQueryClient> | null>(null);
-    const persistenceUnsubRef = useRef<(() => void) | null>(null);
-    const ownsQueryClientRef = useRef(providedQueryClient === undefined);
-    // `accountQueries` is read once, at mount, like the client itself.
-    const accountQueriesRef = useRef(accountQueries);
-    const [platformStorage, setPlatformStorage] = useState<StorageInterface | null>(null);
+  // If the consumer supplied their own QueryClient we use it as-is and skip
+  // persistence — their host app owns that lifecycle.
+  const [queryClient] = useState<ReturnType<typeof createQueryClient>>(() => {
+    if (providedQueryClient) {
+      queryClientRef.current = providedQueryClient;
+      return providedQueryClient;
+    }
+    const client = createQueryClient();
+    queryClientRef.current = client;
+    return client;
+  });
 
-    // If the consumer supplied their own QueryClient we use it as-is and skip
-    // persistence — their host app owns that lifecycle.
-    const [queryClient] = useState<ReturnType<typeof createQueryClient>>(() => {
-        if (providedQueryClient) {
-            queryClientRef.current = providedQueryClient;
-            return providedQueryClient;
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrap = async (): Promise<void> => {
+      let storage: StorageInterface | null = null;
+      try {
+        storage = await createPlatformStorage();
+      } catch (error) {
+        if (__DEV__) {
+          loggerUtil.warn(
+            'Failed to initialize storage for query persistence',
+            { component: 'OxyProvider' },
+            error,
+          );
         }
-        const client = createQueryClient();
-        queryClientRef.current = client;
-        return client;
+        storage = createMemoryStorage();
+      }
+
+      if (!mounted) return;
+
+      setPlatformStorage(storage);
+      const client = queryClientRef.current;
+      if (!client || !ownsQueryClientRef.current) return;
+      const persistence = attachQueryPersistence(client, storage, accountQueriesRef.current);
+      persistenceUnsubRef.current = persistence.unsubscribe;
+      await persistence.restored;
+    };
+
+    bootstrap();
+
+    return () => {
+      mounted = false;
+      persistenceUnsubRef.current?.();
+      persistenceUnsubRef.current = null;
+    };
+  }, []);
+
+  // Hook React Query focus manager into app state (native) or visibility (web)
+  useEffect(() => {
+    if (isWeb) {
+      // Web: use document visibility
+      const handleVisibilityChange = () => {
+        focusManager.setFocused(document.visibilityState === 'visible');
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+    // Native: use AppState
+    const subscription = AppState.addEventListener('change', (state) => {
+      focusManager.setFocused(state === 'active');
     });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
-    useEffect(() => {
-        let mounted = true;
+  // Setup network status monitoring for offline detection
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
 
-        const bootstrap = async (): Promise<void> => {
-            let storage: StorageInterface | null = null;
-            try {
-                storage = await createPlatformStorage();
-            } catch (error) {
-                if (__DEV__) {
-                    loggerUtil.warn('Failed to initialize storage for query persistence', { component: 'OxyProvider' }, error);
-                }
-                storage = createMemoryStorage();
-            }
-
-            if (!mounted) return;
-
-            setPlatformStorage(storage);
-            const client = queryClientRef.current;
-            if (!client || !ownsQueryClientRef.current) return;
-            const persistence = attachQueryPersistence(client, storage, accountQueriesRef.current);
-            persistenceUnsubRef.current = persistence.unsubscribe;
-            await persistence.restored;
-        };
-
-        bootstrap();
-
-        return () => {
-            mounted = false;
-            persistenceUnsubRef.current?.();
-            persistenceUnsubRef.current = null;
-        };
-    }, []);
-
-    // Hook React Query focus manager into app state (native) or visibility (web)
-    useEffect(() => {
+    const setupNetworkMonitoring = async () => {
+      try {
         if (isWeb) {
-            // Web: use document visibility
-            const handleVisibilityChange = () => {
-                focusManager.setFocused(document.visibilityState === 'visible');
-            };
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-            return () => {
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-            };
+          // Web: use navigator.onLine
+          onlineManager.setOnline(navigator.onLine);
+          const handleOnline = () => onlineManager.setOnline(true);
+          const handleOffline = () => onlineManager.setOnline(false);
+
+          window.addEventListener('online', handleOnline);
+          window.addEventListener('offline', handleOffline);
+
+          cleanup = () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+          };
+        } else {
+          // Native: try to use NetInfo
+          try {
+            const NetInfo = await import('@react-native-community/netinfo');
+            const state = await NetInfo.default.fetch();
+            onlineManager.setOnline(isNetConnectivityOnline(state));
+
+            const unsubscribe = NetInfo.default.addEventListener(
+              (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => {
+                onlineManager.setOnline(isNetConnectivityOnline(state));
+              },
+            );
+
+            cleanup = () => unsubscribe();
+          } catch {
+            // NetInfo not available, default to online
+            onlineManager.setOnline(true);
+          }
         }
-            // Native: use AppState
-            const subscription = AppState.addEventListener('change', (state) => {
-                focusManager.setFocused(state === 'active');
-            });
-            return () => {
-                subscription.remove();
-            };
-    }, []);
+      } catch (error) {
+        // Default to online if detection fails
+        onlineManager.setOnline(true);
+      }
+    };
 
-    // Setup network status monitoring for offline detection
-    useEffect(() => {
-        let cleanup: (() => void) | undefined;
+    setupNetworkMonitoring();
 
-        const setupNetworkMonitoring = async () => {
-            try {
-                if (isWeb) {
-                    // Web: use navigator.onLine
-                    onlineManager.setOnline(navigator.onLine);
-                    const handleOnline = () => onlineManager.setOnline(true);
-                    const handleOffline = () => onlineManager.setOnline(false);
+    return () => {
+      cleanup?.();
+    };
+  }, []);
 
-                    window.addEventListener('online', handleOnline);
-                    window.addEventListener('offline', handleOffline);
+  // Core content: QueryClient + OxyContext + UI overlays.
+  //
+  // Theming is owned by `@oxy.so/bloom`. Consumers must mount their own
+  // `<BloomThemeProvider>` in their app root and configure it directly
+  // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
+  // OxyProvider does NOT wrap a BloomThemeProvider — that would create a
+  // duplicate scope that silently shadows the consumer's configuration.
+  // It DOES set Bloom's locale (`BloomLocaleBridge`) to Oxy's language, but
+  // defers to a locale the app already set above it.
+  const coreContent = (
+    <QueryClientProvider client={queryClient}>
+      <OxyRuntimeProvider
+        oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
+        baseURL={baseURL}
+        authWebUrl={authWebUrl}
+        authRedirectUri={authRedirectUri}
+        authorizeBaseUrl={authorizeBaseUrl}
+        storageKeyPrefix={storageKeyPrefix}
+        clientId={clientId}
+        sessionMode={sessionMode}
+        webAuthMode={webAuthMode}
+        backgroundSession={backgroundSession}
+        platformStorage={platformStorage}
+        accountQueries={accountQueries}
+        onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
+      >
+        {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
+        {language ? <LanguageBridge {...language} /> : null}
+        <BloomLocaleBridge>
+          <SurfaceProvider>
+            {requireAuth === 'off' ? (
+              children
+            ) : (
+              <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+            )}
+          </SurfaceProvider>
+          <ToastOutlet />
+        </BloomLocaleBridge>
+      </OxyRuntimeProvider>
+    </QueryClientProvider>
+  );
 
-                    cleanup = () => {
-                        window.removeEventListener('online', handleOnline);
-                        window.removeEventListener('offline', handleOffline);
-                    };
-                } else {
-                    // Native: try to use NetInfo
-                    try {
-                        const NetInfo = await import('@react-native-community/netinfo');
-                        const state = await NetInfo.default.fetch();
-                        onlineManager.setOnline(isNetConnectivityOnline(state));
-
-                        const unsubscribe = NetInfo.default.addEventListener((state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => {
-                            onlineManager.setOnline(isNetConnectivityOnline(state));
-                        });
-
-                        cleanup = () => unsubscribe();
-                    } catch {
-                        // NetInfo not available, default to online
-                        onlineManager.setOnline(true);
-                    }
-                }
-            } catch (error) {
-                // Default to online if detection fails
-                onlineManager.setOnline(true);
-            }
-        };
-
-        setupNetworkMonitoring();
-
-        return () => {
-            cleanup?.();
-        };
-    }, []);
-
-    // Core content: QueryClient + OxyContext + UI overlays.
-    //
-    // Theming is owned by `@oxy.so/bloom`. Consumers must mount their own
-    // `<BloomThemeProvider>` in their app root and configure it directly
-    // (defaultColorPreset, defaultMode, persistKey, storage, fonts, etc.).
-    // OxyProvider does NOT wrap a BloomThemeProvider — that would create a
-    // duplicate scope that silently shadows the consumer's configuration.
-    // It DOES set Bloom's locale (`BloomLocaleBridge`) to Oxy's language, but
-    // defers to a locale the app already set above it.
-    const coreContent = (
-        <QueryClientProvider client={queryClient}>
-            <OxyRuntimeProvider
-                oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
-                baseURL={baseURL}
-                authWebUrl={authWebUrl}
-                authRedirectUri={authRedirectUri}
-                authorizeBaseUrl={authorizeBaseUrl}
-                storageKeyPrefix={storageKeyPrefix}
-                clientId={clientId}
-                sessionMode={sessionMode}
-                webAuthMode={webAuthMode}
-                backgroundSession={backgroundSession}
-                platformStorage={platformStorage}
-                accountQueries={accountQueries}
-                onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
-            >
-                {productAnalytics ? <ProductAnalyticsObserver analytics={productAnalytics} /> : null}
-                {language ? <LanguageBridge {...language} /> : null}
-                <BloomLocaleBridge>
-                    <SurfaceProvider>
-                        {requireAuth === 'off' ? (
-                            children
-                        ) : (
-                            <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                        )}
-                    </SurfaceProvider>
-                    <ToastOutlet />
-                </BloomLocaleBridge>
-            </OxyRuntimeProvider>
-        </QueryClientProvider>
-    );
-
-    return (
-        <GestureHandlerRootView style={bootStyles.providerRoot}>
-            <SafeAreaProvider>
-                <KeyboardBoundary>
-                    {coreContent}
-                </KeyboardBoundary>
-            </SafeAreaProvider>
-        </GestureHandlerRootView>
-    );
+  return (
+    <GestureHandlerRootView style={bootStyles.providerRoot}>
+      <SafeAreaProvider>
+        <KeyboardBoundary>{coreContent}</KeyboardBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
 };
 
 export default OxyProvider;

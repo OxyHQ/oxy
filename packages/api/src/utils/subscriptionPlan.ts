@@ -45,15 +45,14 @@ export async function resolveUserSubscriptionPlan(
   userId: string,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<SubscriptionPlanTier> {
-
   const [billingSubscription] = await db
     .select({ planName: billingSubscriptions.planName })
     .from(billingSubscriptions)
     .where(
       and(
         eq(billingSubscriptions.userId, userId),
-        inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES)
-      )
+        inArray(billingSubscriptions.status, LIVE_BILLING_STATUSES),
+      ),
     )
     .limit(1);
 
@@ -69,8 +68,8 @@ export async function resolveUserSubscriptionPlan(
         eq(subscriptions.userId, userId),
         eq(subscriptions.status, 'active'),
         inArray(subscriptions.plan, LEGACY_PREMIUM_PLANS),
-        gt(subscriptions.endDate, sql`now()`)
-      )
+        gt(subscriptions.endDate, sql`now()`),
+      ),
     )
     .limit(1);
 

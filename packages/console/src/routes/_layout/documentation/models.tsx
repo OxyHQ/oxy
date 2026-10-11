@@ -87,10 +87,10 @@ function ModelsDocPage() {
           <Link to="/models" className="text-primary hover:underline">
             Models page
           </Link>{' '}
-          reads the live catalogue, and it is the only place this Console will ever name a model.
-          A model appears there once it has a current revision and a route you are allowed to
-          use, carrying that route's publisher, licence, regions and data policy with it — never
-          on a name alone.
+          reads the live catalogue, and it is the only place this Console will ever name a model. A
+          model appears there once it has a current revision and a route you are allowed to use,
+          carrying that route's publisher, licence, regions and data policy with it — never on a
+          name alone.
         </p>
         <InferenceAvailabilityNotice />
       </div>
@@ -102,8 +102,8 @@ function ModelsDocPage() {
           <div className="p-4 rounded-lg border">
             <code className="text-sm font-mono text-foreground">{MODEL_ID_PLACEHOLDER}</code>
             <p className="text-sm text-muted-foreground mt-2">
-              A model line. Resolved to a revision by policy, and reported back on every response
-              as the concrete revision that ran.
+              A model line. Resolved to a revision by policy, and reported back on every response as
+              the concrete revision that ran.
             </p>
           </div>
           <div className="p-4 rounded-lg border">

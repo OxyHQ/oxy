@@ -212,7 +212,7 @@ class SecurityActivityService {
     userId: string,
     eventType: SecurityEventType,
     deviceId?: string,
-    windowMs: number = DEDUPLICATION_WINDOW_MS
+    windowMs: number = DEDUPLICATION_WINDOW_MS,
   ): Promise<SecurityActivityRecord | null> {
     try {
       const windowStart = new Date(Date.now() - windowMs);
@@ -225,7 +225,10 @@ class SecurityActivityService {
       ];
 
       // For device-specific events, also check deviceId
-      if (deviceId && (eventType === 'sign_in' || eventType === 'device_added' || eventType === 'device_removed')) {
+      if (
+        deviceId &&
+        (eventType === 'sign_in' || eventType === 'device_added' || eventType === 'device_removed')
+      ) {
         filters.push(eq(securityActivities.deviceId, deviceId));
       }
 
@@ -285,7 +288,9 @@ class SecurityActivityService {
 
     // Extract and sanitize user agent
     const rawUserAgent = req?.headers['user-agent'];
-    const userAgent = rawUserAgent ? this.sanitizeString(rawUserAgent, MAX_USER_AGENT_LENGTH) : undefined;
+    const userAgent = rawUserAgent
+      ? this.sanitizeString(rawUserAgent, MAX_USER_AGENT_LENGTH)
+      : undefined;
 
     // Sanitize metadata
     const sanitizedMetadata = this.sanitizeMetadata(metadata);
@@ -350,18 +355,22 @@ class SecurityActivityService {
     } catch (error) {
       // Log error but don't throw - security logging should never break main operations
       // However, for critical events, we should be more aggressive about retrying
-      logger.error('Failed to log security event', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SecurityActivityService',
-        method: 'logSecurityEvent',
-        userId,
-        eventType,
-        severity,
-      });
+      logger.error(
+        'Failed to log security event',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SecurityActivityService',
+          method: 'logSecurityEvent',
+          userId,
+          eventType,
+          severity,
+        },
+      );
 
       // For critical events, attempt one retry after a short delay
       if (severity === 'critical') {
         try {
-          await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+          await new Promise((resolve) => setTimeout(resolve, 100)); // 100ms delay
           const retried = await this.insertActivity(values);
           logger.info('Critical security event logged on retry', {
             component: 'SecurityActivityService',
@@ -371,11 +380,15 @@ class SecurityActivityService {
           });
           return retried;
         } catch (retryError) {
-          logger.error('Retry failed for critical security event', retryError instanceof Error ? retryError : new Error(String(retryError)), {
-            component: 'SecurityActivityService',
-            userId,
-            eventType,
-          });
+          logger.error(
+            'Retry failed for critical security event',
+            retryError instanceof Error ? retryError : new Error(String(retryError)),
+            {
+              component: 'SecurityActivityService',
+              userId,
+              eventType,
+            },
+          );
         }
       }
 
@@ -387,7 +400,7 @@ class SecurityActivityService {
 
   /** Insert one event and read back exactly the columns a reader sees. */
   private async insertActivity(
-    values: typeof securityActivities.$inferInsert
+    values: typeof securityActivities.$inferInsert,
   ): Promise<SecurityActivityRecord> {
     const [row] = await getDb()
       .insert(securityActivities)
@@ -409,14 +422,14 @@ class SecurityActivityService {
       limit?: number;
       offset?: number;
       eventType?: SecurityEventType;
-    } = {}
+    } = {},
   ): Promise<{ activities: SecurityActivityRecord[]; total: number; hasMore: boolean }> {
     // Use shared validation utility for pagination
     const { limit, offset } = validatePagination(
       options.limit,
       options.offset,
       100, // maxLimit
-      50   // defaultLimit
+      50, // defaultLimit
     );
 
     const { eventType } = options;
@@ -448,10 +461,7 @@ class SecurityActivityService {
   /**
    * Get recent security activity (last N events)
    */
-  async getRecentSecurityActivity(
-    userId: string,
-    limit = 10
-  ): Promise<SecurityActivityRecord[]> {
+  async getRecentSecurityActivity(userId: string, limit = 10): Promise<SecurityActivityRecord[]> {
     // Validate and clamp limit
     const validatedLimit = Math.min(Math.max(1, limit), 100);
 
@@ -479,7 +489,7 @@ class SecurityActivityService {
     userId: string,
     req: Request,
     deviceId?: string,
-    metadata?: SecurityEventMetadata
+    metadata?: SecurityEventMetadata,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -498,7 +508,7 @@ class SecurityActivityService {
   async logSignOut(
     userId: string,
     req: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -517,7 +527,7 @@ class SecurityActivityService {
     userId: string,
     oldEmail: string,
     newEmail: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -538,7 +548,7 @@ class SecurityActivityService {
   async logProfileUpdate(
     userId: string,
     updatedFields: string[],
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -559,7 +569,7 @@ class SecurityActivityService {
     userId: string,
     deviceId: string,
     deviceName: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -581,7 +591,7 @@ class SecurityActivityService {
     userId: string,
     deviceId: string,
     deviceName: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -602,7 +612,7 @@ class SecurityActivityService {
   async logAccountRecovery(
     userId: string,
     recoveryMethod: string,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -624,7 +634,7 @@ class SecurityActivityService {
     settingName: string,
     oldValue: unknown,
     newValue: unknown,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -647,7 +657,7 @@ class SecurityActivityService {
     userId: string,
     description: string,
     metadata?: SecurityEventMetadata,
-    req?: Request
+    req?: Request,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -665,7 +675,7 @@ class SecurityActivityService {
   async logPrivateKeyExported(
     userId: string,
     req?: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,
@@ -686,7 +696,7 @@ class SecurityActivityService {
   async logBackupCreated(
     userId: string,
     req?: Request,
-    deviceId?: string
+    deviceId?: string,
   ): Promise<SecurityActivityRecord | null> {
     return this.logSecurityEvent({
       userId,

@@ -99,7 +99,7 @@ export const deviceSessionAccounts = pgTable(
     // arbitrarily between.
     unique('device_session_accounts_device_session_id_account_id_key').on(
       t.deviceSessionId,
-      t.accountId
+      t.accountId,
     ),
     // "Every device this account is signed in on" — the read
     // `purgeAccountFromAllDevices` runs, which under Mongo scanned
@@ -114,5 +114,5 @@ export const deviceSessionAccounts = pgTable(
     // Mongoose's `min: 0`. A negative `authuser` would address a URL slot no
     // client can produce.
     check('device_session_accounts_authuser_check', sql`${t.authuser} >= 0`),
-  ]
+  ],
 );

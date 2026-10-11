@@ -14,7 +14,10 @@ import type { ApiError, User } from '../models/interfaces';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
 import { toOxyApiError } from '../OxyServices.errors';
-import { OXY_SERVICE_ENVIRONMENTS, type OxyServiceEnvironment } from '../utils/oxyServiceEnvironment';
+import {
+  OXY_SERVICE_ENVIRONMENTS,
+  type OxyServiceEnvironment,
+} from '../utils/oxyServiceEnvironment';
 
 interface JwtPayload {
   exp?: number;
@@ -245,8 +248,7 @@ class ServiceTokenClaimError extends Error {
 
 function isOxyServiceEnvironment(value: unknown): value is OxyServiceEnvironment {
   return (
-    typeof value === 'string' &&
-    (OXY_SERVICE_ENVIRONMENTS as readonly string[]).includes(value)
+    typeof value === 'string' && (OXY_SERVICE_ENVIRONMENTS as readonly string[]).includes(value)
   );
 }
 
@@ -290,7 +292,6 @@ export interface AuthMiddlewareOptions {
   expectedAudience?: string;
 }
 
-
 /**
  * What the middleware needs from the server it is mounted on. `OxyServer`
  * builds it; every member is resolved at call time, so a test can spy on the
@@ -303,9 +304,16 @@ export interface OxyMiddlewareHost {
     sessionId: string,
     options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
-  verifyActingAs(appId: string, userId: string, options?: {
-    cache?: boolean; credentialId?: string; ownerAccountId?: string; environment?: string;
-  }): Promise<ServiceActingAsVerification | null>;
+  verifyActingAs(
+    appId: string,
+    userId: string,
+    options?: {
+      cache?: boolean;
+      credentialId?: string;
+      ownerAccountId?: string;
+      environment?: string;
+    },
+  ): Promise<ServiceActingAsVerification | null>;
 }
 
 /** Build the middleware set for one server. See `OxyServer.middleware`. */
@@ -434,10 +442,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         try {
           onRefusal(recorded);
         } catch (observerError) {
-          logger.warn('[oxy.auth] onRefusal observer threw', {
-            component: 'auth',
-            method: 'auth',
-          }, observerError);
+          logger.warn(
+            '[oxy.auth] onRefusal observer threw',
+            {
+              component: 'auth',
+              method: 'auth',
+            },
+            observerError,
+          );
         }
       }
     };
@@ -470,7 +482,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'MISSING_TOKEN',
             message: 'Access token required',
             code: 'MISSING_TOKEN',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -488,10 +500,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             status: 401,
           });
           if (debug) {
-            logger.debug('[oxy.auth] Token decode failed', {
-              component: 'auth',
-              method: 'auth',
-            }, decodeError);
+            logger.debug(
+              '[oxy.auth] Token decode failed',
+              {
+                component: 'auth',
+                method: 'auth',
+              },
+              decodeError,
+            );
           }
           if (optional) {
             req.userId = null;
@@ -503,7 +519,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'INVALID_TOKEN_FORMAT',
             message: 'Invalid token format',
             code: 'INVALID_TOKEN_FORMAT',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -536,9 +552,10 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               verifyError instanceof ServiceTokenSignatureError ||
               verifyError instanceof ServiceTokenClaimError
             ) {
-              const code = verifyError instanceof ServiceTokenClaimError
-                ? 'INVALID_SERVICE_TOKEN_CLAIMS'
-                : 'INVALID_SERVICE_TOKEN';
+              const code =
+                verifyError instanceof ServiceTokenClaimError
+                  ? 'INVALID_SERVICE_TOKEN_CLAIMS'
+                  : 'INVALID_SERVICE_TOKEN';
               // The SDK's own message is the whole diagnostic value here —
               // "signing key is unknown" (rotated/unpublished kid), "key set
               // is unavailable" (JWKS empty, unreachable or malformed) and
@@ -573,10 +590,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               return res.status(401).json(error);
             }
 
-            logger.error('[oxy.auth] Unexpected error during service token verification', verifyError, {
-              component: 'auth',
-              method: 'auth.serviceToken',
-            });
+            logger.error(
+              '[oxy.auth] Unexpected error during service token verification',
+              verifyError,
+              {
+                component: 'auth',
+                method: 'auth.serviceToken',
+              },
+            );
             const error = {
               error: 'AUTH_INTERNAL_ERROR',
               message: 'Internal authentication error',
@@ -603,7 +624,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               req.user = null;
               return next();
             }
-            const error = { error: 'TOKEN_EXPIRED', message: 'Service token expired', code: 'TOKEN_EXPIRED', status: 401 };
+            const error = {
+              error: 'TOKEN_EXPIRED',
+              message: 'Service token expired',
+              code: 'TOKEN_EXPIRED',
+              status: 401,
+            };
             if (onError) return onError(error);
             return res.status(401).json(error);
           }
@@ -614,7 +640,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Service token is not yet valid (nbf)',
               status: 401,
             });
-            const error = { error: 'INVALID_SERVICE_TOKEN_CLAIMS', message: 'Service token is not yet valid', code: 'INVALID_SERVICE_TOKEN_CLAIMS', status: 401 };
+            const error = {
+              error: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              message: 'Service token is not yet valid',
+              code: 'INVALID_SERVICE_TOKEN_CLAIMS',
+              status: 401,
+            };
             if (onError) return onError(error);
             return res.status(401).json(error);
           }
@@ -632,10 +663,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             !isExactNonEmptyServiceClaim(decoded.appName) ||
             !isExactNonEmptyServiceClaim(credentialId) ||
             !isExactNonEmptyServiceClaim(ownerAccountId) ||
-            !isOxyServiceEnvironment(environment)
-            || !Array.isArray(decoded.scopes)
-            || !decoded.scopes.every((scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim())
-            || new Set(decoded.scopes).size !== decoded.scopes.length
+            !isOxyServiceEnvironment(environment) ||
+            !Array.isArray(decoded.scopes) ||
+            !decoded.scopes.every(
+              (scope) => typeof scope === 'string' && scope.length > 0 && scope === scope.trim(),
+            ) ||
+            new Set(decoded.scopes).size !== decoded.scopes.length
           ) {
             recordRefusal(req, {
               code: 'INVALID_SERVICE_TOKEN',
@@ -643,14 +676,18 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               // Names the field rather than its value: an exact-match claim
               // failing on invisible whitespace reads as "present" in a log
               // that only says which claims were missing.
-              reason: `Service token claims unusable (${[
-                !isExactNonEmptyServiceClaim(appId) ? 'appId' : null,
-                !isExactNonEmptyServiceClaim(decoded.appName) ? 'appName' : null,
-                !isExactNonEmptyServiceClaim(credentialId) ? 'credentialId' : null,
-                !isExactNonEmptyServiceClaim(ownerAccountId) ? 'ownerAccountId' : null,
-                !isOxyServiceEnvironment(environment) ? 'environment' : null,
-                !Array.isArray(decoded.scopes) ? 'scopes' : null,
-              ].filter((field) => field !== null).join(', ') || 'scopes'})`,
+              reason: `Service token claims unusable (${
+                [
+                  !isExactNonEmptyServiceClaim(appId) ? 'appId' : null,
+                  !isExactNonEmptyServiceClaim(decoded.appName) ? 'appName' : null,
+                  !isExactNonEmptyServiceClaim(credentialId) ? 'credentialId' : null,
+                  !isExactNonEmptyServiceClaim(ownerAccountId) ? 'ownerAccountId' : null,
+                  !isOxyServiceEnvironment(environment) ? 'environment' : null,
+                  !Array.isArray(decoded.scopes) ? 'scopes' : null,
+                ]
+                  .filter((field) => field !== null)
+                  .join(', ') || 'scopes'
+              })`,
               status: 401,
             });
             if (optional) {
@@ -658,7 +695,12 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               req.user = null;
               return next();
             }
-            const error = { error: 'INVALID_SERVICE_TOKEN', message: 'Invalid service token: missing required claims', code: 'INVALID_SERVICE_TOKEN', status: 401 };
+            const error = {
+              error: 'INVALID_SERVICE_TOKEN',
+              message: 'Invalid service token: missing required claims',
+              code: 'INVALID_SERVICE_TOKEN',
+              status: 401,
+            };
             if (onError) return onError(error);
             return res.status(401).json(error);
           }
@@ -694,8 +736,10 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             // `req.userId = oxyUserId` would let any service impersonate
             // any user simply by setting the header.
             const grant = await host.verifyActingAs(appId, oxyUserId, {
-              cache: false, credentialId: decoded.credentialId as string,
-              ownerAccountId: decoded.ownerAccountId as string, environment: decoded.environment as string,
+              cache: false,
+              credentialId: decoded.credentialId as string,
+              ownerAccountId: decoded.ownerAccountId as string,
+              environment: decoded.environment as string,
             });
             if (!grant || !grant.authorized) {
               logger.warn('[oxy.auth] Service token rejected — no delegation grant', {
@@ -750,10 +794,13 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           };
 
           if (debug) {
-            logger.debug(`[oxy.auth] Service token OK app=${decoded.appName} delegateUser=${oxyUserId || '(none)'}`, {
-              component: 'auth',
-              method: 'auth.serviceToken',
-            });
+            logger.debug(
+              `[oxy.auth] Service token OK app=${decoded.appName} delegateUser=${oxyUserId || '(none)'}`,
+              {
+                component: 'auth',
+                method: 'auth.serviceToken',
+              },
+            );
           }
 
           return next();
@@ -779,7 +826,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'INVALID_TOKEN_PAYLOAD',
             message: 'Token missing user ID',
             code: 'INVALID_TOKEN_PAYLOAD',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -804,7 +851,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'TOKEN_EXPIRED',
             message: 'Token expired',
             code: 'TOKEN_EXPIRED',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -833,7 +880,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'SESSION_REQUIRED',
             message: 'Access token is not bound to a session',
             code: 'SESSION_REQUIRED',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -863,7 +910,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               error: 'INVALID_SESSION',
               message: 'Session invalid or expired',
               code: 'INVALID_SESSION',
-              status: 401
+              status: 401,
             };
             if (onError) return onError(error);
             return res.status(401).json(error);
@@ -888,7 +935,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               error: 'INVALID_SESSION',
               message: 'Session did not resolve to a usable identity',
               code: 'INVALID_SESSION',
-              status: 401
+              status: 401,
             };
             if (onError) return onError(error);
             return res.status(401).json(error);
@@ -921,7 +968,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               error: 'SESSION_USER_MISMATCH',
               message: 'Token user does not match the session',
               code: 'SESSION_USER_MISMATCH',
-              status: 401
+              status: 401,
             };
             if (onError) return onError(error);
             return res.status(401).json(error);
@@ -957,7 +1004,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               error: 'SESSION_ACTOR_MISMATCH',
               message: 'Session actor does not match the session',
               code: 'SESSION_ACTOR_MISMATCH',
-              status: 401
+              status: 401,
             };
             if (onError) return onError(error);
             return res.status(401).json(error);
@@ -970,7 +1017,9 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           // Session validation already returned the full user, so `loadUser`
           // costs no extra round-trip.
           // One id source: the one `getUserIdentityId` validated (`id`, else `_id`).
-          req.user = loadUser ? ({ ...validationResult.user, id: validatedUserId } as OxyRequestUser) : { id: validatedUserId };
+          req.user = loadUser
+            ? ({ ...validationResult.user, id: validatedUserId } as OxyRequestUser)
+            : { id: validatedUserId };
 
           if (debug) {
             logger.debug(`[oxy.auth] OK user=${validatedUserId} session=${sessionId}`, {
@@ -991,10 +1040,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             status: 401,
           });
           if (debug) {
-            logger.debug('[oxy.auth] Session validation failed', {
-              component: 'auth',
-              method: 'auth',
-            }, validationError);
+            logger.debug(
+              '[oxy.auth] Session validation failed',
+              {
+                component: 'auth',
+                method: 'auth',
+              },
+              validationError,
+            );
           }
 
           if (optional) {
@@ -1007,7 +1060,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'SESSION_VALIDATION_ERROR',
             message: 'Session validation failed',
             code: 'SESSION_VALIDATION_ERROR',
-            status: 401
+            status: 401,
           };
           if (onError) return onError(error);
           return res.status(401).json(error);
@@ -1026,10 +1079,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         };
 
         if (debug) {
-          logger.debug('[oxy.auth] Error', {
-            component: 'auth',
-            method: 'auth',
-          }, apiError);
+          logger.debug(
+            '[oxy.auth] Error',
+            {
+              component: 'auth',
+              method: 'auth',
+            },
+            apiError,
+          );
         }
 
         if (onError) return onError(apiError);
@@ -1078,10 +1135,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           decoded = jwtDecode<JwtPayload>(token);
         } catch (decodeError) {
           if (debug) {
-            logger.debug('[oxy.authSocket] Token decode failed', {
-              component: 'auth',
-              method: 'authSocket',
-            }, decodeError);
+            logger.debug(
+              '[oxy.authSocket] Token decode failed',
+              {
+                component: 'auth',
+                method: 'authSocket',
+              },
+              decodeError,
+            );
           }
           return next(new Error('Invalid token'));
         }
@@ -1124,10 +1185,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
           userId = validatedUserId;
         } catch (validateErr) {
           if (debug) {
-            logger.debug('[oxy.authSocket] Session validation failed', {
-              component: 'auth',
-              method: 'authSocket',
-            }, validateErr);
+            logger.debug(
+              '[oxy.authSocket] Session validation failed',
+              {
+                component: 'auth',
+                method: 'authSocket',
+              },
+              validateErr,
+            );
           }
           return next(new Error('Session validation failed'));
         }
@@ -1153,10 +1218,14 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         next();
       } catch (err) {
         if (debug) {
-          logger.debug('[oxy.authSocket] Error', {
-            component: 'auth',
-            method: 'authSocket',
-          }, err);
+          logger.debug(
+            '[oxy.authSocket] Error',
+            {
+              component: 'auth',
+              method: 'authSocket',
+            },
+            err,
+          );
         }
         next(new Error('Authentication error'));
       }
@@ -1178,14 +1247,16 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
    * });
    * ```
    */
-  function service(options: {
-    debug?: boolean;
-    /** Observe refusals on the service lane; forwarded straight to `auth()`. */
-    onRefusal?: (refusal: OxyAuthRefusal) => void;
-    serviceTokenJwksUrl?: string;
-    expectedIssuer?: string;
-    expectedAudience?: string;
-  } = {}) {
+  function service(
+    options: {
+      debug?: boolean;
+      /** Observe refusals on the service lane; forwarded straight to `auth()`. */
+      onRefusal?: (refusal: OxyAuthRefusal) => void;
+      serviceTokenJwksUrl?: string;
+      expectedIssuer?: string;
+      expectedAudience?: string;
+    } = {},
+  ) {
     const innerAuth = auth({ ...options });
 
     return async (req: AuthReq, res: AuthRes, next: AuthNext) => {
@@ -1287,7 +1358,6 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
 /** The middleware set `OxyServer.middleware` exposes. */
 export type OxyMiddleware = ReturnType<typeof createOxyMiddleware>;
 
-
 // ---------------------------------------------------------------------------
 // Service token verification helpers
 // ---------------------------------------------------------------------------
@@ -1319,12 +1389,15 @@ const JWKS_MAX_BYTES = 64 * 1024;
 const JWKS_MAX_KEYS = 20;
 
 export function parseJsonSegment(segment: string): Record<string, unknown> {
-  if (!/^[A-Za-z0-9_-]+$/.test(segment)) throw new ServiceTokenStructureError('Service token segment is not base64url');
+  if (!/^[A-Za-z0-9_-]+$/.test(segment))
+    throw new ServiceTokenStructureError('Service token segment is not base64url');
   const bytes = Buffer.from(segment, 'base64url');
-  if (bytes.toString('base64url') !== segment) throw new ServiceTokenStructureError('Service token segment is not canonical base64url');
+  if (bytes.toString('base64url') !== segment)
+    throw new ServiceTokenStructureError('Service token segment is not canonical base64url');
   try {
     const value = JSON.parse(bytes.toString('utf8')) as unknown;
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('not an object');
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+      throw new Error('not an object');
     return value as Record<string, unknown>;
   } catch {
     throw new ServiceTokenStructureError('Service token segment is not a JSON object');
@@ -1332,25 +1405,29 @@ export function parseJsonSegment(segment: string): Record<string, unknown> {
 }
 
 function parseServiceTokenJwks(value: unknown): Map<string, ServiceTokenPublicJwk> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS is malformed');
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new ServiceTokenSignatureError('Oxy JWKS is malformed');
   const keys = (value as { keys?: unknown }).keys;
-  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS) throw new ServiceTokenSignatureError('Oxy JWKS has an invalid key set');
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > JWKS_MAX_KEYS)
+    throw new ServiceTokenSignatureError('Oxy JWKS has an invalid key set');
   const result = new Map<string, ServiceTokenPublicJwk>();
   for (const value of keys) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new ServiceTokenSignatureError('Oxy JWKS contains a malformed key');
+    if (typeof value !== 'object' || value === null || Array.isArray(value))
+      throw new ServiceTokenSignatureError('Oxy JWKS contains a malformed key');
     const key = value as Record<string, unknown>;
     if (
-      key.kty !== 'OKP'
-      || key.crv !== 'Ed25519'
-      || typeof key.x !== 'string'
-      || key.x.length === 0
-      || key.use !== 'sig'
-      || key.alg !== 'EdDSA'
-      || typeof key.kid !== 'string'
-      || !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid)
-      || Object.prototype.hasOwnProperty.call(key, 'd')
-      || result.has(key.kid)
-    ) throw new ServiceTokenSignatureError('Oxy JWKS contains an unsupported or duplicate key');
+      key.kty !== 'OKP' ||
+      key.crv !== 'Ed25519' ||
+      typeof key.x !== 'string' ||
+      key.x.length === 0 ||
+      key.use !== 'sig' ||
+      key.alg !== 'EdDSA' ||
+      typeof key.kid !== 'string' ||
+      !/^[A-Za-z0-9._-]{1,128}$/.test(key.kid) ||
+      Object.prototype.hasOwnProperty.call(key, 'd') ||
+      result.has(key.kid)
+    )
+      throw new ServiceTokenSignatureError('Oxy JWKS contains an unsupported or duplicate key');
     const x = Buffer.from(key.x, 'base64url');
     if (x.length !== 32 || x.toString('base64url') !== key.x) {
       throw new ServiceTokenSignatureError('Oxy JWKS contains an invalid Ed25519 key');
@@ -1373,9 +1450,11 @@ async function refreshServiceTokenJwks(url: string, cache: ServiceTokenJwksCache
         signal: controller.signal,
         redirect: 'error',
       });
-      if (!response.ok) throw new ServiceTokenSignatureError(`Oxy JWKS returned HTTP ${response.status}`);
+      if (!response.ok)
+        throw new ServiceTokenSignatureError(`Oxy JWKS returned HTTP ${response.status}`);
       const source = await response.text();
-      if (Buffer.byteLength(source, 'utf8') > JWKS_MAX_BYTES) throw new ServiceTokenSignatureError('Oxy JWKS exceeds the size limit');
+      if (Buffer.byteLength(source, 'utf8') > JWKS_MAX_BYTES)
+        throw new ServiceTokenSignatureError('Oxy JWKS exceeds the size limit');
       cache.keys = parseServiceTokenJwks(JSON.parse(source) as unknown);
       cache.expiresAt = Date.now() + JWKS_CACHE_MS;
     } finally {
@@ -1397,7 +1476,8 @@ export async function resolveServiceTokenPublicKey(
   const now = Date.now();
   const cached = cache.keys.get(kid);
   if (cached && cache.expiresAt > now) return cached;
-  const mayRefresh = cache.expiresAt <= now || now - cache.lastAttemptAt >= JWKS_UNKNOWN_KID_REFRESH_MS;
+  const mayRefresh =
+    cache.expiresAt <= now || now - cache.lastAttemptAt >= JWKS_UNKNOWN_KID_REFRESH_MS;
   if (mayRefresh) {
     try {
       await refreshServiceTokenJwks(url, cache);
@@ -1408,7 +1488,8 @@ export async function resolveServiceTokenPublicKey(
     }
   }
   const resolved = cache.keys.get(kid);
-  if (!resolved || cache.expiresAt <= Date.now()) throw new ServiceTokenSignatureError('Service token signing key is unknown');
+  if (!resolved || cache.expiresAt <= Date.now())
+    throw new ServiceTokenSignatureError('Service token signing key is unknown');
   return resolved;
 }
 
@@ -1432,12 +1513,13 @@ async function verifyServiceTokenSignature(
   }
   const header = parseJsonSegment(headerB64);
   if (
-    Object.keys(header).length !== 3
-    || header.alg !== 'EdDSA'
-    || header.typ !== 'JWT'
-    || typeof header.kid !== 'string'
-    || !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
-  ) throw new ServiceTokenStructureError('Service token JOSE header is not supported');
+    Object.keys(header).length !== 3 ||
+    header.alg !== 'EdDSA' ||
+    header.typ !== 'JWT' ||
+    typeof header.kid !== 'string' ||
+    !/^[A-Za-z0-9._-]{1,128}$/.test(header.kid)
+  )
+    throw new ServiceTokenStructureError('Service token JOSE header is not supported');
   const jwk = await resolveServiceTokenPublicKey(header.kid, options.jwksUrl, options.cache);
   let publicKey: Awaited<ReturnType<typeof nodeCrypto.createPublicKey>>;
   try {
@@ -1446,8 +1528,10 @@ async function verifyServiceTokenSignature(
     throw new ServiceTokenSignatureError('Service token public key is invalid');
   }
   const signature = Buffer.from(signatureB64, 'base64url');
-  if (signature.toString('base64url') !== signatureB64 || signature.length !== 64) throw new ServiceTokenStructureError('Service token signature is malformed');
-  if (!nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature)) throw new ServiceTokenSignatureError();
+  if (signature.toString('base64url') !== signatureB64 || signature.length !== 64)
+    throw new ServiceTokenStructureError('Service token signature is malformed');
+  if (!nodeCrypto.verify(null, Buffer.from(`${headerB64}.${payloadB64}`), publicKey, signature))
+    throw new ServiceTokenSignatureError();
 }
 
 /**
@@ -1484,8 +1568,8 @@ function readStringClaim(value: unknown): string | null {
  * means the validated identity is unusable and the caller must reject.
  */
 function getUserIdentityId(user: User): string | null {
-  const candidate = (user as { id?: unknown; _id?: unknown }).id
-    ?? (user as { id?: unknown; _id?: unknown })._id;
+  const candidate =
+    (user as { id?: unknown; _id?: unknown }).id ?? (user as { id?: unknown; _id?: unknown })._id;
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
 }
 
@@ -1501,21 +1585,29 @@ function verifyServiceTokenClaims(
   expected: { audience: string; issuer: string },
 ): void {
   if (!hasBoundedServiceTokenLifetime(decoded)) {
-    throw new ServiceTokenClaimError('Service token lifetime must be positive and at most 300 seconds');
+    throw new ServiceTokenClaimError(
+      'Service token lifetime must be positive and at most 300 seconds',
+    );
   }
   if (decoded.type !== 'service') {
     throw new ServiceTokenClaimError(`Service token has unexpected type '${String(decoded.type)}'`);
   }
   if (decoded.iss !== expected.issuer) {
-    throw new ServiceTokenClaimError(`Service token issuer mismatch: expected '${expected.issuer}', got '${String(decoded.iss)}'`);
+    throw new ServiceTokenClaimError(
+      `Service token issuer mismatch: expected '${expected.issuer}', got '${String(decoded.iss)}'`,
+    );
   }
   const aud = decoded.aud;
   if (Array.isArray(aud)) {
     if (!aud.includes(expected.audience)) {
-      throw new ServiceTokenClaimError(`Service token audience does not include '${expected.audience}'`);
+      throw new ServiceTokenClaimError(
+        `Service token audience does not include '${expected.audience}'`,
+      );
     }
   } else if (aud !== expected.audience) {
-    throw new ServiceTokenClaimError(`Service token audience mismatch: expected '${expected.audience}', got '${String(aud)}'`);
+    throw new ServiceTokenClaimError(
+      `Service token audience mismatch: expected '${expected.audience}', got '${String(aud)}'`,
+    );
   }
 }
 
@@ -1568,4 +1660,3 @@ interface SocketLike {
   data?: Record<string, unknown>;
   user?: { id: string; userId: string; sessionId?: string | null };
 }
-

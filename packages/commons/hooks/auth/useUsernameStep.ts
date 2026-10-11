@@ -5,7 +5,10 @@ import { useAuthFlowContext } from '@/contexts/auth-flow-context';
 import { checkIfOffline } from '@/utils/auth/networkUtils';
 import { extractAuthErrorMessage, isNetworkOrTimeoutError } from '@/utils/auth/errorUtils';
 import { useSyncIdentity } from '@/hooks/identity/useSyncIdentity';
-import { getPendingUsernameFromStorage, persistPendingUsername } from '@/hooks/identity/identityStore';
+import {
+  getPendingUsernameFromStorage,
+  persistPendingUsername,
+} from '@/hooks/identity/identityStore';
 import { isUsernameTakenError } from '@/hooks/identity/identityErrors';
 import { useTranslation } from '@/lib/i18n';
 

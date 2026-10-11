@@ -48,8 +48,8 @@ const { packages, criticals, advisoryConstraints = {} } = acknowledgements();
 
 if (packages.length === 0) {
   console.error(
-    'The gate emitted no acknowledged packages. That list drives the positive control and an\n'
-    + 'empty set would make this file green by running nothing.',
+    'The gate emitted no acknowledged packages. That list drives the positive control and an\n' +
+      'empty set would make this file green by running nothing.',
   );
   process.exit(1);
 }
@@ -72,7 +72,13 @@ const advisory = (severity, id, title) => ({
 function cleanPayload() {
   const payload = {};
   for (const name of packages) {
-    payload[name] = [advisory('high', advisoryConstraints[name]?.[0] ?? `GHSA-synthetic-${packages.indexOf(name)}`, `${name}: a high advisory`)];
+    payload[name] = [
+      advisory(
+        'high',
+        advisoryConstraints[name]?.[0] ?? `GHSA-synthetic-${packages.indexOf(name)}`,
+        `${name}: a high advisory`,
+      ),
+    ];
   }
   for (const entry of criticals) {
     payload[entry.package] = [
@@ -110,10 +116,13 @@ const firstCritical = criticals[0];
 const cases = [
   {
     name: 'a new high advisory in exactly constrained braces fails',
-    payload: { ...cleanPayload(), braces: [
-      ...cleanPayload().braces,
-      advisory('high', 'GHSA-new-braces-advisory', 'unreviewed high in an acknowledged package'),
-    ] },
+    payload: {
+      ...cleanPayload(),
+      braces: [
+        ...cleanPayload().braces,
+        advisory('high', 'GHSA-new-braces-advisory', 'unreviewed high in an acknowledged package'),
+      ],
+    },
     expectFailure: true,
     expectOutput: 'GHSA-new-braces-advisory',
   },
@@ -177,18 +186,20 @@ const cases = [
     expectFailure: true,
     expectOutput: `still excuses ${firstPackage}`,
   },
-  firstCritical ? {
-    name: 'an acknowledged critical the audit no longer reports FAILS as stale',
-    payload: (() => {
-      const payload = cleanPayload();
-      payload[firstCritical.package] = payload[firstCritical.package].filter(
-        (entry) => !entry.url.endsWith(firstCritical.advisory),
-      );
-      return payload;
-    })(),
-    expectFailure: true,
-    expectOutput: `still names ${firstCritical.package} ${firstCritical.advisory}`,
-  } : null,
+  firstCritical
+    ? {
+        name: 'an acknowledged critical the audit no longer reports FAILS as stale',
+        payload: (() => {
+          const payload = cleanPayload();
+          payload[firstCritical.package] = payload[firstCritical.package].filter(
+            (entry) => !entry.url.endsWith(firstCritical.advisory),
+          );
+          return payload;
+        })(),
+        expectFailure: true,
+        expectOutput: `still names ${firstCritical.package} ${firstCritical.advisory}`,
+      }
+    : null,
   {
     // The severity line applied to staleness: an acknowledged package whose only
     // remaining advisory is moderate is FIXED as far as this gate is concerned,
@@ -239,16 +250,16 @@ for (const testCase of cases) {
 
   if (didFail !== testCase.expectFailure) {
     console.error(
-      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, `
-      + `got exit ${exitCode}\n${output}`,
+      `FAIL ${testCase.name}: expected ${testCase.expectFailure ? 'a failure' : 'a pass'}, ` +
+        `got exit ${exitCode}\n${output}`,
     );
     failed += 1;
     continue;
   }
   if (testCase.expectOutput && !output.includes(testCase.expectOutput)) {
     console.error(
-      `FAIL ${testCase.name}: failed as expected, but the message never said `
-      + `"${testCase.expectOutput}"\n${output}`,
+      `FAIL ${testCase.name}: failed as expected, but the message never said ` +
+        `"${testCase.expectOutput}"\n${output}`,
     );
     failed += 1;
     continue;
@@ -261,6 +272,6 @@ if (failed > 0) {
   process.exit(1);
 }
 console.log(
-  `\nAll ${cases.length} dependency-audit cases passed — ${packages.length} acknowledged packages `
-  + `and ${criticals.length} acknowledged criticals, taken from the gate itself.`,
+  `\nAll ${cases.length} dependency-audit cases passed — ${packages.length} acknowledged packages ` +
+    `and ${criticals.length} acknowledged criticals, taken from the gate itself.`,
 );

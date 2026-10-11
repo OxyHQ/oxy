@@ -179,7 +179,7 @@ export const RESERVED_USERNAME_MESSAGE = 'This username is reserved and cannot b
  * still refused — {@link RESERVED_USERNAMES} above catches it exactly.
  */
 const RESERVED_USERNAME_SEGMENTS: ReadonlySet<string> = new Set(
-  [...RESERVED_USERNAMES].filter((word) => word !== 'alia')
+  [...RESERVED_USERNAMES].filter((word) => word !== 'alia'),
 );
 
 /** The 400 / inline-validation copy for a handle that is only digits. */
@@ -228,8 +228,10 @@ export const usernameSchema = z
   .refine((username) => !RESERVED_USERNAMES.has(username.toLowerCase()), RESERVED_USERNAME_MESSAGE)
   .refine(
     (username) =>
-      !username.split(/[-_]/).some((segment) => RESERVED_USERNAME_SEGMENTS.has(segment.toLowerCase())),
-    RESERVED_USERNAME_MESSAGE
+      !username
+        .split(/[-_]/)
+        .some((segment) => RESERVED_USERNAME_SEGMENTS.has(segment.toLowerCase())),
+    RESERVED_USERNAME_MESSAGE,
   );
 
 /**
@@ -274,8 +276,7 @@ export function stripDisallowedUsernameCharacters(input: string): string {
 export const BOT_USERNAME_SUFFIX = 'bot';
 
 /** The 400 / inline-validation copy for a bot handle that carries no label. */
-export const BOT_USERNAME_INVALID_MESSAGE =
-  `A bot account's username must end in "${BOT_USERNAME_SUFFIX}"`;
+export const BOT_USERNAME_INVALID_MESSAGE = `A bot account's username must end in "${BOT_USERNAME_SUFFIX}"`;
 
 /**
  * The username policy for an account of kind `bot`: everything above, plus a
@@ -336,7 +337,7 @@ export const BOT_USERNAME_INVALID_MESSAGE =
  */
 export const botUsernameSchema = usernameSchema.refine(
   (username) => username.toLowerCase().endsWith(BOT_USERNAME_SUFFIX),
-  BOT_USERNAME_INVALID_MESSAGE
+  BOT_USERNAME_INVALID_MESSAGE,
 );
 
 /**
@@ -353,7 +354,7 @@ export const botUsernameSchema = usernameSchema.refine(
  * can act on.
  */
 export function usernameSchemaForAccountKind(
-  kind: AccountKind | null | undefined
+  kind: AccountKind | null | undefined,
 ): z.ZodType<string, z.ZodTypeDef, string> {
   return kind === 'bot' ? botUsernameSchema : usernameSchema;
 }

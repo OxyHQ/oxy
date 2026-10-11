@@ -139,7 +139,7 @@ describe('ensureManagedSessionAuthorized — an unanswerable membership question
     const { sessionId } = await managedSession();
 
     const validated = await withMembershipTableMissing(() =>
-      sessionService.validateSessionById(sessionId, false)
+      sessionService.validateSessionById(sessionId, false),
     );
 
     expect(validated).toBeNull();

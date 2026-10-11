@@ -65,27 +65,25 @@ async function insertUser(): Promise<string> {
  * A registered node for a brand-new account. `lastSyncedAt: null` (the default)
  * is the state every registration reaches before its first ingest lands.
  */
-async function insertNode(fields: {
-  mode?: NodeMode;
-  status?: NodeStatus;
-  lastSyncedAt?: Date | null;
-} = {}): Promise<string> {
+async function insertNode(
+  fields: { mode?: NodeMode; status?: NodeStatus; lastSyncedAt?: Date | null } = {},
+): Promise<string> {
   const userId = await insertUser();
-  await getDb().insert(userNodes).values({
-    userId,
-    endpoint: 'https://node.example',
-    nodePublicKey: '04'.repeat(33),
-    ...fields,
-  });
+  await getDb()
+    .insert(userNodes)
+    .values({
+      userId,
+      endpoint: 'https://node.example',
+      nodePublicKey: '04'.repeat(33),
+      ...fields,
+    });
   return userId;
 }
 
 /** The user ids handed to `ingestFromNode`, in order, restricted to `mine`. */
 function ingestedAmong(mine: readonly string[]): string[] {
   const owned = new Set(mine);
-  return mockIngest.mock.calls
-    .map((call) => String(call[0]))
-    .filter((userId) => owned.has(userId));
+  return mockIngest.mock.calls.map((call) => String(call[0])).filter((userId) => owned.has(userId));
 }
 
 beforeAll(async () => {

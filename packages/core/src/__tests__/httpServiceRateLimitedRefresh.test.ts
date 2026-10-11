@@ -22,7 +22,8 @@
 import { HttpService } from '../HttpService';
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 

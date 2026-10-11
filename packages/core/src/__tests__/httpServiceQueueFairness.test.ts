@@ -13,7 +13,8 @@
 import { HttpService } from '../HttpService';
 
 function createJwt(payload: Record<string, unknown>): string {
-  const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const encode = (value: unknown): string =>
+    Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
 }
 
@@ -30,7 +31,13 @@ async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boo
     timer = setTimeout(() => resolve(false), ms);
   });
   try {
-    return await Promise.race([promise.then(() => true, () => true), timeout]);
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      timeout,
+    ]);
   } finally {
     clearTimeout(timer);
   }
@@ -54,7 +61,11 @@ describe('HttpService queue, dedupe and retry composition', () => {
       return auth === `Bearer ${fresh}` ? jsonResponse({ ok: true }) : jsonResponse(null, 401);
     }) as typeof fetch;
 
-    const http = new HttpService({ baseURL: 'https://api.oxy.so', maxConcurrentRequests: 2, enableRetry: false });
+    const http = new HttpService({
+      baseURL: 'https://api.oxy.so',
+      maxConcurrentRequests: 2,
+      enableRetry: false,
+    });
     http.setTokens(createJwt({ userId: 'u', exp: future, v: 1 }));
     http.setAuthRefreshHandler(async () => fresh);
 
@@ -110,7 +121,9 @@ describe('HttpService queue, dedupe and retry composition', () => {
     }) as typeof fetch;
 
     const http = new HttpService({ baseURL: 'https://api.oxy.so', retryDelay: 1 });
-    await expect(http.get('/health', { skipAuth: true, cache: false })).resolves.toEqual({ ok: true });
+    await expect(http.get('/health', { skipAuth: true, cache: false })).resolves.toEqual({
+      ok: true,
+    });
     expect(calls).toBe(2);
   });
 
@@ -130,7 +143,11 @@ describe('HttpService queue, dedupe and retry composition', () => {
     const http = new HttpService({ baseURL: 'https://api.oxy.so', enableRetry: false });
     const first = new AbortController();
     const a = http.get('/users/1', { skipAuth: true, cache: false, signal: first.signal });
-    const b = http.get('/users/1', { skipAuth: true, cache: false, signal: new AbortController().signal });
+    const b = http.get('/users/1', {
+      skipAuth: true,
+      cache: false,
+      signal: new AbortController().signal,
+    });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     first.abort();

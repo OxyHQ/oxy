@@ -30,9 +30,7 @@ export const APPLICATION_CAPABILITIES = [
 
 export type BuiltInApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
 export type CatalogApplicationCapability = `catalog:${string}`;
-export type ApplicationCapability =
-  | BuiltInApplicationCapability
-  | CatalogApplicationCapability;
+export type ApplicationCapability = BuiltInApplicationCapability | CatalogApplicationCapability;
 
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
@@ -65,7 +63,7 @@ export function catalogApplicationCapability(appId: string): CatalogApplicationC
  */
 export function hasApplicationCapability(
   application: { capabilities?: string[] | null },
-  capability: ApplicationCapability
+  capability: ApplicationCapability,
 ): boolean {
   return Array.isArray(application.capabilities) && application.capabilities.includes(capability);
 }

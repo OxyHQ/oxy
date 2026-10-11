@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-  Platform,
-} from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useOxy } from '@oxy.so/services';
 import { Avatar } from '@oxy.so/bloom/avatar';
@@ -21,7 +14,7 @@ import { useTranslation } from '@/lib/i18n';
 
 /**
  * Authorize Screen
- * 
+ *
  * This screen is opened when a third-party app requests authentication.
  * It can be opened via:
  * - Deep link: oxyaccounts://authorize?token=xxx
@@ -51,12 +44,12 @@ export default function AuthorizeScreen() {
     }
 
     try {
-      const response = await oxyServices.request(
+      const response = (await oxyServices.request(
         'GET',
         `/auth/session/status/${params.token}`,
         undefined,
-        { cache: false }
-      ) as {
+        { cache: false },
+      )) as {
         status: string;
         sessionToken: string;
         appId: string;
@@ -102,15 +95,22 @@ export default function AuthorizeScreen() {
     setError(null);
 
     try {
-      await oxyServices.request('POST', `/auth/session/authorize/${params.token}`, {}, {
-        cache: false,
-        headers: {
-          'x-session-id': activeSessionId,
+      await oxyServices.request(
+        'POST',
+        `/auth/session/authorize/${params.token}`,
+        {},
+        {
+          cache: false,
+          headers: {
+            'x-session-id': activeSessionId,
+          },
         },
-      });
+      );
 
       toast.success(
-        t('authorize.authorizedSuccess', { app: sessionInfo?.appId || t('authorize.appFallbackInline') }),
+        t('authorize.authorizedSuccess', {
+          app: sessionInfo?.appId || t('authorize.appFallbackInline'),
+        }),
       );
       router.back();
     } catch (err: unknown) {
@@ -124,9 +124,14 @@ export default function AuthorizeScreen() {
     if (!params.token) return;
 
     try {
-      await oxyServices.request('POST', `/auth/session/cancel/${params.token}`, {}, {
-        cache: false,
-      });
+      await oxyServices.request(
+        'POST',
+        `/auth/session/cancel/${params.token}`,
+        {},
+        {
+          cache: false,
+        },
+      );
     } catch {
       // Ignore errors when cancelling
     }
@@ -136,7 +141,10 @@ export default function AuthorizeScreen() {
 
   // Get user display name via the canonical helper.
   const displayName = useMemo(
-    () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? getAccountDisplayName(null, locale),
+    () =>
+      user?.name?.displayName ??
+      getNormalizedUserHandle(user) ??
+      getAccountDisplayName(null, locale),
     [user, locale],
   );
 
@@ -190,11 +198,7 @@ export default function AuthorizeScreen() {
         <View style={styles.content}>
           {/* App Icon/Name Section */}
           <View style={styles.appHeader}>
-            <MaterialCommunityIcons
-              name="application"
-              size={64}
-              color={textColor}
-            />
+            <MaterialCommunityIcons name="application" size={64} color={textColor} />
             <Text style={[styles.appName, { color: textColor }]}>
               {sessionInfo?.appId || t('authorize.appFallback')}
             </Text>
@@ -205,14 +209,22 @@ export default function AuthorizeScreen() {
 
           {/* Account summary — who you're authorizing as. */}
           <View style={styles.identityCardContainer}>
-            <View style={[styles.accountSummary, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View
+              style={[
+                styles.accountSummary,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
               <Avatar name={displayName} source={avatarUrl} size={48} />
               <View style={styles.accountSummaryText}>
                 <Text style={[styles.accountSummaryName, { color: textColor }]} numberOfLines={1}>
                   {displayName}
                 </Text>
                 {user?.username ? (
-                  <Text style={[styles.accountSummaryHandle, { color: textColor, opacity: 0.7 }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.accountSummaryHandle, { color: textColor, opacity: 0.7 }]}
+                    numberOfLines={1}
+                  >
                     @{user.username}
                   </Text>
                 ) : null}
@@ -223,11 +235,7 @@ export default function AuthorizeScreen() {
           {/* Permissions Section */}
           <View style={styles.permissionsSection}>
             <View style={styles.permissionsHeader}>
-              <MaterialCommunityIcons
-                name="shield-check-outline"
-                size={20}
-                color={textColor}
-              />
+              <MaterialCommunityIcons name="shield-check-outline" size={20} color={textColor} />
               <Text style={[styles.permissionsTitle, { color: textColor }]}>
                 {t('authorize.permissionsTitle')}
               </Text>
@@ -247,7 +255,6 @@ export default function AuthorizeScreen() {
               </View>
             </View>
           </View>
-
         </View>
       </ScrollView>
 
@@ -410,4 +417,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
 });
-

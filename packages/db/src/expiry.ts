@@ -129,7 +129,7 @@ function expiredPredicate(target: ExpirySweepTarget): SQL {
 export async function sweepExpiredRows(
   db: SqlExecutor,
   target: ExpirySweepTarget,
-  options: ExpirySweepOptions = {}
+  options: ExpirySweepOptions = {},
 ): Promise<ExpirySweepResult> {
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
   const maxBatches = options.maxBatches ?? DEFAULT_MAX_BATCHES;
@@ -146,7 +146,7 @@ export async function sweepExpiredRows(
           select ctid from ${table} where ${expired} limit ${batchSize}
         )
         returning ctid
-      `
+      `,
     );
 
     deleted += rows.length;
@@ -166,7 +166,7 @@ export async function sweepExpiredRows(
 export async function sweepAllExpiredRows(
   db: SqlExecutor,
   targets: readonly ExpirySweepTarget[],
-  options: ExpirySweepOptions = {}
+  options: ExpirySweepOptions = {},
 ): Promise<ExpirySweepResult[]> {
   const results: ExpirySweepResult[] = [];
   for (const target of targets) {

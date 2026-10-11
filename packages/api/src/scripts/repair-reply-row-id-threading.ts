@@ -49,7 +49,10 @@ export interface RepairStats {
   unresolved: number;
 }
 
-export async function repairReplyRowIdThreading(options: { apply: boolean; batchSize?: number }): Promise<RepairStats> {
+export async function repairReplyRowIdThreading(options: {
+  apply: boolean;
+  batchSize?: number;
+}): Promise<RepairStats> {
   const db = getDb();
   const batchSize = options.batchSize ?? 500;
   const stats: RepairStats = { matched: 0, repaired: 0, unresolved: 0 };
@@ -59,7 +62,12 @@ export async function repairReplyRowIdThreading(options: { apply: boolean; batch
     const page = await db
       .select({ id: messages.id, inReplyTo: messages.inReplyTo, references: messages.references })
       .from(messages)
-      .where(and(sql`${messages.inReplyTo} ~ ${ROW_ID_REFERENCE}`, after ? gt(messages.id, after) : undefined))
+      .where(
+        and(
+          sql`${messages.inReplyTo} ~ ${ROW_ID_REFERENCE}`,
+          after ? gt(messages.id, after) : undefined,
+        ),
+      )
       .orderBy(asc(messages.id))
       .limit(batchSize);
     if (page.length === 0) break;
@@ -84,8 +92,15 @@ export async function repairReplyRowIdThreading(options: { apply: boolean; batch
         stats.unresolved += 1;
         continue;
       }
-      const ancestry = parent.references.length > 0 ? parent.references : parent.inReplyTo ? [parent.inReplyTo] : [];
-      const references = [...new Set([...ancestry, parent.messageId, ...row.references])].filter(isMessageId);
+      const ancestry =
+        parent.references.length > 0
+          ? parent.references
+          : parent.inReplyTo
+            ? [parent.inReplyTo]
+            : [];
+      const references = [...new Set([...ancestry, parent.messageId, ...row.references])].filter(
+        isMessageId,
+      );
 
       if (options.apply) {
         await db
@@ -111,8 +126,14 @@ async function main(): Promise<void> {
 
   await connectPostgres();
   try {
-    const stats = await repairReplyRowIdThreading({ apply, batchSize: Number(process.env.BATCH_SIZE) || undefined });
-    logger.info(apply ? 'Reply threading repaired' : 'DRY RUN — reply threading that would be repaired', { ...stats });
+    const stats = await repairReplyRowIdThreading({
+      apply,
+      batchSize: Number(process.env.BATCH_SIZE) || undefined,
+    });
+    logger.info(
+      apply ? 'Reply threading repaired' : 'DRY RUN — reply threading that would be repaired',
+      { ...stats },
+    );
   } finally {
     await closePostgres();
   }
@@ -120,7 +141,10 @@ async function main(): Promise<void> {
 
 if (require.main === module) {
   main().catch((error: unknown) => {
-    logger.error('repair-reply-row-id-threading failed', error instanceof Error ? error : new Error(String(error)));
+    logger.error(
+      'repair-reply-row-id-threading failed',
+      error instanceof Error ? error : new Error(String(error)),
+    );
     process.exit(1);
   });
 }

@@ -59,7 +59,10 @@ assertExactIdBoundary(workflow, seedScript);
 assert.throws(
   () =>
     assertExactIdBoundary(
-      workflow.replace('{name:"ONLY_APP_IDS", value:$only_ids}', '{name:"ONLY_APPS", value:$only_ids}'),
+      workflow.replace(
+        '{name:"ONLY_APP_IDS", value:$only_ids}',
+        '{name:"ONLY_APPS", value:$only_ids}',
+      ),
       seedScript,
     ),
   /ECS override must carry exactly the selected boundary variable/,
@@ -90,7 +93,10 @@ assert.throws(
   () =>
     assertExactIdBoundary(
       workflow,
-      seedScript.replace('selectSeedEntriesByExactIds(SEED_APPS, onlyAppIds,', 'selectSeedEntries(SEED_APPS, onlyAppIds,'),
+      seedScript.replace(
+        'selectSeedEntriesByExactIds(SEED_APPS, onlyAppIds,',
+        'selectSeedEntries(SEED_APPS, onlyAppIds,',
+      ),
     ),
   /ONLY_APP_IDS must use the exact-id selector/,
   'mutation control: selecting an exact-id input by name must fail',

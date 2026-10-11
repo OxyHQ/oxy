@@ -104,9 +104,14 @@ export const authCodes = pgTable(
       columns: [t.authMethodId, t.authMethodOwnerId],
       foreignColumns: [userAuthMethods.id, userAuthMethods.userId],
     }).onDelete('restrict'),
-    check('auth_codes_auth_method_owner_check', sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`),
+    check(
+      'auth_codes_auth_method_owner_check',
+      sql`(${t.authMethodId} is null) = (${t.authMethodOwnerId} is null) and (${t.authMethodOwnerId} is null or ${t.authMethodOwnerId} = coalesce(${t.operatedByUserId}, ${t.userId}))`,
+    ),
     // Revoke every session/code rooted in one runtime key without scanning all rows.
-    index('auth_codes_auth_method_id_idx').on(t.authMethodId).where(sql`${t.authMethodId} is not null`),
+    index('auth_codes_auth_method_id_idx')
+      .on(t.authMethodId)
+      .where(sql`${t.authMethodId} is not null`),
     unique('auth_codes_code_hash_key').on(t.codeHash),
     index('auth_codes_user_id_idx').on(t.userId),
     index('auth_codes_application_id_idx').on(t.applicationId),
@@ -118,14 +123,14 @@ export const authCodes = pgTable(
     // only as a guard predicate on the one row it already found.
     check(
       'auth_codes_code_challenge_method_check',
-      sql`${t.codeChallengeMethod} in (${sql.raw(AUTH_CODE_CHALLENGE_METHODS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.codeChallengeMethod} in (${sql.raw(AUTH_CODE_CHALLENGE_METHODS.map((value) => `'${value}'`).join(', '))})`,
     ),
     // A public client (no secret at exchange) must present PKCE, and PKCE is
     // meaningless without its method. Mongo allowed a challenge with no method
     // and a method with no challenge; neither can be verified.
     check(
       'auth_codes_pkce_pair_check',
-      sql`(${t.codeChallenge} is null) = (${t.codeChallengeMethod} is null)`
+      sql`(${t.codeChallenge} is null) = (${t.codeChallengeMethod} is null)`,
     ),
-  ]
+  ],
 );

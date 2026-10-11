@@ -124,7 +124,10 @@ describe('webhookUrl (account events, OxyHQ/Mention#1169)', () => {
   });
 
   it('leaves an undeclared webhook exactly as the Console set it', () => {
-    const current = { ...commonsMissingCapability(), webhookUrl: 'https://console-set.example/hook' };
+    const current = {
+      ...commonsMissingCapability(),
+      webhookUrl: 'https://console-set.example/hook',
+    };
     const plan = computeSeedApplicationPlan(current, { ...COMMONS_TARGET, capabilities: [] });
     expect(plan.changes).toEqual([]);
     expect(plan.desired.webhookUrl).toBe('https://console-set.example/hook');
@@ -132,7 +135,11 @@ describe('webhookUrl (account events, OxyHQ/Mention#1169)', () => {
 
   it('is a no-op once the declared webhook is in place', () => {
     const current = { ...commonsMissingCapability(), webhookUrl: HOOK };
-    const plan = computeSeedApplicationPlan(current, { ...COMMONS_TARGET, capabilities: [], webhookUrl: HOOK });
+    const plan = computeSeedApplicationPlan(current, {
+      ...COMMONS_TARGET,
+      capabilities: [],
+      webhookUrl: HOOK,
+    });
     expect(plan.changes).toEqual([]);
   });
 

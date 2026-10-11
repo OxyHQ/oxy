@@ -106,12 +106,9 @@ function freshIndex(): number {
 }
 
 /** Insert a minimal checkpoint and return its row id. */
-async function insertCheckpoint(overrides: {
-  index?: number;
-  periodEnd?: Date;
-  treeSize?: number;
-  root?: string;
-} = {}): Promise<string> {
+async function insertCheckpoint(
+  overrides: { index?: number; periodEnd?: Date; treeSize?: number; root?: string } = {},
+): Promise<string> {
   const [row] = await getDb()
     .insert(transparencyCheckpoints)
     .values({
@@ -141,11 +138,46 @@ describe('the signed body is immutable', () => {
   });
 
   it.each([
-    ['index', (id: string) => getDb().update(transparencyCheckpoints).set({ index: freshIndex() }).where(eq(transparencyCheckpoints.id, id))],
-    ['period_end', (id: string) => getDb().update(transparencyCheckpoints).set({ periodEnd: new Date(0) }).where(eq(transparencyCheckpoints.id, id))],
-    ['tree_size', (id: string) => getDb().update(transparencyCheckpoints).set({ treeSize: 99 }).where(eq(transparencyCheckpoints.id, id))],
-    ['root', (id: string) => getDb().update(transparencyCheckpoints).set({ root: 'tampered' }).where(eq(transparencyCheckpoints.id, id))],
-    ['prev_checkpoint_hash', (id: string) => getDb().update(transparencyCheckpoints).set({ prevCheckpointHash: 'tampered' }).where(eq(transparencyCheckpoints.id, id))],
+    [
+      'index',
+      (id: string) =>
+        getDb()
+          .update(transparencyCheckpoints)
+          .set({ index: freshIndex() })
+          .where(eq(transparencyCheckpoints.id, id)),
+    ],
+    [
+      'period_end',
+      (id: string) =>
+        getDb()
+          .update(transparencyCheckpoints)
+          .set({ periodEnd: new Date(0) })
+          .where(eq(transparencyCheckpoints.id, id)),
+    ],
+    [
+      'tree_size',
+      (id: string) =>
+        getDb()
+          .update(transparencyCheckpoints)
+          .set({ treeSize: 99 })
+          .where(eq(transparencyCheckpoints.id, id)),
+    ],
+    [
+      'root',
+      (id: string) =>
+        getDb()
+          .update(transparencyCheckpoints)
+          .set({ root: 'tampered' })
+          .where(eq(transparencyCheckpoints.id, id)),
+    ],
+    [
+      'prev_checkpoint_hash',
+      (id: string) =>
+        getDb()
+          .update(transparencyCheckpoints)
+          .set({ prevCheckpointHash: 'tampered' })
+          .where(eq(transparencyCheckpoints.id, id)),
+    ],
   ])('refuses to change %s, and names it', async (column, mutate) => {
     const id = await insertCheckpoint();
 
@@ -161,7 +193,7 @@ describe('the signed body is immutable', () => {
     const id = await insertCheckpoint();
     const signature = await signCheckpoint(
       { index: 0, periodEnd: 0, treeSize: 0, root: 'r', prevCheckpointHash: null },
-      TEST_PRIVATE_KEY
+      TEST_PRIVATE_KEY,
     );
 
     // A witness co-signs later; an anchor is broadcast later and then reconciled.
@@ -172,7 +204,7 @@ describe('the signed body is immutable', () => {
         publicKey: signature.publicKey,
         alg: 'ES256K-DER-SHA256',
         signature: signature.signature,
-      })
+      }),
     ).resolves.toBeDefined();
 
     const [anchor] = await getDb()
@@ -190,7 +222,7 @@ describe('the signed body is immutable', () => {
       getDb()
         .update(transparencyCheckpointAnchors)
         .set({ confirmations: 6 })
-        .where(eq(transparencyCheckpointAnchors.id, anchor.id))
+        .where(eq(transparencyCheckpointAnchors.id, anchor.id)),
     ).resolves.toBeDefined();
   });
 
@@ -208,7 +240,7 @@ describe('the signed body is immutable', () => {
       getDb()
         .update(transparencyCheckpointSnapshotEntries)
         .set({ headRecordId: 'rewritten' })
-        .where(eq(transparencyCheckpointSnapshotEntries.checkpointId, id))
+        .where(eq(transparencyCheckpointSnapshotEntries.checkpointId, id)),
     );
 
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
@@ -230,7 +262,10 @@ describe('index uniqueness — the checkpoint job mutex', () => {
 
     // Two tasks computing the same period read heads at slightly different
     // moments, so their roots differ. Publishing both would be equivocation.
-    const settled = await Promise.allSettled([build('root-from-task-a'), build('root-from-task-b')]);
+    const settled = await Promise.allSettled([
+      build('root-from-task-a'),
+      build('root-from-task-b'),
+    ]);
 
     expect(settled.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = settled.find((r) => r.status === 'rejected');
@@ -271,7 +306,7 @@ describe('index uniqueness — the checkpoint job mutex', () => {
         publicKey: signature.publicKey,
         alg: 'ES256K-DER-SHA256',
         signature: signature.signature,
-      })
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -336,7 +371,7 @@ describe('the signed body survives the storage round-trip', () => {
         publicKey: storedSignature.publicKey,
         alg: storedSignature.alg,
         signature: storedSignature.signature,
-      })
+      }),
     ).toBe(true);
     // The hash the NEXT checkpoint links to is unchanged, so the chain holds.
     expect(await checkpointHash(rebuilt)).toBe(await checkpointHash(fields));
@@ -355,7 +390,7 @@ describe('the committed snapshot serves inclusion proofs', () => {
     ];
     const tree = await buildTransparencyTreeFromHeads(heads);
     const ordered = [...heads].sort(
-      (a, b) => tree.indexBySubject[a.subjectDid] - tree.indexBySubject[b.subjectDid]
+      (a, b) => tree.indexBySubject[a.subjectDid] - tree.indexBySubject[b.subjectDid],
     );
 
     const id = await insertCheckpoint({ treeSize: tree.treeSize, root: tree.root });
@@ -368,7 +403,7 @@ describe('the committed snapshot serves inclusion proofs', () => {
           subjectDid: entry.subjectDid,
           seq: entry.seq,
           headRecordId: entry.headRecordId,
-        }))
+        })),
       );
 
     const stored = await getDb()
@@ -419,7 +454,7 @@ describe('the committed snapshot serves inclusion proofs', () => {
         subjectDid: 'did:web:oxy.so:u:dup',
         seq: 1,
         headRecordId: 'rec-2',
-      })
+      }),
     );
 
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
@@ -431,13 +466,15 @@ describe('the committed snapshot serves inclusion proofs', () => {
     // An account erasure removing the record must leave the leaf standing.
     const id = await insertCheckpoint();
     await expect(
-      getDb().insert(transparencyCheckpointSnapshotEntries).values({
-        checkpointId: id,
-        leafIndex: 0,
-        subjectDid: 'did:web:oxy.so:u:erased',
-        seq: 4,
-        headRecordId: `never-stored-${randomUUID()}`,
-      })
+      getDb()
+        .insert(transparencyCheckpointSnapshotEntries)
+        .values({
+          checkpointId: id,
+          leafIndex: 0,
+          subjectDid: 'did:web:oxy.so:u:erased',
+          seq: 4,
+          headRecordId: `never-stored-${randomUUID()}`,
+        }),
     ).resolves.toBeDefined();
   });
 });

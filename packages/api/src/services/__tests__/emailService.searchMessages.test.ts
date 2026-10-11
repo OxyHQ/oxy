@@ -19,8 +19,12 @@
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -184,11 +188,15 @@ describe('searchMessages — structured filters', () => {
     const unread = await store(userId, mailboxId, { subject: 'status', seen: false });
     const read = await store(userId, mailboxId, { subject: 'status', seen: true });
 
-    await expect(emailService.searchMessages(userId, 'status', { seen: false })).resolves.toMatchObject({
+    await expect(
+      emailService.searchMessages(userId, 'status', { seen: false }),
+    ).resolves.toMatchObject({
       data: [expect.objectContaining({ id: unread })],
       total: 1,
     });
-    await expect(emailService.searchMessages(userId, 'status', { seen: true })).resolves.toMatchObject({
+    await expect(
+      emailService.searchMessages(userId, 'status', { seen: true }),
+    ).resolves.toMatchObject({
       data: [expect.objectContaining({ id: read })],
       total: 1,
     });
@@ -258,12 +266,12 @@ describe('searchMessages — structured filters', () => {
     await expect(
       emailService.searchMessages(userId, tag, { hasAttachment: true }),
     ).resolves.toMatchObject({ data: [expect.objectContaining({ id: withAttachment })] });
-    await expect(emailService.searchMessages(userId, tag, { starred: true })).resolves.toMatchObject(
-      { data: [expect.objectContaining({ id: starred })] },
-    );
-    await expect(emailService.searchMessages(userId, tag, { label: 'Work' })).resolves.toMatchObject(
-      { data: [expect.objectContaining({ id: labelled })] },
-    );
+    await expect(
+      emailService.searchMessages(userId, tag, { starred: true }),
+    ).resolves.toMatchObject({ data: [expect.objectContaining({ id: starred })] });
+    await expect(
+      emailService.searchMessages(userId, tag, { label: 'Work' }),
+    ).resolves.toMatchObject({ data: [expect.objectContaining({ id: labelled })] });
     await expect(
       emailService.searchMessages(userId, tag, { mailboxId: other }),
     ).resolves.toMatchObject({ data: [expect.objectContaining({ id: elsewhere })] });
@@ -309,5 +317,4 @@ describe('searchMessages — structured filters', () => {
     expect(first.data).toHaveLength(2);
     expect(new Set([...first.data, ...second.data].map((m) => m.id)).size).toBe(4);
   });
-
 });

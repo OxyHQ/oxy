@@ -67,7 +67,10 @@ beforeAll(async () => {
   await connectPostgres();
 
   const username = `contract${unique().slice(0, 10)}`;
-  const [row] = await getDb().insert(users).values({ username, color: 'teal' }).returning({ id: users.id });
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
   user = { id: row.id, username };
 
   const [file] = await getDb()
@@ -82,7 +85,12 @@ beforeAll(async () => {
       ownerUserId: user.id,
     })
     .returning({ id: files.id });
-  mockUploadFileDirect.mockResolvedValue({ id: file.id, originalName: 'invoice.pdf', mime: 'application/pdf', size: 12 });
+  mockUploadFileDirect.mockResolvedValue({
+    id: file.id,
+    originalName: 'invoice.pdf',
+    mime: 'application/pdf',
+    size: 12,
+  });
 
   // An attachment with no Content-ID: the shape that vanished from the inbox.
   const withAttachment = await emailService.storeIncomingMessage({
@@ -94,7 +102,9 @@ beforeAll(async () => {
     messageId: `<code-${unique()}@ramp.com>`,
     date: new Date('2026-09-27T05:56:22.000Z'),
     headers: {},
-    attachments: [{ filename: 'invoice.pdf', contentType: 'application/pdf', content: Buffer.from('pdf') }],
+    attachments: [
+      { filename: 'invoice.pdf', contentType: 'application/pdf', content: Buffer.from('pdf') },
+    ],
     rawSize: 100,
   });
   ampMessageId = withAttachment.id;
@@ -113,7 +123,10 @@ beforeAll(async () => {
   plainMessageId = plain.id;
 
   // A card whose extracted fields are all unknown.
-  await getDb().update(messages).set({ cardType: 'purchase' }).where(eq(messages.id, plainMessageId));
+  await getDb()
+    .update(messages)
+    .set({ cardType: 'purchase' })
+    .where(eq(messages.id, plainMessageId));
 });
 
 afterAll(async () => {
@@ -141,7 +154,10 @@ describe('Inbox read API honours @oxy.so/contracts', () => {
       rawSize: 100,
     });
     const parsed = emailMessageSchema.parse(overTheWire(stored));
-    expect(parsed.replyTo).toEqual({ name: 'Ticket 42', address: 'ticket-42@support.acme.example' });
+    expect(parsed.replyTo).toEqual({
+      name: 'Ticket 42',
+      address: 'ticket-42@support.acme.example',
+    });
   });
 
   it('lists messages, including one with an attachment that has no Content-ID', async () => {
@@ -153,7 +169,12 @@ describe('Inbox read API honours @oxy.so/contracts', () => {
       expect.objectContaining({ name: 'invoice.pdf', contentId: null, isInline: false }),
     ]);
     const carded = parsed.find((m) => m.id === plainMessageId);
-    expect(carded?.card).toEqual({ type: 'purchase', data: null, confidence: null, extractedAt: null });
+    expect(carded?.card).toEqual({
+      type: 'purchase',
+      data: null,
+      confidence: null,
+      extractedAt: null,
+    });
   });
 
   it('reads one message and its thread, bodies included', async () => {
@@ -170,7 +191,10 @@ describe('Inbox read API honours @oxy.so/contracts', () => {
   });
 
   it('bundles the inbox', async () => {
-    const bundled = await emailService.listBundledMessages(user.id, await inbox(), { limit: 50, offset: 0 });
+    const bundled = await emailService.listBundledMessages(user.id, await inbox(), {
+      limit: 50,
+      offset: 0,
+    });
     emailBundledInboxSchema.parse(overTheWire(bundled));
   });
 
@@ -189,7 +213,10 @@ describe('Inbox read API honours @oxy.so/contracts', () => {
   });
 
   it('lists a contact without a company or notes', async () => {
-    await emailService.createContact(user.id, { name: 'Ada', email: `ada-${unique()}@example.com` });
+    await emailService.createContact(user.id, {
+      name: 'Ada',
+      email: `ada-${unique()}@example.com`,
+    });
     const { data } = await emailService.listContacts(user.id);
     const parsed = z.array(emailContactSchema).parse(overTheWire(data));
     expect(parsed[0]).toEqual(expect.objectContaining({ company: null, notes: null }));

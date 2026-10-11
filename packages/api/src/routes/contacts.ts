@@ -60,8 +60,7 @@ const discoverLimiter = rateLimit({
   prefix: 'rl:contacts:discover:',
   windowMs: 60 * 1000,
   max: 5,
-  message:
-    'Too many contact discovery requests. Please wait a minute before trying again.',
+  message: 'Too many contact discovery requests. Please wait a minute before trying again.',
   keyGenerator: (req) => {
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ') && process.env.ACCESS_TOKEN_SECRET) {

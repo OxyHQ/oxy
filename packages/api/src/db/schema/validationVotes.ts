@@ -16,7 +16,15 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { check, doublePrecision, index, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  check,
+  doublePrecision,
+  index,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList } from '@oxy.so/db';
 import { signedRecords } from './signedRecords';
@@ -74,8 +82,8 @@ export const validationVotes = pgTable(
 
     check(
       'validation_votes_verdict_check',
-      sql`${t.verdict} in (${sql.raw(inList(VALIDATION_VERDICTS))})`
+      sql`${t.verdict} in (${sql.raw(inList(VALIDATION_VERDICTS))})`,
     ),
     check('validation_votes_stake_weight_check', sql`${t.stakeWeight} >= 0`),
-  ]
+  ],
 );

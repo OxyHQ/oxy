@@ -29,5 +29,5 @@ export const blocks = pgTable(
     // compound index above (wrong leading field) and had no other, so it was a
     // full collection scan there. Added deliberately as a fix, not carried over.
     index('blocks_blocked_id_idx').on(t.blockedId),
-  ]
+  ],
 );

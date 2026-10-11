@@ -178,22 +178,21 @@ function skipRawText(html: string, from: number, name: string): number {
  * Build a short plain-text snippet from a message body. Prefers `text` when
  * present; otherwise strips tags and entities from `html` with a minimal
  * regex (no new dependency). The result has whitespace collapsed and is
- * trimmed to {@link SNIPPET_MAX_LENGTH} characters.
+ * trimmed to `maxLength` characters ({@link SNIPPET_MAX_LENGTH} by default).
  */
-export function buildSnippet(text?: string | null, html?: string | null): string {
-  const source = text && text.trim().length > 0
-    ? text
-    : html
-      ? decodeEntitiesOnce(stripMarkup(html))
-      : '';
+export function buildSnippet(
+  text?: string | null,
+  html?: string | null,
+  maxLength: number = SNIPPET_MAX_LENGTH,
+): string {
+  const source =
+    text && text.trim().length > 0 ? text : html ? decodeEntitiesOnce(stripMarkup(html)) : '';
   // A snippet is a ONE-LINE preview of a message body written by a third party,
   // so the canonical inline normalizer applies: every line break the sender's
   // markup happened to contain becomes a space. (Clients render it in an RN
   // `Text`, which would otherwise preserve them.)
   const collapsed = normalizeInlineText(source);
-  return collapsed.length > SNIPPET_MAX_LENGTH
-    ? collapsed.slice(0, SNIPPET_MAX_LENGTH)
-    : collapsed;
+  return collapsed.length > maxLength ? collapsed.slice(0, maxLength) : collapsed;
 }
 
 /**
@@ -264,9 +263,10 @@ export async function emitEmailNew(args: EmitEmailNewArgs): Promise<void> {
       .where(eq(mailboxes.id, args.mailboxId))
       .limit(1);
 
-    const receivedAt = args.receivedAt instanceof Date
-      ? args.receivedAt.toISOString()
-      : new Date(args.receivedAt).toISOString();
+    const receivedAt =
+      args.receivedAt instanceof Date
+        ? args.receivedAt.toISOString()
+        : new Date(args.receivedAt).toISOString();
 
     const payload: EmailNewEvent = {
       id: args.id,

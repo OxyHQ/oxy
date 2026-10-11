@@ -133,8 +133,8 @@ function CatalogueTab() {
           <p className="text-sm text-muted-foreground">
             A model is listed here once it has a current revision and a route you are allowed to
             use, and it carries that route's publisher, licence, regions and data policy with it.
-            Nothing is listed on a name alone, so this page never names a model whose provenance
-            it cannot answer for.
+            Nothing is listed on a name alone, so this page never names a model whose provenance it
+            cannot answer for.
           </p>
           {/*
             The question an empty catalogue actually raises is "so can I call
@@ -573,8 +573,7 @@ function CatalogueEntryRow({ entry, isLast }: { entry: ModelCatalogueEntry; isLa
 
       {deprecation.status !== 'active' && deprecation.replacementModelReference !== undefined && (
         <p className="text-xs text-muted-foreground mt-4">
-          Replaced by{' '}
-          <code className="font-mono">{deprecation.replacementModelReference}</code>
+          Replaced by <code className="font-mono">{deprecation.replacementModelReference}</code>
           {deprecation.sunsetAt !== undefined &&
             ` · sunsets ${new Date(deprecation.sunsetAt).toLocaleDateString()}`}
         </p>
@@ -612,9 +611,9 @@ function RoutingProfilesTab() {
       <div className="py-12 text-center">
         <p className="text-sm font-medium text-foreground mb-1">No routing profiles published</p>
         <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-          A routing profile is a policy that picks among deployments of the models in the
-          catalogue — it is never a model itself, and it cannot exist before the models it would
-          choose between.
+          A routing profile is a policy that picks among deployments of the models in the catalogue
+          — it is never a model itself, and it cannot exist before the models it would choose
+          between.
         </p>
       </div>
     );

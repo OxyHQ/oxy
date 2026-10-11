@@ -2,7 +2,11 @@ import { renderHook } from '@testing-library/react';
 import type { AccountNode } from '@oxy.so/core';
 import { useManagedAccountGroups } from '@/hooks/managed-accounts/useManagedAccountGroups';
 
-function node(accountId: string, kind: AccountNode['kind'], relationship: AccountNode['relationship']): AccountNode {
+function node(
+  accountId: string,
+  kind: AccountNode['kind'],
+  relationship: AccountNode['relationship'],
+): AccountNode {
   return {
     accountId,
     kind,

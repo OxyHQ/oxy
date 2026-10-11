@@ -3,7 +3,7 @@ import { checkIfOffline } from '@/utils/auth/networkUtils';
 
 /**
  * Hook for managing network status
- * 
+ *
  * @param checkOnMount - Whether to check network status on mount
  * @returns Network status state and check function
  */
@@ -27,4 +27,3 @@ export function useNetworkStatus(checkOnMount = false) {
     checkNetworkStatus,
   };
 }
-

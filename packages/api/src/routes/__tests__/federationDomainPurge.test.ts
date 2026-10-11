@@ -120,7 +120,11 @@ jest.mock('../../utils/logger', () => ({
  */
 jest.mock('@oxy.so/federation', () => {
   const actual = jest.requireActual('@oxy.so/federation');
-  return { __esModule: true, ...actual, isSameFederationHost: jest.fn(actual.isSameFederationHost) };
+  return {
+    __esModule: true,
+    ...actual,
+    isSameFederationHost: jest.fn(actual.isSameFederationHost),
+  };
 });
 
 import { and, asc, eq, inArray, or } from 'drizzle-orm';
@@ -143,9 +147,9 @@ type FederationModule = typeof import('@oxy.so/federation');
 
 const { isSameFederationHost: realIsSameFederationHost } =
   jest.requireActual<FederationModule>('@oxy.so/federation');
-const federationModule = jest.requireMock<
-  FederationModule & { isSameFederationHost: jest.Mock }
->('@oxy.so/federation');
+const federationModule = jest.requireMock<FederationModule & { isSameFederationHost: jest.Mock }>(
+  '@oxy.so/federation',
+);
 
 interface JsonResponse {
   status: number;
@@ -704,7 +708,11 @@ describe('POST /federation/domain-purge — multi-tenancy', () => {
     // actor row and its avatars still went.
     const domain = freshDomain();
     const actor = await seedFederatedUser(domain);
-    const linked = await seedFile(actor, { source: 'federation', serviceAppId: CALLER_APP_ID }, 100);
+    const linked = await seedFile(
+      actor,
+      { source: 'federation', serviceAppId: CALLER_APP_ID },
+      100,
+    );
     await getDb().insert(fileLinks).values({
       fileId: linked,
       app: 'mention',

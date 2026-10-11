@@ -22,7 +22,7 @@ import {
   generateDeviceFingerprint,
   registerDevice,
   deriveServiceDeviceId,
-  DeviceFingerprint
+  DeviceFingerprint,
 } from '../utils/deviceUtils';
 import {
   checkAccessTokenBinding,
@@ -200,8 +200,10 @@ function bindingRowOf(session: CachedSession): SessionTokenBindingRow {
 function storedTokenMatchesBinding(session: CachedSession): boolean {
   const validation = validateAccessToken(session.accessToken);
   if (!validation.valid || !validation.payload) return false;
-  return checkAccessTokenBinding(validation.payload, bindingRowOf(session)).ok
-    && validation.payload.ver === 2;
+  return (
+    checkAccessTokenBinding(validation.payload, bindingRowOf(session)).ok &&
+    validation.payload.ver === 2
+  );
 }
 
 class SessionService {
@@ -222,14 +224,22 @@ class SessionService {
    * mongoose wholesale, and would couple every session consumer to them).
    */
   private async ensureManagedSessionAuthorized(
-    session: Pick<CachedSession, 'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'>,
-    opts: { force?: boolean } = {}
+    session: Pick<
+      CachedSession,
+      'sessionId' | 'userId' | 'operatedByUserId' | 'authMethodId' | 'authMethodOwnerId'
+    >,
+    opts: { force?: boolean } = {},
   ): Promise<boolean> {
     if (session.authMethodId) {
       try {
-        if (!session.authMethodOwnerId || !(await readLiveAgentKey({
-          authMethodId: session.authMethodId, authMethodOwnerId: session.authMethodOwnerId,
-        }))) return false;
+        if (
+          !session.authMethodOwnerId ||
+          !(await readLiveAgentKey({
+            authMethodId: session.authMethodId,
+            authMethodOwnerId: session.authMethodOwnerId,
+          }))
+        )
+          return false;
       } catch {
         return false; // no stale positive cache for autonomous credentials
       }
@@ -286,21 +296,25 @@ class SessionService {
       // into a sign-out the user has to recover from. The recheck timestamp is
       // deliberately not written either, so the very next request re-asks rather
       // than inheriting this failure for the throttle window.
-      logger.error('[SessionService] Managed-session act_as re-check failed — failing closed', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'ensureManagedSessionAuthorized',
-        sessionId: sessionId.substring(0, 8),
-      });
+      logger.error(
+        '[SessionService] Managed-session act_as re-check failed — failing closed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'ensureManagedSessionAuthorized',
+          sessionId: sessionId.substring(0, 8),
+        },
+      );
       return false;
     }
   }
 
   /**
    * Get session by sessionId with caching
-   * 
+   *
    * Optimized for high-scale usage with in-memory caching to minimize database queries.
    * Cache is automatically managed with TTL and cleanup.
-   * 
+   *
    * @param sessionId - The session ID to lookup
    * @param useCache - Whether to use cache (default: true)
    * @returns Session object or null if not found or expired
@@ -325,8 +339,8 @@ class SessionService {
           and(
             eq(sessions.sessionId, sessionId),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .limit(1);
 
@@ -341,10 +355,14 @@ class SessionService {
 
       return session;
     } catch (error) {
-      logger.error('[SessionService] Failed to get session', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'getSession',
-      });
+      logger.error(
+        '[SessionService] Failed to get session',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'getSession',
+        },
+      );
       // Return null on error to allow graceful degradation
       // Caller should handle null case appropriately
       return null;
@@ -353,11 +371,11 @@ class SessionService {
 
   /**
    * Get session with user populated
-   * 
+   *
    * Optimized for high-scale usage with caching. When cache hit occurs,
    * still requires a user lookup as user data is not cached with session
    * (by design, to keep cache size manageable and user data fresh).
-   * 
+   *
    * @param sessionId - The session ID to lookup
    * @param options - Configuration options
    * @param options.useCache - Whether to use cache (default: true)
@@ -365,7 +383,7 @@ class SessionService {
    */
   async getSessionWithUser(
     sessionId: string,
-    options: { useCache?: boolean } = {}
+    options: { useCache?: boolean } = {},
   ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
       const { useCache = true } = options;
@@ -409,8 +427,8 @@ class SessionService {
           and(
             eq(sessions.sessionId, sessionId),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .limit(1);
 
@@ -442,11 +460,15 @@ class SessionService {
       // `session.userId` stays the id it is declared to be.
       return { session: sessionRow, user };
     } catch (error) {
-      logger.error('[SessionService] Failed to get session with user', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'getSessionWithUser',
-        sessionId,
-      });
+      logger.error(
+        '[SessionService] Failed to get session with user',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'getSessionWithUser',
+          sessionId,
+        },
+      );
       // Return null on error for graceful degradation - consistent error handling pattern
       // Caller should handle null case appropriately
       return null;
@@ -455,10 +477,10 @@ class SessionService {
 
   /**
    * Validate session by access token
-   * 
+   *
    * High-performance session validation with caching and token verification.
    * Returns session and user data for use in authentication middleware.
-   * 
+   *
    * @param accessToken - The JWT access token to validate
    * @returns Validation result with session, user, and payload, or null if invalid
    */
@@ -513,17 +535,21 @@ class SessionService {
         token: binding.identity,
       };
     } catch (error) {
-      logger.error('[SessionService] Session validation failed', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'validateSession',
-      });
+      logger.error(
+        '[SessionService] Session validation failed',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'validateSession',
+        },
+      );
       return null;
     }
   }
 
   /**
    * Update session last activity (non-blocking, batched)
-   * 
+   *
    * Optimized for high-scale usage - updates are batched and throttled
    * to reduce database load while maintaining accurate last activity tracking.
    */
@@ -544,23 +570,27 @@ class SessionService {
         sessionCache.set(sessionId, cached);
       }
     } catch (error) {
-      logger.error('[SessionService] Failed to update last activity', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'updateLastActivity',
-        sessionId,
-      });
+      logger.error(
+        '[SessionService] Failed to update last activity',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'updateLastActivity',
+          sessionId,
+        },
+      );
       sessionCache.clearPendingLastActive(sessionId);
     }
   }
 
   /**
    * Create a new session for a user
-   * 
+   *
    * Optimized for high-scale usage:
    * - Reuses existing active sessions on the same device to reduce session proliferation
    * - Automatically caches new sessions for fast subsequent lookups
    * - Handles device fingerprinting and registration
-   * 
+   *
    * @param userId - The user ID to create session for
    * @param req - Express request object for extracting device info
    * @param options - Session creation options (deviceName, deviceFingerprint)
@@ -570,7 +600,7 @@ class SessionService {
   async createSession(
     userId: string,
     req: Request,
-    options: SessionCreateOptions = {}
+    options: SessionCreateOptions = {},
   ): Promise<CachedSession> {
     // Agent provenance is rechecked under the same lock as the write. A
     // revoker cannot pass a key check and race a new session into existence.
@@ -585,11 +615,16 @@ class SessionService {
     try {
       if (options.authMethod) {
         const actorId = options.operatedByUserId ?? userId;
-        if (options.authMethod.authMethodOwnerId !== actorId) throw new Error('Invalid autonomous signer');
+        if (options.authMethod.authMethodOwnerId !== actorId)
+          throw new Error('Invalid autonomous signer');
         await db.select({ id: users.id }).from(users).where(eq(users.id, actorId)).for('share');
-        await db.select({ id: userAuthMethods.id }).from(userAuthMethods)
-          .where(eq(userAuthMethods.id, options.authMethod.authMethodId)).for('update');
-        if (!(await readLiveAgentKey(options.authMethod, db))) throw new Error('Autonomous credential revoked');
+        await db
+          .select({ id: userAuthMethods.id })
+          .from(userAuthMethods)
+          .where(eq(userAuthMethods.id, options.authMethod.authMethodId))
+          .for('update');
+        if (!(await readLiveAgentKey(options.authMethod, db)))
+          throw new Error('Autonomous credential revoked');
       }
       const {
         deviceName,
@@ -643,13 +678,17 @@ class SessionService {
               component: 'SessionService',
               method: 'createSession',
               userId,
-            }
+            },
           );
         }
       } else if (deviceFingerprint) {
         // Real device-login path (no stableDeviceKey) — unchanged.
         // Pass userId to optimize device lookup - reduces Session collection scan.
-        deviceInfo = await registerDevice(deviceInfo, generateDeviceFingerprint(deviceFingerprint), userId);
+        deviceInfo = await registerDevice(
+          deviceInfo,
+          generateDeviceFingerprint(deviceFingerprint),
+          userId,
+        );
       }
 
       // Check if this is a new device for this user (no previous sessions on this device)
@@ -674,7 +713,9 @@ class SessionService {
               eq(sessions.userId, userId),
               eq(sessions.deviceId, candidateDeviceId),
               eq(sessions.isActive, true),
-              options.authMethod ? eq(sessions.authMethodId, options.authMethod.authMethodId) : isNull(sessions.authMethodId),
+              options.authMethod
+                ? eq(sessions.authMethodId, options.authMethod.authMethodId)
+                : isNull(sessions.authMethodId),
               gt(sessions.expiresAt, new Date()),
               // A DELEGATED mint may only reuse a session belonging to the SAME
               // operator. One device can legitimately hold two people who both
@@ -703,8 +744,8 @@ class SessionService {
               // lives on its own derived deviceId (see the OAuth exchange), so
               // an unbound mint on the central device never reaches one, and
               // adding the symmetric predicate would only mint spare rows.
-              ...(application ? [eq(sessions.applicationId, application.applicationId)] : [])
-            )
+              ...(application ? [eq(sessions.applicationId, application.applicationId)] : []),
+            ),
           )
           .limit(1);
         return row;
@@ -737,7 +778,8 @@ class SessionService {
         // (`deviceSessionService.bindSessionToContext`).
         const reusedBinding: SessionBinding = {
           authMethodId: options.authMethod?.authMethodId ?? existingSession.authMethodId,
-          authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? existingSession.authMethodOwnerId,
+          authMethodOwnerId:
+            options.authMethod?.authMethodOwnerId ?? existingSession.authMethodOwnerId,
           operatedByUserId: operatedByUserId ?? existingSession.operatedByUserId,
           applicationId: application ? application.applicationId : existingSession.applicationId,
           clientId: application ? application.clientId : existingSession.clientId,
@@ -758,7 +800,7 @@ class SessionService {
         // claim addresses the caller's real device — the room the client's
         // SessionClient joins and where cross-domain broadcasts land.
         const { accessToken, refreshToken } = generateSessionTokens(
-          tokenBindingFromRow({ sessionId, userId, ...reusedBinding }, deviceInfo.deviceId)
+          tokenBindingFromRow({ sessionId, userId, ...reusedBinding }, deviceInfo.deviceId),
         );
 
         // Migrate a reused session onto the caller's central device when an
@@ -769,9 +811,8 @@ class SessionService {
         // cross-domain broadcasts. No explicit deviceId ⇒ no hop (UA/IP/random
         // fallbacks must never move a session).
         const previousDeviceId = existingSession.deviceId;
-        const migrateToDeviceId = explicitDeviceId && previousDeviceId !== explicitDeviceId
-          ? explicitDeviceId
-          : null;
+        const migrateToDeviceId =
+          explicitDeviceId && previousDeviceId !== explicitDeviceId ? explicitDeviceId : null;
 
         const [updated] = await db
           .update(sessions)
@@ -828,17 +869,20 @@ class SessionService {
               const detached = await deviceSessionService.detachMigratedAccount(
                 previousDeviceId,
                 userId,
-                sessionId
+                sessionId,
               );
               if (detached) broadcastDeviceState(detached);
             } catch (error) {
-              logger.warn('[SessionService] Failed to detach migrated account from old device doc', {
-                component: 'SessionService',
-                method: 'createSession',
-                userId,
-                fromDeviceId: previousDeviceId.substring(0, 8),
-                error: error instanceof Error ? error.message : String(error),
-              });
+              logger.warn(
+                '[SessionService] Failed to detach migrated account from old device doc',
+                {
+                  component: 'SessionService',
+                  method: 'createSession',
+                  userId,
+                  fromDeviceId: previousDeviceId.substring(0, 8),
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              );
             }
           }
           return updated;
@@ -868,7 +912,7 @@ class SessionService {
         deviceContextId: deviceContext?.deviceContextId ?? null,
       };
       const { accessToken, refreshToken } = generateSessionTokens(
-        tokenBindingFromRow({ sessionId, userId, ...newBinding }, deviceInfo.deviceId)
+        tokenBindingFromRow({ sessionId, userId, ...newBinding }, deviceInfo.deviceId),
       );
 
       // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
@@ -905,7 +949,7 @@ class SessionService {
             userId,
             deviceInfo.deviceId,
             deviceInfo.deviceName || 'Unknown Device',
-            req
+            req,
           );
         } catch (error) {
           // Don't fail session creation if logging fails
@@ -915,21 +959,25 @@ class SessionService {
 
       return session;
     } catch (error) {
-      logger.error('[SessionService] Failed to create session', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'createSession',
-        userId,
-      });
+      logger.error(
+        '[SessionService] Failed to create session',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'createSession',
+          userId,
+        },
+      );
       throw error;
     }
   }
 
   /**
    * Refresh session tokens
-   * 
+   *
    * Security-optimized: Always bypasses cache to ensure fresh token validation.
    * Invalidates old cache entry and caches new tokens after successful refresh.
-   * 
+   *
    * @param refreshToken - The refresh token to validate and use for token refresh
    * @returns New access and refresh tokens with session, or null if refresh fails
    */
@@ -952,8 +1000,8 @@ class SessionService {
             eq(sessions.sessionId, sessionId),
             eq(sessions.refreshToken, refreshToken),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .limit(1);
 
@@ -974,8 +1022,8 @@ class SessionService {
               eq(sessions.previousRefreshToken, refreshToken),
               gte(sessions.tokenRotatedAt, graceWindowStart),
               eq(sessions.isActive, true),
-              gt(sessions.expiresAt, now)
-            )
+              gt(sessions.expiresAt, now),
+            ),
           )
           .limit(1);
 
@@ -999,7 +1047,7 @@ class SessionService {
           return {
             accessToken: graceSession.accessToken,
             refreshToken: graceSession.refreshToken,
-            session: graceSession
+            session: graceSession,
           };
         }
 
@@ -1046,9 +1094,7 @@ class SessionService {
           // here alongside the token rotation so it is a single write.
           expiresAt: new Date(now.getTime() + SESSION_EXPIRES_IN),
         })
-        .where(
-          and(eq(sessions.id, session.id), eq(sessions.refreshToken, session.refreshToken))
-        )
+        .where(and(eq(sessions.id, session.id), eq(sessions.refreshToken, session.refreshToken)))
         .returning(SESSION_COLUMNS);
 
       if (!rotated) {
@@ -1063,23 +1109,27 @@ class SessionService {
       return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        session: rotated
+        session: rotated,
       };
     } catch (error) {
-      logger.error('[SessionService] Failed to refresh tokens', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'refreshTokens',
-      });
+      logger.error(
+        '[SessionService] Failed to refresh tokens',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'refreshTokens',
+        },
+      );
       return null;
     }
   }
 
   /**
    * Deactivate a session
-   * 
+   *
    * Consistent error handling: Returns false on error (non-throwing pattern)
    * for operations that should gracefully degrade.
-   * 
+   *
    * @param sessionId - The session ID to deactivate
    * @returns true if session was deactivated, false otherwise
    */
@@ -1094,8 +1144,13 @@ class SessionService {
       const deactivated = await getDb()
         .update(sessions)
         .set({ isActive: false })
-        .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true),
-          ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : [])))
+        .where(
+          and(
+            eq(sessions.sessionId, sessionId),
+            eq(sessions.isActive, true),
+            ...(options ? [sql`xmin::text = ${options.expectedXmin}`] : []),
+          ),
+        )
         .returning({ id: sessions.id });
 
       if (options && deactivated.length !== 1) {
@@ -1109,11 +1164,15 @@ class SessionService {
       logger.info('[SessionService] Deactivated session', { sessionId: sessionId.substring(0, 8) });
       return deactivated.length > 0;
     } catch (error) {
-      logger.error('[SessionService] Failed to deactivate session', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'deactivateSession',
-        sessionId,
-      });
+      logger.error(
+        '[SessionService] Failed to deactivate session',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'deactivateSession',
+          sessionId,
+        },
+      );
       // Administrative CAS must never confuse an unsuccessful write with retirement.
       // Ordinary callers retain their existing non-throwing contract.
       if (options) throw error;
@@ -1124,10 +1183,10 @@ class SessionService {
 
   /**
    * Deactivate all sessions for a user
-   * 
+   *
    * Consistent error handling: Returns 0 on error (non-throwing pattern)
    * for operations that should gracefully degrade.
-   * 
+   *
    * @param userId - The user ID whose sessions should be deactivated
    * @param excludeSessionId - Optional session ID to exclude from deactivation
    * @returns Number of sessions deactivated (0 on error)
@@ -1141,22 +1200,29 @@ class SessionService {
           and(
             eq(sessions.userId, userId),
             eq(sessions.isActive, true),
-            ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : [])
-          )
+            ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : []),
+          ),
         )
         .returning({ id: sessions.id });
 
       // Invalidate all cached sessions for this user
       sessionCache.invalidateUserSessions(userId);
 
-      logger.info('[SessionService] Deactivated sessions for user', { count: deactivated.length, userId });
-      return deactivated.length;
-    } catch (error) {
-      logger.error('[SessionService] Failed to deactivate all user sessions', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'deactivateAllUserSessions',
+      logger.info('[SessionService] Deactivated sessions for user', {
+        count: deactivated.length,
         userId,
       });
+      return deactivated.length;
+    } catch (error) {
+      logger.error(
+        '[SessionService] Failed to deactivate all user sessions',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'deactivateAllUserSessions',
+          userId,
+        },
+      );
       // Return 0 on error for graceful degradation - consistent error handling pattern
       return 0;
     }
@@ -1164,10 +1230,10 @@ class SessionService {
 
   /**
    * Get all active sessions for a user
-   * 
+   *
    * Consistent error handling: Returns empty array on error (non-throwing pattern)
    * for operations that should gracefully degrade.
-   * 
+   *
    * @param userId - The user ID to get sessions for
    * @returns Array of active sessions (empty array on error)
    */
@@ -1181,19 +1247,23 @@ class SessionService {
           and(
             eq(sessions.userId, userId),
             eq(sessions.isActive, true),
-            gt(sessions.expiresAt, new Date())
-          )
+            gt(sessions.expiresAt, new Date()),
+          ),
         )
         .orderBy(
           desc(sessions.lastActiveAt), // Most recent first
-          asc(sessions.sessionId) // Secondary sort for stability
+          asc(sessions.sessionId), // Secondary sort for stability
         );
     } catch (error) {
-      logger.error('[SessionService] Failed to get user active sessions', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'getUserActiveSessions',
-        userId,
-      });
+      logger.error(
+        '[SessionService] Failed to get user active sessions',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'getUserActiveSessions',
+          userId,
+        },
+      );
       // Return empty array on error for graceful degradation - consistent error handling pattern
       return [];
     }
@@ -1201,18 +1271,18 @@ class SessionService {
 
   /**
    * Validate session and get user by sessionId (for direct sessionId lookups)
-   * 
+   *
    * Consistent error handling: Returns null on error (non-throwing pattern)
    * for operations that should gracefully degrade.
-   * 
+   *
    * @param sessionId - The session ID to validate
    * @param populateUser - Whether to populate user data (default: true)
    * @returns Session and optional user, or null if not found or error
    */
   async validateSessionById(
-    sessionId: string, 
+    sessionId: string,
     populateUser = true,
-    options: { useCache?: boolean } = {}
+    options: { useCache?: boolean } = {},
   ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
     // `useCache: false` is for authority decisions that must observe a sign-out
     // or revocation made on another task inside the cache TTL (ADR 0025).
@@ -1220,7 +1290,10 @@ class SessionService {
     try {
       if (populateUser) {
         const result = await this.getSessionWithUser(sessionId, { useCache });
-        if (result && !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))) {
+        if (
+          result &&
+          !(await this.ensureManagedSessionAuthorized(result.session, { force: !useCache }))
+        ) {
           return null;
         }
         return result;
@@ -1238,11 +1311,15 @@ class SessionService {
 
       return { session };
     } catch (error) {
-      logger.error('[SessionService] Failed to validate session by ID', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'validateSessionById',
-        sessionId,
-      });
+      logger.error(
+        '[SessionService] Failed to validate session by ID',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'validateSessionById',
+          sessionId,
+        },
+      );
       // Return null on error for graceful degradation - consistent error handling pattern
       return null;
     }
@@ -1250,14 +1327,16 @@ class SessionService {
 
   /**
    * Get access token by session ID (with auto-refresh if expired)
-   * 
+   *
    * Consistent error handling: Returns null on error (non-throwing pattern)
    * for operations that should gracefully degrade.
-   * 
+   *
    * @param sessionId - The session ID to get access token for
    * @returns Access token and expiration date, or null if not found or error
    */
-  async getAccessToken(sessionId: string): Promise<{ accessToken: string; expiresAt: Date } | null> {
+  async getAccessToken(
+    sessionId: string,
+  ): Promise<{ accessToken: string; expiresAt: Date } | null> {
     try {
       // The ROW, never a cached copy — the same rule `refreshTokens` states for
       // itself, and for the same reason: this is the seam that hands out a
@@ -1314,7 +1393,10 @@ class SessionService {
 
       // Check if access token is expired
       try {
-        const decoded = jwt.verify(session.accessToken, process.env.ACCESS_TOKEN_SECRET!) as jwt.JwtPayload;
+        const decoded = jwt.verify(
+          session.accessToken,
+          process.env.ACCESS_TOKEN_SECRET!,
+        ) as jwt.JwtPayload;
         const currentTime = Math.floor(Date.now() / 1000);
 
         if (decoded.exp && decoded.exp - currentTime < MINT_ROTATES_WITHIN_SECONDS) {
@@ -1323,10 +1405,10 @@ class SessionService {
           if (!refreshResult) {
             return null;
           }
-          
+
           return {
             accessToken: refreshResult.accessToken,
-            expiresAt: refreshResult.session.expiresAt
+            expiresAt: refreshResult.session.expiresAt,
           };
         }
       } catch (tokenError) {
@@ -1335,10 +1417,10 @@ class SessionService {
         if (!refreshResult) {
           return null;
         }
-        
+
         return {
           accessToken: refreshResult.accessToken,
-          expiresAt: refreshResult.session.expiresAt
+          expiresAt: refreshResult.session.expiresAt,
         };
       }
 
@@ -1376,14 +1458,18 @@ class SessionService {
 
       return {
         accessToken: session.accessToken,
-        expiresAt: session.expiresAt
+        expiresAt: session.expiresAt,
       };
     } catch (error) {
-      logger.error('[SessionService] Failed to get access token', error instanceof Error ? error : new Error(String(error)), {
-        component: 'SessionService',
-        method: 'getAccessToken',
-        sessionId,
-      });
+      logger.error(
+        '[SessionService] Failed to get access token',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'SessionService',
+          method: 'getAccessToken',
+          sessionId,
+        },
+      );
       // Return null on error for graceful degradation - consistent error handling pattern
       return null;
     }
@@ -1393,4 +1479,3 @@ class SessionService {
 // Export singleton instance
 const sessionService = new SessionService();
 export default sessionService;
-

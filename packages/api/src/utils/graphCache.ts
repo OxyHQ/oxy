@@ -74,10 +74,24 @@ async function get(viewerId: string): Promise<ViewerGraph | null> {
     // Virtual source equivalence can change (including expiring) without a local
     // graph mutation. External-containing snapshots must be recomputed on every
     // instance, so a stale cache never becomes an authorization shortcut.
-    const ids = [viewerId, ...parsed.followingIds, ...parsed.mutualIds, ...parsed.blockedIds, ...parsed.restrictedIds];
-    const [external] = await getDb().select({ id: externalIdentities.userId }).from(externalIdentities).where(inArray(externalIdentities.userId, ids)).limit(1);
+    const ids = [
+      viewerId,
+      ...parsed.followingIds,
+      ...parsed.mutualIds,
+      ...parsed.blockedIds,
+      ...parsed.restrictedIds,
+    ];
+    const [external] = await getDb()
+      .select({ id: externalIdentities.userId })
+      .from(externalIdentities)
+      .where(inArray(externalIdentities.userId, ids))
+      .limit(1);
     if (external) return null;
-    const [redirect] = await getDb().select({ id: canonicalUserRedirects.userId }).from(canonicalUserRedirects).where(inArray(canonicalUserRedirects.userId, ids)).limit(1);
+    const [redirect] = await getDb()
+      .select({ id: canonicalUserRedirects.userId })
+      .from(canonicalUserRedirects)
+      .where(inArray(canonicalUserRedirects.userId, ids))
+      .limit(1);
     return redirect ? null : parsed;
   } catch (error) {
     logger.warn('[graphCache] Redis read failed, recomputing from source', {
@@ -96,7 +110,7 @@ async function get(viewerId: string): Promise<ViewerGraph | null> {
 async function set(
   viewerId: string,
   graph: ViewerGraph,
-  ttlSeconds: number = GRAPH_CACHE_TTL_SECONDS
+  ttlSeconds: number = GRAPH_CACHE_TTL_SECONDS,
 ): Promise<void> {
   if (!viewerId) return;
 

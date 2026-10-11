@@ -52,14 +52,12 @@ jest.mock('@/hooks/identity/identityStore', () => {
 });
 
 // Imported AFTER jest.mock so the hook sees the patched modules.
-// eslint-disable-next-line import/first
 import {
   useOnboardingStatus,
   ONBOARDING_IDENTITY_QUERY_KEY,
   ONBOARDING_COMPLETE_QUERY_KEY,
   getOnboardingResumeHref,
 } from '@/hooks/useOnboardingStatus';
-// eslint-disable-next-line import/first
 import { persistOnboardingComplete } from '@/hooks/identity/identityStore';
 
 const PRESENT: IdentityStatus = { state: 'present', publicKey: 'pub-abc' };
@@ -186,9 +184,10 @@ describe('useOnboardingStatus', () => {
   it('starts "checking" until the identity probe resolves', async () => {
     let releaseProbe: (value: IdentityStatus) => void = () => undefined;
     getIdentityStatusMock.mockImplementation(
-      () => new Promise<IdentityStatus>((resolve) => {
-        releaseProbe = resolve;
-      }),
+      () =>
+        new Promise<IdentityStatus>((resolve) => {
+          releaseProbe = resolve;
+        }),
     );
     const { result } = renderHook(() => useOnboardingStatus(), { wrapper: createWrapper() });
     expect(result.current.status).toBe('checking');

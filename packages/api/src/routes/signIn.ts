@@ -53,7 +53,11 @@ import {
 import { clearFailures, reserveAttempt } from '../services/loginLockout.service';
 import { readPasswordHash, verifyPasswordOrDummy } from '../services/password.service';
 import { PASSWORD_LOCKOUT_SCOPE, identifierLockoutKey } from '../services/reauth.service';
-import { completeFirstFactor, completeSecondFactor, mintSignInSession } from '../services/signInSession.service';
+import {
+  completeFirstFactor,
+  completeSecondFactor,
+  mintSignInSession,
+} from '../services/signInSession.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, ConflictError } from '../utils/error';
 import { hashedIpKey } from '../utils/ipKey';
@@ -87,7 +91,11 @@ const signupLimiter = ipLimiter('signup', HOUR, 10);
 const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
 const EMAIL_UNIQUE_CONSTRAINT = 'users_lower_email_key';
 
-function envelopeOf(body: { deviceName?: string; deviceFingerprint?: string; device?: { deviceId: string; deviceSecret: string } }) {
+function envelopeOf(body: {
+  deviceName?: string;
+  deviceFingerprint?: string;
+  device?: { deviceId: string; deviceSecret: string };
+}) {
   return {
     ...(body.deviceName ? { deviceName: body.deviceName } : {}),
     ...(body.deviceFingerprint ? { deviceFingerprint: body.deviceFingerprint } : {}),
@@ -101,7 +109,9 @@ router.post(
   startLimiter,
   validate({ body: emailSignInStartRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
-    res.status(200).json(await startEmailSignIn(req.body as EmailSignInStartRequest, hashedIpKey(req)));
+    res
+      .status(200)
+      .json(await startEmailSignIn(req.body as EmailSignInStartRequest, hashedIpKey(req)));
   }),
 );
 
@@ -167,11 +177,18 @@ async function passwordAccount(identifier: string): Promise<string | null> {
     ? sql`lower(btrim(${users.email})) = ${lookup}`
     : sql`lower(btrim(${users.username})) = ${lookup}`;
   const [row] = await getDb()
-    .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus, publicKey: users.publicKey })
+    .select({
+      id: users.id,
+      kind: users.kind,
+      accountStatus: users.accountStatus,
+      publicKey: users.publicKey,
+    })
     .from(users)
     .where(match)
     .limit(1);
-  return row && row.kind === 'personal' && row.accountStatus === 'active' && !row.publicKey ? row.id : null;
+  return row && row.kind === 'personal' && row.accountStatus === 'active' && !row.publicKey
+    ? row.id
+    : null;
 }
 
 router.post(
@@ -196,7 +213,11 @@ router.post(
     const stored = await readPasswordHash(userId ?? '00000000-0000-0000-0000-000000000000');
     const ok = await verifyPasswordOrDummy(body.password, userId ? stored : null);
     if (!ok || !userId) {
-      throw new ApiError(401, 'That username, email or password is not right.', SIGN_IN_ERROR_CODES.invalidCredentials);
+      throw new ApiError(
+        401,
+        'That username, email or password is not right.',
+        SIGN_IN_ERROR_CODES.invalidCredentials,
+      );
     }
     await clearFailures({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
     res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body)));
@@ -210,7 +231,13 @@ router.post(
   validate({ body: secondFactorSignInRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as SecondFactorSignInRequest;
-    res.status(200).json(await completeSecondFactor(req, { challengeId: body.challengeId, code: body.code, ...envelopeOf(body) }));
+    res.status(200).json(
+      await completeSecondFactor(req, {
+        challengeId: body.challengeId,
+        code: body.code,
+        ...envelopeOf(body),
+      }),
+    );
   }),
 );
 
@@ -269,10 +296,14 @@ router.post(
         read: false,
       });
     } catch (error) {
-      logger.error('Failed to create welcome notification during sign-up', error instanceof Error ? error : new Error(String(error)), {
-        component: 'signIn',
-        userId: account.id,
-      });
+      logger.error(
+        'Failed to create welcome notification during sign-up',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'signIn',
+          userId: account.id,
+        },
+      );
     }
 
     res.status(200).json(await mintSignInSession(req, account, envelopeOf(body)));

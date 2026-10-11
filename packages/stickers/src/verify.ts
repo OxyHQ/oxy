@@ -23,7 +23,9 @@ function toHex(buffer: ArrayBuffer): string {
 export const webCryptoSha256: Sha256Hex = async (bytes) => {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
-    throw new Error('crypto.subtle is unavailable here; pass a sha256 implementation to verifyStickerBytes');
+    throw new Error(
+      'crypto.subtle is unavailable here; pass a sha256 implementation to verifyStickerBytes',
+    );
   }
   const copy = new Uint8Array(bytes);
   return toHex(await subtle.digest('SHA-256', copy.buffer));
@@ -33,7 +35,7 @@ export const webCryptoSha256: Sha256Hex = async (bytes) => {
 export async function verifyStickerBytes(
   ref: Pick<StickerRef, 'sha256'>,
   bytes: Uint8Array,
-  sha256: Sha256Hex = webCryptoSha256
+  sha256: Sha256Hex = webCryptoSha256,
 ): Promise<boolean> {
   return (await sha256(bytes)) === ref.sha256;
 }

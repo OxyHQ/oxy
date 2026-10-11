@@ -89,7 +89,7 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
 
           {state === 'error' && (
             <View style={styles.qrState}>
-              <Icons.alert size='2xl' fill={colors.error} />
+              <Icons.alert size="2xl" fill={colors.error} />
               <Text style={[styles.qrStateText, { color: colors.text }]}>
                 {t('civic.attest.request.buildError')}
               </Text>
@@ -104,7 +104,7 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
 
           {state === 'ready' && expired && (
             <View style={styles.qrState}>
-              <Icons.expired size='2xl' fill={colors.textSecondary} />
+              <Icons.expired size="2xl" fill={colors.textSecondary} />
               <Text style={[styles.qrStateText, { color: colors.textSecondary }]}>
                 {t('civic.attest.request.expired')}
               </Text>
@@ -113,13 +113,18 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
         </View>
 
         {state === 'ready' && !expired && (
-          <Badge appearance="subtle" tone="warning" size="label-small" icon={Icons.expired} content={t('civic.attest.request.expiresIn', { time: mmss })} />
+          <Badge
+            appearance="subtle"
+            tone="warning"
+            size="label-small"
+            icon={Icons.expired}
+            content={t('civic.attest.request.expiresIn', { time: mmss })}
+          />
         )}
 
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
           {t('civic.attest.request.hint')}
         </Text>
-
       </View>
     </Dialog>
   );

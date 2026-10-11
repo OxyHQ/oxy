@@ -4,7 +4,12 @@ import { EmptyState } from '@oxy.so/bloom/empty-state';
 import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecoveryResult } from '@oxy.so/core/crypto';
+import {
+  KeyManager,
+  readIdentityMarker,
+  type IdentityMarker,
+  type IdentityRecoveryResult,
+} from '@oxy.so/core/crypto';
 import { alert } from '@oxy.so/bloom/surfaces';
 import { toast } from '@oxy.so/bloom/toast';
 import { useColors } from '@/hooks/useColors';
@@ -109,10 +114,7 @@ export default function RecoverIdentityScreen() {
               // The user just confirmed the destructive reset, so skip backup
               // and force-purge every generation, recovery slot and marker.
               await KeyManager.deleteIdentity(true, true, true);
-              await Promise.all([
-                persistOnboardingComplete(false),
-                persistOnboardingFlow(null),
-              ]);
+              await Promise.all([persistOnboardingComplete(false), persistOnboardingFlow(null)]);
 
               // Do not retain the lost marker or the old wizard choice in the
               // screen/query caches after storage has become genuinely blank.
@@ -175,10 +177,20 @@ export default function RecoverIdentityScreen() {
         })}
         footer={
           <View style={styles.actions}>
-            <Button appearance="solid" tone="accent" onPress={handleEnterPhrase} style={styles.action}>
+            <Button
+              appearance="solid"
+              tone="accent"
+              onPress={handleEnterPhrase}
+              style={styles.action}
+            >
               {t('recovery.enterPhrase')}
             </Button>
-            <Button appearance="outline" tone="neutral" onPress={handleStartOver} style={styles.action}>
+            <Button
+              appearance="outline"
+              tone="neutral"
+              onPress={handleStartOver}
+              style={styles.action}
+            >
               {t('recovery.startOver')}
             </Button>
           </View>

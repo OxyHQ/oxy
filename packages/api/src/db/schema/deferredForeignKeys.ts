@@ -1,4 +1,9 @@
-import { billingCreditInvoices, billingCreditGrants, billingCreditSpends, billingCreditRefundObservations } from './billingCreditGrants';
+import {
+  billingCreditInvoices,
+  billingCreditGrants,
+  billingCreditSpends,
+  billingCreditRefundObservations,
+} from './billingCreditGrants';
 import { accessSubscriptionSources } from './productAccess';
 import { accessProviderPeriods, accessProviderEvents } from './productProviderEvidence';
 import { accessProviderRefunds } from './productProviderRefunds';
@@ -7,7 +12,10 @@ import { storageByteReservations } from './storageByteReservations';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
-import { externalIdentityInstagramPins, externalIdentityMetaProofs } from './externalIdentityMetaProofs';
+import {
+  externalIdentityInstagramPins,
+  externalIdentityMetaProofs,
+} from './externalIdentityMetaProofs';
 /**
  * Foreign Keys This Schema Cannot Declare Yet
  *
@@ -122,51 +130,210 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.requesterSessionId,
-    reason: 'Historical foreground approval handle. Session expiry cleanup must not cascade authorization/audit history; issuance and introspection require its live existence and exact binding digest.',
+    reason:
+      'Historical foreground approval handle. Session expiry cleanup must not cascade authorization/audit history; issuance and introspection require its live existence and exact binding digest.',
   },
-  { table: billingCreditInvoices, column: billingCreditInvoices.invoiceId, reason: 'Opaque provider invoice, keyed by verified processor account/mode/environment binding; no local provider invoice table.' },
-  { table: billingCreditGrants, column: billingCreditGrants.subscriptionId, reason: 'Opaque subscription identity owned by the bound provider, not the local subscription mirror primary key.' },
-  { table: billingCreditGrants, column: billingCreditGrants.promotionId, reason: 'Explicit versioned promotion registry identifier, not a database identity.' },
-  { table: billingCreditGrants, column: billingCreditGrants.oncePerAccountPromotionId, reason: 'Same versioned registry identifier used solely to enforce once-per-account policy.' },
-  { table: billingCreditSpends, column: billingCreditSpends.operationId, reason: 'Stable internal deduction intent supplied by an authorized backend caller, not a database row.' },
-  { table: billingCreditRefundObservations, column: billingCreditRefundObservations.eventId, reason: 'Opaque provider delivery ID scoped to its verified processor binding.' },
-  { table: billingCreditRefundObservations, column: billingCreditRefundObservations.chargeId, reason: 'Opaque provider charge identity verified against the associated invoice payment.' },
-  { table: billingTransactions, column: billingTransactions.promotionId, reason: 'Versioned promotion registry provenance, not a local record identifier.' },
-  { table: accessSubscriptionSources, column: accessSubscriptionSources.providerSubscriptionId, reason: 'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.' },
-  { table: accessProviderPeriods, column: accessProviderPeriods.invoiceId, reason: 'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.' },
-  { table: accessProviderPeriods, column: accessProviderPeriods.lineId, reason: 'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.' },
-  { table: accessProviderPeriods, column: accessProviderPeriods.priceId, reason: 'Explicit opaque provider price in the normalized immutable paid-line evidence; not a local catalogue row.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.invoiceId, reason: 'Opaque Peable invoice owned by the bound provider/account/mode/environment; no local provider invoice table.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.lineId, reason: 'Opaque Peable invoice line, unique only with its invoice and provider binding; no local provider-line table.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.priceId, reason: 'Opaque provider price observed on the refunded line; not a local catalogue row.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.paymentIntentId, reason: 'Opaque Peable payment intent identity of the refunded charge; no local payment-intent table.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.chargeId, reason: 'Opaque Peable charge identity verified against the refunded invoice payment; no local charge table.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.providerSubscriptionId, reason: 'Opaque Peable subscription identity, not the local access_subscription_sources primary key.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.sourceId, reason: 'Deterministic ID of the source the refunded line WOULD activate. A full refund may precede activation and must fence it, so the row cannot reference a source that does not exist yet.' },
-  { table: accessProviderRefunds, column: accessProviderRefunds.segmentId, reason: 'Deterministic ID of the paid segment the refund fences. Recorded before activation, so recordProductAccessPeriod refuses to create that segment later; an FK would forbid the fence.' },
-  { table: personalPlanCheckoutIntents, column: personalPlanCheckoutIntents.priceId, reason: 'Opaque provider price frozen at reservation; the approved price columns keep it after the catalogue changes. Not a local catalogue row.' },
-  { table: personalPlanCheckoutIntents, column: personalPlanCheckoutIntents.providerSessionId, reason: 'Opaque Peable checkout session identity used for terminal observation replay; no local provider-session table.' },
-  { table: storageByteReservations, column: storageByteReservations.accountId, reason: 'Durable byte claim that must outlive the owning account: deleting the users row must not drop the claim before its storage objects are cleaned up and the quota hold released.' },
-  { table: accessProviderEvents, column: accessProviderEvents.eventId, reason: 'Opaque provider delivery ID, deduplicated only within provider/account/mode/environment; no local provider-event table exists.' },
-  { table: accountEvents, column: accountEvents.userId,
-    reason: 'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.' },
-  { table: storageObjectDeletions, column: storageObjectDeletions.accountId,
-    reason: 'The DELETED account whose uploads are owed a storage delete. On a hard delete its `users` row is gone before the worker runs; a foreign key could only CASCADE the to-do list away with the account or RESTRICT the deletion. Completed rows are swept after `STORAGE_OBJECT_DELETION_RETENTION_SECONDS`.' },
-  { table: inferenceCatalogueBlocklist, column: inferenceCatalogueBlocklist.modelId,
-    reason: 'A model LINE, `<publisher>/<model>`, not a row id — same kind of value as `inference_route_switch_events.requested_model_id`. A block must be able to name a line before the sync has ever written it, and survive the line being retired; `inference_models.model_id` is GENERATED and carries no unique constraint to target. Grammar is enforced by `MODEL_ID_CHECK_PATTERN`.' },
-  { table: federatedAccountMoves, column: federatedAccountMoves.activityId,
-    reason: 'The ActivityPub `id` of a remote Move activity (an IRI on the moving server), kept as the idempotency key; not an Oxy row reference.' },
-  { table: mastodonAppRegistrations, column: mastodonAppRegistrations.clientId,
-    reason: "Oxy's OAuth `client_id` AT A REMOTE Mastodon-API instance, issued by that instance's `POST /api/v1/apps`; a foreign system's identifier, not an Oxy row reference." },
-  { table: identityLinkRequests, column: identityLinkRequests.linkId,
-    reason: 'Random 128-bit capability minted by the Commons link relay itself and carried in the QR; the public handle of this row, not a reference to any other row.' },
-  { table: externalIdentityMetaProofs, column: externalIdentityMetaProofs.instagramGraphId,
-    reason: 'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.' },
-  { table: externalIdentityInstagramPins, column: externalIdentityInstagramPins.instagramGraphId,
-    reason: 'Instagram first-party profile graph-ID observed with the immutable Instagram pk and source document provenance; an upstream owner identifier, not an Oxy row reference.' },
-  { table: externalIdentities, column: externalIdentities.stableId, reason: 'Source-network immutable subject, not an Oxy row id.' },
-  { table: externalIdentityClaims, column: externalIdentityClaims.sourceStableId, reason: 'Verified source-network subject snapshot; retained as claim evidence.' },
-  { table: externalIdentityClaims, column: externalIdentityClaims.targetStableId, reason: 'Verified counterpart source-network subject snapshot; retained as claim evidence.' },
+  {
+    table: billingCreditInvoices,
+    column: billingCreditInvoices.invoiceId,
+    reason:
+      'Opaque provider invoice, keyed by verified processor account/mode/environment binding; no local provider invoice table.',
+  },
+  {
+    table: billingCreditGrants,
+    column: billingCreditGrants.subscriptionId,
+    reason:
+      'Opaque subscription identity owned by the bound provider, not the local subscription mirror primary key.',
+  },
+  {
+    table: billingCreditGrants,
+    column: billingCreditGrants.promotionId,
+    reason: 'Explicit versioned promotion registry identifier, not a database identity.',
+  },
+  {
+    table: billingCreditGrants,
+    column: billingCreditGrants.oncePerAccountPromotionId,
+    reason: 'Same versioned registry identifier used solely to enforce once-per-account policy.',
+  },
+  {
+    table: billingCreditSpends,
+    column: billingCreditSpends.operationId,
+    reason:
+      'Stable internal deduction intent supplied by an authorized backend caller, not a database row.',
+  },
+  {
+    table: billingCreditRefundObservations,
+    column: billingCreditRefundObservations.eventId,
+    reason: 'Opaque provider delivery ID scoped to its verified processor binding.',
+  },
+  {
+    table: billingCreditRefundObservations,
+    column: billingCreditRefundObservations.chargeId,
+    reason: 'Opaque provider charge identity verified against the associated invoice payment.',
+  },
+  {
+    table: billingTransactions,
+    column: billingTransactions.promotionId,
+    reason: 'Versioned promotion registry provenance, not a local record identifier.',
+  },
+  {
+    table: accessSubscriptionSources,
+    column: accessSubscriptionSources.providerSubscriptionId,
+    reason:
+      'Opaque subscription ID owned by Stripe or Peable; no local provider-subscription table exists.',
+  },
+  {
+    table: accessProviderPeriods,
+    column: accessProviderPeriods.invoiceId,
+    reason:
+      'Opaque invoice identity owned by the explicitly bound provider/account/mode/environment; not a local billing invoice ID.',
+  },
+  {
+    table: accessProviderPeriods,
+    column: accessProviderPeriods.lineId,
+    reason:
+      'Opaque recurring invoice line owned by the provider, combined with its invoice and provider binding; no local provider-line table exists.',
+  },
+  {
+    table: accessProviderPeriods,
+    column: accessProviderPeriods.priceId,
+    reason:
+      'Explicit opaque provider price in the normalized immutable paid-line evidence; not a local catalogue row.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.invoiceId,
+    reason:
+      'Opaque Peable invoice owned by the bound provider/account/mode/environment; no local provider invoice table.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.lineId,
+    reason:
+      'Opaque Peable invoice line, unique only with its invoice and provider binding; no local provider-line table.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.priceId,
+    reason: 'Opaque provider price observed on the refunded line; not a local catalogue row.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.paymentIntentId,
+    reason:
+      'Opaque Peable payment intent identity of the refunded charge; no local payment-intent table.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.chargeId,
+    reason:
+      'Opaque Peable charge identity verified against the refunded invoice payment; no local charge table.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.providerSubscriptionId,
+    reason:
+      'Opaque Peable subscription identity, not the local access_subscription_sources primary key.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.sourceId,
+    reason:
+      'Deterministic ID of the source the refunded line WOULD activate. A full refund may precede activation and must fence it, so the row cannot reference a source that does not exist yet.',
+  },
+  {
+    table: accessProviderRefunds,
+    column: accessProviderRefunds.segmentId,
+    reason:
+      'Deterministic ID of the paid segment the refund fences. Recorded before activation, so recordProductAccessPeriod refuses to create that segment later; an FK would forbid the fence.',
+  },
+  {
+    table: personalPlanCheckoutIntents,
+    column: personalPlanCheckoutIntents.priceId,
+    reason:
+      'Opaque provider price frozen at reservation; the approved price columns keep it after the catalogue changes. Not a local catalogue row.',
+  },
+  {
+    table: personalPlanCheckoutIntents,
+    column: personalPlanCheckoutIntents.providerSessionId,
+    reason:
+      'Opaque Peable checkout session identity used for terminal observation replay; no local provider-session table.',
+  },
+  {
+    table: storageByteReservations,
+    column: storageByteReservations.accountId,
+    reason:
+      'Durable byte claim that must outlive the owning account: deleting the users row must not drop the claim before its storage objects are cleaned up and the quota hold released.',
+  },
+  {
+    table: accessProviderEvents,
+    column: accessProviderEvents.eventId,
+    reason:
+      'Opaque provider delivery ID, deduplicated only within provider/account/mode/environment; no local provider-event table exists.',
+  },
+  {
+    table: accountEvents,
+    column: accountEvents.userId,
+    reason:
+      'The DELETED account the event announces. Its `users` row is gone (or archived) by the time relying parties read this, which is the point of the event; a foreign key could only CASCADE the announcement away with the account or RESTRICT the deletion. Swept after `ACCOUNT_EVENT_RETENTION_SECONDS`.',
+  },
+  {
+    table: storageObjectDeletions,
+    column: storageObjectDeletions.accountId,
+    reason:
+      'The DELETED account whose uploads are owed a storage delete. On a hard delete its `users` row is gone before the worker runs; a foreign key could only CASCADE the to-do list away with the account or RESTRICT the deletion. Completed rows are swept after `STORAGE_OBJECT_DELETION_RETENTION_SECONDS`.',
+  },
+  {
+    table: inferenceCatalogueBlocklist,
+    column: inferenceCatalogueBlocklist.modelId,
+    reason:
+      'A model LINE, `<publisher>/<model>`, not a row id — same kind of value as `inference_route_switch_events.requested_model_id`. A block must be able to name a line before the sync has ever written it, and survive the line being retired; `inference_models.model_id` is GENERATED and carries no unique constraint to target. Grammar is enforced by `MODEL_ID_CHECK_PATTERN`.',
+  },
+  {
+    table: federatedAccountMoves,
+    column: federatedAccountMoves.activityId,
+    reason:
+      'The ActivityPub `id` of a remote Move activity (an IRI on the moving server), kept as the idempotency key; not an Oxy row reference.',
+  },
+  {
+    table: mastodonAppRegistrations,
+    column: mastodonAppRegistrations.clientId,
+    reason:
+      "Oxy's OAuth `client_id` AT A REMOTE Mastodon-API instance, issued by that instance's `POST /api/v1/apps`; a foreign system's identifier, not an Oxy row reference.",
+  },
+  {
+    table: identityLinkRequests,
+    column: identityLinkRequests.linkId,
+    reason:
+      'Random 128-bit capability minted by the Commons link relay itself and carried in the QR; the public handle of this row, not a reference to any other row.',
+  },
+  {
+    table: externalIdentityMetaProofs,
+    column: externalIdentityMetaProofs.instagramGraphId,
+    reason:
+      'Instagram first-party profile graph-ID namespace, retained with source hashes and parser provenance; distinct from Instagram pk, Threads web pk and ActivityPub actor URI, not an Oxy row reference.',
+  },
+  {
+    table: externalIdentityInstagramPins,
+    column: externalIdentityInstagramPins.instagramGraphId,
+    reason:
+      'Instagram first-party profile graph-ID observed with the immutable Instagram pk and source document provenance; an upstream owner identifier, not an Oxy row reference.',
+  },
+  {
+    table: externalIdentities,
+    column: externalIdentities.stableId,
+    reason: 'Source-network immutable subject, not an Oxy row id.',
+  },
+  {
+    table: externalIdentityClaims,
+    column: externalIdentityClaims.sourceStableId,
+    reason: 'Verified source-network subject snapshot; retained as claim evidence.',
+  },
+  {
+    table: externalIdentityClaims,
+    column: externalIdentityClaims.targetStableId,
+    reason: 'Verified counterpart source-network subject snapshot; retained as claim evidence.',
+  },
 
   {
     table: normalizedAppEventOutbox,
@@ -231,7 +398,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: bookmarks,
     column: bookmarks.postId,
     reason:
-      '`Post` is Mention\'s model in Mention\'s database. There is no local ' +
+      "`Post` is Mention's model in Mention's database. There is no local " +
       'table to reference, and the relation is enforced by neither store today.',
   },
   {
@@ -297,7 +464,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: sessions.clientId,
     reason:
       '(c) The OAuth `client_id` — an `application_credentials.public_key`, ' +
-      'which is that table\'s natural key and not its primary key, so there is ' +
+      "which is that table's natural key and not its primary key, so there is " +
       'nothing for a foreign key to point at. It records WHICH credential ' +
       'obtained this session, and must survive that credential being rotated ' +
       'or revoked: revocation is meant to stop new exchanges, not to erase the ' +
@@ -310,7 +477,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: emailSignInRequests.requesterDeviceId,
     reason:
       '(b) The central DEVICE id space (`device_sessions.device_id`), as the ' +
-      'server resolved it from the requester\'s proof: the link approves only ' +
+      "server resolved it from the requester's proof: the link approves only " +
       'when the same device is proven again. A snapshot, not a reference — the ' +
       'request (15 minutes) must not depend on the device row surviving it.',
   },
@@ -327,7 +494,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: deviceSessions.deviceId,
     reason:
       "(a) The device's own identifier — per web origin, per native app group. " +
-      'It is this row\'s natural key, which is why it is UNIQUE here and a ' +
+      "It is this row's natural key, which is why it is UNIQUE here and a " +
       'loose value everywhere else.',
   },
   {
@@ -432,7 +599,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: transactions,
     column: transactions.itemId,
     reason:
-      'What was purchased, in the CONSUMING application\'s id space. There is ' +
+      "What was purchased, in the CONSUMING application's id space. There is " +
       'no local table to reference, and `item_type` — also free-form — is what ' +
       'names the space it belongs to.',
   },
@@ -470,8 +637,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: billingTransactions,
     column: billingTransactions.stripePaymentIntentId,
-    reason:
-      "Stripe's identifier for the payment intent. Not a row in this database.",
+    reason: "Stripe's identifier for the payment intent. Not a row in this database.",
   },
   {
     table: billingTransactions,
@@ -513,9 +679,9 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: notifications.entityId,
     reason:
       'Polymorphic, discriminated by `entity_type`. Two of the three types ' +
-      '(`post`, `reply`) name rows in MENTION\'s database; the third ' +
+      "(`post`, `reply`) name rows in MENTION's database; the third " +
       '(`profile`) names a user, but a foreign key cannot be conditional on a ' +
-      'sibling column\'s value.',
+      "sibling column's value.",
   },
   {
     table: moderationEffects,
@@ -528,7 +694,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: moderationEffects,
     column: moderationEffects.incidentId,
     reason:
-      'The CROSS-TENANT incident id. The incident is the moderation service\'s ' +
+      "The CROSS-TENANT incident id. The incident is the moderation service's " +
       'own unit and has no table in this database — that is the point of it ' +
       'being cross-tenant.',
   },
@@ -672,7 +838,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: inferenceProviderCredentialValidations.kaanaDeploymentId,
     reason:
       'The protected exact deployment identifier resolved by Kaana for this ' +
-      'credential probe. It belongs to Kaana\'s inventory, not an Oxy row, and ' +
+      "credential probe. It belongs to Kaana's inventory, not an Oxy row, and " +
       'is retained as immutable cross-service evidence rather than dereferenced locally.',
   },
   {
@@ -824,7 +990,8 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   {
     table: inferenceMeteredUsage,
     column: inferenceMeteredUsage.finalAuthorizedDeploymentId,
-    reason: '(f) Same as `inference_metered_usage.admitted_deployment_id`, ' +
+    reason:
+      '(f) Same as `inference_metered_usage.admitted_deployment_id`, ' +
       'snapshotted after final Auto requalification rather than initial admission.',
   },
   {

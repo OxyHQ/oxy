@@ -273,7 +273,6 @@ export interface ApplicationUsageStats {
   byEndpoint: ApplicationUsageByEndpoint[];
 }
 
-
 // ---------------------------------------------------------------------------
 // OAuth consent (connected apps) types
 // ---------------------------------------------------------------------------
@@ -353,7 +352,6 @@ export interface ConnectedMcpClient {
   lastUsedAt: string;
 }
 
-
 /** `oxy.apps.credentials` — an application's OAuth client credentials. */
 export class AppCredentialsApi {
   constructor(private readonly ctx: OxyContext) {}
@@ -379,10 +377,18 @@ export class AppCredentialsApi {
    * @param applicationId - The application's `_id`.
    * @param data - Credential configuration.
    */
-  async create(applicationId: string, data: CreateApplicationCredentialInput): Promise<ApplicationCredentialWithSecret> {
-    const result = await this.ctx.request<ApplicationCredentialWithSecret>('POST', credentialsPath(applicationId), data, {
-      cache: false,
-    });
+  async create(
+    applicationId: string,
+    data: CreateApplicationCredentialInput,
+  ): Promise<ApplicationCredentialWithSecret> {
+    const result = await this.ctx.request<ApplicationCredentialWithSecret>(
+      'POST',
+      credentialsPath(applicationId),
+      data,
+      {
+        cache: false,
+      },
+    );
     this.ctx.oxy.cache.delete(`GET:${credentialsPath(applicationId)}`);
     return result;
   }
@@ -441,7 +447,10 @@ export class ConnectedAppsApi {
    * `GET /auth/grants`, briefly cached; `revoke` busts it.
    */
   async list(): Promise<ConnectedApp[]> {
-    return this.ctx.request<ConnectedApp[]>('GET', '/auth/grants', undefined, { cache: true, cacheTTL: SHORT_TTL });
+    return this.ctx.request<ConnectedApp[]>('GET', '/auth/grants', undefined, {
+      cache: true,
+      cacheTTL: SHORT_TTL,
+    });
   }
 
   /**
@@ -451,22 +460,34 @@ export class ConnectedAppsApi {
    *   `ConnectedApp.applicationId`, NOT a credential/client id).
    */
   async revoke(applicationId: string): Promise<void> {
-    await this.ctx.request<{ revoked: boolean }>('DELETE', `/auth/grants/${applicationId}`, undefined, { cache: false });
+    await this.ctx.request<{ revoked: boolean }>(
+      'DELETE',
+      `/auth/grants/${applicationId}`,
+      undefined,
+      { cache: false },
+    );
     this.ctx.oxy.cache.delete('GET:/auth/grants');
   }
 
   /** Resource-bound external MCP connections for the active Oxy account. */
   async mcpClients(): Promise<ConnectedMcpClient[]> {
-    const res = await this.ctx.request<{ grants: ConnectedMcpClient[] }>('GET', '/auth/mcp/oauth/grants', undefined, {
-      cache: true,
-      cacheTTL: SHORT_TTL,
-    });
+    const res = await this.ctx.request<{ grants: ConnectedMcpClient[] }>(
+      'GET',
+      '/auth/mcp/oauth/grants',
+      undefined,
+      {
+        cache: true,
+        cacheTTL: SHORT_TTL,
+      },
+    );
     return res.grants;
   }
 
   /** Revoke one external MCP connection and every token in its family. */
   async revokeMcpClient(grantId: string): Promise<void> {
-    await this.ctx.request<void>('DELETE', `/auth/mcp/oauth/grants/${enc(grantId)}`, undefined, { cache: false });
+    await this.ctx.request<void>('DELETE', `/auth/mcp/oauth/grants/${enc(grantId)}`, undefined, {
+      cache: false,
+    });
     this.ctx.oxy.cache.delete('GET:/auth/mcp/oauth/grants');
   }
 }
@@ -501,10 +522,15 @@ export class AppsApi {
    * @param applicationId - The application's `_id`.
    */
   async get(applicationId: string): Promise<Application> {
-    const res = await this.ctx.request<{ application: Application }>('GET', appPath(applicationId), undefined, {
-      cache: true,
-      cacheTTL: LONG_TTL,
-    });
+    const res = await this.ctx.request<{ application: Application }>(
+      'GET',
+      appPath(applicationId),
+      undefined,
+      {
+        cache: true,
+        cacheTTL: LONG_TTL,
+      },
+    );
     return res.application;
   }
 
@@ -514,7 +540,12 @@ export class AppsApi {
    *   caller's personal account when omitted. Staff-only fields are ignored.
    */
   async create(data: CreateApplicationInput): Promise<Application> {
-    const res = await this.ctx.request<{ application: Application }>('POST', '/applications', data, { cache: false });
+    const res = await this.ctx.request<{ application: Application }>(
+      'POST',
+      '/applications',
+      data,
+      { cache: false },
+    );
     this.invalidateLists();
     return res.application;
   }
@@ -525,9 +556,14 @@ export class AppsApi {
    * @param data - Subset of updatable fields. Staff-only fields are ignored.
    */
   async update(applicationId: string, data: UpdateApplicationInput): Promise<Application> {
-    const res = await this.ctx.request<{ application: Application }>('PATCH', appPath(applicationId), data, {
-      cache: false,
-    });
+    const res = await this.ctx.request<{ application: Application }>(
+      'PATCH',
+      appPath(applicationId),
+      data,
+      {
+        cache: false,
+      },
+    );
     this.invalidateLists([`GET:${appPath(applicationId)}`]);
     return res.application;
   }
@@ -537,10 +573,18 @@ export class AppsApi {
    * @param applicationId - The application's `_id`.
    */
   async delete(applicationId: string): Promise<AccountSuccessResult> {
-    const result = await this.ctx.request<AccountSuccessResult>('DELETE', appPath(applicationId), undefined, {
-      cache: false,
-    });
-    this.invalidateLists([`GET:${appPath(applicationId)}`, `GET:${credentialsPath(applicationId)}`]);
+    const result = await this.ctx.request<AccountSuccessResult>(
+      'DELETE',
+      appPath(applicationId),
+      undefined,
+      {
+        cache: false,
+      },
+    );
+    this.invalidateLists([
+      `GET:${appPath(applicationId)}`,
+      `GET:${credentialsPath(applicationId)}`,
+    ]);
     return result;
   }
 
@@ -549,7 +593,10 @@ export class AppsApi {
    * @param applicationId - The application's `_id`.
    * @param period - Time window (defaults to the server default).
    */
-  async usage(applicationId: string, period?: ApplicationUsagePeriod): Promise<ApplicationUsageStats> {
+  async usage(
+    applicationId: string,
+    period?: ApplicationUsagePeriod,
+  ): Promise<ApplicationUsageStats> {
     return this.ctx.request<ApplicationUsageStats>(
       'GET',
       `${appPath(applicationId)}/usage`,
@@ -583,7 +630,10 @@ export class AppsApi {
    * `GET:/applications/<id>…` detail keys.
    */
   private invalidateLists(extraKeys: string[] = []): void {
-    this.ctx.http.invalidateCache({ keys: ['GET:/applications', ...extraKeys], prefixes: ['GET:/applications?'] });
+    this.ctx.http.invalidateCache({
+      keys: ['GET:/applications', ...extraKeys],
+      prefixes: ['GET:/applications?'],
+    });
   }
 }
 

@@ -186,9 +186,7 @@ export type AccountCategoryKindGap = Exclude<
 >;
 
 /** Denormalized mirror of `ReputationBalance.trustTier`. Same `satisfies` guard. */
-export const TRUST_TIERS = [
-  ...CONTRACT_TRUST_TIERS,
-] as const satisfies readonly TrustTier[];
+export const TRUST_TIERS = [...CONTRACT_TRUST_TIERS] as const satisfies readonly TrustTier[];
 
 /** `never` while `TRUST_TIERS` covers the contract union. */
 export type TrustTierGap = Exclude<TrustTier, (typeof TRUST_TIERS)[number]>;
@@ -286,7 +284,7 @@ function sha256Hex(expression: string): string {
  */
 const HASHED_EMAIL_EXPRESSION = sql.raw(
   `case when btrim(coalesce(email, '')) = '' then null ` +
-    `else ${sha256Hex('lower(btrim(email))')} end`
+    `else ${sha256Hex('lower(btrim(email))')} end`,
 );
 
 /**
@@ -300,7 +298,7 @@ const HASHED_EMAIL_EXPRESSION = sql.raw(
  */
 const HASHED_PHONE_EXPRESSION = sql.raw(
   `case when regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = '' then null ` +
-    `else ${sha256Hex(`'+' || regexp_replace(phone, '[^0-9]', '', 'g')`)} end`
+    `else ${sha256Hex(`'+' || regexp_replace(phone, '[^0-9]', '', 'g')`)} end`,
 );
 
 /**
@@ -325,7 +323,7 @@ const HASHED_PHONE_EXPRESSION = sql.raw(
  */
 export const PEOPLE_SEARCH_TRGM_EXPRESSION = sql.raw(
   "(coalesce(username, '') || ' ' || coalesce(name_first, '') || ' ' || " +
-    "coalesce(name_last, '') || ' ' || coalesce(description, ''))"
+    "coalesce(name_last, '') || ' ' || coalesce(description, ''))",
 );
 
 export const users = pgTable(
@@ -403,10 +401,7 @@ export const users = pgTable(
      * counts duplicates, so the cap below does not catch them either. The write
      * path validates it — `accountCategoriesSchema`.
      */
-    accountCategories: text({ enum: ACCOUNT_CATEGORY_IDS })
-      .array()
-      .notNull()
-      .default([]),
+    accountCategories: text({ enum: ACCOUNT_CATEGORY_IDS }).array().notNull().default([]),
     /**
      * Immediate parent in the ownership tree; NULL means "root".
      *
@@ -472,9 +467,7 @@ export const users = pgTable(
     // ---- standing ----------------------------------------------------------
     verified: boolean().notNull().default(false),
     /** Mirror of `ReputationBalance.influence.rankingFeedbackWeight`. */
-    reputationRankWeight: doublePrecision()
-      .notNull()
-      .default(DEFAULT_REPUTATION_RANK_WEIGHT),
+    reputationRankWeight: doublePrecision().notNull().default(DEFAULT_REPUTATION_RANK_WEIGHT),
     /** Mirror of `ReputationBalance.trustTier`. */
     reputationTier: text({ enum: TRUST_TIERS }).notNull().default('new'),
     /** Administrator-set only — never via a self-service route. */
@@ -495,10 +488,7 @@ export const users = pgTable(
      * index — the one `applications.capabilities` has, because the push-delivery
      * sweep really does scan by element — would be dead weight here.
      */
-    staffCapabilities: text()
-      .array()
-      .notNull()
-      .default(sql`'{}'::text[]`),
+    staffCapabilities: text().array().notNull().default(sql`'{}'::text[]`),
     /** Proof-of-personhood genesis node. Administrator-set only. */
     isSeedVerifier: boolean().notNull().default(false),
     /** Account-level NSFW flag (moderation-set). Distinct from the VIEWER's preference. */
@@ -655,12 +645,8 @@ export const users = pgTable(
     // ---- contact discovery ------------------------------------------------
     // Mongo's sparse indexes. Partial here for the same reason: the vast
     // majority of rows have no phone, and many federated rows have neither.
-    index('users_hashed_email_idx')
-      .on(t.hashedEmail)
-      .where(sql`${t.hashedEmail} is not null`),
-    index('users_hashed_phone_idx')
-      .on(t.hashedPhone)
-      .where(sql`${t.hashedPhone} is not null`),
+    index('users_hashed_email_idx').on(t.hashedEmail).where(sql`${t.hashedEmail} is not null`),
+    index('users_hashed_phone_idx').on(t.hashedPhone).where(sql`${t.hashedPhone} is not null`),
 
     // ---- account graph traversal -----------------------------------------
     // "This parent's children, of this kind" — Mongo's `{kind, parentAccountId}`.
@@ -733,7 +719,7 @@ export const users = pgTable(
     // a fifth searched column silently restoring the sequential scan.
     index('users_people_search_trgm_idx').using(
       'gin',
-      sql`${PEOPLE_SEARCH_TRGM_EXPRESSION} gin_trgm_ops`
+      sql`${PEOPLE_SEARCH_TRGM_EXPRESSION} gin_trgm_ops`,
     ),
     // `pg_trgm` extracts no trigrams from a pattern whose wildcard-free run is
     // shorter than three characters, so `%ab%` cannot use the GIN index at all.
@@ -741,15 +727,9 @@ export const users = pgTable(
     // that length, and these are what serve it. `text_pattern_ops` is required:
     // under a non-C collation a plain b-tree cannot answer `LIKE 'ab%'`, which
     // is why the existing `users_lower_username_key` cannot do this job.
-    index('users_lower_username_prefix_idx').on(
-      sql`lower(btrim(${t.username})) text_pattern_ops`
-    ),
-    index('users_lower_name_first_prefix_idx').on(
-      sql`lower(${t.nameFirst}) text_pattern_ops`
-    ),
-    index('users_lower_name_last_prefix_idx').on(
-      sql`lower(${t.nameLast}) text_pattern_ops`
-    ),
+    index('users_lower_username_prefix_idx').on(sql`lower(btrim(${t.username})) text_pattern_ops`),
+    index('users_lower_name_first_prefix_idx').on(sql`lower(${t.nameFirst}) text_pattern_ops`),
+    index('users_lower_name_last_prefix_idx').on(sql`lower(${t.nameLast}) text_pattern_ops`),
 
     index('users_reputation_rank_weight_idx').on(t.reputationRankWeight),
     index('users_reputation_tier_idx').on(t.reputationTier),
@@ -765,7 +745,7 @@ export const users = pgTable(
     // `{news,NULL}` is refused without a clause of its own (measured).
     check(
       'users_account_categories_check',
-      sql`${t.accountCategories} <@ ${sql.raw(textArrayLiteral(ACCOUNT_CATEGORY_IDS))}`
+      sql`${t.accountCategories} <@ ${sql.raw(textArrayLiteral(ACCOUNT_CATEGORY_IDS))}`,
     ),
     // `cardinality`, not `array_length`: the latter returns NULL for an empty
     // array, and `NULL <= 4` is NULL, which a CHECK accepts — so the two agree
@@ -773,7 +753,7 @@ export const users = pgTable(
     // says what it means.
     check(
       'users_account_categories_max_check',
-      sql`cardinality(${t.accountCategories}) <= ${sql.raw(String(MAX_ACCOUNT_CATEGORIES))}`
+      sql`cardinality(${t.accountCategories}) <= ${sql.raw(String(MAX_ACCOUNT_CATEGORIES))}`,
     ),
     // A person has interests, not a sector. Stated here rather than left to the
     // service so it is UNREPRESENTABLE — a backfill, a psql session and a route
@@ -781,30 +761,30 @@ export const users = pgTable(
     // contract tuple the API's `kindAcceptsAccountCategories` reads.
     check(
       'users_account_categories_kind_check',
-      sql`${t.kind} in (${sql.raw(inList(ACCOUNT_CATEGORY_KINDS))}) or cardinality(${t.accountCategories}) = 0`
+      sql`${t.kind} in (${sql.raw(inList(ACCOUNT_CATEGORY_KINDS))}) or cardinality(${t.accountCategories}) = 0`,
     ),
     check(
       'users_account_status_check',
-      sql`${t.accountStatus} in (${sql.raw(inList(ACCOUNT_STATUSES))})`
+      sql`${t.accountStatus} in (${sql.raw(inList(ACCOUNT_STATUSES))})`,
     ),
     check('users_type_check', sql`${t.type} in (${sql.raw(inList(USER_TYPES))})`),
     check(
       'users_reputation_tier_check',
-      sql`${t.reputationTier} in (${sql.raw(inList(TRUST_TIERS))})`
+      sql`${t.reputationTier} in (${sql.raw(inList(TRUST_TIERS))})`,
     ),
     check(
       'users_preference_theme_check',
-      sql`${t.preferenceTheme} in (${sql.raw(inList(THEME_MODES))})`
+      sql`${t.preferenceTheme} in (${sql.raw(inList(THEME_MODES))})`,
     ),
 
     // ---- value constraints ------------------------------------------------
     check(
       'users_color_check',
-      sql`${t.color} in (${sql.raw(inList(USER_COLOR_PRESETS))}) or ${t.color} ~* ${sql.raw(`'${LEGACY_HEX_COLOR_PATTERN}'`)}`
+      sql`${t.color} in (${sql.raw(inList(USER_COLOR_PRESETS))}) or ${t.color} ~* ${sql.raw(`'${LEGACY_HEX_COLOR_PATTERN}'`)}`,
     ),
     check(
       'users_account_expires_after_inactivity_days_check',
-      sql`${t.accountExpiresAfterInactivityDays} is null or ${t.accountExpiresAfterInactivityDays} in (${sql.raw(ACCOUNT_EXPIRY_DAYS.join(', '))})`
+      sql`${t.accountExpiresAfterInactivityDays} is null or ${t.accountExpiresAfterInactivityDays} in (${sql.raw(ACCOUNT_EXPIRY_DAYS.join(', '))})`,
     ),
     // A theme preference is whole or absent. `''` counts as absent, matching
     // `toThemePreference`'s `colorPreset.length > 0`, so the backfill maps any
@@ -812,7 +792,7 @@ export const users = pgTable(
     // already produces for one.
     check(
       'users_theme_preference_check',
-      sql`(${t.themePreferenceMode} is null and ${t.themePreferenceColorPreset} is null) or (${t.themePreferenceMode} is not null and ${t.themePreferenceColorPreset} is not null and length(${t.themePreferenceColorPreset}) > 0)`
+      sql`(${t.themePreferenceMode} is null and ${t.themePreferenceColorPreset} is null) or (${t.themePreferenceMode} is not null and ${t.themePreferenceColorPreset} is not null and length(${t.themePreferenceColorPreset}) > 0)`,
     ),
     // A row cannot be its own parent. Deeper cycles are the application's
     // problem (`account.service.ts` `wouldCreateCycle`); the one-hop case is
@@ -825,9 +805,9 @@ export const users = pgTable(
     // which reads from the database exactly like a granted capability.
     check(
       'users_staff_capabilities_check',
-      sql`${t.staffCapabilities} <@ ${sql.raw(textArrayLiteral(STAFF_CAPABILITIES))}`
+      sql`${t.staffCapabilities} <@ ${sql.raw(textArrayLiteral(STAFF_CAPABILITIES))}`,
     ),
-  ]
+  ],
 );
 
 /** A random non-premium preset — the default applied to a new account. */

@@ -131,7 +131,7 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
           { check: 'missing_primary_key', subject: 'orphans' },
           { check: 'mongoose_artifact', subject: 'posts._id' },
           { check: 'mongoose_artifact', subject: 'posts.__v' },
-        ])
+        ]),
       );
       // Nothing else: nine columns and three tables, no vacuity noise
       // (the floors above are met), no unrelated snake_case/timestamp/etc.

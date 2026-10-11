@@ -1,14 +1,14 @@
 {
-    "build": {
-        "apk-arm64-local": {
-            "android": {
-                "buildType": "apk"
-            }
-        },
-        "production": {
-            "android": {
-                "buildType": "apk"
-            }
-        }
+  "build": {
+    "apk-arm64-local": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "apk"
+      }
     }
+  }
 }

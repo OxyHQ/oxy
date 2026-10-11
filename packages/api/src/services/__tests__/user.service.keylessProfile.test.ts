@@ -125,7 +125,7 @@ describe('the serializer refuses a source it cannot identify', () => {
     // Failing loudly is the contract: a DTO with `id: undefined` would be
     // accepted by every consumer and silently detach the row from the graph.
     expect(() => userService.formatUserResponse({ username: 'nobody' })).toThrow(
-      'User must have an _id'
+      'User must have an _id',
     );
   });
 });

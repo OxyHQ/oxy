@@ -32,7 +32,12 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 /** The one thing this client needs from `OxyServices`. */
 export interface StickersTransport {
-  request<T>(method: HttpMethod, url: string, data?: unknown, options?: { cache?: boolean }): Promise<T>;
+  request<T>(
+    method: HttpMethod,
+    url: string,
+    data?: unknown,
+    options?: { cache?: boolean },
+  ): Promise<T>;
 }
 
 export interface StickerPackPage {
@@ -54,7 +59,10 @@ export interface StickersClient {
    */
   resolve(ids: readonly string[]): Promise<Map<string, Sticker>>;
   /** Stickers from published packs for an emoji, or for a keyword. */
-  search(query: { emoji: string } | { q: string }, options?: { limit?: number }): Promise<Sticker[]>;
+  search(
+    query: { emoji: string } | { q: string },
+    options?: { limit?: number },
+  ): Promise<Sticker[]>;
 
   /** The signed-in person's picker, in their order. */
   installedPacks(): Promise<InstalledStickerPack[]>;
@@ -74,8 +82,9 @@ const MEMO_LIMIT = 2000;
 
 function is404(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
-  const status = (error as { status?: unknown; statusCode?: unknown }).status
-    ?? (error as { statusCode?: unknown }).statusCode;
+  const status =
+    (error as { status?: unknown; statusCode?: unknown }).status ??
+    (error as { statusCode?: unknown }).statusCode;
   return status === 404;
 }
 
@@ -97,13 +106,17 @@ export function createStickersClient(oxy: StickersTransport): StickersClient {
     async listPacks(options = {}) {
       const limit = options.limit ?? 24;
       const offset = options.offset ?? 0;
-      const page = await oxy.request<{ data?: StickerPackSummary[]; pagination?: { total?: number; hasMore?: boolean } }>(
-        'GET',
-        `/stickers/packs?limit=${limit}&offset=${offset}`
-      );
+      const page = await oxy.request<{
+        data?: StickerPackSummary[];
+        pagination?: { total?: number; hasMore?: boolean };
+      }>('GET', `/stickers/packs?limit=${limit}&offset=${offset}`);
       const items = page.data ?? [];
       for (const pack of items) if (pack.cover) remember(pack.cover);
-      return { items, total: page.pagination?.total ?? items.length, hasMore: page.pagination?.hasMore ?? false };
+      return {
+        items,
+        total: page.pagination?.total ?? items.length,
+        hasMore: page.pagination?.hasMore ?? false,
+      };
     },
 
     async getPack(slug) {
@@ -131,7 +144,11 @@ export function createStickersClient(oxy: StickersTransport): StickersClient {
       }
       for (let start = 0; start < missing.length; start += RESOLVE_BATCH_SIZE) {
         const batch = missing.slice(start, start + RESOLVE_BATCH_SIZE);
-        const { stickers } = await oxy.request<{ stickers: Sticker[] }>('POST', '/stickers/resolve', { ids: batch });
+        const { stickers } = await oxy.request<{ stickers: Sticker[] }>(
+          'POST',
+          '/stickers/resolve',
+          { ids: batch },
+        );
         for (const sticker of stickers) {
           remember(sticker);
           result.set(sticker.id, sticker);
@@ -145,27 +162,44 @@ export function createStickersClient(oxy: StickersTransport): StickersClient {
       if ('emoji' in query) params.set('emoji', query.emoji);
       else params.set('q', query.q);
       params.set('limit', String(options.limit ?? 40));
-      const { stickers } = await oxy.request<{ stickers: Sticker[] }>('GET', `/stickers/search?${params.toString()}`);
+      const { stickers } = await oxy.request<{ stickers: Sticker[] }>(
+        'GET',
+        `/stickers/search?${params.toString()}`,
+      );
       rememberAll(stickers);
       return stickers;
     },
 
     async installedPacks() {
-      const packs = await oxy.request<InstalledStickerPack[]>('GET', '/stickers/me/packs', undefined, { cache: false });
+      const packs = await oxy.request<InstalledStickerPack[]>(
+        'GET',
+        '/stickers/me/packs',
+        undefined,
+        { cache: false },
+      );
       for (const pack of packs) rememberAll(pack.stickers);
       return packs;
     },
 
     async install(packId) {
-      await oxy.request<void>('PUT', `/stickers/me/packs/${enc(packId)}`, undefined, { cache: false });
+      await oxy.request<void>('PUT', `/stickers/me/packs/${enc(packId)}`, undefined, {
+        cache: false,
+      });
     },
 
     async uninstall(packId) {
-      await oxy.request<void>('DELETE', `/stickers/me/packs/${enc(packId)}`, undefined, { cache: false });
+      await oxy.request<void>('DELETE', `/stickers/me/packs/${enc(packId)}`, undefined, {
+        cache: false,
+      });
     },
 
     async reorder(packIds) {
-      await oxy.request<void>('PATCH', '/stickers/me/packs-order', { packIds: [...packIds] }, { cache: false });
+      await oxy.request<void>(
+        'PATCH',
+        '/stickers/me/packs-order',
+        { packIds: [...packIds] },
+        { cache: false },
+      );
     },
 
     refOf(sticker) {

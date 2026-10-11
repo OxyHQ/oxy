@@ -125,7 +125,12 @@ export const useAttestStore = create<AttestFlowStore>((set, get) => {
       set({ status: 'done', result, errorCode: null, pendingParams: null });
     } catch (error) {
       if (current !== submission) return;
-      set({ status: 'error', result: null, errorCode: attestErrorCode(error), pendingParams: null });
+      set({
+        status: 'error',
+        result: null,
+        errorCode: attestErrorCode(error),
+        pendingParams: null,
+      });
     }
   };
 

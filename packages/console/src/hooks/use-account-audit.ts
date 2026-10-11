@@ -167,9 +167,7 @@ function retryUnlessRefused(failureCount: number, error: Error): boolean {
 
 /** GET params for a page — `cursor` omitted entirely on the first one. */
 function pageParams(cursor: string | null): Record<string, string | number> {
-  return cursor === null
-    ? { limit: AUDIT_PAGE_SIZE }
-    : { limit: AUDIT_PAGE_SIZE, cursor };
+  return cursor === null ? { limit: AUDIT_PAGE_SIZE } : { limit: AUDIT_PAGE_SIZE, cursor };
 }
 
 /**
@@ -191,7 +189,7 @@ export function useAccountAuditTrail(accountId: string | undefined, enabled: boo
         'GET',
         `/accounts/${accountId ?? ''}/audit`,
         pageParams(pageParam),
-        { cache: false }
+        { cache: false },
       ),
     initialPageParam: null as string | null,
     // The server's own cursor, handed back verbatim. Never rebuilt from the last
@@ -220,7 +218,7 @@ export function useAccountBillingAudit(accountId: string | undefined, enabled: b
         'GET',
         `/accounts/${accountId ?? ''}/billing/audit`,
         pageParams(pageParam),
-        { cache: false }
+        { cache: false },
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,

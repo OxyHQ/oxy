@@ -52,7 +52,9 @@ function edit(root, relative, caseName, replacer) {
   const before = readFileSync(path, 'utf8');
   const after = replacer(before);
   if (after === before) {
-    failures.push(`${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`);
+    failures.push(
+      `${caseName}: the fixture edit changed nothing — the mutation never happened, so the case proves nothing.`,
+    );
     return;
   }
   writeFileSync(path, after);
@@ -62,7 +64,11 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment) {
   let code = 0;
   let output = '';
   try {
-    output = execFileSync('node', [checkScript], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    output = execFileSync('node', [checkScript], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
   } catch (error) {
     code = error.status ?? 1;
     output = `${error.stdout ?? ''}${error.stderr ?? ''}`;
@@ -72,7 +78,9 @@ function expectVerdict(caseName, root, expectedCode, expectedFragment) {
     return;
   }
   if (!output.includes(expectedFragment)) {
-    failures.push(`${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`);
+    failures.push(
+      `${caseName}: output does not contain ${JSON.stringify(expectedFragment)}.\n${output}`,
+    );
   }
 }
 
@@ -98,99 +106,216 @@ edit(syncRestored, WORKFLOW, 'sync-step-restored', (text) =>
       '          SYNC_DATABASE_URL: ${{ secrets.DATABASE_URL }}\n' +
       '        run: |\n' +
       '          printf \'%s\' "$SYNC_DATABASE_URL" | bash .github/scripts/put-secure-parameter.sh /oxy/$APP/DATABASE_URL overwrite',
-  ));
+  ),
+);
 expectVerdict('sync-step-restored', syncRestored, 1, 'writes or deletes an SSM parameter');
-expectVerdict('sync-step-restored (secret read)', syncRestored, 1, 'deploy-aws.yml reads secrets.DATABASE_URL');
+expectVerdict(
+  'sync-step-restored (secret read)',
+  syncRestored,
+  1,
+  'deploy-aws.yml reads secrets.DATABASE_URL',
+);
 
 const directWrite = createFixture();
 edit(directWrite, WORKFLOW, 'direct-put-parameter', (text) =>
-  addStep(text, '      - name: Write one\n        run: aws ssm put-parameter --name /oxy/oxy-api/X --type SecureString --value file:///dev/stdin --overwrite'));
-expectVerdict('direct-put-parameter', directWrite, 1, 'aws ssm put-parameter --name /oxy/oxy-api/X');
+  addStep(
+    text,
+    '      - name: Write one\n        run: aws ssm put-parameter --name /oxy/oxy-api/X --type SecureString --value file:///dev/stdin --overwrite',
+  ),
+);
+expectVerdict(
+  'direct-put-parameter',
+  directWrite,
+  1,
+  'aws ssm put-parameter --name /oxy/oxy-api/X',
+);
 
 const directDelete = createFixture();
 edit(directDelete, WORKFLOW, 'direct-delete-parameter', (text) =>
-  addStep(text, '      - name: Delete one\n        run: aws ssm delete-parameter --name /oxy/oxy-api/X'));
-expectVerdict('direct-delete-parameter', directDelete, 1, 'aws ssm delete-parameter --name /oxy/oxy-api/X');
+  addStep(
+    text,
+    '      - name: Delete one\n        run: aws ssm delete-parameter --name /oxy/oxy-api/X',
+  ),
+);
+expectVerdict(
+  'direct-delete-parameter',
+  directDelete,
+  1,
+  'aws ssm delete-parameter --name /oxy/oxy-api/X',
+);
 
 // One hop removed: the rollout script itself starts writing. Nothing in the
 // workflow changes, so only the transitive scan can see it.
 const indirectWrite = createFixture();
-edit(indirectWrite, ROLLOUT_SCRIPT, 'write-inside-rollout-script', (text) =>
-  `${text}\naws ssm put-parameter --name "/oxy/$APP/X" --overwrite --value file:///dev/stdin\n`);
-expectVerdict('write-inside-rollout-script', indirectWrite, 1, '.github/scripts/deploy-ecs-image.sh:');
+edit(
+  indirectWrite,
+  ROLLOUT_SCRIPT,
+  'write-inside-rollout-script',
+  (text) =>
+    `${text}\naws ssm put-parameter --name "/oxy/$APP/X" --overwrite --value file:///dev/stdin\n`,
+);
+expectVerdict(
+  'write-inside-rollout-script',
+  indirectWrite,
+  1,
+  '.github/scripts/deploy-ecs-image.sh:',
+);
 
 // ── 2. No repo secret but the CI-only allowlist ────────────────────────────
 const appSecretRead = createFixture();
 edit(appSecretRead, WORKFLOW, 'app-secret-read', (text) =>
-  addStep(text, '      - name: Read one\n        env:\n          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}\n        run: "true"'));
-expectVerdict('app-secret-read', appSecretRead, 1, 'deploy-aws.yml reads secrets.STRIPE_SECRET_KEY');
+  addStep(
+    text,
+    '      - name: Read one\n        env:\n          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}\n        run: "true"',
+  ),
+);
+expectVerdict(
+  'app-secret-read',
+  appSecretRead,
+  1,
+  'deploy-aws.yml reads secrets.STRIPE_SECRET_KEY',
+);
 
 // A secret hidden inside a larger expression is still a read.
 const secretInExpression = createFixture();
 edit(secretInExpression, WORKFLOW, 'secret-inside-expression', (text) =>
-  addStep(text, "      - name: Read one\n        env:\n          X: ${{ github.event_name == 'push' && secrets.DATABASE_URL || '' }}\n        run: \"true\""));
-expectVerdict('secret-inside-expression', secretInExpression, 1, 'deploy-aws.yml reads secrets.DATABASE_URL');
+  addStep(
+    text,
+    "      - name: Read one\n        env:\n          X: ${{ github.event_name == 'push' && secrets.DATABASE_URL || '' }}\n        run: \"true\"",
+  ),
+);
+expectVerdict(
+  'secret-inside-expression',
+  secretInExpression,
+  1,
+  'deploy-aws.yml reads secrets.DATABASE_URL',
+);
 
 const wholeContext = createFixture();
 edit(wholeContext, WORKFLOW, 'whole-secrets-context', (text) =>
-  addStep(text, '      - name: Read all\n        env:\n          ALL: ${{ toJSON(secrets) }}\n        run: "true"'));
+  addStep(
+    text,
+    '      - name: Read all\n        env:\n          ALL: ${{ toJSON(secrets) }}\n        run: "true"',
+  ),
+);
 expectVerdict('whole-secrets-context', wholeContext, 1, 'toJSON(secrets)');
 
 const indexedContext = createFixture();
 edit(indexedContext, WORKFLOW, 'indexed-secrets-context', (text) =>
-  addStep(text, "      - name: Read one\n        env:\n          X: ${{ secrets[format('{0}', 'DATABASE_URL')] }}\n        run: \"true\""));
-expectVerdict('indexed-secrets-context', indexedContext, 1, 'reads the secrets context without a literal name');
+  addStep(
+    text,
+    "      - name: Read one\n        env:\n          X: ${{ secrets[format('{0}', 'DATABASE_URL')] }}\n        run: \"true\"",
+  ),
+);
+expectVerdict(
+  'indexed-secrets-context',
+  indexedContext,
+  1,
+  'reads the secrets context without a literal name',
+);
 
 const inherited = createFixture();
 edit(inherited, WORKFLOW, 'secrets-inherit', (text) =>
-  text.replace('  deploy:\n', '  inherit-all:\n    uses: ./.github/workflows/ci.yml\n    secrets: inherit\n  deploy:\n'));
+  text.replace(
+    '  deploy:\n',
+    '  inherit-all:\n    uses: ./.github/workflows/ci.yml\n    secrets: inherit\n  deploy:\n',
+  ),
+);
 expectVerdict('secrets-inherit', inherited, 1, 'passes `secrets: inherit`');
 
 // The job token is CI's own and stays allowed.
 const jobToken = createFixture();
 edit(jobToken, WORKFLOW, 'job-token-allowed', (text) =>
-  addStep(text, '      - name: Use the job token\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: "true"'));
+  addStep(
+    text,
+    '      - name: Use the job token\n        env:\n          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: "true"',
+  ),
+);
 expectVerdict('job-token-allowed', jobToken, 0, 'Deploy secrets are SSM-only');
 
 // /oxy/_shared/* belongs to oxy-infra (incident 2026-09-27).
 const sharedPath = createFixture();
 edit(sharedPath, WORKFLOW, 'shared-path-named', (text) =>
-  addStep(text, '      - name: Shared\n        run: echo /oxy/_shared/REDIS_URL'));
-expectVerdict('shared-path-named', sharedPath, 1, 'names a /oxy/_shared/ path outside a task-definition ARN');
+  addStep(text, '      - name: Shared\n        run: echo /oxy/_shared/REDIS_URL'),
+);
+expectVerdict(
+  'shared-path-named',
+  sharedPath,
+  1,
+  'names a /oxy/_shared/ path outside a task-definition ARN',
+);
 
 // ── 3. Re-asserted bindings ────────────────────────────────────────────────
 const bindingMissing = createFixture();
 edit(bindingMissing, WORKFLOW, 'binding-missing', (text) =>
-  text.replace(',"META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"', ''));
-expectVerdict('binding-missing', bindingMissing, 1, 'META_IG_BUSINESS_ACCOUNT_ID is missing its exact TASK_SECRET_OVERRIDES_JSON binding');
+  text.replace(
+    ',"META_IG_BUSINESS_ACCOUNT_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/META_IG_BUSINESS_ACCOUNT_ID"',
+    '',
+  ),
+);
+expectVerdict(
+  'binding-missing',
+  bindingMissing,
+  1,
+  'META_IG_BUSINESS_ACCOUNT_ID is missing its exact TASK_SECRET_OVERRIDES_JSON binding',
+);
 
 const bindingRepointed = createFixture();
 edit(bindingRepointed, WORKFLOW, 'binding-repointed', (text) =>
   text.replace(
     '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
     '"KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/kaana/KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY"',
-  ));
-expectVerdict('binding-repointed', bindingRepointed, 1, 'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding');
+  ),
+);
+expectVerdict(
+  'binding-repointed',
+  bindingRepointed,
+  1,
+  'KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY is missing its exact TASK_SECRET_OVERRIDES_JSON binding',
+);
 
 const bindingNotSsm = createFixture();
 edit(bindingNotSsm, WORKFLOW, 'binding-not-ssm', (text) =>
-  text.replace('{"SERVICE_TOKEN_PRIVATE_KEY":', '{"EXTRA":"arn:aws:secretsmanager:us-west-2:237343248947:secret:x","SERVICE_TOKEN_PRIVATE_KEY":'));
+  text.replace(
+    '{"SERVICE_TOKEN_PRIVATE_KEY":',
+    '{"EXTRA":"arn:aws:secretsmanager:us-west-2:237343248947:secret:x","SERVICE_TOKEN_PRIVATE_KEY":',
+  ),
+);
 expectVerdict('binding-not-ssm', bindingNotSsm, 1, 'binds EXTRA to');
 
 const overridesUnreadable = createFixture();
 edit(overridesUnreadable, WORKFLOW, 'overrides-unparseable', (text) =>
-  text.replace('{"SERVICE_TOKEN_PRIVATE_KEY":', '{SERVICE_TOKEN_PRIVATE_KEY:'));
-expectVerdict('overrides-unparseable', overridesUnreadable, 1, 'TASK_SECRET_OVERRIDES_JSON is not valid JSON');
+  text.replace('{"SERVICE_TOKEN_PRIVATE_KEY":', '{SERVICE_TOKEN_PRIVATE_KEY:'),
+);
+expectVerdict(
+  'overrides-unparseable',
+  overridesUnreadable,
+  1,
+  'TASK_SECRET_OVERRIDES_JSON is not valid JSON',
+);
 
 // ── 4. Every boot-required variable has a recorded home ────────────────────
 const newRequired = createFixture();
 edit(newRequired, ENV_MODULE, 'new-required-var-without-home', (text) =>
-  text.replace("    'DATABASE_URL',\n    'ACCESS_TOKEN_SECRET',", "    'DATABASE_URL',\n    'WEBHOOK_SIGNING_SECRET',\n    'ACCESS_TOKEN_SECRET',"));
-expectVerdict('new-required-var-without-home', newRequired, 1, 'WEBHOOK_SIGNING_SECRET is required at boot by validateRequiredEnvVars() but has no recorded home');
+  text.replace(
+    "    'DATABASE_URL',\n    'ACCESS_TOKEN_SECRET',",
+    "    'DATABASE_URL',\n    'WEBHOOK_SIGNING_SECRET',\n    'ACCESS_TOKEN_SECRET',",
+  ),
+);
+expectVerdict(
+  'new-required-var-without-home',
+  newRequired,
+  1,
+  'WEBHOOK_SIGNING_SECRET is required at boot by validateRequiredEnvVars() but has no recorded home',
+);
 
 const brokenEnvParse = createFixture();
 edit(brokenEnvParse, ENV_MODULE, 'unparseable-boot-contract', (text) =>
-  text.replace('const required: (keyof RequiredEnvVars)[] = [', 'const requiredVars: (keyof RequiredEnvVars)[] = ['));
+  text.replace(
+    'const required: (keyof RequiredEnvVars)[] = [',
+    'const requiredVars: (keyof RequiredEnvVars)[] = [',
+  ),
+);
 expectVerdict('unparseable-boot-contract', brokenEnvParse, 1, 'no longer declares');
 
 // ── Vacuity guards, each with a case that goes GREEN without it ────────────
@@ -203,7 +328,8 @@ edit(truncatedContract, ENV_MODULE, 'truncated-boot-contract', (text) =>
   text.replace(
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     "const required: (keyof RequiredEnvVars)[] = [\n    'DATABASE_URL',\n  ];",
-  ));
+  ),
+);
 expectVerdict('truncated-boot-contract', truncatedContract, 1, 'required env vars parsed out of');
 
 // A regex that lands on a DIFFERENT array of the right size. Every name here
@@ -213,19 +339,31 @@ const wrongContractArray = createFixture();
 edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
   text.replace(
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
-    "const required: (keyof RequiredEnvVars)[] = [\n" +
-    "    'ACCESS_TOKEN_SECRET',\n    'REFRESH_TOKEN_SECRET',\n    'DEVICE_ID_SALT',\n" +
-    "    'AWS_REGION',\n    'AWS_S3_BUCKET',\n    'REDIS_URL',\n  ];",
-  ));
-expectVerdict('wrong-boot-contract-array', wrongContractArray, 1, 'DATABASE_URL was not among the parsed required env vars');
+    'const required: (keyof RequiredEnvVars)[] = [\n' +
+      "    'ACCESS_TOKEN_SECRET',\n    'REFRESH_TOKEN_SECRET',\n    'DEVICE_ID_SALT',\n" +
+      "    'AWS_REGION',\n    'AWS_S3_BUCKET',\n    'REDIS_URL',\n  ];",
+  ),
+);
+expectVerdict(
+  'wrong-boot-contract-array',
+  wrongContractArray,
+  1,
+  'DATABASE_URL was not among the parsed required env vars',
+);
 
 // A script scan that reaches nothing finds no write in it. Every script
 // reference spelled some other way: delete REACHED_SCRIPT_SENTINEL and this
 // case exits 0.
 const nothingReached = createFixture();
 edit(nothingReached, WORKFLOW, 'no-script-reached', (text) =>
-  text.replace(/\.github\/scripts\/([A-Za-z0-9_.-]+)\.(sh|mjs|py)/g, './ci/$1-moved.$2'));
-expectVerdict('no-script-reached', nothingReached, 1, 'deploy-ecs-image.sh was not among the scripts the deploy reaches');
+  text.replace(/\.github\/scripts\/([A-Za-z0-9_.-]+)\.(sh|mjs|py)/g, './ci/$1-moved.$2'),
+);
+expectVerdict(
+  'no-script-reached',
+  nothingReached,
+  1,
+  'deploy-ecs-image.sh was not among the scripts the deploy reaches',
+);
 
 for (const fixture of createdFixtures) {
   if (fixture.startsWith(fixturePrefix)) rmSync(fixture, { recursive: true, force: true });

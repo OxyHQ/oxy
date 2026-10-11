@@ -83,11 +83,7 @@
  */
 
 import { z } from 'zod';
-import {
-  modelLicenseSchema,
-  modelProvenanceSchema,
-  modelRevisionSchema,
-} from './catalogue';
+import { modelLicenseSchema, modelProvenanceSchema, modelRevisionSchema } from './catalogue';
 import {
   inferenceTimestampSchema,
   RESERVED_ALIA_PUBLISHER,
@@ -186,10 +182,7 @@ export const aliaModelReleaseManifestSchema = z
     // carrier that creates one: `alia/*` names models Alia actually owns or
     // derived, and a manifest is the document that would launder somebody else's
     // weights into the namespace.
-    const publisher = manifest.revision.modelId.slice(
-      0,
-      manifest.revision.modelId.indexOf('/'),
-    );
+    const publisher = manifest.revision.modelId.slice(0, manifest.revision.modelId.indexOf('/'));
     if (publisher !== RESERVED_ALIA_PUBLISHER) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

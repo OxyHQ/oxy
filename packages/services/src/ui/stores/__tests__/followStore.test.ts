@@ -27,10 +27,16 @@ interface FollowServicesMock {
 
 const makeServices = (): { mock: FollowServicesMock; services: OxyServices } => {
   const mock: FollowServicesMock = {
-    follows: { statuses: jest.fn(async (ids: string[]) =>
-      Object.fromEntries(ids.map((id) => [id, false])),
-    ), follow: jest.fn(async () => ({ message: 'ok' })), unfollow: jest.fn(async () => ({ message: 'ok' })) },
-    session: { get userId() { return (jest.fn(() => 'viewer-1'))(); } },
+    follows: {
+      statuses: jest.fn(async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, false]))),
+      follow: jest.fn(async () => ({ message: 'ok' })),
+      unfollow: jest.fn(async () => ({ message: 'ok' })),
+    },
+    session: {
+      get userId() {
+        return jest.fn(() => 'viewer-1')();
+      },
+    },
   };
   return { mock, services: mock as unknown as OxyServices };
 };
@@ -103,7 +109,9 @@ describe('toggleFollowUser (optimistic)', () => {
     const { mock, services } = makeServices();
     let resolveFollow: (value: FollowMutationResult) => void = () => {};
     mock.follows.follow.mockReturnValueOnce(
-      new Promise<FollowMutationResult>((resolve) => { resolveFollow = resolve; }),
+      new Promise<FollowMutationResult>((resolve) => {
+        resolveFollow = resolve;
+      }),
     );
 
     const store = useFollowStore.getState();
@@ -149,7 +157,9 @@ describe('toggleFollowUser (optimistic)', () => {
 
     expect(accepted).toBe(false);
     // The key is removed → back to UNKNOWN (tri-state), not a definite false.
-    expect(Object.prototype.hasOwnProperty.call(useFollowStore.getState().followingUsers, 'u1')).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(useFollowStore.getState().followingUsers, 'u1'),
+    ).toBe(false);
   });
 });
 
@@ -158,7 +168,10 @@ describe('resetFollowState', () => {
     const { mock, services } = makeServices();
     let resolveBatch: ((value: Record<string, boolean>) => void) | undefined;
     mock.follows.statuses.mockImplementation(
-      () => new Promise<Record<string, boolean>>((resolve) => { resolveBatch = resolve; }),
+      () =>
+        new Promise<Record<string, boolean>>((resolve) => {
+          resolveBatch = resolve;
+        }),
     );
 
     const store = useFollowStore.getState();

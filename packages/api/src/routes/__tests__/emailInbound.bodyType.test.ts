@@ -96,7 +96,9 @@ function rawSocketRequest(server: http.Server, requestText: string): Promise<Par
     });
     let raw = '';
     socket.setEncoding('utf8');
-    socket.on('data', (chunk: string) => { raw += chunk; });
+    socket.on('data', (chunk: string) => {
+      raw += chunk;
+    });
     socket.on('error', reject);
     socket.on('end', () => {
       const separator = raw.indexOf('\r\n\r\n');
@@ -123,7 +125,11 @@ function rawSocketRequest(server: http.Server, requestText: string): Promise<Par
   });
 }
 
-function postJson(server: http.Server, headers: Record<string, string>, payload: unknown): Promise<ParsedResponse> {
+function postJson(
+  server: http.Server,
+  headers: Record<string, string>,
+  payload: unknown,
+): Promise<ParsedResponse> {
   const body = Buffer.from(JSON.stringify(payload), 'utf8');
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -136,7 +142,9 @@ function postJson(server: http.Server, headers: Record<string, string>, payload:
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} });
@@ -144,14 +152,18 @@ function postJson(server: http.Server, headers: Record<string, string>, payload:
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
   });
 }
 
-function postRaw(server: http.Server, headers: Record<string, string>, body: Buffer): Promise<ParsedResponse> {
+function postRaw(
+  server: http.Server,
+  headers: Record<string, string>,
+  body: Buffer,
+): Promise<ParsedResponse> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
@@ -163,7 +175,9 @@ function postRaw(server: http.Server, headers: Record<string, string>, body: Buf
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} });
@@ -171,7 +185,7 @@ function postRaw(server: http.Server, headers: Record<string, string>, body: Buf
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.end(body);
@@ -208,10 +222,11 @@ beforeAll(async () => {
 afterAll(async () => {
   await Promise.all(
     [rawServer, jsonServer].map(
-      (server) => new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()));
-      })
-    )
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((err) => (err ? reject(err) : resolve()));
+        }),
+    ),
   );
   await closePostgres();
 });
@@ -242,7 +257,7 @@ function rawMessage(to: string): Buffer {
       'Body text.',
       '',
     ].join('\r\n'),
-    'utf8'
+    'utf8',
   );
 }
 
@@ -261,7 +276,7 @@ describe('POST /email/inbound body type', () => {
         'Connection: close',
         '',
         '',
-      ].join('\r\n')
+      ].join('\r\n'),
     );
 
     expect(response.status).toBe(400);
@@ -280,7 +295,7 @@ describe('POST /email/inbound body type', () => {
     const response = await postJson(
       jsonServer,
       { authorization: `Bearer ${TEST_WEBHOOK_SECRET}`, 'x-envelope-to': address },
-      ['not a MIME message']
+      ['not a MIME message'],
     );
 
     expect(response.status).toBe(400);
@@ -292,7 +307,7 @@ describe('POST /email/inbound body type', () => {
     expect(mockLoggerError).toHaveBeenCalledWith(
       expect.stringContaining('raw body parser did not run'),
       undefined,
-      expect.objectContaining({ bodyType: 'array' })
+      expect.objectContaining({ bodyType: 'array' }),
     );
   });
 
@@ -302,7 +317,7 @@ describe('POST /email/inbound body type', () => {
     const response = await postJson(
       jsonServer,
       { authorization: `Bearer ${TEST_WEBHOOK_SECRET}`, 'x-envelope-to': address },
-      { subject: 'nope' }
+      { subject: 'nope' },
     );
 
     expect(response.status).toBe(400);
@@ -317,7 +332,7 @@ describe('POST /email/inbound body type', () => {
     const response = await postRaw(
       rawServer,
       { authorization: `Bearer ${TEST_WEBHOOK_SECRET}`, 'x-envelope-to': address },
-      Buffer.alloc(0)
+      Buffer.alloc(0),
     );
 
     expect(response.status).toBe(400);
@@ -332,7 +347,7 @@ describe('POST /email/inbound body type', () => {
     const response = await postRaw(
       rawServer,
       { authorization: `Bearer ${TEST_WEBHOOK_SECRET}`, 'x-envelope-to': address },
-      rawMessage(address)
+      rawMessage(address),
     );
 
     // The vacuity floor: a guard that rejected everything would pass every

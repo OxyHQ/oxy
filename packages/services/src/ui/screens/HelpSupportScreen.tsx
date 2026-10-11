@@ -8,89 +8,102 @@ import { SettingsIcon } from '../components/SettingsIcon';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 
-const HelpSupportScreen: React.FC<BaseScreenProps> = ({
-    onClose,
-    goBack,
-}) => {
-    const { t } = useI18n();
+const HelpSupportScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
+  const { t } = useI18n();
 
-    useSurfaceHeader({ title: t('help.title') || 'Help & Support' });
-    const bloomTheme = useTheme();
+  useSurfaceHeader({ title: t('help.title') || 'Help & Support' });
+  const bloomTheme = useTheme();
 
-    const handleContactSupport = useMemo(() => () => {
-        Linking.openURL('mailto:support@oxy.so?subject=Support Request').catch(() => {
-            toast.error(t('help.contactError') || 'Failed to open email client');
-        });
-    }, [t]);
+  const handleContactSupport = useMemo(
+    () => () => {
+      Linking.openURL('mailto:support@oxy.so?subject=Support Request').catch(() => {
+        toast.error(t('help.contactError') || 'Failed to open email client');
+      });
+    },
+    [t],
+  );
 
-    const handleReportBug = useMemo(() => () => {
-        Linking.openURL('mailto:bugs@oxy.so?subject=Bug Report').catch(() => {
-            toast.error(t('help.reportError') || 'Failed to open email client');
-        });
-    }, [t]);
+  const handleReportBug = useMemo(
+    () => () => {
+      Linking.openURL('mailto:bugs@oxy.so?subject=Bug Report').catch(() => {
+        toast.error(t('help.reportError') || 'Failed to open email client');
+      });
+    },
+    [t],
+  );
 
-    const handleDocumentation = useMemo(() => () => {
-        Linking.openURL('https://developer.oxy.so/docs').catch(() => {
-            toast.error(t('help.linkError') || 'Failed to open link');
-        });
-    }, [t]);
+  const handleDocumentation = useMemo(
+    () => () => {
+      Linking.openURL('https://developer.oxy.so/docs').catch(() => {
+        toast.error(t('help.linkError') || 'Failed to open link');
+      });
+    },
+    [t],
+  );
 
-    const handleCommunity = useMemo(() => () => {
-        Linking.openURL('https://community.oxy.so').catch(() => {
-            toast.error(t('help.linkError') || 'Failed to open link');
-        });
-    }, [t]);
+  const handleCommunity = useMemo(
+    () => () => {
+      Linking.openURL('https://community.oxy.so').catch(() => {
+        toast.error(t('help.linkError') || 'Failed to open link');
+      });
+    },
+    [t],
+  );
 
-    const handleDevelopersPortal = useMemo(() => () => {
-        Linking.openURL('https://developer.oxy.so').catch(() => {
-            toast.error(t('help.linkError') || 'Failed to open link');
-        });
-    }, [t]);
+  const handleDevelopersPortal = useMemo(
+    () => () => {
+      Linking.openURL('https://developer.oxy.so').catch(() => {
+        toast.error(t('help.linkError') || 'Failed to open link');
+      });
+    },
+    [t],
+  );
 
-    return (
-        <>
+  return (
+    <>
+      <View className="px-screen-margin pb-space-24">
+        {/* Help Options */}
+        <SettingsListGroup title={t('help.options') || 'Get Help'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="email" color={bloomTheme.colors.success} />}
+            title={t('help.contact.title') || 'Contact Support'}
+            description={t('help.contact.subtitle') || 'Get help from our support team'}
+            onPress={handleContactSupport}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="bug" color={bloomTheme.colors.warning} />}
+            title={t('help.reportBug.title') || 'Report a Bug'}
+            description={t('help.reportBug.subtitle') || 'Help us improve by reporting issues'}
+            onPress={handleReportBug}
+          />
+        </SettingsListGroup>
 
-            <View className="px-screen-margin pb-space-24">
-                    {/* Help Options */}
-                    <SettingsListGroup title={t('help.options') || 'Get Help'}>
-                        <SettingsListItem
-                            icon={<SettingsIcon name="email" color={bloomTheme.colors.success} />}
-                            title={t('help.contact.title') || 'Contact Support'}
-                            description={t('help.contact.subtitle') || 'Get help from our support team'}
-                            onPress={handleContactSupport}
-                        />
-                        <SettingsListItem
-                            icon={<SettingsIcon name="bug" color={bloomTheme.colors.warning} />}
-                            title={t('help.reportBug.title') || 'Report a Bug'}
-                            description={t('help.reportBug.subtitle') || 'Help us improve by reporting issues'}
-                            onPress={handleReportBug}
-                        />
-                    </SettingsListGroup>
-
-                    {/* Resources */}
-                    <SettingsListGroup title={t('help.resources') || 'Resources'}>
-                        <SettingsListItem
-                            icon={<SettingsIcon name="file-document" color={bloomTheme.colors.textTertiary} />}
-                            title={t('help.documentation.title') || 'Documentation'}
-                            description={t('help.documentation.subtitle') || 'User guides and tutorials'}
-                            onPress={handleDocumentation}
-                        />
-                        <SettingsListItem
-                            icon={<SettingsIcon name="account-group" color={bloomTheme.colors.secondary} />}
-                            title={t('help.community.title') || 'Community'}
-                            description={t('help.community.subtitle') || 'Join our community'}
-                            onPress={handleCommunity}
-                        />
-                        <SettingsListItem
-                            icon={<SettingsIcon name="code-tags" color={bloomTheme.colors.error} />}
-                            title={t('help.developersPortal.title') || 'Developers Portal'}
-                            description={t('help.developersPortal.subtitle') || 'API documentation and developer resources'}
-                            onPress={handleDevelopersPortal}
-                        />
-                    </SettingsListGroup>
-                </View>
-        </>
-    );
+        {/* Resources */}
+        <SettingsListGroup title={t('help.resources') || 'Resources'}>
+          <SettingsListItem
+            icon={<SettingsIcon name="file-document" color={bloomTheme.colors.textTertiary} />}
+            title={t('help.documentation.title') || 'Documentation'}
+            description={t('help.documentation.subtitle') || 'User guides and tutorials'}
+            onPress={handleDocumentation}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="account-group" color={bloomTheme.colors.secondary} />}
+            title={t('help.community.title') || 'Community'}
+            description={t('help.community.subtitle') || 'Join our community'}
+            onPress={handleCommunity}
+          />
+          <SettingsListItem
+            icon={<SettingsIcon name="code-tags" color={bloomTheme.colors.error} />}
+            title={t('help.developersPortal.title') || 'Developers Portal'}
+            description={
+              t('help.developersPortal.subtitle') || 'API documentation and developer resources'
+            }
+            onPress={handleDevelopersPortal}
+          />
+        </SettingsListGroup>
+      </View>
+    </>
+  );
 };
 
 export default React.memo(HelpSupportScreen);

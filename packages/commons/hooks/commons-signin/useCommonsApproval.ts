@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useOxy } from '@oxy.so/services';
-import {
-  getCommonsApprovalBlockingReason,
-  logger,
-  type CommonsApprovalInfo,
-} from '@oxy.so/core';
+import { getCommonsApprovalBlockingReason, logger, type CommonsApprovalInfo } from '@oxy.so/core';
 import type { CommonsDenyReason } from '@oxy.so/contracts';
 import {
   requestLocalConfirmation,
@@ -151,8 +147,8 @@ export function useCommonsApproval(
       );
     });
 
-    oxyServices
-      .auth.commons.approvalInfo(code)
+    oxyServices.auth.commons
+      .approvalInfo(code)
       .then((result) => {
         if (cancelled) return;
         const blockingReason = getCommonsApprovalBlockingReason(result);

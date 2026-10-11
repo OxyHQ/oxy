@@ -27,10 +27,7 @@
  * came back" is never allowed to read as a pass.
  */
 
-import {
-  deriveSecp256k1PublicKey,
-  generateSecp256k1KeyPair,
-} from '@oxy.so/protocol/secp256k1';
+import { deriveSecp256k1PublicKey, generateSecp256k1KeyPair } from '@oxy.so/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
 import { computeRecordId } from '@oxy.so/protocol';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
@@ -61,7 +58,6 @@ jest.mock('../reputationRules', () => {
       mockTestRules.get(actionType) ?? actual.findReputationRule(actionType),
   };
 });
-
 
 beforeAll(async () => {
   await connectPostgres();
@@ -424,8 +420,18 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
     // race into the insert; the index picks a winner and the loser is answered
     // with the winner's row rather than an error.
     const [a, b] = await Promise.all([
-      reputationService.award({ userId, actionType: ACTION, applicationId, sourceActionId: 'race' }),
-      reputationService.award({ userId, actionType: ACTION, applicationId, sourceActionId: 'race' }),
+      reputationService.award({
+        userId,
+        actionType: ACTION,
+        applicationId,
+        sourceActionId: 'race',
+      }),
+      reputationService.award({
+        userId,
+        actionType: ACTION,
+        applicationId,
+        sourceActionId: 'race',
+      }),
     ]);
     expect(a.id).toBe(b.id);
 
@@ -453,9 +459,9 @@ describe('award — the idempotency guarantee and the transaction behind it', ()
       .spyOn(reputationService, 'recalculateBalance')
       .mockRejectedValueOnce(new Error('recompute failed'));
     try {
-      await expect(
-        reputationService.award({ userId, actionType: ACTION }),
-      ).rejects.toThrow('recompute failed');
+      await expect(reputationService.award({ userId, actionType: ACTION })).rejects.toThrow(
+        'recompute failed',
+      );
     } finally {
       recalculate.mockRestore();
     }

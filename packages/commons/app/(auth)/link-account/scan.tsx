@@ -33,18 +33,28 @@ export default function ScanLinkScreen() {
         setInvalid(true);
         return;
       }
-      router.replace({ pathname: '/(auth)/link-account/confirm', params: { id: link.linkId, c: link.challenge } });
+      router.replace({
+        pathname: '/(auth)/link-account/confirm',
+        params: { id: link.linkId, c: link.challenge },
+      });
     },
     [invalid, router],
   );
 
   if (!permission?.granted) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[styles.centered, { backgroundColor: colors.background, paddingTop: insets.top }]}
+      >
         <Text style={[styles.title, { color: colors.text }]}>{t('linkAccount.scanTitle')}</Text>
         <Text style={[styles.body, { color: colors.text }]}>{t('linkAccount.permissionBody')}</Text>
         {permission ? (
-          <Button appearance="solid" tone="accent" onPress={() => void requestPermission()} style={styles.button}>
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={() => void requestPermission()}
+            style={styles.button}
+          >
             {t('linkAccount.grantPermission')}
           </Button>
         ) : null}
@@ -64,7 +74,9 @@ export default function ScanLinkScreen() {
         onBarcodeScanned={invalid ? undefined : handleScanned}
       />
       <View style={[styles.panel, { paddingBottom: insets.bottom + 24 }]}>
-        <Text style={styles.panelText}>{invalid ? t('linkAccount.invalidCode') : t('linkAccount.scanInstructions')}</Text>
+        <Text style={styles.panelText}>
+          {invalid ? t('linkAccount.invalidCode') : t('linkAccount.scanInstructions')}
+        </Text>
         {invalid ? (
           <TouchableOpacity
             style={styles.control}
@@ -72,7 +84,7 @@ export default function ScanLinkScreen() {
             accessibilityRole="button"
             accessibilityLabel={t('linkAccount.scanAgain')}
           >
-            <Icons.refresh size='xl' fill="#fff" />
+            <Icons.refresh size="xl" fill="#fff" />
             <Text style={styles.controlText}>{t('linkAccount.scanAgain')}</Text>
           </TouchableOpacity>
         ) : null}
@@ -83,7 +95,7 @@ export default function ScanLinkScreen() {
         accessibilityRole="button"
         accessibilityLabel={t('common.close')}
       >
-        <Icons.close size='xl' fill="#fff" />
+        <Icons.close size="xl" fill="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -96,9 +108,28 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '600', textAlign: 'center', marginBottom: 12 },
   body: { fontSize: 16, lineHeight: 22, textAlign: 'center', opacity: 0.7 },
   button: { marginTop: 32 },
-  panel: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 24, paddingHorizontal: 32, backgroundColor: 'rgba(0, 0, 0, 0.6)', alignItems: 'center', gap: 16 },
+  panel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 24,
+    paddingHorizontal: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    gap: 16,
+  },
   panelText: { color: '#fff', fontSize: 16, lineHeight: 22, textAlign: 'center' },
   control: { alignItems: 'center', gap: 8 },
   controlText: { color: '#fff', fontSize: 12 },
-  close: { position: 'absolute', right: 20, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  close: {
+    position: 'absolute',
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

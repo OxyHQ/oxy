@@ -18,8 +18,12 @@
 jest.mock('../senderAvatar.service', () => ({
   getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-jest.mock('../aiLabeling.service', () => ({ aiLabelingService: { enqueueClassification: jest.fn() } }));
-jest.mock('../cardExtraction.service', () => ({ cardExtractionService: { extractAndUpdate: jest.fn() } }));
+jest.mock('../aiLabeling.service', () => ({
+  aiLabelingService: { enqueueClassification: jest.fn() },
+}));
+jest.mock('../cardExtraction.service', () => ({
+  cardExtractionService: { extractAndUpdate: jest.fn() },
+}));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: {}, default: {} }));
 jest.mock('../emailPushDelivery.service', () => ({ sendInboxEmailPush: jest.fn() }));
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
@@ -169,12 +173,7 @@ describe('updateMessageLabels — one statement, and its precedence', () => {
     const userId = await owner();
     const messageId = await messageIn(userId);
 
-    const updated = await emailService.updateMessageLabels(
-      userId,
-      messageId,
-      ['Work', 'Work'],
-      [],
-    );
+    const updated = await emailService.updateMessageLabels(userId, messageId, ['Work', 'Work'], []);
     expect(updated.labels).toEqual(['Work']);
   });
 
@@ -206,9 +205,9 @@ describe('updateMessageLabels — one statement, and its precedence', () => {
     const theirs = await owner();
     const messageId = await messageIn(theirs);
 
-    await expect(
-      emailService.updateMessageLabels(mine, messageId, ['Work'], []),
-    ).rejects.toThrow(/Message not found/);
+    await expect(emailService.updateMessageLabels(mine, messageId, ['Work'], [])).rejects.toThrow(
+      /Message not found/,
+    );
   });
 });
 
@@ -249,9 +248,9 @@ describe('labels — the case-insensitive unique index', () => {
     await expect(emailService.createLabel(userId, 'work', '#abcdef')).rejects.toThrow(
       /already exists/,
     );
-    await expect(
-      emailService.updateLabel(userId, 'system:work', { name: 'Job' }),
-    ).rejects.toThrow(/cannot be edited/);
+    await expect(emailService.updateLabel(userId, 'system:work', { name: 'Job' })).rejects.toThrow(
+      /cannot be edited/,
+    );
     await expect(emailService.deleteLabel(userId, 'system:work')).rejects.toThrow(
       /cannot be deleted/,
     );

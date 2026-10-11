@@ -71,7 +71,10 @@ jest.mock('../../services/nodeRegistry.service', () => ({
 }));
 
 jest.mock('@oxy.so/core/server', () => ({ safeFetch: jest.fn() }));
-jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
+jest.mock('../../utils/userCache', () => ({
+  __esModule: true,
+  default: { invalidate: jest.fn() },
+}));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
@@ -98,7 +101,10 @@ function envelope(userId: string): SignedRecordEnvelope {
   };
 }
 
-interface JsonResponse { status: number; body: Record<string, unknown>; }
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
+}
 
 async function request(method: string, path: string, payload?: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
@@ -110,14 +116,19 @@ async function request(method: string, path: string, payload?: unknown): Promise
         host: '127.0.0.1',
         port: address.port,
         path,
-        headers: body !== undefined
-          ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
-          : {},
+        headers:
+          body !== undefined
+            ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+            : {},
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
       },
     );
     req.on('error', reject);
@@ -164,7 +175,10 @@ beforeEach(async () => {
 describe('POST /identity/records', () => {
   it('returns { envelope, verified } on success', async () => {
     const env = envelope(currentUserId);
-    mockVerifyAndStore.mockResolvedValueOnce({ ok: true, record: { envelope: env, verified: true } });
+    mockVerifyAndStore.mockResolvedValueOnce({
+      ok: true,
+      record: { envelope: env, verified: true },
+    });
 
     const res = await request('POST', '/identity/records', env);
 

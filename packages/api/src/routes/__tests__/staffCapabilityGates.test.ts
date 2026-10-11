@@ -33,7 +33,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string; isStaff: boolean } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     req.user = { _id: currentUserId, id: currentUserId, isStaff: true };
     next();
@@ -96,7 +96,7 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
             reject(error);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -153,7 +153,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
@@ -191,7 +191,9 @@ describe('registering and retiring a cost centre requires billing:cost_centers',
     const accountId = await seedFundableAccount();
     const slug = `cc-${tag()}`;
     currentUserId = await seedStaff(['billing:cost_centers']);
-    expect((await request('POST', '/billing/cost-centers', { accountId, slug, label: 'X' })).status).toBe(201);
+    expect(
+      (await request('POST', '/billing/cost-centers', { accountId, slug, label: 'X' })).status,
+    ).toBe(201);
 
     currentUserId = await seedStaff([]);
     const refused = await request('DELETE', `/billing/cost-centers/${slug}`);

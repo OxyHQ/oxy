@@ -57,11 +57,8 @@ export function buildWorkspaceTree(accounts: AccountNode[]): WorkspaceTree {
   const topLevel = switchable.filter(isTopLevel);
   const nested = switchable.filter((a) => !isTopLevel(a));
   return {
-    yourAccounts: topLevel.filter(
-      (a) => a.relationship === 'self' || a.relationship === 'owner'
-    ),
+    yourAccounts: topLevel.filter((a) => a.relationship === 'self' || a.relationship === 'owner'),
     sharedAccounts: topLevel.filter((a) => a.relationship === 'member'),
-    childrenOf: (accountId: string) =>
-      nested.filter((a) => a.parentAccountId === accountId),
+    childrenOf: (accountId: string) => nested.filter((a) => a.parentAccountId === accountId),
   };
 }

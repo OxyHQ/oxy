@@ -28,15 +28,25 @@ const renderHook: typeof rtlRenderHook = ((render, options) => {
 }) as typeof rtlRenderHook;
 
 const oxyServicesStub = {
-  follows: { status: jest.fn(async () => ({ isFollowing: false })), follow: jest.fn(async () => ({})), unfollow: jest.fn(async () => ({})), followMany: jest.fn(async (ids: string[]) => ({
-    followedCount: ids.length,
-    results: ids.map((id) => ({ userId: id, success: true, alreadyFollowing: false })),
-  })), unfollowMany: jest.fn(async (ids: string[]) => ({
-    unfollowedCount: ids.length,
-    results: ids.map((id) => ({ userId: id, success: true, wasFollowing: true })),
-  })) },
+  follows: {
+    status: jest.fn(async () => ({ isFollowing: false })),
+    follow: jest.fn(async () => ({})),
+    unfollow: jest.fn(async () => ({})),
+    followMany: jest.fn(async (ids: string[]) => ({
+      followedCount: ids.length,
+      results: ids.map((id) => ({ userId: id, success: true, alreadyFollowing: false })),
+    })),
+    unfollowMany: jest.fn(async (ids: string[]) => ({
+      unfollowedCount: ids.length,
+      results: ids.map((id) => ({ userId: id, success: true, wasFollowing: true })),
+    })),
+  },
   users: { get: jest.fn(async () => ({ _count: { followers: 1, following: 2 } })) },
-  session: { get userId() { return (jest.fn(() => 'me'))(); } },
+  session: {
+    get userId() {
+      return jest.fn(() => 'me')();
+    },
+  },
 };
 
 let ctx = {
@@ -63,10 +73,9 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
   });
 
   it('survives userIds [] -> populated with canUsePrivateApi false -> true', () => {
-    const { result, rerender } = renderHook(
-      ({ ids }: { ids: string[] }) => useFollow(ids),
-      { initialProps: { ids: [] as string[] } },
-    );
+    const { result, rerender } = renderHook(({ ids }: { ids: string[] }) => useFollow(ids), {
+      initialProps: { ids: [] as string[] },
+    });
 
     expect('followAllUsers' in result.current).toBe(true);
 
@@ -102,10 +111,9 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
   });
 
   it('derives allFollowing reactively from per-user store status', () => {
-    const { result, rerender } = renderHook(
-      ({ ids }: { ids: string[] }) => useFollow(ids),
-      { initialProps: { ids: ['u1', 'u2'] } },
-    );
+    const { result, rerender } = renderHook(({ ids }: { ids: string[] }) => useFollow(ids), {
+      initialProps: { ids: ['u1', 'u2'] },
+    });
 
     // No member is followed yet → aggregate is false.
     expect('allFollowing' in result.current && result.current.allFollowing).toBe(false);
@@ -133,10 +141,9 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
   });
 
   it('unfollowAllUsers unfollows every member in one call and flips allFollowing to false', async () => {
-    const { result, rerender } = renderHook(
-      ({ ids }: { ids: string[] }) => useFollow(ids),
-      { initialProps: { ids: ['u1', 'u2'] } },
-    );
+    const { result, rerender } = renderHook(({ ids }: { ids: string[] }) => useFollow(ids), {
+      initialProps: { ids: ['u1', 'u2'] },
+    });
 
     // Authenticate so the bulk unfollow is permitted.
     act(() => {
@@ -154,7 +161,9 @@ describe('useFollow multi-user mode — no infinite render loop', () => {
 
     // Multi mode exposes a callable unfollowAllUsers.
     expect('unfollowAllUsers' in result.current).toBe(true);
-    expect(typeof (result.current as { unfollowAllUsers: unknown }).unfollowAllUsers).toBe('function');
+    expect(typeof (result.current as { unfollowAllUsers: unknown }).unfollowAllUsers).toBe(
+      'function',
+    );
 
     await act(async () => {
       if ('unfollowAllUsers' in result.current) {

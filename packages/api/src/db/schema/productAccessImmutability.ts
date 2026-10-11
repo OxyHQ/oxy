@@ -56,7 +56,7 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-${['access_products','access_offers','access_offer_benefits','access_offer_segments'].map(table => `--> statement-breakpoint\nCREATE TRIGGER ${table}_immutable BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION product_access_immutable();`).join('\n')}
+${['access_products', 'access_offers', 'access_offer_benefits', 'access_offer_segments'].map((table) => `--> statement-breakpoint\nCREATE TRIGGER ${table}_immutable BEFORE UPDATE OR DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION product_access_immutable();`).join('\n')}
 --> statement-breakpoint
 CREATE TRIGGER access_offer_benefits_set_guard BEFORE INSERT ON access_offer_benefits FOR EACH ROW EXECUTE FUNCTION product_access_benefit_set_guard();
 --> statement-breakpoint

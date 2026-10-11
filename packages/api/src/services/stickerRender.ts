@@ -69,10 +69,14 @@ function ensureImageData(): void {
     constructor(
       public readonly data: Uint8ClampedArray,
       public readonly width: number,
-      public readonly height: number
+      public readonly height: number,
     ) {}
   }
-  Object.defineProperty(globalThis, 'ImageData', { value: NodeImageData, configurable: true, writable: true });
+  Object.defineProperty(globalThis, 'ImageData', {
+    value: NodeImageData,
+    configurable: true,
+    writable: true,
+  });
 }
 
 interface CapturedFrame {
@@ -114,7 +118,10 @@ export async function renderStickerFallback(animationJson: Buffer, size: number)
 
   try {
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new BadRequestError('Sticker animation could not be rendered')), LOAD_TIMEOUT_MS);
+      const timer = setTimeout(
+        () => reject(new BadRequestError('Sticker animation could not be rendered')),
+        LOAD_TIMEOUT_MS,
+      );
       player.addEventListener('load', () => {
         clearTimeout(timer);
         resolve();
@@ -137,7 +144,8 @@ export async function renderStickerFallback(animationJson: Buffer, size: number)
       if (!pixels) continue;
       const frame = { pixels, visible: countVisible(pixels) };
       if (!bestAny || frame.visible > bestAny.visible) bestAny = frame;
-      if (frame.visible <= maxPoseVisible && (!bestPose || frame.visible > bestPose.visible)) bestPose = frame;
+      if (frame.visible <= maxPoseVisible && (!bestPose || frame.visible > bestPose.visible))
+        bestPose = frame;
     }
     const best = bestPose ?? bestAny;
 
@@ -145,7 +153,9 @@ export async function renderStickerFallback(animationJson: Buffer, size: number)
       throw new BadRequestError('Sticker animation renders nothing visible');
     }
 
-    return await sharp(Buffer.from(best.pixels.buffer), { raw: { width: size, height: size, channels: 4 } })
+    return await sharp(Buffer.from(best.pixels.buffer), {
+      raw: { width: size, height: size, channels: 4 },
+    })
       .resize(STICKER_FALLBACK_SIZE, STICKER_FALLBACK_SIZE)
       .webp({ quality: 90, alphaQuality: 100 })
       .toBuffer();

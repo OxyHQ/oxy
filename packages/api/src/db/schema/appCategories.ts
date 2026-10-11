@@ -43,5 +43,5 @@ export const appCategories = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index('app_categories_order_idx').on(t.order)]
+  (t) => [index('app_categories_order_idx').on(t.order)],
 );

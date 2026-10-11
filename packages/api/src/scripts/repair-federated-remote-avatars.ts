@@ -54,7 +54,10 @@ import { users } from '../db/schema/users';
 import { federationService, isExpiredSignedAvatarUrl } from '../services/federation.service';
 import { AVATAR_FILE_ID_SQL_PATTERN, persistFederatedAvatar } from '../utils/federatedAvatar';
 import userCache from '../utils/userCache';
-import { queueRecoveryForAvatarlessFederatedUsers, runFederatedAvatarRetrySweep } from '../services/federation/avatarRetry';
+import {
+  queueRecoveryForAvatarlessFederatedUsers,
+  runFederatedAvatarRetrySweep,
+} from '../services/federation/avatarRetry';
 
 export interface RepairFederatedAvatarsResult {
   apply: boolean;
@@ -81,10 +84,17 @@ export interface RepairFederatedAvatarsOptions {
 }
 
 /** Everything the write boundary would refuse: the rows owed a repair. */
-const NOT_A_FILE_ID = and(isNotNull(users.avatar), sql`${users.avatar} !~ ${sql.raw(`'${AVATAR_FILE_ID_SQL_PATTERN}'`)}`);
+const NOT_A_FILE_ID = and(
+  isNotNull(users.avatar),
+  sql`${users.avatar} !~ ${sql.raw(`'${AVATAR_FILE_ID_SQL_PATTERN}'`)}`,
+);
 
 function hostOf(url: string): string {
-  try { return new URL(url).hostname.toLowerCase(); } catch { return '(unparseable)'; }
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '(unparseable)';
+  }
 }
 
 export async function repairFederatedRemoteAvatars(
@@ -94,15 +104,29 @@ export async function repairFederatedRemoteAvatars(
   const batchSize = opts.batchSize ?? 200;
   const log = opts.log ?? (() => undefined);
   const result: RepairFederatedAvatarsResult = {
-    apply, scanned: 0, expiredSigned: 0, byHost: {}, mirrored: 0, mirroredFromGraph: 0,
-    cleared: 0, byReason: {}, changedConcurrently: 0, after: opts.after ?? '',
+    apply,
+    scanned: 0,
+    expiredSigned: 0,
+    byHost: {},
+    mirrored: 0,
+    mirroredFromGraph: 0,
+    cleared: 0,
+    byReason: {},
+    changedConcurrently: 0,
+    after: opts.after ?? '',
   };
 
   for (;;) {
     const rows = await getDb()
       .select({ id: users.id, username: users.username, avatar: users.avatar })
       .from(users)
-      .where(and(eq(users.type, 'federated'), NOT_A_FILE_ID, result.after ? gt(users.id, result.after) : undefined))
+      .where(
+        and(
+          eq(users.type, 'federated'),
+          NOT_A_FILE_ID,
+          result.after ? gt(users.id, result.after) : undefined,
+        ),
+      )
       .orderBy(asc(users.id))
       .limit(batchSize);
     if (rows.length === 0) break;
@@ -117,25 +141,51 @@ export async function repairFederatedRemoteAvatars(
       const expired = isExpiredSignedAvatarUrl(remoteUrl);
       if (expired) result.expiredSigned += 1;
       if (!apply) {
-        log(JSON.stringify({ userId: row.id, username: row.username, host, expiredSigned: expired, action: 'would_repair' }));
+        log(
+          JSON.stringify({
+            userId: row.id,
+            username: row.username,
+            host,
+            expiredSigned: expired,
+            action: 'would_repair',
+          }),
+        );
         continue;
       }
 
       // Only an https URL can be mirrored; any other value is simply cleared.
       const stored = remoteUrl.startsWith('https://')
         ? await federationService.mirrorFederatedAvatar(row.id, remoteUrl)
-        : { fileId: null, notModified: false, failure: 'permanent' as const, reason: 'not_https' as const, source: undefined, etag: undefined, lastModified: undefined, httpStatus: undefined };
+        : {
+            fileId: null,
+            notModified: false,
+            failure: 'permanent' as const,
+            reason: 'not_https' as const,
+            source: undefined,
+            etag: undefined,
+            lastModified: undefined,
+            httpStatus: undefined,
+          };
       const now = new Date();
       const written = stored.fileId
-        ? await persistFederatedAvatar(row.id, { fileId: stored.fileId }, {
-          federationLastAvatarFetchedAt: now,
-          federationAvatarETag: stored.etag ?? null,
-          federationAvatarLastModified: stored.lastModified ?? null,
-        }, remoteUrl)
-        // A failure clears the URL AND owes a retry (the sweep re-derives the
-        // source picture), so a transient failure is never a lost avatar.
-        : await persistFederatedAvatar(row.id, { failed: stored.reason ?? 'unexpected', permanent: stored.failure === 'permanent' },
-          { federationLastAvatarFetchedAt: now }, remoteUrl);
+        ? await persistFederatedAvatar(
+            row.id,
+            { fileId: stored.fileId },
+            {
+              federationLastAvatarFetchedAt: now,
+              federationAvatarETag: stored.etag ?? null,
+              federationAvatarLastModified: stored.lastModified ?? null,
+            },
+            remoteUrl,
+          )
+        : // A failure clears the URL AND owes a retry (the sweep re-derives the
+          // source picture), so a transient failure is never a lost avatar.
+          await persistFederatedAvatar(
+            row.id,
+            { failed: stored.reason ?? 'unexpected', permanent: stored.failure === 'permanent' },
+            { federationLastAvatarFetchedAt: now },
+            remoteUrl,
+          );
 
       if (!written) {
         result.changedConcurrently += 1;
@@ -151,7 +201,16 @@ export async function repairFederatedRemoteAvatars(
         result.cleared += 1;
         const key = `${stored.failure ?? 'transient'}:${stored.reason ?? 'unexpected'}${stored.httpStatus ? `:${stored.httpStatus}` : ''}`;
         result.byReason[key] = (result.byReason[key] ?? 0) + 1;
-        log(JSON.stringify({ userId: row.id, host, action: 'cleared_retry_owed', failure: stored.failure, reason: stored.reason, httpStatus: stored.httpStatus }));
+        log(
+          JSON.stringify({
+            userId: row.id,
+            host,
+            action: 'cleared_retry_owed',
+            failure: stored.failure,
+            reason: stored.reason,
+            httpStatus: stored.httpStatus,
+          }),
+        );
       }
     }
   }
@@ -176,14 +235,20 @@ function print(line: string): void {
 
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const apply = argv.includes('--apply') || (process.env.DRY_RUN ?? '').trim().toLowerCase() === 'false';
+  const apply =
+    argv.includes('--apply') || (process.env.DRY_RUN ?? '').trim().toLowerCase() === 'false';
   const afterArg = argv.find((value) => value.startsWith('--after='))?.slice('--after='.length);
   const batchSize = Number.parseInt(process.env.BATCH_SIZE ?? '', 10);
   await connectPostgres();
   try {
     const broadcasting = apply ? await redisReady() : false;
     if (apply && !broadcasting) {
-      print(JSON.stringify({ warning: 'redis_unavailable', effect: 'consumer caches expire by TTL instead of an immediate eviction' }));
+      print(
+        JSON.stringify({
+          warning: 'redis_unavailable',
+          effect: 'consumer caches expire by TTL instead of an immediate eviction',
+        }),
+      );
     }
     if (argv.includes('--recover') || (process.env.MODE ?? '').trim() === 'recover') {
       // Recovery: re-derive the CURRENT source picture of every federated user
@@ -212,17 +277,31 @@ async function main(): Promise<void> {
     });
     print(JSON.stringify({ summary: result }));
   } finally {
-    try { await closePostgres(); } finally { await closeRedis(); }
+    try {
+      await closePostgres();
+    } finally {
+      await closeRedis();
+    }
   }
 }
 
 if (require.main === module) {
-  void main().catch((err: unknown) => {
-    console.error(`Federated avatar repair failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-  }).then(async () => {
-    await Promise.all([process.stdout, process.stderr].map((stream) =>
-      new Promise<void>((resolve) => { stream.write('', () => resolve()); })));
-    process.exit(process.exitCode ?? 0);
-  });
+  void main()
+    .catch((err: unknown) => {
+      console.error(
+        `Federated avatar repair failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      process.exitCode = 1;
+    })
+    .then(async () => {
+      await Promise.all(
+        [process.stdout, process.stderr].map(
+          (stream) =>
+            new Promise<void>((resolve) => {
+              stream.write('', () => resolve());
+            }),
+        ),
+      );
+      process.exit(process.exitCode ?? 0);
+    });
 }

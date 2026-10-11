@@ -184,9 +184,7 @@ export const createUpdateRequestSchema = z.object({
    * `expoClient` (the public expo config) so `Constants.expoConfig` resolves
    * after an OTA update; MAY carry other third-party config.
    */
-  extra: z
-    .object({ expoClient: z.record(z.string(), z.unknown()) })
-    .catchall(z.unknown()),
+  extra: z.object({ expoClient: z.record(z.string(), z.unknown()) }).catchall(z.unknown()),
   /** String→string metadata dict; filtered client-side via manifest filters. */
   metadata: z.record(z.string(), z.string()).optional(),
   /** Initial rollout percentage (default 100 — full rollout). */

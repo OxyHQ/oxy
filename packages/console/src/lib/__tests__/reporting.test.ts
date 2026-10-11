@@ -176,16 +176,19 @@ describe('projections drop what they do not name', () => {
     };
 
     expect(
-      Object.hasOwn(toPendingReservation(Object.assign(reservation, { secretRef: 'vault:x' })), 'secretRef')
+      Object.hasOwn(
+        toPendingReservation(Object.assign(reservation, { secretRef: 'vault:x' })),
+        'secretRef',
+      ),
     ).toBe(false);
     expect(
-      Object.hasOwn(toBudget(Object.assign(budget, { internalNote: 'x' })), 'internalNote')
+      Object.hasOwn(toBudget(Object.assign(budget, { internalNote: 'x' })), 'internalNote'),
     ).toBe(false);
     expect(
       Object.hasOwn(
         toLedgerBalanceBucket(Object.assign(bucket, { wholesaleCost: '1' })),
-        'wholesaleCost'
-      )
+        'wholesaleCost',
+      ),
     ).toBe(false);
   });
 
@@ -252,10 +255,10 @@ describe('dimension vocabularies', () => {
    */
   it('differ exactly in how they name the model', () => {
     const usageOnly = USAGE_DIMENSIONS.filter(
-      (dimension) => !(SPEND_DIMENSIONS as ReadonlyArray<string>).includes(dimension)
+      (dimension) => !(SPEND_DIMENSIONS as ReadonlyArray<string>).includes(dimension),
     );
     const spendOnly = SPEND_DIMENSIONS.filter(
-      (dimension) => !(USAGE_DIMENSIONS as ReadonlyArray<string>).includes(dimension)
+      (dimension) => !(USAGE_DIMENSIONS as ReadonlyArray<string>).includes(dimension),
     );
 
     expect(usageOnly).toEqual(['requestedModel']);
@@ -293,14 +296,14 @@ describe('budget presentation', () => {
   it('names the scope by its own target', () => {
     expect(budgetScopeDescription(base)).toContain('acct_1');
     expect(
-      budgetScopeDescription({ ...base, scope: 'application', scopeApplicationId: 'app_9' })
+      budgetScopeDescription({ ...base, scope: 'application', scopeApplicationId: 'app_9' }),
     ).toContain('app_9');
     expect(
       budgetScopeDescription({
         ...base,
         scope: 'credential',
         scopeApplicationCredentialId: 'cred_9',
-      })
+      }),
     ).toContain('cred_9');
   });
 
@@ -309,7 +312,7 @@ describe('budget presentation', () => {
     expect(budgetUtilizationVariant({ ...base, utilizationBps: 10000 })).toBe('destructive');
     // A disabled budget refuses nothing, whatever its utilisation reads.
     expect(budgetUtilizationVariant({ ...base, status: 'disabled', utilizationBps: 10000 })).toBe(
-      'secondary'
+      'secondary',
     );
   });
 });

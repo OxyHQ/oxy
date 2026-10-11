@@ -74,15 +74,18 @@ let server: http.Server;
 function get(path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => {
-        raw += chunk;
-      });
-      res.on('end', () =>
-        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-      );
-    });
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -93,7 +96,9 @@ async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise
   return row.id;
 }
 
-async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+async function application(
+  fields: Partial<typeof applications.$inferInsert> = {},
+): Promise<string> {
   const ownerAccountId = await account();
   const [row] = await getDb()
     .insert(applications)
@@ -275,8 +280,14 @@ describe('GET /auth/session/status/:sessionToken — @oxy.so/contracts sessionSt
     });
     const withoutProgress = await authRequest();
 
-    const a = (await get(`/auth/session/status/${withProgress}`)).body.data as Record<string, unknown>;
-    const b = (await get(`/auth/session/status/${withoutProgress}`)).body.data as Record<string, unknown>;
+    const a = (await get(`/auth/session/status/${withProgress}`)).body.data as Record<
+      string,
+      unknown
+    >;
+    const b = (await get(`/auth/session/status/${withoutProgress}`)).body.data as Record<
+      string,
+      unknown
+    >;
 
     expect(a.pushSentAt).toBe('2026-07-27T10:00:00.000Z');
     expect(a.openedAt).toBe('2026-07-27T10:00:05.000Z');

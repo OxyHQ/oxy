@@ -18,15 +18,43 @@ type Handler = (...args: unknown[]) => void;
 class FakeSocket implements MinimalSocket {
   connected = false;
   handlers = new Map<string, Handler[]>();
-  on(event: string, cb: Handler) { const l = this.handlers.get(event) ?? []; l.push(cb); this.handlers.set(event, l); }
-  off(event: string, cb?: Handler) { if (!cb) { this.handlers.delete(event); return; } this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== cb)); }
-  emit(_event: string, ..._args: unknown[]) { /* no-op: device socket never emits */ }
-  connect() { this.connected = true; }
-  disconnect() { this.connected = false; }
+  on(event: string, cb: Handler) {
+    const l = this.handlers.get(event) ?? [];
+    l.push(cb);
+    this.handlers.set(event, l);
+  }
+  off(event: string, cb?: Handler) {
+    if (!cb) {
+      this.handlers.delete(event);
+      return;
+    }
+    this.handlers.set(
+      event,
+      (this.handlers.get(event) ?? []).filter((h) => h !== cb),
+    );
+  }
+  emit(_event: string, ..._args: unknown[]) {
+    /* no-op: device socket never emits */
+  }
+  connect() {
+    this.connected = true;
+  }
+  disconnect() {
+    this.connected = false;
+  }
 }
 
-const STATE = (rev: number): DeviceSessionState => ({ deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: rev, updatedAt: 1720000000000 });
-const SYNC = (rev: number) => ({ state: STATE(rev), activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' } });
+const STATE = (rev: number): DeviceSessionState => ({
+  deviceId: 'd1',
+  accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+  activeAccountId: 'a1',
+  revision: rev,
+  updatedAt: 1720000000000,
+});
+const SYNC = (rev: number) => ({
+  state: STATE(rev),
+  activeToken: { accessToken: `jwt-${rev}`, expiresAt: 'x' },
+});
 
 function makeHost(over: Partial<SessionClientHost> = {}): SessionClientHost {
   return {
@@ -59,7 +87,10 @@ describe('SessionClient injected socketFactory', () => {
     await client.start();
 
     expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory).toHaveBeenCalledWith('http://test.invalid', expect.objectContaining({ transports: ['websocket'] }));
+    expect(factory).toHaveBeenCalledWith(
+      'http://test.invalid',
+      expect.objectContaining({ transports: ['websocket'] }),
+    );
     expect(loaderSpy).not.toHaveBeenCalled();
     expect(created).not.toBeNull();
     client.stop();
@@ -75,7 +106,10 @@ describe('SessionClient injected socketFactory', () => {
     await client.start();
 
     expect(loaderSpy).toHaveBeenCalledTimes(1);
-    expect(lazyFactory).toHaveBeenCalledWith('http://test.invalid', expect.objectContaining({ transports: ['websocket'] }));
+    expect(lazyFactory).toHaveBeenCalledWith(
+      'http://test.invalid',
+      expect.objectContaining({ transports: ['websocket'] }),
+    );
     client.stop();
   });
 });

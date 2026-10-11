@@ -101,17 +101,15 @@ export const subscriptions = pgTable(
     index('subscriptions_user_id_status_idx').on(t.userId, t.status),
     // The replacement for the TTL index: the range scan the expiry projection
     // runs, narrowed to the only rows it can act on.
-    index('subscriptions_active_end_date_idx')
-      .on(t.endDate)
-      .where(sql`${t.status} = 'active'`),
+    index('subscriptions_active_end_date_idx').on(t.endDate).where(sql`${t.status} = 'active'`),
 
     check(
       'subscriptions_plan_check',
-      sql`${t.plan} in (${sql.raw(SUBSCRIPTION_PLANS.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.plan} in (${sql.raw(SUBSCRIPTION_PLANS.map((value) => `'${value}'`).join(', '))})`,
     ),
     check(
       'subscriptions_status_check',
-      sql`${t.status} in (${sql.raw(SUBSCRIPTION_STATUSES.map((value) => `'${value}'`).join(', '))})`
+      sql`${t.status} in (${sql.raw(SUBSCRIPTION_STATUSES.map((value) => `'${value}'`).join(', '))})`,
     ),
-  ]
+  ],
 );

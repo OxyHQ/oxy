@@ -50,9 +50,7 @@ export const OxyAuthScreenHeader: React.FC<OxyAuthScreenHeaderProps> = ({ title,
         </Text>
         {description != null && description !== '' ? (
           typeof description === 'string' ? (
-            <Text style={[DESCRIPTION, { color: theme.colors.textSecondary }]}>
-              {description}
-            </Text>
+            <Text style={[DESCRIPTION, { color: theme.colors.textSecondary }]}>{description}</Text>
           ) : (
             description
           )
@@ -63,7 +61,10 @@ export const OxyAuthScreenHeader: React.FC<OxyAuthScreenHeaderProps> = ({ title,
 };
 
 /** A sign-in screen's column: its blocks 24 apart. `className` extends it (the split's form column). */
-export const OxyAuthScreen: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+export const OxyAuthScreen: React.FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className,
+}) => (
   <View className={`w-full max-w-[448px] self-center gap-6 ${className ?? ''}`}>{children}</View>
 );
 
@@ -73,11 +74,11 @@ export const OxyAuthScreen: React.FC<{ children: React.ReactNode; className?: st
  * border of its own, and the right column is a rounded tile within the
  * dialog's margins.
  */
-export const OxyAuthSplit: React.FC<{ children: React.ReactNode; aside: React.ReactNode; bare?: boolean }> = ({
-  children,
-  aside,
-  bare = false,
-}) => {
+export const OxyAuthSplit: React.FC<{
+  children: React.ReactNode;
+  aside: React.ReactNode;
+  bare?: boolean;
+}> = ({ children, aside, bare = false }) => {
   const theme = useTheme();
   return (
     <View
@@ -103,7 +104,12 @@ export const OxyAuthLoading: React.FC = () => {
   const { t } = useI18n();
   return (
     <View className="min-h-[300px] items-center justify-center">
-      <Loading variant="spinner" size="lg" accessibilityLabel={t('common.status.loading')} testID="oxy-auth-loading" />
+      <Loading
+        variant="spinner"
+        size="lg"
+        accessibilityLabel={t('common.status.loading')}
+        testID="oxy-auth-loading"
+      />
     </View>
   );
 };
@@ -120,7 +126,11 @@ export const OxyAuthTerms: React.FC = () => {
         {t('signin.terms.termsLink')}
       </RNText>{' '}
       {t('signin.terms.and')}{' '}
-      <RNText accessibilityRole="link" style={link} onPress={() => void Linking.openURL(PRIVACY_URL)}>
+      <RNText
+        accessibilityRole="link"
+        style={link}
+        onPress={() => void Linking.openURL(PRIVACY_URL)}
+      >
         {t('signin.terms.privacyLink')}
       </RNText>
       .

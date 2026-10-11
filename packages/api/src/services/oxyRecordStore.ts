@@ -134,7 +134,11 @@ class OxyRecordStoreImpl implements RecordStore {
    * write that already took this `seq` — is surfaced as `chain_conflict` so the
    * caller re-reads the head and retries.
    */
-  async append(subject: string, env: SignedRecordEnvelope, recordId: string): Promise<AppendOutcome> {
+  async append(
+    subject: string,
+    env: SignedRecordEnvelope,
+    recordId: string,
+  ): Promise<AppendOutcome> {
     const userId = parseUserDid(subject);
     if (!userId) {
       // The subject DID does not belong to this issuer's domain — there is no
@@ -225,7 +229,11 @@ class OxyRecordStoreImpl implements RecordStore {
     return { ok: true, recordId, seq: -1 };
   }
 
-  async getLogSince(subject: string, sinceSeq: number, limit: number = DEFAULT_LOG_LIMIT): Promise<SignedRecordEnvelope[]> {
+  async getLogSince(
+    subject: string,
+    sinceSeq: number,
+    limit: number = DEFAULT_LOG_LIMIT,
+  ): Promise<SignedRecordEnvelope[]> {
     const userId = parseUserDid(subject);
     if (!userId) {
       return [];
@@ -252,7 +260,11 @@ class OxyRecordStoreImpl implements RecordStore {
     return row?.seq ?? null;
   }
 
-  async materializeCurrent(subject: string, collection: string, rkey: string): Promise<SignedRecordEnvelope | null> {
+  async materializeCurrent(
+    subject: string,
+    collection: string,
+    rkey: string,
+  ): Promise<SignedRecordEnvelope | null> {
     const userId = parseUserDid(subject);
     if (!userId) {
       return null;
@@ -418,7 +430,9 @@ class OxyRecordStoreImpl implements RecordStore {
     const collections = [...new Set(params.collections)];
 
     if (userIds.length > MAX_RECORD_AUTHORS) {
-      throw new Error(`listRecordsByAuthors: ${userIds.length} authors exceeds the ${MAX_RECORD_AUTHORS} cap`);
+      throw new Error(
+        `listRecordsByAuthors: ${userIds.length} authors exceeds the ${MAX_RECORD_AUTHORS} cap`,
+      );
     }
     if (collections.length > MAX_RECORD_COLLECTIONS) {
       throw new Error(
@@ -486,7 +500,8 @@ class OxyRecordStoreImpl implements RecordStore {
       records,
       // A full page means there may be more; a short one is the end of the
       // stream as of this snapshot. Either way the caller re-polls with overlap.
-      nextCursor: last && records.length === limit ? { createdAt: last.createdAt, id: last.id } : null,
+      nextCursor:
+        last && records.length === limit ? { createdAt: last.createdAt, id: last.id } : null,
     };
   }
 

@@ -79,16 +79,13 @@ async function rejection(query: Promise<unknown>): Promise<unknown> {
 
 /** A real `users` row — every account/user column here carries a foreign key. */
 async function account(): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   return row.id;
 }
 
 /** A real `applications` row owned by a freshly-minted account. */
 async function application(
-  overrides: Partial<typeof applications.$inferInsert> = {}
+  overrides: Partial<typeof applications.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
@@ -124,7 +121,7 @@ describe('applications — closed value sets and the three arrays', () => {
       getDb().execute(sql`
         insert into applications (id, name, owner_account_id, type)
         values (${randomUUID()}, 'Bad type', ${ownerAccountId}, 'partner')
-      `)
+      `),
     );
     expect(pgErrorCode(badType)).toBe(CHECK_VIOLATION);
 
@@ -132,7 +129,7 @@ describe('applications — closed value sets and the three arrays', () => {
       getDb().execute(sql`
         insert into applications (id, name, owner_account_id, status)
         values (${randomUUID()}, 'Bad status', ${ownerAccountId}, 'archived')
-      `)
+      `),
     );
     expect(pgErrorCode(badStatus)).toBe(CHECK_VIOLATION);
   });
@@ -144,7 +141,7 @@ describe('applications — closed value sets and the three arrays', () => {
     await expect(
       getDb()
         .insert(applications)
-        .values({ name: 'Scoped', ownerAccountId, scopes: ['files:read', 'user:read'] })
+        .values({ name: 'Scoped', ownerAccountId, scopes: ['files:read', 'user:read'] }),
     ).resolves.toBeDefined();
 
     // …one element that is not, is not. The array CHECK is `<@`, so a SINGLE
@@ -157,7 +154,7 @@ describe('applications — closed value sets and the three arrays', () => {
           name: 'Bad scope',
           ownerAccountId,
           scopes: ['files:read', 'admin:everything'],
-        })
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
 
@@ -166,7 +163,7 @@ describe('applications — closed value sets and the three arrays', () => {
     await expect(
       getDb()
         .insert(applications)
-        .values({ name: 'Future capability', ownerAccountId, capabilities: ['not:yet:declared'] })
+        .values({ name: 'Future capability', ownerAccountId, capabilities: ['not:yet:declared'] }),
     ).resolves.toBeDefined();
   });
 
@@ -197,14 +194,14 @@ describe('applications — closed value sets and the three arrays', () => {
           insert into applications (id, name, owner_account_id, scopes)
           values (${randomUUID()}, 'Retired scope', ${ownerAccountId},
                   array[${retired}]::text[])
-        `)
+        `),
       );
       expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
 
       await expect(
         getDb()
           .insert(applications)
-          .values({ name: 'Successor scope', ownerAccountId, scopes: [successor] })
+          .values({ name: 'Successor scope', ownerAccountId, scopes: [successor] }),
       ).resolves.toBeDefined();
     }
   });
@@ -229,21 +226,23 @@ describe('applications — closed value sets and the three arrays', () => {
             'inference:providers:read',
             'inference:providers:write',
           ],
-        })
+        }),
     ).resolves.toBeDefined();
   });
 
   it('answers the push-delivery query by array containment', async () => {
     const ownerAccountId = await account();
     const marker = `cap-${randomUUID()}`;
-    await getDb().insert(applications).values([
-      {
-        name: 'Vault',
-        ownerAccountId,
-        capabilities: [IDENTITY_APPROVAL_CAPABILITY, marker],
-      },
-      { name: 'Ordinary', ownerAccountId, capabilities: [marker] },
-    ]);
+    await getDb()
+      .insert(applications)
+      .values([
+        {
+          name: 'Vault',
+          ownerAccountId,
+          capabilities: [IDENTITY_APPROVAL_CAPABILITY, marker],
+        },
+        { name: 'Ordinary', ownerAccountId, capabilities: [marker] },
+      ]);
 
     // The Postgres form of `find({status:'active', capabilities: 'identity:approval'})`.
     const found = await getDb()
@@ -252,7 +251,7 @@ describe('applications — closed value sets and the three arrays', () => {
       .where(
         sql`${applications.status} = 'active'
           and ${applications.capabilities} @> array[${IDENTITY_APPROVAL_CAPABILITY}]::text[]
-          and ${applications.capabilities} @> array[${marker}]::text[]`
+          and ${applications.capabilities} @> array[${marker}]::text[]`,
       );
 
     expect(found.map((row) => row.name)).toEqual(['Vault']);
@@ -314,13 +313,15 @@ describe('applications — what each ON DELETE means', () => {
     const applicationId = await application();
     const userId = await account();
 
-    await getDb().insert(applicationCredentials).values({
-      applicationId,
-      name: 'Client',
-      publicKey: `oxy_dk_${randomUUID()}`,
-      type: 'public',
-      environment: 'production',
-    });
+    await getDb()
+      .insert(applicationCredentials)
+      .values({
+        applicationId,
+        name: 'Client',
+        publicKey: `oxy_dk_${randomUUID()}`,
+        type: 'public',
+        environment: 'production',
+      });
     await getDb().insert(appGrants).values({ userId, applicationId });
     await getDb().insert(appUserSignals).values({ applicationId, userId });
     await getDb().insert(applicationModerationTrust).values({ applicationId });
@@ -353,7 +354,7 @@ describe('applications — what each ON DELETE means', () => {
     const error = await rejection(
       getDb()
         .insert(applications)
-        .values({ name: 'Orphan', ownerAccountId: `missing-${randomUUID()}` })
+        .values({ name: 'Orphan', ownerAccountId: `missing-${randomUUID()}` }),
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
@@ -376,7 +377,7 @@ describe('credentials — the application-scope vocabulary', () => {
           (id, application_id, name, public_key, type, environment, scopes)
         values (${randomUUID()}, ${applicationId}, 'Retired', ${`oxy_dk_${randomUUID()}`},
                 'confidential', 'production', array['chat:completions']::text[])
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
 
@@ -390,10 +391,9 @@ describe('credentials — the application-scope vocabulary', () => {
           type: 'confidential',
           environment: 'production',
           scopes: ['inference:invoke', 'inference:providers:write'],
-        })
+        }),
     ).resolves.toBeDefined();
   });
-
 });
 
 describe('credentials — the self-referencing rotation chain', () => {
@@ -425,9 +425,7 @@ describe('credentials — the self-referencing rotation chain', () => {
       .returning({ id: applicationCredentials.id });
 
     // Deleting the predecessor must not take the LIVE credential with it.
-    await getDb()
-      .delete(applicationCredentials)
-      .where(eq(applicationCredentials.id, previous.id));
+    await getDb().delete(applicationCredentials).where(eq(applicationCredentials.id, previous.id));
 
     const rows = await getDb()
       .select({
@@ -453,7 +451,7 @@ describe('credentials — the self-referencing rotation chain', () => {
         insert into application_credentials
           (id, application_id, name, public_key, type, environment, rotated_from_credential_id)
         values (${id}, ${applicationId}, 'Self', ${randomUUID()}, 'service', 'production', ${id})
-      `)
+      `),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -478,7 +476,7 @@ describe('credentials — the self-referencing rotation chain', () => {
         publicKey,
         type: 'public',
         environment: 'production',
-      })
+      }),
     );
     expect(pgErrorCode(duplicate)).toBe(UNIQUE_VIOLATION);
 
@@ -486,13 +484,15 @@ describe('credentials — the self-referencing rotation chain', () => {
     // `lower()` treatment `users` gives its identifiers would wrongly collide
     // two legitimately distinct base64url keys.
     await expect(
-      getDb().insert(applicationCredentials).values({
-        applicationId,
-        name: 'Recased',
-        publicKey: `${publicKey.slice(0, -1)}a`,
-        type: 'public',
-        environment: 'production',
-      })
+      getDb()
+        .insert(applicationCredentials)
+        .values({
+          applicationId,
+          name: 'Recased',
+          publicKey: `${publicKey.slice(0, -1)}a`,
+          type: 'public',
+          environment: 'production',
+        }),
     ).resolves.toBeDefined();
   });
 });
@@ -503,13 +503,15 @@ describe('app_endorsement_edges — NULLS NOT DISTINCT idempotency', () => {
     const ownerId = await account();
     const memberId = await account();
 
-    await getDb().insert(appEndorsementEdges).values({ applicationId, ownerId, memberId, weight: 1 });
+    await getDb()
+      .insert(appEndorsementEdges)
+      .values({ applicationId, ownerId, memberId, weight: 1 });
 
     // Postgres treats NULLs in a unique constraint as distinct BY DEFAULT, so
     // without `NULLS NOT DISTINCT` this second insert succeeds and the
     // endorsement is counted twice.
     const error = await rejection(
-      getDb().insert(appEndorsementEdges).values({ applicationId, ownerId, memberId, weight: 1 })
+      getDb().insert(appEndorsementEdges).values({ applicationId, ownerId, memberId, weight: 1 }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -526,19 +528,21 @@ describe('app_endorsement_edges — NULLS NOT DISTINCT idempotency', () => {
     await expect(
       getDb()
         .insert(appEndorsementEdges)
-        .values({ applicationId, ownerId, memberId, sourceId: 'list-2', weight: 1 })
+        .values({ applicationId, ownerId, memberId, sourceId: 'list-2', weight: 1 }),
     ).resolves.toBeDefined();
   });
 
   it('refuses the empty-string sentinel this port exists to remove', async () => {
     const error = await rejection(
-      getDb().insert(appEndorsementEdges).values({
-        applicationId: await application(),
-        ownerId: await account(),
-        memberId: await account(),
-        sourceId: '',
-        weight: 1,
-      })
+      getDb()
+        .insert(appEndorsementEdges)
+        .values({
+          applicationId: await application(),
+          ownerId: await account(),
+          memberId: await account(),
+          sourceId: '',
+          weight: 1,
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -548,7 +552,12 @@ describe('app_endorsement_edges — NULLS NOT DISTINCT idempotency', () => {
     const error = await rejection(
       getDb()
         .insert(appEndorsementEdges)
-        .values({ applicationId: await application(), ownerId: userId, memberId: userId, weight: 1 })
+        .values({
+          applicationId: await application(),
+          ownerId: userId,
+          memberId: userId,
+          weight: 1,
+        }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -560,7 +569,7 @@ describe('app_affinity_edges', () => {
     const error = await rejection(
       getDb()
         .insert(appAffinityEdges)
-        .values({ applicationId: await application(), fromUserId: userId, toUserId: userId })
+        .values({ applicationId: await application(), fromUserId: userId, toUserId: userId }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -573,12 +582,12 @@ describe('app_affinity_edges', () => {
     await getDb().insert(appAffinityEdges).values({ applicationId, fromUserId: a, toUserId: b });
 
     const error = await rejection(
-      getDb().insert(appAffinityEdges).values({ applicationId, fromUserId: a, toUserId: b })
+      getDb().insert(appAffinityEdges).values({ applicationId, fromUserId: a, toUserId: b }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
 
     await expect(
-      getDb().insert(appAffinityEdges).values({ applicationId, fromUserId: b, toUserId: a })
+      getDb().insert(appAffinityEdges).values({ applicationId, fromUserId: b, toUserId: a }),
     ).resolves.toBeDefined();
   });
 
@@ -610,7 +619,7 @@ describe('app_user_signals', () => {
     const error = await rejection(
       getDb()
         .insert(appUserSignals)
-        .values({ applicationId, userId: await account(), interestScore: 1.5 })
+        .values({ applicationId, userId: await account(), interestScore: 1.5 }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -654,7 +663,7 @@ describe('account_members', () => {
     await getDb().insert(accountMembers).values({ accountId, memberUserId, role: 'admin' });
 
     const error = await rejection(
-      getDb().insert(accountMembers).values({ accountId, memberUserId, role: 'viewer' })
+      getDb().insert(accountMembers).values({ accountId, memberUserId, role: 'viewer' }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -718,12 +727,16 @@ describe('api_key_usage_events', () => {
     const base = { userId, endpoint: '/v1/chat', method: 'POST' } as const;
 
     const badStatus = await rejection(
-      getDb().insert(apiKeyUsageEvents).values({ ...base, statusCode: 42 })
+      getDb()
+        .insert(apiKeyUsageEvents)
+        .values({ ...base, statusCode: 42 }),
     );
     expect(pgErrorCode(badStatus)).toBe(CHECK_VIOLATION);
 
     const badCredits = await rejection(
-      getDb().insert(apiKeyUsageEvents).values({ ...base, statusCode: 200, creditsUsed: -1 })
+      getDb()
+        .insert(apiKeyUsageEvents)
+        .values({ ...base, statusCode: 200, creditsUsed: -1 }),
     );
     expect(pgErrorCode(badCredits)).toBe(CHECK_VIOLATION);
   });
@@ -778,7 +791,7 @@ describe('api_key_usage_events', () => {
 describe('api_key_usage_events — the 90-day Mongo TTL, moved', () => {
   it('is registered for sweeping with the retention Mongo enforced', () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (entry) => getTableName(entry.table) === 'api_key_usage_events'
+      (entry) => getTableName(entry.table) === 'api_key_usage_events',
     );
 
     expect(target).toBeDefined();
@@ -791,28 +804,30 @@ describe('api_key_usage_events — the 90-day Mongo TTL, moved', () => {
 
   it('deletes a row past the retention and keeps one inside it', async () => {
     const target = EXPIRY_SWEEP_TARGETS.find(
-      (entry) => getTableName(entry.table) === 'api_key_usage_events'
+      (entry) => getTableName(entry.table) === 'api_key_usage_events',
     );
     if (!target) throw new Error('api_key_usage_events is not registered for sweeping');
 
     const userId = await account();
     const dayMs = 24 * 60 * 60 * 1000;
-    await getDb().insert(apiKeyUsageEvents).values([
-      {
-        userId,
-        endpoint: '/v1/stale',
-        method: 'GET',
-        statusCode: 200,
-        createdAt: new Date(Date.now() - 91 * dayMs),
-      },
-      {
-        userId,
-        endpoint: '/v1/fresh',
-        method: 'GET',
-        statusCode: 200,
-        createdAt: new Date(Date.now() - 89 * dayMs),
-      },
-    ]);
+    await getDb()
+      .insert(apiKeyUsageEvents)
+      .values([
+        {
+          userId,
+          endpoint: '/v1/stale',
+          method: 'GET',
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 91 * dayMs),
+        },
+        {
+          userId,
+          endpoint: '/v1/fresh',
+          method: 'GET',
+          statusCode: 200,
+          createdAt: new Date(Date.now() - 89 * dayMs),
+        },
+      ]);
 
     await sweepExpiredRows(getDb(), target);
 
@@ -837,7 +852,7 @@ describe('application_moderation_trust', () => {
     expect(row.globalReputationEffectsAllowed).toBe(false);
 
     const error = await rejection(
-      getDb().insert(applicationModerationTrust).values({ applicationId })
+      getDb().insert(applicationModerationTrust).values({ applicationId }),
     );
     expect(pgErrorCode(error)).toBe(UNIQUE_VIOLATION);
   });
@@ -846,7 +861,7 @@ describe('application_moderation_trust', () => {
     const error = await rejection(
       getDb()
         .insert(applicationModerationTrust)
-        .values({ applicationId: await application(), evidenceIntegrity: 1.2 })
+        .values({ applicationId: await application(), evidenceIntegrity: 1.2 }),
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
@@ -876,7 +891,7 @@ describe('app_grants', () => {
           userId: await account(),
           applicationId: await application(),
           scopes: ['some:retired:scope'],
-        })
+        }),
     ).resolves.toBeDefined();
   });
 });

@@ -40,11 +40,7 @@ jest.mock('../../middleware/auth', () => ({
     req.user = { id: mockBearerUser.current };
     next();
   },
-  serviceAuthMiddleware: (
-    req: { serviceApp?: unknown },
-    _res: unknown,
-    next: () => void,
-  ) => {
+  serviceAuthMiddleware: (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
     req.serviceApp = { scopes: mockServiceScopes.current, appId: mockServiceAppId.current };
     next();
   },
@@ -90,7 +86,9 @@ async function request(
       { method, host: '127.0.0.1', port: address.port, path, headers },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () =>
           resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
         );
@@ -239,7 +237,7 @@ describe('GET /notifications — wire format', () => {
     expect(Object.keys(list[0].actorId as object)).toEqual(['_id']);
   });
 
-  it('returns the recipient\'s notifications newest first, and nobody else\'s', async () => {
+  it("returns the recipient's notifications newest first, and nobody else's", async () => {
     const older = await insertNotification({
       entityId: 'post-old',
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -278,7 +276,7 @@ describe('GET /notifications — wire format', () => {
     expect(secondData.hasMore).toBe(false);
   });
 
-  it('counts only the UNREAD ones, and only the caller\'s', async () => {
+  it("counts only the UNREAD ones, and only the caller's", async () => {
     await insertNotification({ entityId: 'unread-1' });
     await insertNotification({ entityId: 'read-1', read: true });
     await insertNotification({ recipientId: OTHER_USER_ID, entityId: 'theirs' });
@@ -296,7 +294,7 @@ describe('GET /notifications — wire format', () => {
 });
 
 describe('GET /notifications/unread-count', () => {
-  it('answers with the caller\'s unread total', async () => {
+  it("answers with the caller's unread total", async () => {
     await insertNotification({ entityId: 'a' });
     await insertNotification({ entityId: 'b' });
     await insertNotification({ entityId: 'c', read: true });
@@ -485,13 +483,17 @@ describe('POST /notifications — privileged service scope only', () => {
       url: 'https://move.oxy.so/jobs/job-1',
     });
     expect(res.status).toBe(201);
-    expect((res.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({
-      type: 'system',
-      title: 'Your move is complete',
-      message: 'Oxy Move brought 12 posts over from Mastodon.',
-      url: 'https://move.oxy.so/jobs/job-1',
+    expect((res.body.data as { notification: Record<string, unknown> }).notification).toMatchObject(
+      {
+        type: 'system',
+        title: 'Your move is complete',
+        message: 'Oxy Move brought 12 posts over from Mastodon.',
+        url: 'https://move.oxy.so/jobs/job-1',
+      },
+    );
+    expect(emitted.at(-1)).toMatchObject({
+      payload: { title: 'Your move is complete', url: 'https://move.oxy.so/jobs/job-1' },
     });
-    expect(emitted.at(-1)).toMatchObject({ payload: { title: 'Your move is complete', url: 'https://move.oxy.so/jobs/job-1' } });
     const created = (res.body.data as { notification: { _id: string } }).notification;
     expect(mockPushSystemNotification).toHaveBeenCalledTimes(1);
     expect(mockPushSystemNotification).toHaveBeenCalledWith({
@@ -503,57 +505,130 @@ describe('POST /notifications — privileged service scope only', () => {
 
     mockBearerUser.current = RECIPIENT_ID;
     const list = await request('GET', '/notifications');
-    const [stored] = (list.body.data as { notifications: Array<Record<string, unknown>> }).notifications;
-    expect(stored).toMatchObject({ type: 'system', title: 'Your move is complete', message: expect.any(String) });
+    const [stored] = (list.body.data as { notifications: Array<Record<string, unknown>> })
+      .notifications;
+    expect(stored).toMatchObject({
+      type: 'system',
+      title: 'Your move is complete',
+      message: expect.any(String),
+    });
   });
 
   it('requires a title and message for `system`, and refuses a url on any other type', async () => {
-    const base = { recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, entityId: 'job-2', entityType: 'profile' };
+    const base = {
+      recipientId: RECIPIENT_ID,
+      actorId: RECIPIENT_ID,
+      entityId: 'job-2',
+      entityType: 'profile',
+    };
     expect((await request('POST', '/notifications', { ...base, type: 'system' })).status).toBe(400);
-    expect((await request('POST', '/notifications', { ...base, type: 'system', title: 't' })).status).toBe(400);
-    expect((await request('POST', '/notifications', { ...base, type: 'system', title: 't', message: 'x'.repeat(501) })).status).toBe(400);
-    expect((await request('POST', '/notifications', { ...base, type: 'follow', url: 'https://oxy.so' })).status).toBe(400);
+    expect(
+      (await request('POST', '/notifications', { ...base, type: 'system', title: 't' })).status,
+    ).toBe(400);
+    expect(
+      (
+        await request('POST', '/notifications', {
+          ...base,
+          type: 'system',
+          title: 't',
+          message: 'x'.repeat(501),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request('POST', '/notifications', { ...base, type: 'follow', url: 'https://oxy.so' }))
+        .status,
+    ).toBe(400);
   });
 
   it('accepts a deep link only as https or a scheme the calling app registered', async () => {
     const [app] = await getDb()
       .insert(applications)
-      .values({ name: `Move ${randomUUID()}`, ownerAccountId: OTHER_USER_ID, redirectUris: ['https://move.oxy.so', 'oxymove://'] })
+      .values({
+        name: `Move ${randomUUID()}`,
+        ownerAccountId: OTHER_USER_ID,
+        redirectUris: ['https://move.oxy.so', 'oxymove://'],
+      })
       .returning({ id: applications.id });
     mockServiceAppId.current = app.id;
-    const base = { recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityType: 'profile', title: 't', message: 'm' };
-    expect((await request('POST', '/notifications', { ...base, entityId: 'a', url: 'oxymove://jobs/1' })).status).toBe(201);
+    const base = {
+      recipientId: RECIPIENT_ID,
+      actorId: RECIPIENT_ID,
+      type: 'system',
+      entityType: 'profile',
+      title: 't',
+      message: 'm',
+    };
+    expect(
+      (await request('POST', '/notifications', { ...base, entityId: 'a', url: 'oxymove://jobs/1' }))
+        .status,
+    ).toBe(201);
     for (const [entityId, url] of [
       ['b', 'javascript:alert(1)'],
       ['c', 'http://move.oxy.so/jobs/1'],
       ['d', 'mention://post/1'],
       ['e', 'https://user:pass@move.oxy.so/'],
     ]) {
-      expect((await request('POST', '/notifications', { ...base, entityId, url })).status).toBe(400);
+      expect((await request('POST', '/notifications', { ...base, entityId, url })).status).toBe(
+        400,
+      );
     }
   });
 
   it('names an app-namespaced entity (a job id) on a system notification, and only there', async () => {
     const ok = await request('POST', '/notifications', {
-      recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'job-42', entityType: 'app', title: 't', message: 'm',
+      recipientId: RECIPIENT_ID,
+      actorId: RECIPIENT_ID,
+      type: 'system',
+      entityId: 'job-42',
+      entityType: 'app',
+      title: 't',
+      message: 'm',
     });
     expect(ok.status).toBe(201);
-    expect((ok.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({ entityType: 'app', entityId: 'job-42' });
+    expect((ok.body.data as { notification: Record<string, unknown> }).notification).toMatchObject({
+      entityType: 'app',
+      entityId: 'job-42',
+    });
     const refused = await request('POST', '/notifications', {
-      recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'job-42', entityType: 'app',
+      recipientId: RECIPIENT_ID,
+      actorId: ACTOR_ID,
+      type: 'like',
+      entityId: 'job-42',
+      entityType: 'app',
     });
     expect(refused.status).toBe(400);
     await expect(
-      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'like', entityId: 'raw-app', entityType: 'app' }),
+      getDb().insert(notifications).values({
+        recipientId: RECIPIENT_ID,
+        actorId: ACTOR_ID,
+        type: 'like',
+        entityId: 'raw-app',
+        entityType: 'app',
+      }),
     ).rejects.toThrow();
   });
 
   it('keeps a raw write honest: system without text, or text on another type, is refused', async () => {
     await expect(
-      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: RECIPIENT_ID, type: 'system', entityId: 'raw-1', entityType: 'profile' }),
+      getDb().insert(notifications).values({
+        recipientId: RECIPIENT_ID,
+        actorId: RECIPIENT_ID,
+        type: 'system',
+        entityId: 'raw-1',
+        entityType: 'profile',
+      }),
     ).rejects.toThrow();
     await expect(
-      getDb().insert(notifications).values({ recipientId: RECIPIENT_ID, actorId: ACTOR_ID, type: 'follow', entityId: 'raw-2', entityType: 'profile', title: 'x', message: 'y' }),
+      getDb().insert(notifications).values({
+        recipientId: RECIPIENT_ID,
+        actorId: ACTOR_ID,
+        type: 'follow',
+        entityId: 'raw-2',
+        entityType: 'profile',
+        title: 'x',
+        message: 'y',
+      }),
     ).rejects.toThrow();
   });
 
@@ -568,7 +643,7 @@ describe('POST /notifications — privileged service scope only', () => {
     expect(res.status).toBe(400);
   });
 
-  it('emits the realtime notification to the RECIPIENT\'s room only', async () => {
+  it("emits the realtime notification to the RECIPIENT's room only", async () => {
     await request('POST', '/notifications', {
       recipientId: RECIPIENT_ID,
       actorId: ACTOR_ID,
@@ -608,7 +683,14 @@ describe('POST /notifications — privileged service scope only', () => {
     expect(res.status).toBe(201);
     const notification = (res.body.data as { notification: Record<string, unknown> }).notification;
     expect(Object.keys(notification).sort()).toEqual([
-      '_id', 'actorId', 'createdAt', 'entityId', 'entityType', 'read', 'recipientId', 'type',
+      '_id',
+      'actorId',
+      'createdAt',
+      'entityId',
+      'entityType',
+      'read',
+      'recipientId',
+      'type',
       'updatedAt',
     ]);
   });

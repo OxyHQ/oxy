@@ -86,7 +86,7 @@ async function insertUser(): Promise<string> {
 
 async function insertSession(
   userId: string,
-  options: { isActive: boolean; expiresAt: Date }
+  options: { isActive: boolean; expiresAt: Date },
 ): Promise<void> {
   await getDb().insert(sessions).values({
     sessionId: randomUUID(),
@@ -182,7 +182,7 @@ beforeAll(async () => {
       subject: 'Seeded',
       size: 128,
       date: new Date(),
-    }))
+    })),
   );
 
   await db.insert(notifications).values(
@@ -192,7 +192,7 @@ beforeAll(async () => {
       type: 'like' as const,
       entityId: randomUUID(),
       entityType: 'post' as const,
-    }))
+    })),
   );
 
   await db.insert(files).values(
@@ -203,7 +203,7 @@ beforeAll(async () => {
       ext: 'png',
       ownerUserId: owner,
       storageKey: `seed/${randomUUID()}`,
-    }))
+    })),
   );
 
   await db
@@ -247,7 +247,7 @@ beforeAll(async () => {
     await db.select({ n: count() }).from(sessions).where(eq(sessions.isActive, true))
   ).map((row) => row.n);
   [applicationsIgnoringStatus] = (await db.select({ n: count() }).from(applications)).map(
-    (row) => row.n
+    (row) => row.n,
   );
 });
 
@@ -282,9 +282,7 @@ describe('the wire format', () => {
   it('carries exactly the ten documented fields, and `totalApplications` keeps its name', () => {
     // `totalApplications` was renamed from the legacy developer-app model on
     // purpose; drifting back would break the console silently.
-    expect(Object.keys(body).sort()).toEqual(
-      [...COUNTERS, 'aiModels', 'timestamp'].sort()
-    );
+    expect(Object.keys(body).sort()).toEqual([...COUNTERS, 'aiModels', 'timestamp'].sort());
   });
 
   it('reports the AI model constant and an ISO-8601 timestamp', () => {

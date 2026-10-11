@@ -135,28 +135,26 @@ export async function issueAuthCode(options: IssueCodeOptions): Promise<IssueCod
   const codeHash = sha256Hex(rawCode);
   const expiresAt = new Date(Date.now() + ttlMs);
 
-  await (options.db ?? getDb())
-    .insert(authCodes)
-    .values({
-      // Omitted when the caller reserved none, so the column's own
-      // `generatedId()` default mints it.
-      ...(options.codeId ? { id: options.codeId } : {}),
-      codeHash,
-      userId: options.userId,
-      applicationId: options.appId,
-      redirectUri: canonicalizeOAuthRedirectUri(options.redirectUri),
-      // NULL, never `''`: `auth_codes_pkce_pair_check` asserts that challenge
-      // and method are both present or both absent, and an empty string is a
-      // VALUE that would satisfy "present" while verifying nothing.
-      codeChallenge: options.codeChallenge ?? null,
-      codeChallengeMethod: options.codeChallenge ? 'S256' : null,
-      scopes: options.scopes ?? [],
-      deviceId: options.deviceId ?? null,
-      operatedByUserId: options.operatedByUserId ?? null,
-      authMethodId: options.authMethod?.authMethodId ?? null,
-      authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? null,
-      expiresAt,
-    });
+  await (options.db ?? getDb()).insert(authCodes).values({
+    // Omitted when the caller reserved none, so the column's own
+    // `generatedId()` default mints it.
+    ...(options.codeId ? { id: options.codeId } : {}),
+    codeHash,
+    userId: options.userId,
+    applicationId: options.appId,
+    redirectUri: canonicalizeOAuthRedirectUri(options.redirectUri),
+    // NULL, never `''`: `auth_codes_pkce_pair_check` asserts that challenge
+    // and method are both present or both absent, and an empty string is a
+    // VALUE that would satisfy "present" while verifying nothing.
+    codeChallenge: options.codeChallenge ?? null,
+    codeChallengeMethod: options.codeChallenge ? 'S256' : null,
+    scopes: options.scopes ?? [],
+    deviceId: options.deviceId ?? null,
+    operatedByUserId: options.operatedByUserId ?? null,
+    authMethodId: options.authMethod?.authMethodId ?? null,
+    authMethodOwnerId: options.authMethod?.authMethodOwnerId ?? null,
+    expiresAt,
+  });
 
   return { code: rawCode, expiresAt };
 }
@@ -224,10 +222,15 @@ export async function exchangeAuthCode(options: ExchangeCodeOptions): Promise<Ex
     .from(authCodes)
     .where(eq(authCodes.codeHash, codeHash))
     .limit(1);
-  if (stored?.authMethodId && (!stored.authMethodOwnerId || !(await readLiveAgentKey({
-    authMethodId: stored.authMethodId, authMethodOwnerId: stored.authMethodOwnerId,
-  })))) return { ok: false, reason: 'invalid_grant' };
-
+  if (
+    stored?.authMethodId &&
+    (!stored.authMethodOwnerId ||
+      !(await readLiveAgentKey({
+        authMethodId: stored.authMethodId,
+        authMethodOwnerId: stored.authMethodOwnerId,
+      })))
+  )
+    return { ok: false, reason: 'invalid_grant' };
 
   if (!stored) {
     return { ok: false, reason: 'invalid_grant' };
@@ -263,7 +266,7 @@ export async function exchangeAuthCode(options: ExchangeCodeOptions): Promise<Ex
       return { ok: false, reason: 'invalid_grant' };
     }
     const computed = base64UrlEncode(
-      crypto.createHash('sha256').update(options.codeVerifier).digest()
+      crypto.createHash('sha256').update(options.codeVerifier).digest(),
     );
     if (!timingSafeStringEqual(stored.codeChallenge, computed)) {
       return { ok: false, reason: 'invalid_grant' };

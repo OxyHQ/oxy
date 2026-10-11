@@ -15,10 +15,7 @@ jest.mock('../../components/oauthNavigation', () => ({
 }));
 
 import type { OxyServices } from '@oxy.so/core';
-import {
-  OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY,
-  OXY_OAUTH_STATE_STORAGE_KEY,
-} from '@oxy.so/core';
+import { OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY, OXY_OAUTH_STATE_STORAGE_KEY } from '@oxy.so/core';
 import { tryCompleteOAuthReturn } from '../../utils/oauthReturn';
 import { startWebOAuthSignIn, type WebOAuthTransportContext } from '../browserAuthTransport';
 import { completeOAuthCode } from '../completeOAuthCode';
@@ -102,7 +99,9 @@ describe('shared OAuth completion path', () => {
 
   it('the redirect return leg completes through completeOAuthCode with the persisted handshake', async () => {
     const exchangeOAuthCode = jest.fn();
-    const oxyServices = { auth: { oauth: { exchangeCode: exchangeOAuthCode } } } as unknown as OxyServices;
+    const oxyServices = {
+      auth: { oauth: { exchangeCode: exchangeOAuthCode } },
+    } as unknown as OxyServices;
     sessionStorage.setItem(OXY_OAUTH_STATE_STORAGE_KEY, 'state-from-storage');
     sessionStorage.setItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY, 'verifier-from-storage');
     window.history.replaceState({}, '', '/feed?code=code-2&state=state-from-storage');

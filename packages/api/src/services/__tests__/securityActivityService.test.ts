@@ -39,10 +39,7 @@ import securityActivityService from '../securityActivityService';
 
 /** A real account row, so the id under test is one the schema actually mints. */
 async function insertUser(): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal' })
-    .returning({ id: users.id });
+  const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   return row.id;
 }
 
@@ -64,7 +61,7 @@ async function storedRows(userId: string) {
  */
 async function seedEvent(
   userId: string,
-  values: Partial<typeof securityActivities.$inferInsert> = {}
+  values: Partial<typeof securityActivities.$inferInsert> = {},
 ): Promise<string> {
   const [row] = await getDb()
     .insert(securityActivities)
@@ -81,7 +78,9 @@ async function seedEvent(
 
 /** A request carrying only the headers `extractDeviceInfo` reads. */
 function makeRequest(headers: Record<string, string> = {}): Request {
-  return { headers: { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120', ...headers } } as unknown as Request;
+  return {
+    headers: { 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) Chrome/120', ...headers },
+  } as unknown as Request;
 }
 
 beforeAll(async () => {
@@ -119,7 +118,10 @@ describe('the id format must not decide whether the trail is written', () => {
 
   it('reads the trail back for a post-cutover account, rather than throwing', async () => {
     const userId = await insertUser();
-    await seedEvent(userId, { eventType: 'device_added', eventDescription: 'New device added: Pixel' });
+    await seedEvent(userId, {
+      eventType: 'device_added',
+      eventDescription: 'New device added: Pixel',
+    });
 
     const page = await securityActivityService.getUserSecurityActivity(userId);
 
@@ -129,7 +131,10 @@ describe('the id format must not decide whether the trail is written', () => {
 
   it('returns the recent trail for a post-cutover account', async () => {
     const userId = await insertUser();
-    await seedEvent(userId, { eventType: 'backup_created', eventDescription: 'Encrypted backup file created' });
+    await seedEvent(userId, {
+      eventType: 'backup_created',
+      eventDescription: 'Encrypted backup file created',
+    });
 
     const recent = await securityActivityService.getRecentSecurityActivity(userId);
 
@@ -313,7 +318,11 @@ describe('what a write stores', () => {
     // of this table, so "the table has no IP column" and "this writer never
     // produces one" are different claims; this is the second.
     const userId = await insertUser();
-    await securityActivityService.logSignIn(userId, makeRequest({ 'x-forwarded-for': '203.0.113.7' }), 'd1');
+    await securityActivityService.logSignIn(
+      userId,
+      makeRequest({ 'x-forwarded-for': '203.0.113.7' }),
+      'd1',
+    );
 
     const [row] = await storedRows(userId);
     expect(JSON.stringify(row)).not.toContain('203.0.113.7');
@@ -334,7 +343,7 @@ describe('deduplication', () => {
     expect(await storedRows(userId)).toHaveLength(1);
   });
 
-  it('does not let one account suppress another account\'s event', async () => {
+  it("does not let one account suppress another account's event", async () => {
     const a = await insertUser();
     const b = await insertUser();
 
@@ -392,7 +401,7 @@ describe('a write that cannot land', () => {
 });
 
 describe('reading the trail', () => {
-  it('never returns another account\'s rows', async () => {
+  it("never returns another account's rows", async () => {
     // The guarantee the controller suite could not hold, because it is a
     // property of the QUERY. The controller proves no request-supplied value
     // widens the input; this proves the predicate itself is scoped.
@@ -410,9 +419,18 @@ describe('reading the trail', () => {
 
   it('orders newest event first, by the EVENT time', async () => {
     const userId = await insertUser();
-    await seedEvent(userId, { eventDescription: 'oldest', occurredAt: new Date('2026-01-01T00:00:00Z') });
-    await seedEvent(userId, { eventDescription: 'newest', occurredAt: new Date('2026-03-01T00:00:00Z') });
-    await seedEvent(userId, { eventDescription: 'middle', occurredAt: new Date('2026-02-01T00:00:00Z') });
+    await seedEvent(userId, {
+      eventDescription: 'oldest',
+      occurredAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    await seedEvent(userId, {
+      eventDescription: 'newest',
+      occurredAt: new Date('2026-03-01T00:00:00Z'),
+    });
+    await seedEvent(userId, {
+      eventDescription: 'middle',
+      occurredAt: new Date('2026-02-01T00:00:00Z'),
+    });
 
     const page = await securityActivityService.getUserSecurityActivity(userId);
 
@@ -428,12 +446,18 @@ describe('reading the trail', () => {
       });
     }
 
-    const first = await securityActivityService.getUserSecurityActivity(userId, { limit: 2, offset: 0 });
+    const first = await securityActivityService.getUserSecurityActivity(userId, {
+      limit: 2,
+      offset: 0,
+    });
     expect(first.total).toBe(5);
     expect(first.hasMore).toBe(true);
     expect(first.activities.map((a) => a.eventDescription)).toEqual(['event-4', 'event-3']);
 
-    const last = await securityActivityService.getUserSecurityActivity(userId, { limit: 2, offset: 4 });
+    const last = await securityActivityService.getUserSecurityActivity(userId, {
+      limit: 2,
+      offset: 4,
+    });
     expect(last.total).toBe(5);
     expect(last.hasMore).toBe(false);
     expect(last.activities.map((a) => a.eventDescription)).toEqual(['event-0']);
@@ -447,7 +471,9 @@ describe('reading the trail', () => {
     await seedEvent(userId, { eventType: 'sign_out', eventDescription: 'out' });
     await seedEvent(userId, { eventType: 'sign_out', eventDescription: 'out again' });
 
-    const page = await securityActivityService.getUserSecurityActivity(userId, { eventType: 'sign_out' });
+    const page = await securityActivityService.getUserSecurityActivity(userId, {
+      eventType: 'sign_out',
+    });
 
     expect(page.total).toBe(2);
     expect(page.activities.map((a) => a.eventType)).toEqual(['sign_out', 'sign_out']);
@@ -497,8 +523,12 @@ describe('reading the trail', () => {
     const userId = await insertUser();
     await seedEvent(userId);
 
-    await expect(securityActivityService.getRecentSecurityActivity(userId, 0)).resolves.toHaveLength(1);
-    await expect(securityActivityService.getRecentSecurityActivity(userId, -5)).resolves.toHaveLength(1);
+    await expect(
+      securityActivityService.getRecentSecurityActivity(userId, 0),
+    ).resolves.toHaveLength(1);
+    await expect(
+      securityActivityService.getRecentSecurityActivity(userId, -5),
+    ).resolves.toHaveLength(1);
   });
 
   it('presents a non-object stored metadata as `{}` rather than handing it on', async () => {

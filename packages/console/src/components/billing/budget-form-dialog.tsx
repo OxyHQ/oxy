@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { currencyCodeSchema, exactDecimalSchema } from '@oxy.so/contracts';
-import type {
-  BudgetEnforcement,
-  BudgetPeriod,
-  BudgetScope,
-} from '@/lib/reporting';
+import type { BudgetEnforcement, BudgetPeriod, BudgetScope } from '@/lib/reporting';
 import type { CreateBudgetInput } from '@/hooks/use-inference-reporting';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -79,7 +75,7 @@ export function BudgetFormDialog({
   onSubmit: (input: CreateBudgetInput) => void;
 }) {
   const [scope, setScope] = useState<BudgetScope>(
-    fixedApplicationId === undefined ? 'account' : 'application'
+    fixedApplicationId === undefined ? 'account' : 'application',
   );
   const [applicationId, setApplicationId] = useState<string>(fixedApplicationId ?? '');
   const [credentialId, setCredentialId] = useState<string>('');
@@ -99,7 +95,7 @@ export function BudgetFormDialog({
     const amount = exactDecimalSchema.safeParse(limitAmount.trim());
     if (!amount.success) {
       setError(
-        'The ceiling must be an exact decimal amount — digits and at most one point, no exponent.'
+        'The ceiling must be an exact decimal amount — digits and at most one point, no exponent.',
       );
       return;
     }
@@ -156,9 +152,7 @@ export function BudgetFormDialog({
     setThresholds((current) =>
       current.includes(bps)
         ? current.filter((entry) => entry !== bps)
-        : BUDGET_ALERT_THRESHOLDS_BPS.filter(
-            (entry) => entry === bps || current.includes(entry)
-          )
+        : BUDGET_ALERT_THRESHOLDS_BPS.filter((entry) => entry === bps || current.includes(entry)),
     );
   };
 
@@ -323,7 +317,7 @@ export function BudgetFormDialog({
                       'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                       isSelected
                         ? 'border-foreground bg-foreground text-background'
-                        : 'border-border text-muted-foreground hover:text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground',
                     )}
                   >
                     {formatBasisPoints(bps)}

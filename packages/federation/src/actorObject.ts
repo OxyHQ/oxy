@@ -257,7 +257,9 @@ function buildActorIcon(
   if (!avatar) return undefined;
   const resolved = config.media.resolveAvatar(avatar);
   if (!resolved || !isAbsoluteHttpUrl(resolved)) {
-    config.onWarn?.(`[Federation] Omitting actor icon — avatar did not resolve to an absolute URL (ref: ${avatar})`);
+    config.onWarn?.(
+      `[Federation] Omitting actor icon — avatar did not resolve to an absolute URL (ref: ${avatar})`,
+    );
     return undefined;
   }
   return apImageObject(resolved);
@@ -275,7 +277,9 @@ function buildActorImage(
   if (!banner) return undefined;
   const resolved = config.media.resolveBanner(banner);
   if (!resolved || !isAbsoluteHttpUrl(resolved)) {
-    config.onWarn?.(`[Federation] Omitting actor image — banner did not resolve to an absolute URL (ref: ${banner})`);
+    config.onWarn?.(
+      `[Federation] Omitting actor image — banner did not resolve to an absolute URL (ref: ${banner})`,
+    );
     return undefined;
   }
   return apImageObject(resolved);
@@ -309,7 +313,8 @@ export function normalizeAlsoKnownAs(values: readonly string[] | null | undefine
  */
 export function createLocalActorBuilder(config: LocalActorBuilderConfig): LocalActorBuilder {
   return (params: BuildLocalActorParams): Record<string, unknown> => {
-    const { username, displayName, kind, bio, avatar, profileHeaderImage, publicKey, createdAt } = params;
+    const { username, displayName, kind, bio, avatar, profileHeaderImage, publicKey, createdAt } =
+      params;
 
     const actorObject: Record<string, unknown> = {
       id: config.urls.actor(username),

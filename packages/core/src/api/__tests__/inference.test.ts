@@ -11,7 +11,10 @@ describe('createInferenceClient', () => {
 
   beforeEach(() => {
     fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ data: [], count: 0 }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      new Response(JSON.stringify({ data: [], count: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
     );
   });
 

@@ -30,7 +30,7 @@ function valuesAtPath(input: Record<string, unknown>, path: string): unknown[] {
     if (next.length === 0) return [];
     current = next;
   }
-  return current.flatMap((value) => Array.isArray(value) ? value : [value]);
+  return current.flatMap((value) => (Array.isArray(value) ? value : [value]));
 }
 
 /** Enforces the signed per-action bounds before a domain handler runs. */
@@ -45,9 +45,12 @@ export function inputSatisfiesCapabilityLimits(
     if (actualValues.length === 0) return false;
     if (typeof limit.value === 'number') {
       const maximum = limit.value;
-      if (!actualValues.every((actual) => (
-        typeof actual === 'number' && Number.isFinite(actual) && actual <= maximum
-      ))) return false;
+      if (
+        !actualValues.every(
+          (actual) => typeof actual === 'number' && Number.isFinite(actual) && actual <= maximum,
+        )
+      )
+        return false;
       continue;
     }
     if (!actualValues.every((actual) => actual === limit.value)) return false;

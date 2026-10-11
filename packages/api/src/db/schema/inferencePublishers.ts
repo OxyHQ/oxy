@@ -67,7 +67,7 @@ export const inferencePublishers = pgTable(
      * resolving.
      */
     check('inference_publishers_slug_format', sql`${t.slug} ~ ${sql.raw(SLUG_CHECK_PATTERN)}`),
-  ]
+  ],
 );
 
 export type InferencePublisherRow = typeof inferencePublishers.$inferSelect;

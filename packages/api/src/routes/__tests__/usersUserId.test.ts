@@ -45,7 +45,11 @@ jest.mock('../../services/user.service', () => ({
     getUserStats: mockGetUserStats,
     formatUserResponse: mockFormatUserResponse,
     getViewerRelationship: mockGetViewerRelationship,
-    withExternalIdentities: async (user: Record<string, unknown>) => ({ ...user, externalIdentities: [], redirectedUserIds: [] }),
+    withExternalIdentities: async (user: Record<string, unknown>) => ({
+      ...user,
+      externalIdentities: [],
+      redirectedUserIds: [],
+    }),
   },
 }));
 jest.mock('../../services/identityExport.service', () => ({
@@ -92,7 +96,9 @@ async function requestJson(server: http.Server, userId: string): Promise<JsonRes
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
         res.on('end', () => {
           try {
             resolve({
@@ -128,10 +134,12 @@ describe('GET /users/:userId', () => {
     jest.clearAllMocks();
     currentViewerId = undefined;
     mockGetUserStats.mockResolvedValue({});
-    mockFormatUserResponse.mockImplementation((user: { _id?: { toString(): string }; username?: string }) => ({
-      id: user._id?.toString(),
-      username: user.username,
-    }));
+    mockFormatUserResponse.mockImplementation(
+      (user: { _id?: { toString(): string }; username?: string }) => ({
+        id: user._id?.toString(),
+        username: user.username,
+      }),
+    );
   });
 
   it('returns 404 for a restricted-tier user', async () => {
@@ -170,7 +178,12 @@ describe('GET /users/:userId', () => {
 
     const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ id: targetUserId, username: 'nate', externalIdentities: [], redirectedUserIds: [] });
+    expect(res.body.data).toEqual({
+      id: targetUserId,
+      username: 'nate',
+      externalIdentities: [],
+      redirectedUserIds: [],
+    });
     expect(res.body.data?.relationship).toBeUndefined();
     expect(mockGetViewerRelationship).not.toHaveBeenCalled();
   });
