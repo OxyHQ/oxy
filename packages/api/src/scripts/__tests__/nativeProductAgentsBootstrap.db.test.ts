@@ -9,6 +9,12 @@
  * would accept a revocation the ordering forbids — so the script runs as the
  * one-shot task runs it: a separate `bun` process, `DATABASE_URL` and the
  * approval variables in its environment, and nothing else.
+ *
+ * It owns a fully migrated database of its own, as
+ * `routes/__tests__/nativeRequesterAssertion.routes.test.ts` does: the reserved
+ * Oxy organisation and Homiio application carry real authority, and other
+ * suites in a worker's shared database create (and hang usage rows off) the
+ * same organisation, so seeding or deleting it there would race them.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -18,15 +24,19 @@ import { NATIVE_PRODUCT_AGENTS } from '../../config/nativeProductAgents';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
-import { internalCostCenters } from '../../db/schema/internalCostCenters';
 import { securityActivities } from '../../db/schema/securityActivities';
 import { users } from '../../db/schema/users';
+import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 
 const ORG = NATIVE_PRODUCT_AGENTS.oxyOrganizationId;
 const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
 const SINDI = homiio.sindiServiceCredential;
 const ROLE = homiio.workload.subject;
 const STORED_SECRET_HASH = 'c'.repeat(64);
+const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
+let ownDatabaseUrl: string | undefined;
+
+jest.setTimeout(120_000);
 
 interface BootstrapRun {
   readonly status: number | null;
@@ -82,6 +92,7 @@ async function bindHomiio(scopes: readonly string[]): Promise<void> {
 }
 
 beforeAll(async () => {
+  ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
   // The production shape the bootstrap was first applied over: the reserved
   // organisation, the pre-existing Homiio application, and a LIVE Sindi
@@ -117,26 +128,16 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const db = getDb();
-  const applicationIds = [
-    homiio.applicationId,
-    clarity.application.id,
-    clarity.backendApplication.id,
-  ];
-  const accountIds = [homiio.bot.id, clarity.bot.id, homiio.project.id, clarity.project.id];
-  await db.delete(securityActivities).where(eq(securityActivities.userId, ORG));
-  await db
-    .delete(applicationWorkloadIdentities)
-    .where(inArray(applicationWorkloadIdentities.applicationId, applicationIds));
-  await db
-    .delete(applicationCredentials)
-    .where(inArray(applicationCredentials.applicationId, applicationIds));
-  await db.delete(applications).where(inArray(applications.id, applicationIds));
-  await db
-    .delete(internalCostCenters)
-    .where(inArray(internalCostCenters.accountId, [homiio.project.id, clarity.project.id]));
-  for (const id of [...accountIds, ORG]) await db.delete(users).where(eq(users.id, id));
-  await closePostgres();
+  try {
+    await closePostgres();
+  } finally {
+    try {
+      if (ownDatabaseUrl) await dropTestDatabase(ownDatabaseUrl);
+    } finally {
+      if (ORIGINAL_DATABASE_URL === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = ORIGINAL_DATABASE_URL;
+    }
+  }
 });
 
 describe('bootstrap-native-product-agents.ts (no key pair)', () => {

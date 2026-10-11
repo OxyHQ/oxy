@@ -217,13 +217,21 @@ it('one-shot operation seam accepts only verifier, exact target and closed input
   const { target } = await import('../mercariaEphemeralCredential.contract');
   const { credentialVerifier } = await import('../../utils/credentialMaterial');
   // The exact target is Oxy's own fixed account and application: remove them
-  // afterwards so a later suite in this worker's database can seed them too.
+  // afterwards so a later suite in this worker's database can seed them too —
+  // but the ACCOUNT only if this test created it. Other suites in the same
+  // worker (the Alia revocation canary) hang usage receipts off their own
+  // applications under this account, and deleting it then fails on their
+  // foreign keys; `seedOxyApplicationScopes.test.ts` never deletes it either.
+  const [preexistingOwner] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, target.ownerAccountId));
   cleanups.push(async () => {
     await getDb()
       .delete(applicationCredentials)
       .where(eq(applicationCredentials.applicationId, target.applicationId));
     await getDb().delete(applications).where(eq(applications.id, target.applicationId));
-    await getDb().delete(users).where(eq(users.id, target.ownerAccountId));
+    if (!preexistingOwner) await getDb().delete(users).where(eq(users.id, target.ownerAccountId));
   });
   // Other suites (the official-app seeds, the Alia canary) create this account
   // too, so a worker's database may already hold it: upsert, as they do.
