@@ -55,9 +55,11 @@ jest.mock('../inboxRealtime', () => ({
 }));
 
 import { randomUUID } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { EMAIL_QUOTAS } from '../../config/email.config';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { emailOutbox } from '../../db/schema/emailOutbox';
+import { mailboxes } from '../../db/schema/mailboxes';
 import { messages } from '../../db/schema/messages';
 import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
@@ -136,6 +138,47 @@ async function settled(messageRowId: string, state: string) {
   throw new Error(`delivery of ${messageRowId} never reached ${state}`);
 }
 
+/** Backends of this test database waiting on a lock. */
+async function lockWaiters(): Promise<number> {
+  const rows = await getDb().execute<{ n: number }>(
+    sql`select count(*)::int as n from pg_stat_activity
+        where datname = current_database() and wait_event_type = 'Lock'`,
+  );
+  return rows[0].n;
+}
+
+async function waitFor(condition: () => Promise<boolean>) {
+  for (let i = 0; i < 500; i++) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('the condition never held');
+}
+
+/** Hold `FOR UPDATE` on one mailbox row, on a connection of its own, until released. */
+function holdRowLock(mailboxId: string) {
+  let held!: () => void;
+  let release!: () => void;
+  const heldPromise = new Promise<void>((resolve) => {
+    held = resolve;
+  });
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const done = getDb().transaction(async (tx) => {
+    await tx.select().from(mailboxes).where(eq(mailboxes.id, mailboxId)).for('update');
+    held();
+    await released;
+  });
+  return {
+    held: heldPromise,
+    release: async () => {
+      release();
+      await done;
+    },
+  };
+}
+
 function deliveryEvents(messageRowId: string) {
   return mockEmitChanged.mock.calls.filter(
     ([event]) => event.reason === 'delivery' && event.id === messageRowId,
@@ -180,13 +223,10 @@ describe('accepting a send', () => {
     });
 
     const key = `reply:${unique()}`;
-    const [first, second] = await Promise.all([
-      accept(reply(key)),
-      acceptOutboundMessage(reply(key)),
-    ]);
+    // Either may win the claim; both answers name the one Sent row.
+    const [first, second] = await Promise.all([accept(reply(key)), accept(reply(key))]);
     expect(second.messageId).toBe(first.messageId);
-    // The loser may answer before the winner has filed the row; it never names another.
-    expect([first.messageRowId, null]).toContain(second.messageRowId);
+    expect(second.rowId).toBe(first.rowId);
 
     release();
     await settled(first.rowId, 'sent');
@@ -196,6 +236,73 @@ describe('accepting a send', () => {
     // A later retry of the same key reports the outcome, without sending.
     const later = await acceptOutboundMessage(reply(key));
     expect(later.delivery?.state).toBe('sent');
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a repeat that arrives while the first is still filing with the filed row', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `reply:${unique()}`;
+
+    // Hold the Sent mailbox's row, so the first send stops exactly where it
+    // files its Sent copy (that insert takes a key-share lock on its mailbox).
+    const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
+    if (!sent) throw new Error('no Sent mailbox');
+    const gate = holdRowLock(sent.id);
+    await gate.held;
+
+    const first = accept(reply(key));
+    await waitFor(async () => (await lockWaiters()) >= 1);
+
+    // The repeat either answers at once or waits behind the first's claim;
+    // only then may the first finish filing.
+    let secondDone = false;
+    const second = accept(reply(key)).finally(() => {
+      secondDone = true;
+    });
+    await waitFor(async () => secondDone || (await lockWaiters()) >= 2);
+    await gate.release();
+
+    const [a, b] = await Promise.all([first, second]);
+    expect(b.messageId).toBe(a.messageId);
+    expect(b.rowId).toBe(a.rowId);
+    await settled(a.rowId, 'sent');
+    expect(await sentRows(a.messageId)).toHaveLength(1);
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a send over quota without keeping its key, which then goes out once', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `reply:${unique()}`;
+    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
+    if (!inbox) throw new Error('no Inbox');
+    const [filler] = await getDb()
+      .insert(messages)
+      .values({
+        userId: user.id,
+        mailboxId: inbox.id,
+        messageId: `<filler-${unique()}@example.com>`,
+        fromAddress: 'filler@example.com',
+        subject: 'filler',
+        size: EMAIL_QUOTAS.free.storage,
+        date: new Date(),
+        receivedAt: new Date(),
+      })
+      .returning({ id: messages.id });
+    try {
+      await expect(acceptOutboundMessage(reply(key))).rejects.toThrow(/quota exceeded/);
+    } finally {
+      await getDb().delete(messages).where(eq(messages.id, filler.id));
+    }
+    const claims = await getDb()
+      .select()
+      .from(emailOutbox)
+      .where(and(eq(emailOutbox.userId, user.id), eq(emailOutbox.idempotencyKey, key)));
+    expect(claims).toHaveLength(0);
+    expect(mockSendMail).not.toHaveBeenCalled();
+
+    const { messageId, rowId } = await accept(reply(key));
+    await settled(rowId, 'sent');
+    expect(await sentRows(messageId)).toHaveLength(1);
     expect(mockSendMail).toHaveBeenCalledTimes(1);
   });
 

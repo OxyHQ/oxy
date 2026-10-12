@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed (a repeated send always names its Sent row)
+
+- `POST /email/messages` claims the send and files its Sent copy in ONE
+  transaction. A repeat of the same `Idempotency-Key` that raced the first
+  used to answer 202 with `id: null` while the first was still filing, and was
+  told the message was accepted even when the first was then refused (a full
+  mailbox) and nothing was filed or sent — after which the controller deleted
+  the draft. The repeat now waits on the claim: it answers with the filed row,
+  or, if the first was refused, makes the attempt itself.
+
 ### Changed (Kaana owns provider keys and routing, ADR 0038)
 
 - A provider's synced routes are funded at the best tier AVAILABLE among all
