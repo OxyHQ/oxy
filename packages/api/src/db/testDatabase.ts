@@ -20,8 +20,9 @@
  * A run that never reaches its teardown — killed by a signal, a closed
  * terminal, a tool's timeout — drops nothing, and each such run used to leave
  * a fully migrated database behind for good. Every database is therefore
- * labelled with the host and process that will drop it, and
- * {@link reapOrphanedTestDatabases} drops the ones whose process is gone.
+ * labelled, and owned through a session-level advisory lock its process holds
+ * until it drops it; {@link reapOrphanedTestDatabases} drops the labelled ones
+ * whose lock is free.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -40,11 +41,12 @@ const NAME_ENTROPY_BYTES = 8;
  */
 const TEST_DATABASE_NAME = /^oxy_test_[0-9a-f]{16}$/;
 /**
- * The `COMMENT` on a throwaway database: the host and the pid of the process
- * that will drop it. A database without one — made before the label existed,
- * or by hand — is never reaped.
+ * How the `COMMENT` on a throwaway database begins; the host and pid of the
+ * process that made it follow, for a person reading `\l+`. A database without
+ * it — made before the label existed, or by hand — is never reaped. Whether
+ * its owner is alive is decided by its ownership lock, never by the label.
  */
-const OWNER_LABEL = /^oxy-jest owner=(.+)\/(\d+)$/;
+const OWNER_LABEL = 'oxy-jest owner=';
 /** Seconds an admin connection waits before giving up on close. */
 const ADMIN_CLOSE_TIMEOUT_SECONDS = 5;
 /** Milliseconds `bun run db:migrate` may take before the run is abandoned. */
@@ -148,12 +150,14 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
   testUrl.pathname = `/${name}`;
   const url = testUrl.toString();
 
+  // Owned BEFORE it exists, so no reaper ever sees it labelled and unowned.
+  await holdOwnership(baseUrl, name);
   const create = postgres(maintenanceUrl(baseUrl), { max: 1 });
   let created = false;
   try {
     await create.unsafe(`create database "${name}"`);
     created = true;
-    const owner = `oxy-jest owner=${hostname()}/${process.pid}`.replace(/'/g, "''");
+    const owner = `${OWNER_LABEL}${hostname()}/${process.pid}`.replace(/'/g, "''");
     await create.unsafe(`comment on database "${name}" is '${owner}'`);
     if (options.billingSandboxNamespace) {
       const fresh = postgres(url, { max: 1 });
@@ -171,6 +175,7 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
     }
   } catch (error) {
     if (created) await dropTestDatabase(url);
+    else await releaseOwnership(name);
     throw error;
   } finally {
     await create.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
@@ -209,24 +214,62 @@ export async function createTestDatabases(count: number): Promise<string[]> {
   return urls;
 }
 
-/** True while `pid` names a process on this host — one we may not signal included. */
-function processAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
-  }
+/**
+ * The open sessions that own this process's throwaway databases, by name.
+ * On `globalThis` because Jest's global setup and global teardown share a
+ * process but not necessarily a module instance.
+ */
+const ownerRegistry = globalThis as { __oxyTestDatabaseOwners?: Map<string, postgres.Sql> };
+ownerRegistry.__oxyTestDatabaseOwners ??= new Map();
+const ownerSessions = ownerRegistry.__oxyTestDatabaseOwners;
+
+/** The advisory-lock key that says a database's owner is alive (hashed server-side). */
+function ownershipKey(name: string): string {
+  return `oxy-jest:${name}`;
 }
 
 /**
- * Drop every throwaway database a process on THIS host made and did not live
- * to drop. Run before a suite creates its own, so a killed run costs one
- * database until the next run rather than one database forever.
+ * Take ownership of `name` for this process's lifetime: a session-level
+ * advisory lock, held on a connection of its own until the database is
+ * dropped. Postgres releases it the moment that session ends — the process
+ * exited, was killed, or lost the server — which is what
+ * {@link reapOrphanedTestDatabases} asks. A pid cannot answer that: hostnames
+ * repeat across PID namespaces (a container on the host network, every WSL2
+ * distro), so a pid that is dead here can be a live run there.
+ */
+async function holdOwnership(baseUrl: string, name: string): Promise<void> {
+  const session = postgres(maintenanceUrl(baseUrl), {
+    max: 1,
+    // Never recycled: a new connection would not hold the lock.
+    max_lifetime: 0,
+    idle_timeout: 0,
+    connection: { application_name: `oxy-jest owner ${name}` },
+  });
+  try {
+    await session`select pg_advisory_lock(hashtextextended(${ownershipKey(name)}, 0))`;
+  } catch (error) {
+    await session.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+    throw error;
+  }
+  ownerSessions.set(name, session);
+}
+
+async function releaseOwnership(name: string): Promise<void> {
+  const session = ownerSessions.get(name);
+  if (!session) return;
+  ownerSessions.delete(name);
+  await session.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+}
+
+/**
+ * Drop every throwaway database whose owner is gone — what a run killed
+ * outright left behind. Run before a suite creates its own, so a killed run
+ * costs one database until the next run rather than one database forever.
  *
- * Only a database labelled by {@link createTestDatabase} whose owning process
- * is gone is touched: another run in progress — on this host or any other —
- * keeps its databases, and an unlabelled one is left for a person to decide.
+ * Liveness is Postgres's answer, not this host's: a database is reaped only
+ * when it carries {@link createTestDatabase}'s label AND its ownership lock is
+ * free, so a run in progress anywhere keeps its databases, and an unlabelled
+ * one is left for a person to decide.
  *
  * @returns The names it dropped.
  */
@@ -240,11 +283,17 @@ export async function reapOrphanedTestDatabases(): Promise<string[]> {
       from pg_database where datname like 'oxy_test_%'`;
     const reaped: string[] = [];
     for (const { name, label } of rows) {
-      const owner = label?.match(OWNER_LABEL);
-      if (!TEST_DATABASE_NAME.test(name) || !owner || owner[1] !== hostname()) continue;
-      if (processAlive(Number(owner[2]))) continue;
-      await admin.unsafe(`drop database if exists "${name}" with (force)`);
-      reaped.push(name);
+      if (!TEST_DATABASE_NAME.test(name) || !label?.startsWith(OWNER_LABEL)) continue;
+      const key = ownershipKey(name);
+      const [{ free }] = await admin<{ free: boolean }[]>`
+        select pg_try_advisory_lock(hashtextextended(${key}, 0)) as free`;
+      if (!free) continue;
+      try {
+        await admin.unsafe(`drop database if exists "${name}" with (force)`);
+        reaped.push(name);
+      } finally {
+        await admin`select pg_advisory_unlock(hashtextextended(${key}, 0))`;
+      }
     }
     return reaped;
   } finally {
@@ -275,5 +324,6 @@ export async function dropTestDatabase(databaseUrl: string): Promise<void> {
     await remove.unsafe(`drop database if exists "${name}" with (force)`);
   } finally {
     await remove.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+    await releaseOwnership(name);
   }
 }
