@@ -39,8 +39,12 @@ export const IMAGE_VARIANTS = {
 export type ImageVariantName = keyof typeof IMAGE_VARIANTS;
 
 /** The width-only rungs, smallest first — what a content image picks from. */
-export const CONTENT_IMAGE_VARIANTS = ['w320', 'w640', 'w1280', 'w2048'] as const satisfies
-  readonly ImageVariantName[];
+export const CONTENT_IMAGE_VARIANTS = [
+  'w320',
+  'w640',
+  'w1280',
+  'w2048',
+] as const satisfies readonly ImageVariantName[];
 
 export type ContentImageVariantName = (typeof CONTENT_IMAGE_VARIANTS)[number];
 
