@@ -7,8 +7,13 @@
 - `POST /email/messages` refuses an `Idempotency-Key` reused for a DIFFERENT
   message (recipients, subject, body, the parent it replies to, attachments)
   with `422 VALIDATION_ERROR`, `details: { reason: "idempotency_key_reused",
-  id, messageId }` — `id`/`messageId` name the message the key already sent,
-  so a client that restored the key after a crash can say "already sent". It
+  id, messageId, deliveryState, scheduledAt }` — the send the key already made
+  and where it stands (`scheduled` with its time, `sending`, `retrying`,
+  `sent`, `failed`, `cancelled`, or `unknown` for one from before deliveries
+  were recorded), so a client that restored the key after a crash tells the
+  user the truth rather than assuming it left. A repeat of a send that was
+  cancelled with nothing left to show for it (a scheduled message deleted
+  before it was due) is refused the same way, never answered 202. It
   used to answer with the first send's acceptance and then delete the second
   request's draft, losing it. A repeat of the same message still answers with
   the first send, and the draft is deleted only once the message is filed in
@@ -20,8 +25,14 @@
   transaction that files it: a double press of Schedule, or Schedule racing
   Send now, files and sends ONE message (both used to file a row and both went
   out under the same Message-ID). The claim waits, invisible to the outbox
-  worker, until the send falls due; a scheduled send whose claim is cancelled
-  is not sent. Rows scheduled before this are compared with their Sent row.
+  worker, until the send falls due. It is the message's, not the outbox's:
+  `GET /email/outbox` does not list it and its retry and cancel routes (and
+  the Alia tools over them) refuse it. A scheduled message is cancelled by
+  taking it out of Sent or deleting it: deleted, its claim is cancelled in the
+  same transaction; moved anywhere else (Trash, Snoozed, a folder), it is not
+  sent when due but unscheduled, and its delivery reads `failed`/`cancelled`,
+  so restoring it later sends nothing. Rows scheduled before this are compared
+  with their Sent row.
 - The parent a reply threads under is the earliest of the user's copies of it,
   not whichever an unordered `limit 1` returned.
 - A repeat waits at most 5 s on the first request's claim and then answers

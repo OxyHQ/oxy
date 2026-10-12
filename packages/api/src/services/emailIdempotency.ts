@@ -48,32 +48,63 @@ export function sendRequestFingerprint(payload: EmailOutboxPayload): string {
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
+/**
+ * Where the send a key already made stands, as a refusal reports it, so a
+ * client says what is true — "already sent", "scheduled for…", "failed",
+ * "cancelled" — instead of assuming it left. `unknown` is a send from before
+ * deliveries were recorded.
+ */
+export type SentUnderKeyState =
+  | 'scheduled'
+  | 'sending'
+  | 'retrying'
+  | 'sent'
+  | 'failed'
+  | 'cancelled'
+  | 'unknown';
+
 /** The send a key already made, as a refusal names it. */
 export interface SentUnderKey {
   /** Its Sent row, when one is filed. */
   id: string | null;
   /** Its RFC 5322 Message-ID. */
   messageId: string;
+  deliveryState: SentUnderKeyState;
+  /** When it is due, while it is `scheduled`. */
+  scheduledAt: Date | null;
 }
 
 /**
- * Refuse a repeat of an Idempotency-Key that asks for a different message than
- * the send the key already made (`stored`). It is not a retry: answering it as
- * one reports it accepted while only the first message exists, and lets the
- * caller delete the draft it was written in.
+ * Refuse a repeat of an Idempotency-Key that cannot be answered with the send
+ * the key already made (`sent`, which asked for `stored`):
+ * - it asks for a different message — not a retry: answering it as one reports
+ *   it accepted while only the first message exists, and lets the caller
+ *   delete the draft it was written in;
+ * - or that send was cancelled and nothing of it is left to show (a scheduled
+ *   message deleted before it was due) — answering would report a send that
+ *   never happens.
  *
- * The refusal names the send that was made (`details.id`, `details.messageId`):
- * a client that restored the key after a crash and re-rendered the body is
- * looking at a message that already left, and can say so.
+ * The refusal names that send and says where it stands (`details`), so a
+ * client that restored the key after a crash can tell the user the truth.
  */
 export function refuseReusedSendKey(
   stored: EmailOutboxPayload,
   requested: EmailOutboxPayload,
   sent: SentUnderKey,
 ): void {
-  if (sendRequestFingerprint(stored) === sendRequestFingerprint(requested)) return;
+  const same = sendRequestFingerprint(stored) === sendRequestFingerprint(requested);
+  const gone = sent.deliveryState === 'cancelled' && sent.id === null;
+  if (same && !gone) return;
   throw new ValidationError(
-    'This Idempotency-Key was already used for a different message. Send this one with a new key.',
-    { reason: 'idempotency_key_reused', id: sent.id, messageId: sent.messageId },
+    same
+      ? 'The message sent under this Idempotency-Key was cancelled. Send it again with a new key.'
+      : 'This Idempotency-Key was already used for a different message. Send this one with a new key.',
+    {
+      reason: 'idempotency_key_reused',
+      id: sent.id,
+      messageId: sent.messageId,
+      deliveryState: sent.deliveryState,
+      scheduledAt: sent.scheduledAt?.toISOString() ?? null,
+    },
   );
 }

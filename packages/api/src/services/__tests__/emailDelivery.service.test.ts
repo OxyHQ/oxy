@@ -74,7 +74,13 @@ import {
   recordBouncedDelivery,
   retryMessageDelivery,
 } from '../emailDelivery.service';
-import { EMAIL_OUTBOX_MAX_ATTEMPTS, toMessageDelivery } from '../emailOutbox.service';
+import {
+  cancelEmailOutbox,
+  EMAIL_OUTBOX_MAX_ATTEMPTS,
+  listEmailOutbox,
+  retryEmailOutbox,
+  toMessageDelivery,
+} from '../emailOutbox.service';
 import { processEmailOutbox } from '../emailOutbox.worker';
 import { recordSuppression } from '../emailSuppression.service';
 
@@ -960,22 +966,130 @@ describe('a scheduled send under a key', () => {
     expect((await acceptOutboundMessage(reply(key))).delivery?.state).toBe('sent');
   });
 
-  it('is never sent once its claim is cancelled', async () => {
-    mockSendMail.mockResolvedValue({ response: '250 Ok' });
-    const key = `schedule:${unique()}`;
-    const row = await emailService.scheduleMessage(user.id, scheduled(key));
-    await getDb()
-      .update(emailOutbox)
-      .set({ status: 'cancelled' })
-      .where(and(eq(emailOutbox.userId, user.id), eq(emailOutbox.idempotencyKey, key)));
-    // The worker never takes a scheduled claim on its own.
-    await processEmailOutbox();
+  /** Make a scheduled message due now. */
+  async function due(rowId: string) {
     await getDb()
       .update(messages)
       .set({ scheduledAt: new Date(Date.now() - 1000) })
-      .where(eq(messages.id, row.id));
-    await emailService.processScheduledMessages();
+      .where(eq(messages.id, rowId));
+  }
+
+  async function claimOf(key: string) {
+    const [claim] = await getDb()
+      .select()
+      .from(emailOutbox)
+      .where(and(eq(emailOutbox.userId, user.id), eq(emailOutbox.idempotencyKey, key)));
+    return claim;
+  }
+
+  it('is not an outbox delivery: never listed, cancelled or retried there', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    const claim = await claimOf(key);
+
+    expect((await listEmailOutbox(user.id, 100)).map((d) => d.id)).not.toContain(claim.id);
+    await expect(cancelEmailOutbox(user.id, claim.id)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(retryEmailOutbox(user.id, claim.id)).rejects.toMatchObject({ statusCode: 404 });
+    // The worker never takes it either; it goes out when due, once.
+    await processEmailOutbox();
     expect(relayCallsFor(row.messageId)).toHaveLength(0);
+    await due(row.id);
+    await emailService.processScheduledMessages();
+    expect(relayCallsFor(row.messageId)).toHaveLength(1);
+    // Now it is the message's delivery, and an ordinary one.
+    expect((await listEmailOutbox(user.id, 100)).map((d) => d.id)).toContain(claim.id);
+  });
+
+  it.each([
+    ['under a key', (key: string) => scheduled(key)],
+    ['without a key', (key: string) => ({ ...scheduled(key), idempotencyKey: undefined })],
+  ])(
+    'moved to Trash is not sent when due, says so, and is not sent once restored (%s)',
+    async (_case, build) => {
+      mockSendMail.mockResolvedValue({ response: '250 Ok' });
+      const row = await emailService.scheduleMessage(user.id, build(`schedule:${unique()}`));
+      await emailService.deleteMessage(user.id, row.id);
+      await due(row.id);
+      await emailService.processScheduledMessages();
+      expect(relayCallsFor(row.messageId)).toHaveLength(0);
+      expect(await deliveryOf(row.id)).toMatchObject({ state: 'failed', errorCode: 'cancelled' });
+      expect(deliveryEvents(row.id).length).toBeGreaterThanOrEqual(1);
+      // Its delivery cannot be retried from the message either.
+      await expect(retryMessageDelivery(user.id, row.id)).rejects.toMatchObject({
+        statusCode: 409,
+      });
+
+      const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
+      if (!sent) throw new Error('no Sent mailbox');
+      await emailService.moveMessage(user.id, row.id, sent.id);
+      await emailService.processScheduledMessages();
+      await processEmailOutbox();
+      expect(relayCallsFor(row.messageId)).toHaveLength(0);
+    },
+  );
+
+  it('deleted for good cancels its claim: a repeat of its key is refused, never 202', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    await emailService.deleteMessage(user.id, row.id, true);
+    expect(await claimOf(key)).toMatchObject({ status: 'cancelled' });
+
+    const refusal = {
+      statusCode: 422,
+      details: {
+        reason: 'idempotency_key_reused',
+        id: null,
+        messageId: row.messageId,
+        deliveryState: 'cancelled',
+        scheduledAt: null,
+      },
+    };
+    await expect(acceptOutboundMessage(reply(key))).rejects.toMatchObject(refusal);
+    await expect(
+      acceptOutboundMessage({ ...reply(key), text: 'Something else entirely' }),
+    ).rejects.toMatchObject(refusal);
+    await expect(emailService.scheduleMessage(user.id, scheduled(key))).rejects.toMatchObject(
+      refusal,
+    );
+    expect(relayCallsFor(row.messageId)).toHaveLength(0);
+  });
+});
+
+describe('a refused repeat says where the first send stands', () => {
+  const other = { text: 'Something else entirely' };
+
+  it('scheduled, with when', async () => {
+    const key = `schedule:${unique()}`;
+    const at = new Date(Date.now() + 7_200_000);
+    const { userId: _userId, ...message } = reply(key);
+    const row = await emailService.scheduleMessage(user.id, { ...message, scheduledAt: at });
+    await expect(acceptOutboundMessage({ ...reply(key), ...other })).rejects.toMatchObject({
+      details: { id: row.id, deliveryState: 'scheduled', scheduledAt: at.toISOString() },
+    });
+  });
+
+  it('sent', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `k:${unique()}`;
+    const { rowId } = await accept(reply(key));
+    await settled(rowId, 'sent');
+    await expect(acceptOutboundMessage({ ...reply(key), ...other })).rejects.toMatchObject({
+      details: { id: rowId, deliveryState: 'sent', scheduledAt: null },
+    });
+  });
+
+  it('failed for good', async () => {
+    mockSendMail.mockRejectedValueOnce(
+      Object.assign(new Error('554 5.7.1 Message rejected'), { responseCode: 554 }),
+    );
+    const key = `k:${unique()}`;
+    const { rowId } = await accept(reply(key));
+    await settled(rowId, 'failed');
+    await expect(acceptOutboundMessage({ ...reply(key), ...other })).rejects.toMatchObject({
+      details: { id: rowId, deliveryState: 'failed' },
+    });
   });
 });
 

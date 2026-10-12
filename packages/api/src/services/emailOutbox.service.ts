@@ -1,4 +1,18 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { EmailDeliveryState } from '@oxy.so/contracts';
 import { sqlStateOf } from '@oxy.so/db';
 import {
@@ -46,9 +60,75 @@ const CLAIM_IDLE_TIMEOUT = '15s';
  */
 export const SCHEDULED_CLAIM_DUE = new Date('9999-12-31T00:00:00.000Z');
 
-/** A scheduled send's claim that has not become a delivery yet. */
+/**
+ * A scheduled send's claim that never became a delivery: still waiting for
+ * its send to fall due (`pending`), or cancelled with its scheduled message.
+ * It is the message's, not the outbox's: the outbox API neither lists,
+ * retries nor cancels one ({@link isOutboxDelivery}).
+ */
 export function isScheduledClaim(row: EmailOutboxRow): boolean {
-  return row.status === 'pending' && row.nextAttemptAt.getTime() === SCHEDULED_CLAIM_DUE.getTime();
+  return row.nextAttemptAt.getTime() === SCHEDULED_CLAIM_DUE.getTime();
+}
+
+/** A scheduled claim still waiting for its send to fall due. */
+export function isWaitingScheduledClaim(row: EmailOutboxRow): boolean {
+  return row.status === 'pending' && isScheduledClaim(row);
+}
+
+/** Rows that are deliveries, as the outbox API sees them — no scheduled claim. */
+function isOutboxDelivery() {
+  return ne(emailOutbox.nextAttemptAt, SCHEDULED_CLAIM_DUE);
+}
+
+/**
+ * Cancel the claims of these scheduled messages (by RFC Message-ID), in the
+ * transaction that unschedules or deletes them: a scheduled message that will
+ * not be sent must not leave a claim that answers its key as if it would.
+ * `linkTo` attaches each cancelled claim to its message row, so the message
+ * itself says it was not sent; it is left out when the row is going away.
+ * Returns how many claims it cancelled.
+ */
+export async function cancelScheduledClaims(
+  tx: Transaction,
+  userId: string,
+  scheduled: { messageId: string; linkTo?: string }[],
+): Promise<number> {
+  let cancelled = 0;
+  for (const { messageId, linkTo } of scheduled) {
+    const rows = await tx
+      .update(emailOutbox)
+      .set({ status: 'cancelled', ...(linkTo ? { messageRowId: linkTo } : {}) })
+      .where(
+        and(
+          eq(emailOutbox.userId, userId),
+          eq(emailOutbox.messageId, messageId),
+          eq(emailOutbox.status, 'pending'),
+          eq(emailOutbox.nextAttemptAt, SCHEDULED_CLAIM_DUE),
+        ),
+      )
+      .returning({ id: emailOutbox.id });
+    cancelled += rows.length;
+  }
+  return cancelled;
+}
+
+/**
+ * Record that a scheduled message without a claim (scheduled with no key) was
+ * not sent, on the message: a cancelled scheduled claim of its own.
+ */
+export async function recordScheduledCancelled(
+  tx: Transaction,
+  input: { userId: string; messageId: string; messageRowId: string; payload: EmailOutboxPayload },
+): Promise<void> {
+  await tx.insert(emailOutbox).values({
+    userId: input.userId,
+    messageId: input.messageId,
+    messageRowId: input.messageRowId,
+    payload: input.payload,
+    status: 'cancelled',
+    attempts: 0,
+    nextAttemptAt: SCHEDULED_CLAIM_DUE,
+  });
 }
 
 /**
@@ -401,7 +481,7 @@ export async function adoptScheduledClaim(
     .limit(1)
     .for('update');
   if (!held) return undefined;
-  if (!isScheduledClaim(held)) return { claimed: false, existing: held };
+  if (!isWaitingScheduledClaim(held)) return { claimed: false, existing: held };
   const now = new Date();
   const [row] = await tx
     .update(emailOutbox)
@@ -590,7 +670,7 @@ export async function listEmailOutbox(userId: string, limit = 50): Promise<Email
   const rows = await getDb()
     .select()
     .from(emailOutbox)
-    .where(eq(emailOutbox.userId, userId))
+    .where(and(eq(emailOutbox.userId, userId), isOutboxDelivery()))
     .orderBy(desc(emailOutbox.createdAt))
     .limit(Math.min(Math.max(limit, 1), 100));
   return rows.map(toDto);
@@ -613,6 +693,7 @@ export async function retryEmailOutbox(userId: string, id: string): Promise<Emai
         eq(emailOutbox.id, id),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['failed', 'cancelled']),
+        isOutboxDelivery(),
       ),
     )
     .returning();
@@ -648,6 +729,7 @@ export async function claimDeliveryRetry(
         eq(emailOutbox.id, outboxId),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['failed', 'cancelled']),
+        isOutboxDelivery(),
       ),
     )
     .returning();
@@ -697,6 +779,7 @@ export async function cancelEmailOutbox(userId: string, id: string): Promise<Ema
         eq(emailOutbox.id, id),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['pending', 'failed']),
+        isOutboxDelivery(),
       ),
     )
     .returning();

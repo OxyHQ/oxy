@@ -88,17 +88,26 @@ import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { buildSnippet, emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import {
   adoptScheduledClaim,
+  cancelScheduledClaims,
   claimSend,
   findSendClaim,
   inClaimTransaction,
+  isWaitingScheduledClaim,
   linkOutboxToMessage,
   loadMessageDeliveries,
+  recordScheduledCancelled,
+  toMessageDelivery,
   type MessageDeliveryDto,
 } from './emailOutbox.service';
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
-import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
+import {
+  idempotentMessageId,
+  refuseReusedSendKey,
+  type SentUnderKey,
+  type SentUnderKeyState,
+} from './emailIdempotency';
 import type { emailOutbox, EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
@@ -2280,7 +2289,12 @@ class EmailService {
   async deleteMessage(userId: string, messageId: string, permanent = false): Promise<void> {
     const db = getDb();
     const [message] = await db
-      .select({ id: messages.id, messageId: messages.messageId, mailboxId: messages.mailboxId })
+      .select({
+        id: messages.id,
+        messageId: messages.messageId,
+        mailboxId: messages.mailboxId,
+        scheduledAt: messages.scheduledAt,
+      })
       .from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
       .limit(1);
@@ -2290,7 +2304,14 @@ class EmailService {
       // Unlink the attachments in the file manager first — it owns blob
       // lifecycle. The `message_attachments` rows themselves CASCADE.
       await this.deleteMessageAttachments(message);
-      await db.delete(messages).where(eq(messages.id, messageId));
+      await db.transaction(async (tx) => {
+        // A scheduled message deleted before it is due is cancelled with it:
+        // its claim must not go on answering its key as a send to come.
+        if (message.scheduledAt) {
+          await cancelScheduledClaims(tx, userId, [{ messageId: message.messageId }]);
+        }
+        await tx.delete(messages).where(eq(messages.id, messageId));
+      });
       await emitEmailChanged({
         userId,
         id: message.id,
@@ -3060,12 +3081,9 @@ class EmailService {
       const claimed = await findSendClaim(userId, key);
       if (claimed) return this.answerScheduleRepeat(userId, claimed, requested);
       // Scheduled under this key before scheduled sends were claimed.
-      const filed = await this.findMessageByRfcMessageId(userId, messageId);
+      const { sent, row: filed } = await this.sentUnderKey(userId, undefined, messageId);
       if (filed) {
-        refuseReusedSendKey(await this.filedOutboundPayload(userId, filed.id), requested, {
-          id: filed.id,
-          messageId,
-        });
+        refuseReusedSendKey(await this.filedOutboundPayload(userId, filed.id), requested, sent);
         return filed;
       }
     }
@@ -3130,6 +3148,38 @@ class EmailService {
   }
 
   /**
+   * The send an Idempotency-Key already made — its claim, when it took one —
+   * as a repeat of the key is answered or refused with: its Sent row (by the
+   * claim's link, else by its Message-ID) and where it stands.
+   */
+  async sentUnderKey(
+    userId: string,
+    claim: typeof emailOutbox.$inferSelect | undefined,
+    messageId: string,
+  ): Promise<{ sent: SentUnderKey; row: MessageDto | null }> {
+    const row =
+      (claim?.messageRowId
+        ? await this.getMessage(userId, claim.messageRowId)
+        : await this.findMessageByRfcMessageId(userId, messageId)) ?? null;
+    const deliveryState = ((): SentUnderKeyState => {
+      if (!claim) return row?.scheduledAt ? 'scheduled' : (row?.delivery?.state ?? 'unknown');
+      if (claim.status === 'cancelled') return 'cancelled';
+      // A waiting scheduled claim whose message is gone will never be sent.
+      if (isWaitingScheduledClaim(claim)) return row?.scheduledAt ? 'scheduled' : 'cancelled';
+      return toMessageDelivery(claim).state;
+    })();
+    return {
+      row,
+      sent: {
+        id: row?.id ?? null,
+        messageId,
+        deliveryState,
+        scheduledAt: deliveryState === 'scheduled' ? (row?.scheduledAt ?? null) : null,
+      },
+    };
+  }
+
+  /**
    * Answer a repeat of a scheduled send's key with the message the key already
    * made — scheduled, or sent now by a Send that won the key — if it asks for
    * the same message.
@@ -3139,13 +3189,8 @@ class EmailService {
     claim: typeof emailOutbox.$inferSelect,
     requested: EmailOutboxPayload,
   ): Promise<MessageDto> {
-    const filed = claim.messageRowId
-      ? await this.getMessage(userId, claim.messageRowId)
-      : await this.findMessageByRfcMessageId(userId, claim.messageId);
-    refuseReusedSendKey(claim.payload, requested, {
-      id: filed?.id ?? null,
-      messageId: claim.messageId,
-    });
+    const { sent, row: filed } = await this.sentUnderKey(userId, claim, claim.messageId);
+    refuseReusedSendKey(claim.payload, requested, sent);
     if (!filed) {
       throw new ConflictError('This message was already sent, and its Sent copy is gone', {
         messageId: claim.messageId,
@@ -3178,7 +3223,12 @@ class EmailService {
     const db = getDb();
     const now = new Date();
     const due = await db
-      .select({ ...FILED_PAYLOAD_COLUMNS, messageId: messages.messageId, userId: messages.userId })
+      .select({
+        ...FILED_PAYLOAD_COLUMNS,
+        messageId: messages.messageId,
+        userId: messages.userId,
+        mailboxId: messages.mailboxId,
+      })
       .from(messages)
       .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)));
 
@@ -3197,8 +3247,30 @@ class EmailService {
             .update(messages)
             .set({ scheduledAt: null })
             .where(and(eq(messages.id, msg.id), isNotNull(messages.scheduledAt)))
-            .returning({ id: messages.id });
+            .returning({ id: messages.id, mailboxId: messages.mailboxId });
           if (!taken) return null;
+          // Only a message still in Sent goes out. One the user moved away —
+          // to Trash, Snoozed, any folder — is unscheduled instead, and says
+          // so on the message: restoring it later sends nothing.
+          const [folder] = await tx
+            .select({ specialUse: mailboxes.specialUse })
+            .from(mailboxes)
+            .where(eq(mailboxes.id, taken.mailboxId))
+            .limit(1);
+          if (folder?.specialUse !== '\\Sent') {
+            const cancelled = await cancelScheduledClaims(tx, msg.userId, [
+              { messageId: msg.messageId, linkTo: msg.id },
+            ]);
+            if (cancelled === 0) {
+              await recordScheduledCancelled(tx, {
+                userId: msg.userId,
+                messageId: msg.messageId,
+                messageRowId: msg.id,
+                payload,
+              });
+            }
+            return { unscheduled: true as const };
+          }
           // A send scheduled under a key holds its claim since it was filed;
           // it becomes the delivery now. One without is claimed here.
           const held = await adoptScheduledClaim(tx, {
@@ -3221,6 +3293,15 @@ class EmailService {
           );
         });
         if (!claim) continue;
+        if ('unscheduled' in claim) {
+          await emitEmailChanged({
+            userId: msg.userId,
+            id: msg.id,
+            mailboxIds: [msg.mailboxId],
+            reason: 'delivery',
+          });
+          continue;
+        }
         if (claim.claimed) await deliverClaimed(claim.row);
         count++;
       } catch (err) {
@@ -4518,8 +4599,15 @@ class EmailService {
     // Deleting the mailboxes takes their messages with them
     // (`messages.mailbox_id` CASCADEs), but a message could in principle
     // outlive its folder, so both are stated.
-    await db.delete(messages).where(eq(messages.userId, userId));
-    await db.delete(mailboxes).where(eq(mailboxes.userId, userId));
+    await db.transaction(async (tx) => {
+      const scheduled = await tx
+        .select({ messageId: messages.messageId })
+        .from(messages)
+        .where(and(eq(messages.userId, userId), isNotNull(messages.scheduledAt)));
+      await cancelScheduledClaims(tx, userId, scheduled);
+      await tx.delete(messages).where(eq(messages.userId, userId));
+      await tx.delete(mailboxes).where(eq(mailboxes.userId, userId));
+    });
 
     logger.info('All email data deleted for user', { userId });
   }

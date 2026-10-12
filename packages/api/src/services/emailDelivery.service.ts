@@ -36,7 +36,7 @@ import {
   findDeliveryForMessage,
   findSendClaim,
   inClaimTransaction,
-  isScheduledClaim,
+  isWaitingScheduledClaim,
   linkOutboxToMessage,
   markDeliveriesBounced,
   markEmailOutboxFailed,
@@ -107,12 +107,16 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     if (claimed) return answerRepeat(message.userId, claimed, payload);
     // Filed under this key with no claim: a scheduled send not yet due, or one
     // delivered before sends were claimed. The Sent row is what it asked for.
-    const filed = await emailService.findMessageByRfcMessageId(message.userId, messageId);
+    const { sent, row: filed } = await emailService.sentUnderKey(
+      message.userId,
+      undefined,
+      messageId,
+    );
     if (filed) {
       refuseReusedSendKey(
         await emailService.filedOutboundPayload(message.userId, filed.id),
         payload,
-        { id: filed.id, messageId },
+        sent,
       );
       return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
     }
@@ -170,20 +174,14 @@ async function answerRepeat(
   existing: EmailOutboxRow,
   requested: EmailOutboxPayload,
 ): Promise<AcceptedSend> {
-  const messageRowId =
-    existing.messageRowId ??
-    // A scheduled send not yet due, or one accepted before sends were filed first.
-    (await emailService.findMessageByRfcMessageId(userId, existing.messageId))?.id ??
-    null;
-  refuseReusedSendKey(existing.payload, requested, {
-    id: messageRowId,
-    messageId: existing.messageId,
-  });
+  const { sent } = await emailService.sentUnderKey(userId, existing, existing.messageId);
+  refuseReusedSendKey(existing.payload, requested, sent);
+  const messageRowId = sent.id;
   return {
     messageId: existing.messageId,
     messageRowId,
     // A scheduled send has no delivery until it falls due.
-    delivery: isScheduledClaim(existing) ? null : toMessageDelivery(existing),
+    delivery: isWaitingScheduledClaim(existing) ? null : toMessageDelivery(existing),
   };
 }
 
