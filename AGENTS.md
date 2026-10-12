@@ -23,7 +23,7 @@ bun run build && bun pm pack        # release, in the package; never npm pack
 Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md`.
 
 **Build** — build-and-deploy.md#commands
-- Run each package's own `bun run test`; only `packages/auth` is `bun test`.
+- Run each package's own `bun run test`; only `auth`, `ship` and `node` are `bun test`.
 - Shared versions live in `workspaces.catalog` as `"catalog:"`.
 - Pack with `bun pm pack`, never `npm pack`.
 - Anything that re-resolves passes `--minimum-release-age=0`.

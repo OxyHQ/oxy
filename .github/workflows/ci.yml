@@ -1240,7 +1240,7 @@ jobs:
         run: bun run test
         working-directory: ./packages/core
 
-      # Ship CLI tests (bun test) and Node package tests (Jest) — both build
+      # Ship CLI and Node package tests (both `bun test`) — both build
       # contracts, protocol and core first.
       - name: Build core
         id: build-core

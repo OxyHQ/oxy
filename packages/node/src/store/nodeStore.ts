@@ -1,6 +1,8 @@
 /**
  * NodeStore — the node's durable, append-only signed-record log and blob store,
- * backed by `better-sqlite3` (synchronous, single-file, on-disk).
+ * backed by Bun's built-in `bun:sqlite` (synchronous, single-file, on-disk).
+ * The node runs on Bun (see the Dockerfile), so there is no native addon to
+ * compile; nothing outside this package imports the store.
  *
  * It IMPLEMENTS the app-agnostic `@oxy.so/protocol` {@link RecordStore} +
  * {@link BlobStore} interfaces, so the generic `createNodeApp` engine drives it
@@ -27,7 +29,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import Database from 'better-sqlite3';
+import { Database, type Statement } from 'bun:sqlite';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import {
   type AppendOutcome,
@@ -39,8 +41,7 @@ import {
 import { BlobHashMismatchError, SHA256_HEX } from '@oxy.so/protocol/node';
 import { SCHEMA_SQL } from './schema.js';
 
-type DatabaseInstance = Database.Database;
-type PreparedStatement = Database.Statement;
+type PreparedStatement = Statement;
 
 interface RecordRow {
   seq: number;
@@ -67,7 +68,8 @@ interface IssuedAtRow {
 }
 
 interface BlobRow {
-  bytes: Buffer;
+  /** `bun:sqlite` returns a BLOB column as a `Uint8Array`. */
+  bytes: Uint8Array;
 }
 
 /** Pre-narrowed arguments to the atomic append transaction. */
@@ -82,6 +84,11 @@ interface AppendArgs {
   recordId: string;
 }
 
+/**
+ * `bun:sqlite` throws a `SQLiteError` whose `code` is the extended result-code
+ * name (`SQLITE_CONSTRAINT_UNIQUE`, `SQLITE_CONSTRAINT_PRIMARYKEY`, ...), the
+ * same shape better-sqlite3 used, so the prefix match is unchanged.
+ */
 function isSqliteConstraintError(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -96,7 +103,7 @@ function sha256Hex(bytes: Uint8Array): string {
 }
 
 export class NodeStore implements RecordStore, BlobStore {
-  private readonly db: DatabaseInstance;
+  private readonly db: Database;
 
   private readonly insertRecordStmt: PreparedStatement;
   private readonly upsertHeadStmt: PreparedStatement;
@@ -116,9 +123,15 @@ export class NodeStore implements RecordStore, BlobStore {
    *   in-process database (used by tests).
    */
   constructor(databasePath: string) {
-    this.db = new Database(databasePath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('foreign_keys = ON');
+    // `strict: true` binds `{ seq }` to `@seq` without the prefix in the key (the
+    // better-sqlite3 convention every statement below uses) and throws on a
+    // missing parameter instead of silently binding NULL. `create` is the
+    // default (open read-write, create the file if absent).
+    this.db = new Database(databasePath, { create: true, strict: true });
+    // `bun:sqlite` has no `.pragma()` helper; a PRAGMA is a plain statement.
+    // (`:memory:` reports journal_mode `memory`; WAL applies to the file DB.)
+    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db.exec('PRAGMA foreign_keys = ON');
     this.db.exec(SCHEMA_SQL);
 
     this.insertRecordStmt = this.db.prepare(
@@ -160,7 +173,7 @@ export class NodeStore implements RecordStore, BlobStore {
     this.getBlobStmt = this.db.prepare(`SELECT bytes FROM blobs WHERE hash = @hash`);
 
     this.appendTxn = this.db.transaction((args: AppendArgs): AppendOutcome => {
-      const headRow = this.getHeadStmt.get() as HeadRow | undefined;
+      const headRow = this.getHeadStmt.get() as HeadRow | null;
       const head: ChainHead | null = headRow
         ? {
             headRecordId: headRow.head_record_id,
@@ -192,7 +205,7 @@ export class NodeStore implements RecordStore, BlobStore {
 
   /** The current chain head, or `null` for an empty log. The `subject` is ignored (single-subject node). */
   async getHead(_subject: string): Promise<ChainHead | null> {
-    const row = this.getHeadStmt.get() as HeadRow | undefined;
+    const row = this.getHeadStmt.get() as HeadRow | null;
     if (!row) {
       return null;
     }
@@ -256,9 +269,7 @@ export class NodeStore implements RecordStore, BlobStore {
 
   /** Resolve a `recordId` cursor to its chain `seq`, or `null` when unknown. */
   async resolveCursorSeq(_subject: string, recordId: string): Promise<number | null> {
-    const row = this.seqByRecordIdStmt.get({ record_id: recordId.toLowerCase() }) as
-      | SeqRow
-      | undefined;
+    const row = this.seqByRecordIdStmt.get({ record_id: recordId.toLowerCase() }) as SeqRow | null;
     return row ? row.seq : null;
   }
 
@@ -268,7 +279,7 @@ export class NodeStore implements RecordStore, BlobStore {
     collection: string,
     rkey: string,
   ): Promise<SignedRecordEnvelope | null> {
-    const row = this.getRecordStmt.get({ collection, rkey }) as RecordRow | undefined;
+    const row = this.getRecordStmt.get({ collection, rkey }) as RecordRow | null;
     return row ? (JSON.parse(row.envelope) as SignedRecordEnvelope) : null;
   }
 
@@ -277,9 +288,10 @@ export class NodeStore implements RecordStore, BlobStore {
     if (env.version !== 2 || typeof env.collection !== 'string' || typeof env.rkey !== 'string') {
       return null;
     }
-    const row = this.latestIssuedAtStmt.get({ collection: env.collection, rkey: env.rkey }) as
-      | IssuedAtRow
-      | undefined;
+    const row = this.latestIssuedAtStmt.get({
+      collection: env.collection,
+      rkey: env.rkey,
+    }) as IssuedAtRow | null;
     return row ? row.issued_at : null;
   }
 
@@ -318,8 +330,9 @@ export class NodeStore implements RecordStore, BlobStore {
     if (typeof hash !== 'string' || !SHA256_HEX.test(hash.toLowerCase())) {
       return null;
     }
-    const row = this.getBlobStmt.get({ hash: hash.toLowerCase() }) as BlobRow | undefined;
-    return row ? row.bytes : null;
+    const row = this.getBlobStmt.get({ hash: hash.toLowerCase() }) as BlobRow | null;
+    // A Buffer view over the returned bytes (no copy), as better-sqlite3 returned.
+    return row ? Buffer.from(row.bytes.buffer, row.bytes.byteOffset, row.bytes.byteLength) : null;
   }
 
   /** Close the underlying database (graceful shutdown / test teardown). */

@@ -9,6 +9,7 @@
  * with no node-local crypto — this is the verifier the node app drives.
  */
 
+import { describe, expect, it } from 'bun:test';
 import { computeRecordId, signedRecordSigningInput } from '@oxy.so/protocol';
 import { verifyNodeRecordEnvelope } from '@oxy.so/protocol/node';
 import { buildSignedEnvelope, generateTestKeyPair } from './helpers/signEnvelope';

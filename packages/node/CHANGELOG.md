@@ -1,5 +1,18 @@
 # Changelog: `@oxy.so/node`
 
+## Unreleased
+
+### Runtime: the node runs on Bun
+
+- The store uses Bun's built-in `bun:sqlite` instead of `better-sqlite3`. The
+  on-disk schema and file format are unchanged (both are SQLite 3, WAL mode), so
+  an existing `/data/node.sqlite` opens as before.
+- The Docker image's runtime stage is `oven/bun:1.4.3-alpine` and its command is
+  `bun packages/node/dist/index.js`. No stage compiles a native addon any more.
+- The image build now includes `@oxy.so/telemetry`, which `@oxy.so/core`
+  depends on; without it `bun install` in the image failed to resolve.
+- `bun run test` runs the suite under `bun test`.
+
 ## 0.2.0
 
 ### Licence: this package moves to the Breathe License 1.0

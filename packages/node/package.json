@@ -1,16 +1,16 @@
 {
   "name": "@oxy.so/node",
   "version": "1.0.0",
-  "description": "Oxy personal data node — a self-hostable server that stores and serves a user's own signed records (their personal repo) for Oxy to ingest/mirror (Fase 5 decentralization)",
+  "description": "Oxy personal data node \u2014 a self-hostable server that stores and serves a user's own signed records (their personal repo) for Oxy to ingest/mirror (Fase 5 decentralization)",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/contracts @oxy.so/protocol @oxy.so/core && tsc",
-    "start": "node dist/index.js",
+    "start": "bun dist/index.js",
     "clean": "rm -rf dist",
-    "test": "jest"
+    "test": "bun test src"
   },
   "keywords": [
     "oxyhq",
@@ -23,25 +23,21 @@
   "author": "OxyHQ",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
-    "node": ">=20.0.0"
+    "bun": ">=1.4.3"
   },
   "dependencies": {
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "workspace:*",
     "@oxy.so/protocol": "workspace:*",
-    "better-sqlite3": "^12.11.1",
     "express": "catalog:",
     "pino": "catalog:"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
+    "@types/bun": "^1.4.2",
     "@types/express": "catalog:",
-    "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",
-    "jest": "^30.5.1",
     "supertest": "catalog:",
-    "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }
 }

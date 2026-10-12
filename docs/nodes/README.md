@@ -41,7 +41,7 @@ feeds, indexes, search, reputation scores, notifications.
 
 ## 3. The node server (`packages/node` → `@oxy.so/node`)
 
-A small Express server (`better-sqlite3` log + on-disk blobs, pino logging,
+A small Express server on Bun (`bun:sqlite` log + on-disk blobs, pino logging,
 Docker + Caddy) that stores a user's per-subject hash chain and serves it for
 ingest. Protocol version `oxy-node/1`.
 
