@@ -77,7 +77,8 @@ command still runs Bun. `deploy-asset-variant-worker.sh` accepts a running worke
 revision naming either and always renders the new one as `bun ...` (the ECS
 service ignores terraform's task-definition changes, so the deploy is what
 moves the running worker). CI's
-`API Image (Bun runtime smoke)` job builds the arm64 image and runs
+`API Image (Bun runtime smoke)` job builds the image (amd64: the PostGIS
+service image is amd64-only; the merge queue builds arm64) and runs
 `.github/scripts/smoke-api-image.sh`. Outbound `fetch` goes through
 `tracedFetch` (`scripts/check-api-raw-fetch.mjs`): Bun's `fetch` is invisible
 to the undici instrumentation. Returning to Node is reverting the change that

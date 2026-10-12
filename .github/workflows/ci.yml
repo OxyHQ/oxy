@@ -629,21 +629,25 @@ jobs:
   # Bun (Dockerfile's runtime stage), and nothing short of the image proves that
   # runtime: PID 1, the entrypoint, Sharp's musl binding, the migrator under the
   # deploy's exact commands, a failed boot's exit code, OpenTelemetry spans, the
-  # asset-variant worker and SIGTERM. arm64, like production and the merge
-  # queue's build. Reads the queue image's BuildKit cache; never writes it.
+  # asset-variant worker and SIGTERM. amd64, not production's arm64: the
+  # PostGIS image the migrations need (postgis/postgis, as in `api-test`) is
+  # published for amd64 only. The merge queue still builds the arm64 image.
+  # No BuildKit cache: the shared scope holds arm64 layers.
   api-image:
     name: API Image (Bun runtime smoke)
     needs: scope
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
     # A throwaway database and Redis for the smoke; nothing else uses them.
+    # PostGIS for the same reason as `api-test`: the migrator's first step is
+    # `CREATE EXTENSION postgis`.
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgis/postgis:17-3.5
         env:
           POSTGRES_USER: oxy
           POSTGRES_PASSWORD: oxy
@@ -679,14 +683,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Expose the Actions cache to buildx
-        uses: crazy-max/ghaction-github-runtime@v4
-
-      - name: Build the API image (linux/arm64)
+      - name: Build the API image (linux/amd64)
         run: |
           docker buildx build \
-            --platform linux/arm64 \
-            --cache-from type=gha,scope=oxy-api-backend \
+            --platform linux/amd64 \
             -f Dockerfile \
             -t oxy-api:ci \
             --load \
