@@ -6,6 +6,7 @@ import { getDb } from '../config/postgres';
 import { senderAvatarIsFresh, senderAvatars } from '../db/schema/senderAvatars';
 import { users } from '../db/schema/users';
 import { extractUsername } from '../config/email.config';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const CACHE_TTL_DAYS = 7;
 const BIMI_DNS_TIMEOUT_MS = 1500;
@@ -161,7 +162,7 @@ async function resolveAvatar(email: string): Promise<{
   const md5Hash = crypto.createHash('md5').update(normalized).digest('hex');
   const gravatarUrl = `https://www.gravatar.com/avatar/${md5Hash}?d=404&s=80`;
   try {
-    const res = await fetch(gravatarUrl, {
+    const res = await tracedFetch(gravatarUrl, {
       method: 'HEAD',
       signal: AbortSignal.timeout(5000),
       redirect: 'error',
@@ -179,7 +180,7 @@ async function resolveAvatar(email: string): Promise<{
   if (domain && isSafePublicHostname(domain)) {
     const faviconUrl = `https://api.clarity.surf/favicons/${domain}`;
     try {
-      const response = await fetch(faviconUrl, {
+      const response = await tracedFetch(faviconUrl, {
         method: 'HEAD',
         signal: AbortSignal.timeout(3000),
         redirect: 'error',

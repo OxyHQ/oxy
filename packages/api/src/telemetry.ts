@@ -7,6 +7,7 @@ import { UndiciInstrumentation } from '@opentelemetry/instrumentation-undici';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { shouldSuppressHttpTrace } from './utils/telemetryRedaction.js';
+import { isInsideTracedFetch } from './utils/tracedFetch.js';
 
 const enabled =
   process.env.OTEL_SDK_DISABLED !== 'true' && Boolean(process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -28,7 +29,11 @@ const sdk = enabled
           ignoreIncomingRequestHook: (request) => shouldSuppressHttpTrace(request.url),
         }),
         new ExpressInstrumentation(),
-        new UndiciInstrumentation(),
+        // Every API `fetch` goes through `tracedFetch`, which records its own
+        // client span on Node AND Bun (Bun's fetch never reaches undici). Skip
+        // those requests here so Node does not record and propagate them twice;
+        // `fetch` from third-party code is still traced by undici on Node.
+        new UndiciInstrumentation({ ignoreRequestHook: () => isInsideTracedFetch() }),
         new SocketIoInstrumentation(),
         new AwsInstrumentation(),
         new PinoInstrumentation(),

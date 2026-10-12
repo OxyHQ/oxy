@@ -72,8 +72,16 @@ if [[ "$phase" == "start" ]]; then
     echo "::error::worker task definition must contain exactly one $worker_container container"
     exit 1
   fi
-  if [[ "$(jq -c --arg name "$worker_container" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")" != '["node","packages/api/dist/asset-variant-worker.js"]' ]]; then
-    echo "::error::worker task definition has an unexpected command"
+  # The worker's command is carried forward from the running revision below.
+  # `bun` is accepted beside `node` ahead of the API's move to a Bun image
+  # (both images carry a bun binary), so a revision that names bun — rendered
+  # by that move, or registered by oxy-infra's terraform — still deploys, and
+  # reverting that move cannot strand the worker step. Anything else is still
+  # refused.
+  worker_command="$(jq -c --arg name "$worker_container" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")"
+  if [[ "$worker_command" != '["bun","packages/api/dist/asset-variant-worker.js"]' &&
+        "$worker_command" != '["node","packages/api/dist/asset-variant-worker.js"]' ]]; then
+    echo "::error::worker task definition has an unexpected command: $worker_command"
     exit 1
   fi
 

@@ -62,6 +62,7 @@ import { getRedisClient } from '../config/redis';
 import { CLOUDFLARE_WEB_HOSTS, type CloudflareWebHost } from '../config/cloudflareWebActivityHosts';
 import { publishPlatformActivity } from './platformActivity.service';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 export const CLOUDFLARE_WEB_ACTIVITY_TOKEN_ENV = 'CLOUDFLARE_ANALYTICS_API_TOKEN';
 /** Optional, not secret: narrows the zone lookup to Oxy's account. */
@@ -393,7 +394,7 @@ export async function runCloudflareWebActivityTick(
   deps: CloudflareWebActivityDeps,
 ): Promise<CloudflareWebActivityTick> {
   const now = deps.now ?? Date.now;
-  const fetcher = deps.fetcher ?? fetch;
+  const fetcher = deps.fetcher ?? tracedFetch;
   const hosts = deps.hosts ?? CLOUDFLARE_WEB_HOSTS;
   const publish = deps.publish ?? publishPlatformActivity;
   const end = settledWindowEnd(now());
