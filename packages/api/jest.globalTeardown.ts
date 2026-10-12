@@ -17,14 +17,15 @@ export default async function globalTeardown(): Promise<void> {
   const manifestPath = process.env[OXY_JEST_DATABASE_MANIFEST];
   if (manifestPath) {
     const urls = JSON.parse(readFileSync(manifestPath, 'utf8')) as string[];
-    for (const url of urls) {
-      await dropTestDatabase(url);
-    }
+    // Every one, even when an earlier drop fails.
+    const drops = await Promise.allSettled(urls.map((url) => dropTestDatabase(url)));
     try {
       unlinkSync(manifestPath);
     } catch {
       // Best-effort — a leftover manifest is harmless.
     }
+    const failed = drops.find((drop) => drop.status === 'rejected');
+    if (failed) throw failed.reason;
     return;
   }
 

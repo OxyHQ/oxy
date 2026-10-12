@@ -16,10 +16,17 @@
  * `DATABASE_URL` is the ONLY channel between create and drop — jest's global
  * setup and teardown share a process, and an env var the harness already has to
  * publish beats a second `globalThis` slot that could drift out of sync with it.
+ *
+ * A run that never reaches its teardown — killed by a signal, a closed
+ * terminal, a tool's timeout — drops nothing, and each such run used to leave
+ * a fully migrated database behind for good. Every database is therefore
+ * labelled with the host and process that will drop it, and
+ * {@link reapOrphanedTestDatabases} drops the ones whose process is gone.
  */
 
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { ConfigurationError } from '../config/env';
@@ -32,6 +39,12 @@ const NAME_ENTROPY_BYTES = 8;
  * teardown drop a real database.
  */
 const TEST_DATABASE_NAME = /^oxy_test_[0-9a-f]{16}$/;
+/**
+ * The `COMMENT` on a throwaway database: the host and the pid of the process
+ * that will drop it. A database without one — made before the label existed,
+ * or by hand — is never reaped.
+ */
+const OWNER_LABEL = /^oxy-jest owner=(.+)\/(\d+)$/;
 /** Seconds an admin connection waits before giving up on close. */
 const ADMIN_CLOSE_TIMEOUT_SECONDS = 5;
 /** Milliseconds `bun run db:migrate` may take before the run is abandoned. */
@@ -140,6 +153,8 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
   try {
     await create.unsafe(`create database "${name}"`);
     created = true;
+    const owner = `oxy-jest owner=${hostname()}/${process.pid}`.replace(/'/g, "''");
+    await create.unsafe(`comment on database "${name}" is '${owner}'`);
     if (options.billingSandboxNamespace) {
       const fresh = postgres(url, { max: 1 });
       try {
@@ -182,10 +197,59 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
  */
 export async function createTestDatabases(count: number): Promise<string[]> {
   const urls: string[] = [];
-  for (let i = 0; i < count; i++) {
-    urls.push(await createTestDatabase({ assignEnv: false }));
+  try {
+    for (let i = 0; i < count; i++) {
+      urls.push(await createTestDatabase({ assignEnv: false }));
+    }
+  } catch (error) {
+    // Jest runs no teardown after a failed global setup.
+    await Promise.allSettled(urls.map((url) => dropTestDatabase(url)));
+    throw error;
   }
   return urls;
+}
+
+/** True while `pid` names a process on this host — one we may not signal included. */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Drop every throwaway database a process on THIS host made and did not live
+ * to drop. Run before a suite creates its own, so a killed run costs one
+ * database until the next run rather than one database forever.
+ *
+ * Only a database labelled by {@link createTestDatabase} whose owning process
+ * is gone is touched: another run in progress — on this host or any other —
+ * keeps its databases, and an unlabelled one is left for a person to decide.
+ *
+ * @returns The names it dropped.
+ */
+export async function reapOrphanedTestDatabases(): Promise<string[]> {
+  const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!baseUrl) return [];
+  const admin = postgres(maintenanceUrl(baseUrl), { max: 1 });
+  try {
+    const rows = await admin<{ name: string; label: string | null }[]>`
+      select datname as name, shobj_description(oid, 'pg_database') as label
+      from pg_database where datname like 'oxy_test_%'`;
+    const reaped: string[] = [];
+    for (const { name, label } of rows) {
+      const owner = label?.match(OWNER_LABEL);
+      if (!TEST_DATABASE_NAME.test(name) || !owner || owner[1] !== hostname()) continue;
+      if (processAlive(Number(owner[2]))) continue;
+      await admin.unsafe(`drop database if exists "${name}" with (force)`);
+      reaped.push(name);
+    }
+    return reaped;
+  } finally {
+    await admin.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+  }
 }
 
 /**
