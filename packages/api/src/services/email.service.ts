@@ -74,7 +74,7 @@ import { logger } from '../utils/logger';
 import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { resolveEmailFromName } from '../utils/displayName';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
@@ -1561,7 +1561,7 @@ class EmailService {
       {
         userId,
         mailboxId: inboxMailboxId,
-        messageId: `<welcome-${userId}-${uuidv4()}@${EMAIL_DOMAIN}>`,
+        messageId: `<welcome-${userId}-${randomUUID()}@${EMAIL_DOMAIN}>`,
         fromName: 'Inbox by Oxy',
         fromAddress: `hello@${EMAIL_DOMAIN}`,
         subject,
@@ -2681,7 +2681,7 @@ class EmailService {
       {
         userId,
         mailboxId: draftsMailbox.id,
-        messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
+        messageId: `<${randomUUID()}@${EMAIL_DOMAIN}>`,
         fromName: resolveEmailFromName(user) || null,
         fromAddress,
         subject: draft.subject ?? '',
@@ -2937,7 +2937,7 @@ class EmailService {
 
     const messageId = params.idempotencyKey
       ? idempotentMessageId(userId, params.idempotencyKey)
-      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+      : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
     if (params.idempotencyKey) {
       const existing = await this.findMessageByRfcMessageId(userId, messageId);
       if (existing) return existing;
@@ -3043,7 +3043,7 @@ class EmailService {
                 references: msg.references.length ? msg.references : undefined,
                 attachments: attachments.length ? attachments : undefined,
               },
-              owner: `scheduled:${uuidv4()}`,
+              owner: `scheduled:${randomUUID()}`,
             },
             tx,
           );
@@ -3873,7 +3873,7 @@ class EmailService {
     const html = msg.html;
 
     if (text && html) {
-      const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
+      const boundary = `----=_Part_${randomUUID().replace(/-/g, '')}`;
       lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
       lines.push('');
       lines.push(`--${boundary}`);
@@ -3976,7 +3976,7 @@ class EmailService {
           {
             userId,
             mailboxId: inbox.id,
-            messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
+            messageId: mime.messageId || `<imported-${randomUUID()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
             ...(mime.replyTo?.address.trim()

@@ -18,7 +18,7 @@
  */
 
 import { and, eq, like } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { EMAIL_DOMAIN, SMTP_OUTBOUND_CONFIG } from '../config/email.config';
 import { getDb } from '../config/postgres';
 import type { emailOutbox } from '../db/schema/emailOutbox';
@@ -87,7 +87,7 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
   const key = message.idempotencyKey;
   const messageId = key
     ? idempotentMessageId(message.userId, key)
-    : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
 
   if (key) {
     // Filed by an earlier attempt with this key, or delivered before deliveries
@@ -101,7 +101,7 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     idempotencyKey: key,
     messageId,
     payload: outboxPayload(message),
-    owner: `request:${uuidv4()}`,
+    owner: `request:${randomUUID()}`,
   });
   if (!claim.claimed) {
     const existing = claim.existing;
@@ -265,7 +265,7 @@ export async function retryMessageDelivery(
     );
   }
 
-  const claimed = await claimDeliveryRetry(userId, row.id, `retry:${uuidv4()}`);
+  const claimed = await claimDeliveryRetry(userId, row.id, `retry:${randomUUID()}`);
   if (!claimed) throw new ConflictError('This message is already being delivered or was delivered');
 
   await emitDeliveryChanged(userId, messageRowId);

@@ -1,5 +1,4 @@
 /** Revalidate legacy bridge identity through the same Oxy discovery authority. */
-import 'dotenv/config';
 import { closeRedis } from '../src/config/redis';
 import { asc, gt, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';

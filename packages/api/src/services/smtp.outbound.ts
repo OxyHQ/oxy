@@ -11,7 +11,7 @@ import { assetService } from './assetServiceSingleton';
 import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { OXY_SENT_ID_HEADER, relayAssignedMessageId } from './relayMessageId';
 import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
@@ -294,7 +294,7 @@ class SmtpOutboundService {
    * substituted for ours, if it did.
    */
   async sendRaw(message: OutboundMessage): Promise<{ relayMessageId: string | null }> {
-    const messageId = message.messageId ?? `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const messageId = message.messageId ?? `<${randomUUID()}@${EMAIL_DOMAIN}>`;
     const attachments = await this.resolveAttachments(message.attachments || []);
     const delivered = await this.deliverThroughRelays(
       this.mailOptionsFor(message, messageId, attachments),
@@ -320,7 +320,7 @@ class SmtpOutboundService {
     html: string;
   }): Promise<void> {
     await this.deliverThroughRelays({
-      messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
+      messageId: `<${randomUUID()}@${EMAIL_DOMAIN}>`,
       from: `Oxy <noreply@${EMAIL_DOMAIN}>`,
       to: message.to,
       subject: message.subject,
@@ -343,8 +343,8 @@ class SmtpOutboundService {
     originalMessageId: string;
     originalSubject: string;
   }): Promise<void> {
-    const mdnMessageId = `<${uuidv4()}@${EMAIL_DOMAIN}>`;
-    const boundary = `----=_MDN_${uuidv4().replace(/-/g, '')}`;
+    const mdnMessageId = `<${randomUUID()}@${EMAIL_DOMAIN}>`;
+    const boundary = `----=_MDN_${randomUUID().replace(/-/g, '')}`;
     const reportingUA = 'inbox.oxy.so; Inbox by Oxy';
     const now = new Date().toUTCString();
 
