@@ -181,3 +181,101 @@ Before announcing it, run the realtime signed canary against `<id>`
 ([kaana-signed-canary](../../.github/workflows/kaana-signed-canary.yml),
 `probe_mode: realtime`) and one push-to-talk session through `/v1/realtime`
 whose receipt carries `audio_*_milliseconds` and `requests` at these prices.
+
+## Enabling an ElevenLabs speech route
+
+Kaana serves ElevenLabs text-to-speech under provider `elevenlabs`
+(OxyHQ/Kaana#170, oxy-infra#297; Kaana `docs/elevenlabs.md`). It handles the
+same `audio_speech` request as `x-ai/text-to-speech`:
+
+- voice `female` or `male` (mapped to the premade Sarah and George), or an
+  exact ElevenLabs voice id;
+- `mp3` only;
+- `speed` from 0.7 to 1.2;
+- `characters` metered by Kaana.
+
+Kaana attributes three lines:
+
+| Line | Upstream id | Characters per request |
+|---|---|---|
+| `elevenlabs/eleven-flash-v2.5` | `eleven_flash_v2_5` | 40,000 |
+| `elevenlabs/eleven-multilingual-v2` | `eleven_multilingual_v2` | 10,000 |
+| `elevenlabs/eleven-v3` | `eleven_v3` | 5,000 |
+
+Like every audio-output line, these reach the catalogue only through this
+reviewed bootstrap, never through the sync (`non_text_output_unreviewed`). Each
+reviewed model's `maxContextTokens` is the Kaana limit above plus 8, as for
+xAI.
+
+**Nothing is source-reviewed yet.** Five facts are open, and the first
+three are owner decisions:
+
+1. **Training.** ElevenLabs uses non-Enterprise customer data to improve its
+   models by default. It does not train on Enterprise customers' data by
+   default. Anyone can opt out in **Terms and privacy → Data use → "Improve
+   the models for everyone"**, but the opt-out is not retroactive
+   ([help centre](https://elevenlabs.io/docs/help-center/legal/is-my-data-used-to-improve-eleven-labs-ai-models);
+   [privacy policy, updated 2026-10-09](https://elevenlabs.io/privacy-policy)).
+   Turn the toggle off in the Oxy workspace before any user text is routed.
+   Record the date as `legalEvidenceRef`, with
+   `trainsOnCustomerData: false` from that date. Until then the fact is
+   `true`.
+2. **Retention.** ElevenLabs retains request data "in accordance with the
+   Privacy Policy", which keeps personal information "for as long as
+   necessary" and names no day count for text or audio. Zero Retention Mode
+   (`enable_logging=false`) is Enterprise-only
+   ([ZRM](https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode)),
+   and Kaana does not send it. The facts are therefore `retainsPayloads: true`
+   and `zeroDataRetentionAvailable: false`. `retention_days` must be an
+   integer, so it needs a number from ElevenLabs' DPA or the account team.
+   Never guess it.
+3. **Default voice and line.** Decide which line Alia's speech should prefer
+   and whether `female`/`male` stay Sarah/George (Kaana
+   `elevenlabs.ProductVoices`). Alia computes its speech model as the
+   cheapest speech line by `characters` price (OxyHQ/Alia#701). At list
+   prices xAI ($15 per million characters) stays ahead of Flash v2.5 ($40).
+   The startup credits are routing funding, not a catalogue price.
+4. **Price.** Use ElevenLabs' API list prices, with no markup
+   ([API pricing](https://elevenlabs.io/pricing/api), read 2026-10-12):
+   - Flash v2.5: $0.04 per 1,000 characters, so `characters` `40.00` per
+     `1_000_000`;
+   - Multilingual v2 and v3: $0.08 per 1,000 characters, so `80.00` per
+     `1_000_000`;
+   - `requests` `0`.
+
+   The account itself spends Startup Grant credits (33,000,000 for 12 months,
+   Kaana key `capacityCategory: promotional`). That is funding for the
+   scorecard, not the customer price.
+5. **Provenance.** Migration 0050 requires a `provenanceMarking` for audio
+   output. Confirm from ElevenLabs' own documentation what it marks on API
+   audio before choosing the value. Write `none` only if it marks nothing.
+
+Two production facts exist only after the Kaana/oxy-infra rollout, so read
+them from the live inventory object, as for the xAI voice route:
+
+- **Deployment ids.** The `deployments[]` entries with `provider:
+  "elevenlabs"`, `current: true` and the `upstreamModelId`s above. Each has
+  the shape `dep_elevenlabs_<upstream id>_observed_<YYYY_MM_DD>`.
+- **Snapshot id.** The object's `snapshotId`.
+
+The provider policy row (`inference_providers.elevenlabs`) is written by this
+bootstrap's `provider:elevenlabs` operation with the facts above. No
+migration inserts it, so the two cannot disagree.
+
+**The follow-up commit** is one PR. It adds a reviewed `elevenlabs` catalogue
+beside `KAANA_SPEECH_*` in `kaanaInitialCatalogue.ts`:
+
+- a publisher `elevenlabs`;
+- the chosen model lines with `inputModalities: ['text']`,
+  `outputModalities: ['audio']`, `maxOutputTokens: 1` and `apiFormats` NULL;
+- the provider entry with the facts above;
+- the per-line deployment ids;
+- `KaanaInitialProvider.slug` widened to `'elevenlabs'`;
+- a candidate on `kaana-v1-speech` only if the owner wants profile routing.
+  Do not mix voices across providers: xAI voices are not ElevenLabs voice ids.
+
+It also updates the workflow's snapshot pin, the operation allow-list in
+`scripts/check-kaana-catalogue-bootstrap-workflow.mjs` and the plan tests.
+Then dry-run and apply as above. Before announcing the route, run one signed
+`audio_speech` canary per deployment through `/v1/audio/speech`. Its receipt
+must carry `characters` at the reviewed price.
