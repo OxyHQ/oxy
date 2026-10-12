@@ -6,6 +6,12 @@ Oxy #1648 is merged at `fc95f76fcf72e914b8bf17d0c2275848b3435e57` and deployed o
 
 Commercial purchases remain disabled. Technical deployment does not establish fiscal configuration, live payment acceptance or launch approval. Recovery still needs an authenticated operation-key read after a lost checkout response and immutable initial-invoice discovery after later renewals. Absence, expiry and provider uncertainty do not prove cancellation; holds remain until an exact authoritative terminal observation. Follow-up implementation requires independent review before integration.
 
+### Draft recovery follow-up
+
+[Peable #123](https://github.com/OxyHQ/Peable/pull/123) prepares authenticated operation-key recovery and an immutable initial invoice reference. Its new shared-types `0.3.4-oxy-one.0` and SDK `0.2.7-oxy-one.0` versions are not published. The Oxy follow-up uses the official packed candidate for synthetic validation; committed dependencies remain the previously released registry versions until reviewed publication/adoption and final registry CI.
+
+Read-only recovery cannot prepare, dispatch or recreate a checkout. Existing ambiguous prepared intents, absent operations and uncertain provider outcomes retain their holds. The native Stripe client cannot discover by idempotency key when Peable lost the processor response before persisting it; only a configured trusted exact read capability can resolve that case. A previously recorded historical initial invoice can repair intent correlation without new rights or changed financial evidence; an unrecorded expired initial period still requires manual review. No renewal invoice substitutes for the initial invoice, and paid-state/signature/binding checks remain intact.
+
 ## 2026-10-11 inactive checkout review (historical)
 
 Peable #118 was integrated at `6f13df1cc9bbbced6ea1990818de1a18e450e87e`; main CI passed. Its `@peable.to/shared-types@0.3.3-oxy-one.0` and `@peable.to/sdk@0.2.6-oxy-one.0` release and Oxy #1648 adoption subsequently completed, as recorded above. Earlier temporary-tarball validation was preparation evidence, not registry acceptance.

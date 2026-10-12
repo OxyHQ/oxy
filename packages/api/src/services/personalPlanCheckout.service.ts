@@ -60,6 +60,12 @@ export interface PersonalCheckoutInput {
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
   prepare?(input: PersonalCheckoutInput): Promise<PersonalCheckoutSnapshot>;
+  recover?(
+    input: PersonalCheckoutInput,
+  ): Promise<
+    | { state: 'pending' }
+    | { state: 'found'; sessionId: string; checkoutUrl?: string; expiresAt: string }
+  >;
   create(input: PersonalCheckoutInput): Promise<{
     sessionId: string;
     checkoutUrl: string;
@@ -404,8 +410,24 @@ export async function resumePersonalPlanCheckout(
   intentId: string,
   dependencies: { provider: PersonalCheckoutProvider; now?: Date },
 ): Promise<PersonalPlanCheckoutResult> {
+  return progressPersonalPlanCheckout(intentId, dependencies, true);
+}
+
+/** Provider reads only: no preparation, dispatch claim or create. */
+export async function recoverPersonalPlanCheckout(
+  intentId: string,
+  dependencies: { provider: PersonalCheckoutProvider; now?: Date },
+): Promise<PersonalPlanCheckoutResult> {
+  return progressPersonalPlanCheckout(intentId, dependencies, false);
+}
+
+async function progressPersonalPlanCheckout(
+  intentId: string,
+  dependencies: { provider: PersonalCheckoutProvider; now?: Date },
+  allowDispatch: boolean,
+): Promise<PersonalPlanCheckoutResult> {
   // This technical path remains inactive for real purchases.
-  if (process.env.NODE_ENV !== 'test')
+  if (allowDispatch && process.env.NODE_ENV !== 'test')
     throw new ApiError(
       503,
       'Consumer checkout provider is unconfigured',
@@ -459,12 +481,13 @@ export async function resumePersonalPlanCheckout(
     trial: 'none',
   };
   let snapshot = personalCheckoutSnapshotFromIntent(intent);
-  if (!snapshot && dependencies.provider.prepare) {
+  let ownsDispatch = false;
+  if (allowDispatch && !snapshot && dependencies.provider.prepare) {
     // Preparation can race. Only the first stored authority wins; losing quotes
     // are never dispatched and never replace the winner after timeout/restart.
     const prepared = await dependencies.provider.prepare(input);
     assertSnapshot(prepared, input);
-    await getDb().transaction(async (tx) => {
+    ownsDispatch = await getDb().transaction(async (tx) => {
       const [account] = await tx
         .select({ kind: users.kind, status: users.accountStatus })
         .from(users)
@@ -482,7 +505,7 @@ export async function resumePersonalPlanCheckout(
         .where(eq(personalPlanCheckoutIntents.id, intentId))
         .for('update');
       if (!current || current.state === 'closed') throw new ConflictError('Checkout closed');
-      if (!current.taxQuoteRef && current.state !== 'fulfilled')
+      if (!current.taxQuoteRef && !current.dispatchClaimedAt && current.state === 'reserved') {
         await tx
           .update(personalPlanCheckoutIntents)
           .set({
@@ -490,8 +513,13 @@ export async function resumePersonalPlanCheckout(
             customerRef: prepared.customerId,
             planRef: prepared.planId,
             ...personalCheckoutSnapshotColumns(prepared),
+            dispatchClaimedAt: clock(),
+            state: 'pending',
           })
           .where(eq(personalPlanCheckoutIntents.id, intentId));
+        return true;
+      }
+      return false;
     });
     intent = await load();
     const result = terminal(intent);
@@ -502,7 +530,7 @@ export async function resumePersonalPlanCheckout(
     throw new ConflictError('Checkout authority is unavailable');
   if (snapshot) {
     assertSnapshot(snapshot, input);
-    if (Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
+    if (ownsDispatch && Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
       return { state: 'pending', intentId };
   }
   // Recheck closure before dispatch; no remote work runs under an account lock.
@@ -524,15 +552,39 @@ export async function resumePersonalPlanCheckout(
       .where(eq(personalPlanCheckoutIntents.id, intentId))
       .for('update');
     if (!current) throw new ConflictError('Checkout intent is unavailable');
-    return terminal(current);
+    const result = terminal(current);
+    if (result) return result;
+    if (allowDispatch && !snapshot && !current.dispatchClaimedAt && current.state === 'reserved') {
+      // Synthetic providers without preparation still claim exactly once.
+      await tx
+        .update(personalPlanCheckoutIntents)
+        .set({ dispatchClaimedAt: clock(), state: 'pending' })
+        .where(eq(personalPlanCheckoutIntents.id, intentId));
+      ownsDispatch = true;
+    }
+    return undefined;
   });
   if (beforeDispatch) return beforeDispatch;
-  const session = await dependencies.provider.create({ ...input, snapshot });
-  personalPlanCheckoutResultSchema.parse({
-    state: 'pending',
-    intentId,
-    checkoutUrl: session.checkoutUrl,
-  });
+  const dispatchInput = { ...input, snapshot };
+  const recovered =
+    !ownsDispatch && dependencies.provider.recover
+      ? await dependencies.provider.recover(dispatchInput)
+      : undefined;
+  // A persisted prepared row may predate the dispatch marker. Its absence does
+  // not prove that no create happened. Only an authenticated read can resolve it.
+  if (!ownsDispatch && recovered?.state !== 'found') return { state: 'pending', intentId };
+  const session = ownsDispatch
+    ? await dependencies.provider.create(dispatchInput)
+    : recovered?.state === 'found'
+      ? recovered
+      : undefined;
+  if (!session) return { state: 'pending', intentId };
+  if (session.checkoutUrl)
+    personalPlanCheckoutResultSchema.parse({
+      state: 'pending',
+      intentId,
+      checkoutUrl: session.checkoutUrl,
+    });
   if (
     !session.sessionId ||
     session.sessionId.length > 160 ||
@@ -561,7 +613,9 @@ export async function resumePersonalPlanCheckout(
       current.state === 'closed' ||
       (current.providerSessionId &&
         (current.providerSessionId !== session.sessionId ||
-          current.checkoutUrl !== session.checkoutUrl ||
+          (session.checkoutUrl !== undefined &&
+            current.checkoutUrl !== null &&
+            current.checkoutUrl !== session.checkoutUrl) ||
           current.providerSessionExpiresAt?.toISOString() !== session.expiresAt))
     )
       throw new ConflictError('Provider checkout replay differs');
@@ -571,7 +625,7 @@ export async function resumePersonalPlanCheckout(
         .set({
           state: 'pending',
           providerSessionId: session.sessionId,
-          checkoutUrl: session.checkoutUrl,
+          checkoutUrl: session.checkoutUrl ?? current.checkoutUrl,
           providerSessionExpiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
         })
         .where(eq(personalPlanCheckoutIntents.id, intentId));

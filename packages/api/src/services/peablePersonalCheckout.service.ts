@@ -104,6 +104,75 @@ export function createPeablePersonalCheckoutProvider(
   };
   return {
     kind: 'peable',
+    async recover(input) {
+      const snapshot = input.snapshot;
+      if (
+        !snapshot ||
+        input.idempotencyKey !== `personal-checkout:${input.intentId}` ||
+        snapshot.applicationId !== configuration.applicationId ||
+        snapshot.merchantId !== configuration.merchantId ||
+        snapshot.subjectAccountId !== input.subjectAccountId ||
+        snapshot.priceId !== input.priceId ||
+        snapshot.offerId !== input.offerId ||
+        snapshot.offerVersion !== input.offerVersion ||
+        snapshot.mode !== configuration.namespace.mode ||
+        snapshot.environment !== configuration.namespace.environment
+      )
+        throw new Error('Peable persisted recovery snapshot differs');
+      const merchant = await client.merchants.retrieve();
+      if (
+        merchant.id !== snapshot.merchantId ||
+        merchant.oxyAppId !== snapshot.applicationId ||
+        merchant.environment !== snapshot.environment
+      )
+        throw new Error('Peable recovery credential owner differs');
+      const operation = await client.billing.retrieveCheckoutOperation({
+        idempotencyKey: input.idempotencyKey,
+        providerCustomerId: snapshot.customerId,
+        providerPriceId: snapshot.priceId,
+        storeId: snapshot.subjectAccountId,
+        planId: snapshot.planId,
+      });
+      const source = operation.source;
+      if (
+        source.idempotencyKey !== input.idempotencyKey ||
+        source.merchantId !== snapshot.merchantId ||
+        source.appId !== snapshot.applicationId ||
+        source.mode !== snapshot.mode ||
+        source.environment !== snapshot.environment ||
+        source.providerCustomerId !== snapshot.customerId ||
+        source.providerPriceId !== snapshot.priceId ||
+        source.storeId !== snapshot.subjectAccountId ||
+        source.planId !== snapshot.planId ||
+        (source.taxQuoteId !== null && source.taxQuoteId !== snapshot.taxQuote.quote.id)
+      )
+        throw new Error('Peable checkout recovery binding differs');
+      // Expired quotes do not block this authenticated read. A missing/uncertain
+      // operation is not evidence that a second create would be safe.
+      if (operation.state !== 'succeeded' || source.taxQuoteId === null)
+        return { state: 'pending' };
+      const session = z
+        .object({
+          id: z.string().min(1).max(160),
+          expiresAt: z.string().datetime(),
+          url: z
+            .string()
+            .url()
+            .refine((value) => new URL(value).protocol === 'https:')
+            .optional(),
+        })
+        .parse(operation.checkout);
+      if (Date.parse(session.expiresAt) > Date.parse(snapshot.taxQuote.quote.expiresAt))
+        throw new Error('Peable recovered session exceeds frozen quote');
+      return {
+        state: 'found',
+        sessionId: session.id,
+        expiresAt: session.expiresAt,
+        ...(session.url && Date.parse(session.expiresAt) > clock().getTime()
+          ? { checkoutUrl: session.url }
+          : {}),
+      };
+    },
     async prepare(input) {
       assertEnabled();
       const offer = select(input);
