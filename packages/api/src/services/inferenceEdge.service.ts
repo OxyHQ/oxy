@@ -152,6 +152,7 @@ import {
   type InferenceScope,
   type InferenceStreamEvent,
   type InferenceStreamRouteSwitchEvent,
+  type InferenceFundingTier,
   type NormalizedUsageReport,
   type ReasoningEffort,
   type RoutingPolicyReference,
@@ -723,6 +724,14 @@ export interface AdmittedRequest {
    * this list can settle above it — see {@link admitRequest}.
    */
   readonly authorizedRoutes: readonly EdgeRoute[];
+  /**
+   * ADR 0038: the dearest funding tier Kaana may spend on a route, by exact
+   * `deploymentId`, for the routes that carry one. A route ADR 0037's
+   * promotional lane admitted on its promotional funding is `credit`: Kaana
+   * walks only free and credit keys of that provider and refuses the route
+   * rather than fall through to a paid key. Absent: no ceiling.
+   */
+  readonly fundingCeilings?: ReadonlyMap<string, InferenceFundingTier>;
   /**
    * The reasoning effort the envelope carries: the caller's own, or a power
    * level's default where every authorized route's model advertises it.
@@ -2258,9 +2267,20 @@ async function admitWithAutoDecision(
     hold = held.reservation;
   }
 
+  // ADR 0038: a route admitted only because promotional credit funds it may
+  // spend credit and nothing dearer. Kaana now walks a provider's whole key
+  // pool, so without this ceiling a spent grant would fall through to a paid
+  // key of the same provider inside a request Oxy authorized on credit only.
+  const fundingCeilings = new Map<string, InferenceFundingTier>(
+    authorizedRoutes
+      .filter((authorized) => promotionallyAdmitted.has(authorized.deploymentId) && authorized.customerProviderCredential === undefined)
+      .map((authorized) => [authorized.deploymentId, 'credit'] as const)
+  );
+
   return {
     status: 'admitted',
     admitted: {
+      ...(fundingCeilings.size === 0 ? {} : { fundingCeilings }),
       ...(scopedExecution === undefined ? {} : { scopedExecution }),
       ...(mentionClassifier === undefined ? {} : { mentionClassifier }),
       ...(privateAutoExecution === undefined ? {} : { privateAutoExecution }),
@@ -2436,6 +2456,7 @@ export async function executeInferenceRequest(
     };
   }
   const servedRoute = validation.route;
+  logFundingCeilingBreach(context, admitted, completion.usage);
 
   // 8. Settle against the exact usage, releasing the rest of the hold in the
   //    same transaction — or, while shadow metering, price the same usage and
@@ -2818,6 +2839,7 @@ export async function* streamInferenceRequest(
         { requestId: context.requestId, reason: partialValidation.reason }
       );
     }
+    if (usable !== undefined) logFundingCeilingBreach(context, admitted, usable.report);
     const evidence: KaanaUsageEvidence | undefined =
       usable !== undefined
         ? { kind: 'report', report: usable.report }
@@ -3702,6 +3724,44 @@ export function validateUsageReport(
   return { report, route: validation.route };
 }
 
+const FUNDING_TIER_ORDER: Readonly<Record<InferenceFundingTier, number>> = { free: 0, credit: 1, paid: 2 };
+
+/**
+ * ADR 0038: the tier Kaana reports having spent, when it is DEARER than the
+ * ceiling Oxy signed on the route that served. Kaana must never spend beyond
+ * what Oxy authorized; the work is done by then, so the request still settles,
+ * and this is the evidence that it happened. A report that states no tier says
+ * nothing either way (a data plane before contract 3.8.0 states none).
+ */
+export function fundingCeilingBreach(
+  report: Pick<NormalizedUsageReport, 'fundingTier' | 'deploymentId'>,
+  fundingCeilings: ReadonlyMap<string, InferenceFundingTier> | undefined
+): { readonly ceiling: InferenceFundingTier; readonly served: InferenceFundingTier } | undefined {
+  const ceiling = fundingCeilings?.get(report.deploymentId);
+  const served = report.fundingTier;
+  if (ceiling === undefined || served === undefined) return undefined;
+  return FUNDING_TIER_ORDER[served] > FUNDING_TIER_ORDER[ceiling] ? { ceiling, served } : undefined;
+}
+
+function logFundingCeilingBreach(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  report: NormalizedUsageReport
+): void {
+  const breach = fundingCeilingBreach(report, admitted.fundingCeilings);
+  if (breach === undefined) return;
+  logger.error(
+    'inference.edge.funding_ceiling_breached',
+    new Error('the data plane spent a funding tier above the signed ceiling'),
+    {
+      requestId: context.requestId,
+      deploymentId: report.deploymentId,
+      ceiling: breach.ceiling,
+      served: breach.served,
+    }
+  );
+}
+
 /** The contract's unit array as the `{ unit: quantity }` map the ledger takes. */
 function unitsFromReport(report: NormalizedUsageReport): Partial<Record<UsageUnit, number>> {
   return unitsFromQuantities(report.units);
@@ -3805,10 +3865,13 @@ export function buildEnvelope(
     // Do NOT add a policy snapshot field beside this. A second, unpublished shape
     // on this hop is exactly the divergence the contract package exists to
     // prevent, and it would put the eleven filtered controls back on the data
-    // plane's side of the boundary.
+    // plane's side of the boundary. The one limit that DOES travel is a route's
+    // funding ceiling (ADR 0038): Kaana chooses the key, so only Kaana can keep
+    // a credit-only route off a paid key.
     authorizedRoutes: authorizedRoutes.map((authorized) => {
       const crossModel =
         modelLineOf(authorized.modelReference) !== modelLineOf(route.modelReference);
+      const maxFundingTier = admitted.fundingCeilings?.get(authorized.deploymentId);
       return {
         substitution: crossModel ? 'cross_model' : 'same_model',
         ...(crossModel ? { authorizedByPolicy: true as const } : {}),
@@ -3816,6 +3879,7 @@ export function buildEnvelope(
         modelReference: authorized.modelReference,
         provider: authorized.provider,
         regions: authorized.regions,
+        ...(maxFundingTier === undefined ? {} : { maxFundingTier }),
         ...(authorized.customerProviderCredential === undefined
           ? {}
           : { customerProviderCredential: authorized.customerProviderCredential }),

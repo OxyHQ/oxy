@@ -2511,12 +2511,29 @@ describe('syncing a direct provider beside a paid one', () => {
     });
   });
 
+  // ADR 0038: Kaana walks the provider's whole key pool, grants first, so a
+  // second key keeps the provider promotional while any grant is available.
+  it('funds a two-key provider as promotional credit while a grant is available', async () => {
+    const world = await directWorld();
+    await runKaanaCatalogueSync({
+      reader: world.serve(),
+      reviewedRoutes: world.reviewedRoutes,
+      economics: economics({
+        [world.direct]: [{ category: 'promotional' }, { category: 'promotional' }],
+      }),
+    });
+    expect(await scorecardOf(world.directDeployment)).toMatchObject({
+      fundingClass: 'promotional_credit',
+      fundingState: 'available',
+    });
+  });
+
   it('keeps the direct route as ordinary paid usage when its funding is unknown', async () => {
     const world = await directWorld();
     for (const unknown of [
       null,
       economics({ [world.direct]: [{ category: null }] }),
-      economics({ [world.direct]: [{ category: 'promotional' }, { category: 'promotional' }] }),
+      economics({ [world.direct]: [{ category: 'paid' }, { category: null }] }),
       { read: async () => Promise.reject(new Error('Kaana answered 503')) },
     ]) {
       await runKaanaCatalogueSync({

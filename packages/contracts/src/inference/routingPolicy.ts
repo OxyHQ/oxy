@@ -36,6 +36,7 @@ import { z } from "zod";
 import {
   deploymentIdSchema,
   inferenceProviderSlugSchema,
+  inferenceFundingTierSchema,
   inferenceRegionSchema,
   inferenceTimestampSchema,
   modelReferenceSchema,
@@ -343,6 +344,16 @@ const authorizedRouteFields = {
   provider: inferenceProviderSlugSchema,
   regions: z.array(inferenceRegionSchema),
   /**
+   * The dearest funding tier the data plane may spend on this route. Absent
+   * means no ceiling. Present, the data plane walks only provider keys whose
+   * STATED tier is at or below it — a key whose economics nobody stated is
+   * never admitted — and refuses the route rather than fall through to a
+   * dearer key. It is how Oxy authorizes a route only while credit funds it
+   * (Alia Pro and Ultra spend credits only, ADR 0038). Meaningless with a
+   * customer credential, which the provider bills to the customer.
+   */
+  maxFundingTier: inferenceFundingTierSchema.optional(),
+  /**
    * Exact customer credential binding. Absence means a platform credential;
    * presence names the immutable Kaana generation this route may use.
    */
@@ -397,6 +408,13 @@ export const authorizedRouteSchema = z
       .strict(),
   ])
   .superRefine((route, ctx) => {
+    if (route.maxFundingTier !== undefined && route.customerProviderCredential !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['maxFundingTier'],
+        message: 'a funding ceiling bounds platform keys; a customer credential is billed to the customer',
+      });
+    }
     // Same rule as `modelDeploymentSchema`: a route serves specific weights. An
     // unpinned entry would leave the data plane choosing a revision, which is
     // the one substitution the customer never authorized by naming a model.

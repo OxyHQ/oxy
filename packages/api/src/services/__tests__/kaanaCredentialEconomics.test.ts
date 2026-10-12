@@ -74,14 +74,69 @@ describe('funding evidence from Kaana credential economics', () => {
     expect(funding.has('openrouter')).toBe(false);
   });
 
-  it('leaves unknown what it cannot attribute or that nobody described', () => {
-    expect(
-      derive(key('anthropic', 'a', 'promotional'), key('anthropic', 'b', 'promotional')).size,
-    ).toBe(0);
+  it('leaves unknown what holds no promotional key or that nobody described', () => {
     expect(derive(key('anthropic', 'a', null)).size).toBe(0);
+    expect(derive(key('anthropic', 'a', 'paid'), key('anthropic', 'b', null)).size).toBe(0);
     for (const category of ['paid', 'prepaid', 'trial']) {
       expect(derive(key('anthropic', 'a', category)).size).toBe(0);
     }
+  });
+
+  // ADR 0038: Kaana walks a provider's whole pool cheapest first, so a second
+  // key never collapses the provider into standard paid.
+  it('funds a several-key provider at the best tier available among its keys', () => {
+    const spent = { kind: 'balance', observedAt: NOW.toISOString(), balancePicos: '0' };
+    const two = derive(
+      key('anthropic', 'key-a', 'promotional'),
+      key('anthropic', 'key-b', 'promotional'),
+    );
+    expect(two.get('anthropic')).toMatchObject({
+      fundingClass: 'promotional_credit',
+      fundingState: 'available',
+      fundingEvidenceRef:
+        'kaana-credential-economics:anthropic:key-a:description-revision-3:promotional-keys-2-of-2-available',
+    });
+    // One grant spent: the other still funds the provider first.
+    const oneSpent = derive(
+      key('anthropic', 'key-a', 'promotional', [spent]),
+      key('anthropic', 'key-b', 'promotional'),
+    ).get('anthropic');
+    expect(oneSpent).toMatchObject({ fundingState: 'available' });
+    expect(oneSpent?.fundingEvidenceRef).toContain(':key-b:');
+    // A grant beside a paid key: promotional while the grant lasts...
+    expect(
+      derive(key('anthropic', 'key-a', 'promotional'), key('anthropic', 'key-p', 'paid')).get(
+        'anthropic',
+      ),
+    ).toMatchObject({ fundingClass: 'promotional_credit', fundingState: 'available' });
+    // ...and ordinary paid usage once it is spent, because Kaana walks on.
+    expect(
+      derive(
+        key('anthropic', 'key-a', 'promotional', [spent]),
+        key('anthropic', 'key-p', 'paid'),
+      ).has('anthropic'),
+    ).toBe(false);
+    // Only grants, all spent: exhausted, which the edge never ranks.
+    expect(
+      derive(
+        key('anthropic', 'key-a', 'promotional', [spent]),
+        key('anthropic', 'key-b', 'promotional', [spent]),
+      ).get('anthropic'),
+    ).toMatchObject({ fundingClass: 'promotional_credit', fundingState: 'exhausted' });
+  });
+
+  it('keeps the class until the last available grant lapses', () => {
+    const soon = new Date(NOW.getTime() + HOUR);
+    const later = new Date(NOW.getTime() + 3 * HOUR);
+    const funding = derive(
+      key('anthropic', 'key-a', 'promotional', [
+        { kind: 'expiry', observedAt: NOW.toISOString(), expiresAt: soon.toISOString() },
+      ]),
+      key('anthropic', 'key-b', 'promotional', [
+        { kind: 'expiry', observedAt: NOW.toISOString(), expiresAt: later.toISOString() },
+      ]),
+    ).get('anthropic');
+    expect(funding?.fundingValidUntil).toEqual(later);
   });
 
   it('reads spent, throttled and expired credit from fresh capacity evidence', () => {

@@ -1808,7 +1808,12 @@ describe('inference contract versioning', () => {
     // `RoutingProfile.powerLevel`/`reasoningEffort`, `ModelCatalogueEntry.powerClass`,
     // `RoutingPolicy.allowedRoutingProfileIds`, and an optional
     // `sameModelDeployment` (a loosened refinement).
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('3.5.0');
+    // MINOR 5 (3.8.0; 3.6.0 and 3.7.0 name the separately negotiated scoped
+    // and private Auto sets): `inferenceFundingTierSchema`, an authorized
+    // route's optional `maxFundingTier` and the usage report's optional
+    // `fundingTier` (ADR 0038) — a 3.5 consumer strips the ceiling, so the
+    // data plane must be on 3.8 before Oxy relies on it.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('3.8.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

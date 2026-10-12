@@ -1810,7 +1810,13 @@ describe('approved production pilot admission', () => {
         expect(pilotEnvelopes[0].authorizedRoutes[0]).toMatchObject({
           modelReference: `anthropic/${CLAUDE[level].model}@${CLAUDE_REVISION}`,
           provider: 'anthropic',
+          // ADR 0038: Kaana walks Anthropic's whole key pool, so the grant-
+          // funded route is signed credit-only — a spent grant is refused,
+          // never served on a paid Anthropic key.
+          maxFundingTier: 'credit',
         });
+        // The ordinary XHigh fallback carries no ceiling.
+        expect(pilotEnvelopes[0].authorizedRoutes[1]).not.toHaveProperty('maxFundingTier');
         expect(pilotEnvelopes[0].reasoning?.effort).toBe('high');
         expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
         expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({
@@ -1839,6 +1845,7 @@ describe('approved production pilot admission', () => {
         const response = await ask('pro');
         expect(response.status).toBe(200);
         expect(signed()).toEqual([approvedHigh.deployment_id]);
+        expect(pilotEnvelopes[0].authorizedRoutes[0]).not.toHaveProperty('maxFundingTier');
       } finally {
         await fundPromotionally(CLAUDE.pro.promotional);
       }

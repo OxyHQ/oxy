@@ -1,6 +1,8 @@
 # ADR 0037 — The internal pilot spends promotional credit only at named Pro and Ultra
 
-- Status: accepted
+- Status: accepted; amended by [ADR 0038](0038-kaana-owns-provider-keys-costs-and-routing.md):
+  Kaana walks a provider's whole key pool, so a lane route is signed
+  `maxFundingTier: "credit"` and Kaana never serves it on a paid key
 - Date: 2026-10-12
 - Changes: the `alia-kaana` internal metered pilot
   (`config/inferenceEconomicPolicy.ts`, [internal-metering.md](../inference/internal-metering.md)),
