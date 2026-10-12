@@ -124,5 +124,5 @@ OXY_NODE_OWNER_PUBLIC_KEY=<pubkey> bun run --filter @oxy.so/node dev
 
 - `bun run --filter @oxy.so/node dev` — watch-mode dev server
 - `bun run --filter @oxy.so/node build` — build deps + `tsc` → `dist/`
-- `bun run --filter @oxy.so/node start` — `node dist/index.js`
-- `bun run --filter @oxy.so/node test` — Jest (ts-jest)
+- `bun run --filter @oxy.so/node start` — `bun dist/index.js` (the node runs on Bun; the store is `bun:sqlite`)
+- `bun run --filter @oxy.so/node test` — `bun test` (needs contracts, protocol and core built: the tests import their `dist/`)
