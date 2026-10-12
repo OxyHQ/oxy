@@ -31,6 +31,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { getEnvVar } from '../config/env';
 import { logger } from '../utils/logger';
 import { recordSuppression } from '../services/emailSuppression.service';
+import { recordBouncedDelivery } from '../services/emailDelivery.service';
 import type { EmailSuppressionReason } from '../db/schema/emailSuppressions';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
@@ -242,7 +243,8 @@ async function verifySnsSignature(msg: SnsEnvelope): Promise<boolean> {
 interface SesNotification {
   notificationType?: string;
   eventType?: string;
-  mail?: { source?: string; destination?: string[] };
+  /** `messageId` is SES's own id for the message, the one the Sent row keeps. */
+  mail?: { source?: string; destination?: string[]; messageId?: string };
   bounce?: {
     bounceType?: string;
     bounceSubType?: string;
@@ -289,6 +291,30 @@ async function resolveSenderUserId(source: string | undefined): Promise<string |
   return row?.id ?? null;
 }
 
+/**
+ * Show a permanent bounce on the sender's own Sent copy, so a message the relay
+ * took and a recipient's server then refused stops reading as delivered.
+ * Best-effort: the suppression above is what protects the domain, and this
+ * must never turn a verified notification into a failed one.
+ */
+async function markSentCopyBounced(notification: SesNotification): Promise<void> {
+  const sesMessageId = notification.mail?.messageId;
+  if (!sesMessageId) return;
+  try {
+    const userId = await resolveSenderUserId(notification.mail?.source);
+    if (!userId) return;
+    const detail = (notification.bounce?.bouncedRecipients ?? [])
+      .filter((r) => r.emailAddress)
+      .map((r) => `${r.emailAddress}: ${r.diagnosticCode ?? r.status ?? 'refused'}`)
+      .join('; ');
+    await recordBouncedDelivery({ userId, sesMessageId, detail: detail || 'Bounced' });
+  } catch (error) {
+    logger.warn('Could not mark the bounced Sent message', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function applySesNotification(notification: SesNotification): Promise<number> {
   const kind = notification.notificationType ?? notification.eventType;
   let applied = 0;
@@ -314,6 +340,7 @@ async function applySesNotification(notification: SesNotification): Promise<numb
       });
       applied++;
     }
+    if (reason === 'bounce_permanent') await markSentCopyBounced(notification);
     return applied;
   }
 

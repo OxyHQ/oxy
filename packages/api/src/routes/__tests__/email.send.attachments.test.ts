@@ -10,14 +10,14 @@
  *
  * Failure modes covered:
  *   1. Happy path — valid {fileId} array sends; resolved MessageAttachment[]
- *      reaches smtpOutbound.send AND linkFile is called for each file.
+ *      reaches acceptOutboundMessage AND linkFile is called for each file.
  *   2. Foreign file (ownerUserId !== sender) → 403 ForbiddenError.
  *   3. Missing file (assetService returns no record) → 400 BadRequestError.
  *   4. Trashed file (status !== 'active') → 400 BadRequestError.
  *   5. Legacy shape (bare `s3Key`/`filename`) → 400 from Zod validation
  *      (no silent compat path).
  *
- * smtpOutbound, emailService and assetService are stubbed at the module
+ * The delivery path, emailService and assetService are stubbed at the module
  * boundary — they own the network. The SENDER lookup is not: it reads the
  * `users` row from a real Postgres, because "resolve the sending account" is
  * one of the queries this batch ported.
@@ -53,8 +53,10 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-jest.mock('../../services/smtp.outbound', () => ({
-  smtpOutbound: { send: (...args: unknown[]) => mockSmtpSend(...args) },
+jest.mock('../../services/smtp.outbound', () => ({ smtpOutbound: {} }));
+jest.mock('../../services/emailDelivery.service', () => ({
+  acceptOutboundMessage: (...args: unknown[]) => mockSmtpSend(...args),
+  retryMessageDelivery: jest.fn(),
 }));
 
 jest.mock('../../services/email.service', () => ({
@@ -196,7 +198,11 @@ beforeEach(() => {
   mockEnforceSendLimit.mockResolvedValue(undefined);
   mockAutoCollectContacts.mockResolvedValue(undefined);
   mockResolveEmailAddress.mockReturnValue('alice@oxy.so');
-  mockSmtpSend.mockResolvedValue({ messageId: 'sent-1', queued: false });
+  mockSmtpSend.mockResolvedValue({
+    messageId: 'sent-1',
+    messageRowId: 'row-1',
+    delivery: null,
+  });
 });
 
 describe('POST /email/messages — attachment resolution', () => {
@@ -213,7 +219,9 @@ describe('POST /email/messages — attachment resolution', () => {
     });
 
     expect(res.status).toBe(202);
-    expect(res.body.data).toEqual(expect.objectContaining({ messageId: 'sent-1', queued: false }));
+    expect(res.body.data).toEqual(
+      expect.objectContaining({ id: 'row-1', messageId: 'sent-1', queued: false }),
+    );
 
     expect(mockGetFilesByIds).toHaveBeenCalledWith([FILE_OWN]);
     expect(mockCanUserAccessFile).not.toHaveBeenCalled();
