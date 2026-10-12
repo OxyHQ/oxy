@@ -5,7 +5,8 @@
 - Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
   "One entry point, two proofs")
 - Amended: 2026-10-11 — the native agents' service credentials are RETIRED; the
-  bootstrap revokes them and holds no key pair (see "No key pair left")
+  bootstrap revokes them and holds no key pair, and an entry point admits only
+  its declared workload (see "No key pair left")
 - Scope: first-party product apps entering Alia through a native product agent (Homiio → Sindi first)
 
 ## Context
@@ -143,6 +144,15 @@ injects no secret, and the four SSM SecureStrings are deleted by their owner.
 
 The credential rows stay, `revoked`: they are the attribution of every spend
 they authorised, and their ids remain reserved.
+
+The entry point follows ADR 0026's last migration step and drops the
+credential: `NATIVE_PRODUCT_AGENT_ENTRY_POINTS` names an application, an agent
+and a `workload`, and nothing else. "One entry point, two proofs" above is
+therefore history — there is one proof, the attested role, re-read live as its
+binding. A token naming the retired credential is refused as
+`unknown_entry_point` before any liveness question, so even a re-activated
+credential row could not re-open the lane, and an assertion minted for it no
+longer introspects.
 
 ### How Alia accepts it
 

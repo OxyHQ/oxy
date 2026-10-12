@@ -1,6 +1,6 @@
 {
-  "id": "64d31ebc-2c03-4384-8185-cb59ac77e6cb",
-  "prevId": "299547b4-ea58-499c-aeda-625954733e4c",
+  "id": "b7788628-64db-4639-8ad2-b5132747c1db",
+  "prevId": "14190a4e-114b-4fd5-835e-079a4d04d745",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -37462,7 +37462,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "restrict",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk": {

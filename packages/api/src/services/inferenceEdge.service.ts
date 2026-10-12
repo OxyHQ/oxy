@@ -338,9 +338,10 @@ export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = true;
  *
  * What it admits is exactly what the audience may already see: approved,
  * offerable `platform_internal` (and public) deployments of the named model.
- * It adds no constraint and no failover (see
- * {@link PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER}, whose reasoning
- * applies unchanged). A third-party application without a policy still gets
+ * It adds no constraint and authorizes same-model deployment failover only
+ * ({@link PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER}, whose reasoning
+ * applies unchanged): the named model's other deployments, ranked by funding
+ * class and then price, follow the admitted one in the signed list. A third-party application without a policy still gets
  * `missing-versioned-optimisation`: this is not a public default.
  */
 export const PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {

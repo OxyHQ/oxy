@@ -87,6 +87,7 @@ import { attachRealtimeEdge } from './routes/inferenceRealtime';
 import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
 import { startProviderCostFeedSchedule } from './services/kaanaProviderCostFeed.service';
+import { startCloudflareWebActivityPoller } from './services/cloudflareWebActivity.service';
 import { startMeteredReceiptReconciliationSchedule } from './services/inferenceMeteredUsage.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
@@ -1414,6 +1415,12 @@ export async function bootstrap(
   // `inference_provider_cost_attempts` (#1526). Read-only; same edge key.
   startProviderCostFeedSchedule();
   startMeteredReceiptReconciliationSchedule();
+  // Cloudflare-hosted web apps' traffic for the dashboard, read keylessly from
+  // Cloudflare's analytics with one read-only token. Every task registers; a
+  // Redis compare-and-set cursor lets exactly one publish each window. Without
+  // CLOUDFLARE_ANALYTICS_API_TOKEN (or REDIS_URL) it logs once and registers
+  // nothing.
+  startCloudflareWebActivityPoller();
 
   // Outbound relay readiness. Say it at boot: without a relay every send is
   // refused, and the failure is otherwise only discoverable by a user trying to

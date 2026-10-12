@@ -124,4 +124,4 @@ export const VERSIONS = {
 export type VersionKey = keyof typeof VERSIONS;
 
 /** Bun version pinned across CI + Dockerfiles for reproducible installs. */
-export const BUN_VERSION = '1.4.2';
+export const BUN_VERSION = '1.4.3';

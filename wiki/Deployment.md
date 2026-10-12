@@ -64,7 +64,7 @@ Shared secrets (AWS access-key variables for SES / app-level S3 usage, shared ru
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Multi-stage `oven/bun:1.3-alpine` build: builder (TypeScript compile) -> production (`bun install --production`). Targets **linux/arm64** (Graviton). |
+| `Dockerfile` | Multi-stage `oven/bun:1.4.3-alpine` build: builder (TypeScript compile) -> production (`bun install --production`). Targets **linux/arm64** (Graviton). |
 | `.dockerignore` | Use `**/node_modules` and `**/dist`; BuildKit does not match nested directories with bare patterns |
 | `bunfig.toml` | `linker = "hoisted"` — Bun 1.3 `isolated` linker breaks Dockerfiles that copy root-only `node_modules` |
 
@@ -72,14 +72,14 @@ Shared secrets (AWS access-key variables for SES / app-level S3 usage, shared ru
 
 ```dockerfile
 # Stage 1: builder
-FROM oven/bun:1.3-alpine AS builder
+FROM oven/bun:1.4.3-alpine AS builder
 COPY bunfig.toml ./
 COPY packages/core/ packages/api/ ...
 RUN bun install --frozen-lockfile
 RUN bun run core:build && bun run --cwd packages/api build
 
 # Stage 2: production
-FROM oven/bun:1.3-alpine
+FROM oven/bun:1.4.3-alpine
 RUN bun install --production --frozen-lockfile
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/core/dist ./packages/core/dist

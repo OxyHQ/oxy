@@ -173,7 +173,6 @@ assert.deepEqual(resolveLane(canonicalHomiioApplicationId, 'activity'), [
   'OXY_ACTIVITY_API_KEY',
   'OXY_ACTIVITY_API_SECRET',
 ]);
-assert.equal(resolveLane(canonicalHomiioApplicationId, 'edge')[4], 'false');
 assert.deepEqual(resolveLane(canonicalAliaApplicationId, 'service').slice(1, 6), [
   'user:read,inference:invoke,capabilities:read,capability-tickets:issue,clarity:search,clarity:index',
   'Oxy service (production)',
@@ -247,13 +246,11 @@ assert.doesNotMatch(homiioProvision, /ISOLATE_CREDENTIAL_NAME="false"/);
 assert.match(homiioProvision, /ROTATE_SCOPE_MISMATCH="true"/);
 assert.doesNotMatch(homiioProvision, /ROLLOUT_SERVICE/);
 // Mention attests its ECS task roles (ADR 0026) and holds no Oxy key pair, so
-// no lane may mint one back into /oxy/mention/OXY_SERVICE_API_*. Only the
-// Cloudflare edge lane (a Worker has no role to attest) stays registered.
-assert.match(mentionProvision, /APP_NAMESPACE="mention"/);
-assert.match(mentionProvision, /\[ "\$CREDENTIAL_LANE" = "edge" \] \|\| \{/);
+// no lane may mint one back into /oxy/mention/OXY_SERVICE_API_*. Its web app is
+// measured from Cloudflare analytics, so its arm is an unconditional refusal.
 assert.doesNotMatch(
   mentionProvision,
-  /SCOPES=|DESTINATION_(?:KEY|SECRET)_NAME|OXY_SERVICE_API_|ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/,
+  /APP_NAMESPACE=|CREDENTIAL_LANE|SCOPES=|DESTINATION_(?:KEY|SECRET)_NAME|OXY_SERVICE_API_|ROTATE_SCOPE_MISMATCH|ROLLOUT_SERVICE/,
 );
 for (const lane of ['service', 'activity']) {
   const execution = spawnSync('bash', ['-c', registryShell], {
@@ -408,46 +405,10 @@ process.stdout.write(
   'Service credential workflows bind exact app/credential IDs, scopes, and SSM destinations.\n',
 );
 
-// Keep Cloudflare credential delivery regression tests on the deploy-script gate.
-const edgeDelivery = spawnSync('python3', ['scripts/test-edge-activity-delivery.py'], {
-  encoding: 'utf8',
-});
-assert.equal(edgeDelivery.status, 0, edgeDelivery.stderr);
-const edgeRegistryEnd = provision.indexOf(
-  '          CREDENTIAL_NAME="${CREDENTIAL_NAME:-Service (production)}"',
-);
-const edgeRegistryShell = provision.slice(registryStart, edgeRegistryEnd);
-for (const [appId, entry] of Object.entries(
-  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8')),
-)) {
-  const execution = spawnSync(
-    'bash',
-    [
-      '-c',
-      `${edgeRegistryShell}\nprintf "%s\\n" "$APP_NAMESPACE" "$SCOPES" "$DESTINATION_KEY_NAME" "$DESTINATION_SECRET_NAME" "$ROLLOUT_SERVICE"`,
-    ],
-    {
-      env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: 'edge' },
-      encoding: 'utf8',
-    },
-  );
-  assert.equal(execution.status, 0, execution.stderr);
-  assert.deepEqual(execution.stdout.trim().split('\n'), [
-    entry.namespace,
-    'user:read',
-    'OXY_EDGE_ACTIVITY_API_KEY',
-    'OXY_EDGE_ACTIVITY_API_SECRET',
-  ]);
-}
-
 const niloSpecSource = readFileSync('packages/api/src/scripts/seedOxyApplicationsSpecs.ts', 'utf8');
 const niloId = niloSpecSource.match(/export const NILO_APPLICATION_ID = '([a-f0-9]{24})'/)?.[1];
 assert.ok(niloId);
 assert.ok(activityDestinations.some(([id, namespace]) => id === niloId && namespace === 'nilo'));
-assert.equal(
-  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8'))[niloId].namespace,
-  'nilo',
-);
 
 const mediaId = niloSpecSource.match(
   /export const MEDIA_WORKER_APPLICATION_ID = '([a-f0-9]{24})'/,
@@ -458,7 +419,54 @@ assert.ok(
     ([id, namespace]) => id === mediaId && namespace === 'oxy-asset-variant-worker',
   ),
 );
-assert.equal(
-  JSON.parse(readFileSync('.github/config/edge-activity-targets.json', 'utf8'))[mediaId],
-  undefined,
+
+// The Cloudflare edge lane is retired (it was never run): web traffic is read
+// keylessly from Cloudflare analytics by oxy-api, so no Worker or Pages project
+// holds an Oxy key pair. The lane guard refuses it before the exact-ID registry,
+// and the applications that were registered for it alone are unregistered.
+assert.doesNotMatch(
+  provision,
+  /deliver-edge-activity|edge-activity-targets|OXY_EDGE_ACTIVITY_|edge_activity_enabled|Edge activity \(production\)|^\s+- edge$/m,
 );
+const laneGuardStart = provision.indexOf('case "$CREDENTIAL_LANE" in');
+assert.ok(laneGuardStart >= 0 && laneGuardStart < registryStart);
+const guardedRegistryShell = provision.slice(laneGuardStart, registryEnd);
+function runGuarded(appId, lane) {
+  return spawnSync('bash', ['-c', guardedRegistryShell], {
+    env: { ...process.env, APP_ID: appId, CREDENTIAL_LANE: lane },
+    encoding: 'utf8',
+  });
+}
+const retiredEdgeOnlyApplications = [
+  '6a37d0cc5d4b5f15482a9340', // mercaria
+  '6a37b3e71ddfd195b65681d2', // noted
+  '019fe305-3543-750c-997f-650db85b2dec', // atlas
+  '6a37b3e61ddfd195b656819b', // inbox
+  '01a0646a-2382-74a3-a795-788924d55722', // clarity
+  '6a2f851651b784a86fd0e8d1', // accounts
+  '6a2f851751b784a86fd0e905', // auth
+  '6a2f851751b784a86fd0e8e3', // console
+];
+for (const appId of [
+  ...retiredEdgeOnlyApplications,
+  canonicalMentionApplicationId,
+  canonicalHomiioApplicationId,
+  ...activityDestinations.map(([id]) => id),
+]) {
+  const edge = runGuarded(appId, 'edge');
+  assert.notEqual(edge.status, 0, `edge lane accepted for ${appId}`);
+  assert.match(edge.stdout, /edge credential lane is retired/);
+}
+for (const appId of retiredEdgeOnlyApplications) {
+  assert.doesNotMatch(registryShell, new RegExp(`\\n\\s+${appId}\\)`));
+  for (const lane of ['service', 'activity']) {
+    const execution = runGuarded(appId, lane);
+    assert.notEqual(execution.status, 0, `retired edge-only application ${appId} accepted`);
+    assert.match(execution.stdout, /not registered for service credential delivery/);
+  }
+}
+for (const lane of ['', 'Edge', 'service,edge']) {
+  assert.notEqual(runGuarded(canonicalKaanaApplicationId, lane).status, 0, `lane ${lane} accepted`);
+}
+assert.equal(runGuarded(canonicalKaanaApplicationId, 'service').status, 0);
+assert.equal(runGuarded(canonicalHomiioApplicationId, 'activity').status, 0);

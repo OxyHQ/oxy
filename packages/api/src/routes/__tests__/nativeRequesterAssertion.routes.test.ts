@@ -75,12 +75,17 @@ let ownDatabaseUrl: string | undefined;
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 
 jest.setTimeout(60_000);
+/** The Homiio backend as it calls: its attested task role (ADR 0026), no key pair. */
 let homiio: Principal;
+/**
+ * The RETIRED Sindi service credential, seeded LIVE on the same application —
+ * the worst case, a row somebody re-activated. The entry point must still
+ * refuse it: it no longer names any credential.
+ */
+let retiredSindi: Principal;
 let alia: Principal;
 let untrusted: Principal;
 let otherOfficial: Principal;
-/** The SAME Homiio application, calling with no key pair at all (ADR 0026). */
-let attestedHomiio: Principal;
 
 async function account(): Promise<string> {
   const [row] = await getDb()
@@ -185,9 +190,9 @@ function mint(principal: Principal, subjectToken: string, agentId: string = HOMI
 function introspect(
   principal: Principal,
   assertion: string,
-  presenter = {
+  presenter: { applicationId: string; credentialId: string } = {
     applicationId: HOMIIO.applicationId,
-    credentialId: HOMIIO.sindiServiceCredential.id,
+    credentialId: HOMIIO_HANDLE,
   },
 ) {
   return post('/internal/native-agents/requester-assertions/introspect', serviceToken(principal), {
@@ -221,7 +226,7 @@ beforeAll(async () => {
   ownDatabaseUrl = await createTestDatabase();
   await connectPostgres();
 
-  homiio = await seedPrincipal({
+  retiredSindi = await seedPrincipal({
     appId: HOMIIO.applicationId,
     credentialId: HOMIIO.sindiServiceCredential.id,
     type: 'first_party',
@@ -251,7 +256,7 @@ beforeAll(async () => {
       description: 'Homiio ECS task role',
       scopes: ['inference:invoke', 'acting-as:offline'],
     });
-  attestedHomiio = { ...homiio, credentialId: HOMIIO_HANDLE };
+  homiio = { ...retiredSindi, credentialId: HOMIIO_HANDLE };
 
   const app = express();
   app.use(express.json());
@@ -308,7 +313,8 @@ describe('present-requester assertion routes', () => {
       requesterAccountId: person.userId,
       agentId: HOMIIO.aliaAgent.id,
       applicationId: HOMIIO.applicationId,
-      credentialId: HOMIIO.sindiServiceCredential.id,
+      // What called: the handle. There is no credential on this lane.
+      credentialId: HOMIIO_HANDLE,
     });
 
     const replay = await introspect(alia, assertion);
@@ -316,34 +322,15 @@ describe('present-requester assertion routes', () => {
   });
 
   /**
-   * The same product, the same person, the same agent — with the key pair gone
-   * from Homiio's task definition. Real HTTP, the real service-token
-   * middleware, a real binding row and the real runtime: the wiring has to
-   * resolve the `wl_…` the token carries to that row, or every Sindi chat turn
-   * answers a signed-in person with "sign in".
+   * The key pair Sindi's backend used before it attested. Its row is live here,
+   * on the right application, with the right scopes — and the lane is still
+   * closed, because the entry point no longer names a credential at all.
    */
-  it('mints for an ATTESTED Homiio backend, and Alia consumes it under the handle', async () => {
+  it('refuses the retired Sindi credential, even while its row is live', async () => {
     const person = await signedInUser();
-    const minted = await mint(attestedHomiio, person.accessToken);
-    expect(minted.status).toBe(201);
-    expect(minted.body.data).toMatchObject({
-      requesterAccountId: person.userId,
-      agentId: HOMIIO.aliaAgent.id,
-    });
-
-    const assertion = String(minted.body.data?.assertion);
-    const consumed = await introspect(alia, assertion, {
-      applicationId: HOMIIO.applicationId,
-      credentialId: HOMIIO_HANDLE,
-    });
-    expect(consumed.body.data).toMatchObject({
-      active: true,
-      requesterAccountId: person.userId,
-      agentId: HOMIIO.aliaAgent.id,
-      applicationId: HOMIIO.applicationId,
-      // What called, not the credential that did not.
-      credentialId: HOMIIO_HANDLE,
-    });
+    const res = await mint(retiredSindi, person.accessToken);
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('REQUESTER_ASSERTION_REFUSED');
   });
 
   /**
@@ -367,7 +354,7 @@ describe('present-requester assertion routes', () => {
       .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.subject, HOMIIO_ROLE));
     try {
-      expect((await mint(attestedHomiio, person.accessToken)).status).toBe(403);
+      expect((await mint(homiio, person.accessToken)).status).toBe(403);
     } finally {
       await getDb()
         .insert(applicationWorkloadIdentities)
@@ -379,15 +366,17 @@ describe('present-requester assertion routes', () => {
           scopes: ['inference:invoke', 'acting-as:offline'],
         });
     }
-    expect((await mint(attestedHomiio, person.accessToken)).status).toBe(201);
+    expect((await mint(homiio, person.accessToken)).status).toBe(201);
   });
 
-  /** The credential path is untouched: the two proofs are not interchangeable. */
-  it('refuses an attested assertion presented under the credential id', async () => {
+  it('refuses an assertion presented under the retired credential id', async () => {
     const person = await signedInUser();
-    const minted = await mint(attestedHomiio, person.accessToken);
+    const minted = await mint(homiio, person.accessToken);
     expect(minted.status).toBe(201);
-    const inactive = await introspect(alia, String(minted.body.data?.assertion));
+    const inactive = await introspect(alia, String(minted.body.data?.assertion), {
+      applicationId: HOMIIO.applicationId,
+      credentialId: HOMIIO.sindiServiceCredential.id,
+    });
     expect(inactive.body.data).toEqual({ active: false });
   });
 

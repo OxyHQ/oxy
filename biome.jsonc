@@ -118,7 +118,6 @@
         // between a handle-shaped character class and the word username/handle.
         "packages/services/src/ui/oauth/explicitOAuthConsent.ts",
         "packages/mcp/src/internalTransport.ts",
-        "packages/telemetry/src/edge.ts",
         "packages/api/src/services/externalProfileInspection.service.ts",
         // Read as text by the Guards job's deploy-script tests: scripts/test-service-
         // credential-{workflow-ids,two-phase}.mjs, test-native-product-agent-bootstrap-

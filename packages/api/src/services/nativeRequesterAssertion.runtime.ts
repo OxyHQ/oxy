@@ -3,17 +3,14 @@
  *
  * Kept apart from the service so its authority logic is tested against explicit
  * fakes, and so this file holds only the mapping from real platform state
- * (sessions, applications, credentials, Redis, the capability-ticket key) onto
+ * (sessions, applications, workload bindings, Redis, the capability-ticket key) onto
  * the narrow questions that logic asks.
  */
 
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getRedisClient } from '../config/redis';
 import { logger } from '../utils/logger';
-import {
-  resolveLiveAgencyCoordinator,
-  resolveLiveAgencyWorkload,
-} from './agencyServicePrincipal.service';
+import { resolveLiveAgencyWorkload } from './agencyServicePrincipal.service';
 import sessionService from './session.service';
 import type {
   ReplayStoreResult,
@@ -123,16 +120,6 @@ export function requesterAssertionRuntime(): RequesterAssertionDependencies {
     signing: () => {
       const config = capabilityTicketSigningConfig();
       return { keyId: config.keyId, privateKey: config.privateKey, publicKey: config.publicKey };
-    },
-    resolvePrincipal: async (applicationId, credentialId) => {
-      const principal = await resolveLiveAgencyCoordinator(applicationId, credentialId);
-      return principal
-        ? {
-            applicationId: principal.applicationId,
-            credentialId: principal.credentialId,
-            scopes: principal.scopes,
-          }
-        : null;
     },
     resolveWorkloadPrincipal: async (applicationId, provider, subject) => {
       const principal = await resolveLiveAgencyWorkload(applicationId, provider, subject);

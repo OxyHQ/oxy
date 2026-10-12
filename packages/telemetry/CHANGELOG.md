@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/telemetry`
 
+## Unreleased
+
+### Removed (breaking — the next release is a major)
+
+- The `@oxy.so/telemetry/edge` entry point (`observeEdgeRequest`,
+  `EdgeActivityEnv`). It published Worker/Pages request activity with a per-app
+  Oxy key pair (`OXY_EDGE_ACTIVITY_API_KEY/SECRET`) that was never provisioned,
+  so no deployment ever published through it. Oxy now reads web traffic from
+  Cloudflare's own analytics in oxy-api, keylessly. Consumers drop the wrapper
+  and call their handler directly; published 1.2.0 keeps working until then.
+
 ## 1.2.0
 
 ### Added

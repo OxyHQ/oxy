@@ -100,10 +100,6 @@ const ALLOWED: ReadonlyMap<string, string> = new Map([
     'Base64url segments in the Capability JWS Authorization header; the nearby handleMcp method name is a transport handler, not a users.username validator or allocator.',
   ],
   [
-    'packages/telemetry/src/edge.ts',
-    'Bounded operational service slugs in anonymous CDN aggregates; these name reporting services and never allocate or validate account usernames.',
-  ],
-  [
     'packages/api/src/services/federation/metaFirstPartyProof.service.ts',
     'First-party Instagram and Threads profile URL handles bind official page owners and reciprocal platform badges; these external source namespaces never allocate or validate local Oxy usernames.',
   ],

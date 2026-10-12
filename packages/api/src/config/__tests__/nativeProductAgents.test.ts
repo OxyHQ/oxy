@@ -177,19 +177,19 @@ describe('present-requester entry points (ADR 0025)', () => {
   /** `oxy-mention-task`'s handle: a REAL, valid handle belonging to another service. */
   const MENTION_HANDLE = 'wl_d61be5cd068abb658ed4d193';
   const APP = '6a2f851751b784a86fd0e922';
-  const CREDENTIAL = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73';
+  /** Sindi's RETIRED service credential. */
+  const RETIRED_CREDENTIAL = '01a0648e-ad3f-7608-aa8b-c07bfef6cf73';
   const AGENT = '01a0646a-078f-7514-9800-9f43ceed7df8';
 
   const config = () =>
     jest.requireActual('../nativeProductAgents') as typeof import('../nativeProductAgents');
 
-  it('admits exactly the Homiio Sindi credential and the Homiio task role, and nothing else', () => {
+  it('admits exactly the Homiio task role, and nothing else', () => {
     const { NATIVE_PRODUCT_AGENT_ENTRY_POINTS, nativeProductAgentEntryPoint } = config();
     expect(NATIVE_PRODUCT_AGENT_ENTRY_POINTS).toEqual([
       {
         product: 'homiio',
         applicationId: APP,
-        credentialId: CREDENTIAL,
         agentId: AGENT,
         workload: { provider: 'aws-iam', subject: HOMIIO_ROLE },
       },
@@ -203,11 +203,13 @@ describe('present-requester entry points (ADR 0025)', () => {
     ).toBeNull();
   });
 
-  it('matches the pinned credential, and says the caller proved itself with one', () => {
-    const { nativeProductAgentEntryPoint } = config();
-    const match = nativeProductAgentEntryPoint(APP, CREDENTIAL, AGENT);
-    expect(match?.entry.product).toBe('homiio');
-    expect(match?.principal).toEqual({ kind: 'credential', credentialId: CREDENTIAL });
+  /**
+   * ADR 0026's last migration step: the credential that used to be the entry
+   * point's second proof is retired, and it matches nothing — not even on the
+   * right application for the right agent.
+   */
+  it('does not match the retired Sindi credential', () => {
+    expect(config().nativeProductAgentEntryPoint(APP, RETIRED_CREDENTIAL, AGENT)).toBeNull();
   });
 
   /**
@@ -223,12 +225,11 @@ describe('present-requester entry points (ADR 0025)', () => {
       '../../services/workloadAttestation.service',
     ) as typeof import('../../services/workloadAttestation.service');
     const [entry] = NATIVE_PRODUCT_AGENT_ENTRY_POINTS;
-    expect(workloadAttestationHandle(entry.workload!.subject)).toBe(HOMIIO_HANDLE);
+    expect(workloadAttestationHandle(entry.workload.subject)).toBe(HOMIIO_HANDLE);
 
     const match = nativeProductAgentEntryPoint(APP, HOMIIO_HANDLE, AGENT);
     expect(match?.entry.product).toBe('homiio');
     expect(match?.principal).toEqual({
-      kind: 'workload',
       provider: 'aws-iam',
       subject: HOMIIO_ROLE,
       handle: HOMIIO_HANDLE,

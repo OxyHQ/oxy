@@ -23,7 +23,6 @@
     "components/**/*.ts",
     "components/**/*.tsx",
     "lib/**/*.ts",
-    "functions/**/*.ts",
     "app/**/*.css",
     "vite.config.ts",
     "vite-env.d.ts"

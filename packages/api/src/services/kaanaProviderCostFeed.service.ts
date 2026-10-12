@@ -259,42 +259,61 @@ export function providerTelemetrySigningInput(
   return Buffer.from([SIGNATURE_DOMAIN, keyId, String(timestamp), digest].join('\n'), 'utf8');
 }
 
+/**
+ * One signed operator read on Kaana's provider-telemetry surface: the JSON body
+ * is signed under {@link SIGNATURE_DOMAIN} with the edge key, and only a `200`
+ * whose body fits `maxBytes` is decoded. Shared by the attempt feed and the
+ * credential-economics read (`kaanaCredentialEconomics.service.ts`), so the two
+ * cannot sign differently.
+ */
+export async function postProviderTelemetry(
+  config: KaanaDataPlaneConfig,
+  path: string,
+  payload: Record<string, unknown>,
+  options: { readonly maxBytes?: number; readonly signal?: AbortSignal } = {},
+): Promise<unknown> {
+  const body = Buffer.from(JSON.stringify(payload), 'utf8');
+  const timestamp = Date.now();
+  const signature = sign(
+    null,
+    providerTelemetrySigningInput(config.keyId, timestamp, body),
+    config.privateKey,
+  ).toString('base64');
+  const response = await fetch(`${config.baseUrl}${path}`, {
+    method: 'POST',
+    redirect: 'error',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json',
+      'cache-control': 'no-store',
+      'X-Oxy-Kaana-Key-Id': config.keyId,
+      'X-Oxy-Kaana-Timestamp': String(timestamp),
+      'X-Oxy-Kaana-Signature': `v1=${signature}`,
+    },
+    body,
+    signal: options.signal ?? AbortSignal.timeout(30_000),
+  });
+  const raw = await response.text();
+  if (raw.length > (options.maxBytes ?? MAX_RESPONSE_BYTES)) {
+    throw new Error(`Kaana ${path} response exceeded its bound`);
+  }
+  if (response.status !== 200) {
+    throw new Error(`Kaana ${path} answered ${response.status}`);
+  }
+  return JSON.parse(raw);
+}
+
 export class HttpKaanaProviderCostFeedReader implements ProviderCostFeedReader {
   constructor(private readonly config: KaanaDataPlaneConfig) {}
 
   async readPage(after: string | null, limit: number): Promise<ProviderCostFeedPage> {
-    const body = Buffer.from(
-      JSON.stringify({ schemaVersion: 1, ...(after === null ? {} : { after }), limit }),
-      'utf8',
+    return attemptFeedPageSchema.parse(
+      await postProviderTelemetry(this.config, ATTEMPT_FEED_PATH, {
+        schemaVersion: 1,
+        ...(after === null ? {} : { after }),
+        limit,
+      }),
     );
-    const timestamp = Date.now();
-    const signature = sign(
-      null,
-      providerTelemetrySigningInput(this.config.keyId, timestamp, body),
-      this.config.privateKey,
-    ).toString('base64');
-    const response = await fetch(`${this.config.baseUrl}${ATTEMPT_FEED_PATH}`, {
-      method: 'POST',
-      redirect: 'error',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        'cache-control': 'no-store',
-        'X-Oxy-Kaana-Key-Id': this.config.keyId,
-        'X-Oxy-Kaana-Timestamp': String(timestamp),
-        'X-Oxy-Kaana-Signature': `v1=${signature}`,
-      },
-      body,
-      signal: AbortSignal.timeout(30_000),
-    });
-    const raw = await response.text();
-    if (raw.length > MAX_RESPONSE_BYTES) {
-      throw new Error('Kaana provider-cost feed response exceeded its bound');
-    }
-    if (response.status !== 200) {
-      throw new Error(`Kaana provider-cost feed answered ${response.status}`);
-    }
-    return attemptFeedPageSchema.parse(JSON.parse(raw));
   }
 }
 

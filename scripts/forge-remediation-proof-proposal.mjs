@@ -1097,7 +1097,7 @@ const COLLECTED = new WeakSet();
 const HOME = userInfo().homedir;
 const BINARIES = { git: '/usr/bin/git', gh: '/usr/bin/gh' };
 const BUN_LOCATIONS = ['/usr/local/bin/bun', '/usr/bin/bun', `${HOME}/.bun/bin/bun`];
-export const TRUSTED_BUN_VERSION = '1.4.2';
+export const TRUSTED_BUN_VERSION = '1.4.3';
 function toolEnv() {
   const env = { ...process.env, HOME };
   for (const key of Object.keys(env))

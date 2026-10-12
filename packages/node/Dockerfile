@@ -23,11 +23,17 @@
 ##   docker run --env-file .env -p 4000:4000 -v oxy-node-data:/data oxy-node
 ##
 
+# One platform-specific, digest-pinned Bun binary, as in the api Dockerfile.
+# `npm install -g bun` was unpinned and pulled the npm wrapper with every
+# @oven platform binary.
+FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373 AS bun-bin
+
 FROM node:24-alpine AS builder
 
 # python3/make/g++: better-sqlite3 compiles a native addon at install time.
 RUN apk add --no-cache python3 make g++
-RUN npm install -g bun
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 
@@ -63,7 +69,8 @@ RUN cd packages/node && bunx tsc
 FROM node:24-alpine
 
 RUN apk add --no-cache python3 make g++ curl
-RUN npm install -g bun
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
 WORKDIR /app
 

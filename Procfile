@@ -1,1 +1,1 @@
-web: cd packages/api && npm start
+web: cd packages/api && bun run start
