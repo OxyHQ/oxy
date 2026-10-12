@@ -175,8 +175,7 @@ POLICY (the limits), and the catalogue a customer sees.
 4. Switch Alia (`platform_internal`) to v5 first, then official apps, then
    public API keys. A caller on v2 keeps working.
 5. Move power-level resolution: Kaana resolves levels for v5 requests; Oxy's
-   resolver stays only for v2 callers, then is deleted. Resolve first the
-   open conflict below.
+   resolver stays only for v2 callers, then is deleted.
 6. Delete Oxy's ranking: `kaanaCredentialEconomics.service.ts`, funding
    columns of the routing scorecards, `kaanaReviewedProviderRoutes.ts`,
    `fundingPriorityFor`, the per-deployment price sync, the score renewal
@@ -200,13 +199,13 @@ POLICY (the limits), and the catalogue a customer sees.
   snapshot: provider and data policy inside the limits it sent. A violation is
   a `policy_violation`, as an unauthorized route is today.
 
-## Open conflict (not phase 1)
+## Alia and power levels
 
-The owner's product fact "in Alia end users pick only levels, never concrete
-models" contradicts Alia's AGENTS.md and Alia ADR 0012, which make Alia's
-picker the real `publisher/model` catalogue with no modes or route profiles.
-It must be settled before phase 2 step 5 changes how Alia's requests are
-resolved.
+Alia's end users choose only power levels: the app's model store
+(`packages/app`, model-store v4) replaced the model picker. Alia's AGENTS.md
+and ADR 0012 wording about a real-model picker is stale and will be fixed in
+Alia. Moving level resolution into Kaana therefore matches what Alia already
+sends.
 
 ## Consequences
 
