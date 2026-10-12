@@ -1076,6 +1076,95 @@ describe('a scheduled send under a key', () => {
     await expectCancelled(row, key);
   });
 
+  it('moved while the due job is sending it is left sent, not marked cancelled', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    const claim = await claimOf(key);
+    await due(row.id);
+    const trash = await emailService.getMailboxBySpecialUse(user.id, '\\Trash');
+    if (!trash) throw new Error('no Trash');
+
+    // The due job takes the message off the schedule, then waits on its claim.
+    const gate = holdLock((tx) =>
+      tx.select().from(emailOutbox).where(eq(emailOutbox.id, claim.id)).for('update'),
+    );
+    await gate.held;
+    try {
+      const dueJob = emailService.processScheduledMessages();
+      await waitFor(async () => (await lockWaiters()) >= 1);
+      // The move read it as scheduled, and now waits on the due job's row lock.
+      const move = emailService.moveMessage(user.id, row.id, trash.id);
+      await waitFor(async () => (await lockWaiters()) >= 2);
+      await gate.release();
+      await Promise.all([dueJob, move]);
+    } finally {
+      await gate.release();
+    }
+
+    expect(relayCallsFor(row.messageId)).toHaveLength(1);
+    expect(await deliveryOf(row.id)).toMatchObject({ state: 'sent' });
+    expect(await claimOf(key)).toMatchObject({ status: 'sent' });
+  });
+
+  it('from a blocked sender moved to Junk is cancelled like any other move', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    // A user of its own: blocking a sender is account-wide.
+    const username = `blocker${unique().slice(0, 10)}`;
+    const [owner] = await getDb()
+      .insert(users)
+      .values({ username, color: 'teal' })
+      .returning({ id: users.id });
+    await emailService.ensureMailboxes(owner.id);
+    const address = `${username}@oxy.so`;
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(owner.id, {
+      from: { name: '', address },
+      to: [{ name: '', address: `blocked-${unique().slice(0, 8)}@example.com` }],
+      subject: 'Later',
+      text: 'Hi',
+      idempotencyKey: key,
+      scheduledAt: later(),
+    });
+
+    await emailService.unsubscribe(owner.id, address, 'block');
+    const [stored] = await getDb()
+      .select({ scheduledAt: messages.scheduledAt })
+      .from(messages)
+      .where(eq(messages.id, row.id));
+    expect(stored.scheduledAt).toBeNull();
+    const [held] = await getDb()
+      .select()
+      .from(emailOutbox)
+      .where(and(eq(emailOutbox.userId, owner.id), eq(emailOutbox.idempotencyKey, key)));
+    expect(held).toMatchObject({ status: 'cancelled', messageRowId: row.id });
+    expect((await emailService.getMessage(owner.id, row.id))?.delivery).toMatchObject({
+      errorCode: 'cancelled',
+    });
+  });
+
+  it('scheduled before claims, then unscheduled, reads as cancelled, and says so on retry', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    // As a message scheduled before scheduled sends took claims.
+    await getDb()
+      .delete(emailOutbox)
+      .where(and(eq(emailOutbox.userId, user.id), eq(emailOutbox.idempotencyKey, key)));
+    await emailService.deleteMessage(user.id, row.id);
+
+    await expect(
+      acceptOutboundMessage({ ...reply(key), text: 'Something else entirely' }),
+    ).rejects.toMatchObject({
+      statusCode: 422,
+      details: { id: row.id, deliveryState: 'cancelled' },
+    });
+    await expect(retryMessageDelivery(user.id, row.id)).rejects.toThrow(
+      /cancelled before it was sent/,
+    );
+    expect(relayCallsFor(row.messageId)).toHaveLength(0);
+  });
+
   it('deleted for good cancels its claim: a repeat of its key is refused, never 202', async () => {
     mockSendMail.mockResolvedValue({ response: '250 Ok' });
     const key = `schedule:${unique()}`;

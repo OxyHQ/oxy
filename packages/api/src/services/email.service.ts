@@ -841,11 +841,13 @@ async function unscheduleMessages(
   fate: 'deleted' | 'kept',
 ): Promise<void> {
   if (rows.length === 0) return;
-  if (fate === 'deleted') {
-    await cancelScheduledClaims(tx, userId, rows);
-    return;
-  }
-  await tx
+  // The caller read these as scheduled before it held them; the due job may
+  // have taken one off the schedule since — and sent it. Only what is STILL
+  // scheduled, under the row lock this takes, is the caller's to cancel: a
+  // "cancelled" written for a message the relay accepted would say it never
+  // left, refuse its retry, and invite the user to send it twice. Taking the
+  // message rows first is also the due job's lock order (row, then claim).
+  const unscheduled = await tx
     .update(messages)
     .set({ scheduledAt: null })
     .where(
@@ -855,9 +857,15 @@ async function unscheduleMessages(
           messages.id,
           rows.map((row) => row.id),
         ),
+        isNotNull(messages.scheduledAt),
       ),
-    );
-  for (const row of rows) {
+    )
+    .returning({ id: messages.id, messageId: messages.messageId });
+  if (fate === 'deleted') {
+    await cancelScheduledClaims(tx, userId, unscheduled);
+    return;
+  }
+  for (const row of unscheduled) {
     const cancelled = await cancelScheduledClaims(tx, userId, [
       { messageId: row.messageId, linkTo: row.id },
     ]);
@@ -3264,7 +3272,13 @@ class EmailService {
         ? await this.getMessage(userId, claim.messageRowId)
         : await this.findMessageByRfcMessageId(userId, messageId)) ?? null;
     const deliveryState = ((): SentUnderKeyState => {
-      if (!claim) return row?.scheduledAt ? 'scheduled' : (row?.delivery?.state ?? 'unknown');
+      if (!claim) {
+        if (row?.scheduledAt) return 'scheduled';
+        // Unscheduled before scheduled sends took claims: its delivery is the
+        // cancelled row recorded then, which the message reads as failed.
+        if (row?.delivery?.errorCode === 'cancelled') return 'cancelled';
+        return row?.delivery?.state ?? 'unknown';
+      }
       if (claim.status === 'cancelled') return 'cancelled';
       // A waiting scheduled claim whose message is gone will never be sent.
       if (isWaitingScheduledClaim(claim)) return row?.scheduledAt ? 'scheduled' : 'cancelled';
@@ -5177,16 +5191,17 @@ class EmailService {
     // `updateMany`. The counters are derived now, so the move IS the operation.
     const spamMailbox = await this.getMailboxBySpecialUse(userId, '\\Junk');
     if (spamMailbox) {
-      await db
-        .update(messages)
-        .set({ mailboxId: spamMailbox.id })
-        .where(
-          and(
-            eq(messages.userId, userId),
-            eq(messages.fromAddress, normalizedSender),
-            not(eq(messages.mailboxId, spamMailbox.id)),
-          ),
-        );
+      const fromSender = and(
+        eq(messages.userId, userId),
+        eq(messages.fromAddress, normalizedSender),
+        not(eq(messages.mailboxId, spamMailbox.id)),
+      );
+      await db.transaction(async (tx) => {
+        // Sent mail is "from" its sender too: a scheduled message moved to
+        // Junk is no longer going out.
+        await unscheduleMessages(tx, userId, await scheduledAmong(tx, userId, fromSender), 'kept');
+        await tx.update(messages).set({ mailboxId: spamMailbox.id }).where(fromSender);
+      });
     }
 
     return done('blocked');

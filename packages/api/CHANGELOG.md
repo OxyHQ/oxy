@@ -28,12 +28,16 @@
   `GET /email/outbox` does not list it and its retry and cancel routes (and
   the Alia tools over them) refuse it. A scheduled message is cancelled by
   taking it out of Sent or deleting it, and every path that does so — delete,
-  move, bulk move, snooze, deleting the folder it is in, deleting the
-  account's mail — cancels its claim in the same transaction through one
-  helper (`unscheduleMessages`). One that stays is unscheduled and its
+  move, bulk move, snooze, blocking its sender (Sent mail moves to Junk),
+  deleting the folder it is in, deleting the account's mail — cancels its
+  claim in the same transaction through one helper (`unscheduleMessages`),
+  and only if it is still scheduled under the row lock: a message the due job
+  sent meanwhile stays sent, never marked cancelled. One that stays is unscheduled and its
   delivery reads `failed`/`cancelled`, so restoring it sends nothing; the due
-  job also sends only what is still in Sent. Rows scheduled before this are
-  compared with their Sent row. There is deliberately no unique index on
+  job also sends only what is still in Sent, and a retry of a cancelled
+  scheduled message is refused as cancelled (`409`), not "already being
+  delivered". Rows scheduled before this are compared with their Sent row,
+  and read `cancelled` once unscheduled. There is deliberately no unique index on
   `messages(user_id, message_id)`: the claim makes a send leave once, and the
   index would refuse inbound mail delivered twice (`docs/EMAIL.md`).
 - The parent a reply threads under is the earliest of the user's copies of it,

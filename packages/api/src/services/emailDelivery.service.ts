@@ -36,6 +36,7 @@ import {
   findDeliveryForMessage,
   findSendClaim,
   inClaimTransaction,
+  isScheduledClaim,
   isWaitingScheduledClaim,
   linkOutboxToMessage,
   markDeliveriesBounced,
@@ -345,6 +346,13 @@ export async function retryMessageDelivery(
     );
   }
 
+  if (isScheduledClaim(row)) {
+    // A scheduled message cancelled before it was due — moved out of Sent or
+    // deleted. Retrying would send it now, early, after the user stopped it.
+    throw new ConflictError(
+      'This scheduled message was cancelled before it was sent. Send it again as a new message.',
+    );
+  }
   const claimed = await claimDeliveryRetry(userId, row.id, `retry:${randomUUID()}`);
   if (!claimed) throw new ConflictError('This message is already being delivered or was delivered');
 
