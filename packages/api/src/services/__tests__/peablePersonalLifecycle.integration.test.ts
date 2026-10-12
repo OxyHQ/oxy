@@ -768,7 +768,9 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           .where(eq(personalPlanCheckoutIntents.id, result.intentId));
         expect(before.taxQuoteRef).toBeTruthy();
         expect(before.providerSessionId).toBe('cs_live_fixture');
-        expect(personalCheckoutSnapshotFromIntent(before)?.taxQuote.signature.algorithm).toBe('Ed25519');
+        expect(personalCheckoutSnapshotFromIntent(before)?.taxQuote.signature.algorithm).toBe(
+          'Ed25519',
+        );
         expect(
           (await readSubjectProductAccess(account.payer, account.products[1].id)).capabilities,
         ).toHaveLength(0);
@@ -784,7 +786,9 @@ const runner = process.env.PEABLE_ONE_FIXTURE_RUNNER;
           .where(eq(personalPlanCheckoutIntents.id, result.intentId));
         expect(after.initialInvoiceId).toBe('in_fixture');
         expect(after.state).toBe('fulfilled');
-        expect(personalCheckoutSnapshotFromIntent(after)).toEqual(personalCheckoutSnapshotFromIntent(before));
+        expect(personalCheckoutSnapshotFromIntent(after)).toEqual(
+          personalCheckoutSnapshotFromIntent(before),
+        );
         expect(
           (await readSubjectProductAccess(account.payer, account.products[1].id)).capabilities,
         ).toHaveLength(1);
