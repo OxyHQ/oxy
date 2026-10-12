@@ -24,7 +24,7 @@
  * end to fix.
  */
 
-import type { Sql } from 'postgres';
+import { type RawSqlClient, queryRows } from '../driver';
 
 /** Raised when the connected database is not the one the operator named. */
 export class WrongMigrationTargetError extends Error {
@@ -97,8 +97,8 @@ export function readTargetDatabase(argv: readonly string[]): string {
  *
  * @throws {WrongMigrationTargetError} When they differ.
  */
-export async function assertMigrationTarget(client: Sql, expected: string): Promise<void> {
-  const rows = await client<{ current_database: string }[]>`select current_database()`;
+export async function assertMigrationTarget(client: RawSqlClient, expected: string): Promise<void> {
+  const rows = await queryRows<{ current_database: string }>(client, 'select current_database()');
   const actual = rows[0]?.current_database;
   if (actual !== expected) throw new WrongMigrationTargetError(expected, actual ?? '(unknown)');
 }

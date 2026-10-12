@@ -46,6 +46,16 @@ import { join } from 'node:path';
 import type { JournalEntry } from '../migrate/ledger';
 import { materializeJournalPrefix, runMigrations } from '../migrate/runner';
 
+/**
+ * The faked-driver block below swaps the `postgres` module out through Jest's
+ * module registry (`jest.resetModules` + `jest.doMock`), which `bun test` does
+ * not implement. It is Jest-only by construction — it fakes postgres.js, so it
+ * says nothing about either real driver — and runs in full under
+ * `bun run test`. Under `bun run test:bun` it is SKIPPED, visibly, rather than
+ * failing on a missing Jest API.
+ */
+const jestOnly = typeof Reflect.get(jest, 'resetModules') === 'function' ? describe : describe.skip;
+
 const noopLogger = { info: () => {}, debug: () => {} };
 
 // Directories created FRESH inside a single `it()` — via `migrationsFixtureTracked`
@@ -231,7 +241,7 @@ describe('runMigrations — filesystem preconditions run before any connection i
   });
 });
 
-describe('runMigrations — cleans up the materialized prefix folder even when migrate() throws', () => {
+jestOnly('runMigrations — cleans up the prefix folder even when migrate() throws', () => {
   const EXPECTED_DATABASE = 'expected_db';
   // Empty rather than unset: if `beforeEach`'s `mkdtempSync` below ever threw
   // before assigning it, `afterEach` would otherwise call `rmSync` on an
@@ -290,10 +300,13 @@ describe('runMigrations — cleans up the materialized prefix folder even when m
         if (queryText.includes('to_regclass')) return [{ present: false }];
         return [];
       };
-      const client = Object.assign(
-        jest.fn((strings: TemplateStringsArray) => Promise.resolve(respond(strings.join('')))),
-        { end: jest.fn(() => Promise.resolve(undefined)) },
-      );
+      // Every statement `runMigrations` issues on this client goes through
+      // `unsafe()` (see `RawSqlClient` in `driver.ts`), the one query method
+      // postgres.js and `Bun.SQL` share.
+      const client = {
+        unsafe: jest.fn((queryText: string) => Promise.resolve(respond(queryText))),
+        end: jest.fn(() => Promise.resolve(undefined)),
+      };
       return { __esModule: true, default: jest.fn(() => client) };
     });
     // Stubbed rather than exercised: this test is about `runMigrations`'s own

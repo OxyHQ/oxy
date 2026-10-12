@@ -16,10 +16,21 @@ export {
 export {
   createDatabase,
   executeRows,
+  type CreateBunSqlDatabaseOptions,
   type CreateDatabaseOptions,
   type OxyDatabase,
   type SqlExecutor,
 } from './database';
+export {
+  DATABASE_DRIVERS,
+  DEFAULT_DATABASE_DRIVER,
+  type BunSqlClient,
+  type BunSqlClientOptions,
+  type DatabaseDriver,
+  type OxyBunSqlDatabase,
+  type OxyBunSqlQueryResultHKT,
+  type RawSqlClient,
+} from './driver';
 export { isLiveEntityId } from './ids';
 export {
   CHECK_VIOLATION,

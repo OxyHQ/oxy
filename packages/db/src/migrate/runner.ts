@@ -62,7 +62,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import postgres from 'postgres';
+import {
+  DEFAULT_DATABASE_DRIVER,
+  type DatabaseDriver,
+  bunSqlMigrate,
+  openOwnedConnection,
+} from '../driver';
 import { type RequiredExtension, ensureExtensions } from './extensions';
 import {
   type JournalEntry,
@@ -83,6 +88,16 @@ const CLOSE_TIMEOUT_SECONDS = 5;
 
 export interface RunMigrationsOptions {
   readonly databaseUrl: string;
+  /**
+   * The client every connection this run opens goes through — the DDL
+   * connection, the target check, the ledger reads and `ensureExtensions`.
+   * Default `postgres-js`. `bun-sql` (Bun only) drives the same steps in the
+   * same order through `Bun.SQL` and `drizzle-orm/bun-sql/migrator`, which
+   * applies migrations with the same `PgDialect.migrate` and writes the same
+   * ledger table and rows; the one difference is that `Bun.SQL` has no NOTICE
+   * hook, so `logger.debug` receives no server notices.
+   */
+  readonly driver?: DatabaseDriver;
   /** Absolute path to the drizzle migrations folder in the CALLER's own package. */
   readonly migrationsFolder: string;
   /** The extensions the caller's schema depends on. `[]` for none. */
@@ -202,10 +217,11 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
 
   const entries = fullEntries;
 
-  const client = postgres(options.databaseUrl, {
-    max: 1,
-    onnotice: (notice) => options.logger.debug(`Postgres notice: ${notice.message}`),
-  });
+  const driver = options.driver ?? DEFAULT_DATABASE_DRIVER;
+  const connection = openOwnedConnection(options.databaseUrl, driver, (message) =>
+    options.logger.debug(`Postgres notice: ${message}`),
+  );
+  const { client } = connection;
   let prefixFolder: string | null = null;
 
   try {
@@ -264,7 +280,7 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     // been verified: creating an extension on the wrong database is exactly
     // the mistake `assertMigrationTarget` exists to catch, and this call
     // opens its OWN connection to the same URL rather than reusing `client`.
-    await ensureExtensions(options.databaseUrl, options.extensions);
+    await ensureExtensions(options.databaseUrl, options.extensions, { driver });
 
     options.logger.info(`Applying ${plan.apply.length} migration(s): ${tags.join(', ')}`);
 
@@ -282,11 +298,16 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     // No `schema`/`casing` here on purpose: `migrate()` only executes the raw
     // SQL text of the migration files, so it never builds a query from the
     // caller's schema definitions and stays independent of them.
-    await migrate(drizzle(client), {
+    const migrationConfig = {
       migrationsFolder,
       migrationsSchema: MIGRATIONS_SCHEMA,
       migrationsTable: MIGRATIONS_TABLE,
-    });
+    };
+    if (connection.driver === 'bun-sql') {
+      await bunSqlMigrate(connection.client, migrationConfig);
+    } else {
+      await migrate(drizzle(connection.client), migrationConfig);
+    }
 
     // A migrator that reports success while leaving work pending is worse
     // than one that fails, so re-read the ledger rather than trusting the
@@ -306,6 +327,6 @@ ${problems.map((problem) => `  - ${problem}`).join('\n')}`,
     options.logger.info(`Applied ${plan.apply.length} migration(s): ${tags.join(', ')}`);
   } finally {
     if (prefixFolder) rmSync(prefixFolder, { recursive: true, force: true });
-    await client.end({ timeout: CLOSE_TIMEOUT_SECONDS });
+    await connection.close(CLOSE_TIMEOUT_SECONDS);
   }
 }

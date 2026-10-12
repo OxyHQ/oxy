@@ -31,7 +31,11 @@ export {
   assertMigrationTarget,
   readTargetDatabase,
 } from './targetDatabase';
-export { type RequiredExtension, ensureExtensions } from './extensions';
+export {
+  type EnsureExtensionsOptions,
+  type RequiredExtension,
+  ensureExtensions,
+} from './extensions';
 export { type RunMigrationsOptions, runMigrations } from './runner';
 export {
   DEPLOY_PHASES,

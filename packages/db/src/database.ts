@@ -2,6 +2,13 @@ import type { SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { DATABASE_CASING } from './casing';
+import {
+  type BunSqlClient,
+  type BunSqlClientOptions,
+  type OxyBunSqlDatabase,
+  bunSqlDrizzle,
+  openBunSqlClient,
+} from './driver';
 
 /**
  * The narrowest thing a mechanism in this package needs: something that can run
@@ -16,17 +23,14 @@ import { DATABASE_CASING } from './casing';
  *
  * ## Why `migrate/*` does NOT take one of these
  *
- * Everything under `migrate/` takes a raw `postgres.Sql` instead, and that is a
+ * Everything under `migrate/` takes a raw driver client (`RawSqlClient`, which
+ * a postgres.js `Sql` and a `Bun.SQL` both satisfy) instead, and that is a
  * decision rather than an oversight — do not "unify" the two. Migration-time
- * code needs capabilities this interface deliberately does not carry:
- * `readAppliedMillis` builds its query with tagged templates and identifier
- * interpolation (`client(MIGRATIONS_SCHEMA)`), and `ensureExtensions` needs
- * `unsafe()` for DDL that cannot take a bound parameter. Narrowing those to
- * `execute(query: SQL)` would mean rewriting them through drizzle for no gain,
- * on the one code path that must work before a drizzle handle over the
- * caller's schema is meaningful at all. `SqlExecutor` exists so a sweep or a
- * gate can run inside a caller's TRANSACTION; a migrator owns its own
- * single-use connection and has no such requirement.
+ * code runs before a drizzle handle over the caller's schema is meaningful at
+ * all, owns its own single-use connection, and needs `unsafe()` for DDL that
+ * cannot take a bound parameter (`CREATE EXTENSION`, `CREATE DATABASE`).
+ * `SqlExecutor` exists so a sweep or a gate can run inside a caller's
+ * TRANSACTION; a migrator has no such requirement.
  *
  * `execute` is deliberately NOT generic on this method. drizzle's own
  * `PgDatabase.execute<TRow>()` returns `PgRaw<PgQueryResultKind<...>>` — a
@@ -89,8 +93,28 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
    */
   readonly databaseUrl: string;
   readonly schema: TSchema;
+  /** The default driver. Omitting `driver` means exactly this. */
+  readonly driver?: 'postgres-js';
   /** postgres.js pool options. The caller owns pool sizing and timeouts. */
   readonly client?: postgres.Options<Record<string, never>>;
+}
+
+/**
+ * {@link createDatabase}'s options for Bun's built-in client — opt-in, Bun
+ * only. Nothing here names a postgres.js type, and the handle it returns is
+ * typed without one either.
+ */
+export interface CreateBunSqlDatabaseOptions<TSchema extends Record<string, unknown>> {
+  /** As {@link CreateDatabaseOptions.databaseUrl}. */
+  readonly databaseUrl: string;
+  readonly schema: TSchema;
+  readonly driver: 'bun-sql';
+  /**
+   * `Bun.SQL` pool options, under Bun's names; each one's postgres.js
+   * equivalent is named on {@link BunSqlClientOptions}. The caller owns pool
+   * sizing and timeouts.
+   */
+  readonly client?: BunSqlClientOptions;
 }
 
 /**
@@ -101,6 +125,15 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
  * guarantees is the part that must NOT differ — that the handle is built with
  * `DATABASE_CASING`, so the SQL queries reference matches the SQL migrations
  * created.
+ *
+ * ## Drivers
+ *
+ * postgres.js by default, unchanged. `driver: 'bun-sql'` builds the handle on
+ * Bun's built-in `Bun.SQL` through `drizzle-orm/bun-sql` instead — Bun only,
+ * refused with a clear error under Node, and never chosen implicitly (see
+ * `driver.ts`). Both return synchronously and both hand back `{ db, client }`;
+ * shut the bun-sql client down with `client.close({ timeout })` where the
+ * postgres.js one uses `client.end({ timeout })`.
  *
  * ## No consumer calls this yet, and that is not an oversight
  *
@@ -116,7 +149,26 @@ export interface CreateDatabaseOptions<TSchema extends Record<string, unknown>> 
  */
 export function createDatabase<TSchema extends Record<string, unknown>>(
   options: CreateDatabaseOptions<TSchema>,
-): { db: OxyDatabase<TSchema>; client: postgres.Sql } {
+): { db: OxyDatabase<TSchema>; client: postgres.Sql };
+export function createDatabase<TSchema extends Record<string, unknown>>(
+  options: CreateBunSqlDatabaseOptions<TSchema>,
+): { db: OxyBunSqlDatabase<TSchema>; client: BunSqlClient };
+export function createDatabase<TSchema extends Record<string, unknown>>(
+  options: CreateDatabaseOptions<TSchema> | CreateBunSqlDatabaseOptions<TSchema>,
+):
+  | { db: OxyDatabase<TSchema>; client: postgres.Sql }
+  | { db: OxyBunSqlDatabase<TSchema>; client: BunSqlClient } {
+  if (options.driver === 'bun-sql') {
+    const client = openBunSqlClient(options.databaseUrl, options.client);
+    // `drizzle-orm/bun-sql` is loaded at runtime (see `driver.ts`), so its
+    // return is untyped here; it IS a `BunSQLDatabase<TSchema>` with `$client`
+    // attached, which `database.typetest.ts` holds equal to the declared type.
+    const db = bunSqlDrizzle(client, {
+      schema: options.schema,
+      casing: DATABASE_CASING,
+    }) as OxyBunSqlDatabase<TSchema>;
+    return { db, client };
+  }
   const client = postgres(options.databaseUrl, options.client);
   return {
     db: drizzle(client, { schema: options.schema, casing: DATABASE_CASING }),
