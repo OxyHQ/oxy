@@ -252,7 +252,7 @@ describe('a delivery that fails', () => {
 
     mockSendMail.mockResolvedValueOnce({ response: '250 Ok' });
     const retried = await retryMessageDelivery(user.id, rowId);
-    expect(retried.id).toBe(messageRowId);
+    expect(retried.id).toBe(rowId);
     await settled(rowId, 'sent');
     expect(mockSendMail).toHaveBeenCalledTimes(2);
   });
