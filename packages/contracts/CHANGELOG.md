@@ -1,5 +1,22 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.12.0
+
+Inference contract set **3.8.0** (from 3.5.0; 3.6.0 and 3.7.0 remain the
+separately negotiated scoped and private Auto sets). Additive only: no export
+removed, no `schemaVersion` moved (ADR 0038).
+
+### Added
+
+- `inferenceFundingTierSchema` (`free`, `credit`, `paid`) and its type
+  `InferenceFundingTier`: the economic tier of provider capacity, in the order
+  Kaana spends it.
+- `authorizedRouteSchema`: an optional `maxFundingTier`, the dearest tier the
+  data plane may spend on that route. Refused beside a
+  `customerProviderCredential`.
+- `normalizedUsageReportSchema`: an optional `fundingTier`, the tier of the
+  platform key that served.
+
 ## 4.11.0
 
 ### Added

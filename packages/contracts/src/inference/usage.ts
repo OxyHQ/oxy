@@ -35,6 +35,7 @@ import {
   deploymentIdSchema,
   generationIdSchema,
   idempotencyKeySchema,
+  inferenceFundingTierSchema,
   inferenceProviderSlugSchema,
   inferenceTimestampSchema,
   modelReferenceSchema,
@@ -192,6 +193,14 @@ export const normalizedUsageReportSchema = z
     deploymentId: deploymentIdSchema,
     /** How many allowed route switches occurred while serving this request. */
     routeSwitches: z.number().int().nonnegative().max(100),
+    /**
+     * The funding tier of the platform key that served the final attempt, as
+     * the data plane states it (ADR 0038). Absent when the key's economics
+     * were never stated, when a customer credential served, or when nothing
+     * was served. Oxy reads it to account for what the request cost the
+     * platform; it is never a key identity and never reaches a customer.
+     */
+    fundingTier: inferenceFundingTierSchema.optional(),
     startedAt: inferenceTimestampSchema,
     completedAt: inferenceTimestampSchema,
     timeToFirstTokenMs: z.number().int().nonnegative().safe().optional(),

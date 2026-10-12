@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed (Kaana owns provider keys and routing, ADR 0038)
+
+- A provider's synced routes are funded at the best tier AVAILABLE among all
+  its enabled Kaana keys: any available promotional grant keeps them
+  `promotional_credit`, because Kaana walks the provider's key pool cheapest
+  first. A second key no longer collapses the provider into `standard_payg`.
+- A route the Pro/Ultra promotional lane admits (ADR 0037) is signed with
+  `maxFundingTier: "credit"` (contract set 3.8.0), so Kaana never serves it on
+  a paid key; a usage report naming a dearer tier logs
+  `inference.edge.funding_ceiling_breached`.
+
 ### Changed (a sent message shows whether it left)
 
 - `POST /email/messages` files the message in Sent and answers 202 **before**

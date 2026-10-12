@@ -822,6 +822,8 @@ export {
   inferenceProviderSlugSchema,
   deploymentIdSchema,
   inferenceRegionSchema,
+  // The economic tier Oxy bounds a route by and Kaana reports (ADR 0038)
+  inferenceFundingTierSchema,
   RESERVED_ALIA_PUBLISHER,
 } from './inference/identifiers';
 
@@ -829,6 +831,7 @@ export type {
   OxyAccountId,
   DelegatedUserId,
   InferenceEnvironment,
+  InferenceFundingTier,
   ModelReference,
   ModelId,
 } from './inference/identifiers';

@@ -432,13 +432,19 @@ asserted, so `requireCommercialUseRights` excludes these routes),
 
 ### Funding class of a synced route
 
-A provider with exactly one enabled Kaana key, described `promotional`, funds
-its synced routes as `promotional_credit` (`kaanaCredentialEconomics.service.ts`):
-observed at the read, valid for six hours and renewed once less than half of
-that is left. Fresh capacity evidence of a zero balance, an exhausted monthly
-quota or a past expiry records `exhausted` (a spent minute/hour/day quota
-`rate_limited`), which the edge never ranks. Every other provider, and every
-provider when the read fails, is `standard_payg`, `available`. With the same
+Kaana executes a deployment on its provider's whole key pool, free → credits →
+paid (ADR 0038), so a provider's synced routes are funded at the best tier
+AVAILABLE among its enabled keys (`kaanaCredentialEconomics.service.ts`). Any
+key described `promotional` whose grant is available makes them
+`promotional_credit`: observed at the read, valid for six hours (or until the
+last available grant's stated expiry) and renewed once less than half of that
+is left. Fresh capacity evidence of a zero balance, an exhausted monthly quota
+or a past expiry makes a grant unavailable. With every grant unavailable the
+routes are `standard_payg` when the provider holds any other key (Kaana walks
+on to it), or `exhausted` (`rate_limited` for a spent minute/hour/day quota)
+when grants are all it holds; the edge never ranks those. A provider with no
+promotional key, and every provider when the read fails, is `standard_payg`,
+`available`. With the same
 price, a promotional direct route therefore ranks before the paid route of the
 same line, which stays its failover destination; when the window lapses or the
 grant is spent, the paid route serves. Kaana also withholds a deployment whose

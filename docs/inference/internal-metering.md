@@ -130,7 +130,13 @@ a tighter application ceiling still wins. The same request also resolves
 | `exhausted`, `rate_limited`, expired window, or the sync kept `standard_payg` | the XHigh tuple only |
 
 OpenRouter's Claude routes are `standard_payg` and never admitted. `auto`, the
-other levels and an exact `anthropic/claude-*` name never use the lane. Input
+other levels and an exact `anthropic/claude-*` name never use the lane.
+
+Since ADR 0038 Kaana executes the Claude route on every enabled Anthropic key,
+grants first, so the lane route is signed `maxFundingTier: "credit"`: Kaana
+spends only free or credit keys on it and, once they are spent, refuses it and
+the XHigh failover serves — never a paid Anthropic key. The scorecard stays
+`promotional_credit` while ANY Anthropic grant is available. Input
 and output bounds are unchanged: the fallback signed beside Claude must fit the
 same request.
 
