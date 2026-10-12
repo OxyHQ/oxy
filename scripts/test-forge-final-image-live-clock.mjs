@@ -236,7 +236,7 @@ assertions++;
     git(origin, 'commit', '-qm', 'base');
     const base = git(origin, 'rev-parse', 'HEAD');
     git(origin, 'checkout', '-b', 'candidate');
-    put('package.json', JSON.stringify({ packageManager: 'bun@1.4.2' }));
+    put('package.json', JSON.stringify({ packageManager: 'bun@1.4.3' }));
     put('patches/node-forge@1.4.0.patch', 'synthetic patch');
     put('bun.lock', 'synthetic lock');
     put('docs/security/forge-candidate/candidate-hashes.json', '{}');
@@ -341,7 +341,7 @@ assertions++;
           else throw new Error('Unexpected candidate fixture GET ' + path);
           return Buffer.from(JSON.stringify(value));
         }
-        if (args.join(' ') === '--version') return Buffer.from('1.4.2\n');
+        if (args.join(' ') === '--version') return Buffer.from('1.4.3\n');
         if (args.join(' ') === 'audit --json') return Buffer.from('{}');
         throw new Error('Unexpected candidate fixture command ' + program);
       };

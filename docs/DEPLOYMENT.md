@@ -53,11 +53,11 @@ GitHub holds only what CI itself spends: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_AC
 ### Dockerfile (multi-stage, linux/arm64)
 
 ```
-Stage 1 (builder): oven/bun:1.3-alpine
+Stage 1 (builder): oven/bun:1.4.3-alpine
   - bun install --frozen-lockfile
   - bun run core:build && bun run --cwd packages/api build
 
-Stage 2 (production): oven/bun:1.3-alpine
+Stage 2 (production): oven/bun:1.4.3-alpine
   - bun install --production --frozen-lockfile
   - copy compiled dist/ from builder
   - CMD: bun run packages/api/dist/server.js
