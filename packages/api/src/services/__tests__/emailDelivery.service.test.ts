@@ -1076,6 +1076,23 @@ describe('a scheduled send under a key', () => {
     await expectCancelled(row, key);
   });
 
+  it('found out of Sent by the due job is cancelled there, linked, and never sent', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    const trash = await emailService.getMailboxBySpecialUse(user.id, '\\Trash');
+    if (!trash) throw new Error('no Trash');
+    // Moved by a path that does not unschedule (or before moves did).
+    await getDb().update(messages).set({ mailboxId: trash.id }).where(eq(messages.id, row.id));
+    await due(row.id);
+
+    await emailService.processScheduledMessages();
+    expect(await claimOf(key)).toMatchObject({ status: 'cancelled', messageRowId: row.id });
+    expect(await deliveryOf(row.id)).toMatchObject({ state: 'failed', errorCode: 'cancelled' });
+    expect(deliveryEvents(row.id).length).toBeGreaterThanOrEqual(1);
+    await expectCancelled(row, key);
+  });
+
   it('moved while the due job is sending it is left sent, not marked cancelled', async () => {
     mockSendMail.mockResolvedValue({ response: '250 Ok' });
     const key = `schedule:${unique()}`;

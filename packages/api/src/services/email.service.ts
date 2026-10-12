@@ -3359,34 +3359,38 @@ class EmailService {
         // delivery is then the outbox's, like any other send — tracked on the
         // message, retried on a transient failure instead of every minute.
         const claim = await db.transaction(async (tx) => {
-          const [taken] = await tx
-            .update(messages)
-            .set({ scheduledAt: null })
+          // Hold the row first — the lock order of every unscheduling path
+          // (row, then claim) — and see where it is now.
+          const [held] = await tx
+            .select({ mailboxId: messages.mailboxId })
+            .from(messages)
             .where(and(eq(messages.id, msg.id), isNotNull(messages.scheduledAt)))
-            .returning({ id: messages.id, mailboxId: messages.mailboxId });
-          if (!taken) return null;
+            .for('update');
+          if (!held) return null;
           // Only a message still in Sent goes out. One the user moved away —
-          // to Trash, Snoozed, any folder — is unscheduled instead, and says
-          // so on the message: restoring it later sends nothing.
+          // to Trash, Snoozed, any folder — is unscheduled instead, by the
+          // same helper every other path uses, and says so on the message:
+          // restoring it later sends nothing.
           const [folder] = await tx
             .select({ specialUse: mailboxes.specialUse })
             .from(mailboxes)
-            .where(eq(mailboxes.id, taken.mailboxId))
+            .where(eq(mailboxes.id, held.mailboxId))
             .limit(1);
           if (folder?.specialUse !== '\\Sent') {
             await unscheduleMessages(tx, msg.userId, [msg], 'kept');
             return { unscheduled: true as const };
           }
+          await tx.update(messages).set({ scheduledAt: null }).where(eq(messages.id, msg.id));
           // A send scheduled under a key holds its claim since it was filed;
           // it becomes the delivery now. One without is claimed here.
-          const held = await adoptScheduledClaim(tx, {
+          const adopted = await adoptScheduledClaim(tx, {
             userId: msg.userId,
             messageId: msg.messageId,
             messageRowId: msg.id,
             payload,
             owner: `scheduled:${randomUUID()}`,
           });
-          if (held) return held;
+          if (adopted) return adopted;
           return claimSend(
             {
               userId: msg.userId,
