@@ -935,7 +935,7 @@
     },
     "packages/utils": {
       "name": "@oxy.so/utils",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "devDependencies": {
         "@types/jest": "^30.0.0",
         "jest": "^30.5.1",
