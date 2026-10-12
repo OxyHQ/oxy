@@ -58,6 +58,10 @@ The iOS and build-property pieces are overridable:
 The `sharedUserId` and `sharedIdentityReader` options were removed in 3.0.0 and
 throw if passed. `@oxy.so/services` 11+ is a required peer.
 
+`webgpu: true` (opt-in, 3.2.0+) also applies `react-native-webgpu`'s config
+plugin, for an app that draws with WebGPU on native. Install
+`react-native-webgpu` in the app first; the option throws without it.
+
 #### Android release-build plugins (opt-in)
 
 These two are deliberately NOT part of `['@oxy.so/app-preset', {}]`: one writes a
@@ -147,6 +151,11 @@ module.exports = createOxyMetroConfig(__dirname, {
 });
 ```
 
+`workletsBundleMode: true` (opt-in, 3.2.0+) turns on react-native-worklets'
+[Bundle Mode](https://docs.swmansion.com/react-native-worklets/docs/bundleMode).
+It wraps the finished config with worklets' `getBundleModeMetroConfig`. Use it
+together with the Babel option of the same name (below); neither works alone.
+
 `extraBlockList` accepts regular expressions or directory paths. Directory
 paths are escaped and block only their descendants. `extraNodeModules`,
 `extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
@@ -156,6 +165,19 @@ defaults without replacing them.
 
 ```js
 module.exports = require('@oxy.so/app-preset/babel');
+```
+
+With Bundle Mode (opt-in, 3.2.0+), a worker runtime runs the app's own modules:
+
+```js
+module.exports = require('@oxy.so/app-preset/babel').createOxyBabelConfig({
+  workletsBundleMode: {
+    // The modules whose imports a worklet runs ON its runtime (worklets'
+    // `importForwarding`). An import not forwarded stays on the RN runtime,
+    // and a synchronous call to it from a worker runtime throws.
+    importForwarding: { relativePaths: ['components/map/engine/city3d'] },
+  },
+});
 ```
 
 ### 4. ESLint (`eslint.config.js`)
