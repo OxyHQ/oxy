@@ -112,6 +112,28 @@ or retry-spend guarantee; unknown provider costs remain unknown. Source and
 HTTP/SQL fixtures qualify admission, while production readiness and a real
 reply still require the operator's exact image, signed route and live receipt.
 
+### Promotional credit at named Pro and Ultra (ADR 0037)
+
+Version `oxy-inference-economics/2026-10-12.1` adds one lane
+([ADR 0037](../adr/0037-pilot-spends-promotional-credit-at-named-levels.md)).
+When an Alia completion **names** `pro` or `ultra`, a route outside the exact
+tuples above is admitted at that level only if its current scorecard says an
+`available`, in-window `promotional_credit` grant funds it — today Kaana's
+direct Anthropic key (ADR 0036). Its quote ceiling is **USD 1.00** instead of
+0.05 (Opus at the full 126976 input units and 2048 output quotes USD 0.686);
+a tighter application ceiling still wins. The same request also resolves
+`xhigh` at the next priority, admitting only the exact tuples at 0.05, so:
+
+| Grant evidence | What a named Pro/Ultra request signs |
+| --- | --- |
+| `promotional_credit`, `available`, inside its window | the grant-funded Claude route, then the XHigh tuple as failover (same `high` effort) |
+| `exhausted`, `rate_limited`, expired window, or the sync kept `standard_payg` | the XHigh tuple only |
+
+OpenRouter's Claude routes are `standard_payg` and never admitted. `auto`, the
+other levels and an exact `anthropic/claude-*` name never use the lane. Input
+and output bounds are unchanged: the fallback signed beside Claude must fit the
+same request.
+
 ### Deployment order and reversal
 
 1. Deploy and verify Kaana #150's SQL NULL preservation before enabling the signed
