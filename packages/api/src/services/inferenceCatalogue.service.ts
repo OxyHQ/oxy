@@ -68,6 +68,7 @@ import {
 } from './privateAutoExecution.service';
 import { privateCommissioningAudience } from './scopedExecution.service';
 import {
+  canonicalAcceptedParameters,
   DEPLOYMENT_REQUEST_PARAMETERS,
   type DeploymentRequestParameter,
   inferenceDeployments,
@@ -78,6 +79,7 @@ import {
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  type TOOL_CHOICE_VALUE_PARAMETERS,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
   priceVersions,
@@ -1931,11 +1933,12 @@ export function requestParametersOf(request: {
   };
   readonly reasoning?: unknown;
   readonly tools: readonly unknown[];
-  readonly toolChoice?: unknown;
+  readonly toolChoice?: string | { readonly type: string };
   readonly responseFormat?: { readonly type: string };
 }): readonly DeploymentRequestParameter[] {
   if (request.operation.kind !== 'completion') return [];
   const { sampling } = request;
+  const toolChoice = toolChoiceValueOf(request.toolChoice);
   const carried: Record<DeploymentRequestParameter, boolean> = {
     maxOutputTokens: true,
     'reasoning.effort': request.reasoning !== undefined,
@@ -1946,25 +1949,46 @@ export function requestParametersOf(request: {
     'sampling.stopSequences': (sampling.stopSequences?.length ?? 0) > 0,
     'sampling.temperature': sampling.temperature !== undefined,
     'sampling.topP': sampling.topP !== undefined,
-    toolChoice: request.toolChoice !== undefined,
+    toolChoice: toolChoice !== undefined,
+    'toolChoice.function': toolChoice === 'toolChoice.function',
+    'toolChoice.none': toolChoice === 'toolChoice.none',
+    'toolChoice.required': toolChoice === 'toolChoice.required',
     tools: request.tools.length > 0,
   };
   return DEPLOYMENT_REQUEST_PARAMETERS.filter((parameter) => carried[parameter]);
 }
 
 /**
- * The first of `carried` (vocabulary order) that a route's KNOWN accepted set
- * does not name, or `undefined` when the route accepts them all. A route whose
- * set is unknown (`null`) accepts everything: absent is "nobody said", never
- * "nothing". The same rule as Kaana's `Route.UnacceptedParameter`, so the edge
- * never signs a route Kaana would refuse on this ground.
+ * The tool-choice value a request makes Kaana send, or `undefined` for none.
+ * `auto` is every provider's default whenever tools are sent, so Kaana leaves
+ * it to the default and it needs no route to accept anything — the reason a
+ * tool request with `auto` may run on a route that refuses a FORCED choice
+ * (Claude Fable 5.1, Opus 5.5 and Sonnet 5.5; OxyHQ/Kaana#168).
+ */
+function toolChoiceValueOf(
+  choice: string | { readonly type: string } | undefined,
+): (typeof TOOL_CHOICE_VALUE_PARAMETERS)[number] | undefined {
+  if (choice === undefined || choice === 'auto') return undefined;
+  if (typeof choice !== 'string') return 'toolChoice.function';
+  if (choice === 'none') return 'toolChoice.none';
+  return 'toolChoice.required';
+}
+
+/**
+ * The first of `carried` (vocabulary order) that a route's KNOWN accepted set,
+ * read canonically ({@link canonicalAcceptedParameters}), does not name, or
+ * `undefined` when the route accepts them all. A route whose set is unknown
+ * (`null`) accepts everything: absent is "nobody said", never "nothing". The
+ * same rule as Kaana's `Route.UnacceptedParameter`, so the edge never signs a
+ * route Kaana would refuse on this ground.
  */
 export function firstUnacceptedParameter(
   acceptedParameters: readonly string[] | null,
   carried: readonly DeploymentRequestParameter[],
 ): DeploymentRequestParameter | undefined {
   if (acceptedParameters === null) return undefined;
-  return carried.find((parameter) => !acceptedParameters.includes(parameter));
+  const accepted = canonicalAcceptedParameters(acceptedParameters);
+  return carried.find((parameter) => !accepted.includes(parameter));
 }
 
 /**

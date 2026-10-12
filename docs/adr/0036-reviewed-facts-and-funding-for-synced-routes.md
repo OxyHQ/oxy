@@ -83,10 +83,17 @@ set already expresses this through the existing filter.
 - The accepted-parameter vocabulary is presence-only, so a non-forcing
   `toolChoice` (`auto`) for Fable 5.1, Opus 5.5 or Sonnet 5.5 is also served by
   OpenRouter until the vocabulary distinguishes a forced choice.
+  *Update 2026-10-12:* it now does (OxyHQ/Kaana#168, migration 0154):
+  `toolChoice.none` / `.required` / `.function`, with `auto` needing nothing,
+  so those routes serve `auto` and `none` and refuse only a forced choice.
+  Kaana also publishes the adapter's per-model controls for Anthropic
+  deployments, and the reviewed statement here agrees with it.
 - Claude Haiku 5.5 is priced at its over-100,000-token tier, because a price
   version states one rate per unit. It stays unsynced until its modalities are
   published (`missing_modalities`): Anthropic's Models API carries none and no
-  other provider serves the line.
+  other provider serves the line. *Update 2026-10-12:* Kaana now reads them
+  from Anthropic's `capabilities.image_input`/`pdf_input` (OxyHQ/Kaana#168), so
+  Haiku 5.5 and the Fable lines sync on the first cycle after that deploy.
 - A reviewed price has no expiry; a change on the provider's pricing page needs
   a reviewed edit here, which supersedes the active price version on the next
   sync.

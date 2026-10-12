@@ -449,8 +449,9 @@ next signed route on a quota refusal.
 
 `inference_deployments.accepted_parameters` is the set of request controls
 (`maxOutputTokens`, `reasoning.effort`, `responseFormat`, `sampling.*`,
-`toolChoice`, `tools`; Kaana's closed vocabulary, OxyHQ/Kaana#124) that one
-route's upstream accepts. NULL is unknown and filters nothing; `[]` is a
+`toolChoice`, `toolChoice.none`, `toolChoice.required`, `toolChoice.function`,
+`tools`; Kaana's closed vocabulary, OxyHQ/Kaana#124 and #168) that one route's
+upstream accepts. NULL is unknown and filters nothing; `[]` is a
 statement. The sync takes the deployment's own descriptor set when Kaana
 sends one; otherwise the catalogue entry's set, which is an intersection over
 the line's reporting deployments, is stored only when every deployment of the
@@ -460,16 +461,28 @@ reviewed provider route's statement is intersected with whichever of those
 applies: Anthropic routes never accept penalties, `seed` or a JSON response
 format (Kaana's adapter refuses them), Claude 4.7 and later never accept
 `sampling.temperature`/`sampling.topP`, and Fable 5.1, Opus 5.5 and Sonnet 5.5
-never accept `toolChoice` (Anthropic refuses a forced one with a 400, and the
-vocabulary cannot tell a forced choice from `auto`).
+never accept `toolChoice.required` or `toolChoice.function` (Anthropic refuses
+a forced choice with a 400; they take `none`). Since OxyHQ/Kaana#168 Kaana
+publishes the same per-model statement for its direct Anthropic deployments.
+
+A tool choice is stated per value. `toolChoice` is the field and
+`toolChoice.none` / `.required` / `.function` the values; a request carrying
+`none`, `required` or a named tool needs the field and that value, and `auto`
+(every provider's default whenever tools are sent, which Kaana does not
+spell out) needs nothing — so a tool request with `auto` runs on a route that
+only refuses a forced choice. A set naming the field and no value does not
+distinguish values and accepts every one (`canonicalAcceptedParameters`, the
+rule Kaana applies); that is how every set stored before the values existed
+keeps its meaning. Intersections drop the field when no value survives.
 
 The edge never signs a route whose known set lacks a control the request
 carries (Kaana's Translate would refuse it with `invalid_request` before any
 other authorized route is tried). Every completion carries `maxOutputTokens`,
 because the edge always bounds output to size the hold; a `text` response
 format and an empty stop list carry nothing. When no route remains the edge
-answers `400 invalid_request` with `param` naming the control
-(`reason: unsupported_parameter`), before any hold or Kaana call.
+answers `400 invalid_request` with `param` naming the control — `toolChoice`
+for a tool-choice value — (`reason: unsupported_parameter`), before any hold
+or Kaana call.
 
 ### What it refuses to do
 

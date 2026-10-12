@@ -132,6 +132,13 @@ export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
  * because it is a data-plane word list, not a contract enum: `maxOutputTokens`
  * covers both `max_tokens` and `max_completion_tokens`, and `sampling.topK` is
  * deliberately absent (no Kaana adapter sends it).
+ *
+ * A tool choice is stated per VALUE (OxyHQ/Kaana#168): `toolChoice` is the
+ * field, `toolChoice.none` / `.required` / `.function` the values a request
+ * can carry. `auto` is no value at all — every provider's default whenever
+ * tools are sent — so it needs nothing. A set naming the field and no value
+ * does not distinguish values and accepts every one
+ * ({@link canonicalAcceptedParameters}).
  */
 export const DEPLOYMENT_REQUEST_PARAMETERS = [
   'maxOutputTokens',
@@ -144,10 +151,45 @@ export const DEPLOYMENT_REQUEST_PARAMETERS = [
   'sampling.temperature',
   'sampling.topP',
   'toolChoice',
+  'toolChoice.function',
+  'toolChoice.none',
+  'toolChoice.required',
   'tools',
 ] as const;
 
 export type DeploymentRequestParameter = (typeof DEPLOYMENT_REQUEST_PARAMETERS)[number];
+
+/** The tool-choice values a set can state, in vocabulary order. */
+export const TOOL_CHOICE_VALUE_PARAMETERS = [
+  'toolChoice.function',
+  'toolChoice.none',
+  'toolChoice.required',
+] as const satisfies readonly DeploymentRequestParameter[];
+
+function isToolChoiceValue(parameter: string): boolean {
+  return (TOOL_CHOICE_VALUE_PARAMETERS as readonly string[]).includes(parameter);
+}
+
+/**
+ * How a stated set is read, in vocabulary order — the same rule as Kaana's
+ * `provider.CanonicalParameterSet`:
+ *
+ * - a set naming `toolChoice` and no tool-choice value does not distinguish
+ *   values (what a provider list naming only `tool_choice` says, and every set
+ *   stored before values were distinguished), so it accepts every value;
+ * - a set naming a value accepts the field that carries it.
+ */
+export function canonicalAcceptedParameters(
+  parameters: readonly string[],
+): DeploymentRequestParameter[] {
+  const present = new Set(parameters);
+  if (parameters.some(isToolChoiceValue)) {
+    present.add('toolChoice');
+  } else if (present.has('toolChoice')) {
+    for (const value of TOOL_CHOICE_VALUE_PARAMETERS) present.add(value);
+  }
+  return DEPLOYMENT_REQUEST_PARAMETERS.filter((parameter) => present.has(parameter));
+}
 
 export const APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX =
   'inference_deployments_approved_internal_route_id_key';
