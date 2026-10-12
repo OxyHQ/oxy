@@ -63,6 +63,7 @@ import {
   grantAllowsTool,
 } from '../services/capabilityGrantPolicy';
 import { capabilityLimitError } from '../services/capabilityLimitPolicy';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -1382,6 +1383,17 @@ router.post(
       },
       { issueTicket: true },
     );
+    if (!result.decision.allowed) {
+      // A refusal is an answer, not an error, so nothing else records it — and
+      // without this line a coordinator whose every request was refused
+      // (Mention's who-to-follow, 2026-10-04..12, `direct_request_runtime_scope_override`)
+      // was invisible from Oxy's side. The reason is a fixed vocabulary; no
+      // token, subject or account id is logged.
+      logger.warn('[capabilities] ticket refused', {
+        reason: result.decision.reason,
+        coordinatorApplicationId: principal.applicationId,
+      });
+    }
     response.status(result.decision.allowed ? 201 : 403).json(result);
   }),
 );
