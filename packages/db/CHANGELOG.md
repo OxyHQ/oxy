@@ -1,5 +1,55 @@
 # Changelog: `@oxy.so/db`
 
+## 1.1.0
+
+### Opt-in Bun SQL driver (`driver: 'bun-sql'`)
+
+Bun-run applications can drive this package through Bun's built-in client
+(`Bun.SQL`, via `drizzle-orm/bun-sql`) instead of postgres.js. postgres.js stays
+the default and its path is unchanged; nothing switches on `typeof Bun` by
+itself, and the package still loads under Node (`import('@oxy.so/db')`), which
+never loads a Bun module.
+
+- `createDatabase({ databaseUrl, schema, driver: 'bun-sql', client })` returns
+  `{ db: OxyBunSqlDatabase<TSchema>, client: BunSqlClient }`, synchronously, like
+  the default. `client` takes `BunSqlClientOptions` (Bun's names: `max`,
+  `idleTimeout`, `maxLifetime`, `connectionTimeout`, `tls`, `prepare`,
+  `connection`; each names its postgres.js equivalent). Shut it down with
+  `client.close({ timeout })`. No postgres.js type appears on this overload.
+- `runMigrations({ ..., driver: 'bun-sql' })` runs the same steps in the same
+  order — target-database guard first, then the ledger checks, phase planning,
+  extensions, apply and the post-apply re-read — through `Bun.SQL` and
+  `drizzle-orm/bun-sql/migrator`, which writes the same ledger table and rows.
+  A database half-migrated by one driver is finished correctly by the other.
+  `Bun.SQL` has no NOTICE hook, so `logger.debug` gets no server notices there.
+- `ensureExtensions(url, extensions, { driver })`,
+  `createTestDatabase({ ..., driver })` and `dropTestDatabase(url, { driver })`.
+- **Widened, not changed:** `readAppliedMillis`, `readLastAppliedMillis`,
+  `assertPostgresMigrationsCurrent`, `readAppliedRows`, `verifyMigrationLedger`
+  and `assertMigrationTarget` now take a `RawSqlClient` (anything with
+  `unsafe(query)`), which a postgres.js `Sql` and a `Bun.SQL` both satisfy.
+  Existing calls typecheck unchanged.
+- **Fix that bun-sql needed:** `sqlStateOf`, `constraintNameOf` and the
+  `is*Violation` predicates read `Bun.SQL`'s error shape (SQLSTATE in `errno`,
+  constraint in `constraint`, `code` always `ERR_POSTGRES_SERVER_ERROR`).
+  Without it every bun-sql constraint failure read as "not a violation".
+- Running under Node with `driver: 'bun-sql'` throws a clear error naming the
+  option. New exports: `DatabaseDriver`, `DATABASE_DRIVERS`,
+  `DEFAULT_DATABASE_DRIVER`, `RawSqlClient`, `BunSqlClient`,
+  `BunSqlClientOptions`, `OxyBunSqlDatabase`, `CreateBunSqlDatabaseOptions`,
+  `EnsureExtensionsOptions` (from `/migrate`), `DropTestDatabaseOptions` (from
+  `/testing`).
+
+### Also in this release (merged after 1.0.0)
+
+- `runMigrations` takes an optional `requiredAppliedTags`: named journal entries
+  that must already be in the ledger with their exact SQL hashes before
+  planning. `assertAppliedMigrations` (from `/migrate`) is the check on its own.
+- `findSchemaInvariantViolations` no longer reports `mongoose_artifact` (an
+  `_id` or `__v` column). `check` stays typed `string`, so no consumer's types
+  change, but a schema gate that relied on that check no longer fails on those
+  columns.
+
 ## 0.2.0
 
 ### Licence: this package moves to the Breathe License 1.0

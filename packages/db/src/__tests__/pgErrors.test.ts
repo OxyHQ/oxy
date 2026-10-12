@@ -88,4 +88,50 @@ describe('pgErrors', () => {
     });
     expect(JSON.stringify(described)).not.toContain('secret-token');
   });
+
+  describe('Bun.SQL error shape', () => {
+    /**
+     * How drizzle presents a `Bun.SQL` failure, as measured on Bun 1.4.3:
+     * `code` is the same constant for every server error, the SQLSTATE is in
+     * `errno`, the constraint in `constraint`. `liveDriverErrors.live.test.ts`
+     * checks the same predicates against REAL errors from both drivers.
+     */
+    function wrappedBun(sqlState: string, constraint: string): Error {
+      const driver = new Error('duplicate key value violates unique constraint');
+      driver.name = 'PostgresError';
+      Reflect.set(driver, 'code', 'ERR_POSTGRES_SERVER_ERROR');
+      Reflect.set(driver, 'errno', sqlState);
+      Reflect.set(driver, 'constraint', constraint);
+      const wrapper = new Error('Failed query');
+      Reflect.set(wrapper, 'cause', driver);
+      return wrapper;
+    }
+
+    it('reads the SQLSTATE from errno, not the constant in code', () => {
+      const error = wrappedBun(UNIQUE_VIOLATION, 'sessions_token_unique');
+      expect(sqlStateOf(error)).toBe(UNIQUE_VIOLATION);
+      expect(isUniqueViolation(error)).toBe(true);
+      expect(isCheckViolation(error)).toBe(false);
+    });
+
+    it('reads the constraint from `constraint`, and matches on it', () => {
+      const error = wrappedBun(CHECK_VIOLATION, 'posts_body_length_check');
+      expect(constraintNameOf(error)).toBe('posts_body_length_check');
+      expect(isCheckViolation(error, 'posts_body_length_check')).toBe(true);
+      expect(isCheckViolation(error, 'some_other_check')).toBe(false);
+      expect(describeDriverError(error)).toEqual({
+        code: CHECK_VIOLATION,
+        constraint: 'posts_body_length_check',
+        kind: 'Error',
+      });
+    });
+
+    it("does not read `constraint` off an error that is not recognisably Bun's", () => {
+      const driver = new Error('not a Bun error');
+      Reflect.set(driver, 'code', UNIQUE_VIOLATION);
+      Reflect.set(driver, 'constraint', 'looks_like_one');
+      expect(sqlStateOf(driver)).toBe(UNIQUE_VIOLATION);
+      expect(constraintNameOf(driver)).toBeUndefined();
+    });
+  });
 });

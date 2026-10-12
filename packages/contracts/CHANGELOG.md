@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.11.0
+
+### Added
+
+- Delivery of a sent message (`email/messages.ts`): `EMAIL_DELIVERY_STATES`
+  (`sending`, `retrying`, `sent`, `failed`), `EMAIL_DELIVERY_ERROR_CODES`,
+  `emailMessageDeliverySchema`, and an optional `delivery` on
+  `emailMessageSchema` — absent on received mail. An unknown `errorCode` reads
+  as `null` and an unreadable `delivery` as absent, so a newer server never
+  makes an older client drop the message.
+
 ## Unreleased (MINOR — additive; release coordinated with #1519 I04/I07)
 
 ### Added

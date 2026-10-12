@@ -801,7 +801,7 @@ fi
 # before update-service.
 DEPLOY_TEST_PRE_ROLLOUT_EXIT=0 run_release pre-rollout-script true true
 printf '%s\n' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   'pre-rollout:example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
@@ -888,7 +888,7 @@ grep -F 'waiting 1s before the next bounded retry' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
 grep -F 'Running Migration with arn:aws:ecs:test:task-definition/deploy-test:2' \
   "$test_directory/pre-task-capacity-retry/output.log" >/dev/null
-grep -F 'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+grep -F 'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   "$test_directory/pre-task-capacity-retry/aws.log" >/dev/null
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
@@ -1138,7 +1138,7 @@ diff -u \
 export DEPLOY_TEST_TASK_LAST_STATUS=DEPROVISIONING
 run_release deprovisioning-success true true
 printf '%s\n' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1:surge=200' \
   smoke \
   reconcile \
@@ -1151,7 +1151,7 @@ grep -F 'Migration container exited; not waiting for Fargate to deprovision' \
 
 run_release deprovisioning-migration-failure false true false 1
 printf '%s\n' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   tasklogs \
   >"$test_directory/deprovisioning-migration-failure/expected.log"
 diff -u \
@@ -1176,7 +1176,7 @@ diff -u \
 export DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING=true
 run_release deprovisioning-no-exit-code false true
 printf '%s\n' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   >"$test_directory/deprovisioning-no-exit-code/expected.log"
 diff -u \
   "$test_directory/deprovisioning-no-exit-code/expected.log" \
@@ -1187,7 +1187,7 @@ unset DEPLOY_TEST_TASK_LAST_STATUS DEPLOY_TEST_CONTAINER_EXIT_CODE_MISSING
 
 run_release migration-failure false true false 1
 printf '%s\n' \
-  'migration:node packages/api/dist/db/migrate.js --phase=pre' \
+  'migration:bun packages/api/dist/db/migrate.js --phase=pre' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \

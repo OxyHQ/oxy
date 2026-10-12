@@ -2,11 +2,10 @@
 #
 # Drives deploy-asset-variant-worker.sh `start` against a fake aws CLI.
 #
-# The worker's command is carried forward from the running revision. Both
-# `node` and `bun` must deploy (the API is moving to a Bun image, and a revert of
-# that move must not strand this step), the registered revision must keep the
-# running command byte for byte, and any other command must still be refused
-# before anything is registered.
+# The running revision may name `node` or `bun` (the API image is Bun's, and
+# `node` there is a symlink to bun); both must deploy, the registered revision
+# must name `bun`, and any other command must still be refused before anything
+# is registered.
 
 set -euo pipefail
 
@@ -86,8 +85,8 @@ run_case() {
     fi
     local registered
     registered="$(jq -c '.containerDefinitions[0].command' "$state/registered.json")"
-    if [[ "$registered" != "$(jq -c . <<<"$command_json")" ]]; then
-      echo "FAIL ($label): registered command $registered, expected the running one $command_json"
+    if [[ "$registered" != '["bun","packages/api/dist/asset-variant-worker.js"]' ]]; then
+      echo "FAIL ($label): registered command $registered, expected bun (the image's runtime)"
       failures=$((failures + 1)); return
     fi
     if [[ "$(jq -r '.containerDefinitions[0].image' "$state/registered.json")" != registry/oxy-api@sha256:new ]]; then

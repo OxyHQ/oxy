@@ -227,3 +227,28 @@ describe('updated_at is maintained by the application', () => {
     expect(updated.updatedAt.getTime()).toBeGreaterThan(inserted.updatedAt.getTime());
   });
 });
+
+describe('concurrent email delivery and checkout migrations', () => {
+  it('applies both additions to the disposable database without losing either constraint', async () => {
+    const columns = await getDb().execute(sql`
+      select table_name, column_name from information_schema.columns
+      where table_schema = 'public' and (
+        (table_name = 'email_outbox' and column_name = 'error_code') or
+        (table_name = 'personal_plan_checkout_intents' and column_name = 'dispatch_claimed_at')
+      ) order by table_name
+    `);
+    expect([...columns]).toEqual([
+      { table_name: 'email_outbox', column_name: 'error_code' },
+      { table_name: 'personal_plan_checkout_intents', column_name: 'dispatch_claimed_at' },
+    ]);
+    const constraints = await getDb().execute(sql`
+      select conname from pg_constraint
+      where conname in ('email_outbox_error_code_check', 'personal_checkout_dispatch_state')
+      order by conname
+    `);
+    expect([...constraints]).toEqual([
+      { conname: 'email_outbox_error_code_check' },
+      { conname: 'personal_checkout_dispatch_state' },
+    ]);
+  });
+});

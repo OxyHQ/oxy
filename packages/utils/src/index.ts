@@ -32,7 +32,7 @@
  *
  * Following `@oxy.so/core`'s rule: no `export *`, no barrels. If a symbol does
  * not appear below it is not part of the public API. Subpaths (`./sql`,
- * `./paging`, `./text`, `./date`) exist because two consumers' bundle gates refuse
+ * `./paging`, `./text`, `./date`, `./image`) exist because two consumers' bundle gates refuse
  * root-barrel imports — Metro does not tree-shake, so a frontend importing one
  * function must be able to reach it without dragging the rest in.
  */
@@ -55,3 +55,17 @@ export {
 export { escapeRegExp, clamp, chunk } from './text.js';
 
 export { calendarDaysBetween } from './date.js';
+
+export {
+  IMAGE_VARIANTS,
+  IMAGE_VARIANT_FORMAT,
+  IMAGE_VARIANT_QUALITY,
+  CONTENT_IMAGE_VARIANTS,
+  isImageVariantName,
+  contentImageVariantForWidth,
+  withImageVariant,
+  contentImageSources,
+  type ImageVariantName,
+  type ContentImageVariantName,
+  type ImageVariantSource,
+} from './image.js';

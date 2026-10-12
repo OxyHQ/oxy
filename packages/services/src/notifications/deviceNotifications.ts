@@ -22,10 +22,14 @@
  * interest in push failed to type-check with TS2307. The subpath is what keeps
  * the optionality honest — see the note in `src/index.ts`.
  *
- * Metro is the resolver that behaves differently here, and in the useful
- * direction: an unresolvable DYNAMIC `import()` bundles fine (the `catch` below
- * takes over at runtime), where a static import fails the build outright. That
- * is why the runtime shape below must stay dynamic-and-guarded.
+ * Metro resolves a dynamic `import()` at build time too, so being dynamic is not
+ * enough: it bundles without the package only because each `import()` below is
+ * a direct statement of a `try` block, the one shape Metro marks as an OPTIONAL
+ * dependency (the `catch` then takes over at runtime). Moved out of the `try`,
+ * or nested one block deeper inside it, it fails the consumer's build exactly
+ * like a static import — which is what `clipboard.native.ts` once did.
+ * `__tests__/packaging/optionalPeerLoads.test.ts` holds every optional peer to
+ * that shape.
  *
  * ## Native-only by construction
  *

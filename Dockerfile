@@ -129,10 +129,20 @@ RUN bun install --production --frozen-lockfile --filter @oxy.so/api \
 # publish. A cached/unreachable Forge copy is still forbidden.
 RUN node -e 'const fs=require("node:fs"),path=require("node:path"); function scan(dir){for(const e of fs.readdirSync(dir,{withFileTypes:true})){const file=path.join(dir,e.name); if(e.name==="node-forge" || e.name.startsWith("node-forge@"))throw Error("Retained Forge path: "+file); if(e.isDirectory())scan(file); else if(e.isFile() && e.name==="package.json" && JSON.parse(fs.readFileSync(file,"utf8")).name==="node-forge")throw Error("Retained Forge package: "+file);}} scan("node_modules"); console.log("Installed Forge copies: 0");'
 
-# ── Production image ──────────────────────────────────────────────
-FROM node:24-alpine
+# ── Production image: Bun ─────────────────────────────────────────
+# The API, the asset-variant worker, the migrator and every one-shot run on Bun.
+# Same digest-pinned image as `bun-bin` above, and Alpine (musl) like the stages
+# that installed the production dependencies, so Sharp's linuxmusl binary in
+# node_modules matches this libc. There is no Node in this image: the base puts
+# a `node` on PATH that is a symlink to bun, so a stale `node ...` command still
+# runs Bun — every command in this repo names `bun` explicitly.
+#
+# The API ran on node:24-alpine until 2026-10. Rolling back is reverting the
+# change that made this switch; it moved this stage and every ECS command
+# (deploy-ecs-image.sh, deploy-aws.yml, run-postgres-migrations.yml, the Kaana
+# canary workflows) together.
+FROM oven/bun:1.4.3-alpine@sha256:629e17411f1f129dbec3af78d5af9c9f2a937435c80349437206c6b0b7422373
 
-COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN apk add --no-cache ffmpeg curl \
     && test "$(bun --version)" = "1.4.3"
 
@@ -178,22 +188,23 @@ COPY --from=builder /app/packages/telemetry/src packages/telemetry/src
 COPY --from=builder /app/packages/api/drizzle-runtime packages/api/drizzle
 
 # Fail the build at the layer that owns runtime completeness. ffmpeg/ffprobe
-# must come from Alpine, Sharp must retain its platform optional dependency,
-# Bun must remain for the explicitly supported TypeScript one-shot tasks, and
-# the two redundant static-binary packages must not leak back in.
+# must come from Alpine, Sharp's platform binding must LOAD under Bun (the
+# runtime), the migrator must resolve, and the two redundant static-binary
+# packages must not leak back in.
 RUN command -v ffmpeg >/dev/null \
     && command -v ffprobe >/dev/null \
     && command -v bun >/dev/null \
-    && node -e "const p=require.resolve('sharp',{paths:['/app/packages/api']}); require(p)" \
-    && node -e "const r=require('node:module').createRequire('/app/packages/api/package.json'); r('@oxy.so/db/migrate')" \
+    && bun -e "const p=require.resolve('sharp',{paths:['/app/packages/api']}); require(p)" \
+    && bun -e "const r=require('node:module').createRequire('/app/packages/api/package.json'); r('@oxy.so/db/migrate')" \
     && test ! -d node_modules/ffmpeg-static \
     && test ! -d node_modules/ffprobe-static \
     && test ! -e packages/api/drizzle/meta/0000_snapshot.json \
     && test ! -e /usr/bin/python3 \
     && test ! -e /usr/bin/g++
 
-# Main API entry point
-CMD ["node", "packages/api/dist/server.js"]
+# Main API entry point. Exec form, and the base image's entrypoint execs it, so
+# Bun is PID 1 and receives ECS's SIGTERM itself (server.ts drains and exits 0).
+CMD ["bun", "packages/api/dist/server.js"]
 
 # HTTP API port
 EXPOSE 8080

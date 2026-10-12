@@ -1,5 +1,5 @@
 {
-  "id": "d1b9b08c-7b4d-4293-9d9c-ddbaf56749de",
+  "id": "00d36c16-e664-4507-8970-dff4024decc0",
   "prevId": "5cca3ab6-3c8e-4c20-8c06-2403e73e3de0",
   "version": "7",
   "dialect": "postgresql",
@@ -9628,6 +9628,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "sent_at": {
           "name": "sent_at",
           "type": "timestamp with time zone",
@@ -9698,6 +9704,22 @@
           "method": "btree",
           "with": {}
         },
+        "email_outbox_message_row_idx": {
+          "name": "email_outbox_message_row_idx",
+          "columns": [
+            {
+              "expression": "message_row_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"email_outbox\".\"message_row_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "email_outbox_user_idempotency_key": {
           "name": "email_outbox_user_idempotency_key",
           "columns": [
@@ -9760,6 +9782,10 @@
         "email_outbox_attempts_check": {
           "name": "email_outbox_attempts_check",
           "value": "\"email_outbox\".\"attempts\" >= 0"
+        },
+        "email_outbox_error_code_check": {
+          "name": "email_outbox_error_code_check",
+          "value": "\"email_outbox\".\"error_code\" is null or \"email_outbox\".\"error_code\" in ('relay_unavailable', 'relay_unconfigured', 'relay_auth', 'rejected', 'retries_exhausted', 'bounced', 'cancelled')"
         }
       },
       "isRLSEnabled": false
@@ -37212,12 +37238,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "dispatch_claimed_at": {
-          "name": "dispatch_claimed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "closed_reason": {
           "name": "closed_reason",
           "type": "text",
@@ -37513,10 +37533,6 @@
         "personal_checkout_state": {
           "name": "personal_checkout_state",
           "value": "\"personal_plan_checkout_intents\".\"state\" in ('reserved', 'pending', 'fulfilled', 'closed')"
-        },
-        "personal_checkout_dispatch_state": {
-          "name": "personal_checkout_dispatch_state",
-          "value": "\"personal_plan_checkout_intents\".\"dispatch_claimed_at\" is null or \"personal_plan_checkout_intents\".\"state\" <> 'reserved'"
         },
         "personal_checkout_price": {
           "name": "personal_checkout_price",

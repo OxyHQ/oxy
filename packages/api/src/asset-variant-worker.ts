@@ -6,7 +6,6 @@
  * with bounded concurrency independently of API replica count.
  */
 
-import 'dotenv/config';
 import { startWorkerActivity, stopWorkerActivity } from './services/workerActivity.service';
 import { shutdownTelemetry } from './telemetry';
 import { closePostgres } from './config/postgres';

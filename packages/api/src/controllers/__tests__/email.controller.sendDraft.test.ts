@@ -8,8 +8,9 @@
 
 const mockSend = jest.fn();
 
-jest.mock('../../services/smtp.outbound', () => ({
-  smtpOutbound: { send: (...args: unknown[]) => mockSend(...args) },
+jest.mock('../../services/smtp.outbound', () => ({ smtpOutbound: {} }));
+jest.mock('../../services/emailDelivery.service', () => ({
+  acceptOutboundMessage: (...args: unknown[]) => mockSend(...args),
 }));
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: { uploadFileDirect: jest.fn(), linkFile: jest.fn(), getFilesByIds: jest.fn() },
@@ -63,7 +64,11 @@ afterAll(async () => {
 
 beforeEach(() => {
   mockSend.mockReset();
-  mockSend.mockResolvedValue({ messageId: `<sent-${unique()}@oxy.so>`, queued: false });
+  mockSend.mockResolvedValue({
+    messageId: `<sent-${unique()}@oxy.so>`,
+    messageRowId: null,
+    delivery: null,
+  });
 });
 
 describe('sending a draft', () => {
@@ -77,8 +82,12 @@ describe('sending a draft', () => {
     expect(await exists(draft.id)).toBe(false);
   });
 
-  it('removes the draft when the message is queued for a retry', async () => {
-    mockSend.mockResolvedValue({ messageId: `<queued-${unique()}@oxy.so>`, queued: true });
+  it('removes the draft when the relay already failed once and the server will retry', async () => {
+    mockSend.mockResolvedValue({
+      messageId: `<retrying-${unique()}@oxy.so>`,
+      messageRowId: null,
+      delivery: { state: 'retrying' },
+    });
     const userId = await account();
     const draft = await emailService.saveDraft(userId, { ...base });
 
@@ -101,7 +110,7 @@ describe('sending a draft', () => {
     expect(await exists(draft.id)).toBe(false);
   });
 
-  it('keeps the draft when the send fails', async () => {
+  it('keeps the draft when the send is refused before it is filed', async () => {
     mockSend.mockRejectedValue(new Error('relay down'));
     const userId = await account();
     const draft = await emailService.saveDraft(userId, { ...base });

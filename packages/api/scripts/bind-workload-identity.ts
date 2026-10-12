@@ -86,8 +86,6 @@
  * Env: DATABASE_URL (required).
  */
 
-import 'dotenv/config';
-
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import {
   type BindWorkloadIdentityInvocation,

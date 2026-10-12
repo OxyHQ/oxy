@@ -72,12 +72,11 @@ if [[ "$phase" == "start" ]]; then
     echo "::error::worker task definition must contain exactly one $worker_container container"
     exit 1
   fi
-  # The worker's command is carried forward from the running revision below.
-  # `bun` is accepted beside `node` ahead of the API's move to a Bun image
-  # (both images carry a bun binary), so a revision that names bun — rendered
-  # by that move, or registered by oxy-infra's terraform — still deploys, and
-  # reverting that move cannot strand the worker step. Anything else is still
-  # refused.
+  # The running revision may name `node` (every revision before the API moved
+  # to a Bun image) or `bun`; anything else is refused. The revision rendered
+  # below always names `bun`: the image is Bun's, and its `node` is only a
+  # symlink to bun. A revert of that move still deploys, because the accepting
+  # half landed first.
   worker_command="$(jq -c --arg name "$worker_container" '.containerDefinitions[] | select(.name == $name) | .command' <<<"$task_definition")"
   if [[ "$worker_command" != '["bun","packages/api/dist/asset-variant-worker.js"]' &&
         "$worker_command" != '["node","packages/api/dist/asset-variant-worker.js"]' ]]; then
@@ -97,6 +96,7 @@ if [[ "$phase" == "start" ]]; then
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
+          | .command = ["bun", "packages/api/dist/asset-variant-worker.js"]
           | .secrets = ((.secrets // [] | map(select(.name != "QUEUE_REDIS_URL"))) + [{
               name: "QUEUE_REDIS_URL",
               valueFrom: $queue_redis_url

@@ -37,6 +37,7 @@ import { likeContains }      from '@oxy.so/utils/sql';
 import { resolvePageLimit }  from '@oxy.so/utils/paging';
 import { escapeRegExp }      from '@oxy.so/utils/text';
 import { calendarDaysBetween } from '@oxy.so/utils/date';
+import { withImageVariant }    from '@oxy.so/utils/image';
 ```
 
 ### `./sql` — LIKE pattern building

@@ -29,15 +29,12 @@
  * that knows what else shares the database outranks this default.
  */
 
-import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
 import { smtpOutbound } from './services/smtp.outbound';
 import { closePostgres } from './config/postgres';
 import { closeRedis } from './config/redis';
 import { waitForDatabaseConnection } from './utils/dbConnection';
-
-dotenv.config();
 
 /**
  * Connections this worker takes. There is no minimum: `postgres.js` opens

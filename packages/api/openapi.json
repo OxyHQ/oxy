@@ -16089,6 +16089,87 @@
         "operationId": "deleteEmailMessagesMessageId"
       }
     },
+    "/email/messages/{messageId}/delivery/retry": {
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "Deliver a message the user sent again, now, with a fresh retry budget.",
+        "description": "For a message whose `delivery` is `failed` (or `retrying`, to try now rather\nthan at `nextAttemptAt`). Answers with the message, its `delivery` back at\n`sending`; the outcome follows as `email:changed` with reason `delivery`.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "A recipient has since bounced or complained; edit the message and send it as new.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The message does not exist or has no delivery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "It is being delivered right now, or it was delivered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postEmailMessagesMessageIdDeliveryRetry"
+      }
+    },
     "/email/messages/{messageId}/export": {
       "get": {
         "tags": [

@@ -1,5 +1,4 @@
 /** Fixed read-only profile reconciliation observation; never resolves or persists an identity. */
-import 'dotenv/config';
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import { closeRedis } from '../src/config/redis';
 import {

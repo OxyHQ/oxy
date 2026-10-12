@@ -52,7 +52,13 @@
  * freshly created database usable.
  */
 
-import postgres from 'postgres';
+import {
+  DEFAULT_DATABASE_DRIVER,
+  type DatabaseDriver,
+  executeStatement,
+  openOwnedConnection,
+  quoteIdentifier,
+} from '../driver';
 
 /** Seconds the one-shot admin connection waits before forcing itself shut. */
 const CLOSE_TIMEOUT_SECONDS = 5;
@@ -67,6 +73,11 @@ const CLOSE_TIMEOUT_SECONDS = 5;
  * than fixed in this module.
  */
 const EXTENSION_NAME = /^[a-z][a-z0-9_]*$/;
+
+export interface EnsureExtensionsOptions {
+  /** The client the one-shot connection is opened through. Default `postgres-js`. */
+  readonly driver?: DatabaseDriver;
+}
 
 export interface RequiredExtension {
   /** The `CREATE EXTENSION` name. */
@@ -96,6 +107,7 @@ export interface RequiredExtension {
 export async function ensureExtensions(
   databaseUrl: string,
   extensions: readonly RequiredExtension[],
+  options: EnsureExtensionsOptions = {},
 ): Promise<void> {
   if (extensions.length === 0) return;
 
@@ -108,11 +120,15 @@ must match /^[a-z][a-z0-9_]*$/.`,
     }
   }
 
-  const client = postgres(databaseUrl, { max: 1 });
+  const connection = openOwnedConnection(databaseUrl, options.driver ?? DEFAULT_DATABASE_DRIVER);
+  const { client } = connection;
   try {
     for (const extension of extensions) {
       try {
-        await client.unsafe(`create extension if not exists "${extension.name}"`);
+        await executeStatement(
+          client,
+          `create extension if not exists ${quoteIdentifier(extension.name)}`,
+        );
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(
@@ -127,6 +143,6 @@ migration role.`,
       }
     }
   } finally {
-    await client.end({ timeout: CLOSE_TIMEOUT_SECONDS });
+    await connection.close(CLOSE_TIMEOUT_SECONDS);
   }
 }

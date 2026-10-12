@@ -16,7 +16,7 @@ export RUN_MIGRATIONS=true
 # Catalogue writes are reviewed separately after authority and consumer cutover.
 # Preserve any required post-DDL from the canonical planner, without running Inbox registration.
 export POST_DEPLOY_TASKS_JSON="$(jq -c '
-  map(select(.command == ["node", "packages/api/dist/db/migrate.js", "--phase=post"]))
+  map(select(.command == ["bun", "packages/api/dist/db/migrate.js", "--phase=post"]))
 ' <<<"${POST_DEPLOY_TASKS_JSON:-[]}")"
 export POST_DEPLOY_TASK_COMMAND_JSON=''
 export POST_DEPLOY_TASKS_CONCURRENT=false

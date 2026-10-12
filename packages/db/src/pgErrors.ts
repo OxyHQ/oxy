@@ -65,10 +65,10 @@ const MAX_CAUSE_DEPTH = 8;
  * Returns `undefined` when no error in the chain carries the field, so a caller
  * can never mistake "not a driver error" for a particular SQLSTATE.
  */
-function driverField(error: unknown, field: string): string | undefined {
+function driverField(error: unknown, field: (driverError: Error) => unknown): string | undefined {
   let current: unknown = error;
   for (let depth = 0; current instanceof Error && depth < MAX_CAUSE_DEPTH; depth += 1) {
-    const value: unknown = Reflect.get(current, field);
+    const value = field(current);
     if (typeof value === 'string') {
       return value;
     }
@@ -77,18 +77,50 @@ function driverField(error: unknown, field: string): string | undefined {
   return undefined;
 }
 
-/** The SQLSTATE of a driver error, or `undefined` when it is not one. */
+/**
+ * The `code` Bun's built-in client (`Bun.SQL`) puts on EVERY server error.
+ *
+ * Bun does not use `code` for the SQLSTATE the way postgres.js does: its
+ * `PostgresError` carries this constant in `code`, the SQLSTATE in `errno`,
+ * and the constraint in `constraint` (measured on Bun 1.4.3, through
+ * drizzle's wrapper as well). Reading `code` alone would answer
+ * `'ERR_POSTGRES_SERVER_ERROR'` for every bun-sql failure, so every
+ * predicate below would quietly say "not a unique violation" — the exact
+ * silent-pass shape this module exists to prevent.
+ */
+const BUN_SQL_SERVER_ERROR = 'ERR_POSTGRES_SERVER_ERROR';
+
+function isBunSqlServerError(driverError: Error): boolean {
+  return Reflect.get(driverError, 'code') === BUN_SQL_SERVER_ERROR;
+}
+
+/**
+ * The SQLSTATE of a driver error, or `undefined` when it is not one.
+ *
+ * postgres.js: `code`. `Bun.SQL`: `errno` (see {@link BUN_SQL_SERVER_ERROR}).
+ */
 export function sqlStateOf(error: unknown): string | undefined {
-  return driverField(error, 'code');
+  return driverField(error, (driverError) =>
+    isBunSqlServerError(driverError)
+      ? Reflect.get(driverError, 'errno')
+      : Reflect.get(driverError, 'code'),
+  );
 }
 
 /**
  * The name of the constraint a driver error names, or `undefined`.
  *
- * postgres.js exposes it as `constraint_name` (the wire field), not `constraint`.
+ * postgres.js exposes it as `constraint_name` (the wire field), not
+ * `constraint`. `Bun.SQL` exposes it as `constraint`, read only on an error
+ * that is recognisably Bun's so a stray `constraint` property on anything
+ * else is not mistaken for one.
  */
 export function constraintNameOf(error: unknown): string | undefined {
-  return driverField(error, 'constraint_name');
+  return driverField(error, (driverError) =>
+    isBunSqlServerError(driverError)
+      ? Reflect.get(driverError, 'constraint')
+      : Reflect.get(driverError, 'constraint_name'),
+  );
 }
 
 /**

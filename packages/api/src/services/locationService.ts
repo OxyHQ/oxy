@@ -1,9 +1,9 @@
-import axios from 'axios';
 import { normalizeInlineText } from '@oxy.so/core';
 import { logger } from '../utils/logger';
 import locationCache from '../utils/locationCache';
 import { nominatimRateLimiter } from '../utils/apiRateLimiter';
 import performanceMonitor from '../utils/performanceMonitor';
+import { tracedFetch } from '../utils/tracedFetch';
 import type {
   NominatimResult,
   EnhancedLocationResult,
@@ -19,11 +19,49 @@ function normalizeOptionalInlineText(value: string | undefined): string | undefi
   return typeof value === 'string' ? normalizeInlineText(value) : undefined;
 }
 
+/** Per request, response body included. */
+const NOMINATIM_TIMEOUT_MS = 8000;
+
+/** A non-2xx answer from Nominatim. Carries the status so a 429 can be told apart. */
+class NominatimHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`Nominatim responded ${status}`);
+    this.name = 'NominatimHttpError';
+  }
+}
+
+/** `AbortSignal.timeout` rejects the request, or the body read, with a `TimeoutError`. */
+function isTimeout(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'TimeoutError'
+  );
+}
+
 class LocationService {
   private readonly baseUrl = 'https://nominatim.openstreetmap.org';
   private readonly defaultHeaders = {
     'User-Agent': 'OxyHQ-LocationSearch/1.0',
   };
+
+  /**
+   * GET a Nominatim URL and parse its JSON body. Throws {@link NominatimHttpError}
+   * on any non-2xx status, as axios did, and a `TimeoutError` once
+   * {@link NOMINATIM_TIMEOUT_MS} passes, body included.
+   */
+  private async getJson<T>(url: string): Promise<T> {
+    const response = await tracedFetch(url, {
+      headers: this.defaultHeaders,
+      signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      // Release the connection: nothing reads this body.
+      await response.body?.cancel().catch(() => undefined);
+      throw new NominatimHttpError(response.status);
+    }
+    return (await response.json()) as T;
+  }
 
   /**
    * Optimize search query for better results
@@ -92,12 +130,9 @@ class LocationService {
         params.append('countrycodes', countrycodes);
       }
 
-      const response = await axios.get(`${this.baseUrl}/search?${params.toString()}`, {
-        headers: this.defaultHeaders,
-        timeout: 8000, // Reduced timeout for faster response
-      });
-
-      const results: NominatimResult[] = response.data;
+      const results = await this.getJson<NominatimResult[]>(
+        `${this.baseUrl}/search?${params.toString()}`,
+      );
 
       // Transform and enhance results
       const enhancedResults = this.transformResults(results);
@@ -114,15 +149,13 @@ class LocationService {
       logger.error('Error searching locations:', error);
       endTimer();
 
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 429) {
-          // Rate limited - increase wait time
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          throw new Error('Rate limit exceeded. Please try again in a moment.');
-        }
-        if (error.code === 'ECONNABORTED') {
-          throw new Error('Request timeout. Please try again.');
-        }
+      if (error instanceof NominatimHttpError && error.status === 429) {
+        // Rate limited - increase wait time
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        throw new Error('Rate limit exceeded. Please try again in a moment.');
+      }
+      if (isTimeout(error)) {
+        throw new Error('Request timeout. Please try again.');
       }
 
       throw new Error('Error searching locations');
@@ -156,15 +189,9 @@ class LocationService {
     try {
       logger.info(`Getting location details for coordinates: ${lat}, ${lon}`);
 
-      const response = await axios.get(
+      const result = await this.getJson<NominatimResult>(
         `${this.baseUrl}/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=en&extratags=1&namedetails=1`,
-        {
-          headers: this.defaultHeaders,
-          timeout: 8000,
-        },
       );
-
-      const result: NominatimResult = response.data;
       const enhancedResult = this.transformResults([result])[0];
 
       // Cache the result
@@ -177,11 +204,9 @@ class LocationService {
     } catch (error) {
       logger.error('Error getting location details:', error);
 
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 429) {
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          throw new Error('Rate limit exceeded. Please try again in a moment.');
-        }
+      if (error instanceof NominatimHttpError && error.status === 429) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        throw new Error('Rate limit exceeded. Please try again in a moment.');
       }
 
       throw new Error('Error getting location details');

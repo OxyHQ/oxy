@@ -50,8 +50,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type postgres from 'postgres';
-import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE, type JournalEntry, readJournal } from './ledger';
+import { type RawSqlClient, queryRows } from '../driver';
+import { type JournalEntry, LEDGER_RELATION, ledgerTableExists, readJournal } from './ledger';
 
 /**
  * One journal entry plus the content hash drizzle would record for it.
@@ -182,17 +182,13 @@ migration that can be verified.`,
  *
  * Reads only.
  */
-export async function readAppliedRows(client: postgres.Sql): Promise<AppliedMigrationRow[]> {
-  const [ledger] = await client<{ present: boolean }[]>`
-    select to_regclass(${`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`}) is not null as present
-  `;
-  if (!ledger?.present) return [];
+export async function readAppliedRows(client: RawSqlClient): Promise<AppliedMigrationRow[]> {
+  if (!(await ledgerTableExists(client))) return [];
 
-  const rows = await client<{ hash: string; created_at: string | null }[]>`
-    select hash, created_at
-    from ${client(MIGRATIONS_SCHEMA)}.${client(MIGRATIONS_TABLE)}
-    order by created_at asc
-  `;
+  const rows = await queryRows<{ hash: string; created_at: string | null }>(
+    client,
+    `select hash, created_at from ${LEDGER_RELATION} order by created_at asc`,
+  );
 
   return rows
     .filter((row): row is { hash: string; created_at: string } => row.created_at !== null)
@@ -254,7 +250,7 @@ export function compareLedger(
  * Reads only — safe against production, which is the case this exists for.
  */
 export async function verifyMigrationLedger(
-  client: postgres.Sql,
+  client: RawSqlClient,
   migrationsFolder: string,
 ): Promise<LedgerComparison> {
   const entries = readJournalWithHashes(migrationsFolder);

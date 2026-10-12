@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type postgres from 'postgres';
+import { type RawSqlClient, queryRows, quoteIdentifier, quoteLiteral } from '../driver';
 
 /**
  * Where the applied-migration ledger lives. These are drizzle's own defaults,
@@ -19,6 +19,25 @@ import type postgres from 'postgres';
  */
 export const MIGRATIONS_SCHEMA = 'drizzle';
 export const MIGRATIONS_TABLE = '__drizzle_migrations';
+
+/**
+ * The ledger table, quoted for a statement. Built once from the two constants
+ * above, never from input, so `unsafe()` (the one query method both drivers
+ * share; see `RawSqlClient` in `driver.ts`) has nothing to bind.
+ */
+export const LEDGER_RELATION = `${quoteIdentifier(MIGRATIONS_SCHEMA)}.${quoteIdentifier(MIGRATIONS_TABLE)}`;
+const LEDGER_PRESENT_QUERY = `select to_regclass(${quoteLiteral(
+  `${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`,
+)}) is not null as present`;
+
+/**
+ * Whether the ledger table exists. Reads only — calling it against a fresh
+ * database creates nothing. Not part of the public surface.
+ */
+export async function ledgerTableExists(client: RawSqlClient): Promise<boolean> {
+  const [ledger] = await queryRows<{ present: boolean }>(client, LEDGER_PRESENT_QUERY);
+  return ledger?.present === true;
+}
 
 /** One `drizzle/meta/_journal.json` entry: a migration file and when it was generated. */
 export interface JournalEntry {
@@ -274,7 +293,8 @@ export function planLedgerRun(
  *
  * Two things this collapses on purpose:
  *
- * - `bigint` arrives as a STRING from postgres.js, so every `created_at` must
+ * - `bigint` arrives as a STRING from postgres.js — and from `Bun.SQL` unless
+ *   its caller opted into `bigint: true` (then a `BigInt`) — so every `created_at` must
  *   pass through `Number(...)` before it is comparable to anything numeric —
  *   returning the raw string would make every high-water comparison silently
  *   false (`'2000' < 3000` is `true`, but string-vs-number equality never is).
@@ -283,10 +303,12 @@ export function planLedgerRun(
  *   ledger's high-water mark down to it — the exact way a migration that
  *   really did run would look, wrongly, like it never had.
  */
-export function toAppliedMillis(rows: { created_at: string | null }[]): number[] {
+export function toAppliedMillis(
+  rows: readonly { created_at: string | number | bigint | null }[],
+): number[] {
   return rows
     .map((row) => row.created_at)
-    .filter((value): value is string => value !== null)
+    .filter((value): value is string | number | bigint => value !== null)
     .map(Number);
 }
 
@@ -300,16 +322,13 @@ export function toAppliedMillis(rows: { created_at: string | null }[]): number[]
  * Reads only — calling it against a fresh database creates nothing, which is
  * what lets the dry run stay genuinely read-only.
  */
-export async function readAppliedMillis(client: postgres.Sql): Promise<number[]> {
-  const [ledger] = await client<{ present: boolean }[]>`
-    select to_regclass(${`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`}) is not null as present
-  `;
-  if (!ledger?.present) return [];
+export async function readAppliedMillis(client: RawSqlClient): Promise<number[]> {
+  if (!(await ledgerTableExists(client))) return [];
 
-  const rows = await client<{ created_at: string | null }[]>`
-    select created_at
-    from ${client(MIGRATIONS_SCHEMA)}.${client(MIGRATIONS_TABLE)}
-  `;
+  const rows = await queryRows<{ created_at: string | null }>(
+    client,
+    `select created_at from ${LEDGER_RELATION}`,
+  );
 
   return toAppliedMillis(rows);
 }
@@ -321,18 +340,13 @@ export async function readAppliedMillis(client: postgres.Sql): Promise<number[]>
  * Reads only — calling it against a fresh database creates nothing, which is
  * what lets the dry run stay genuinely read-only.
  */
-export async function readLastAppliedMillis(client: postgres.Sql): Promise<number | null> {
-  const [ledger] = await client<{ present: boolean }[]>`
-    select to_regclass(${`${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`}) is not null as present
-  `;
-  if (!ledger?.present) return null;
+export async function readLastAppliedMillis(client: RawSqlClient): Promise<number | null> {
+  if (!(await ledgerTableExists(client))) return null;
 
-  const rows = await client<{ created_at: string | null }[]>`
-    select created_at
-    from ${client(MIGRATIONS_SCHEMA)}.${client(MIGRATIONS_TABLE)}
-    order by created_at desc
-    limit 1
-  `;
+  const rows = await queryRows<{ created_at: string | null }>(
+    client,
+    `select created_at from ${LEDGER_RELATION} order by created_at desc limit 1`,
+  );
 
   // A NULL row and an empty result set both mean "nothing usable" — the same
   // rule `toAppliedMillis` already states, so this asks it rather than
@@ -398,7 +412,7 @@ serve traffic.`,
  * @throws {MigrationsNotCurrentError} When any journal entry has no ledger row.
  */
 export async function assertPostgresMigrationsCurrent(
-  client: postgres.Sql,
+  client: RawSqlClient,
   entries: JournalEntry[],
 ): Promise<void> {
   const pending = pendingEntries(entries, await readLastAppliedMillis(client));

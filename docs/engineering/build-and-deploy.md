@@ -64,13 +64,33 @@ aws --profile oxy --region us-west-2 logs tail /oxy/ecs --log-stream-name-prefix
 
 ## Containers (oxy-api Docker / ECS one-shot tasks)
 
+### Runtime: Bun
+
+The oxy-api image runs on Bun 1.4.3: the `Dockerfile` runtime stage is the
+digest-pinned `oven/bun:1.4.3-alpine` (musl, like the stages that install the
+production dependencies, so Sharp's binding matches), the CMD is
+`bun packages/api/dist/server.js`, and every ECS command names `bun` — the
+migrator in `deploy-ecs-image.sh`, `deploy-aws.yml`, `deploy-quiesced-image.sh`
+and `run-postgres-migrations.yml`, and the Kaana canary/readback workflows. The
+image has no Node; its `node` is a symlink to bun, so a stale `node ...`
+command still runs Bun. `deploy-asset-variant-worker.sh` accepts a running worker
+revision naming either and always renders the new one as `bun ...` (the ECS
+service ignores terraform's task-definition changes, so the deploy is what
+moves the running worker). CI's
+`API Image (Bun runtime smoke)` job builds the image (amd64: the PostGIS
+service image is amd64-only; the merge queue builds arm64) and runs
+`.github/scripts/smoke-api-image.sh`. Outbound `fetch` goes through
+`tracedFetch` (`scripts/check-api-raw-fetch.mjs`): Bun's `fetch` is invisible
+to the undici instrumentation. Returning to Node is reverting the change that
+switched the runtime stage and the commands together.
+
 ### Asset-variant producer and worker
 
 Asset rendition generation has two runtime roles built from the same image:
 
-- `node packages/api/dist/server.js` runs the HTTP API and only produces jobs
+- `bun packages/api/dist/server.js` runs the HTTP API and only produces jobs
   on the BullMQ `asset-variants` queue.
-- `node packages/api/dist/asset-variant-worker.js` consumes that queue with
+- `bun packages/api/dist/asset-variant-worker.js` consumes that queue with
   concurrency 1 and performs the sharp/ffmpeg work. The package shortcut is
   `bun run --filter @oxy.so/api start:asset-variant-worker`.
 

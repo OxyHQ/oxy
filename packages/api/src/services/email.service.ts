@@ -74,12 +74,19 @@ import { logger } from '../utils/logger';
 import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { resolveEmailFromName } from '../utils/displayName';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { aiLabelingService } from './aiLabeling.service';
 import { cardExtractionService } from './cardExtraction.service';
 import { smtpOutbound } from './smtp.outbound';
+import { acceptOutboundMessage, deliverClaimed } from './emailDelivery.service';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { buildSnippet, emitEmailNew, emitEmailChanged } from './inboxRealtime';
+import {
+  claimSend,
+  linkOutboxToMessage,
+  loadMessageDeliveries,
+  type MessageDeliveryDto,
+} from './emailOutbox.service';
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
@@ -446,6 +453,8 @@ export interface MessageDto {
   /** Attached by the thread walk in {@link EmailService.listMessages}. */
   threadCount?: number;
   threadParticipants?: string[];
+  /** Where a message the user sent stands; absent on received mail. */
+  delivery?: MessageDeliveryDto;
 }
 
 /** A mailbox as `GET /email/mailboxes` returns it, counters included. */
@@ -824,13 +833,21 @@ async function toMessageDtos(
 ): Promise<MessageDto[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((row) => row.id);
-  const [recipients, attachments] = await Promise.all([
+  const [recipients, attachments, deliveries] = await Promise.all([
     loadRecipients(db, ids),
     loadAttachments(db, ids),
+    loadMessageDeliveries(db, ids),
   ]);
-  return rows.map((row) =>
-    toMessageDto(row, recipients.get(row.id) ?? emptyRecipients(), attachments.get(row.id) ?? []),
-  );
+  return rows.map((row) => {
+    const dto = toMessageDto(
+      row,
+      recipients.get(row.id) ?? emptyRecipients(),
+      attachments.get(row.id) ?? [],
+    );
+    const delivery = deliveries.get(row.id);
+    if (delivery) dto.delivery = delivery;
+    return dto;
+  });
 }
 
 /**
@@ -1544,7 +1561,7 @@ class EmailService {
       {
         userId,
         mailboxId: inboxMailboxId,
-        messageId: `<welcome-${userId}-${uuidv4()}@${EMAIL_DOMAIN}>`,
+        messageId: `<welcome-${userId}-${randomUUID()}@${EMAIL_DOMAIN}>`,
         fromName: 'Inbox by Oxy',
         fromAddress: `hello@${EMAIL_DOMAIN}`,
         subject,
@@ -2664,7 +2681,7 @@ class EmailService {
       {
         userId,
         mailboxId: draftsMailbox.id,
-        messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
+        messageId: `<${randomUUID()}@${EMAIL_DOMAIN}>`,
         fromName: resolveEmailFromName(user) || null,
         fromAddress,
         subject: draft.subject ?? '',
@@ -2705,6 +2722,12 @@ class EmailService {
       references?: string[];
       attachments?: MessageAttachment[];
       size: number;
+      /**
+       * The outbox row that delivers this message. Linked BEFORE the message is
+       * announced, so the first read any device makes of it already says
+       * whether it has left.
+       */
+      deliveryId?: string;
     },
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
@@ -2739,10 +2762,13 @@ class EmailService {
       { to: messageData.to, cc: messageData.cc, bcc: messageData.bcc },
       messageData.attachments ?? [],
     );
+    if (messageData.deliveryId) {
+      await linkOutboxToMessage(messageData.deliveryId, created);
+    }
 
     const dto = await readMessageDto(db, created);
     // A second device showing the Sent folder should see the message the moment
-    // it is dispatched, not on its next refresh.
+    // it is filed, not on its next refresh.
     await emitEmailChanged({
       userId,
       id: dto.id,
@@ -2750,6 +2776,32 @@ class EmailService {
       reason: 'sent',
     });
     return dto;
+  }
+
+  /**
+   * Record the id a relay delivered a filed message under (SES replaces ours),
+   * so an answer naming it joins the conversation. Only a relay that rewrote
+   * the header has one to record.
+   */
+  async recordRelayMessageId(
+    userId: string,
+    messageRowId: string,
+    relayMessageId: string,
+  ): Promise<void> {
+    await getDb()
+      .update(messages)
+      .set({ relayMessageId })
+      .where(and(eq(messages.id, messageRowId), eq(messages.userId, userId)));
+  }
+
+  /** The mailbox one of this user's messages is in, for a change signal. */
+  async mailboxOf(userId: string, messageRowId: string): Promise<string | null> {
+    const [row] = await getDb()
+      .select({ mailboxId: messages.mailboxId })
+      .from(messages)
+      .where(and(eq(messages.id, messageRowId), eq(messages.userId, userId)))
+      .limit(1);
+    return row?.mailboxId ?? null;
   }
 
   // ─── Snooze ──────────────────────────────────────────────────────────
@@ -2885,7 +2937,7 @@ class EmailService {
 
     const messageId = params.idempotencyKey
       ? idempotentMessageId(userId, params.idempotencyKey)
-      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+      : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
     if (params.idempotencyKey) {
       const existing = await this.findMessageByRfcMessageId(userId, messageId);
       if (existing) return existing;
@@ -2962,26 +3014,42 @@ class EmailService {
         const group = recipients.get(msg.id) ?? emptyRecipients();
         const attachments = await loadOutboundAttachments(db, msg.id);
 
-        const { relayMessageId } = await smtpOutbound.sendRaw({
-          userId: msg.userId,
-          messageId: msg.messageId,
-          from: { name: msg.fromName ?? '', address: msg.fromAddress },
-          to: group.to,
-          cc: group.cc.length ? group.cc : undefined,
-          bcc: group.bcc.length ? group.bcc : undefined,
-          subject: msg.subject,
-          text: msg.text ?? undefined,
-          html: msg.html ?? undefined,
-          inReplyTo: msg.inReplyTo ?? undefined,
-          references: msg.references.length ? msg.references : undefined,
-          attachments: attachments.length ? attachments : undefined,
+        // Taking the message off the schedule IS the claim: of two tasks that
+        // both read it as due, only one clears `scheduledAt`, and it commits
+        // together with the delivery row, so a crash leaves neither. The
+        // delivery is then the outbox's, like any other send — tracked on the
+        // message, retried on a transient failure instead of every minute.
+        const claim = await db.transaction(async (tx) => {
+          const [taken] = await tx
+            .update(messages)
+            .set({ scheduledAt: null })
+            .where(and(eq(messages.id, msg.id), isNotNull(messages.scheduledAt)))
+            .returning({ id: messages.id });
+          if (!taken) return null;
+          return claimSend(
+            {
+              userId: msg.userId,
+              messageId: msg.messageId,
+              messageRowId: msg.id,
+              payload: {
+                from: { name: msg.fromName ?? '', address: msg.fromAddress },
+                to: group.to,
+                cc: group.cc.length ? group.cc : undefined,
+                bcc: group.bcc.length ? group.bcc : undefined,
+                subject: msg.subject,
+                text: msg.text ?? undefined,
+                html: msg.html ?? undefined,
+                inReplyTo: msg.inReplyTo ?? undefined,
+                references: msg.references.length ? msg.references : undefined,
+                attachments: attachments.length ? attachments : undefined,
+              },
+              owner: `scheduled:${randomUUID()}`,
+            },
+            tx,
+          );
         });
-
-        // Clear scheduledAt to mark as sent
-        await db
-          .update(messages)
-          .set({ scheduledAt: null, relayMessageId })
-          .where(eq(messages.id, msg.id));
+        if (!claim) continue;
+        if (claim.claimed) await deliverClaimed(claim.row);
         count++;
       } catch (err) {
         logger.error(
@@ -3805,7 +3873,7 @@ class EmailService {
     const html = msg.html;
 
     if (text && html) {
-      const boundary = `----=_Part_${uuidv4().replace(/-/g, '')}`;
+      const boundary = `----=_Part_${randomUUID().replace(/-/g, '')}`;
       lines.push(`Content-Type: multipart/alternative; boundary="${boundary}"`);
       lines.push('');
       lines.push(`--${boundary}`);
@@ -3908,7 +3976,7 @@ class EmailService {
           {
             userId,
             mailboxId: inbox.id,
-            messageId: mime.messageId || `<imported-${uuidv4()}@${EMAIL_DOMAIN}>`,
+            messageId: mime.messageId || `<imported-${randomUUID()}@${EMAIL_DOMAIN}>`,
             fromName: from.name?.trim() ? from.name.trim() : null,
             fromAddress: from.address.trim().toLowerCase(),
             ...(mime.replyTo?.address.trim()
@@ -4731,7 +4799,9 @@ class EmailService {
 
               const user = await loadSenderIdentity(db, userId);
               if (user?.username) {
-                await smtpOutbound.send({
+                // Filed in Sent like any message the user sends; a relay failure
+                // after this point shows on that message, not here.
+                await acceptOutboundMessage({
                   userId,
                   from: {
                     name: resolveEmailFromName(user),

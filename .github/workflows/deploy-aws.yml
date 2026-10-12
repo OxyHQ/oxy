@@ -246,7 +246,7 @@ jobs:
             tasks=$(jq -cn '[
               {
                 label: "Post-deploy migration",
-                command: ["node", "packages/api/dist/db/migrate.js", "--phase=post"]
+                command: ["bun", "packages/api/dist/db/migrate.js", "--phase=post"]
               },
               {
                 label: "Inbox catalog registration",

@@ -21,21 +21,20 @@
  * run a Postgres service.
  */
 
-import { drizzle } from 'drizzle-orm/postgres-js';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
-import postgres from 'postgres';
 import { findUnsupportedExpiryColumns } from '../assert/expiryIndexes';
 import { createTestDatabase, dropTestDatabase } from '../testing';
+import { TEST_DRIVER, openLiveClient, openLiveDatabase } from './support/liveDriver';
 
 const ADMIN_URL = process.env.OXYDB_TEST_ADMIN_URL;
 const describeLive = ADMIN_URL ? describe : describe.skip;
 
 /** No consumer schema is needed: this module issues a raw catalogue read,
- * never a table-builder query, so a bare `drizzle(client)` already
+ * never a table-builder query, so a bare schema-less handle already
  * satisfies `SqlExecutor`. */
 function executorFor(databaseUrl: string) {
-  const client = postgres(databaseUrl, { max: 1 });
-  return { db: drizzle(client), client };
+  const { db, close } = openLiveDatabase(databaseUrl);
+  return { db, client: { close } };
 }
 
 const indexedTable = pgTable('expiry_indexed', {
@@ -56,10 +55,11 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
   it('reports only the swept column with no supporting btree index', async () => {
     const url = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: async (databaseUrl) => {
-        const admin = postgres(databaseUrl, { max: 1 });
+        const admin = openLiveClient(databaseUrl);
         try {
-          await admin.unsafe(`
+          await admin.exec(`
             create table expiry_indexed (
               id text primary key,
               expires_at timestamptz
@@ -72,7 +72,7 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
             );
           `);
         } finally {
-          await admin.end({ timeout: 5 });
+          await admin.close();
         }
       },
     });
@@ -97,8 +97,8 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
         { check: 'expiry_column_without_index', subject: 'expiry_unindexed.expires_at' },
       ]);
     } finally {
-      await client.end({ timeout: 5 });
-      await dropTestDatabase(url);
+      await client.close();
+      await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 
@@ -109,10 +109,11 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
   it('does not count a non-leading column of a composite index as supporting', async () => {
     const url = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: async (databaseUrl) => {
-        const admin = postgres(databaseUrl, { max: 1 });
+        const admin = openLiveClient(databaseUrl);
         try {
-          await admin.unsafe(`
+          await admin.exec(`
             create table expiry_composite (
               id text primary key,
               secondary_at timestamptz,
@@ -122,7 +123,7 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
               on expiry_composite (secondary_at, checked_at);
           `);
         } finally {
-          await admin.end({ timeout: 5 });
+          await admin.close();
         }
       },
     });
@@ -141,8 +142,8 @@ describeLive('findUnsupportedExpiryColumns (live Postgres)', () => {
         { check: 'expiry_column_without_index', subject: 'expiry_composite.checked_at' },
       ]);
     } finally {
-      await client.end({ timeout: 5 });
-      await dropTestDatabase(url);
+      await client.close();
+      await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 });

@@ -13,7 +13,6 @@ import usersRouter from './routes/users';
 import notificationsRouter from './routes/notifications.routes';
 import sessionRouter from './routes/session';
 import sessionDeviceRouter from './routes/sessionDevice';
-import dotenv from 'dotenv';
 import searchRoutes from './routes/search';
 import {
   rateLimiter,
@@ -213,9 +212,6 @@ import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
 import { handleOxyProfileInternalMcp } from './capabilities/oxy-profile.transport';
 import foregroundProfilesRouter from './routes/foregroundProfiles';
 import { serviceTokenPublicJwks, serviceTokenSigningConfig } from './config/serviceTokenSigning';
-
-// Load environment variables
-dotenv.config();
 
 // Validate configuration early - fail fast with clear errors
 try {

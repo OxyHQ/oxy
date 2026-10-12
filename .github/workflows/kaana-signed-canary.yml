@@ -355,7 +355,7 @@ jobs:
             --arg candidate_ip "$CANDIDATE_PRIVATE_IP" '
               {containerOverrides:[{
                 name:$container,
-                command:["node","packages/api/scripts/run-kaana-signed-canary.mjs"],
+                command:["bun","packages/api/scripts/run-kaana-signed-canary.mjs"],
                 environment:[
                   {name:"CANARY_CONTRACT_VERSION",value:"3.5.0"},
                   {name:"CANARY_KAANA_PRIVATE_ORIGIN",value:("http://" + $candidate_ip + ":8080")},

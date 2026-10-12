@@ -943,7 +943,7 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # nothing. A migration that never runs is the outage this whole path exists for.
   if ! run_one_shot_command \
     "Migration" \
-    '["node", "packages/api/dist/db/migrate.js", "--phase=pre"]' \
+    '["bun", "packages/api/dist/db/migrate.js", "--phase=pre"]' \
     true \
     "$rollback_task_definition"; then
     exit 1

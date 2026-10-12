@@ -72,6 +72,7 @@ import {
   updateLabel,
   deleteLabel,
   sendMessage,
+  retryMessageDeliveryHandler,
   saveDraft,
   searchMessages,
   getQuota,
@@ -236,6 +237,21 @@ router.post(
   '/messages/:messageId/unsnooze',
   validate({ params: messageIdParams }),
   asyncHandler(unsnoozeMessage),
+);
+/**
+ * Deliver a message the user sent again, now, with a fresh retry budget.
+ *
+ * For a message whose `delivery` is `failed` (or `retrying`, to try now rather
+ * than at `nextAttemptAt`). Answers with the message, its `delivery` back at
+ * `sending`; the outcome follows as `email:changed` with reason `delivery`.
+ * @response 400 Error A recipient has since bounced or complained; edit the message and send it as new.
+ * @response 404 Error The message does not exist or has no delivery.
+ * @response 409 Error It is being delivered right now, or it was delivered.
+ */
+router.post(
+  '/messages/:messageId/delivery/retry',
+  validate({ params: messageIdParams }),
+  asyncHandler(retryMessageDeliveryHandler),
 );
 
 // ─── Labels ──────────────────────────────────────────────────────

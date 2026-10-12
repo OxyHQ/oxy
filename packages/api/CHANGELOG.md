@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Changed (a sent message shows whether it left)
+
+- `POST /email/messages` files the message in Sent and answers 202 **before**
+  it talks to a relay; delivery follows on the same task, under the outbox
+  claim's lease, and the outbox worker retries or adopts it. The answer adds
+  `id` (the Sent row) and `delivery`; `message` is `Message accepted for
+  delivery`. `queued` stays for older clients and is true only when an earlier
+  attempt under the same key already failed. A server with no relay at all
+  still answers 503 before filing anything.
+- Every message read carries `delivery` (`sending`, `retrying`, `sent`,
+  `failed`, with `attempts`, `nextAttemptAt`, the relay's `error` and a typed
+  `errorCode`) on a message the user sent; received mail has none. It is the
+  message's `email_outbox` row, linked by `message_row_id` (migration 0157 adds
+  `error_code` and an index). Each change emits `email:changed` with reason
+  `delivery`.
+- `POST /email/messages/:messageId/delivery/retry` delivers a failed message
+  again with a fresh budget, refusing (400) a recipient suppressed since.
+- An SES permanent bounce marks the sender's Sent copy `failed` / `bounced`.
+- A scheduled send is handed to the outbox when it falls due, so it is tracked
+  and retried like any other instead of re-sent every minute.
+
 ### Changed (Inbox mail integrity)
 
 - **Breaking for clients sending a row id:** `POST /email/messages` and

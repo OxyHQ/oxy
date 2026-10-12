@@ -1,3 +1,9 @@
+import {
+  IMAGE_VARIANTS,
+  IMAGE_VARIANT_FORMAT,
+  IMAGE_VARIANT_QUALITY,
+  type ImageVariantName,
+} from '@oxy.so/utils/image';
 import { assertPhysicalStoragePathSupported, uploadAdmittedVariant } from './storageQuota.service';
 import type { S3Service } from './s3Service';
 import {
@@ -266,15 +272,19 @@ export interface VideoVariantConfig {
 }
 
 export class VariantService {
-  private readonly imageVariants: VariantConfigWithType[] = [
-    { type: 'w96', width: 96, height: 96, quality: 82, format: 'webp' },
-    { type: 'w128', width: 128, height: 128, quality: 82, format: 'webp' },
-    { type: 'thumb', width: 256, height: 256, quality: 82, format: 'webp' },
-    { type: 'w320', width: 320, quality: 82, format: 'webp' },
-    { type: 'w640', width: 640, quality: 82, format: 'webp' },
-    { type: 'w1280', width: 1280, quality: 82, format: 'webp' },
-    { type: 'w2048', width: 2048, quality: 82, format: 'webp' },
-  ];
+  /**
+   * The image ladder is `@oxy.so/utils/image`'s — the one every consumer asks
+   * for by name (`?variant=`) — so the sizes rendered here cannot drift from
+   * the names the apps and Clarity request.
+   */
+  private readonly imageVariants: VariantConfigWithType[] = (
+    Object.keys(IMAGE_VARIANTS) as ImageVariantName[]
+  ).map((type) => ({
+    type,
+    ...IMAGE_VARIANTS[type],
+    quality: IMAGE_VARIANT_QUALITY,
+    format: IMAGE_VARIANT_FORMAT,
+  }));
 
   private readonly videoVariants: VideoVariantConfig[] = [
     {

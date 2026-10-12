@@ -27,9 +27,10 @@ module.exports = {
     // mount order. The package is dependency-free, so its source needs nothing
     // from node_modules.
     '^@oxy.so/utils$': '<rootDir>/../utils/src/index.ts',
-    '^@oxy.so/utils/sql$': '<rootDir>/../utils/src/sql.ts',
-    '^@oxy.so/utils/paging$': '<rootDir>/../utils/src/paging.ts',
-    '^@oxy.so/utils/text$': '<rootDir>/../utils/src/text.ts',
+    // Every subpath, by its file name: one line per subpath went stale the
+    // first time a subpath was added (`./image`) and failed every suite that
+    // reached `variantService`.
+    '^@oxy.so/utils/([a-z-]+)$': '<rootDir>/../utils/src/$1.ts',
     '^@oxy.so/telemetry/collector$': '<rootDir>/../telemetry/src/collector.ts',
     '^@oxy.so/telemetry/socket$': '<rootDir>/../telemetry/src/socket.ts',
     '^@oxy.so/telemetry/server$': '<rootDir>/../telemetry/src/server.ts',

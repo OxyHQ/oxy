@@ -1,5 +1,24 @@
 # Changelog
 
+## [11.2.0-oxy-one.4] - 2026-10-12
+
+### Fixed
+
+- An app without the optional peer `expo-clipboard` bundles on Android and iOS
+  again. `copyText` loaded it with an `import()` outside any `try`, which Metro
+  resolves at build time, so `expo export --platform android` failed with
+  `Unable to resolve module expo-clipboard` for every app that renders
+  `OxyProvider` without it. The load is now a direct statement of a `try`
+  block, the shape Metro marks optional; without the package, copying rejects
+  and the caller reports that nothing was copied. A new packaging test holds
+  every optional-peer load to that shape. `expo-notifications` already had it
+  and is unchanged. Same fix as 11.1.18.
+
+### Changed
+
+- Admits `@oxy.so/bloom` 7.32.x and 7.33.x (peer cap `<7.34.0`), verified
+  against the official 7.32.0 and 7.33.0 packages.
+
 ## [11.2.0-oxy-one.3] - 2026-10-10
 
 ### Changed

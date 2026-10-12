@@ -5,7 +5,7 @@
  * `testing.test.ts` uses for the same claim — and for the four
  * migration-ledger functions Task 5 shipped with NO coverage at all:
  * `assertMigrationTarget`, `readAppliedMillis`, `readLastAppliedMillis`,
- * `assertPostgresMigrationsCurrent`. Each needs a real `postgres.Sql` — a
+ * `assertPostgresMigrationsCurrent`. Each needs a real driver client — a
  * stub would only prove the comparison agrees with itself, the same reasoning
  * `targetDatabase.test.ts` and `extensions.test.ts` already give for leaving
  * them out — and this package had no live-database harness until this task
@@ -35,7 +35,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import postgres from 'postgres';
 import {
   MigrationsNotCurrentError,
   assertPostgresMigrationsCurrent,
@@ -46,7 +45,9 @@ import {
 } from '../migrate/ledger';
 import { runMigrations } from '../migrate/runner';
 import { WrongMigrationTargetError, assertMigrationTarget } from '../migrate/targetDatabase';
+import { quoteLiteral } from '../driver';
 import { createTestDatabase, dropTestDatabase } from '../testing';
+import { type LiveClient, TEST_DRIVER, openLiveClient } from './support/liveDriver';
 
 const ADMIN_URL = process.env.OXYDB_TEST_ADMIN_URL;
 const describeLive = ADMIN_URL ? describe : describe.skip;
@@ -74,6 +75,11 @@ function migrationsFixture(): string {
   return folder;
 }
 
+/** Whether `name` exists — `name` is a generated `oxydb_test_<hex>`, quoted regardless. */
+function databaseExistsQuery(name: string): string {
+  return `select exists(select 1 from pg_database where datname = ${quoteLiteral(name)}) as present`;
+}
+
 function bareDatabaseName(databaseUrl: string): string {
   return new URL(databaseUrl).pathname.replace(/^\//, '');
 }
@@ -96,27 +102,25 @@ describeLive('createTestDatabase / dropTestDatabase (live Postgres)', () => {
     const url = await createTestDatabase({ adminUrl: ADMIN_URL });
     const name = bareDatabaseName(url);
 
-    const client = postgres(url, { max: 1 });
+    const client = openLiveClient(url);
     try {
-      const rows = await client<{ current_database: string }[]>`select current_database()`;
+      const rows = await client.query<{ current_database: string }>('select current_database()');
       expect(rows[0]?.current_database).toBe(name);
     } finally {
-      await client.end({ timeout: 5 });
+      await client.close();
     }
 
-    await dropTestDatabase(url);
+    await dropTestDatabase(url, { driver: TEST_DRIVER });
 
     // Confirmed via a SEPARATE admin connection, not by re-using `client`
     // (already closed above) or by trusting `dropTestDatabase` resolving
     // without error — this is the actual evidence the database is gone.
-    const admin = postgres(assertAssigned(ADMIN_URL, 'ADMIN_URL'), { max: 1 });
+    const admin = openLiveClient(assertAssigned(ADMIN_URL, 'ADMIN_URL'));
     try {
-      const rows = await admin<{ present: boolean }[]>`
-        select exists(select 1 from pg_database where datname = ${name}) as present
-      `;
+      const rows = await admin.query<{ present: boolean }>(databaseExistsQuery(name));
       expect(rows[0]?.present).toBe(false);
     } finally {
-      await admin.end({ timeout: 5 });
+      await admin.close();
     }
   });
 
@@ -126,6 +130,7 @@ describeLive('createTestDatabase / dropTestDatabase (live Postgres)', () => {
     await expect(
       createTestDatabase({
         adminUrl: ADMIN_URL,
+        driver: TEST_DRIVER,
         migrate: async (url) => {
           capturedUrl = url;
           throw new Error('simulated migration failure');
@@ -140,23 +145,21 @@ describeLive('createTestDatabase / dropTestDatabase (live Postgres)', () => {
     // querying pg_database directly, against a real server — not an inference
     // from the rejection alone (a hook that throws AFTER leaking the database
     // would reject exactly the same way).
-    const admin = postgres(assertAssigned(ADMIN_URL, 'ADMIN_URL'), { max: 1 });
+    const admin = openLiveClient(assertAssigned(ADMIN_URL, 'ADMIN_URL'));
     try {
-      const rows = await admin<{ present: boolean }[]>`
-        select exists(select 1 from pg_database where datname = ${name}) as present
-      `;
+      const rows = await admin.query<{ present: boolean }>(databaseExistsQuery(name));
       expect(rows[0]?.present).toBe(false);
     } finally {
-      await admin.end({ timeout: 5 });
+      await admin.close();
     }
   });
 });
 
 describeLive('migration-ledger functions against a real Postgres', () => {
   let freshUrl: string | undefined;
-  let freshClient: postgres.Sql | undefined;
+  let freshClient: LiveClient | undefined;
   let migratedUrl: string | undefined;
-  let migratedClient: postgres.Sql | undefined;
+  let migratedClient: LiveClient | undefined;
   let migratedName: string;
   let fixtureFolder: string | undefined;
 
@@ -164,7 +167,7 @@ describeLive('migration-ledger functions against a real Postgres', () => {
     // A database no migration has ever touched — for the "nothing recorded
     // yet" branch of readAppliedMillis/readLastAppliedMillis.
     freshUrl = await createTestDatabase({ adminUrl: ADMIN_URL });
-    freshClient = postgres(freshUrl, { max: 1 });
+    freshClient = openLiveClient(freshUrl);
 
     // A second database, actually migrated through the SAME runMigrations
     // this package ships, wired through createTestDatabase's own `migrate`
@@ -175,8 +178,10 @@ describeLive('migration-ledger functions against a real Postgres', () => {
     fixtureFolder = folder;
     migratedUrl = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: (url) =>
         runMigrations({
+          driver: TEST_DRIVER,
           databaseUrl: url,
           migrationsFolder: folder,
           extensions: [],
@@ -187,25 +192,25 @@ describeLive('migration-ledger functions against a real Postgres', () => {
         }),
     });
     migratedName = bareDatabaseName(migratedUrl);
-    migratedClient = postgres(migratedUrl, { max: 1 });
+    migratedClient = openLiveClient(migratedUrl);
   });
 
   afterAll(async () => {
-    await freshClient?.end({ timeout: 5 });
-    await migratedClient?.end({ timeout: 5 });
+    await freshClient?.close();
+    await migratedClient?.close();
     if (fixtureFolder) rmSync(fixtureFolder, { recursive: true, force: true });
-    if (freshUrl) await dropTestDatabase(freshUrl);
-    if (migratedUrl) await dropTestDatabase(migratedUrl);
+    if (freshUrl) await dropTestDatabase(freshUrl, { driver: TEST_DRIVER });
+    if (migratedUrl) await dropTestDatabase(migratedUrl, { driver: TEST_DRIVER });
   });
 
   describe('assertMigrationTarget', () => {
     it('resolves when the connection really is pointed at the named database', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       await expect(assertMigrationTarget(client, migratedName)).resolves.toBeUndefined();
     });
 
     it('rejects, naming both sides, when it is not', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       await expect(assertMigrationTarget(client, 'definitely_not_this_database')).rejects.toThrow(
         WrongMigrationTargetError,
       );
@@ -217,13 +222,13 @@ describeLive('migration-ledger functions against a real Postgres', () => {
 
   describe('readAppliedMillis / readLastAppliedMillis', () => {
     it('return [] / null against a database no migration has ever touched', async () => {
-      const client = assertAssigned(freshClient, 'freshClient');
+      const client = assertAssigned(freshClient, 'freshClient').client;
       await expect(readAppliedMillis(client)).resolves.toEqual([]);
       await expect(readLastAppliedMillis(client)).resolves.toBeNull();
     });
 
     it('return the real applied millis, correctly coerced from Postgres, once migrations have run', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       // Order-independent: `readAppliedMillis` runs no ORDER BY (see its own
       // comment in ledger.ts).
       await expect(readAppliedMillis(client)).resolves.toEqual(
@@ -235,14 +240,14 @@ describeLive('migration-ledger functions against a real Postgres', () => {
 
   describe('assertPostgresMigrationsCurrent', () => {
     it('resolves when the ledger covers every shipped journal entry', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       await expect(
         assertPostgresMigrationsCurrent(client, FIXTURE_ENTRIES),
       ).resolves.toBeUndefined();
     });
 
     it('rejects and names the tag when the image ships a migration the database has not applied', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       const aheadEntries: JournalEntry[] = [...FIXTURE_ENTRIES, { tag: '0002_third', when: 3_000 }];
       await expect(assertPostgresMigrationsCurrent(client, aheadEntries)).rejects.toThrow(
         /0002_third/,
@@ -255,7 +260,7 @@ describeLive('migration-ledger functions against a real Postgres', () => {
     // a later edit could quietly go back to a bare `Error` with this suite
     // still green.
     it('rejects with MigrationsNotCurrentError, carrying the pending entries', async () => {
-      const client = assertAssigned(migratedClient, 'migratedClient');
+      const client = assertAssigned(migratedClient, 'migratedClient').client;
       const aheadEntries: JournalEntry[] = [...FIXTURE_ENTRIES, { tag: '0002_third', when: 3_000 }];
       await expect(assertPostgresMigrationsCurrent(client, aheadEntries)).rejects.toBeInstanceOf(
         MigrationsNotCurrentError,
@@ -305,8 +310,10 @@ describeLive('runMigrations — an empty journal applies nothing and succeeds', 
 
       url = await createTestDatabase({
         adminUrl: ADMIN_URL,
+        driver: TEST_DRIVER,
         migrate: (databaseUrl) =>
           runMigrations({
+            driver: TEST_DRIVER,
             databaseUrl,
             migrationsFolder: folder,
             extensions: [],
@@ -322,20 +329,20 @@ describeLive('runMigrations — an empty journal applies nothing and succeeds', 
       // the "left consistent" claim — not an empty table, an ABSENT one,
       // which is what readAppliedMillis/readLastAppliedMillis already treat
       // as "nothing recorded" (see their own doc comments in ledger.ts).
-      const client = postgres(url, { max: 1 });
+      const live = openLiveClient(url);
       try {
-        await expect(readAppliedMillis(client)).resolves.toEqual([]);
-        await expect(readLastAppliedMillis(client)).resolves.toBeNull();
-        const [ledger] = await client<{ present: boolean }[]>`
-          select to_regclass('drizzle.__drizzle_migrations') is not null as present
-        `;
+        await expect(readAppliedMillis(live.client)).resolves.toEqual([]);
+        await expect(readLastAppliedMillis(live.client)).resolves.toBeNull();
+        const [ledger] = await live.query<{ present: boolean }>(
+          "select to_regclass('drizzle.__drizzle_migrations') is not null as present",
+        );
         expect(ledger?.present).toBe(false);
       } finally {
-        await client.end({ timeout: 5 });
+        await live.close();
       }
     } finally {
       rmSync(folder, { recursive: true, force: true });
-      if (url) await dropTestDatabase(url);
+      if (url) await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 
@@ -351,8 +358,10 @@ describeLive('runMigrations — an empty journal applies nothing and succeeds', 
       try {
         url = await createTestDatabase({
           adminUrl: ADMIN_URL,
+          driver: TEST_DRIVER,
           migrate: (databaseUrl) =>
             runMigrations({
+              driver: TEST_DRIVER,
               databaseUrl,
               migrationsFolder: folder,
               extensions: [],
@@ -364,7 +373,7 @@ describeLive('runMigrations — an empty journal applies nothing and succeeds', 
         });
       } finally {
         rmSync(folder, { recursive: true, force: true });
-        if (url) await dropTestDatabase(url);
+        if (url) await dropTestDatabase(url, { driver: TEST_DRIVER });
       }
     }
   });
@@ -383,8 +392,10 @@ describeLive('runMigrations — expectedDatabase is optional', () => {
     try {
       url = await createTestDatabase({
         adminUrl: ADMIN_URL,
+        driver: TEST_DRIVER,
         migrate: (databaseUrl) =>
           runMigrations({
+            driver: TEST_DRIVER,
             databaseUrl,
             migrationsFolder: folder,
             extensions: [],
@@ -395,15 +406,15 @@ describeLive('runMigrations — expectedDatabase is optional', () => {
           }),
       });
 
-      const client = postgres(url, { max: 1 });
+      const live = openLiveClient(url);
       try {
-        await expect(readLastAppliedMillis(client)).resolves.toBe(2_000);
+        await expect(readLastAppliedMillis(live.client)).resolves.toBe(2_000);
       } finally {
-        await client.end({ timeout: 5 });
+        await live.close();
       }
     } finally {
       rmSync(folder, { recursive: true, force: true });
-      if (url) await dropTestDatabase(url);
+      if (url) await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 
@@ -418,8 +429,10 @@ describeLive('runMigrations — expectedDatabase is optional', () => {
       await expect(
         createTestDatabase({
           adminUrl: ADMIN_URL,
+          driver: TEST_DRIVER,
           migrate: (databaseUrl) =>
             runMigrations({
+              driver: TEST_DRIVER,
               databaseUrl,
               migrationsFolder: folder,
               extensions: [],
