@@ -1,5 +1,15 @@
 # Oxy One Personal launch readiness — inactive local handoff
 
+## 2026-10-11 inactive checkout review
+
+Peable #118 is integrated at `6f13df1cc9bbbced6ea1990818de1a18e450e87e`; main CI passed. The next exact packages are `@peable.to/shared-types@0.3.3-oxy-one.0` and `@peable.to/sdk@0.2.6-oxy-one.0`, both under `oxy-one`. Publication is already authorized but still requires an existing authenticated local publisher; the cloud has no npm session. Compare registry downloads with the same locally verified artifacts actually published, not with another machine's archive hashes. Registry dependency adoption and final CI are pending in Oxy #1648; temporary tarballs prove integration only.
+
+The full synthetic acceptance exercises Oxy HTTP → official SDK customer, signed quote and checkout → Peable HTTP/SQL fixture → signed initial invoice → atomic Oxy fulfillment. It proves neither real fiscal configuration nor live financial acceptance. Purchases remain disabled; fiscal roles/countries/tax service, FAIR renewal/grace, conversion and partial refunds remain commercial gates. I08 approval for Mercaria does not approve Oxy One fiscal policy.
+
+**Operational gate:** when a checkout response is lost and its frozen quote expires, a reserved intent without a provider session remains indeterminate. The SDK currently has no operation-key lookup that proves whether the original checkout exists or is terminal. Do not release the reservation, erase its correlation, return an expired URL, or obtain a new quote under the old key. Pending/reserved intents block account closure under the shared account lock. Recovery by operation key and a reviewed terminal-outcome procedure are required before this situation can be resolved automatically.
+
+The remaining sections retain dated preparation history; their earlier package versions and unmounted-runtime statements are not current release instructions.
+
 ## 2026-10-07 continuation
 
 The earlier six repository deliveries and the published Oxy/Peable candidate SDK versions are already deployed; their historical preparation sections below are not outstanding release tasks. Commercial activation remains disabled. The approved invoice issuer is **The Oxy Collective, Inc.** This does not establish the seller's processor identifier, tax remitter, registrations or sale countries. The customer may choose manual monthly Faircoin renewal or automatic renewal with express consent, amount and periodicity limits, and verifiable revocation. No mandate is created. The detached `packages/api/config/drafts/oxy-one-commercial-decisions.json` records these decisions and the remaining policy dependencies; no runtime reads it.

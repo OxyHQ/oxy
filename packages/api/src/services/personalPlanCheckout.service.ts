@@ -1,5 +1,8 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { and, eq, gt, inArray } from 'drizzle-orm';
+import { z } from 'zod';
+import { createHash } from 'node:crypto';
+import { uuidv7 } from '@oxy.so/db';
+import type { BillingTaxQuote } from '@peable.to/sdk';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 import {
   personalPlanCheckoutRequestSchema,
   personalPlanCheckoutResultSchema,
@@ -7,7 +10,7 @@ import {
   type PersonalPlanCheckoutResult,
 } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
-import { assertBillingDatabaseNamespace } from '../config/billingNamespace';
+import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
 import {
   users,
   accountClosureFences,
@@ -23,24 +26,45 @@ import {
   type ProductBillingCatalogue,
 } from './productBillingCatalogue.service';
 
-/** HTTP stays closed until Peable supplies the complete financial authority. */
+/** Immutable SDK authority selected once for one checkout intent. */
+export interface PersonalCheckoutSnapshot {
+  applicationId: string;
+  merchantId: string;
+  subjectAccountId: string;
+  planId: string;
+  customerId: string;
+  offerId: string;
+  offerVersion: number;
+  priceId: string;
+  mode: string;
+  environment: string;
+  taxQuote: BillingTaxQuote;
+  returnUrl: string;
+}
+export interface PersonalCheckoutInput {
+  intentId: string;
+  idempotencyKey: string;
+  subjectAccountId: string;
+  offerId: string;
+  offerVersion: number;
+  priceId: string;
+  amountMinorUnits: number;
+  currency: string;
+  providerAccountRef: string;
+  mode: string;
+  environment: string;
+  interval: 'month';
+  trial: 'none';
+  snapshot?: PersonalCheckoutSnapshot;
+}
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
-  create(input: {
-    intentId: string;
-    idempotencyKey: string;
-    subjectAccountId: string;
-    offerId: string;
-    offerVersion: number;
-    priceId: string;
-    amountMinorUnits: number;
-    currency: string;
-    providerAccountRef: string;
-    mode: string;
-    environment: string;
-    interval: 'month';
-    trial: 'none';
-  }): Promise<{ sessionId: string; checkoutUrl: string }>;
+  prepare?(input: PersonalCheckoutInput): Promise<PersonalCheckoutSnapshot>;
+  create(input: PersonalCheckoutInput): Promise<{
+    sessionId: string;
+    checkoutUrl: string;
+    expiresAt?: string;
+  }>;
 }
 function hash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
@@ -165,7 +189,7 @@ export async function startPersonalPlanCheckout(
       .select({ id: accountClosureFences.accountId })
       .from(accountClosureFences)
       .where(eq(accountClosureFences.accountId, subjectAccountId));
-    if (!account || account.kind !== 'personal' || account.status !== 'active' || fences.length)
+    if (account?.kind !== 'personal' || account.status !== 'active' || fences.length)
       throw new ApiError(403, 'Personal account is unavailable', 'ACCOUNT_UNAVAILABLE');
     const scope = and(
       eq(personalPlanCheckoutIntents.subjectAccountId, subjectAccountId),
@@ -214,7 +238,7 @@ export async function startPersonalPlanCheckout(
     const [created] = await tx
       .insert(personalPlanCheckoutIntents)
       .values({
-        id: randomUUID(),
+        id: uuidv7(),
         subjectAccountId,
         ...namespace,
         idempotencyHash,
@@ -235,49 +259,310 @@ export async function startPersonalPlanCheckout(
       .returning();
     return created;
   });
-  if (intent.state === 'closed') return { state: 'closed', intentId: intent.id };
-  if (intent.state === 'fulfilled') return { state: 'fulfilled', intentId: intent.id };
-  if (intent.checkoutUrl)
-    return personalPlanCheckoutResultSchema.parse({
-      state: 'pending',
-      intentId: intent.id,
-      checkoutUrl: intent.checkoutUrl,
-    });
-  // Remote work is outside DB locks. The immutable intent provides provider replay identity.
-  if (!dependencies.provider) return { state: 'unconfigured', reason: 'provider_unconfigured' };
-  const session = await dependencies.provider.create({
-    intentId: intent.id,
-    idempotencyKey: `personal-checkout:${intent.id}`,
-    subjectAccountId,
+  return resumePersonalPlanCheckout(intent.id, {
+    provider: dependencies.provider,
+    now: dependencies.now,
+  });
+}
+
+export function personalCheckoutSnapshotFromIntent(
+  intent: typeof personalPlanCheckoutIntents.$inferSelect,
+): PersonalCheckoutSnapshot | undefined {
+  if (!intent.taxQuoteRef) return undefined;
+  if (
+    !intent.applicationRef ||
+    !intent.customerRef ||
+    !intent.planRef ||
+    !intent.returnUrl ||
+    !intent.taxQuoteCurrency ||
+    intent.taxQuoteNetMinorUnits === null ||
+    intent.taxQuoteTaxMinorUnits === null ||
+    !intent.taxQuoteSellerRef ||
+    !intent.taxQuoteInvoiceIssuerRef ||
+    !intent.taxQuoteTaxRemitterRef ||
+    !intent.taxQuoteTaxServiceRef ||
+    !intent.taxQuoteCountry ||
+    !intent.taxQuoteCoverageEvidenceRef ||
+    !intent.taxQuoteTaxRateEvidenceRef ||
+    !intent.taxQuoteCustomerLocationEvidenceRef ||
+    !intent.taxQuoteQuotedAt ||
+    !intent.taxQuoteExpiresAt ||
+    !intent.taxQuoteQuotedAtLexeme ||
+    !intent.taxQuoteExpiresAtLexeme ||
+    !intent.taxQuoteSignatureKeyRef ||
+    !intent.taxQuoteSignatureValue
+  )
+    throw new ConflictError('Stored checkout authority is incomplete');
+  return {
+    applicationId: intent.applicationRef,
+    merchantId: intent.providerAccountRef,
+    subjectAccountId: intent.subjectAccountId,
+    planId: intent.planRef,
+    customerId: intent.customerRef,
     offerId: intent.offerId,
     offerVersion: intent.offerVersion,
-    priceId: price.priceId,
-    amountMinorUnits: price.amountMinorUnits,
-    currency: price.currency,
-    providerAccountRef: price.providerAccountId,
+    priceId: intent.priceId,
+    mode: intent.mode,
+    environment: intent.environment,
+    returnUrl: intent.returnUrl,
+    taxQuote: {
+      schemaVersion: 1,
+      source: {
+        merchantId: intent.providerAccountRef,
+        appId: intent.applicationRef,
+        storeId: intent.subjectAccountId,
+        planId: intent.planRef,
+        mode: billingNamespaceSchema.parse({ mode: intent.mode, environment: intent.environment })
+          .mode,
+        environment: z.enum(['development', 'staging', 'production']).parse(intent.environment),
+      },
+      quote: {
+        id: intent.taxQuoteRef,
+        currency: intent.taxQuoteCurrency,
+        grossMinorUnits: intent.amountMinorUnits,
+        netMinorUnits: intent.taxQuoteNetMinorUnits,
+        taxMinorUnits: intent.taxQuoteTaxMinorUnits,
+        taxTreatment: 'inclusive',
+        sellerId: intent.taxQuoteSellerRef,
+        invoiceIssuerId: intent.taxQuoteInvoiceIssuerRef,
+        taxRemitterId: intent.taxQuoteTaxRemitterRef,
+        taxServiceRef: intent.taxQuoteTaxServiceRef,
+        country: intent.taxQuoteCountry,
+        coverageEvidenceId: intent.taxQuoteCoverageEvidenceRef,
+        taxRateEvidenceId: intent.taxQuoteTaxRateEvidenceRef,
+        customerLocationEvidenceId: intent.taxQuoteCustomerLocationEvidenceRef,
+        quotedAt: intent.taxQuoteQuotedAtLexeme,
+        expiresAt: intent.taxQuoteExpiresAtLexeme,
+      },
+      signature: {
+        algorithm: 'Ed25519',
+        keyId: intent.taxQuoteSignatureKeyRef,
+        value: intent.taxQuoteSignatureValue,
+      },
+    },
+  };
+}
+/** Typed columns retain exact signed ISO lexemes alongside queryable timestamps. */
+export function personalCheckoutSnapshotColumns(snapshot: PersonalCheckoutSnapshot) {
+  const quote = snapshot.taxQuote.quote;
+  return {
+    returnUrl: snapshot.returnUrl,
+    taxQuoteRef: quote.id,
+    taxQuoteCurrency: quote.currency,
+    taxQuoteNetMinorUnits: quote.netMinorUnits,
+    taxQuoteTaxMinorUnits: quote.taxMinorUnits,
+    taxQuoteSellerRef: quote.sellerId,
+    taxQuoteInvoiceIssuerRef: quote.invoiceIssuerId,
+    taxQuoteTaxRemitterRef: quote.taxRemitterId,
+    taxQuoteTaxServiceRef: quote.taxServiceRef,
+    taxQuoteCountry: quote.country,
+    taxQuoteCoverageEvidenceRef: quote.coverageEvidenceId,
+    taxQuoteTaxRateEvidenceRef: quote.taxRateEvidenceId,
+    taxQuoteCustomerLocationEvidenceRef: quote.customerLocationEvidenceId,
+    taxQuoteQuotedAt: sql`${quote.quotedAt}::timestamptz`,
+    taxQuoteExpiresAt: sql`${quote.expiresAt}::timestamptz`,
+    taxQuoteQuotedAtLexeme: quote.quotedAt,
+    taxQuoteExpiresAtLexeme: quote.expiresAt,
+    taxQuoteSignatureKeyRef: snapshot.taxQuote.signature.keyId,
+    taxQuoteSignatureValue: snapshot.taxQuote.signature.value,
+  };
+}
+function assertSnapshot(snapshot: PersonalCheckoutSnapshot, input: PersonalCheckoutInput) {
+  const source = snapshot.taxQuote?.source;
+  const quote = snapshot.taxQuote?.quote;
+  if (
+    !snapshot.applicationId ||
+    !snapshot.planId ||
+    !snapshot.customerId ||
+    !snapshot.returnUrl ||
+    new URL(snapshot.returnUrl).protocol !== 'https:' ||
+    snapshot.merchantId !== input.providerAccountRef ||
+    snapshot.subjectAccountId !== input.subjectAccountId ||
+    snapshot.offerId !== input.offerId ||
+    snapshot.offerVersion !== input.offerVersion ||
+    snapshot.priceId !== input.priceId ||
+    snapshot.mode !== input.mode ||
+    snapshot.environment !== input.environment ||
+    source?.merchantId !== snapshot.merchantId ||
+    source.appId !== snapshot.applicationId ||
+    source.storeId !== snapshot.subjectAccountId ||
+    source.planId !== snapshot.planId ||
+    source.mode !== snapshot.mode ||
+    source.environment !== snapshot.environment ||
+    snapshot.taxQuote.schemaVersion !== 1 ||
+    snapshot.taxQuote.signature.algorithm !== 'Ed25519' ||
+    quote?.grossMinorUnits !== input.amountMinorUnits ||
+    quote.currency.toUpperCase() !== input.currency.toUpperCase() ||
+    quote.taxTreatment !== 'inclusive' ||
+    !Number.isFinite(Date.parse(quote.expiresAt))
+  )
+    throw new ConflictError('Prepared checkout authority differs');
+}
+
+/** Recover using the persisted authority and provider replay key, without browser input. */
+export async function resumePersonalPlanCheckout(
+  intentId: string,
+  dependencies: { provider: PersonalCheckoutProvider; now?: Date },
+): Promise<PersonalPlanCheckoutResult> {
+  // This technical path remains inactive for real purchases.
+  if (process.env.NODE_ENV !== 'test')
+    throw new ApiError(
+      503,
+      'Consumer checkout provider is unconfigured',
+      'CHECKOUT_NOT_CONFIGURED',
+    );
+  const namespace = await assertBillingDatabaseNamespace(getDb());
+  const clock = () => dependencies.now ?? new Date();
+  const load = async () => {
+    const [intent] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(
+        and(
+          eq(personalPlanCheckoutIntents.id, intentId),
+          eq(personalPlanCheckoutIntents.mode, namespace.mode),
+          eq(personalPlanCheckoutIntents.environment, namespace.environment),
+        ),
+      );
+    if (!intent) throw new ConflictError('Checkout intent is unavailable');
+    return intent;
+  };
+  let intent = await load();
+  const terminal = (row: typeof intent): PersonalPlanCheckoutResult | undefined => {
+    if (row.state === 'closed') return { state: 'closed', intentId: row.id };
+    if (row.state === 'fulfilled') return { state: 'fulfilled', intentId: row.id };
+    if (row.checkoutUrl)
+      return personalPlanCheckoutResultSchema.parse({
+        state: 'pending',
+        intentId: row.id,
+        ...(row.providerSessionExpiresAt && row.providerSessionExpiresAt <= clock()
+          ? {}
+          : { checkoutUrl: row.checkoutUrl }),
+      });
+    return undefined;
+  };
+  const existing = terminal(intent);
+  if (existing) return existing;
+  const input: PersonalCheckoutInput = {
+    intentId,
+    idempotencyKey: `personal-checkout:${intentId}`,
+    subjectAccountId: intent.subjectAccountId,
+    offerId: intent.offerId,
+    offerVersion: intent.offerVersion,
+    priceId: intent.priceId,
+    amountMinorUnits: intent.amountMinorUnits,
+    currency: intent.currency,
+    providerAccountRef: intent.providerAccountRef,
+    mode: intent.mode,
+    environment: intent.environment,
     interval: 'month',
     trial: 'none',
-    ...namespace,
-  });
-  const answer = personalPlanCheckoutResultSchema.parse({
-    state: 'pending',
-    intentId: intent.id,
-    checkoutUrl: session.checkoutUrl,
-  });
-  if (!session.sessionId || session.sessionId.length > 160)
-    throw new Error('Provider session identity differs');
-  await getDb().transaction(async (tx) => {
+  };
+  let snapshot = personalCheckoutSnapshotFromIntent(intent);
+  if (!snapshot && dependencies.provider.prepare) {
+    // Preparation can race. Only the first stored authority wins; losing quotes
+    // are never dispatched and never replace the winner after timeout/restart.
+    const prepared = await dependencies.provider.prepare(input);
+    assertSnapshot(prepared, input);
+    await getDb().transaction(async (tx) => {
+      const [account] = await tx
+        .select({ kind: users.kind, status: users.accountStatus })
+        .from(users)
+        .where(eq(users.id, intent.subjectAccountId))
+        .for('update');
+      const [fence] = await tx
+        .select()
+        .from(accountClosureFences)
+        .where(eq(accountClosureFences.accountId, intent.subjectAccountId));
+      if (account?.kind !== 'personal' || account.status !== 'active' || fence)
+        throw new ApiError(403, 'Personal account is unavailable', 'ACCOUNT_UNAVAILABLE');
+      const [current] = await tx
+        .select()
+        .from(personalPlanCheckoutIntents)
+        .where(eq(personalPlanCheckoutIntents.id, intentId))
+        .for('update');
+      if (!current || current.state === 'closed') throw new ConflictError('Checkout closed');
+      if (!current.taxQuoteRef && current.state !== 'fulfilled')
+        await tx
+          .update(personalPlanCheckoutIntents)
+          .set({
+            applicationRef: prepared.applicationId,
+            customerRef: prepared.customerId,
+            planRef: prepared.planId,
+            ...personalCheckoutSnapshotColumns(prepared),
+          })
+          .where(eq(personalPlanCheckoutIntents.id, intentId));
+    });
+    intent = await load();
+    const result = terminal(intent);
+    if (result) return result;
+    snapshot = personalCheckoutSnapshotFromIntent(intent);
+  }
+  if (!snapshot && dependencies.provider.kind !== 'synthetic')
+    throw new ConflictError('Checkout authority is unavailable');
+  if (snapshot) {
+    assertSnapshot(snapshot, input);
+    if (Date.parse(snapshot.taxQuote.quote.expiresAt) <= clock().getTime())
+      return { state: 'pending', intentId };
+  }
+  // Recheck closure before dispatch; no remote work runs under an account lock.
+  const beforeDispatch = await getDb().transaction(async (tx) => {
+    const [account] = await tx
+      .select({ kind: users.kind, status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, intent.subjectAccountId))
+      .for('update');
+    const [fence] = await tx
+      .select()
+      .from(accountClosureFences)
+      .where(eq(accountClosureFences.accountId, intent.subjectAccountId));
+    if (account?.kind !== 'personal' || account.status !== 'active' || fence)
+      throw new ApiError(403, 'Personal account is unavailable', 'ACCOUNT_UNAVAILABLE');
     const [current] = await tx
       .select()
       .from(personalPlanCheckoutIntents)
-      .where(eq(personalPlanCheckoutIntents.id, intent.id))
+      .where(eq(personalPlanCheckoutIntents.id, intentId))
+      .for('update');
+    if (!current) throw new ConflictError('Checkout intent is unavailable');
+    return terminal(current);
+  });
+  if (beforeDispatch) return beforeDispatch;
+  const session = await dependencies.provider.create({ ...input, snapshot });
+  personalPlanCheckoutResultSchema.parse({
+    state: 'pending',
+    intentId,
+    checkoutUrl: session.checkoutUrl,
+  });
+  if (
+    !session.sessionId ||
+    session.sessionId.length > 160 ||
+    (session.expiresAt !== undefined && !Number.isFinite(Date.parse(session.expiresAt)))
+  )
+    throw new ConflictError('Provider session identity differs');
+  await getDb().transaction(async (tx) => {
+    const [account] = await tx
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, intent.subjectAccountId))
+      .for('update');
+    const [fence] = await tx
+      .select()
+      .from(accountClosureFences)
+      .where(eq(accountClosureFences.accountId, intent.subjectAccountId));
+    if (account?.status !== 'active' || fence)
+      throw new ApiError(403, 'Personal account is unavailable', 'ACCOUNT_UNAVAILABLE');
+    const [current] = await tx
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.id, intentId))
       .for('update');
     if (
       !current ||
       current.state === 'closed' ||
       (current.providerSessionId &&
         (current.providerSessionId !== session.sessionId ||
-          current.checkoutUrl !== session.checkoutUrl))
+          current.checkoutUrl !== session.checkoutUrl ||
+          current.providerSessionExpiresAt?.toISOString() !== session.expiresAt))
     )
       throw new ConflictError('Provider checkout replay differs');
     if (current.state !== 'fulfilled')
@@ -287,10 +572,12 @@ export async function startPersonalPlanCheckout(
           state: 'pending',
           providerSessionId: session.sessionId,
           checkoutUrl: session.checkoutUrl,
+          providerSessionExpiresAt: session.expiresAt ? new Date(session.expiresAt) : null,
         })
-        .where(eq(personalPlanCheckoutIntents.id, intent.id));
+        .where(eq(personalPlanCheckoutIntents.id, intentId));
   });
-  return answer;
+  intent = await load();
+  return terminal(intent) ?? { state: 'pending', intentId };
 }
 
 /** Trusted adapter observation only: never exposed as a browser cancellation endpoint.

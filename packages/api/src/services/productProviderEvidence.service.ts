@@ -249,12 +249,18 @@ export async function recordProductProviderPeriod(
         intent.offerId !== input.offer.offerId ||
         intent.offerVersion !== input.offer.offerVersion ||
         intent.state === 'closed' ||
+        (intent.initialInvoiceId !== null &&
+          intent.initialInvoiceId !== input.paidLine.invoiceId) ||
         (intent.state === 'fulfilled' && intent.fulfilledSourceId !== sourceId)
       )
         throw new ConflictError('Paid evidence checkout attribution differs');
       await tx
         .update(personalPlanCheckoutIntents)
-        .set({ state: 'fulfilled', fulfilledSourceId: sourceId })
+        .set({
+          state: 'fulfilled',
+          fulfilledSourceId: sourceId,
+          initialInvoiceId: input.paidLine.invoiceId,
+        })
         .where(eq(personalPlanCheckoutIntents.id, intent.id));
     }
     return {

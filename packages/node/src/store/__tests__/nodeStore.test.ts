@@ -7,7 +7,12 @@
  * async + subject-keyed.
  */
 
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { Database } from 'bun:sqlite';
 import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { BlobHashMismatchError } from '@oxy.so/protocol/node';
 import { NodeStore } from '../nodeStore';
 import {
@@ -278,5 +283,83 @@ describe('NodeStore', () => {
     // stored blob (the store lowercases before lookup).
     const upper = hash.toUpperCase();
     expect(Buffer.from((await store.getBlob(upper)) as Uint8Array).equals(bytes)).toBe(true);
+  });
+
+  it('maps a unique-index collision to chain_conflict and rolls the append back', async () => {
+    // The continuity check cannot see a concurrent writer; the unique
+    // `record_id` index is the backstop. Reusing the genesis recordId for a
+    // record that otherwise extends the chain trips it, as a racing writer would.
+    const { recordId: genesisId } = await appendGenesis();
+    const second = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      publicKey: owner.publicKey,
+      seq: 1,
+      prev: genesisId,
+    });
+
+    expect(await store.append(SUBJECT, second, genesisId)).toEqual({
+      ok: false,
+      reason: 'chain_conflict',
+    });
+    expect(await store.getHead(SUBJECT)).toEqual({
+      headRecordId: genesisId,
+      seq: 0,
+      recordCount: 1,
+    });
+    expect(await store.getLogSince(SUBJECT, -1, 10)).toHaveLength(1);
+  });
+});
+
+describe('NodeStore on disk', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'oxy-node-store-'));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('opens the file in WAL mode and keeps records and blobs across a reopen', async () => {
+    const path = join(dir, 'node.sqlite');
+    const owner = generateTestKeyPair();
+    const envelope = await buildSignedEnvelope({
+      privateKey: owner.privateKey,
+      publicKey: owner.publicKey,
+      seq: 0,
+      prev: null,
+    });
+    const recordId = await recordIdOf(envelope);
+    const bytes = Buffer.from('persisted blob');
+    const hash = createHash('sha256').update(bytes).digest('hex');
+
+    const first = new NodeStore(path);
+    expect(await first.append(SUBJECT, envelope, recordId)).toEqual({
+      ok: true,
+      recordId,
+      seq: 0,
+    });
+    await first.putBlob(hash, bytes);
+    first.close();
+
+    // journal_mode=WAL is persistent in the file header.
+    const probe = new Database(path, { readonly: true });
+    expect(probe.query('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
+    probe.close();
+
+    const reopened = new NodeStore(path);
+    try {
+      expect(await reopened.getHead(SUBJECT)).toEqual({
+        headRecordId: recordId,
+        seq: 0,
+        recordCount: 1,
+      });
+      const blob = await reopened.getBlob(hash);
+      expect(Buffer.isBuffer(blob)).toBe(true);
+      expect((blob as Buffer).equals(bytes)).toBe(true);
+    } finally {
+      reopened.close();
+    }
   });
 });

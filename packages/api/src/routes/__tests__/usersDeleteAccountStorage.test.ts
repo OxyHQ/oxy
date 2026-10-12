@@ -11,8 +11,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
@@ -20,6 +20,7 @@ let currentUserId: string | undefined;
 let currentServiceAppId: string | undefined;
 let signatureValid = true;
 let forceArchive = false;
+let afterHoldsRead: (() => Promise<void>) | undefined;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: { id: string } }, _res: unknown, next: () => void) => {
@@ -81,6 +82,9 @@ jest.mock('../../services/accountFinancialHolds.service', () => {
     ...actual,
     describeAccountFinancialHolds: async (accountId: string) => {
       const holds = await actual.describeAccountFinancialHolds(accountId);
+      const hook = afterHoldsRead;
+      afterHoldsRead = undefined;
+      if (hook) await hook();
       return forceArchive ? { ...holds, blocksHardDelete: true } : holds;
     },
   };
@@ -97,6 +101,22 @@ import { storageObjectDeletions } from '../../db/schema/storageObjectDeletions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import usersRouter from '../users';
+import { personalPlanCheckoutIntents, accountClosureFences } from '../../db/schema';
+import { productAccessFixture } from '../../services/__fixtures__/productAccessFixtures';
+import {
+  startPersonalPlanCheckout,
+  closePersonalPlanCheckoutFromProvider,
+  type PersonalCheckoutProvider,
+} from '../../services/personalPlanCheckout.service';
+import {
+  EMPTY_PRODUCT_BILLING_CATALOGUE,
+  productBillingCatalogueSchema,
+} from '../../services/productBillingCatalogue.service';
+import {
+  beginAccountClosure,
+  archiveAccountForRetention,
+  describeAccountFinancialHolds,
+} from '../../services/accountFinancialHolds.service';
 
 jest.setTimeout(60_000);
 
@@ -167,6 +187,7 @@ async function seedPersonWithUploads() {
       publicKey: `02${randomBytes(32).toString('hex')}`,
     })
     .returning({ id: users.id, username: users.username });
+  if (!person) throw new Error('Missing fixture person');
   const sha256 = randomBytes(32).toString('hex');
   const storageKey = `public/content/2026/09/${sha256.slice(0, 2)}/${sha256}.jpg`;
   const [photo] = await getDb()
@@ -176,19 +197,20 @@ async function seedPersonWithUploads() {
       size: 10,
       mime: 'image/jpeg',
       ext: 'jpg',
-      ownerUserId: person!.id,
+      ownerUserId: person.id,
       storageKey,
       visibility: 'public',
     })
     .returning({ id: files.id });
+  if (!photo) throw new Error('Missing fixture photo');
   await getDb()
     .insert(fileVariants)
     .values({
-      fileId: photo!.id,
+      fileId: photo.id,
       type: 'thumb',
       key: `public/variants/2026/09/${sha256.slice(0, 2)}/${sha256}/thumb.webp`,
     });
-  return { person: person!, photoId: photo!.id, sha256 };
+  return { person, photoId: photo.id, sha256 };
 }
 
 function deleteBody(username: string) {
@@ -216,7 +238,7 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
     const { person, photoId, sha256 } = await seedPersonWithUploads();
     currentUserId = person.id;
 
-    const response = await callDelete(deleteBody(person.username!));
+    const response = await callDelete(deleteBody(person.username ?? ''));
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: false });
 
@@ -234,7 +256,7 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
     currentUserId = person.id;
     forceArchive = true;
 
-    const response = await callDelete(deleteBody(person.username!));
+    const response = await callDelete(deleteBody(person.username ?? ''));
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ retained: true });
 
@@ -257,11 +279,221 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
     currentUserId = person.id;
     signatureValid = false;
 
-    const response = await callDelete(deleteBody(person.username!));
+    const response = await callDelete(deleteBody(person.username ?? ''));
     expect(response.status).toBe(401);
     expect(
       await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId)),
     ).toHaveLength(1);
     expect(await owed(person.id)).toEqual([]);
   });
+});
+
+async function checkoutFixture(
+  subjectAccountId: string,
+  create: PersonalCheckoutProvider['create'],
+) {
+  const f = await productAccessFixture();
+  const catalogue = productBillingCatalogueSchema.parse({
+    ...EMPTY_PRODUCT_BILLING_CATALOGUE,
+    products: f.products,
+    offers: f.offers,
+    personalPlans: [
+      {
+        offerId: f.offers[0].id,
+        offerVersion: 1,
+        displayName: 'Fixture',
+        kind: 'oxy_one',
+        audience: 'personal',
+        benefitNames: ['First', 'Second'],
+      },
+    ],
+    prices: [
+      {
+        priceId: 'price_closure_fixture',
+        provider: 'peable',
+        providerAccountId: 'merch_closure_fixture',
+        mode: 'live',
+        environment: 'production',
+        offerId: f.offers[0].id,
+        offerVersion: 1,
+        validFrom: '2026-01-01T00:00:00.000Z',
+        validUntil: null,
+        currency: 'usd',
+        amountMinorUnits: 2999,
+        offerKind: 'bundle',
+        kind: 'oxy_one',
+      },
+    ],
+  });
+  return {
+    start: () =>
+      startPersonalPlanCheckout(
+        subjectAccountId,
+        {
+          expectedSubjectAccountId: subjectAccountId,
+          offerId: f.offers[0].id,
+          offerVersion: 1,
+          idempotencyKey: randomUUID(),
+        },
+        { catalogue, provider: { kind: 'synthetic', create } },
+      ),
+  };
+}
+
+it('HTTP closure refuses a live pending session and preserves checkout correlation and optional data', async () => {
+  const { person, photoId } = await seedPersonWithUploads();
+  currentUserId = person.id;
+  signatureValid = true;
+  forceArchive = false;
+  const fixture = await checkoutFixture(person.id, async () => ({
+    sessionId: 'cs_closure',
+    checkoutUrl: 'https://checkout.invalid/closure',
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  }));
+  const checkout = await fixture.start();
+  if (checkout.state !== 'pending') throw new Error('Expected pending checkout');
+  const response = await callDelete(deleteBody(person.username ?? ''));
+  expect(response.status).toBe(409);
+  const holds = await describeAccountFinancialHolds(person.id);
+  expect(holds.pendingCheckoutIntentIds).toEqual([checkout.intentId]);
+  await expect(archiveAccountForRetention(person.id)).rejects.toMatchObject({ statusCode: 409 });
+  await expect(getDb().delete(users).where(eq(users.id, person.id))).rejects.toThrow();
+  expect(
+    await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.id, checkout.intentId)),
+  ).toHaveLength(1);
+  expect(await getDb().select().from(files).where(eq(files.id, photoId))).toHaveLength(1);
+  expect(await owed(person.id)).toEqual([]);
+  expect(
+    await getDb()
+      .select()
+      .from(accountClosureFences)
+      .where(eq(accountClosureFences.accountId, person.id)),
+  ).toEqual([]);
+  // Only the exact trusted terminal observation releases closure; history is retained.
+  await closePersonalPlanCheckoutFromProvider({
+    intentId: checkout.intentId,
+    subjectAccountId: person.id,
+    mode: 'live',
+    environment: 'production',
+    providerAccountRef: 'merch_closure_fixture',
+    providerSessionId: 'cs_closure',
+    reason: 'expired',
+  });
+  expect((await callDelete(deleteBody(person.username ?? ''))).status).toBe(200);
+  expect(
+    (await getDb().select().from(users).where(eq(users.id, person.id)))[0]?.accountStatus,
+  ).toBe('archived');
+  expect(
+    (
+      await getDb()
+        .select()
+        .from(personalPlanCheckoutIntents)
+        .where(eq(personalPlanCheckoutIntents.id, checkout.intentId))
+    )[0]?.state,
+  ).toBe('closed');
+});
+
+it('reservation holds closure during remote dispatch and after a lost response without any session reference', async () => {
+  const { person, photoId } = await seedPersonWithUploads();
+  currentUserId = person.id;
+  signatureValid = true;
+  forceArchive = false;
+  let signalEntered: () => void = () => {
+    throw new Error('Uninitialized latch');
+  };
+  let release: () => void = () => {
+    throw new Error('Uninitialized latch');
+  };
+  const entered = new Promise<void>((resolve) => {
+    signalEntered = resolve;
+  });
+  const paused = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fixture = await checkoutFixture(person.id, async () => {
+    signalEntered();
+    await paused;
+    throw new Error('provider response lost');
+  });
+  const dispatch = fixture.start();
+  const outcome = dispatch.catch((error: Error) => error);
+  await entered;
+  expect((await callDelete(deleteBody(person.username ?? ''))).status).toBe(409);
+  await expect(beginAccountClosure(person.id)).rejects.toMatchObject({ statusCode: 409 });
+  release();
+  expect(await outcome).toMatchObject({ message: 'provider response lost' });
+  const [intent] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, person.id));
+  expect(intent.state).toBe('reserved');
+  expect(intent.providerSessionId).toBeNull();
+  // Unknown remote effect stays held: neither time passing nor missing session proves expiry.
+  expect((await callDelete(deleteBody(person.username ?? ''))).status).toBe(409);
+  expect(await getDb().select().from(files).where(eq(files.id, photoId))).toHaveLength(1);
+  expect(await owed(person.id)).toEqual([]);
+});
+
+it('closure winning the account lock prevents a checkout reservation and remote dispatch', async () => {
+  const { person } = await seedPersonWithUploads();
+  await beginAccountClosure(person.id);
+  const create = jest.fn(async () => ({
+    sessionId: 'never',
+    checkoutUrl: 'https://checkout.invalid/never',
+  }));
+  const fixture = await checkoutFixture(person.id, create);
+  await expect(fixture.start()).rejects.toMatchObject({ statusCode: 403 });
+  expect(create).not.toHaveBeenCalled();
+  expect(
+    await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.subjectAccountId, person.id)),
+  ).toEqual([]);
+});
+
+it('locked closure recheck refuses checkout committed after the HTTP preflight saw no holds', async () => {
+  const { person, photoId } = await seedPersonWithUploads();
+  currentUserId = person.id;
+  signatureValid = true;
+  forceArchive = false;
+  let signalRead: () => void = () => {
+    throw new Error('Uninitialized latch');
+  };
+  let releaseRead: () => void = () => {
+    throw new Error('Uninitialized latch');
+  };
+  const read = new Promise<void>((resolve) => {
+    signalRead = resolve;
+  });
+  const paused = new Promise<void>((resolve) => {
+    releaseRead = resolve;
+  });
+  afterHoldsRead = async () => {
+    signalRead();
+    await paused;
+  };
+  const deletion = callDelete(deleteBody(person.username ?? ''));
+  await read;
+  try {
+    const fixture = await checkoutFixture(person.id, async () => ({
+      sessionId: 'cs_after_preflight',
+      checkoutUrl: 'https://checkout.invalid/after-preflight',
+    }));
+    expect((await fixture.start()).state).toBe('pending');
+  } finally {
+    releaseRead();
+  }
+  expect((await deletion).status).toBe(409);
+  expect(await getDb().select().from(files).where(eq(files.id, photoId))).toHaveLength(1);
+  expect(await owed(person.id)).toEqual([]);
+  expect(
+    await getDb()
+      .select()
+      .from(accountClosureFences)
+      .where(eq(accountClosureFences.accountId, person.id)),
+  ).toEqual([]);
 });

@@ -8,6 +8,7 @@ import {
 } from '../config/billingNamespace';
 import { ApiError } from '../utils/error';
 import { personalPlanCheckoutRequestSchema } from '@oxy.so/contracts';
+import { getPeablePersonalRuntime } from '../services/peablePersonalRuntime.service';
 import { startPersonalPlanCheckout } from '../services/personalPlanCheckout.service';
 import { readPersonalPlanCatalogue } from '../services/personalPlanCatalogue';
 import { assertBillingDatabaseNamespace, billingNamespaceSchema } from '../config/billingNamespace';
@@ -325,7 +326,13 @@ router.post(
     if (!subject) return res.status(401).json({ error: 'Authentication required' });
     try {
       return res.json(
-        await startPersonalPlanCheckout(subject, personalPlanCheckoutRequestSchema.parse(req.body)),
+        await startPersonalPlanCheckout(
+          subject,
+          personalPlanCheckoutRequestSchema.parse(req.body),
+          {
+            provider: getPeablePersonalRuntime()?.checkoutProvider,
+          },
+        ),
       );
     } catch (error) {
       if (error instanceof ApiError)
