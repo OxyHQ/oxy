@@ -874,6 +874,7 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-deploy-asset-variant-worker.sh
           node scripts/test-quiesced-deploy.mjs
           node scripts/test-quiesced-deploy-shell.mjs
           node scripts/test-quiesced-retirement.mjs
