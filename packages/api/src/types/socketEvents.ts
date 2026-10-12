@@ -49,7 +49,11 @@ export interface EmailUnreadCountEvent {
 }
 
 /** Why a message a client already holds is no longer what it holds. */
-export type EmailChangedReason = 'flags' | 'labels' | 'moved' | 'deleted' | 'sent';
+/**
+ * `delivery`: a message the user sent moved between sending, retrying, sent and
+ * failed. Like every reason, it carries no state — the client re-reads it.
+ */
+export type EmailChangedReason = 'flags' | 'labels' | 'moved' | 'deleted' | 'sent' | 'delivery';
 
 /**
  * Emitted to `user:${userId}` when an EXISTING message changes — read/unread,

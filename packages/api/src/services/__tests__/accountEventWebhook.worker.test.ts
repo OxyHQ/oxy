@@ -8,7 +8,7 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { OxyServer } from '@oxy.so/core/server';
 import { SsrfRejection } from '@oxy.so/core/server';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
 import { accountEventDeliveries } from '../../db/schema/accountEvents';
@@ -71,14 +71,22 @@ async function seedDeletion(webhookUrl: string | null) {
     await tx.delete(users).where(eq(users.id, person.id));
     return event;
   });
-  // Park every OTHER app's delivery for this event, so batches claim only ours.
+  // Park every OTHER pending delivery — this event's other recipients, and
+  // whatever earlier suites left due in this worker's database — so a batch
+  // claims ours. Parking only this event's was not enough: a suite that ran
+  // earlier on the same Jest worker can leave more than a batch (500) due, and
+  // ours, the newest, was never reached.
   await getDb()
     .update(accountEventDeliveries)
     .set({ deliveredAt: new Date() })
     .where(
       and(
-        eq(accountEventDeliveries.eventId, recorded.eventId),
-        ne(accountEventDeliveries.applicationId, app.id),
+        isNull(accountEventDeliveries.deliveredAt),
+        isNull(accountEventDeliveries.failedAt),
+        or(
+          ne(accountEventDeliveries.eventId, recorded.eventId),
+          ne(accountEventDeliveries.applicationId, app.id),
+        ),
       ),
     );
   return {

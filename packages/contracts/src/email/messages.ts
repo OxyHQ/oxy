@@ -75,6 +75,39 @@ export const EMAIL_OUTBOX_STATUSES = [
 ] as const;
 export type EmailOutboxStatus = (typeof EMAIL_OUTBOX_STATUSES)[number];
 
+/**
+ * Where a message the user sent stands, as its Sent copy reports it.
+ *
+ * A send is filed in Sent the moment the API accepts it and handed to the relay
+ * afterwards, so being in Sent no longer means having left. `sent` means the
+ * relay took it; `retrying` means an attempt failed and another is scheduled;
+ * `failed` means nothing more will happen on its own.
+ */
+export const EMAIL_DELIVERY_STATES = ['sending', 'retrying', 'sent', 'failed'] as const;
+export type EmailDeliveryState = (typeof EMAIL_DELIVERY_STATES)[number];
+
+/**
+ * Why a delivery is retrying or failed, in words a client can translate.
+ *
+ * - `relay_unavailable`: the relay did not answer or answered 4xx (transient).
+ * - `relay_unconfigured`: this server has no relay; an operator must fix it.
+ * - `relay_auth`: the relay rejected Oxy's credential; an operator must fix it.
+ * - `rejected`: the relay refused this message with a 5xx.
+ * - `retries_exhausted`: it stayed `relay_unavailable` for the whole budget.
+ * - `bounced`: the relay took it, then a recipient's server refused it.
+ * - `cancelled`: the sender stopped it.
+ */
+export const EMAIL_DELIVERY_ERROR_CODES = [
+  'relay_unavailable',
+  'relay_unconfigured',
+  'relay_auth',
+  'rejected',
+  'retries_exhausted',
+  'bounced',
+  'cancelled',
+] as const;
+export type EmailDeliveryErrorCode = (typeof EMAIL_DELIVERY_ERROR_CODES)[number];
+
 // ─── Messages ───────────────────────────────────────────────────────
 
 /** One addressee. A header without a display name carries `name: ''`. */
@@ -126,6 +159,24 @@ export const emailMessageHighlightSchema = z.object({
 export type EmailMessageHighlightWire = z.infer<typeof emailMessageHighlightSchema>;
 
 /**
+ * The delivery of a message the user sent. `error` is the relay's own words;
+ * `errorCode` is the same failure in the vocabulary above, and is `null` when
+ * there is nothing to explain — or when a newer server names a reason this
+ * client does not know yet, which then still reads as a delivery.
+ * `nextAttemptAt` is set only while `retrying`.
+ */
+export const emailMessageDeliverySchema = z.object({
+  state: z.enum(EMAIL_DELIVERY_STATES),
+  attempts: z.number().int(),
+  maxAttempts: z.number().int(),
+  nextAttemptAt: isoInstant.nullable(),
+  error: z.string().nullable(),
+  errorCode: z.enum(EMAIL_DELIVERY_ERROR_CODES).nullable().catch(null),
+  updatedAt: isoInstant,
+});
+export type EmailMessageDeliveryWire = z.infer<typeof emailMessageDeliverySchema>;
+
+/**
  * A stored message as every `/email` read returns it.
  *
  * `_id` and `id` are the same row id (see the "Wire shapes" note in oxy-api's
@@ -175,6 +226,12 @@ export const emailMessageSchema = z.object({
   /** Present only on list reads that walked the thread. */
   threadCount: z.number().int().optional(),
   threadParticipants: z.array(z.string()).optional(),
+  /**
+   * Present only on a message the user sent through Oxy since delivery was
+   * tracked; absent on received mail. A delivery this client cannot read is
+   * dropped rather than allowed to drop the message with it.
+   */
+  delivery: emailMessageDeliverySchema.optional().catch(undefined),
 });
 export type EmailMessageWire = z.infer<typeof emailMessageSchema>;
 

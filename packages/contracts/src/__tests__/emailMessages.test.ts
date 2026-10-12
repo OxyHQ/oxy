@@ -76,6 +76,41 @@ describe('email message wire contract', () => {
     expect(parsed).not.toHaveProperty('somethingNew');
   });
 
+  describe('delivery', () => {
+    const delivery = {
+      state: 'failed',
+      attempts: 5,
+      maxAttempts: 5,
+      nextAttemptAt: null,
+      error: '554 5.7.1 Message rejected',
+      errorCode: 'rejected',
+      updatedAt: NOW,
+    };
+
+    it('is absent on received mail', () => {
+      expect(emailMessageSchema.parse(message())).not.toHaveProperty('delivery');
+    });
+
+    it("reads a sent message's delivery", () => {
+      expect(emailMessageSchema.parse(message({ delivery })).delivery).toEqual(delivery);
+    });
+
+    it('reads a reason it does not know as no reason, keeping the delivery', () => {
+      const parsed = emailMessageSchema.parse(
+        message({ delivery: { ...delivery, errorCode: 'quarantined' } }),
+      );
+      expect(parsed.delivery).toEqual({ ...delivery, errorCode: null });
+    });
+
+    it('drops a delivery it cannot read instead of dropping the message', () => {
+      const parsed = emailMessageSchema.parse(
+        message({ delivery: { ...delivery, state: 'teleported' } }),
+      );
+      expect(parsed.id).toBe('m1');
+      expect(parsed.delivery).toBeUndefined();
+    });
+  });
+
   it('accepts a contact without company or notes', () => {
     expect(
       emailContactSchema.safeParse({

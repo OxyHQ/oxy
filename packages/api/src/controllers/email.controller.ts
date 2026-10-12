@@ -2,14 +2,14 @@
  * Email Controller
  *
  * Request handlers for all /email routes.
- * Delegates to emailService for business logic and smtpOutbound for sending.
+ * Delegates to emailService for business logic and emailDelivery for sending.
  */
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
-import { smtpOutbound } from '../services/smtp.outbound';
+import { acceptOutboundMessage, retryMessageDelivery } from '../services/emailDelivery.service';
 import { findSuppressed } from '../services/emailSuppression.service';
 import { assetService } from '../services/assetServiceSingleton';
 import { resolveEmailAddress } from '../config/email.config';
@@ -667,7 +667,7 @@ export async function sendMessageForUser(
     };
   }
 
-  const result = await smtpOutbound.send({
+  const result = await acceptOutboundMessage({
     userId,
     from: { name: fromName, address: fromAddress },
     to,
@@ -691,8 +691,8 @@ export async function sendMessageForUser(
     await emailService.updateMessageFlags(userId, threading.parentRowId, { answered: true });
   }
 
-  // A queued message is held by the server's durable outbox, so the draft has
-  // done its job either way.
+  // The message is filed in Sent and the server holds its delivery, so the
+  // draft has done its job whatever the relay says next.
   if (draftId) {
     await emailService.deleteSentDraft(userId, draftId);
   }
@@ -704,12 +704,19 @@ export async function sendMessageForUser(
     });
   });
 
+  // `delivery` is where it stands at the moment of the answer — `sending`,
+  // normally; every later change arrives as `email:changed` reason `delivery`.
+  // `queued` survives only for clients older than this answer: it is true when
+  // an earlier attempt under the same key already failed.
+  const state = result.delivery?.state;
   return {
     status: 202,
     data: {
+      id: result.messageRowId,
       messageId: result.messageId,
-      queued: result.queued,
-      message: result.queued ? 'Message queued for delivery' : 'Message sent',
+      queued: state === 'retrying' || state === 'failed',
+      delivery: result.delivery,
+      message: 'Message accepted for delivery',
     },
   };
 }
@@ -799,6 +806,10 @@ export async function retryOutboundMessage(req: AuthRequest, res: Response): Pro
 
 export async function cancelOutboundMessage(req: AuthRequest, res: Response): Promise<void> {
   res.json({ data: await cancelEmailOutbox(req.user!.id, req.params.outboxId) });
+}
+
+export async function retryMessageDeliveryHandler(req: AuthRequest, res: Response): Promise<void> {
+  res.json({ data: await retryMessageDelivery(req.user!.id, req.params.messageId) });
 }
 
 export async function listSavedSearches(req: AuthRequest, res: Response): Promise<void> {

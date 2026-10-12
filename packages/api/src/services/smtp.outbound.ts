@@ -1,32 +1,23 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport';
+import type { EmailDeliveryErrorCode } from '@oxy.so/contracts';
 import {
-  SMTP_OUTBOUND_CONFIG,
   SMTP_RELAYS,
   DKIM_CONFIG,
   EMAIL_DOMAIN,
   type SmtpRelayConfig,
 } from '../config/email.config';
-import { emailService } from './email.service';
 import { assetService } from './assetServiceSingleton';
 import type { MessageAttachment } from '../db/schema/messageAttachments';
 import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
-import { idempotentMessageId } from './emailIdempotency';
-import {
-  claimIdempotentSend,
-  enqueueEmailOutbox,
-  markEmailOutboxFailed,
-  markEmailOutboxSent,
-  releaseIdempotentSend,
-} from './emailOutbox.service';
 import { OXY_SENT_ID_HEADER, relayAssignedMessageId } from './relayMessageId';
 import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import { ServiceUnavailableError } from '../utils/error';
 
-interface OutboundMessage {
+export interface OutboundMessage {
   userId: string;
   from: EmailAddress;
   to: EmailAddress[];
@@ -51,7 +42,7 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
 } satisfies Pick<SMTPTransport.Options, 'disableFileAccess' | 'disableUrlAccess'>;
 
 /** What the durable outbox keeps to deliver a message later. */
-function outboxPayload(message: OutboundMessage): EmailOutboxPayload {
+export function outboxPayload(message: OutboundMessage): EmailOutboxPayload {
   return {
     from: message.from,
     to: message.to,
@@ -79,6 +70,16 @@ export class SmtpConfigurationError extends ServiceUnavailableError {
     super(message);
     this.name = 'SmtpConfigurationError';
   }
+}
+
+/** The error every path raises when no relay is configured at all. */
+export function missingRelayError(): SmtpConfigurationError {
+  return new SmtpConfigurationError(
+    'Outbound email is not configured on this server: SMTP_RELAY_HOST is unset. ' +
+      'Nodemailer removed the legacy `{ direct: true }` MX-resolution path, so a relay ' +
+      'is mandatory; set SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS. ' +
+      'The host accepts a comma-separated list for failover.',
+  );
 }
 
 /**
@@ -119,6 +120,18 @@ export function isRetryableSmtpFailure(error: unknown): boolean {
   if (typeof error !== 'object' || error === null || !('responseCode' in error)) return true;
   const responseCode = error.responseCode;
   return typeof responseCode !== 'number' || responseCode < 500 || responseCode >= 600;
+}
+
+/**
+ * The same verdict as {@link isRetryableSmtpFailure}, named for the sender: a
+ * client explains a failed delivery by this code, in the user's language, and
+ * shows the relay's own words underneath. Only `relay_unavailable` is
+ * retryable.
+ */
+export function deliveryErrorCode(error: unknown): EmailDeliveryErrorCode {
+  if (error instanceof SmtpConfigurationError) return 'relay_unconfigured';
+  if (isAuthenticationFailure(error)) return 'relay_auth';
+  return isRetryableSmtpFailure(error) ? 'relay_unavailable' : 'rejected';
 }
 
 /**
@@ -166,14 +179,7 @@ class SmtpOutboundService {
 
   /** The configured relays, in preference order. */
   private get relays(): SmtpRelayConfig[] {
-    if (SMTP_RELAYS.length === 0) {
-      throw new SmtpConfigurationError(
-        'Outbound email is not configured on this server: SMTP_RELAY_HOST is unset. ' +
-          'Nodemailer removed the legacy `{ direct: true }` MX-resolution path, so a relay ' +
-          'is mandatory; set SMTP_RELAY_HOST/SMTP_RELAY_PORT/SMTP_RELAY_USER/SMTP_RELAY_PASS. ' +
-          'The host accepts a comma-separated list for failover.',
-      );
-    }
+    if (SMTP_RELAYS.length === 0) throw missingRelayError();
     return SMTP_RELAYS;
   }
 
@@ -282,111 +288,10 @@ class SmtpOutboundService {
   }
 
   /**
-   * Send a user's message and file it in their Sent mailbox.
-   *
-   * With an `idempotencyKey`, the send is first CLAIMED durably
-   * ({@link claimIdempotentSend}): a retry of the same key — from a client that
-   * timed out while the relay was still talking, from a double press, or on
-   * another API task — returns the first attempt's outcome instead of sending
-   * again. `queued: true` then means "accepted and still in flight or waiting
-   * to retry"; the outbox shows which.
-   */
-  async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
-    if (!message.idempotencyKey) {
-      return this.deliverAndStore(message, `<${uuidv4()}@${EMAIL_DOMAIN}>`, null);
-    }
-
-    const messageId = idempotentMessageId(message.userId, message.idempotencyKey);
-    // Delivered and filed before the outbox row existed, or before it was kept.
-    if (await emailService.findMessageByRfcMessageId(message.userId, messageId)) {
-      return { messageId, queued: false };
-    }
-
-    const claim = await claimIdempotentSend({
-      userId: message.userId,
-      idempotencyKey: message.idempotencyKey,
-      messageId,
-      payload: outboxPayload(message),
-      owner: `request:${uuidv4()}`,
-    });
-    if (!claim.claimed) {
-      return { messageId: claim.existing.messageId, queued: claim.existing.status !== 'sent' };
-    }
-    return this.deliverAndStore(message, messageId, claim.outboxId);
-  }
-
-  private async deliverAndStore(
-    message: OutboundMessage,
-    messageId: string,
-    outboxId: string | null,
-  ): Promise<{ messageId: string; queued: boolean }> {
-    try {
-      const attachments = await this.resolveAttachments(message.attachments || []);
-      const { relayMessageId } = await this.deliverThroughRelays(
-        this.mailOptionsFor(message, messageId, attachments),
-      );
-
-      const size = Buffer.byteLength((message.text || '') + (message.html || ''), 'utf8');
-      await emailService.storeSentMessage(message.userId, {
-        messageId,
-        relayMessageId,
-        from: message.from,
-        to: message.to,
-        cc: message.cc,
-        bcc: message.bcc,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-        inReplyTo: message.inReplyTo,
-        references: message.references,
-        attachments: message.attachments,
-        size,
-      });
-      if (outboxId) await markEmailOutboxSent(outboxId);
-
-      logger.info('Email sent', {
-        messageId,
-        to: message.to.map((a) => a.address).join(', '),
-      });
-      return { messageId, queued: false };
-    } catch (error) {
-      if (!isRetryableSmtpFailure(error)) {
-        // Permanent. Do NOT queue: a row in the outbox is a promise that this
-        // message will go out later, and that promise would be a lie. Give the
-        // claim back and let it propagate so the caller answers with a real
-        // failure — and a corrected retry with the same key can try again.
-        if (outboxId) await releaseIdempotentSend(outboxId);
-        logger.error(
-          'Email send permanently rejected; not queued',
-          error instanceof Error ? error : new Error(String(error)),
-          { messageId, to: message.to.map((a) => a.address).join(', ') },
-        );
-        throw error;
-      }
-      logger.error(
-        'Email send failed, queuing for retry',
-        error instanceof Error ? error : new Error(String(error)),
-      );
-      const nextAttemptAt = new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]);
-      if (outboxId) {
-        await markEmailOutboxFailed(outboxId, error, nextAttemptAt);
-      } else {
-        await enqueueEmailOutbox({
-          userId: message.userId,
-          messageId,
-          payload: outboxPayload(message),
-          nextAttemptAt,
-        });
-      }
-      logger.warn('Email persisted in durable outbox', { messageId });
-      return { messageId, queued: true };
-    }
-  }
-
-  /**
-   * Send a message via SMTP without storing it in the Sent mailbox — for mail
-   * that is already stored (scheduled, outbox) or never is (forwarding).
-   * Returns the id the relay substituted for ours, if it did.
+   * Hand one message to the relay, and nothing else. A user's message is filed
+   * in Sent and tracked by `emailDelivery.service.ts`, which calls this; mail
+   * that is never filed (forwarding) calls it directly. Returns the id the relay
+   * substituted for ours, if it did.
    */
   async sendRaw(message: OutboundMessage): Promise<{ relayMessageId: string | null }> {
     const messageId = message.messageId ?? `<${uuidv4()}@${EMAIL_DOMAIN}>`;
