@@ -66,7 +66,7 @@ beforeEach(() => {
   mockSend.mockReset();
   mockSend.mockResolvedValue({
     messageId: `<sent-${unique()}@oxy.so>`,
-    messageRowId: null,
+    messageRowId: `row-${unique()}`,
     delivery: null,
   });
 });
@@ -85,7 +85,7 @@ describe('sending a draft', () => {
   it('removes the draft when the relay already failed once and the server will retry', async () => {
     mockSend.mockResolvedValue({
       messageId: `<retrying-${unique()}@oxy.so>`,
-      messageRowId: null,
+      messageRowId: `row-${unique()}`,
       delivery: { state: 'retrying' },
     });
     const userId = await account();
@@ -118,6 +118,21 @@ describe('sending a draft', () => {
     await expect(sendMessageForUser(userId, { ...base, draftId: draft.id })).rejects.toThrow(
       'relay down',
     );
+
+    expect(await exists(draft.id)).toBe(true);
+  });
+
+  it('keeps the draft when the send was answered without a Sent copy to show for it', async () => {
+    // A repeat of a key accepted before sends were filed first.
+    mockSend.mockResolvedValue({
+      messageId: `<legacy-${unique()}@oxy.so>`,
+      messageRowId: null,
+      delivery: { state: 'sent' },
+    });
+    const userId = await account();
+    const draft = await emailService.saveDraft(userId, { ...base });
+
+    await sendMessageForUser(userId, { ...base, draftId: draft.id });
 
     expect(await exists(draft.id)).toBe(true);
   });

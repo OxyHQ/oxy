@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lte, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, or, sql } from 'drizzle-orm';
 import type { EmailDeliveryState } from '@oxy.so/contracts';
 import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
 import {
@@ -208,6 +208,20 @@ export async function enqueueEmailOutbox(input: EnqueueEmailOutboxInput): Promis
   }
 }
 
+/** The committed claim a send under this Idempotency-Key took, if one did. */
+export async function findSendClaim(
+  userId: string,
+  idempotencyKey: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<EmailOutboxRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.userId, userId), eq(emailOutbox.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  return row;
+}
+
 /** The outcome of {@link claimSend}. */
 export type SendClaim =
   | { claimed: true; row: EmailOutboxRow }
@@ -271,16 +285,7 @@ export async function claimSend(
     throw new Error('Outbox insert without an idempotency key conflicted');
   }
 
-  const [existing] = await db
-    .select()
-    .from(emailOutbox)
-    .where(
-      and(
-        eq(emailOutbox.userId, input.userId),
-        eq(emailOutbox.idempotencyKey, input.idempotencyKey),
-      ),
-    )
-    .limit(1);
+  const existing = await findSendClaim(input.userId, input.idempotencyKey, db);
   if (!existing) {
     // The holder's row went away between our insert and this read. Take the
     // claim ourselves.
@@ -302,25 +307,44 @@ export async function linkOutboxToMessage(
   await db.update(emailOutbox).set({ messageRowId }).where(eq(emailOutbox.id, outboxId));
 }
 
+/** A delivery in flight whose holder stopped holding it: its task died, or it never had a lease. */
+function abandonedDelivery(now: Date) {
+  return and(
+    eq(emailOutbox.status, 'processing'),
+    or(isNull(emailOutbox.lockedAt), lt(emailOutbox.lockedAt, new Date(now.getTime() - LEASE_MS))),
+  );
+}
+
+/**
+ * Claim the next delivery that is due: a retry whose time has come, or one
+ * whose holder died mid-attempt.
+ *
+ * Both are bounded by the same budget. An abandoned attempt may well have
+ * reached the relay — the task can die after the relay accepted and before the
+ * row said so — so adopting one is a resend, and adopting one whatever its
+ * attempt count turned any bookkeeping fault after an accepted send into the
+ * same message going out again every lease. {@link failAbandonedDeliveries}
+ * settles what this no longer adopts.
+ */
 export async function claimEmailOutbox(
   workerId: string,
 ): Promise<typeof emailOutbox.$inferSelect | undefined> {
   const db = getDb();
   const now = new Date();
-  const leaseExpiredAt = new Date(now.getTime() - LEASE_MS);
   return db.transaction(async (tx) => {
     const [candidate] = await tx
       .select()
       .from(emailOutbox)
       .where(
-        or(
-          and(
-            inArray(emailOutbox.status, ['pending', 'failed']),
-            lte(emailOutbox.nextAttemptAt, now),
-            lt(emailOutbox.attempts, MAX_ATTEMPTS),
+        and(
+          lt(emailOutbox.attempts, MAX_ATTEMPTS),
+          or(
+            and(
+              inArray(emailOutbox.status, ['pending', 'failed']),
+              lte(emailOutbox.nextAttemptAt, now),
+            ),
+            abandonedDelivery(now),
           ),
-          and(eq(emailOutbox.status, 'processing'), isNull(emailOutbox.lockedAt)),
-          and(eq(emailOutbox.status, 'processing'), lt(emailOutbox.lockedAt, leaseExpiredAt)),
         ),
       )
       .orderBy(asc(emailOutbox.nextAttemptAt), asc(emailOutbox.createdAt))
@@ -343,6 +367,30 @@ export async function claimEmailOutbox(
       .returning();
     return claimed;
   });
+}
+
+/**
+ * Settle every abandoned delivery with no attempts left as `failed`, so the
+ * message says it did not go out (as far as anyone knows) instead of reading
+ * as being retried forever. A user can still retry it, which is a resend they
+ * chose. Returns the rows that changed.
+ */
+export async function failAbandonedDeliveries(): Promise<
+  { userId: string; messageRowId: string | null }[]
+> {
+  return getDb()
+    .update(emailOutbox)
+    .set({
+      status: 'failed',
+      lockedAt: null,
+      lockedBy: null,
+      lastError:
+        'Delivery was interrupted before the relay answered, and its attempts are spent. ' +
+        'It may have been delivered; retry it to send it again.',
+      errorCode: 'relay_unavailable',
+    })
+    .where(and(abandonedDelivery(new Date()), gte(emailOutbox.attempts, MAX_ATTEMPTS)))
+    .returning({ userId: emailOutbox.userId, messageRowId: emailOutbox.messageRowId });
 }
 
 export async function markEmailOutboxSent(id: string): Promise<void> {

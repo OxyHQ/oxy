@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Fixed (a send's Idempotency-Key, and a delivery the relay took)
+
+- `POST /email/messages` refuses an `Idempotency-Key` reused for a DIFFERENT
+  message (recipients, subject, body, threading, attachments) with `422
+  VALIDATION_ERROR`, `details.reason: "idempotency_key_reused"`. It used to
+  answer with the first send's acceptance and then delete the second request's
+  draft, losing it. A repeat of the same message still answers with the first
+  send, and the draft is deleted only once the message is filed in Sent.
+- A repeat waits at most 5 s on the first request's claim and then answers
+  `503 SERVICE_UNAVAILABLE` (`details.retryable: true`); the client retries
+  with the same key. The accept transaction also ends its own session after
+  15 s idle, so a first request whose task stopped answering frees its claim
+  instead of holding a pooled connection on every repeat until keepalive.
+- A delivery the relay accepted is marked `sent` before anything else is
+  recorded. A send claimed before Sent copies were filed first, whose Sent copy
+  then did not fit the quota, was never marked and went out again every time
+  the outbox worker re-adopted it (about every 10 minutes).
+- The outbox worker adopts an abandoned delivery only while it has attempts
+  left; one without is settled as `failed` (`retries_exhausted`) rather than
+  re-sent without end.
+
 ### Fixed (a repeated send always names its Sent row)
 
 - `POST /email/messages` claims the send and files its Sent copy in ONE

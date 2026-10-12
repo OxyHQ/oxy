@@ -692,8 +692,11 @@ export async function sendMessageForUser(
   }
 
   // The message is filed in Sent and the server holds its delivery, so the
-  // draft has done its job whatever the relay says next.
-  if (draftId) {
+  // draft has done its job whatever the relay says next. Only then: a refused
+  // send (a full mailbox, an Idempotency-Key reused for another message) threw
+  // before this line, and a legacy send answered without a Sent copy leaves
+  // the draft as the only copy of what was written.
+  if (draftId && result.messageRowId) {
     await emailService.deleteSentDraft(userId, draftId);
   }
 
