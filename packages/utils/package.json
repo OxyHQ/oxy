@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/utils",
-  "version": "1.1.0",
-  "description": "Dependency-free helpers shared across every Oxy service \u2014 SQL LIKE-pattern escaping, page-window clamping, and the small pure functions that were being copied between repos.",
+  "version": "1.2.0",
+  "description": "Dependency-free helpers shared across every Oxy service — SQL LIKE-pattern escaping, page-window clamping, and the small pure functions that were being copied between repos.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -18,6 +18,9 @@
       ],
       "date": [
         "dist/types/date.d.ts"
+      ],
+      "image": [
+        "dist/types/image.d.ts"
       ]
     }
   },
@@ -74,6 +77,16 @@
       "require": {
         "types": "./dist/types/date.d.ts",
         "default": "./dist/cjs/date.js"
+      }
+    },
+    "./image": {
+      "import": {
+        "types": "./dist/types/image.d.ts",
+        "default": "./dist/esm/image.js"
+      },
+      "require": {
+        "types": "./dist/types/image.d.ts",
+        "default": "./dist/cjs/image.js"
       }
     },
     "./package.json": "./package.json"
