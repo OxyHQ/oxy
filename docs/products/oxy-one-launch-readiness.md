@@ -1,8 +1,14 @@
-# Oxy One Personal launch readiness — inactive local handoff
+# Oxy One Personal launch readiness — commercial activation disabled
 
-## 2026-10-11 inactive checkout review
+## 2026-10-12 deployed technical checkout, recovery follow-up
 
-Peable #118 is integrated at `6f13df1cc9bbbced6ea1990818de1a18e450e87e`; main CI passed. The next exact packages are `@peable.to/shared-types@0.3.3-oxy-one.0` and `@peable.to/sdk@0.2.6-oxy-one.0`, both under `oxy-one`. Publication is already authorized but still requires an existing authenticated local publisher; the cloud has no npm session. Compare registry downloads with the same locally verified artifacts actually published, not with another machine's archive hashes. Registry dependency adoption and final CI are pending in Oxy #1648; temporary tarballs prove integration only.
+Oxy #1648 is merged at `fc95f76fcf72e914b8bf17d0c2275848b3435e57` and deployed on 2026-10-12 at 07:46 UTC. The API manifest and registry lock adopt `@peable.to/sdk@0.2.6-oxy-one.0` and its exact `@peable.to/shared-types@0.3.3-oxy-one.0` dependency. Their publication and registry adoption are complete; do not republish these immutable versions or request authentication for that completed release.
+
+Commercial purchases remain disabled. Technical deployment does not establish fiscal configuration, live payment acceptance or launch approval. Recovery still needs an authenticated operation-key read after a lost checkout response and immutable initial-invoice discovery after later renewals. Absence, expiry and provider uncertainty do not prove cancellation; holds remain until an exact authoritative terminal observation. Follow-up implementation requires independent review before integration.
+
+## 2026-10-11 inactive checkout review (historical)
+
+Peable #118 was integrated at `6f13df1cc9bbbced6ea1990818de1a18e450e87e`; main CI passed. Its `@peable.to/shared-types@0.3.3-oxy-one.0` and `@peable.to/sdk@0.2.6-oxy-one.0` release and Oxy #1648 adoption subsequently completed, as recorded above. Earlier temporary-tarball validation was preparation evidence, not registry acceptance.
 
 The full synthetic acceptance exercises Oxy HTTP → official SDK customer, signed quote and checkout → Peable HTTP/SQL fixture → signed initial invoice → atomic Oxy fulfillment. It proves neither real fiscal configuration nor live financial acceptance. Purchases remain disabled; fiscal roles/countries/tax service, FAIR renewal/grace, conversion and partial refunds remain commercial gates. I08 approval for Mercaria does not approve Oxy One fiscal policy.
 
@@ -167,9 +173,9 @@ outbox delivery retryable. Recovery records the source as deferred and revisits 
 on the next cursor cycle while continuing other sources. This is a retry repair,
 not a durable manual-review queue per invoice; no refund policy is inferred.
 
-The source requires the unpublished Peable SDK `0.2.4-oxy-one.0` and shared-types
-`0.3.2-oxy-one.0` candidate APIs. Their immutable source snapshot is Peable
-`b44d490792ab47618a74090ca53ce35e78f1da09`. Publication is authorized but npm
-identity verification in this environment returns `ENEEDAUTH`. The consumer keeps
-its current registry dependency until that release exists, so registry-only API
-build remains blocked. Local candidate checks do not close publication or CI.
+This dated slice originally used Peable SDK `0.2.4-oxy-one.0` and shared-types
+`0.3.2-oxy-one.0` candidate APIs from Peable
+`b44d490792ab47618a74090ca53ce35e78f1da09`. Publication and registry adoption
+subsequently completed; the deployed API now uses SDK `0.2.6-oxy-one.0` and
+shared-types `0.3.3-oxy-one.0`. The former authentication/publication block is
+closed. Current recovery and commercial gates are recorded at the top.
