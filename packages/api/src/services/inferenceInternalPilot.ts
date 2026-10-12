@@ -1,5 +1,10 @@
 /** Controlled payload budget, not a certified provider token or billing ceiling. */
 import type { InternalMeteredPilot } from '../config/inferenceEconomicPolicy';
+import {
+  type InferenceFundingPriority,
+  PROMOTIONAL_CREDIT_FUNDING_PRIORITY,
+} from './inferenceCatalogue.service';
+import type { ConcretePowerLevel } from './inferencePowerLevels.service';
 import type { NormalizedEdgeRequest } from '../schemas/inferenceEdge.schemas';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 import { hashScopedInput } from './scopedExecution.service';
@@ -88,4 +93,35 @@ export function pilotAllowsDeployment(
       allowed.modelReference === route.modelReference &&
       allowed.provider === route.provider,
   );
+}
+
+/**
+ * ADR 0037: the levels a pilot request NAMING `level` is resolved over —
+ * `[level, fallbackLevel]` when the pilot's promotional-credit lane covers it
+ * (the fallback only when the application's policy allows it), otherwise
+ * `undefined` and the ordinary single level applies. Priority 0 is the lane's.
+ */
+export function promotionalLaneLevels(
+  pilot: InternalMeteredPilot | undefined,
+  level: ConcretePowerLevel,
+  allowed: (level: ConcretePowerLevel) => boolean,
+): ConcretePowerLevel[] | undefined {
+  const lane = pilot?.promotionalCredit;
+  if (lane === undefined || !lane.levels.includes(level)) return undefined;
+  return lane.fallbackLevel !== level && allowed(lane.fallbackLevel)
+    ? [level, lane.fallbackLevel]
+    : [level];
+}
+
+/**
+ * Whether a route's CURRENT economics are an available promotional credit
+ * grant. `fundingPriority` exists only for evidence that resolved available
+ * and inside its observation window at this request (`fundingPriorityFor`), so
+ * a spent, stale or unknown grant is never promotional here, and a route the
+ * sync fell back to `standard_payg` is not either. No name participates.
+ */
+export function fundedByPromotionalCredit(route: {
+  readonly fundingPriority: InferenceFundingPriority;
+}): boolean {
+  return route.fundingPriority === PROMOTIONAL_CREDIT_FUNDING_PRIORITY;
 }

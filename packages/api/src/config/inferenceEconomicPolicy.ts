@@ -40,13 +40,17 @@
  * monetary hold must not remove the limit the hold used to imply.
  */
 
-import type { InferenceEnvironment, InferenceEconomicTreatment } from '@oxy.so/contracts';
+import type {
+  InferenceEconomicTreatment,
+  InferenceEnvironment,
+  PowerLevel,
+} from '@oxy.so/contracts';
 
 /**
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-04.2';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-12.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -69,6 +73,29 @@ export interface InternalMeteredCapacity {
   };
 }
 
+/**
+ * ADR 0037: the pilot's terms for routes funded by an available promotional
+ * credit grant. Admission reads the route's own funding evidence — never a
+ * provider, model or deployment name — and only at the named power levels.
+ */
+export interface InternalMeteredPromotionalCredit {
+  /**
+   * The levels a request must NAME for a promotionally funded route to be
+   * admitted. `auto` is not one: it never reaches `pro`/`ultra` and must not
+   * spend a grant on its everyday levels.
+   */
+  readonly levels: readonly Exclude<PowerLevel, 'auto'>[];
+  /**
+   * The level whose ordinary pilot routes are signed at the next priority, so a
+   * request at a promotional level is still served when no grant-funded route
+   * qualifies (spent, stale, unknown, over the ceiling) and Kaana can fail over
+   * to them before the first output.
+   */
+  readonly fallbackLevel: Exclude<PowerLevel, 'auto'>;
+  /** Exact USD quote ceiling for a route admitted by its promotional funding. */
+  readonly maxPricePerRequestUsd: string;
+}
+
 export interface InternalMeteredPilot {
   readonly maxControlledInputBudget: number;
   /** Optional text-completion ceiling; decisions retain the base ceiling. */
@@ -81,6 +108,8 @@ export interface InternalMeteredPilot {
     readonly modelReference: string;
     readonly provider: string;
   }[];
+  /** Absent: only the exact {@link deployments} above are ever admitted. */
+  readonly promotionalCredit?: InternalMeteredPromotionalCredit;
 }
 
 export interface InternalMeteredRelationship {
@@ -152,6 +181,18 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
           provider: 'openrouter',
         },
       ],
+      // ADR 0037. Pro and Ultra, when named, may run on any route whose current
+      // scorecard says an AVAILABLE, in-window promotional credit grant funds it
+      // (today Kaana's direct Anthropic key). A standard-paid route of the same
+      // model (OpenRouter's Claude) is never admitted, and spent, stale or
+      // unknown evidence removes the route, leaving the XHigh routes above.
+      // USD 1.00 admits Opus 4.x/5 at the full 126,976-unit input plus 2048
+      // output ($0.686); the grant, not this ceiling, bounds the month.
+      promotionalCredit: {
+        levels: ['pro', 'ultra'],
+        fallbackLevel: 'xhigh',
+        maxPricePerRequestUsd: '1.00',
+      },
     },
   },
 ];

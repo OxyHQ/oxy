@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 /**
  * Workload attestation: how a first-party service proves what it IS, with no
@@ -260,7 +261,7 @@ export class AwsIamAttestationVerifier implements AttestationVerifier {
   private readonly now: () => number;
 
   constructor(options: { fetch?: typeof fetch; now?: () => number } = {}) {
-    this.fetchImpl = options.fetch ?? fetch;
+    this.fetchImpl = options.fetch ?? tracedFetch;
     this.now = options.now ?? Date.now;
   }
 

@@ -27,6 +27,7 @@ import {
   accountBalances,
   applicationCredentials,
   applications,
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceMeteredUsage,
   inferenceModelRevisions,
@@ -397,7 +398,10 @@ interface Caller {
  */
 async function makeApprovedHighRoute(ownerAccountId: string): Promise<void> {
   const db = getDb();
-  await db.insert(inferencePublishers).values({ slug: 'deepseek', displayName: 'DeepSeek' });
+  await db
+    .insert(inferencePublishers)
+    .values({ slug: 'deepseek', displayName: 'DeepSeek' })
+    .onConflictDoNothing();
   const [model] = await db
     .insert(inferenceModels)
     .values({
@@ -444,15 +448,19 @@ async function makeApprovedHighRoute(ownerAccountId: string): Promise<void> {
       reviewedBy: 'accepted-readonly-catalogue-fixture',
     })
     .onConflictDoNothing();
-  await db.insert(inferenceProviders).values({
-    slug: 'openrouter',
-    displayName: 'OpenRouter',
-    kind: 'third_party',
-    retainsPayloads: false,
-    retentionDays: 0,
-    trainsOnCustomerData: false,
-    zeroDataRetentionAvailable: true,
-  });
+  // Another suite on this worker's database may already hold `openrouter`.
+  await db
+    .insert(inferenceProviders)
+    .values({
+      slug: 'openrouter',
+      displayName: 'OpenRouter',
+      kind: 'third_party',
+      retainsPayloads: false,
+      retentionDays: 0,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+    })
+    .onConflictDoNothing();
   const [price] = await db
     .insert(priceVersions)
     .values({
@@ -500,6 +508,193 @@ async function makeApprovedHighRoute(ownerAccountId: string): Promise<void> {
     priceVersionId: price.id,
     changedByUserId: ownerAccountId,
   });
+}
+
+/**
+ * ADR 0037 fixtures: Claude lines served twice, like production since
+ * 2026-10-11 — Kaana's direct Anthropic route on the promotional grant and
+ * OpenRouter's standard-paid route of the same model, at the same list price.
+ * The classes are migration 0129's (Opus 4.8 Pro, Opus 5 Ultra), written here
+ * too: another suite on this worker's database may have cleared them
+ * (`clearPowerClassesForTest`).
+ */
+const CLAUDE = {
+  pro: {
+    model: 'claude-opus-4.8',
+    powerClass: 'pro',
+    promotional: 'dep_anthropic_claude_opus_4_8_fixture',
+    paid: 'dep_openrouter_anthropic_claude_opus_4_8_fixture',
+  },
+  ultra: {
+    model: 'claude-opus-5',
+    powerClass: 'ultra',
+    promotional: 'dep_anthropic_claude_opus_5_fixture',
+    paid: 'dep_openrouter_anthropic_claude_opus_5_fixture',
+  },
+} as const;
+const CLAUDE_REVISION = 'observed-2026-10-11';
+
+async function makeClaudeRoutes(ownerAccountId: string): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(inferencePublishers)
+    .values({ slug: 'anthropic', displayName: 'Anthropic' })
+    .onConflictDoNothing();
+  await db
+    .insert(inferenceProviders)
+    .values({
+      slug: 'anthropic',
+      displayName: 'Anthropic',
+      kind: 'third_party',
+      retainsPayloads: true,
+      retentionDays: 30,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+    })
+    .onConflictDoNothing();
+  for (const line of Object.values(CLAUDE)) {
+    const [model] = await db
+      .insert(inferenceModels)
+      .values({
+        publisherSlug: 'anthropic',
+        slug: line.model,
+        displayName: line.model,
+        inputModalities: ['text'],
+        outputModalities: ['text'],
+        supportsTools: true,
+        supportsParallelToolCalls: true,
+        supportsStructuredOutput: false,
+        supportsJsonMode: false,
+        supportsReasoning: true,
+        supportsStreaming: true,
+        supportsPromptCaching: true,
+        reasoningEfforts: ['low', 'medium', 'high'],
+        maxContextTokens: 200_000,
+        maxOutputTokens: 128_000,
+        licenseId: 'LicenseRef-Anthropic-Commercial-Terms',
+        licenseDisplayName: 'Anthropic commercial terms (fixture label)',
+        commercialUseAllowed: false,
+        requiresAttribution: false,
+        releaseKind: 'third_party_hosted',
+      })
+      .returning({ id: inferenceModels.id });
+    const [revision] = await db
+      .insert(inferenceModelRevisions)
+      .values({
+        modelId: model.id,
+        revision: CLAUDE_REVISION,
+        releasedAt: new Date(),
+        isCurrent: true,
+      })
+      .returning({ id: inferenceModelRevisions.id });
+    await db
+      .insert(inferenceModelPowerClasses)
+      .values({
+        modelId: `anthropic/${line.model}`,
+        powerClass: line.powerClass,
+        evidenceSource: 'artificial-analysis-intelligence-index/v4.3.2',
+        evidenceUrl: `https://artificialanalysis.ai/models/${line.model.replace('.', '-')}`,
+        evidenceSummary: 'Migration 0129 class, restated for this fixture.',
+        reviewedAt: new Date('2026-09-30T00:00:00Z'),
+        reviewedBy: 'adr-0037-fixture',
+      })
+      .onConflictDoUpdate({
+        target: inferenceModelPowerClasses.modelId,
+        set: { powerClass: line.powerClass },
+      });
+    for (const [provider, deploymentId] of [
+      ['anthropic', line.promotional],
+      ['openrouter', line.paid],
+    ] as const) {
+      const [price] = await db
+        .insert(priceVersions)
+        .values({
+          modelReference: `anthropic/${line.model}@${CLAUDE_REVISION}`,
+          provider,
+          currency: 'USD',
+          status: 'active',
+          effectiveFrom: new Date(Date.now() - 60_000),
+        })
+        .returning({ id: priceVersions.id });
+      await db.insert(priceVersionUnitPrices).values([
+        { priceVersionId: price.id, unit: 'requests', amount: '0.000000000000', per: 1 },
+        {
+          priceVersionId: price.id,
+          unit: 'input_tokens',
+          amount: '5.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: price.id,
+          unit: 'cached_input_tokens',
+          amount: '0.500000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: price.id,
+          unit: 'output_tokens',
+          amount: '25.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: price.id,
+          unit: 'reasoning_tokens',
+          amount: '25.000000000000',
+          per: 1_000_000,
+        },
+      ]);
+      await db.insert(inferenceDeployments).values({
+        modelRevisionId: revision.id,
+        providerSlug: provider,
+        internalRouteId: deploymentId,
+        regions: [],
+        retainsPayloads: provider === 'anthropic',
+        retentionDays: provider === 'anthropic' ? 30 : 0,
+        trainsOnCustomerData: false,
+        zeroDataRetentionAvailable: true,
+        availabilityScope: 'platform_internal',
+        commercialPermission: 'standard_application_use',
+        status: 'active',
+        permissionState: 'approved',
+        legalReviewStatus: 'approved',
+        legalReviewedAt: new Date(),
+        legalReviewEvidenceRef: 'auto-approval-policy:kaana-sync',
+        acceptedParameters: [
+          'maxOutputTokens',
+          'reasoning.effort',
+          'sampling.stopSequences',
+          'toolChoice',
+          'tools',
+        ],
+        priceVersionId: price.id,
+      });
+      await insertValidRoutingScorecard({
+        deploymentId,
+        priceVersionId: price.id,
+        changedByUserId: ownerAccountId,
+      });
+      if (provider === 'anthropic') await fundPromotionally(deploymentId);
+    }
+  }
+}
+
+/** What the Kaana sync writes for a provider whose one key is a promotional grant. */
+async function fundPromotionally(
+  deploymentId: string,
+  overrides: Partial<typeof inferenceDeploymentRoutingScores.$inferInsert> = {},
+): Promise<void> {
+  const now = Date.now();
+  await getDb()
+    .update(inferenceDeploymentRoutingScores)
+    .set({
+      fundingClass: 'promotional_credit',
+      fundingState: 'available',
+      fundingObservedAt: new Date(now - 60_000),
+      fundingValidUntil: new Date(now + 6 * 3_600_000),
+      fundingEvidenceRef: `kaana-credential-economics:anthropic:fixture:description-revision-1`,
+      ...overrides,
+    })
+    .where(eq(inferenceDeploymentRoutingScores.deploymentId, deploymentId));
 }
 
 async function withInternalDefault<T>(caller: Caller, operation: () => Promise<T>): Promise<T> {
@@ -1589,6 +1784,157 @@ describe('approved production pilot admission', () => {
       modelReference: await makeRoute(caller.accountId, caller.applicationId, false, true),
     };
     await makeApprovedHighRoute(caller.accountId);
+  });
+
+  describe('promotional-credit lane at named Pro and Ultra (ADR 0037)', () => {
+    beforeAll(async () => {
+      await makeClaudeRoutes(approvedCaller.accountId);
+    });
+
+    const signed = (): string[] =>
+      pilotEnvelopes[0]?.authorizedRoutes.map((route) => route.deploymentId) ?? [];
+    const ask = (level: string) =>
+      withInternalDefault(approvedCaller, () =>
+        post({ ...aliaHello, routingProfile: level }, bearer(serviceToken(approvedCaller))),
+      );
+
+    it.each(['pro', 'ultra'] as const)(
+      'runs a named %s request on the grant-funded route, failing over to XHigh, never to paid Claude',
+      async (level) => {
+        const response = await ask(level);
+        expect(response.status).toBe(200);
+        expect(executions).toBe(1);
+        // The Claude quote (~$0.196 for this payload) is over the pilot's
+        // $0.05 and inside the lane's $1.00.
+        expect(signed()).toEqual([CLAUDE[level].promotional, approvedHigh.deployment_id]);
+        expect(pilotEnvelopes[0].authorizedRoutes[0]).toMatchObject({
+          modelReference: `anthropic/${CLAUDE[level].model}@${CLAUDE_REVISION}`,
+          provider: 'anthropic',
+        });
+        expect(pilotEnvelopes[0].reasoning?.effort).toBe('high');
+        expect(pilotEnvelopes[0].maxOutputTokens).toBe(2048);
+        expect(await moneyRowsFor(approvedCaller.accountId)).toEqual({
+          reservations: [],
+          receipts: [],
+          balances: [],
+        });
+      },
+    );
+
+    it.each([
+      ['spent', { fundingState: 'exhausted' as const }],
+      ['rate limited', { fundingState: 'rate_limited' as const }],
+      ['stale', { fundingValidUntil: new Date(Date.now() - 1_000) }],
+      [
+        'unknown (the sync kept standard_payg)',
+        {
+          fundingClass: 'standard_payg' as const,
+          fundingObservedAt: null,
+          fundingValidUntil: null,
+        },
+      ],
+    ])('serves Pro on the XHigh route alone when the grant is %s', async (_label, evidence) => {
+      await fundPromotionally(CLAUDE.pro.promotional, evidence);
+      try {
+        const response = await ask('pro');
+        expect(response.status).toBe(200);
+        expect(signed()).toEqual([approvedHigh.deployment_id]);
+      } finally {
+        await fundPromotionally(CLAUDE.pro.promotional);
+      }
+    });
+
+    it('keeps a grant-funded route over the lane ceiling off the signed set', async () => {
+      const [route] = await getDb()
+        .select({ priceVersionId: inferenceDeployments.priceVersionId })
+        .from(inferenceDeployments)
+        .where(eq(inferenceDeployments.internalRouteId, CLAUDE.pro.promotional));
+      if (route.priceVersionId === null) throw new Error('Claude fixture lacks price');
+      const priceVersionId = route.priceVersionId;
+      const setInput = (amount: string) =>
+        getDb()
+          .update(priceVersionUnitPrices)
+          .set({ amount })
+          .where(
+            and(
+              eq(priceVersionUnitPrices.priceVersionId, priceVersionId),
+              eq(priceVersionUnitPrices.unit, 'input_tokens'),
+            ),
+          );
+      // 29,027 units at $50/M is $1.45, over USD 1.00.
+      await setInput('50.000000000000');
+      try {
+        const response = await ask('pro');
+        expect(response.status).toBe(200);
+        expect(signed()).toEqual([approvedHigh.deployment_id]);
+      } finally {
+        await setInput('5.000000000000');
+      }
+    });
+
+    it('lets a tighter application price ceiling win over the lane', async () => {
+      await withInternalDefault(approvedCaller, async () => {
+        await createNeutralRoutingPolicy({
+          accountId: approvedCaller.accountId,
+          applicationId: approvedCaller.applicationId,
+          overrides: { maxPricePerRequest: { amount: '0.100000000000', currency: 'USD' } },
+        });
+        try {
+          const response = await post(
+            { ...aliaHello, routingProfile: 'pro' },
+            bearer(serviceToken(approvedCaller)),
+          );
+          expect(response.status).toBe(200);
+          expect(signed()).toEqual([approvedHigh.deployment_id]);
+        } finally {
+          await getDb()
+            .update(inferenceRoutingPolicies)
+            .set({ status: 'archived' })
+            .where(
+              and(
+                eq(inferenceRoutingPolicies.applicationId, approvedCaller.applicationId),
+                eq(inferenceRoutingPolicies.status, 'active'),
+              ),
+            );
+        }
+      });
+    });
+
+    it.each(['auto', 'high', 'xhigh'])(
+      'never spends the grant at %s, even on a grant-funded model of that class',
+      async (level) => {
+        // Funding ranks before price: without the lane's level rule this
+        // promotional High route would outrank the cheaper XHigh one.
+        await getDb()
+          .update(inferenceModelPowerClasses)
+          .set({ powerClass: 'high' })
+          .where(eq(inferenceModelPowerClasses.modelId, `anthropic/${CLAUDE.pro.model}`));
+        try {
+          const response = await ask(level);
+          expect(response.status).toBe(200);
+          expect(signed()).toEqual([approvedHigh.deployment_id]);
+        } finally {
+          await getDb()
+            .update(inferenceModelPowerClasses)
+            .set({ powerClass: 'pro' })
+            .where(eq(inferenceModelPowerClasses.modelId, `anthropic/${CLAUDE.pro.model}`));
+        }
+      },
+    );
+
+    it('never admits Claude by exact name under the pilot', async () => {
+      const { routingProfile: _level, ...exact } = aliaHello;
+      const before = await pilotClaims(approvedCaller);
+      const response = await withInternalDefault(approvedCaller, () =>
+        post(
+          { ...exact, model: `anthropic/${CLAUDE.pro.model}` },
+          bearer(serviceToken(approvedCaller)),
+        ),
+      );
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(executions).toBe(0);
+      expect(await pilotClaims(approvedCaller)).toEqual(before);
+    });
   });
 
   it('serves the intact real Hello plus 21 tools through Auto High without a lower fallback', async () => {

@@ -37,6 +37,7 @@ import {
 } from '../db/schema/inferenceProviderCostAttempts';
 import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const ATTEMPT_FEED_PATH = '/internal/v1/provider-telemetry/attempts';
 const SIGNATURE_DOMAIN = 'oxy-kaana-provider-telemetry:v1';
@@ -279,7 +280,7 @@ export async function postProviderTelemetry(
     providerTelemetrySigningInput(config.keyId, timestamp, body),
     config.privateKey,
   ).toString('base64');
-  const response = await fetch(`${config.baseUrl}${path}`, {
+  const response = await tracedFetch(`${config.baseUrl}${path}`, {
     method: 'POST',
     redirect: 'error',
     headers: {

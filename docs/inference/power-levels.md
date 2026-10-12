@@ -173,6 +173,13 @@ appends a new policy version; the editor runs the contract's own schema first.
 | Oxy Inbox (summaries) | `power-instant` | `["power-instant"]` |
 | Alia | set by Alia | the levels Alia shows its users |
 
+Alia's internal metered pilot narrows every level to its admitted routes. At a
+NAMED `pro` or `ultra` it also admits a route funded by an available
+promotional credit grant and signs `xhigh`'s admitted routes as the next
+priority, so the level falls back instead of failing when the grant is spent
+([ADR 0037](../adr/0037-pilot-spends-promotional-credit-at-named-levels.md),
+[internal-metering.md](./internal-metering.md#promotional-credit-at-named-pro-and-ultra-adr-0037)).
+
 ## The reviewed classes
 
 Seeded by the same migration. Source: the

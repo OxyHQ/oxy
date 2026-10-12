@@ -36,6 +36,7 @@ import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 import { sql } from 'drizzle-orm';
 import { extractUsername } from '../config/email.config';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const router = Router();
 
@@ -183,7 +184,10 @@ async function fetchAmazonUrl(url: string): Promise<FetchResponse | null> {
     return null;
   }
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: 'error' });
+    const response = await tracedFetch(url, {
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    });
     return response.ok ? response : null;
   } catch (err) {
     logger.warn('SNS fetch failed', { error: err instanceof Error ? err.message : String(err) });

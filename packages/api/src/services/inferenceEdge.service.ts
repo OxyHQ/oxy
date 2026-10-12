@@ -232,7 +232,12 @@ import {
   type KaanaUsageEvidence,
 } from './kaanaClient';
 import type { ApplicationScope } from '../utils/applicationScopes';
-import { controlledInputBudget, pilotAllowsDeployment } from './inferenceInternalPilot';
+import {
+  controlledInputBudget,
+  fundedByPromotionalCredit,
+  pilotAllowsDeployment,
+  promotionalLaneLevels,
+} from './inferenceInternalPilot';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
 import { logger } from '../utils/logger';
 import {
@@ -1029,9 +1034,22 @@ async function admitWithAutoDecision(
     if (pilotInputBudget > inputCeiling) return refuse('context_length_exceeded',
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
-  const acceptsPilotDeployment = (route: EdgeRoute): boolean =>
-    pilot === undefined || (privateApproval === undefined ? pilotAllowsDeployment(pilot, route, scopedPermit) :
-      route.deploymentId === privateApproval.deploymentId && route.modelReference === privateApproval.modelReference && route.provider === privateApproval.provider);
+  // ADR 0037: the route priorities a pilot request resolves at a promotional
+  // level it NAMED (`pro`/`ultra`), set below when the level is resolved, and
+  // the deployments admitted there by their own promotional funding. Such a
+  // route answers to the lane's quote ceiling instead of the pilot's.
+  const promotionalPriorities = new Set<number>();
+  const promotionallyAdmitted = new Set<string>();
+  const acceptsPilotDeployment = (route: EdgeRoute, priority: number): boolean => {
+    if (pilot === undefined) return true;
+    if (privateApproval !== undefined) {
+      return route.deploymentId === privateApproval.deploymentId && route.modelReference === privateApproval.modelReference && route.provider === privateApproval.provider;
+    }
+    if (pilotAllowsDeployment(pilot, route, scopedPermit)) return true;
+    if (scopedPermit !== undefined || !promotionalPriorities.has(priority) || !fundedByPromotionalCredit(route)) return false;
+    promotionallyAdmitted.add(route.deploymentId);
+    return true;
+  };
 
   // 5a. Resolve the policy this request is admitted under, and PIN its version.
   //     The application's own policy wins, then the owner account's; `none`
@@ -1262,6 +1280,25 @@ async function admitWithAutoDecision(
       maxPricePerRequest = childPriceLimit;
     }
   }
+  // A promotionally admitted route's ceiling: the lane's, unless the
+  // application's own policy is tighter. A classifier child never reaches a
+  // promotional level (it names an exact model), so its limit is not in play.
+  const parsedPromotionalPrice = pilot?.promotionalCredit === undefined
+    ? undefined : exactDecimalSchema.safeParse(pilot.promotionalCredit.maxPricePerRequestUsd);
+  if (parsedPromotionalPrice !== undefined && !parsedPromotionalPrice.success) {
+    return refuse('policy_violation', 'The internal pilot promotional quote ceiling is invalid.');
+  }
+  const promotionalPriceLimit = parsedPromotionalPrice?.success ? parsedPromotionalPrice.data : undefined;
+  const policyPriceLimit = routingConstraints.maxPricePerRequest;
+  const promotionalMaxPricePerRequest = promotionalPriceLimit === undefined
+    ? undefined
+    : policyPriceLimit !== undefined && !exceedsAmount(policyPriceLimit.amount, promotionalPriceLimit)
+      ? policyPriceLimit
+      : { amount: promotionalPriceLimit, currency: 'USD' as const };
+  const priceCeilingFor = (route: EdgeRoute): typeof maxPricePerRequest =>
+    promotionallyAdmitted.has(route.deploymentId) && promotionalMaxPricePerRequest !== undefined
+      ? promotionalMaxPricePerRequest
+      : maxPricePerRequest;
   const priceEligibleDeploymentIds = new Set<string>();
   const quotedCandidateCeilings = new Map<
     string,
@@ -1283,7 +1320,7 @@ async function admitWithAutoDecision(
     // implicit output ceiling nor is quoted: it will never be signed.
     const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
-      .filter(acceptsPilotDeployment)
+      .filter((route) => acceptsPilotDeployment(route, priority))
       .filter(acceptsCarriedParameters)
       .sort((left, right) =>
         compareQualifiedRoutes(
@@ -1333,9 +1370,10 @@ async function admitWithAutoDecision(
         );
       }
       quotedCandidateCeilings.set(route.deploymentId, candidateQuote);
+      const ceiling = priceCeilingFor(route) ?? maxPricePerRequest;
       if (
-        candidateQuote.currency === maxPricePerRequest.currency &&
-        !exceedsAmount(candidateQuote.amount, maxPricePerRequest.amount)
+        candidateQuote.currency === ceiling.currency &&
+        !exceedsAmount(candidateQuote.amount, ceiling.amount)
       ) {
         priceEligibleDeploymentIds.add(route.deploymentId);
         priceSurvivors.push(route);
@@ -1512,7 +1550,19 @@ async function admitWithAutoDecision(
         });
         pendingAuto = { features, decision, levels };
       } else {
-        levels = [profileResolution.powerLevel];
+        const lane =
+          request.operation.kind === 'completion' && scopedPermit === undefined && privateApproval === undefined
+            ? promotionalLaneLevels(pilot, profileResolution.powerLevel, levelAllowed)
+            : undefined;
+        if (lane !== undefined) {
+          promotionalPriorities.add(0);
+          logger.info('inference.edge.promotional_level', {
+            requestId,
+            level: profileResolution.powerLevel,
+            ladder: lane,
+          });
+        }
+        levels = lane ?? [profileResolution.powerLevel];
       }
       const efforts = await powerLevelEfforts();
       powerEffortByPriority = new Map(levels.map((level, index) => [index, efforts.get(level)]));
@@ -1578,7 +1628,7 @@ async function admitWithAutoDecision(
   const rankedCandidates: RankedCandidate[] = [];
   for (const group of routeGroups) {
     for (const route of [group.resolution.route, ...group.resolution.alternates]) {
-      if (!acceptsPilotDeployment(route)) continue;
+      if (!acceptsPilotDeployment(route, group.priority)) continue;
       if (liveness !== undefined && !isDeploymentPublished(liveness, route.deploymentId)) {
         sawUnpublished = true;
         continue;
@@ -1954,8 +2004,18 @@ async function admitWithAutoDecision(
     }
   }
 
-  if (pilotPriceLimit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, pilotPriceLimit))) {
-    return refuse('policy_violation', 'The internal pilot quote exceeds its authorized USD ceiling.');
+  // Every signed route against its own pilot ceiling: the lane's for a route
+  // admitted by its promotional funding, the pilot's for every other one.
+  if (pilotPriceLimit !== undefined) {
+    for (const authorized of authorizedRoutes) {
+      const authorizedQuote = quotes.get(authorized.deploymentId);
+      const limit = promotionallyAdmitted.has(authorized.deploymentId) && promotionalPriceLimit !== undefined
+        ? promotionalPriceLimit
+        : pilotPriceLimit;
+      if (authorizedQuote === undefined || authorizedQuote.currency !== 'USD' || exceedsAmount(authorizedQuote.amount, limit)) {
+        return refuse('policy_violation', 'The internal pilot quote exceeds its authorized USD ceiling.');
+      }
+    }
   }
   if (scopedPermit !== undefined && (quote.currency !== 'USD' || exceedsAmount(maxAmount, scopedPermit.maxCostUsd))) {
     return refuse('policy_violation', 'Scoped quote exceeds the authorized USD cost.');

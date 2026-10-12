@@ -33,6 +33,7 @@ import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { pushTokens } from '../db/schema/pushTokens';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -109,7 +110,7 @@ async function dispatch(
 
   for (const chunk of chunks) {
     try {
-      const response = await fetch(EXPO_PUSH_URL, {
+      const response = await tracedFetch(EXPO_PUSH_URL, {
         method: 'POST',
         headers: {
           Accept: 'application/json',

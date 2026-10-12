@@ -10,6 +10,7 @@ import {
   requiredInboxServiceClient,
 } from '../capabilities/inbox-service-client';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 export const NORMALIZED_EVENT_OUTBOX_MAX_ATTEMPTS = 12;
 export const NORMALIZED_EVENT_OUTBOX_LEASE_MS = 60_000;
@@ -24,7 +25,7 @@ function aliaApiUrl(): string {
 }
 
 async function postEvent(event: NormalizedAppEvent, token: string): Promise<Response> {
-  return fetch(`${aliaApiUrl()}/webhooks/oxy`, {
+  return tracedFetch(`${aliaApiUrl()}/webhooks/oxy`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${token}`,
