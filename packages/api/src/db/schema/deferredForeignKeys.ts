@@ -255,6 +255,12 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
   },
   {
     table: personalPlanCheckoutIntents,
+    column: personalPlanCheckoutIntents.initialInvoiceId,
+    reason:
+      'Opaque Peable initial invoice authority identity, frozen for checkout reconciliation; no local provider invoice table.',
+  },
+  {
+    table: personalPlanCheckoutIntents,
     column: personalPlanCheckoutIntents.providerSessionId,
     reason:
       'Opaque Peable checkout session identity used for terminal observation replay; no local provider-session table.',

@@ -67,6 +67,12 @@ export type AccountDeletionResult =
  *   Kaana-held ciphertext the `RESTRICT` exists to protect.
  */
 export function assertAccountDeletable(holds: AccountFinancialHolds): void {
+  if (holds.pendingCheckoutIntentIds.length > 0) {
+    throw new ConflictError(
+      'This account has a checkout still in flight. Wait for authoritative payment or terminal reconciliation before closing it.',
+      { checkoutIntents: holds.pendingCheckoutIntentIds },
+    );
+  }
   if (holds.hasLiveSubscription) {
     throw new ConflictError(
       'This account has a live subscription. Cancel it first, then delete the account.',

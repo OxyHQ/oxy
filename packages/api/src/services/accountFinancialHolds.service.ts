@@ -18,7 +18,9 @@
  *     a delete, and if Stripe were unreachable it would delete anyway and keep
  *     billing.
  *  2. **Money in flight.** A held reservation is money neither spent nor
- *     returned. Deleting through it strands it.
+ *     returned. Deleting through it strands it. A reserved or pending personal
+ *     checkout also remains held: the provider may already have accepted an
+ *     operation whose response was lost, even before a session reference exists.
  *  3. **A live BYOK provider connection.** Not financial at all, and the one arm
  *     here that is not — see {@link AccountFinancialHolds.liveProviderConnections}
  *     for why it belongs in this answer anyway.
@@ -61,6 +63,7 @@ import { inferenceProviderConnections } from '../db/schema/inferenceProviderConn
 import { accessSubscriptionSources } from '../db/schema/productAccess';
 import { users } from '../db/schema/users';
 import { accountClosureFences } from '../db/schema/accountClosureFences';
+import { personalPlanCheckoutIntents } from '../db/schema/personalPlanCheckoutIntents';
 import { ConflictError, NotFoundError } from '../utils/error';
 
 /** A foreign key into `users` whose delete action blocks the delete. */
@@ -123,6 +126,10 @@ export interface AccountFinancialHolds {
   readonly liveSubscriptionIds: readonly string[];
   /** Reservations still `held` — money neither spent nor returned. */
   readonly heldReservations: number;
+  /** Reserved or pending checkout operations, including an indeterminate dispatch.
+   * Expiry/timeout cannot prove the provider cannot charge; only an exact
+   * authoritative terminal observation releases this hold. */
+  readonly pendingCheckoutIntentIds: readonly string[];
   /**
    * BYOK connections whose credential is still active in Kaana custody, by id.
    *
@@ -187,7 +194,7 @@ export interface AccountFinancialHolds {
  * Everything that stands between this account and a hard delete.
  *
  * Read-only, and cheap enough to run on the delete path: one catalogue lookup
- * (cached), one indexed count per blocking table, and two small selects. It
+ * (cached), one indexed count per blocking table, and bounded indexed selects. It
  * never deletes, never archives and never talks to Stripe — the caller decides
  * what to do with the answer.
  */
@@ -253,6 +260,12 @@ export async function describeAccountFinancialHolds(
     `,
   );
 
+  const pendingCheckouts = await db
+    .select({ id: personalPlanCheckoutIntents.id })
+    .from(personalPlanCheckoutIntents)
+    .where(sql`${personalPlanCheckoutIntents.subjectAccountId} = ${accountId}
+      and ${personalPlanCheckoutIntents.state} in ('reserved', 'pending')`);
+
   // The local serving status is fenced to `revoked` BEFORE the signed Kaana
   // operation, so it cannot prove the secret was removed. Only terminal
   // `custody_state = 'revoked'` is an acknowledged deletion by Kaana;
@@ -271,6 +284,7 @@ export async function describeAccountFinancialHolds(
     accountId,
     liveSubscriptionIds: subscriptions.map((row) => row.id),
     heldReservations: Number(held[0]?.total ?? '0'),
+    pendingCheckoutIntentIds: pendingCheckouts.map((row) => row.id),
     liveProviderConnections: providerConnections.map((row) => row.id),
     retainedRecords,
     disposableWalletIds,
@@ -432,6 +446,22 @@ async function establishAccountClosureFence(
     if (!account) {
       throw new NotFoundError('Account not found');
     }
+
+    // Checkout reservation takes this same account lock BEFORE remote dispatch.
+    // This check therefore closes the entire dispatch race, including a lost
+    // response with no session ID or a quote that expired afterwards. Such an
+    // operation remains held until provider-key recovery proves it terminal;
+    // timeout and local expiry are not permission to discard correlation.
+    const pendingCheckouts = await tx
+      .select({ id: personalPlanCheckoutIntents.id })
+      .from(personalPlanCheckoutIntents)
+      .where(sql`${personalPlanCheckoutIntents.subjectAccountId} = ${account.id}
+        and ${personalPlanCheckoutIntents.state} in ('reserved', 'pending')`);
+    if (pendingCheckouts.length)
+      throw new ConflictError(
+        'This account has a checkout still in flight. Wait for authoritative payment or terminal reconciliation before closing it.',
+        { checkoutIntents: pendingCheckouts.map((row) => row.id) },
+      );
 
     // Product source creation/update takes the same account row lock. Re-read
     // after acquiring it so a concurrent award cannot race the closure fence.
