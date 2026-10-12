@@ -115,6 +115,7 @@ import {
   type KaanaStreamFrame,
   type KaanaUsageEvidence,
 } from './kaanaClient';
+import { tracedFetch } from '../utils/tracedFetch';
 
 /* -------------------------------------------------------------------------- */
 /*  The wire                                                                  */
@@ -589,7 +590,7 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
       for (const requested of catalogueNegotiations()) {
         const body = Buffer.from(JSON.stringify(requested), 'utf8');
         const timestamp = Date.now();
-        const response = await fetch(`${config.baseUrl}/internal/v1/models/query`, {
+        const response = await tracedFetch(`${config.baseUrl}/internal/v1/models/query`, {
           method: 'POST',
           body,
           headers: {
@@ -679,7 +680,7 @@ class HttpKaanaClient implements KaanaClient {
       'utf8',
     );
     const timestamp = Date.now();
-    const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
+    const response = await tracedFetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -762,7 +763,7 @@ class HttpKaanaClient implements KaanaClient {
   ): Promise<KaanaDeploymentAttestation> {
     const body = Buffer.from(JSON.stringify(requested), 'utf8');
     const timestamp = Date.now();
-    const response = await fetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
+    const response = await tracedFetch(`${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -834,7 +835,7 @@ class HttpKaanaClient implements KaanaClient {
     options.signal.addEventListener('abort', kaanaCancellation, { once: true });
 
     try {
-      const response = await fetch(`${this.config.baseUrl}${KAANA_INFERENCE_PATH}`, {
+      const response = await tracedFetch(`${this.config.baseUrl}${KAANA_INFERENCE_PATH}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -940,7 +941,7 @@ async function executeDecisions(
   const timestamp = Date.now();
   let response: Response;
   try {
-    response = await fetch(`${config.baseUrl}/internal/v1/decisions`, {
+    response = await tracedFetch(`${config.baseUrl}/internal/v1/decisions`, {
       method: 'POST',
       body,
       signal: options.signal,

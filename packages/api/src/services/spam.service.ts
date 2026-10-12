@@ -7,6 +7,7 @@
 
 import { SPAM_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
+import { tracedFetch } from '../utils/tracedFetch';
 
 export interface SpamResult {
   score: number;
@@ -37,7 +38,7 @@ class SpamService {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/checkv2`, {
+      const response = await tracedFetch(`${this.baseUrl}/checkv2`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream' },
         body: typeof rawMessage === 'string' ? rawMessage : new Uint8Array(rawMessage),
@@ -89,7 +90,7 @@ class SpamService {
   private scheduleAvailabilityCheck(): void {
     setTimeout(async () => {
       try {
-        const res = await fetch(`${this.baseUrl}/ping`, {
+        const res = await tracedFetch(`${this.baseUrl}/ping`, {
           signal: AbortSignal.timeout(3_000),
         });
         if (res.ok) {

@@ -1028,6 +1028,20 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun scripts/check-no-raw-ip-keys.mjs
 
+      # Every outbound `fetch` in packages/api/src goes through `tracedFetch`
+      # (see scripts/check-api-raw-fetch.mjs). Bun's native fetch is invisible to
+      # the undici instrumentation, so a raw fetch records no client span and
+      # sends no traceparent; the wrapper records both on Node and Bun. Parsed
+      # with `typescript`, so comments and strings never count. Fixture cases
+      # first: every counted spelling, every not-counted one, allow-list drift
+      # both ways, a parse failure and the vacuity floors.
+      - name: 'API Raw Fetch Guard: fixture tests'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/test-check-api-raw-fetch.mjs
+      - name: 'API Raw Fetch Guard: check'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun scripts/check-api-raw-fetch.mjs
+
       # Contracts' username-policy census walks EVERY source file in the
       # repository, so no suite's dependency closure contains all of its inputs.
       # It also runs here, in the one job that is never scoped, so a pull

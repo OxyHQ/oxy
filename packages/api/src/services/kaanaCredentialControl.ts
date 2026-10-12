@@ -18,6 +18,7 @@ import {
   resolveKaanaCredentialControl,
   type KaanaCredentialControlConfig,
 } from '../config/kaanaCredentialControl';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const MUTATION_PATH = '/internal/v1/customer-provider-credentials/mutations';
 const OUTCOME_PATH = '/internal/v1/customer-provider-credentials/outcomes';
@@ -243,7 +244,7 @@ export class HttpKaanaCredentialControl implements KaanaCredentialControl {
       const timestamp = Date.now();
       const signingInput = kaanaCredentialControlSigningInput(this.config.keyId, timestamp, body);
       const signature = sign(null, signingInput, this.config.privateKey).toString('base64');
-      const response = await fetch(`${this.config.baseUrl}${path}`, {
+      const response = await tracedFetch(`${this.config.baseUrl}${path}`, {
         method: 'POST',
         redirect: 'error',
         headers: {

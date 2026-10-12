@@ -5,6 +5,7 @@ import {
   type KaanaCredentialValidationTask,
 } from '@oxy.so/contracts';
 import { resolveKaanaDataPlane, type KaanaDataPlaneConfig } from '../config/kaanaDataPlane';
+import { tracedFetch } from '../utils/tracedFetch';
 
 const VALIDATION_PATH = '/internal/v1/customer-provider-credentials/validations';
 const SIGNATURE_DOMAIN = 'oxy-kaana-credential-validation:v1';
@@ -46,7 +47,7 @@ export class HttpKaanaCredentialValidationDispatcher
         kaanaCredentialValidationSigningInput(this.config.keyId, timestamp, body),
         this.config.privateKey,
       ).toString('base64');
-      const response = await fetch(`${this.config.baseUrl}${VALIDATION_PATH}`, {
+      const response = await tracedFetch(`${this.config.baseUrl}${VALIDATION_PATH}`, {
         method: 'POST',
         redirect: 'error',
         headers: {

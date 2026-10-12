@@ -15,6 +15,7 @@ import {
   ECSClient,
   ListTasksCommand,
 } from '@aws-sdk/client-ecs';
+import { tracedFetch } from '../utils/tracedFetch';
 
 export const KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ENV =
   'KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN' as const;
@@ -187,7 +188,7 @@ export function taskDefinitionArnFromMetadata(value: unknown): string {
 }
 
 async function readTaskMetadata(url: string, signal: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, { signal });
+  const response = await tracedFetch(url, { signal });
   if (!response.ok) {
     throw new Error(`ECS task metadata returned HTTP ${response.status}`);
   }
