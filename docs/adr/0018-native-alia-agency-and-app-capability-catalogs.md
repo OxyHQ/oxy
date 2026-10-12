@@ -5,6 +5,8 @@
 - Amended: 2026-10-06 — an agent acts AS ITSELF on its own bot account without a
   grant, and an agent's unattended run gets its requester from the bot's live
   parent (see "Addendum: an agent acts as itself")
+- Amended: 2026-10-11 — a catalogue tool declares which executing actors may
+  run it (see "Addendum: a tool names its actors")
 - Scope: Oxy authority, Alia coordination, app execution, and external MCP access
 
 ## Context
@@ -333,3 +335,31 @@ Every ticket re-evaluates it exactly like any other automation authority, so:
   `Nada` = revoked. The Agency tab in accounts remains the advanced view of the
   same grants.
 
+
+## Addendum (2026-10-11): a tool names its actors
+
+The Oxy profile catalogue (`recommendProfiles`, `readViewerGraph`) is executable
+only by a present requester (ADR 0025): the ranking and the graph are the
+viewer's own. Nothing in the catalogue said so, so Alia offered both tools to
+the model as itself and as agents, and every call ended as an opaque
+`foreground_invocation_refused` from the app.
+
+A catalogue tool now carries an optional `actors` — the executing actor types
+(`alia`, `agent`, `requester`) Oxy will authorize for it:
+
+- **Absent means `alia` and `agent`.** The requester lane stays opt-in, which is
+  what every catalogue meant before the field existed; a tool reaches it only by
+  naming `requester`, and such a tool must be a `read` (requester tickets are
+  read-only).
+- **Oxy enforces it where authority is created and re-read.** The execution
+  authorization routes (`/execution-authorizations`, `/agent-run-authorizations`,
+  `/foreground-execution-authorizations`) refuse an actor the tool does not name
+  with `403 tool_not_available_to_actor`, and `evaluateCapabilityAuthority`
+  denies the same reason on every ticket and introspection, so narrowing a
+  registered catalogue withdraws authority already created. The capability map
+  never lists such a tool to an agent.
+- **A coordinator reads it before offering a tool.** Alia drops a tool whose
+  `actors` excludes the actor it is building tools for. This is a convenience,
+  not the control: the control is Oxy's refusal above.
+- The Oxy profile catalogue's own transport and handler read the same
+  declaration (`oxyProfileToolAllowsActor`) instead of restating the rule.

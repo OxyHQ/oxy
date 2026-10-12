@@ -1,14 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import type {
-  AppCapabilityCatalog,
-  ExecutionActorRef,
-  AutonomyLevel,
-  CapabilityCatalogBinding,
-  CapabilityTicketClaims,
-  GrantLimit,
-  PolicyDecision,
-  ResourceRef,
+import {
+  type AppCapabilityCatalog,
+  catalogToolAllowsActor,
+  type ExecutionActorRef,
+  type AutonomyLevel,
+  type CapabilityCatalogBinding,
+  type CapabilityTicketClaims,
+  type GrantLimit,
+  type PolicyDecision,
+  type ResourceRef,
 } from '@oxy.so/contracts';
 import { issueCapabilityTicket } from '@oxy.so/core/server';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
@@ -286,7 +287,6 @@ export async function evaluateCapabilityAuthority(
       authorization.resourceApp !== 'oxy' ||
       authorization.resourceType !== 'account' ||
       authorization.resourceKey !== authorization.effectiveAccountId ||
-      !['recommendProfiles', 'readViewerGraph'].includes(authorization.tool) ||
       !(await revalidateForegroundRequester(
         {
           sessionId: authorization.requesterSessionId,
@@ -354,6 +354,11 @@ export async function evaluateCapabilityAuthority(
     return denied('ticket_catalog_no_longer_current');
   const tool = registration.catalog.tools.find((entry) => entry.name === authorization.tool);
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
+  // The catalogue says who may execute the tool (a requester only where it is
+  // named). Re-read on every ticket and introspection, so a catalogue that
+  // narrows its actors withdraws authority already created for the others.
+  if (!catalogToolAllowsActor(tool, authorization.actorType))
+    return denied('tool_not_available_to_actor');
   if (authorization.actorType === 'requester' && tool.effect !== 'read')
     return denied('foreground_effect_not_allowed');
   if (!tool.resourceTypes.includes(authorization.resourceType))

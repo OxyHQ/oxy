@@ -1,4 +1,9 @@
-import type { AppCapabilityCatalog, CatalogTool } from '@oxy.so/contracts';
+import {
+  type AppCapabilityCatalog,
+  type CatalogTool,
+  type CatalogToolActorType,
+  catalogToolAllowsActor,
+} from '@oxy.so/contracts';
 import { RECOMMENDATION_SIGNALS } from '../utils/recommendationWeights';
 
 /** One read-only Oxy domain definition; Inbox's separate catalogue is unchanged. */
@@ -12,12 +17,17 @@ export function oxyProfileCapabilityCatalog(): AppCapabilityCatalog {
     idempotency: 'none',
     rollback: 'none',
     exposure: ['internal'],
+    // Only an app presenting its own signed-in user's session (ADR 0025): the
+    // ranking and the graph are the PRESENT viewer's. Alia and agents are told
+    // so by the catalogue and are refused by Oxy before a ticket exists.
+    actors: ['requester'],
     limitKeys: [],
   };
   return {
     schemaVersion: '1',
     appId: 'oxy',
-    version: '1.0.0',
+    // 1.1.0: tools declare `actors`.
+    version: '1.1.0',
     audience: 'oxy-platform-api',
     internalBaseUrl: process.env.OXY_API_URL ?? 'https://api.oxy.so',
     accountResourceType: 'account',
@@ -83,4 +93,16 @@ export function oxyProfileCapabilityCatalog(): AppCapabilityCatalog {
       },
     ],
   };
+}
+
+/**
+ * The one answer to "may this actor execute this Oxy tool": the catalogue's own
+ * declaration, read by the issuing authority, the MCP transport and the handler.
+ */
+export function oxyProfileToolAllowsActor(
+  toolName: string,
+  actorType: CatalogToolActorType,
+): boolean {
+  const tool = oxyProfileCapabilityCatalog().tools.find((entry) => entry.name === toolName);
+  return tool !== undefined && catalogToolAllowsActor(tool, actorType);
 }

@@ -155,7 +155,7 @@
   },
   "dependencies": {
     "@expo/config-plugins": "catalog:",
-    "@oxy.so/contracts": "workspace:4.11.0-oxy-one.0",
+    "@oxy.so/contracts": "workspace:4.11.0-oxy-one.1",
     "color": "^4.2.3"
   },
   "devDependencies": {

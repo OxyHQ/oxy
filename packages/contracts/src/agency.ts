@@ -380,6 +380,24 @@ export const auditEventSchema = z
   })
   .strict();
 
+/**
+ * The executing actor types a catalogue tool may name in `actors` — exactly the
+ * discriminator of {@link executionActorRefSchema}.
+ */
+export const CATALOG_TOOL_ACTOR_TYPES = ['alia', 'agent', 'requester'] as const;
+
+export const catalogToolActorTypeSchema = z.enum(CATALOG_TOOL_ACTOR_TYPES);
+
+/**
+ * Who may execute a tool that declares no `actors`: the standing actors
+ * (native Alia and agents, {@link actorRefSchema}). A present requester
+ * (ADR 0025) is opt-in — a tool reaches that lane only by naming `requester`,
+ * which is what every catalogue meant before the field existed.
+ */
+export const CATALOG_TOOL_DEFAULT_ACTORS = ['alia', 'agent'] as const satisfies readonly z.infer<
+  typeof catalogToolActorTypeSchema
+>[];
+
 export const catalogToolSchema = z
   .object({
     name: identifierSchema,
@@ -394,6 +412,12 @@ export const catalogToolSchema = z
     idempotency: z.enum(['none', 'supported', 'required']),
     rollback: z.enum(['none', 'manual', 'supported']),
     exposure: z.array(z.enum(['internal', 'mcp'])).min(1),
+    /**
+     * Executing actor types Oxy will issue a capability ticket for. Absent
+     * means {@link CATALOG_TOOL_DEFAULT_ACTORS}. A coordinator must not offer
+     * the tool to any other actor: Oxy refuses the authorization.
+     */
+    actors: z.array(catalogToolActorTypeSchema).min(1).optional(),
     limitKeys: z
       .array(
         z
@@ -426,6 +450,18 @@ export const catalogToolSchema = z
     requireUnique(tool.requiredCapabilities, 'requiredCapabilities');
     requireUnique(tool.resourceTypes, 'resourceTypes');
     requireUnique(tool.exposure, 'exposure');
+    if (tool.actors) {
+      requireUnique(tool.actors, 'actors');
+      // A requester ticket is read-only by construction (capabilityTicketClaimsSchema),
+      // so a tool a requester may execute and that has an effect could never run.
+      if (tool.actors.includes('requester') && tool.effect !== 'read') {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Only read tools can be executed by a present requester',
+          path: ['actors'],
+        });
+      }
+    }
     requireUnique(
       tool.limitKeys.map((limit) => limit.key),
       'limitKeys',
@@ -710,6 +746,22 @@ export type PolicyDecision = z.infer<typeof policyDecisionSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type CatalogTool = z.infer<typeof catalogToolSchema>;
 export type CatalogEvent = z.infer<typeof catalogEventSchema>;
+export type CatalogToolActorType = z.infer<typeof catalogToolActorTypeSchema>;
+
+/** The actor types that may execute `tool`: the one reading of an absent `actors`. */
+export function catalogToolActors(
+  tool: Pick<CatalogTool, 'actors'>,
+): readonly CatalogToolActorType[] {
+  return tool.actors ?? CATALOG_TOOL_DEFAULT_ACTORS;
+}
+
+/** Whether Oxy will authorize `actorType` to execute `tool`. */
+export function catalogToolAllowsActor(
+  tool: Pick<CatalogTool, 'actors'>,
+  actorType: CatalogToolActorType,
+): boolean {
+  return catalogToolActors(tool).includes(actorType);
+}
 export type AppCapabilityCatalog = z.infer<typeof appCapabilityCatalogSchema>;
 export type CatalogRegistration = z.infer<typeof catalogRegistrationSchema>;
 export type NormalizedAppEvent = z.infer<typeof normalizedAppEventSchema>;

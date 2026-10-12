@@ -445,6 +445,109 @@ it('rejects free ids, standing/automation authority, stale pins and another pres
   ).toBe(403);
 });
 
+it('refuses Alia and agents the requester-only Oxy tools before any ticket exists', async () => {
+  const p = await presenter();
+  const r = await requester(p);
+  await register(registrar.token);
+  const resource = {
+    appId: 'oxy',
+    effectiveAccountId: r.user.id,
+    resourceType: 'account',
+    resourceId: r.user.id,
+  };
+  // The person's own direct-request lane, as Alia uses it: refused at creation
+  // with the catalogue's reason, not later at the app as an opaque 403.
+  for (const tool of ['readViewerGraph', 'recommendProfiles']) {
+    const created = await request(app)
+      .post('/capabilities/execution-authorizations')
+      .auth(r.session.accessToken, { type: 'bearer' })
+      .send({
+        kind: 'direct_request',
+        ownerAccountId: r.user.id,
+        coordinatorApplicationId: p.application.id,
+        coordinatorCredentialId: p.service.id,
+        actor: { type: 'alia', ownerAccountId: r.user.id },
+        resource,
+        tool,
+        runId: randomUUID(),
+        maximumAutonomy: 'read_only',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      });
+    expect(created.status).toBe(403);
+    expect(created.body).toEqual({
+      error: 'tool_not_available_to_actor',
+      actor: 'alia',
+      allowedActors: ['requester'],
+    });
+  }
+
+  // Authority that predates the declaration (or skipped the route) is refused
+  // by the issuing authority itself, which re-reads the registered catalogue.
+  for (const actor of [
+    { actorType: 'alia' as const, actorAccountId: null },
+    { actorType: 'agent' as const, actorAccountId: r.user.id },
+  ]) {
+    const [row] = await getDb()
+      .insert(capabilityExecutionAuthorizations)
+      .values({
+        kind: 'direct_request',
+        requesterAccountId: r.user.id,
+        ownerAccountId: r.user.id,
+        coordinatorApplicationId: p.application.id,
+        coordinatorCredentialId: p.service.id,
+        ...actor,
+        resourceApp: 'oxy',
+        effectiveAccountId: r.user.id,
+        resourceType: 'account',
+        resourceKey: r.user.id,
+        tool: 'readViewerGraph',
+        runId: randomUUID(),
+        maximumAutonomy: 'read_only',
+        limits: [],
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+      .returning();
+    const issued = await request(app)
+      .post('/capabilities/tickets')
+      .auth(p.token, { type: 'bearer' })
+      .send({ executionAuthorizationId: row.id });
+    expect(issued.status).toBe(403);
+    expect(issued.body.decision).toEqual({
+      allowed: false,
+      reason: 'tool_not_available_to_actor',
+    });
+    expect(issued.body.ticket).toBeUndefined();
+  }
+
+  // The requester lane is unaffected: the same tool, presented, still issues.
+  const presented = await issue(p, r.session.accessToken);
+  expect(presented.claims.actor).toEqual({ type: 'requester', accountId: r.user.id });
+});
+
+it('withdraws requester authority when the registered catalogue stops naming the requester', async () => {
+  const p = await presenter();
+  const r = await requester(p);
+  const issued = await issue(p, r.session.accessToken);
+  expect((await read(issued.ticket)).status).toBe(200);
+  const catalog = oxyProfileCapabilityCatalog();
+  await getDb()
+    .update(appCapabilityCatalogRegistrations)
+    .set({
+      catalog: {
+        ...catalog,
+        tools: catalog.tools.map(({ actors: _actors, ...tool }) => tool),
+      },
+    })
+    .where(eq(appCapabilityCatalogRegistrations.id, issued.pin.registrationId));
+  const again = await request(app)
+    .post('/capabilities/tickets')
+    .auth(p.token, { type: 'bearer' })
+    .send({ executionAuthorizationId: issued.authorization.id, expectedCatalog: issued.pin });
+  expect(again.status).toBe(403);
+  expect(again.body.decision.reason).toBe('tool_not_available_to_actor');
+  expect((await read(issued.ticket)).status).toBe(403);
+});
+
 it('a live bot requester retains its real key provenance and rejects a revoked signer', async () => {
   const p = await presenter();
   const [bot] = await getDb()
