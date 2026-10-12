@@ -4343,6 +4343,9 @@ describe('accepted request parameters', () => {
     'sampling.temperature',
     'sampling.topP',
     'toolChoice',
+    'toolChoice.function',
+    'toolChoice.none',
+    'toolChoice.required',
     'tools',
   ];
   const WITHOUT_TEMPERATURE = EVERY_PARAMETER.filter(
@@ -4488,6 +4491,118 @@ describe('accepted request parameters', () => {
         );
         expect(tools.status).toBe(400);
         expect((json(tools) as { error: { param?: string } }).error.param).toBe('tools');
+      },
+    );
+    expect(seen).toHaveLength(1);
+  });
+});
+
+describe('tool-choice values (OxyHQ/Kaana#168)', () => {
+  const LOOKUP = [
+    { type: 'function', function: { name: 'lookup', parameters: { type: 'object' } } },
+  ];
+  /** What Claude Opus 5.5's direct route takes: no forced tool choice. */
+  const UNFORCED = ['maxOutputTokens', 'toolChoice', 'toolChoice.none', 'tools'];
+
+  it('keeps a route that refuses a forced choice for auto and none, and drops it for a forced one', async () => {
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: UNFORCED });
+    const alternate = await addDeployment(fixture, {
+      rank: 'z',
+      // Stated before values were distinguished: the field alone takes every value.
+      acceptedParameters: ['maxOutputTokens', 'toolChoice', 'tools'],
+    });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 10,
+            output: 5,
+            provider:
+              envelope.authorizedRoutes?.[0]?.deploymentId === alternate.deploymentId
+                ? alternate.providerSlug
+                : fixture.provider,
+          }),
+        seen,
+      ),
+      async (request) => {
+        for (const choice of [
+          'auto',
+          'none',
+          'required',
+          { type: 'function', function: { name: 'lookup' } },
+        ]) {
+          const response = await request(
+            'POST',
+            '/v1/chat/completions',
+            chatBody(fixture, { tools: LOOKUP, tool_choice: choice }),
+            bearer(fixture.token),
+          );
+          expect(response.status).toBe(200);
+        }
+      },
+    );
+    expect(
+      seen.map((envelope) => envelope.authorizedRoutes?.map((route) => route.deploymentId)),
+    ).toEqual([
+      [fixture.deploymentId, alternate.deploymentId],
+      [fixture.deploymentId, alternate.deploymentId],
+      [alternate.deploymentId],
+      [alternate.deploymentId],
+    ]);
+  });
+
+  it('refuses a forced choice no route takes on toolChoice, before any Kaana call', async () => {
+    const fixture = await makeFixture({ fund: '10.00', acceptedParameters: UNFORCED });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen,
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { tools: LOOKUP, tool_choice: 'required' }),
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(400);
+        const body = json(response) as { error: { param?: string; message: string } };
+        expect(body.error.param).toBe('toolChoice');
+        expect(body.error.message).toContain('forces a tool call');
+      },
+    );
+    expect(seen).toHaveLength(0);
+  });
+
+  it('needs nothing for auto, even on a route that takes no tool choice at all', async () => {
+    const fixture = await makeFixture({
+      fund: '10.00',
+      acceptedParameters: ['maxOutputTokens', 'tools'],
+    });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 10, output: 5, provider: fixture.provider }),
+        seen,
+      ),
+      async (request) => {
+        const auto = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { tools: LOOKUP, tool_choice: 'auto' }),
+          bearer(fixture.token),
+        );
+        expect(auto.status).toBe(200);
+        const none = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { tools: LOOKUP, tool_choice: 'none' }),
+          bearer(fixture.token),
+        );
+        expect(none.status).toBe(400);
+        expect((json(none) as { error: { param?: string } }).error.param).toBe('toolChoice');
       },
     );
     expect(seen).toHaveLength(1);

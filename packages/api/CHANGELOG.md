@@ -14,7 +14,7 @@
 - Every message read carries `delivery` (`sending`, `retrying`, `sent`,
   `failed`, with `attempts`, `nextAttemptAt`, the relay's `error` and a typed
   `errorCode`) on a message the user sent; received mail has none. It is the
-  message's `email_outbox` row, linked by `message_row_id` (migration 0156 adds
+  message's `email_outbox` row, linked by `message_row_id` (migration 0157 adds
   `error_code` and an index). Each change emits `email:changed` with reason
   `delivery`.
 - `POST /email/messages/:messageId/delivery/retry` delivers a failed message

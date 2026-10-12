@@ -1,5 +1,5 @@
 {
-  "id": "99b0b205-63ea-4112-8e75-3289dbb193f3",
+  "id": "5cca3ab6-3c8e-4c20-8c06-2403e73e3de0",
   "prevId": "06f02531-4634-48c6-858b-621d242098a8",
   "version": "7",
   "dialect": "postgresql",
@@ -9628,12 +9628,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "error_code": {
-          "name": "error_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "sent_at": {
           "name": "sent_at",
           "type": "timestamp with time zone",
@@ -9704,22 +9698,6 @@
           "method": "btree",
           "with": {}
         },
-        "email_outbox_message_row_idx": {
-          "name": "email_outbox_message_row_idx",
-          "columns": [
-            {
-              "expression": "message_row_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"email_outbox\".\"message_row_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "email_outbox_user_idempotency_key": {
           "name": "email_outbox_user_idempotency_key",
           "columns": [
@@ -9782,10 +9760,6 @@
         "email_outbox_attempts_check": {
           "name": "email_outbox_attempts_check",
           "value": "\"email_outbox\".\"attempts\" >= 0"
-        },
-        "email_outbox_error_code_check": {
-          "name": "email_outbox_error_code_check",
-          "value": "\"email_outbox\".\"error_code\" is null or \"email_outbox\".\"error_code\" in ('relay_unavailable', 'relay_unconfigured', 'relay_auth', 'rejected', 'retries_exhausted', 'bounced', 'cancelled')"
         }
       },
       "isRLSEnabled": false
@@ -13627,7 +13601,7 @@
         },
         "inference_deployments_accepted_parameters_check": {
           "name": "inference_deployments_accepted_parameters_check",
-          "value": "\"inference_deployments\".\"accepted_parameters\" is null or \"inference_deployments\".\"accepted_parameters\" <@ array['maxOutputTokens', 'reasoning.effort', 'responseFormat', 'sampling.frequencyPenalty', 'sampling.presencePenalty', 'sampling.seed', 'sampling.stopSequences', 'sampling.temperature', 'sampling.topP', 'toolChoice', 'tools']::text[]"
+          "value": "\"inference_deployments\".\"accepted_parameters\" is null or \"inference_deployments\".\"accepted_parameters\" <@ array['maxOutputTokens', 'reasoning.effort', 'responseFormat', 'sampling.frequencyPenalty', 'sampling.presencePenalty', 'sampling.seed', 'sampling.stopSequences', 'sampling.temperature', 'sampling.topP', 'toolChoice', 'toolChoice.function', 'toolChoice.none', 'toolChoice.required', 'tools']::text[]"
         },
         "inference_deployments_retention_coherent": {
           "name": "inference_deployments_retention_coherent",

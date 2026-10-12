@@ -785,6 +785,9 @@ const SERVER_REQUEST_PARAMETERS = [
   'sampling.temperature',
   'sampling.topP',
   'toolChoice',
+  'toolChoice.function',
+  'toolChoice.none',
+  'toolChoice.required',
   'tools',
 ];
 
