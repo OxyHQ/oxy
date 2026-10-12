@@ -18,6 +18,9 @@
 
 - Admits `@oxy.so/bloom` 7.32.x and 7.33.x (peer cap `<7.34.0`), verified
   against the official 7.32.0 and 7.33.0 packages.
+- Admits `@oxy.so/bloom` 8.0.x. Bloom 8.0.0's one break moves
+  `LinkPreviewCard` off the root barrel to `@oxy.so/bloom/link-preview`, which
+  this package does not import.
 
 ## [11.2.0-oxy-one.3] - 2026-10-10
 
