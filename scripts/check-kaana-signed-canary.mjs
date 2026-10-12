@@ -231,7 +231,7 @@ requireMatch(
 );
 requireMatch(
   workflow,
-  /command:\["node","packages\/api\/scripts\/run-kaana-signed-canary\.mjs"\]/,
+  /command:\["bun","packages\/api\/scripts\/run-kaana-signed-canary\.mjs"\]/,
   'the ECS task must execute the reviewed canary from the live image',
 );
 
@@ -348,7 +348,7 @@ requireMatch(
 );
 requireMatch(
   readbackWorkflow,
-  /command:\["node","packages\/api\/scripts\/run-kaana-signed-canary\.mjs","readback"\]/,
+  /command:\["bun","packages\/api\/scripts\/run-kaana-signed-canary\.mjs","readback"\]/,
   'the readback task must invoke only the fixed signed readback operation',
 );
 requireMatch(

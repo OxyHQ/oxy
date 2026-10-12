@@ -625,6 +625,81 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
 
 
+  # The production image, built and booted the way ECS runs it. The API runs on
+  # Bun (Dockerfile's runtime stage), and nothing short of the image proves that
+  # runtime: PID 1, the entrypoint, Sharp's musl binding, the migrator under the
+  # deploy's exact commands, a failed boot's exit code, OpenTelemetry spans, the
+  # asset-variant worker and SIGTERM. arm64, like production and the merge
+  # queue's build. Reads the queue image's BuildKit cache; never writes it.
+  api-image:
+    name: API Image (Bun runtime smoke)
+    needs: scope
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.api != 'false') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
+    permissions:
+      contents: read
+    # A throwaway database and Redis for the smoke; nothing else uses them.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: oxy
+          POSTGRES_PASSWORD: oxy
+          POSTGRES_DB: oxy
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U oxy -d oxy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6390:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The smoke's OTLP receiver runs on the host.
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
+      - name: Build the API image (linux/arm64)
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            --cache-from type=gha,scope=oxy-api-backend \
+            -f Dockerfile \
+            -t oxy-api:ci \
+            --load \
+            .
+
+      - name: Smoke the API image under its Bun runtime
+        env:
+          IMAGE: oxy-api:ci
+          DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5439/oxy
+          REDIS_URL: redis://127.0.0.1:6390
+          PORT: '8080'
+        run: bash .github/scripts/smoke-api-image.sh
+
   # Repository guards and the API package's one-off checks, on one runner.
   #
   # Two phases, and the order is load-bearing. First, before `bun install`, the
@@ -913,6 +988,9 @@ jobs:
           node scripts/test-check-kaana-signed-canary.mjs
           node scripts/check-kaana-signed-canary.mjs
           node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
+          # The ECS canary task runs this script on Bun (the API image's runtime),
+          # including its hand-rolled WebSocket client on node:http's upgrade.
+          bun test ./packages/api/scripts/run-kaana-signed-canary.test.mjs
           node scripts/test-check-inbox-routing-profile-readback.mjs
           node scripts/check-inbox-routing-profile-readback.mjs
           node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
@@ -1508,6 +1586,7 @@ jobs:
       - api-test
       - api-coverage
       - api-build
+      - api-image
       - packages-platform
       - packages-apps
       - android-kotlin

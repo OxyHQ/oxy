@@ -272,6 +272,7 @@ const REQUIRED_JOBS = [
   'api-test',
   'api-coverage',
   'api-build',
+  'api-image',
   'packages-platform',
   'packages-apps',
 ];
@@ -430,6 +431,7 @@ const scopedOut = (extra = {}) => ({
 for (const [job, output] of [
   ['api-test', 'api'],
   ['api-build', 'api'],
+  ['api-image', 'api'],
   ['packages-platform', 'platform'],
   ['packages-apps', 'apps'],
 ]) {

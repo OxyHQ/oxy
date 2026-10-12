@@ -23,7 +23,7 @@ name: Run PostgreSQL migrations
 #    one-shot") — the same shape as seed-oxy-applications.yml, whose comments
 #    explain the task-definition reuse in more detail.
 #
-# 2. It runs the API image's OWN migrator: `node packages/api/dist/db/migrate.js`
+# 2. It runs the API image's OWN migrator: `bun packages/api/dist/db/migrate.js`
 #    (source `packages/api/src/db/migrate.ts`), which uses drizzle-orm's migrator
 #    over the `.sql` files copied into the image. It is deliberately NOT
 #    `drizzle-kit migrate`: drizzle-kit is a devDependency and the runtime image
@@ -145,7 +145,7 @@ jobs:
           # to prevent — and it would look like an ordinary successful run. The
           # flag is parsed before DATABASE_URL is read, so this needs no database.
           docker run --rm --entrypoint sh "$IMAGE" -c '
-            node packages/api/dist/db/migrate.js --phase=nonsense 2>&1 \
+            bun packages/api/dist/db/migrate.js --phase=nonsense 2>&1 \
               | grep -q "Unrecognised --phase" \
               || { echo "This image does not validate --phase; it predates phased migrations."; exit 1; }
             echo "migrator understands --phase"
@@ -202,7 +202,7 @@ jobs:
             --arg phase "$PHASE" \
             '{containerOverrides:[{
                name: $name,
-               command: ["node","packages/api/dist/db/migrate.js", "--phase=" + $phase],
+               command: ["bun","packages/api/dist/db/migrate.js", "--phase=" + $phase],
                environment: [
                  {name:"DRY_RUN", value:$dry}
                ]

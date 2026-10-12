@@ -10,7 +10,7 @@
  * THE SUITES
  *
  *   api        `api-test` (the sharded Jest matrix; `api-coverage` merges it)
- *              and `api-build`
+ *              and `api-build`, `api-image` (the Bun runtime image smoke)
  *   platform   `packages-platform`
  *   apps       `packages-apps`
  *
@@ -113,7 +113,7 @@ export const WORKFLOW_PATH = '.github/workflows/ci.yml';
  * refuses a workflow whose job `if:` does not consult it.
  */
 export const SUITE_JOBS = {
-  api: ['api-test', 'api-build'],
+  api: ['api-test', 'api-build', 'api-image'],
   platform: ['packages-platform'],
   apps: ['packages-apps'],
 };

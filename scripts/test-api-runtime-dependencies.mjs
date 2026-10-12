@@ -14,7 +14,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
 const stage = dockerfile
   .split('FROM bun-node AS production-deps')[1]
-  ?.split('FROM node:24-alpine')[0];
+  // Up to the next stage (the Bun runtime image), whatever its base.
+  ?.split('\nFROM ')[0];
 assert.ok(stage, 'Production dependency stage must be present');
 const install = stage
   .match(/^RUN bun (install[^\n]*?)(?:\s*\\)?$/m)?.[1]

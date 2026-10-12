@@ -5,8 +5,8 @@
   "description": "OxyHQ API server with authentication, user management, and real-time features",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node dist/server.js",
-    "start:asset-variant-worker": "node dist/asset-variant-worker.js",
+    "start": "bun dist/server.js",
+    "start:asset-variant-worker": "bun dist/asset-variant-worker.js",
     "dev": "bun --watch src/server.ts",
     "build": "node ../core/scripts/build-workspace-deps.mjs @oxy.so/utils @oxy.so/telemetry @oxy.so/contracts @oxy.so/protocol @oxy.so/core @oxy.so/federation @oxy.so/db @oxy.so/mcp && tsc",
     "clean": "rm -rf dist",
