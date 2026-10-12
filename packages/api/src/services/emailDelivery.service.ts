@@ -7,11 +7,12 @@
  * the message in the outbox and answered 202 `queued`, which a client could
  * not tell from success.
  *
- * Now the request only ACCEPTS the message — claims its outbox row, files it in
- * Sent linked to that row, and answers — and the relay is spoken to afterwards,
- * on the same task, under the claim's lease. Every outcome lands on the outbox
- * row, which IS the message's `delivery` (`toMessageDelivery`), and each one
- * emits `email:changed` with reason `delivery` so every open view re-reads it.
+ * Now the request only ACCEPTS the message — claims its outbox row and files it
+ * in Sent linked to that row, in one transaction, and answers — and the relay
+ * is spoken to afterwards, on the same task, under the claim's lease. Every
+ * outcome lands on the outbox row, which IS the message's `delivery`
+ * (`toMessageDelivery`), and each one emits `email:changed` with reason
+ * `delivery` so every open view re-reads it.
  *
  * The outbox worker is unchanged in role: it retries what failed transiently,
  * and adopts a claim whose task died before it could deliver.
@@ -36,7 +37,6 @@ import {
   markEmailOutboxFailed,
   markEmailOutboxSent,
   markEmailOutboxTerminal,
-  releaseSendClaim,
   toMessageDelivery,
   type MessageDeliveryDto,
 } from './emailOutbox.service';
@@ -52,6 +52,11 @@ import {
 } from './smtp.outbound';
 
 type EmailOutboxRow = typeof emailOutbox.$inferSelect;
+
+/** A claim taken together with its Sent copy, or the claim that beat it. */
+type FiledClaim =
+  | { claimed: true; row: EmailOutboxRow; messageRowId: string }
+  | { claimed: false; existing: EmailOutboxRow };
 
 /** What accepting a send tells the caller. */
 export interface AcceptedSend {
@@ -96,17 +101,39 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     if (filed) return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
   }
 
-  const claim = await claimSend({
-    userId: message.userId,
-    idempotencyKey: key,
-    messageId,
-    payload: outboxPayload(message),
-    owner: `request:${randomUUID()}`,
+  // The claim and the Sent copy commit together. A repeat of the key racing
+  // this one waits on the claim until it commits, so it can only ever answer
+  // with the filed row; a refusal (a full mailbox, usually) rolls the claim
+  // back with the filing, so no answer can promise a send that never happens
+  // and the key is free to try again once the cause is fixed.
+  const target = await emailService.sentFilingTarget(message.userId);
+  const claim = await getDb().transaction(async (tx): Promise<FiledClaim> => {
+    const taken = await claimSend(
+      {
+        userId: message.userId,
+        idempotencyKey: key,
+        messageId,
+        payload: outboxPayload(message),
+        owner: `request:${randomUUID()}`,
+      },
+      tx,
+    );
+    if (!taken.claimed) return taken;
+    const messageRowId = await emailService.fileSentMessage(tx, message.userId, target, {
+      ...outboxPayload(message),
+      messageId,
+      relayMessageId: null,
+      size: bodySize(message),
+      deliveryId: taken.row.id,
+    });
+    return { claimed: true, row: { ...taken.row, messageRowId }, messageRowId };
   });
+
   if (!claim.claimed) {
     const existing = claim.existing;
     const messageRowId =
       existing.messageRowId ??
+      // Accepted before sends were filed first.
       (await emailService.findMessageByRfcMessageId(message.userId, existing.messageId))?.id ??
       null;
     return {
@@ -116,25 +143,17 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     };
   }
 
-  let filed: MessageDto;
-  try {
-    filed = await emailService.storeSentMessage(message.userId, {
-      ...outboxPayload(message),
-      messageId,
-      relayMessageId: null,
-      size: bodySize(message),
-      deliveryId: claim.row.id,
-    });
-  } catch (error) {
-    // Nothing was sent and nothing is filed: give the key back, so the sender
-    // can try again once the cause (a full mailbox, usually) is fixed.
-    await releaseSendClaim(claim.row.id);
-    throw error;
-  }
-
-  const row = { ...claim.row, messageRowId: filed.id };
+  const { row, messageRowId } = claim;
+  // A second device showing the Sent folder sees the message the moment it is
+  // filed, and its first read already says whether it has left.
+  await emitEmailChanged({
+    userId: message.userId,
+    id: messageRowId,
+    mailboxIds: [target.mailboxId],
+    reason: 'sent',
+  });
   startDelivery(row);
-  return { messageId, messageRowId: filed.id, delivery: toMessageDelivery(row) };
+  return { messageId, messageRowId, delivery: toMessageDelivery(row) };
 }
 
 /** Deliver a claimed row in the background; the outcome is on the row. */

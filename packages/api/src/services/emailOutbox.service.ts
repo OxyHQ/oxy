@@ -224,6 +224,11 @@ export type SendClaim =
  * press, a retry that landed on another API task) loses the unique-index race
  * and gets the existing row instead of sending again.
  *
+ * Claimed inside the transaction that files the Sent copy (`acceptOutboundMessage`),
+ * the claim and the filing commit as one: the loser's insert waits on the
+ * unique index until the holder commits — and then reads a row already linked
+ * to its Sent copy — or rolls back, and then claims the send itself.
+ *
  * This replaces a per-process in-flight map plus a Redis result cache written
  * only AFTER the relay answered: two tasks could both miss both, and the same
  * reply went out twice.
@@ -277,25 +282,24 @@ export async function claimSend(
     )
     .limit(1);
   if (!existing) {
-    // The holder released its claim (a refusal before anything was sent)
-    // between our insert and this read. Take the claim ourselves.
+    // The holder's row went away between our insert and this read. Take the
+    // claim ourselves.
     return claimSend(input, db);
   }
   return { claimed: false, existing };
 }
 
 /**
- * Give a claim back when the send is refused before anything was sent or
- * filed. No row may promise a delivery that will not happen — and the same key
- * must be free to try again once the sender has fixed the cause.
+ * Record which Sent row this delivery is the delivery of — on the transaction
+ * that filed the row, when there is one: another connection cannot see a claim
+ * that transaction has not committed, and would link nothing.
  */
-export async function releaseSendClaim(outboxId: string): Promise<void> {
-  await getDb().delete(emailOutbox).where(eq(emailOutbox.id, outboxId));
-}
-
-/** Record which Sent row this delivery is the delivery of. */
-export async function linkOutboxToMessage(outboxId: string, messageRowId: string): Promise<void> {
-  await getDb().update(emailOutbox).set({ messageRowId }).where(eq(emailOutbox.id, outboxId));
+export async function linkOutboxToMessage(
+  outboxId: string,
+  messageRowId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db.update(emailOutbox).set({ messageRowId }).where(eq(emailOutbox.id, outboxId));
 }
 
 export async function claimEmailOutbox(

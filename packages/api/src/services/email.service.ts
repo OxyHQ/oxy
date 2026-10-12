@@ -33,7 +33,12 @@ import type {
 import { safeFetch, SsrfRejection } from '@oxy.so/core/server';
 import { isUniqueViolation } from '@oxy.so/db';
 import { publicColumns } from '@oxy.so/db/assert';
-import { getDb, type Database, type Transaction } from '../config/postgres';
+import {
+  getDb,
+  type Database,
+  type DatabaseOrTransaction,
+  type Transaction,
+} from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
 import { contacts } from '../db/schema/contacts';
 import { EMAIL_FILTER_ACTION_TYPES, emailFilterActions } from '../db/schema/emailFilterActions';
@@ -1151,7 +1156,7 @@ async function loadSenderIdentity(
  * skipping it turns address matching silently case-sensitive.
  */
 async function insertMessageWithChildren(
-  db: Database,
+  db: DatabaseOrTransaction,
   values: typeof messages.$inferInsert,
   recipients: { to?: EmailAddress[]; cc?: EmailAddress[]; bcc?: EmailAddress[] },
   attachments: MessageAttachment[],
@@ -1192,6 +1197,52 @@ async function insertMessageWithChildren(
 
     return row.id;
   });
+}
+
+/** The bytes a user's messages take up: the quota counts the messages themselves. */
+async function storedBytes(db: DatabaseOrTransaction, userId: string): Promise<number> {
+  const [row] = await db
+    .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
+    .from(messages)
+    .where(eq(messages.userId, userId));
+  // `sum()` is `numeric`; postgres.js hands a bigint back as a string.
+  return Number(row?.used ?? 0);
+}
+
+function refuseOverQuota(used: number, additionalBytes: number, limit: number): void {
+  if (used + additionalBytes > limit) {
+    throw new BadRequestError('Email storage quota exceeded');
+  }
+}
+
+/** Where {@link EmailService.fileSentMessage} files a user's sent mail, read ahead of its transaction. */
+export interface SentFilingTarget {
+  mailboxId: string;
+  storageLimit: number;
+}
+
+/** A message the user sent, as it is filed in Sent. */
+export interface SentMessageInput {
+  messageId: string;
+  /** The id the relay delivered it under, when it replaced ours. */
+  relayMessageId?: string | null;
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  bcc?: EmailAddress[];
+  subject: string;
+  text?: string;
+  html?: string;
+  inReplyTo?: string;
+  references?: string[];
+  attachments?: MessageAttachment[];
+  size: number;
+  /**
+   * The outbox row that delivers this message. Linked in the filing's own
+   * transaction, BEFORE the message is announced, so the first read any device
+   * makes of it already says whether it has left.
+   */
+  deliveryId?: string;
 }
 
 /** Read one message back in full, for the paths that return what they wrote. */
@@ -2703,48 +2754,44 @@ class EmailService {
   }
 
   /**
-   * Move a sent message to the Sent mailbox after it has been dispatched.
+   * Where this user's sent mail is filed, and how many bytes they may store.
+   * Read BEFORE a filing's transaction opens, so that transaction never waits
+   * on a second pooled connection while it holds its own.
    */
-  async storeSentMessage(
-    userId: string,
-    messageData: {
-      messageId: string;
-      /** The id the relay delivered it under, when it replaced ours. */
-      relayMessageId?: string | null;
-      from: EmailAddress;
-      to: EmailAddress[];
-      cc?: EmailAddress[];
-      bcc?: EmailAddress[];
-      subject: string;
-      text?: string;
-      html?: string;
-      inReplyTo?: string;
-      references?: string[];
-      attachments?: MessageAttachment[];
-      size: number;
-      /**
-       * The outbox row that delivers this message. Linked BEFORE the message is
-       * announced, so the first read any device makes of it already says
-       * whether it has left.
-       */
-      deliveryId?: string;
-    },
-  ): Promise<MessageDto> {
+  async sentFilingTarget(userId: string): Promise<SentFilingTarget> {
     await this.ensureMailboxes(userId);
-    const db = getDb();
     const sentMailbox = await this.getMailboxBySpecialUse(userId, '\\Sent');
     if (!sentMailbox) throw new NotFoundError('Sent mailbox not found');
+    const storageLimit = EMAIL_QUOTAS[await this.getUserTier(userId)].storage;
+    return { mailboxId: sentMailbox.id, storageLimit };
+  }
 
-    // Count body + attachment bytes toward the storage quota on the send path.
+  /**
+   * File a sent message in Sent on `db` — the caller's transaction when the
+   * filing must commit together with its delivery claim — and link its
+   * delivery in that same transaction. Announces nothing: a row in an
+   * uncommitted transaction is not there yet for any other device;
+   * {@link storeSentMessage} files and announces.
+   *
+   * Refuses a message that does not fit the storage quota (body and attachment
+   * bytes) before inserting anything.
+   */
+  async fileSentMessage(
+    db: DatabaseOrTransaction,
+    userId: string,
+    target: SentFilingTarget,
+    messageData: SentMessageInput,
+  ): Promise<string> {
     const size = this.calculateMessageStorageSize(messageData);
-    await this.enforceQuota(userId, size);
+    refuseOverQuota(await storedBytes(db, userId), size, target.storageLimit);
 
     const now = new Date();
-    const created = await insertMessageWithChildren(
+    const { deliveryId } = messageData;
+    return insertMessageWithChildren(
       db,
       {
         userId,
-        mailboxId: sentMailbox.id,
+        mailboxId: target.mailboxId,
         messageId: messageData.messageId,
         relayMessageId: messageData.relayMessageId ?? null,
         fromName: messageData.from.name?.trim() ? messageData.from.name.trim() : null,
@@ -2761,11 +2808,15 @@ class EmailService {
       },
       { to: messageData.to, cc: messageData.cc, bcc: messageData.bcc },
       messageData.attachments ?? [],
+      deliveryId ? (tx, created) => linkOutboxToMessage(deliveryId, created, tx) : undefined,
     );
-    if (messageData.deliveryId) {
-      await linkOutboxToMessage(messageData.deliveryId, created);
-    }
+  }
 
+  /** File a message in Sent, and announce it. */
+  async storeSentMessage(userId: string, messageData: SentMessageInput): Promise<MessageDto> {
+    const db = getDb();
+    const target = await this.sentFilingTarget(userId);
+    const created = await this.fileSentMessage(db, userId, target, messageData);
     const dto = await readMessageDto(db, created);
     // A second device showing the Sent folder should see the message the moment
     // it is filed, not on its next refresh.
@@ -4291,12 +4342,7 @@ class EmailService {
   async getQuotaUsage(
     userId: string,
   ): Promise<{ used: number; limit: number; percentage: number }> {
-    const [row] = await getDb()
-      .select({ used: sql<string>`coalesce(sum(${messages.size}), 0)::bigint` })
-      .from(messages)
-      .where(eq(messages.userId, userId));
-    // `sum()` is `numeric`; postgres.js hands a bigint back as a string.
-    const used = Number(row?.used ?? 0);
+    const used = await storedBytes(getDb(), userId);
     const tier = await this.getUserTier(userId);
     const limit = EMAIL_QUOTAS[tier].storage;
     return { used, limit, percentage: limit > 0 ? (used / limit) * 100 : 0 };
@@ -4304,9 +4350,7 @@ class EmailService {
 
   async enforceQuota(userId: string, additionalBytes: number): Promise<void> {
     const { used, limit } = await this.getQuotaUsage(userId);
-    if (used + additionalBytes > limit) {
-      throw new BadRequestError('Email storage quota exceeded');
-    }
+    refuseOverQuota(used, additionalBytes, limit);
   }
 
   async getDailySendCount(userId: string): Promise<number> {
