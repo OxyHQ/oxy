@@ -2782,6 +2782,10 @@ const FUNDING_CLASS_RANK: Readonly<Record<InferenceFundingClass, InferenceFundin
   standard_payg: 4,
 } as const;
 
+/** The {@link EdgeRoute.fundingPriority} of a route an available promotional grant funds. */
+export const PROMOTIONAL_CREDIT_FUNDING_PRIORITY: InferenceFundingPriority =
+  FUNDING_CLASS_RANK.promotional_credit;
+
 type FundingPriorityResolution =
   | { readonly status: 'available'; readonly rank: InferenceFundingPriority }
   | { readonly status: 'unavailable' };

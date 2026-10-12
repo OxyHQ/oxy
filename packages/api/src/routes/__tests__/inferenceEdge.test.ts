@@ -482,15 +482,20 @@ async function addDeployment(
   const providerSlug = options.providerSlug ?? `${options.rank}prv${tag}`;
   const kaanaDeploymentId = `kaana-${options.rank}-${tag}`;
 
-  await db.insert(inferenceProviders).values({
-    slug: providerSlug,
-    displayName: `Provider ${tag}`,
-    kind: 'third_party',
-    retainsPayloads: false,
-    retentionDays: 0,
-    trainsOnCustomerData: false,
-    zeroDataRetentionAvailable: true,
-  });
+  // A named provider (`openrouter`) may already exist in this worker's database,
+  // written by another suite with the same data-policy facts.
+  await db
+    .insert(inferenceProviders)
+    .values({
+      slug: providerSlug,
+      displayName: `Provider ${tag}`,
+      kind: 'third_party',
+      retainsPayloads: false,
+      retentionDays: 0,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+    })
+    .onConflictDoNothing();
 
   const [priceVersion] = await db
     .insert(priceVersions)

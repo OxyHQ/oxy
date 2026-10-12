@@ -51,6 +51,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 
 | [0035](0035-alia-app-only-machine-chat.md) | #1571 | Proposed: explicit Alia recipient and `alia:chat` + `inference:invoke` machine scopes, separate app principal and caller payer; no user, tools or default grants. |
 | [0036](0036-reviewed-facts-and-funding-for-synced-routes.md) | Kaana#166 | A provider that publishes its price and accepted controls outside its model list (Anthropic) gets reviewed per-`(provider, line)` facts in Oxy, written by the sync into the same price versions and intersected with Kaana's controls; a synced route's funding class comes from Kaana's signed credential economics (a single promotional key → `promotional_credit`, six-hour window). Changes 0027 decision 5. |
+| [0037](0037-pilot-spends-promotional-credit-at-named-levels.md) | ADR 0036 | The internal Alia pilot admits a route by its own available, in-window promotional-credit evidence only when a request names Pro or Ultra, under a USD 1.00 lane ceiling, with XHigh's ordinary tuples signed as the fallback; paid Claude, `auto` and exact model names stay outside, and a spent or stale grant leaves only the fallback. |
 
 ## Related
 

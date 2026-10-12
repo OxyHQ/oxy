@@ -1,6 +1,11 @@
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 import { hashScopedInput } from '../scopedExecution.service';
-import { controlledInputBudget, pilotAllowsDeployment } from '../inferenceInternalPilot';
+import {
+  controlledInputBudget,
+  fundedByPromotionalCredit,
+  pilotAllowsDeployment,
+  promotionalLaneLevels,
+} from '../inferenceInternalPilot';
 import { INTERNAL_METERED_RELATIONSHIPS } from '../../config/inferenceEconomicPolicy';
 import type { NormalizedEdgeRequest } from '../../schemas/inferenceEdge.schemas';
 
@@ -90,6 +95,41 @@ it('requires the exact deployment, model revision and provider tuple', () => {
     ).toBe(false);
     expect(pilotAllowsDeployment(pilot, { ...route, provider: 'other' })).toBe(false);
   }
+});
+
+describe('promotional-credit lane (ADR 0037)', () => {
+  const pilot = INTERNAL_METERED_RELATIONSHIPS[0].pilot;
+  if (pilot === undefined) throw new Error('Production pilot missing');
+  const everyLevel = () => true;
+
+  it('covers only the named Pro and Ultra levels, each with the XHigh fallback', () => {
+    expect(promotionalLaneLevels(pilot, 'pro', everyLevel)).toEqual(['pro', 'xhigh']);
+    expect(promotionalLaneLevels(pilot, 'ultra', everyLevel)).toEqual(['ultra', 'xhigh']);
+    for (const level of ['instant', 'medium', 'high', 'xhigh'] as const) {
+      expect(promotionalLaneLevels(pilot, level, everyLevel)).toBeUndefined();
+    }
+  });
+
+  it('drops a fallback level the application policy does not allow', () => {
+    expect(promotionalLaneLevels(pilot, 'pro', (level) => level !== 'xhigh')).toEqual(['pro']);
+  });
+
+  it('is absent without a lane, including for a caller with no pilot', () => {
+    const { promotionalCredit: _lane, ...withoutLane } = pilot;
+    expect(promotionalLaneLevels(withoutLane, 'pro', everyLevel)).toBeUndefined();
+    expect(promotionalLaneLevels(undefined, 'ultra', everyLevel)).toBeUndefined();
+  });
+
+  it('admits by available promotional funding only, never by standard, discounted or free funding', () => {
+    expect(fundedByPromotionalCredit({ fundingPriority: 3 })).toBe(true);
+    expect(fundedByPromotionalCredit({ fundingPriority: 4 })).toBe(false);
+    expect(fundedByPromotionalCredit({ fundingPriority: 2 })).toBe(false);
+    expect(fundedByPromotionalCredit({ fundingPriority: 1 })).toBe(false);
+  });
+
+  it('keeps the promotional quote ceiling an exact USD decimal', () => {
+    expect(pilot.promotionalCredit?.maxPricePerRequestUsd).toMatch(/^\d+\.\d+$/);
+  });
 });
 
 describe('scoped decisions pilot budget', () => {
