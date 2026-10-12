@@ -1,5 +1,45 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.2.0
+
+### Added
+
+Two opt-in options for an app that draws with WebGPU on native and runs its
+own modules on a worklet runtime (GoWay's 3D city). An app that passes
+neither gets exactly the 3.1.0 config.
+
+- **`workletsBundleMode`** turns on react-native-worklets' Bundle Mode, in
+  which a worker runtime runs the app's MODULES, not just copied closures.
+  - **Babel:** pass `require('@oxy.so/app-preset/babel').createOxyBabelConfig({
+    workletsBundleMode: { importForwarding: { relativePaths: [...] } } })`.
+    It gives the worklets plugin `bundleMode: true` and the import forwarding
+    lists, and turns off babel-preset-expo's own worklets plugin, which would
+    otherwise run a second, option-less copy.
+  - **Metro:** pass `createOxyMetroConfig(__dirname, { workletsBundleMode: true })`.
+    It wraps the finished config, after the Bloom and NativeWind resolvers,
+    with worklets' `getBundleModeMetroConfig`.
+  - **Both are needed.** Neither works alone.
+  - **Misspellings throw.** A misspelt `importForwarding` key fails the build
+    instead of being ignored.
+  - **Measured on GoWay's harness:** Expo 57, worklets 0.10.0, Hermes release
+    build on an Android emulator. GoWay's mesher runs on a worker runtime, and
+    the JS thread's longest frame drops from about 1–2.5 s to under 0.1 s
+    (GoWay `docs/MAP_NATIVE_3D.md`).
+  - **No native config is needed.** A clean build needs no `pickFirsts`.
+  - **worklets' `FETCH_PREVIEW_ENABLED` is not set.** In 0.10.0 a release build
+    crashes creating a worker runtime with it.
+- **`webgpu: true`** on the config plugin applies `react-native-webgpu`'s own
+  config plugin, which turns off Metal API validation in the iOS scheme.
+  - `react-native-webgpu` is a new optional peer, `>=0.5.18 <1.0.0`. 0.5.18
+    is the first release that ships `app.plugin.js` (bisected over the
+    published tarballs), and 0.5.18 and 0.13.1 both apply.
+  - Without the package installed, `webgpu: true` throws and names it.
+
+### Unchanged
+
+- `module.exports = require('@oxy.so/app-preset/babel')` still works, and its
+  output is identical.
+
 ## 3.1.0
 
 ### Changed

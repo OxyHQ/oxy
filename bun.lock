@@ -214,7 +214,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
@@ -230,6 +230,7 @@
         "expo": ">=56.0.0",
         "expo-build-properties": "*",
         "nativewind": ">=5.0.0-preview.0",
+        "react-native-webgpu": ">=0.5.18 <1.0.0",
         "react-native-worklets": "*",
         "sharp": ">=0.33.0",
         "tailwindcss": ">=4.0.0",
@@ -241,6 +242,7 @@
         "eslint",
         "eslint-config-expo",
         "expo-build-properties",
+        "react-native-webgpu",
         "react-native-worklets",
         "sharp",
       ],

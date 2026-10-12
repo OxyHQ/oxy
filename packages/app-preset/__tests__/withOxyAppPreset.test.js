@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, symlinkSync, rmSync } = require('node:fs');
+const { mkdtempSync, mkdirSync, symlinkSync, rmSync, writeFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 
@@ -100,4 +100,48 @@ test('the preset no longer ships a withSharedUserId plugin', () => {
   const pkg = require('../package.json');
   assert.equal(pkg.exports['./plugin/withSharedUserId'], undefined);
   assert.throws(() => require('../plugin/withSharedUserId'), /Cannot find module/);
+});
+
+/** Give the fake app a `react-native-webgpu` whose config plugin marks the config. */
+function installFakeWebGPU(root) {
+  const dir = join(root, 'node_modules', 'react-native-webgpu');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'package.json'),
+    JSON.stringify({ name: 'react-native-webgpu', version: '0.13.0' }),
+  );
+  writeFileSync(
+    join(dir, 'app.plugin.js'),
+    'module.exports = (config) => ({ ...config, webgpuPluginApplied: true });\n',
+  );
+}
+
+test('react-native-webgpu is opt-in: applied with `webgpu: true`, never by default', () => {
+  const root = fakeApp();
+  try {
+    installFakeWebGPU(root);
+    const base = { name: 'app', _internal: { projectRoot: root } };
+    const off = withOxyAppPreset(base, { ios: false, android: false });
+    assert.equal(off.webgpuPluginApplied, undefined);
+    const on = withOxyAppPreset(base, { ios: false, android: false, webgpu: true });
+    assert.equal(on.webgpuPluginApplied, true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('`webgpu: true` without react-native-webgpu installed says what to install', () => {
+  const root = fakeApp();
+  try {
+    assert.throws(
+      () =>
+        withOxyAppPreset(
+          { name: 'app', _internal: { projectRoot: root } },
+          { ios: false, android: false, webgpu: true },
+        ),
+      /`webgpu: true` needs 'react-native-webgpu' installed in the app/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

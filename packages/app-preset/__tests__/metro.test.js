@@ -5,6 +5,8 @@ const Module = require('node:module');
 
 const originalLoad = Module._load;
 let createOxyMetroConfig;
+/** Configs worklets' `getBundleModeMetroConfig` was handed. */
+const bundleModeWrapped = [];
 
 before(() => {
   Module._load = function load(request, parent, isMain) {
@@ -24,6 +26,15 @@ before(() => {
             },
             transformer: { minifierConfig: { compress: { existing: true } } },
           };
+        },
+      };
+    }
+    if (request.replace(/\\/g, '/').includes('react-native-worklets/bundleMode')) {
+      return {
+        getBundleModeMetroConfig(config) {
+          bundleModeWrapped.push(config);
+          config.workletsBundleMode = true;
+          return config;
         },
       };
     }
@@ -127,4 +138,19 @@ test('stamps the build id into the env the SDK reads and into the transform cach
       else process.env[key] = value;
     }
   }
+});
+
+test('Bundle Mode is opt-in, and wraps the finished config last', () => {
+  const projectRoot = '/repo/packages/frontend';
+  bundleModeWrapped.length = 0;
+  const plain = createOxyMetroConfig(projectRoot);
+  assert.equal(plain.workletsBundleMode, undefined);
+  assert.equal(bundleModeWrapped.length, 0);
+
+  const config = createOxyMetroConfig(projectRoot, { workletsBundleMode: true });
+  assert.equal(config.workletsBundleMode, true);
+  assert.deepEqual(bundleModeWrapped, [config]);
+  // What worklets wraps is the finished config: Bloom's resolver (and its
+  // web `ws` shim) is already in it, for worklets' resolver to hand down to.
+  assert.deepEqual(config.resolver.resolveRequest({}, 'ws', 'web'), { type: 'empty' });
 });
