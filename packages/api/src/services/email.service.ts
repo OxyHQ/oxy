@@ -87,7 +87,10 @@ import { acceptOutboundMessage, deliverClaimed } from './emailDelivery.service';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { buildSnippet, emitEmailNew, emitEmailChanged } from './inboxRealtime';
 import {
+  adoptScheduledClaim,
   claimSend,
+  findSendClaim,
+  inClaimTransaction,
   linkOutboxToMessage,
   loadMessageDeliveries,
   type MessageDeliveryDto,
@@ -96,7 +99,7 @@ import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
 import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
-import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
+import type { emailOutbox, EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
@@ -3010,6 +3013,11 @@ class EmailService {
   /**
    * Store a message in the Sent mailbox as a scheduled message (not yet dispatched).
    * The cron job will send it when `scheduledAt` arrives.
+   *
+   * Under an Idempotency-Key it takes the same claim an immediate send takes,
+   * in the transaction that files it, so a double press of Schedule — or
+   * Schedule racing Send now — files and sends ONE message, and a repeat of
+   * the key with a different message is refused (`refuseReusedSendKey`).
    */
   async scheduleMessage(
     userId: string,
@@ -3033,16 +3041,32 @@ class EmailService {
     const sentMailbox = await this.getMailboxBySpecialUse(userId, '\\Sent');
     if (!sentMailbox) throw new NotFoundError('Sent mailbox not found');
 
-    const messageId = params.idempotencyKey
-      ? idempotentMessageId(userId, params.idempotencyKey)
-      : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
-    if (params.idempotencyKey) {
-      const existing = await this.findMessageByRfcMessageId(userId, messageId);
-      if (existing) {
-        // A repeat of the key must be the same message; another one is refused
-        // before the caller can take it as scheduled and delete its draft.
-        refuseReusedSendKey(await this.filedOutboundPayload(userId, existing.id), params);
-        return existing;
+    const key = params.idempotencyKey;
+    const messageId = key ? idempotentMessageId(userId, key) : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
+    const requested: EmailOutboxPayload = {
+      from: params.from,
+      to: params.to,
+      cc: params.cc,
+      bcc: params.bcc,
+      subject: params.subject,
+      text: params.text,
+      html: params.html,
+      inReplyTo: params.inReplyTo,
+      references: params.references,
+      attachments: params.attachments,
+    };
+
+    if (key) {
+      const claimed = await findSendClaim(userId, key);
+      if (claimed) return this.answerScheduleRepeat(userId, claimed, requested);
+      // Scheduled under this key before scheduled sends were claimed.
+      const filed = await this.findMessageByRfcMessageId(userId, messageId);
+      if (filed) {
+        refuseReusedSendKey(await this.filedOutboundPayload(userId, filed.id), requested, {
+          id: filed.id,
+          messageId,
+        });
+        return filed;
       }
     }
 
@@ -3051,30 +3075,50 @@ class EmailService {
     await this.enforceQuota(userId, size);
 
     const now = new Date();
-    const created = await insertMessageWithChildren(
-      db,
-      {
-        userId,
-        mailboxId: sentMailbox.id,
-        messageId,
-        fromName: params.from.name?.trim() ? params.from.name.trim() : null,
-        fromAddress: params.from.address.trim().toLowerCase(),
-        subject: params.subject,
-        text: params.text,
-        html: params.html,
-        seen: true,
-        size,
-        inReplyTo: params.inReplyTo,
-        references: params.references ?? [],
-        scheduledAt: params.scheduledAt,
-        date: now,
-        receivedAt: now,
+    const filing = await inClaimTransaction(
+      async (tx): Promise<{ repeatOf: typeof emailOutbox.$inferSelect } | { created: string }> => {
+        if (key) {
+          const taken = await claimSend(
+            {
+              userId,
+              idempotencyKey: key,
+              messageId,
+              payload: requested,
+              owner: `scheduled:${randomUUID()}`,
+              scheduled: true,
+            },
+            tx,
+          );
+          if (!taken.claimed) return { repeatOf: taken.existing };
+        }
+        const created = await insertMessageWithChildren(
+          tx,
+          {
+            userId,
+            mailboxId: sentMailbox.id,
+            messageId,
+            fromName: params.from.name?.trim() ? params.from.name.trim() : null,
+            fromAddress: params.from.address.trim().toLowerCase(),
+            subject: params.subject,
+            text: params.text,
+            html: params.html,
+            seen: true,
+            size,
+            inReplyTo: params.inReplyTo,
+            references: params.references ?? [],
+            scheduledAt: params.scheduledAt,
+            date: now,
+            receivedAt: now,
+          },
+          { to: params.to, cc: params.cc, bcc: params.bcc },
+          params.attachments ?? [],
+        );
+        return { created };
       },
-      { to: params.to, cc: params.cc, bcc: params.bcc },
-      params.attachments ?? [],
     );
+    if ('repeatOf' in filing) return this.answerScheduleRepeat(userId, filing.repeatOf, requested);
 
-    const dto = await readMessageDto(db, created);
+    const dto = await readMessageDto(db, filing.created);
 
     logger.info('Message scheduled', {
       userId,
@@ -3083,6 +3127,31 @@ class EmailService {
     });
 
     return dto;
+  }
+
+  /**
+   * Answer a repeat of a scheduled send's key with the message the key already
+   * made — scheduled, or sent now by a Send that won the key — if it asks for
+   * the same message.
+   */
+  private async answerScheduleRepeat(
+    userId: string,
+    claim: typeof emailOutbox.$inferSelect,
+    requested: EmailOutboxPayload,
+  ): Promise<MessageDto> {
+    const filed = claim.messageRowId
+      ? await this.getMessage(userId, claim.messageRowId)
+      : await this.findMessageByRfcMessageId(userId, claim.messageId);
+    refuseReusedSendKey(claim.payload, requested, {
+      id: filed?.id ?? null,
+      messageId: claim.messageId,
+    });
+    if (!filed) {
+      throw new ConflictError('This message was already sent, and its Sent copy is gone', {
+        messageId: claim.messageId,
+      });
+    }
+    return filed;
   }
 
   /**
@@ -3130,6 +3199,16 @@ class EmailService {
             .where(and(eq(messages.id, msg.id), isNotNull(messages.scheduledAt)))
             .returning({ id: messages.id });
           if (!taken) return null;
+          // A send scheduled under a key holds its claim since it was filed;
+          // it becomes the delivery now. One without is claimed here.
+          const held = await adoptScheduledClaim(tx, {
+            userId: msg.userId,
+            messageId: msg.messageId,
+            messageRowId: msg.id,
+            payload,
+            owner: `scheduled:${randomUUID()}`,
+          });
+          if (held) return held;
           return claimSend(
             {
               userId: msg.userId,

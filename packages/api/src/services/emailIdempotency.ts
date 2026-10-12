@@ -19,16 +19,18 @@ export function idempotentMessageId(userId: string, idempotencyKey: string): str
 /**
  * What a send under an Idempotency-Key asked for, as a digest — the ONE rule
  * for "the same message", whichever record of the first send a repeat is
- * compared with: its outbox claim (an immediate send; rows written before this
- * existed included), or its filed Sent row (a scheduled send, which has no
- * claim until it falls due).
+ * compared with: its outbox claim, or (for a send filed before claims) its
+ * Sent row.
  *
- * So it reads only what both records keep, normalised as the Sent row stores
- * it (addresses trimmed and lower-cased, names trimmed). Only what the CLIENT
- * chose counts: the sender identity is the server's, and an attachment's name,
- * type and size are mirrored from its file, so renaming a file between a send
- * and its retry is not a new message. A read-receipt request is not recorded
- * on a Sent row, so it is not part of the rule.
+ * Only what the CLIENT chose counts, as both records keep it and normalised as
+ * the Sent row stores it (addresses trimmed and lower-cased, names trimmed):
+ * - threading is the parent the client named (`inReplyTo`), never the
+ *   `References` the server derives from that parent, which change when the
+ *   parent does — a retry after it changed or was deleted is still a retry;
+ * - the sender identity is the server's;
+ * - an attachment's name, type and size are mirrored from its file, so
+ *   renaming a file between a send and its retry is not a new message;
+ * - a read-receipt request is not recorded on a Sent row.
  */
 export function sendRequestFingerprint(payload: EmailOutboxPayload): string {
   const recipients = (list: EmailAddress[] | undefined) =>
@@ -41,10 +43,17 @@ export function sendRequestFingerprint(payload: EmailOutboxPayload): string {
     payload.text ?? null,
     payload.html ?? null,
     payload.inReplyTo ?? null,
-    payload.references ?? [],
     (payload.attachments ?? []).map((a) => [a.fileId, a.contentId ?? null, a.isInline === true]),
   ];
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+/** The send a key already made, as a refusal names it. */
+export interface SentUnderKey {
+  /** Its Sent row, when one is filed. */
+  id: string | null;
+  /** Its RFC 5322 Message-ID. */
+  messageId: string;
 }
 
 /**
@@ -52,14 +61,19 @@ export function sendRequestFingerprint(payload: EmailOutboxPayload): string {
  * the send the key already made (`stored`). It is not a retry: answering it as
  * one reports it accepted while only the first message exists, and lets the
  * caller delete the draft it was written in.
+ *
+ * The refusal names the send that was made (`details.id`, `details.messageId`):
+ * a client that restored the key after a crash and re-rendered the body is
+ * looking at a message that already left, and can say so.
  */
 export function refuseReusedSendKey(
   stored: EmailOutboxPayload,
   requested: EmailOutboxPayload,
+  sent: SentUnderKey,
 ): void {
   if (sendRequestFingerprint(stored) === sendRequestFingerprint(requested)) return;
   throw new ValidationError(
     'This Idempotency-Key was already used for a different message. Send this one with a new key.',
-    { reason: 'idempotency_key_reused' },
+    { reason: 'idempotency_key_reused', id: sent.id, messageId: sent.messageId },
   );
 }

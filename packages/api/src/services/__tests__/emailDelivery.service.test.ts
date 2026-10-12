@@ -445,9 +445,17 @@ describe('accepting a send', () => {
     const key = `reply:${unique()}`;
     const first = await accept(reply(key));
 
+    // The refusal names the message the key already sent, so a client can say so.
     await expect(
       acceptOutboundMessage({ ...reply(key), text: 'Something else entirely' }),
-    ).rejects.toMatchObject({ statusCode: 422 });
+    ).rejects.toMatchObject({
+      statusCode: 422,
+      details: {
+        reason: 'idempotency_key_reused',
+        id: first.rowId,
+        messageId: first.messageId,
+      },
+    });
     await expect(
       acceptOutboundMessage({ ...reply(key), to: [{ name: '', address: 'other@example.com' }] }),
     ).rejects.toMatchObject({ statusCode: 422 });
@@ -888,6 +896,158 @@ describe('a scheduled send', () => {
     );
     expect(retried.data.messageId).toBe(scheduled.data.messageId);
     expect(await isDraft(raced.id)).toBe(false);
+  });
+});
+
+describe('a scheduled send under a key', () => {
+  const later = () => new Date(Date.now() + 3_600_000);
+
+  function scheduled(key: string) {
+    const { userId: _userId, idempotencyKey: _key, ...message } = reply(key);
+    return { ...message, idempotencyKey: key, scheduledAt: later() };
+  }
+
+  it('files once when Schedule is pressed twice', async () => {
+    const key = `schedule:${unique()}`;
+    const gate = await holdSentFiling();
+    try {
+      const first = emailService.scheduleMessage(user.id, scheduled(key));
+      await waitFor(async () => (await lockWaiters()) >= 1);
+      const second = emailService.scheduleMessage(user.id, scheduled(key));
+      await waitFor(async () => (await lockWaiters()) >= 2);
+      await gate.release();
+
+      const [a, b] = await Promise.all([first, second]);
+      expect(b.id).toBe(a.id);
+      expect(await sentRows(a.messageId)).toHaveLength(1);
+    } finally {
+      await gate.release();
+    }
+  });
+
+  it('files and sends once when Schedule races Send now, and goes out when due', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const gate = await holdSentFiling();
+    let row: { id: string; messageId: string };
+    try {
+      const schedule = emailService.scheduleMessage(user.id, scheduled(key));
+      await waitFor(async () => (await lockWaiters()) >= 1);
+      const sendNow = acceptOutboundMessage(reply(key));
+      await waitFor(async () => (await lockWaiters()) >= 2);
+      await gate.release();
+
+      row = await schedule;
+      const answered = await sendNow;
+      expect(answered.messageRowId).toBe(row.id);
+      // It is scheduled, not being delivered.
+      expect(answered.delivery).toBeNull();
+      expect(await sentRows(row.messageId)).toHaveLength(1);
+      expect(await deliveryOf(row.id)).toBeUndefined();
+    } finally {
+      await gate.release();
+    }
+
+    await getDb()
+      .update(messages)
+      .set({ scheduledAt: new Date(Date.now() - 1000) })
+      .where(eq(messages.id, row.id));
+    await emailService.processScheduledMessages();
+    await emailService.processScheduledMessages();
+    expect(relayCallsFor(row.messageId)).toHaveLength(1);
+    expect(await deliveryOf(row.id)).toMatchObject({ state: 'sent' });
+    // And a repeat of the key now reports the delivery.
+    expect((await acceptOutboundMessage(reply(key))).delivery?.state).toBe('sent');
+  });
+
+  it('is never sent once its claim is cancelled', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    await getDb()
+      .update(emailOutbox)
+      .set({ status: 'cancelled' })
+      .where(and(eq(emailOutbox.userId, user.id), eq(emailOutbox.idempotencyKey, key)));
+    // The worker never takes a scheduled claim on its own.
+    await processEmailOutbox();
+    await getDb()
+      .update(messages)
+      .set({ scheduledAt: new Date(Date.now() - 1000) })
+      .where(eq(messages.id, row.id));
+    await emailService.processScheduledMessages();
+    expect(relayCallsFor(row.messageId)).toHaveLength(0);
+  });
+});
+
+describe('a reply retried under its key', () => {
+  /** A received message the user holds, to reply to. */
+  async function parent(messageId: string, references: string[], createdAt = new Date()) {
+    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
+    if (!inbox) throw new Error('no Inbox');
+    const [row] = await getDb()
+      .insert(messages)
+      .values({
+        userId: user.id,
+        mailboxId: inbox.id,
+        messageId,
+        fromAddress: 'support@example.com',
+        subject: 'Quota Increase',
+        size: 10,
+        references,
+        date: createdAt,
+        receivedAt: createdAt,
+        createdAt,
+      })
+      .returning({ id: messages.id });
+    return row.id;
+  }
+
+  const command = (inReplyTo: string) => ({
+    to: [{ name: '', address: 'support@example.com' }],
+    subject: 'Re: Quota Increase',
+    text: 'Thanks',
+    inReplyTo,
+  });
+
+  it('is answered after the parent it threads under changed or went away', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `reply:${unique()}`;
+    const parentId = `<parent-${unique()}@example.com>`;
+    const row = await parent(parentId, [`<root-${unique()}@example.com>`]);
+
+    const first = await sendMessageForUser(user.id, command(parentId), key);
+
+    // The parent's own References change (it was re-filed), then it is deleted.
+    await getDb()
+      .update(messages)
+      .set({ references: [`<other-${unique()}@example.com>`] })
+      .where(eq(messages.id, row));
+    const changed = await sendMessageForUser(user.id, command(parentId), key);
+    expect(changed.data.id).toBe(first.data.id);
+
+    await getDb().delete(messages).where(eq(messages.id, row));
+    const gone = await sendMessageForUser(user.id, command(parentId), key);
+    expect(gone.data.id).toBe(first.data.id);
+
+    await settled(first.data.id as string, 'sent');
+    expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('threads under the earliest copy of a parent held twice', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const parentId = `<twice-${unique()}@example.com>`;
+    const original = `<original-root-${unique()}@example.com>`;
+    // The later copy is inserted first, so it is first in the index too.
+    await parent(parentId, [`<later-root-${unique()}@example.com>`]);
+    await parent(parentId, [original], new Date(Date.now() - 3_600_000));
+
+    const sent = await sendMessageForUser(user.id, command(parentId), `reply:${unique()}`);
+    await settled(sent.data.id as string, 'sent');
+    const [row] = await getDb()
+      .select({ references: messages.references })
+      .from(messages)
+      .where(eq(messages.id, sent.data.id as string));
+    expect(row.references).toEqual([original, parentId]);
   });
 });
 

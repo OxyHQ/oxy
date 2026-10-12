@@ -6,7 +6,7 @@
  */
 
 import type { Request, Response } from 'express';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { acceptOutboundMessage, retryMessageDelivery } from '../services/emailDelivery.service';
@@ -173,6 +173,9 @@ async function findOwnMessageByRfcId(
     })
     .from(messages)
     .where(and(eq(messages.userId, userId), eq(messages.messageId, rfcMessageId)))
+    // A user can hold several copies of one message (a self-copy, the same mail
+    // delivered twice); the earliest is the original, and always the same one.
+    .orderBy(asc(messages.createdAt), asc(messages.id))
     .limit(1);
   return row;
 }

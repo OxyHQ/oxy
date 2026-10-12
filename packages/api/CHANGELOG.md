@@ -5,19 +5,28 @@
 ### Fixed (a send's Idempotency-Key, and a delivery the relay took)
 
 - `POST /email/messages` refuses an `Idempotency-Key` reused for a DIFFERENT
-  message (recipients, subject, body, threading, attachments) with `422
-  VALIDATION_ERROR`, `details.reason: "idempotency_key_reused"`. It used to
-  answer with the first send's acceptance and then delete the second request's
-  draft, losing it. A repeat of the same message still answers with the first
-  send, and the draft is deleted only once the message is filed in Sent. The
-  same rule holds for a `scheduledAt` send, whose repeat is compared with the
-  filed Sent row (it has no outbox claim until it falls due), and for an
-  immediate send under a scheduled send's key. One comparison serves both
-  records: what the client chose, normalised as the Sent row stores it; a
-  read-receipt request is not part of it, since a Sent row does not record one.
+  message (recipients, subject, body, the parent it replies to, attachments)
+  with `422 VALIDATION_ERROR`, `details: { reason: "idempotency_key_reused",
+  id, messageId }` — `id`/`messageId` name the message the key already sent,
+  so a client that restored the key after a crash can say "already sent". It
+  used to answer with the first send's acceptance and then delete the second
+  request's draft, losing it. A repeat of the same message still answers with
+  the first send, and the draft is deleted only once the message is filed in
+  Sent. Only what the client chose is compared, normalised as the Sent row
+  stores it: threading is the `inReplyTo` it named, never the `References`
+  derived from that parent (a retry after the parent changed or was deleted is
+  still a retry), and a read-receipt request is not part of it.
+- A `scheduledAt` send under a key takes the same outbox claim, in the
+  transaction that files it: a double press of Schedule, or Schedule racing
+  Send now, files and sends ONE message (both used to file a row and both went
+  out under the same Message-ID). The claim waits, invisible to the outbox
+  worker, until the send falls due; a scheduled send whose claim is cancelled
+  is not sent. Rows scheduled before this are compared with their Sent row.
+- The parent a reply threads under is the earliest of the user's copies of it,
+  not whichever an unordered `limit 1` returned.
 - A repeat waits at most 5 s on the first request's claim and then answers
   `503 SERVICE_UNAVAILABLE` (`details.retryable: true`); the client retries
-  with the same key. The accept transaction also ends its own session after
+  with the same key. The claim's transaction also ends its own session after
   15 s idle, so a first request whose task stopped answering frees its claim
   instead of holding a pooled connection on every repeat until keepalive.
 - A delivery the relay accepted is marked `sent` before anything else is

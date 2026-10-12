@@ -1,16 +1,79 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, lt, or, sql } from 'drizzle-orm';
 import type { EmailDeliveryState } from '@oxy.so/contracts';
-import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
+import { sqlStateOf } from '@oxy.so/db';
+import {
+  getDb,
+  type Database,
+  type DatabaseOrTransaction,
+  type Transaction,
+} from '../config/postgres';
 import {
   emailOutbox,
   type EmailDeliveryErrorCode,
   type EmailOutboxPayload,
   type EmailOutboxStatus,
 } from '../db/schema/emailOutbox';
-import { ConflictError, NotFoundError } from '../utils/error';
+import { ConflictError, NotFoundError, ServiceUnavailableError } from '../utils/error';
 
 const LEASE_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+
+/** Postgres `lock_not_available`: a `lock_timeout` ran out. */
+const LOCK_NOT_AVAILABLE = '55P03';
+
+/**
+ * How long taking a send's claim waits for a lock. The one wait that matters
+ * is a repeat of the key behind the first request's uncommitted claim, which a
+ * healthy request holds for the milliseconds filing takes. Unbounded, a first
+ * request whose task stopped answering with its TCP connection still open made
+ * every repeat, on every task, hold a pooled connection until keepalive fired.
+ */
+const CLAIM_LOCK_TIMEOUT = '5s';
+
+/**
+ * How long a claim's transaction may sit idle before Postgres ends its
+ * session. It never waits on anything but its own statements, so idling means
+ * its task stopped answering — and ending the session frees the claim it holds
+ * for the repeat that is waiting on it.
+ */
+const CLAIM_IDLE_TIMEOUT = '15s';
+
+/**
+ * `nextAttemptAt` of a scheduled send's claim until the send falls due: never,
+ * as far as the outbox worker is concerned. Only `processScheduledMessages`
+ * turns it into a delivery ({@link adoptScheduledClaim}); a scheduled message
+ * that is deleted or whose claim is cancelled is therefore never sent.
+ */
+export const SCHEDULED_CLAIM_DUE = new Date('9999-12-31T00:00:00.000Z');
+
+/** A scheduled send's claim that has not become a delivery yet. */
+export function isScheduledClaim(row: EmailOutboxRow): boolean {
+  return row.status === 'pending' && row.nextAttemptAt.getTime() === SCHEDULED_CLAIM_DUE.getTime();
+}
+
+/**
+ * The transaction a send's claim is taken in — an immediate send's and a
+ * scheduled send's alike, so a repeat of the key waits on the claim the same
+ * bounded way whichever it races. A wait that runs out is a 503 the client
+ * retries with the same key: nothing was claimed or filed.
+ */
+export async function inClaimTransaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
+  try {
+    return await getDb().transaction(async (tx) => {
+      await tx.execute(
+        sql`select set_config('lock_timeout', ${CLAIM_LOCK_TIMEOUT}, true),
+                   set_config('idle_in_transaction_session_timeout', ${CLAIM_IDLE_TIMEOUT}, true)`,
+      );
+      return work(tx);
+    });
+  } catch (error) {
+    if (sqlStateOf(error) !== LOCK_NOT_AVAILABLE) throw error;
+    throw new ServiceUnavailableError(
+      'This message is still being accepted by an earlier request. Retry with the same Idempotency-Key.',
+      { retryable: true },
+    );
+  }
+}
 
 export interface EmailOutboxDto {
   id: string;
@@ -243,6 +306,11 @@ export type SendClaim =
  * unique index until the holder commits — and then reads a row already linked
  * to its Sent copy — or rolls back, and then claims the send itself.
  *
+ * A SCHEDULED send under a key takes the same claim when it is filed
+ * (`scheduleMessage`), so a double press of Schedule, or Schedule racing Send
+ * now, files and sends once: the claim waits, unleased and unlinked, until the
+ * send falls due ({@link SCHEDULED_CLAIM_DUE}).
+ *
  * This replaces a per-process in-flight map plus a Redis result cache written
  * only AFTER the relay answered: two tasks could both miss both, and the same
  * reply went out twice.
@@ -256,6 +324,8 @@ export async function claimSend(
     messageRowId?: string;
     payload: EmailOutboxPayload;
     owner: string;
+    /** Hold the key for a scheduled send, to be delivered when it falls due. */
+    scheduled?: boolean;
   },
   /** A transaction to claim inside, when the claim must commit with another write. */
   db: DatabaseOrTransaction = getDb(),
@@ -269,11 +339,15 @@ export async function claimSend(
       messageId: input.messageId,
       idempotencyKey: input.idempotencyKey,
       payload: input.payload,
-      status: 'processing',
-      attempts: 1,
-      lockedAt: now,
-      lockedBy: input.owner,
-      nextAttemptAt: now,
+      ...(input.scheduled
+        ? { status: 'pending' as const, attempts: 0, nextAttemptAt: SCHEDULED_CLAIM_DUE }
+        : {
+            status: 'processing' as const,
+            attempts: 1,
+            lockedAt: now,
+            lockedBy: input.owner,
+            nextAttemptAt: now,
+          }),
     })
     .onConflictDoNothing({
       target: [emailOutbox.userId, emailOutbox.idempotencyKey],
@@ -292,6 +366,57 @@ export async function claimSend(
     return claimSend(input, db);
   }
   return { claimed: false, existing };
+}
+
+/**
+ * Turn the claim a scheduled send took under its key into its delivery, now
+ * that it is due: leased to `owner` exactly as {@link claimSend} leases a new
+ * one, linked to its Sent row, and carrying the payload rebuilt from it.
+ *
+ * Returns undefined when the send took no claim (no key, or filed before
+ * scheduled sends were claimed); the caller claims it then. A claim that is no
+ * longer waiting — cancelled, or already the delivery of a Send now that won
+ * the key — is returned unclaimed, and nothing is sent.
+ */
+export async function adoptScheduledClaim(
+  tx: Transaction,
+  input: {
+    userId: string;
+    messageId: string;
+    messageRowId: string;
+    payload: EmailOutboxPayload;
+    owner: string;
+  },
+): Promise<SendClaim | undefined> {
+  const [held] = await tx
+    .select()
+    .from(emailOutbox)
+    .where(
+      and(
+        eq(emailOutbox.userId, input.userId),
+        eq(emailOutbox.messageId, input.messageId),
+        isNotNull(emailOutbox.idempotencyKey),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (!held) return undefined;
+  if (!isScheduledClaim(held)) return { claimed: false, existing: held };
+  const now = new Date();
+  const [row] = await tx
+    .update(emailOutbox)
+    .set({
+      status: 'processing',
+      attempts: 1,
+      lockedAt: now,
+      lockedBy: input.owner,
+      nextAttemptAt: now,
+      messageRowId: input.messageRowId,
+      payload: input.payload,
+    })
+    .where(eq(emailOutbox.id, held.id))
+    .returning();
+  return { claimed: true, row };
 }
 
 /**
