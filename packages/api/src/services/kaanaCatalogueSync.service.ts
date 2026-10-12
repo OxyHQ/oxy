@@ -67,6 +67,7 @@ import {
 } from '../config/privateAutoClassification';
 import { validatePrivateAutoAttestation } from './privateAutoAttestation.service';
 import {
+  canonicalAcceptedParameters,
   DEPLOYMENT_REQUEST_PARAMETERS,
   INFERENCE_MODALITIES,
   INFERENCE_OUTPUT_MODALITIES,
@@ -74,6 +75,7 @@ import {
   LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   MODEL_REASONING_EFFORTS,
   RESERVED_FIRST_PARTY_PUBLISHER,
+  TOOL_CHOICE_VALUE_PARAMETERS,
   inferenceCatalogueAutoApprovalPolicies,
   inferenceCatalogueBlocklist,
   inferenceDeploymentRoutingScoreEvents,
@@ -538,17 +540,27 @@ function acceptedParametersForRoute(
 /**
  * Two statements about one route, combined: a control is accepted only when
  * every statement that SAID something accepts it. `null` (nobody said) abstains,
- * exactly as Kaana combines a line's reports; two `null`s stay unknown.
+ * exactly as Kaana combines a line's reports (`provider.IntersectParameterSets`);
+ * two `null`s stay unknown. Both are read canonically, and the `toolChoice`
+ * field is dropped when no tool-choice value survives, so the stored set can
+ * never be re-read as "every value".
  */
 export function intersectAcceptedParameters(
   first: readonly DeploymentRequestParameter[] | null,
   second: readonly DeploymentRequestParameter[] | null,
 ): DeploymentRequestParameter[] | null {
-  if (first === null) return second === null ? null : [...second];
-  if (second === null) return [...first];
-  return DEPLOYMENT_REQUEST_PARAMETERS.filter(
-    (parameter) => first.includes(parameter) && second.includes(parameter),
+  if (first === null && second === null) return null;
+  const statements = [first, second].filter(
+    (statement): statement is readonly DeploymentRequestParameter[] => statement !== null,
   );
+  const canonical = statements.map((statement) => canonicalAcceptedParameters(statement));
+  const accepted = DEPLOYMENT_REQUEST_PARAMETERS.filter((parameter) =>
+    canonical.every((statement) => statement.includes(parameter)),
+  );
+  const anyValue = accepted.some((parameter) =>
+    (TOOL_CHOICE_VALUE_PARAMETERS as readonly string[]).includes(parameter),
+  );
+  return anyValue ? accepted : accepted.filter((parameter) => parameter !== 'toolChoice');
 }
 
 function knownModalities(values: readonly string[] | undefined): InferenceModalityValue[] {

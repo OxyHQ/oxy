@@ -82,7 +82,7 @@ import {
   type CredentialEconomicsReader,
   type CredentialEconomicsResponse,
 } from '../kaanaCredentialEconomics.service';
-import { firstUnacceptedParameter } from '../inferenceCatalogue.service';
+import { firstUnacceptedParameter, requestParametersOf } from '../inferenceCatalogue.service';
 
 jest.setTimeout(60_000);
 
@@ -101,6 +101,8 @@ interface WireRoute {
   readonly provider: string;
   readonly modelReference: string;
   readonly regions?: string[];
+  /** Kaana's per-deployment statement, when the descriptor carries one. */
+  readonly acceptedParameters?: string[];
 }
 
 /** A reader serving a fixed body and attesting exactly the routes it is given. */
@@ -124,6 +126,9 @@ function reader(models: readonly WireModel[], routes: readonly WireRoute[]): Kaa
           provider: route.provider,
           modelReference: route.modelReference,
           regions: route.regions ?? [],
+          ...(route.acceptedParameters === undefined
+            ? {}
+            : { acceptedParameters: route.acceptedParameters }),
         })),
     }),
     listPublishedDeployments: async () => ({
@@ -2063,13 +2068,39 @@ describe('reviewed provider routes', () => {
     expect(intersectAcceptedParameters(null, null)).toBeNull();
     expect(intersectAcceptedParameters(null, ['tools'])).toEqual(['tools']);
     expect(intersectAcceptedParameters(['tools', 'maxOutputTokens'], null)).toEqual([
-      'tools',
       'maxOutputTokens',
+      'tools',
     ]);
     expect(intersectAcceptedParameters(['tools', 'maxOutputTokens'], ['maxOutputTokens'])).toEqual([
       'maxOutputTokens',
     ]);
     expect(intersectAcceptedParameters(['tools'], [])).toEqual([]);
+  });
+
+  it('combines tool-choice values, never leaving the field to read as every value', () => {
+    // A statement naming the field alone (Kaana before OxyHQ/Kaana#168, or a
+    // provider that names only `tool_choice`) takes every value…
+    expect(intersectAcceptedParameters(['toolChoice', 'tools'], null)).toEqual([
+      'toolChoice',
+      'toolChoice.function',
+      'toolChoice.none',
+      'toolChoice.required',
+      'tools',
+    ]);
+    // …and so narrows nothing a per-value statement says.
+    expect(
+      intersectAcceptedParameters(
+        ['toolChoice', 'tools'],
+        ['toolChoice', 'toolChoice.none', 'tools'],
+      ),
+    ).toEqual(['toolChoice', 'toolChoice.none', 'tools']);
+    // Two routes sharing no value share no tool choice: the field goes too.
+    expect(
+      intersectAcceptedParameters(
+        ['toolChoice', 'toolChoice.none', 'tools'],
+        ['toolChoice', 'toolChoice.required', 'tools'],
+      ),
+    ).toEqual(['tools']);
   });
 });
 
@@ -2180,14 +2211,44 @@ describe('the reviewed Anthropic routes (OxyHQ/Kaana#166)', () => {
         accepts(model, 'sampling.topP'),
       ]).toEqual([model, true, true]);
     }
-    // Forced tool_choice: 400 on Fable 5.1, Opus 5.5 and Sonnet 5.5 only.
+    // Forced tool_choice (`any`/`tool`): 400 on Fable 5.1, Opus 5.5 and Sonnet
+    // 5.5 only; every model takes `none`, and `auto` needs no value.
     for (const model of byLine.keys()) {
       const short = model.replace('anthropic/claude-', '');
-      expect([short, accepts(short, 'toolChoice')]).toEqual([
+      const forced = !['fable-5.1', 'opus-5.5', 'sonnet-5.5'].includes(short);
+      expect([
         short,
-        !['fable-5.1', 'opus-5.5', 'sonnet-5.5'].includes(short),
-      ]);
+        accepts(short, 'toolChoice'),
+        accepts(short, 'toolChoice.none'),
+        accepts(short, 'toolChoice.required'),
+        accepts(short, 'toolChoice.function'),
+      ]).toEqual([short, true, true, forced, forced]);
     }
+    const opus = [...(byLine.get('anthropic/claude-opus-5.5')?.acceptedParameters ?? [])];
+    // So a tool request with `auto` runs on the direct Opus 5.5 route…
+    expect(
+      firstUnacceptedParameter(
+        opus,
+        requestParametersOf({
+          operation: { kind: 'completion' },
+          sampling: {},
+          tools: [{}],
+          toolChoice: 'auto',
+        }),
+      ),
+    ).toBeUndefined();
+    // …and a forced one never does.
+    expect(
+      firstUnacceptedParameter(
+        opus,
+        requestParametersOf({
+          operation: { kind: 'completion' },
+          sampling: {},
+          tools: [{}],
+          toolChoice: { type: 'function' },
+        }),
+      ),
+    ).toBe('toolChoice.function');
     expect(accepts('haiku-4.5', 'reasoning.effort')).toBe(false);
     // So a request with temperature for Sonnet 5.5 can never be signed onto the direct route.
     expect(
@@ -2478,6 +2539,87 @@ describe('syncing a direct provider beside a paid one', () => {
     ).toEqual([world.directDeployment, world.routerDeployment].sort());
   });
 
+  it('creates a line only Anthropic serves once Kaana publishes its modalities (OxyHQ/Kaana#168)', async () => {
+    // Claude Fable 5.1: OpenRouter's row is withheld (no zero-retention
+    // endpoint), so the direct deployment is the line's only reporter.
+    const reference = 'anthropic/claude-fable-5.1@observed-2026-10-11';
+    const deploymentId = `dep_anthropic_claude_fable_5_1_${suffix()}`;
+    const kaanaAccepted = [
+      'maxOutputTokens',
+      'reasoning.effort',
+      'sampling.stopSequences',
+      'toolChoice',
+      'toolChoice.none',
+      'tools',
+    ];
+    const entry = (observed: Record<string, unknown>) => ({
+      model: 'anthropic/claude-fable-5.1',
+      modelReference: reference,
+      providers: ['anthropic'],
+      contextTokens: 1_000_000,
+      maxOutputTokens: 128_000,
+      reasoningEfforts: ['low', 'medium', 'high'],
+      listPrices: [],
+      ...observed,
+    });
+    const route = { deploymentId, provider: 'anthropic', modelReference: reference, regions: [] };
+
+    // Positive control: what Kaana published before — no modalities — is
+    // skipped, exactly as production logged.
+    const before = await runKaanaCatalogueSync({
+      reader: reader([entry({})], [route]),
+      economics: economics({ anthropic: [{ category: 'promotional' }] }),
+    });
+    expect(before.skippedModels).toContainEqual({
+      modelId: 'anthropic/claude-fable-5.1',
+      reason: 'missing_modalities',
+    });
+
+    const after = await runKaanaCatalogueSync({
+      reader: reader(
+        [
+          entry({
+            inputModalities: ['file', 'image', 'text'],
+            outputModalities: ['text'],
+            supportsTools: true,
+            acceptedParameters: kaanaAccepted,
+          }),
+        ],
+        [{ ...route, acceptedParameters: kaanaAccepted }],
+      ),
+      economics: economics({ anthropic: [{ category: 'promotional' }] }),
+    });
+    expect(after.skippedModels.map((skipped) => skipped.modelId)).not.toContain(
+      'anthropic/claude-fable-5.1',
+    );
+    const [model] = await getDb()
+      .select()
+      .from(inferenceModels)
+      .where(
+        and(
+          eq(inferenceModels.publisherSlug, 'anthropic'),
+          eq(inferenceModels.slug, 'claude-fable-5.1'),
+        ),
+      );
+    expect(model).toMatchObject({
+      catalogueSource: 'kaana_sync',
+      inputModalities: ['image', 'text'],
+      outputModalities: ['text'],
+      supportsTools: true,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 128_000,
+    });
+    const [row] = (await deploymentsOf('anthropic/claude-fable-5.1')).filter(
+      (deployment) => deployment.internalRouteId === deploymentId,
+    );
+    // Kaana's statement and the reviewed one agree: `none` and `auto`, no
+    // forced choice, no sampling.
+    expect(row?.acceptedParameters).toEqual(kaanaAccepted);
+    expect((await scorecardOf(deploymentId)).priceEvidenceRef).toBe(
+      'https://platform.claude.com/docs/en/about-claude/pricing@2026-10-11',
+    );
+  });
+
   it('serves anthropic/claude-sonnet-5.5 from the migrated anthropic row, and excludes it under zero data retention', async () => {
     const [anthropic] = await getDb()
       .select()
@@ -2503,6 +2645,8 @@ describe('syncing a direct provider beside a paid one', () => {
       'maxOutputTokens',
       'reasoning.effort',
       'sampling.stopSequences',
+      'toolChoice',
+      'toolChoice.none',
       'tools',
     ]);
     expect((await scorecardOf(world.directDeployment)).priceEvidenceRef).toBe(

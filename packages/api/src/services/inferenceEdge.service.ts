@@ -244,9 +244,17 @@ import {
 import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 
+/** How a refusal names each tool-choice value (OxyHQ/Kaana#168). */
+const TOOL_CHOICE_VALUE_DESCRIPTIONS: Partial<Record<string, string>> = {
+  'toolChoice.function': 'a tool choice that forces one named tool',
+  'toolChoice.none': 'the tool choice "none"',
+  'toolChoice.required': 'a tool choice that forces a tool call ("required")',
+};
+
 /* -------------------------------------------------------------------------- */
 /*  Limits                                                                    */
 /* -------------------------------------------------------------------------- */
+
 
 /**
  * The largest request body the edge accepts, in bytes.
@@ -1720,12 +1728,16 @@ async function admitWithAutoDecision(
         requestedModelReference ||
         routeGroups[0]?.resolution.route.modelReference ||
         requestedTargetReference;
+      const toolChoiceValue = TOOL_CHOICE_VALUE_DESCRIPTIONS[unaccepted];
       return refuse(
         'invalid_request',
         unaccepted === 'maxOutputTokens'
           ? `No available route for ${refusedReference} accepts an output limit, which every completion carries.`
-          : `No available route for ${refusedReference} accepts ${unaccepted}. Omit it to use the model’s own behaviour.`,
-        { param: unaccepted, reason: 'unsupported_parameter' }
+          : toolChoiceValue !== undefined
+            ? `No available route for ${refusedReference} accepts ${toolChoiceValue}. Use toolChoice "auto" (the default) or omit it.`
+            : `No available route for ${refusedReference} accepts ${unaccepted}. Omit it to use the model’s own behaviour.`,
+        // A tool-choice value is a value of `toolChoice`, not a field of its own.
+        { param: toolChoiceValue === undefined ? unaccepted : 'toolChoice', reason: 'unsupported_parameter' }
       );
     }
     if (sawOutputLimit) {

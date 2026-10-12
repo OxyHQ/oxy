@@ -6,11 +6,13 @@
  * keeps its accepted request controls from Kaana's per-deployment descriptor.
  * Kaana reads both from the provider's own model list (`observed.listPrice`,
  * `observed.acceptedParameters`). Anthropic's Models API publishes neither, so
- * Kaana leaves both absent for its direct `anthropic` deployments
- * (OxyHQ/Kaana#166; Kaana `docs/provider-onboarding.md`, "Anthropic"). Anthropic
- * DOES publish both facts, in its pricing and model documentation. This file is
- * the reviewed reading of those pages, consumed by the catalogue sync and by
- * nothing else.
+ * Kaana left both absent for its direct `anthropic` deployments
+ * (OxyHQ/Kaana#166; Kaana `docs/provider-onboarding.md`, "Anthropic"). Since
+ * OxyHQ/Kaana#168 Kaana publishes its Messages adapter's own per-model accepted
+ * controls; the price is still absent. Anthropic DOES publish both facts, in
+ * its pricing and model documentation. This file is the reviewed reading of
+ * those pages, consumed by the catalogue sync and by nothing else; its
+ * accepted controls are intersected with Kaana's, so they must agree.
  *
  * ## Why Oxy, and why this is not a second price system
  *
@@ -47,11 +49,14 @@
  * Translate refusal as terminal: neither fails over). The sync intersects this
  * statement with any set Kaana itself publishes for the deployment.
  *
- * The vocabulary is presence-only. Anthropic refuses only a FORCING
- * `tool_choice` (`any`/`tool`) on Fable 5.1, Opus 5.5 and Sonnet 5.5, and only a
- * non-default `temperature`/`top_p`; the edge cannot tell those values apart,
- * so those deployments state the whole control as not accepted. That is
- * conservative: such a request is served by another deployment of the line.
+ * A tool choice is stated per value (`toolChoice.none`, `.required`,
+ * `.function`; OxyHQ/Kaana#168), and `auto` needs no value. Anthropic refuses
+ * only a FORCING `tool_choice` (`any`/`tool`) on Fable 5.1, Opus 5.5 and Sonnet
+ * 5.5, so those routes take `none` and every `auto` tool request, and only a
+ * forced choice is served by another deployment of the line. Sampling stays
+ * presence-only: Anthropic refuses a non-default `temperature`/`top_p`, the
+ * edge cannot tell a default value apart, so those deployments state the whole
+ * control as not accepted.
  */
 
 import type { DeploymentRequestParameter } from '../db/schema';
@@ -96,6 +101,9 @@ const ANTHROPIC_MESSAGES_CONTROLS: readonly DeploymentRequestParameter[] = [
   'sampling.temperature',
   'sampling.topP',
   'toolChoice',
+  'toolChoice.function',
+  'toolChoice.none',
+  'toolChoice.required',
   'tools',
 ];
 
@@ -121,9 +129,13 @@ const ANTHROPIC_FIXED_SAMPLING = without(ANTHROPIC_MESSAGES_CONTROLS, [
 /**
  * Fable 5.1, Opus 5.5 and Sonnet 5.5 also reject `tool_choice` `any`/`tool`
  * with a 400 ("tool_choice: type \"tool\" and \"any\" are not supported for
- * this model"; their migration guides).
+ * this model"; their migration guides) and take `auto` (the default) and
+ * `none`.
  */
-const ANTHROPIC_FIXED_SAMPLING_NO_FORCED_TOOL = without(ANTHROPIC_FIXED_SAMPLING, ['toolChoice']);
+const ANTHROPIC_FIXED_SAMPLING_NO_FORCED_TOOL = without(ANTHROPIC_FIXED_SAMPLING, [
+  'toolChoice.function',
+  'toolChoice.required',
+]);
 
 function anthropic(
   model: string,
