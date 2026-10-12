@@ -1,6 +1,6 @@
 # Changelog: `@oxy.so/db`
 
-## Unreleased
+## 1.1.0
 
 ### Opt-in Bun SQL driver (`driver: 'bun-sql'`)
 
@@ -39,6 +39,16 @@ never loads a Bun module.
   `BunSqlClientOptions`, `OxyBunSqlDatabase`, `CreateBunSqlDatabaseOptions`,
   `EnsureExtensionsOptions` (from `/migrate`), `DropTestDatabaseOptions` (from
   `/testing`).
+
+### Also in this release (merged after 1.0.0)
+
+- `runMigrations` takes an optional `requiredAppliedTags`: named journal entries
+  that must already be in the ledger with their exact SQL hashes before
+  planning. `assertAppliedMigrations` (from `/migrate`) is the check on its own.
+- `findSchemaInvariantViolations` no longer reports `mongoose_artifact` (an
+  `_id` or `__v` column). `check` stays typed `string`, so no consumer's types
+  change, but a schema gate that relied on that check no longer fails on those
+  columns.
 
 ## 0.2.0
 
