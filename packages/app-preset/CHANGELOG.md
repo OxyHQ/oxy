@@ -17,9 +17,9 @@
 - Two cases change. A dynamic `import()` stays a real `import()` instead of
   becoming `require()`, and a relative one needs a `.js` extension (TS2835).
   A package with `"type": "module"` emits ESM. Of the preset's consumers, only
-  GoWay `backend` has a dynamic `import()` (two, in `src/import/osm/run.ts`);
-  it sets Node16 itself in its own change. Imports now resolve through each
-  dependency's `exports` map, as Node does.
+  GoWay `backend` has dynamic `import()`s (in `src/import/osm/run.ts`); it
+  pins `module: commonjs` itself (OxyHQ/GoWay#179). Imports now resolve
+  through each dependency's `exports` map, as Node does.
 
 ## 3.0.0
 
