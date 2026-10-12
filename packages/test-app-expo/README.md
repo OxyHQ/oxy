@@ -7,13 +7,13 @@ This Expo project is used to develop and validate `@oxy.so/services` in an isola
 1. Install dependencies (links the local `packages/services` workspace via `file:` reference)
 
    ```bash
-   npm install
+   bun install
    ```
 
 2. Start the app
 
    ```bash
-   npx expo start
+   bunx expo start
    ```
 
 The Metro config automatically watches the monorepo root and resolves `@oxy.so/services` from `packages/services/src`, so changes to the services package will hot reload in the test app.
@@ -22,20 +22,20 @@ You can start developing by editing the files inside the **app** directory. This
 
 ### Web bundler quirk
 
-Metro expects web bundle requests to include a bundle path (for example `/index.bundle?platform=web`). Some tooling issues in Expo SDK 54 send `/?platform=web`, which causes Metro to throw an error about JSC-safe URLs. Our `metro.config.js` now rewrites those requests so you can run `npm run web` without tweaks.
+Metro expects web bundle requests to include a bundle path (for example `/index.bundle?platform=web`). Some tooling issues in Expo SDK 54 send `/?platform=web`, which causes Metro to throw an error about JSC-safe URLs. Our `metro.config.js` now rewrites those requests so you can run `bun run web` without tweaks.
 
 ## Develop `@oxy.so/services` locally
 
 - Edit code in `packages/services/src/**`
-- Keep the bundler running with `npm run start` inside `packages/test-app` to see updates instantly
-- Rebuild the package (`npm run build` inside `packages/services`) when you need the generated `lib` output for consumers outside Metro
+- Keep the bundler running with `bun run start` inside `packages/test-app` to see updates instantly
+- Rebuild the package (`bun run build` inside `packages/services`) when you need the generated `lib` output for consumers outside Metro
 
 ## Get a fresh project
 
 When you're ready, run:
 
 ```bash
-npm run reset-project
+bun run reset-project
 ```
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
