@@ -3,7 +3,6 @@
   "compilerOptions": {
     "rootDir": "./",
     "outDir": "dist",
-    "baseUrl": ".",
     "paths": {
       "@{{APP_SLUG}}/shared-types": ["../shared-types/src"],
       "@{{APP_SLUG}}/shared-types/*": ["../shared-types/src/*"]

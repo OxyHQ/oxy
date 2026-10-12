@@ -1,5 +1,26 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.1.0
+
+### Changed
+
+- `tsconfig/backend.json` resolves with `module`/`moduleResolution: node16`
+  instead of `commonjs` + `node` (node10). TypeScript 7, which `bun check`
+  implements, removes node10 (TS5108), and TypeScript 5.x rejects `bundler`
+  with `commonjs` (TS5095), so Node16 is the one setting both accept. A
+  backend that extends the preset can now run `bun check` without overriding
+  it.
+- The emitted JavaScript is unchanged for a CommonJS package (no
+  `"type": "module"`) with no dynamic `import()`. Measured with TypeScript
+  5.9.3: `dist/` (JavaScript, declarations and source maps) is byte-identical
+  on a probe backend, on Atlas `shared-types` and on GoWay `contracts`.
+- Two cases change. A dynamic `import()` stays a real `import()` instead of
+  becoming `require()`, and a relative one needs a `.js` extension (TS2835).
+  A package with `"type": "module"` emits ESM. Of the preset's consumers, only
+  GoWay `backend` has a dynamic `import()` (two, in `src/import/osm/run.ts`);
+  it sets Node16 itself in its own change. Imports now resolve through each
+  dependency's `exports` map, as Node does.
+
 ## 3.0.0
 
 ### Breaking changes

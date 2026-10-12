@@ -1,10 +1,11 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "//": "@oxy.so/app-preset — Node/Bun backend TypeScript config. Compiled with tsc to dist/ (CommonJS) and THAT emitted output is what the Docker/ECS image runs — module format and emit layout are a runtime contract. Overrides the Oxy base only where this becomes an emitting CommonJS Node service. Consumers set their own `rootDir`/`outDir`/`include` (and `paths` to resolve workspace deps from source during type-check).",
+  "//module": "Node16, not commonjs + node10. TypeScript 7 (and `bun check`) removes `moduleResolution: node`/`node10` (TS5108), and TypeScript 5.x rejects `bundler` with `commonjs` (TS5095), so Node16 is the one setting valid on both. Node16 emits CommonJS for every file whose nearest package.json has no `\"type\": \"module\"` — byte-identical to `commonjs` — with one exception: a dynamic `import()` stays a real `import()` (needing a `.js` extension on a relative path) instead of becoming `require()`. A package that sets `\"type\": \"module\"` gets ESM output.",
   "extends": "./base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "node16",
+    "moduleResolution": "node16",
     "noEmit": false,
     "declaration": true
   }

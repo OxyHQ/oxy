@@ -217,7 +217,7 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "3.0.0",
+      "version": "3.1.0",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
