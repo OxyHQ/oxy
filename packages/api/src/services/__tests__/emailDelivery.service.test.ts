@@ -7,7 +7,8 @@
  *      relay has answered — and the same Idempotency-Key sent concurrently goes
  *      out ONCE and files ONE Sent row, even when the first send is refused or
  *      dies while the repeat waits on it; a repeat never waits unbounded, and
- *      the key reused for a different message is refused, its draft kept;
+ *      the key reused for a different message is refused (a scheduled send
+ *      too, compared with its filed row), its draft kept;
  *      a delivery the relay took is never offered to it again by the worker;
  *   2. every outcome lands on that message (`sent`, `retrying`, `failed` with a
  *      code and the relay's words) and is announced as `email:changed`
@@ -245,6 +246,15 @@ async function fillMailbox(): Promise<() => Promise<void>> {
 /** What the relay was handed for one message. */
 function relayCallsFor(messageId: string) {
   return mockSendMail.mock.calls.filter(([mail]) => mail.messageId === messageId);
+}
+
+/** Whether a row is still one of this user's drafts. */
+async function isDraft(id: string) {
+  const rows = await getDb()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, id), eq(messages.draft, true)));
+  return rows.length === 1;
 }
 
 function deliveryEvents(messageRowId: string) {
@@ -712,14 +722,6 @@ describe('a delivery whose task died', () => {
 });
 
 describe('the draft a send was written in', () => {
-  async function isDraft(id: string) {
-    const rows = await getDb()
-      .select({ id: messages.id })
-      .from(messages)
-      .where(and(eq(messages.id, id), eq(messages.draft, true)));
-    return rows.length === 1;
-  }
-
   it('is removed by the send, and kept when the key was already used for another message', async () => {
     mockSendMail.mockResolvedValue({ response: '250 Ok' });
     const key = `compose:${unique()}`;
@@ -800,6 +802,92 @@ describe('a scheduled send', () => {
     // Taken off the schedule: a second pass sends nothing.
     await emailService.processScheduledMessages();
     expect(mockSendMail).toHaveBeenCalledTimes(1);
+  });
+
+  const later = () => new Date(Date.now() + 3_600_000);
+
+  it('answers a repeat of its key with the filed row, and refuses another message under it', async () => {
+    const key = `schedule:${unique()}`;
+    const message = {
+      from: { name: 'Nate', address: user.address },
+      to: [{ name: 'Ana', address: `ana-${unique().slice(0, 8)}@example.com` }],
+      subject: 'Later',
+      text: 'Hi',
+      idempotencyKey: key,
+    };
+    const first = await emailService.scheduleMessage(user.id, { ...message, scheduledAt: later() });
+
+    // The same message, as the Sent row stores it, is a retry.
+    const retried = await emailService.scheduleMessage(user.id, {
+      ...message,
+      to: [{ name: ' Ana ', address: message.to[0].address.toUpperCase() }],
+      scheduledAt: later(),
+    });
+    expect(retried.id).toBe(first.id);
+
+    for (const other of [
+      { text: 'Something else entirely' },
+      { to: [{ name: '', address: 'other@example.com' }] },
+      { subject: 'Sooner' },
+    ]) {
+      await expect(
+        emailService.scheduleMessage(user.id, { ...message, ...other, scheduledAt: later() }),
+      ).rejects.toMatchObject({ statusCode: 422, details: { reason: 'idempotency_key_reused' } });
+    }
+    expect(await sentRows(first.messageId)).toHaveLength(1);
+  });
+
+  it('refuses an immediate send of another message under a scheduled send`s key', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `k:${unique()}`;
+    const scheduled = await emailService.scheduleMessage(user.id, {
+      ...reply(key),
+      scheduledAt: later(),
+    });
+
+    await expect(
+      acceptOutboundMessage({ ...reply(key), text: 'Something else entirely' }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+    // The same message is answered with the scheduled row, and nothing is sent.
+    const same = await acceptOutboundMessage(reply(key));
+    expect(same.messageRowId).toBe(scheduled.id);
+    expect(mockSendMail).not.toHaveBeenCalled();
+  });
+
+  it('keeps the draft of another message scheduled under a used key', async () => {
+    const key = `compose:${unique()}`;
+    const to = [{ name: '', address: `scheduled-${unique().slice(0, 8)}@example.com` }];
+    const message = { to, subject: 'Hello', text: 'First' };
+    const scheduledAt = later().toISOString();
+
+    const first = await emailService.saveDraft(user.id, message);
+    const scheduled = await sendMessageForUser(
+      user.id,
+      { ...message, scheduledAt, draftId: first.id },
+      key,
+    );
+    expect(scheduled.status).toBe(202);
+    expect(await isDraft(first.id)).toBe(false);
+
+    const other = await emailService.saveDraft(user.id, { ...message, text: 'Second' });
+    await expect(
+      sendMessageForUser(
+        user.id,
+        { ...message, text: 'Second', scheduledAt, draftId: other.id },
+        key,
+      ),
+    ).rejects.toMatchObject({ statusCode: 422 });
+    expect(await isDraft(other.id)).toBe(true);
+
+    // A retry of the first, with a draft an autosave raced in, is answered.
+    const raced = await emailService.saveDraft(user.id, message);
+    const retried = await sendMessageForUser(
+      user.id,
+      { ...message, scheduledAt, draftId: raced.id },
+      key,
+    );
+    expect(retried.data.messageId).toBe(scheduled.data.messageId);
+    expect(await isDraft(raced.id)).toBe(false);
   });
 });
 

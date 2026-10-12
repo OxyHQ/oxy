@@ -95,7 +95,8 @@ import {
 import { parseInboundMime } from './inboundMime';
 import { OXY_SENT_ID_HEADER } from './relayMessageId';
 import { assetService } from './assetServiceSingleton';
-import { idempotentMessageId } from './emailIdempotency';
+import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
+import type { EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 import { enqueueInboxMessageEvents } from '../capabilities/inbox.events';
 
@@ -760,6 +761,52 @@ async function loadOutboundAttachments(
     ...(row.contentId === null ? {} : { contentId: row.contentId }),
     isInline: row.isInline,
   }));
+}
+
+/**
+ * The columns a filed message's outbound payload is rebuilt from. `text` and
+ * `html` are PROTECTED; the transport needs both, so this names them — the
+ * sanctioned opt-in.
+ */
+const FILED_PAYLOAD_COLUMNS = {
+  id: messages.id,
+  fromName: messages.fromName,
+  fromAddress: messages.fromAddress,
+  subject: messages.subject,
+  text: messages.text,
+  html: messages.html,
+  inReplyTo: messages.inReplyTo,
+  references: messages.references,
+};
+
+/** A filed message as the outbound transport takes it, with its recipients and attachments. */
+async function filedPayloadOf(
+  db: Database,
+  row: {
+    id: string;
+    fromName: string | null;
+    fromAddress: string;
+    subject: string;
+    text: string | null;
+    html: string | null;
+    inReplyTo: string | null;
+    references: string[];
+  },
+): Promise<EmailOutboxPayload> {
+  const group = (await loadRecipients(db, [row.id])).get(row.id) ?? emptyRecipients();
+  const attachments = await loadOutboundAttachments(db, row.id);
+  return {
+    from: { name: row.fromName ?? '', address: row.fromAddress },
+    to: group.to,
+    cc: group.cc.length ? group.cc : undefined,
+    bcc: group.bcc.length ? group.bcc : undefined,
+    subject: row.subject,
+    text: row.text ?? undefined,
+    html: row.html ?? undefined,
+    inReplyTo: row.inReplyTo ?? undefined,
+    references: row.references.length ? row.references : undefined,
+    attachments: attachments.length ? attachments : undefined,
+  };
 }
 
 /** Assemble one message row plus its children into the wire shape. */
@@ -2991,7 +3038,12 @@ class EmailService {
       : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
     if (params.idempotencyKey) {
       const existing = await this.findMessageByRfcMessageId(userId, messageId);
-      if (existing) return existing;
+      if (existing) {
+        // A repeat of the key must be the same message; another one is refused
+        // before the caller can take it as scheduled and delete its draft.
+        refuseReusedSendKey(await this.filedOutboundPayload(userId, existing.id), params);
+        return existing;
+      }
     }
 
     // Count body + attachment bytes toward the storage quota.
@@ -3034,36 +3086,37 @@ class EmailService {
   }
 
   /**
+   * What one of this user's filed messages asks to send, rebuilt from its row:
+   * the payload a scheduled send is delivered with, and what a repeat of the
+   * Idempotency-Key it was filed under is compared with.
+   */
+  async filedOutboundPayload(userId: string, messageRowId: string): Promise<EmailOutboxPayload> {
+    const db = getDb();
+    const [row] = await db
+      .select(FILED_PAYLOAD_COLUMNS)
+      .from(messages)
+      .where(and(eq(messages.id, messageRowId), eq(messages.userId, userId)))
+      .limit(1);
+    if (!row) throw new NotFoundError('Message not found');
+    return filedPayloadOf(db, row);
+  }
+
+  /**
    * Process all scheduled messages whose send time has passed.
    * Called by the scheduled send cron job every minute.
    */
   async processScheduledMessages(): Promise<number> {
     const db = getDb();
     const now = new Date();
-    // `text` and `html` are PROTECTED; the outbound transport needs both, so
-    // this names them — the sanctioned opt-in.
     const due = await db
-      .select({
-        id: messages.id,
-        messageId: messages.messageId,
-        userId: messages.userId,
-        fromName: messages.fromName,
-        fromAddress: messages.fromAddress,
-        subject: messages.subject,
-        text: messages.text,
-        html: messages.html,
-        inReplyTo: messages.inReplyTo,
-        references: messages.references,
-      })
+      .select({ ...FILED_PAYLOAD_COLUMNS, messageId: messages.messageId, userId: messages.userId })
       .from(messages)
       .where(and(lte(messages.scheduledAt, now), isNotNull(messages.scheduledAt)));
 
     let count = 0;
     for (const msg of due) {
       try {
-        const recipients = await loadRecipients(db, [msg.id]);
-        const group = recipients.get(msg.id) ?? emptyRecipients();
-        const attachments = await loadOutboundAttachments(db, msg.id);
+        const payload = await filedPayloadOf(db, msg);
 
         // Taking the message off the schedule IS the claim: of two tasks that
         // both read it as due, only one clears `scheduledAt`, and it commits
@@ -3082,18 +3135,7 @@ class EmailService {
               userId: msg.userId,
               messageId: msg.messageId,
               messageRowId: msg.id,
-              payload: {
-                from: { name: msg.fromName ?? '', address: msg.fromAddress },
-                to: group.to,
-                cc: group.cc.length ? group.cc : undefined,
-                bcc: group.bcc.length ? group.bcc : undefined,
-                subject: msg.subject,
-                text: msg.text ?? undefined,
-                html: msg.html ?? undefined,
-                inReplyTo: msg.inReplyTo ?? undefined,
-                references: msg.references.length ? msg.references : undefined,
-                attachments: attachments.length ? attachments : undefined,
-              },
+              payload,
               owner: `scheduled:${randomUUID()}`,
             },
             tx,

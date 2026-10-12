@@ -9,7 +9,12 @@
   VALIDATION_ERROR`, `details.reason: "idempotency_key_reused"`. It used to
   answer with the first send's acceptance and then delete the second request's
   draft, losing it. A repeat of the same message still answers with the first
-  send, and the draft is deleted only once the message is filed in Sent.
+  send, and the draft is deleted only once the message is filed in Sent. The
+  same rule holds for a `scheduledAt` send, whose repeat is compared with the
+  filed Sent row (it has no outbox claim until it falls due), and for an
+  immediate send under a scheduled send's key. One comparison serves both
+  records: what the client chose, normalised as the Sent row stores it; a
+  read-receipt request is not part of it, since a Sent row does not record one.
 - A repeat waits at most 5 s on the first request's claim and then answers
   `503 SERVICE_UNAVAILABLE` (`details.retryable: true`); the client retries
   with the same key. The accept transaction also ends its own session after

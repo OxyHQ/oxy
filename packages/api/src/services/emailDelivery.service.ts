@@ -23,18 +23,17 @@ import { randomUUID } from 'node:crypto';
 import { sqlStateOf } from '@oxy.so/db';
 import { EMAIL_DOMAIN, SMTP_OUTBOUND_CONFIG } from '../config/email.config';
 import { getDb } from '../config/postgres';
-import type { emailOutbox } from '../db/schema/emailOutbox';
+import type { emailOutbox, EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { messages } from '../db/schema/messages';
 import {
   BadRequestError,
   ConflictError,
   NotFoundError,
   ServiceUnavailableError,
-  ValidationError,
 } from '../utils/error';
 import { logger } from '../utils/logger';
 import { emailService, type MessageDto } from './email.service';
-import { idempotentMessageId, sendRequestFingerprint } from './emailIdempotency';
+import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
 import {
   claimDeliveryRetry,
   claimSend,
@@ -126,15 +125,20 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     ? idempotentMessageId(message.userId, key)
     : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
   const payload = outboxPayload(message);
-  const fingerprint = sendRequestFingerprint(payload);
 
   if (key) {
     const claimed = await findSendClaim(message.userId, key);
-    if (claimed) return answerRepeat(message.userId, claimed, fingerprint);
-    // Filed under this key with no claim to compare against: a scheduled send,
-    // or one delivered before sends were claimed.
+    if (claimed) return answerRepeat(message.userId, claimed, payload);
+    // Filed under this key with no claim: a scheduled send not yet due, or one
+    // delivered before sends were claimed. The Sent row is what it asked for.
     const filed = await emailService.findMessageByRfcMessageId(message.userId, messageId);
-    if (filed) return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
+    if (filed) {
+      refuseReusedSendKey(
+        await emailService.filedOutboundPayload(message.userId, filed.id),
+        payload,
+      );
+      return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
+    }
   }
 
   // The claim and the Sent copy commit together. A repeat of the key racing
@@ -182,7 +186,7 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     );
   }
 
-  if (!claim.claimed) return answerRepeat(message.userId, claim.existing, fingerprint);
+  if (!claim.claimed) return answerRepeat(message.userId, claim.existing, payload);
 
   const { row, messageRowId } = claim;
   // A second device showing the Sent folder sees the message the moment it is
@@ -199,21 +203,14 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
 
 /**
  * Answer a repeat of an Idempotency-Key with the send it already claimed — if
- * it asks for the same message. A different message under a used key is
- * refused: it is not a retry, and answering it as one would report it accepted
- * while only the first message exists.
+ * it asks for the same message ({@link refuseReusedSendKey}).
  */
 async function answerRepeat(
   userId: string,
   existing: EmailOutboxRow,
-  fingerprint: string,
+  requested: EmailOutboxPayload,
 ): Promise<AcceptedSend> {
-  if (sendRequestFingerprint(existing.payload) !== fingerprint) {
-    throw new ValidationError(
-      'This Idempotency-Key was already used for a different message. Send this one with a new key.',
-      { reason: 'idempotency_key_reused' },
-    );
-  }
+  refuseReusedSendKey(existing.payload, requested);
   const messageRowId =
     existing.messageRowId ??
     // Accepted before sends were filed first.
