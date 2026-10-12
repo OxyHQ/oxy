@@ -1,5 +1,4 @@
 /** Fixed read-only cold-discovery precheck. Never imports federation discovery. */
-import 'dotenv/config';
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import {
   inspectExternalIdentityCache,

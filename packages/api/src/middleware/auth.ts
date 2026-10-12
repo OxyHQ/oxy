@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 import { logger } from '../utils/logger';
 import sessionService from '../services/session.service';
 import type { AccountDocument } from '../services/user.service';
@@ -12,9 +11,6 @@ import {
   validateSessionToken,
   type TokenDecoded,
 } from './authUtils';
-
-// Ensure environment variables are loaded
-dotenv.config();
 
 /**
  * Interface for requests with full user object.

@@ -12,7 +12,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createReadStream, createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import type { Readable } from 'stream';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import path from 'path';
 import type {
   S3Config,
@@ -578,7 +578,7 @@ export class S3Service {
   generateUniqueKey(originalName: string, folder?: string): string {
     const extension = path.extname(originalName);
     const baseName = path.basename(originalName, extension);
-    const uniqueId = uuidv4();
+    const uniqueId = randomUUID();
     const key = `${baseName}-${uniqueId}${extension}`;
 
     return folder ? `${folder}/${key}` : key;

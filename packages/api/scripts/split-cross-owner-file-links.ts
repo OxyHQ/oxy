@@ -13,7 +13,6 @@
  * final `{"summary": …}` line whose `lastLinkId` resumes an unfinished run.
  * Nothing is written without `--apply`.
  */
-import 'dotenv/config';
 import { closePostgres, connectPostgres } from '../src/config/postgres';
 import {
   countCrossOwnerMessageAttachments,
