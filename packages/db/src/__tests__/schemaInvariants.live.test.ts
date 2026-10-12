@@ -22,30 +22,30 @@
  * — this package's own CI does not yet run a Postgres service.
  */
 
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
 import { findSchemaInvariantViolations } from '../assert/schemaInvariants';
 import { createTestDatabase, dropTestDatabase } from '../testing';
+import { TEST_DRIVER, openLiveClient, openLiveDatabase } from './support/liveDriver';
 
 const ADMIN_URL = process.env.OXYDB_TEST_ADMIN_URL;
 const describeLive = ADMIN_URL ? describe : describe.skip;
 
 /** No consumer schema is needed: every query this module issues is a raw
- * catalogue read, never a table-builder query, so a bare `drizzle(client)`
+ * catalogue read, never a table-builder query, so a bare schema-less handle
  * (no schema, no casing) already satisfies `SqlExecutor`. */
 function executorFor(databaseUrl: string) {
-  const client = postgres(databaseUrl, { max: 1 });
-  return { db: drizzle(client), client };
+  const { db, close } = openLiveDatabase(databaseUrl);
+  return { db, client: { close } };
 }
 
 describeLive('findSchemaInvariantViolations (live Postgres)', () => {
   it('reports nothing against a schema with no violations', async () => {
     const url = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: async (databaseUrl) => {
-        const admin = postgres(databaseUrl, { max: 1 });
+        const admin = openLiveClient(databaseUrl);
         try {
-          await admin.unsafe(`
+          await admin.exec(`
             create table healthy_widgets (
               id uuid primary key,
               name text not null,
@@ -53,7 +53,7 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
             )
           `);
         } finally {
-          await admin.end({ timeout: 5 });
+          await admin.close();
         }
       },
     });
@@ -66,8 +66,8 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
       });
       expect(violations).toEqual([]);
     } finally {
-      await client.end({ timeout: 5 });
-      await dropTestDatabase(url);
+      await client.close();
+      await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 
@@ -80,10 +80,11 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
   it('reports every real violation, against genuine information_schema catalogues', async () => {
     const url = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: async (databaseUrl) => {
-        const admin = postgres(databaseUrl, { max: 1 });
+        const admin = openLiveClient(databaseUrl);
         try {
-          await admin.unsafe(`
+          await admin.exec(`
             create table posts (
               id uuid primary key,
               title text not null,
@@ -103,7 +104,7 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
             );
           `);
         } finally {
-          await admin.end({ timeout: 5 });
+          await admin.close();
         }
       },
     });
@@ -133,8 +134,8 @@ describeLive('findSchemaInvariantViolations (live Postgres)', () => {
       // false positives from the surrounding healthy columns.
       expect(violations).toHaveLength(7);
     } finally {
-      await client.end({ timeout: 5 });
-      await dropTestDatabase(url);
+      await client.close();
+      await dropTestDatabase(url, { driver: TEST_DRIVER });
     }
   });
 });

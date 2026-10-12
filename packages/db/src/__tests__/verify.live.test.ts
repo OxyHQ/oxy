@@ -23,10 +23,10 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import postgres from 'postgres';
 import { runMigrations } from '../migrate/runner';
 import { compareLedger, readAppliedRows, readJournalWithHashes } from '../migrate/verify';
 import { createTestDatabase, dropTestDatabase } from '../testing';
+import { TEST_DRIVER, openLiveClient } from './support/liveDriver';
 
 const ADMIN_URL = process.env.OXYDB_TEST_ADMIN_URL;
 const describeLive = ADMIN_URL ? describe : describe.skip;
@@ -75,8 +75,10 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
     folder = writeMigrationsFolder(MIGRATIONS);
     databaseUrl = await createTestDatabase({
       adminUrl: ADMIN_URL,
+      driver: TEST_DRIVER,
       migrate: (url) =>
         runMigrations({
+          driver: TEST_DRIVER,
           databaseUrl: url,
           migrationsFolder: folder,
           extensions: [],
@@ -88,7 +90,7 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
   }, 60_000);
 
   afterAll(async () => {
-    if (databaseUrl) await dropTestDatabase(databaseUrl);
+    if (databaseUrl) await dropTestDatabase(databaseUrl, { driver: TEST_DRIVER });
     if (folder) rmSync(folder, { recursive: true, force: true });
   }, 60_000);
 
@@ -99,9 +101,9 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
    * breakpoints removed — this is where it would show.
    */
   it('records the same hash this module computes, for every migration', async () => {
-    const client = postgres(databaseUrl, { max: 1 });
+    const live = openLiveClient(databaseUrl);
     try {
-      const rows = await readAppliedRows(client);
+      const rows = await readAppliedRows(live.client);
       const entries = readJournalWithHashes(folder);
 
       // Floor: an empty ledger would make every per-row assertion below
@@ -115,21 +117,24 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
         expect(recorded.get(entry.when)).toBe(entry.hash);
       }
     } finally {
-      await client.end({ timeout: 5 });
+      await live.close();
     }
   }, 60_000);
 
   it('reports a fully-migrated database as current, with non-zero counts', async () => {
-    const client = postgres(databaseUrl, { max: 1 });
+    const live = openLiveClient(databaseUrl);
     try {
-      const result = compareLedger(readJournalWithHashes(folder), await readAppliedRows(client));
+      const result = compareLedger(
+        readJournalWithHashes(folder),
+        await readAppliedRows(live.client),
+      );
       expect(result.unapplied).toEqual([]);
       expect(result.unknownToJournal).toEqual([]);
       expect(result.hashMismatches).toEqual([]);
       expect(result.journalCount).toBe(MIGRATIONS.length);
       expect(result.ledgerCount).toBe(MIGRATIONS.length);
     } finally {
-      await client.end({ timeout: 5 });
+      await live.close();
     }
   }, 60_000);
 
@@ -148,14 +153,17 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
         sql: '-- oxy:deploy-phase=pre\nCREATE TABLE "sprockets" ("id" text PRIMARY KEY);',
       },
     ]);
-    const client = postgres(databaseUrl, { max: 1 });
+    const live = openLiveClient(databaseUrl);
     try {
-      const result = compareLedger(readJournalWithHashes(extended), await readAppliedRows(client));
+      const result = compareLedger(
+        readJournalWithHashes(extended),
+        await readAppliedRows(live.client),
+      );
       expect(result.unapplied.map((entry) => entry.tag)).toEqual(['0002_never_run']);
       expect(result.unknownToJournal).toEqual([]);
       expect(result.hashMismatches).toEqual([]);
     } finally {
-      await client.end({ timeout: 5 });
+      await live.close();
       rmSync(extended, { recursive: true, force: true });
     }
   }, 60_000);
@@ -171,14 +179,17 @@ describeLive('verifyMigrationLedger against a real migration run', () => {
       { ...MIGRATIONS[0], sql: `${MIGRATIONS[0].sql}\n-- edited after applying` },
       MIGRATIONS[1],
     ]);
-    const client = postgres(databaseUrl, { max: 1 });
+    const live = openLiveClient(databaseUrl);
     try {
-      const result = compareLedger(readJournalWithHashes(edited), await readAppliedRows(client));
+      const result = compareLedger(
+        readJournalWithHashes(edited),
+        await readAppliedRows(live.client),
+      );
       expect(result.unapplied).toEqual([]);
       expect(result.unknownToJournal).toEqual([]);
       expect(result.hashMismatches.map((m) => m.tag)).toEqual(['0000_create_widgets']);
     } finally {
-      await client.end({ timeout: 5 });
+      await live.close();
       rmSync(edited, { recursive: true, force: true });
     }
   }, 60_000);

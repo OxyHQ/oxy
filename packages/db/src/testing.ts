@@ -26,7 +26,12 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import postgres from 'postgres';
+import {
+  DEFAULT_DATABASE_DRIVER,
+  type DatabaseDriver,
+  executeStatement,
+  openOwnedConnection,
+} from './driver';
 
 /** Bytes of randomness in a throwaway database name. */
 const NAME_ENTROPY_BYTES = 8;
@@ -73,6 +78,20 @@ export interface CreateTestDatabaseOptions {
    * full of abandoned throwaway databases.
    */
   readonly migrate?: (databaseUrl: string) => Promise<void>;
+
+  /**
+   * The client the admin connections (`CREATE DATABASE`, and the `DROP` on a
+   * failed hook) go through. Default `postgres-js`; `bun-sql` is Bun only.
+   * Does not reach `migrate` — the hook opens whatever it opens, so pass the
+   * same driver to `runMigrations` inside it if that is what you are testing.
+   */
+  readonly driver?: DatabaseDriver;
+}
+
+/** {@link dropTestDatabase}'s options. */
+export interface DropTestDatabaseOptions {
+  /** As {@link CreateTestDatabaseOptions.driver}. */
+  readonly driver?: DatabaseDriver;
 }
 
 /**
@@ -116,11 +135,12 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
   testUrl.pathname = `/${name}`;
   const url = testUrl.toString();
 
-  const create = postgres(maintenanceUrl(baseUrl), { max: 1 });
+  const driver = options.driver ?? DEFAULT_DATABASE_DRIVER;
+  const create = openOwnedConnection(maintenanceUrl(baseUrl), driver);
   try {
-    await create.unsafe(`create database "${name}"`);
+    await executeStatement(create.client, `create database "${name}"`);
   } finally {
-    await create.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+    await create.close(ADMIN_CLOSE_TIMEOUT_SECONDS);
   }
 
   if (options.migrate) {
@@ -139,7 +159,7 @@ export async function createTestDatabase(options: CreateTestDatabaseOptions = {}
       // never print), and still throws the original `migrateError` unchanged
       // in the common case where the drop succeeds.
       try {
-        await dropTestDatabase(url);
+        await dropTestDatabase(url, { driver });
       } catch (dropError) {
         const migrateMessage =
           migrateError instanceof Error ? migrateError.message : String(migrateError);
@@ -169,7 +189,10 @@ still exist and need manual cleanup.`,
  *   a stray connection string can never reach `DROP DATABASE` at all — the
  *   guard that stops teardown from dropping a real database.
  */
-export async function dropTestDatabase(databaseUrl: string): Promise<void> {
+export async function dropTestDatabase(
+  databaseUrl: string,
+  options: DropTestDatabaseOptions = {},
+): Promise<void> {
   const name = new URL(databaseUrl).pathname.replace(/^\//, '');
   if (!TEST_DATABASE_NAME.test(name)) {
     throw new Error(
@@ -178,10 +201,13 @@ createTestDatabase (oxydb_test_<16 hex>) may be dropped.`,
     );
   }
 
-  const remove = postgres(maintenanceUrl(databaseUrl), { max: 1 });
+  const remove = openOwnedConnection(
+    maintenanceUrl(databaseUrl),
+    options.driver ?? DEFAULT_DATABASE_DRIVER,
+  );
   try {
-    await remove.unsafe(`drop database if exists "${name}" with (force)`);
+    await executeStatement(remove.client, `drop database if exists "${name}" with (force)`);
   } finally {
-    await remove.end({ timeout: ADMIN_CLOSE_TIMEOUT_SECONDS });
+    await remove.close(ADMIN_CLOSE_TIMEOUT_SECONDS);
   }
 }

@@ -1209,6 +1209,18 @@ jobs:
           # Without this every live suite is `describe.skip`, indistinguishable
           # from passing; this is what makes them actually run in CI.
           OXYDB_TEST_ADMIN_URL: postgres://oxy:oxy@127.0.0.1:5432/postgres
+      # The same suite under `bun test`, once per driver: postgres.js, then
+      # Bun's built-in `Bun.SQL` (opt-in `driver: 'bun-sql'`), which cannot run
+      # under Jest/Node at all — this step is the only place it is exercised.
+      # Includes the cross-driver ledger-parity suite. The Jest-module-registry
+      # unit tests skip here (bun test has no `jest.resetModules`); they ran above.
+      - name: 'DB Tests: test under Bun (postgres-js + bun-sql)'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 15
+        run: bun run test:bun
+        working-directory: ./packages/db
+        env:
+          OXYDB_TEST_ADMIN_URL: postgres://oxy:oxy@127.0.0.1:5432/postgres
 
       # Protocol package tests (Jest — build contracts first)
       - name: Build contracts

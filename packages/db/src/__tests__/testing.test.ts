@@ -9,6 +9,17 @@
 
 import { createTestDatabase, dropTestDatabase } from '../testing';
 
+/**
+ * The faked-driver blocks below swap the `postgres` module out through Jest's
+ * module registry (`jest.resetModules` + `jest.doMock`), which `bun test` does
+ * not implement. They are Jest-only by construction — they fake postgres.js,
+ * so they say nothing about either real driver — and run in full under
+ * `bun run test`. Under `bun run test:bun` they are SKIPPED, visibly,
+ * rather than failing on a missing Jest API; every claim the live suites make
+ * still runs there, on `Bun.SQL`.
+ */
+const jestOnly = typeof Reflect.get(jest, 'resetModules') === 'function' ? describe : describe.skip;
+
 describe('createTestDatabase', () => {
   // The brief's own mandated test asserted only `.rejects.toThrow()` (no
   // message check). Mutation-tested against a version reading
@@ -31,7 +42,7 @@ describe('createTestDatabase', () => {
     await expect(createTestDatabase()).rejects.toThrow(/adminUrl/);
   });
 
-  describe('name generation and URL construction (faked driver, no live Postgres)', () => {
+  jestOnly('name generation and URL construction (faked driver, no live Postgres)', () => {
     beforeEach(() => {
       // `testing.ts`, and the `postgres` module it imports, are already
       // cached from this file's own static top-level import (unmocked). A
@@ -125,11 +136,13 @@ describe('createTestDatabase', () => {
     });
   });
 
-  describe('migrate hook (faked driver, no live Postgres)', () => {
+  jestOnly('migrate hook (faked driver, no live Postgres)', () => {
+    // biome-ignore lint/suspicious/noDuplicateTestHooks: `jestOnly` IS a describe; Biome recognises one only by name.
     beforeEach(() => {
       jest.resetModules();
     });
 
+    // biome-ignore lint/suspicious/noDuplicateTestHooks: `jestOnly` IS a describe; Biome recognises one only by name.
     afterEach(() => {
       jest.resetModules();
       jest.restoreAllMocks();
@@ -293,7 +306,7 @@ describe('dropTestDatabase', () => {
     ).rejects.toThrow(/Refusing to drop/);
   });
 
-  describe('against a faked driver, no live Postgres', () => {
+  jestOnly('against a faked driver, no live Postgres', () => {
     beforeEach(() => {
       jest.resetModules();
     });

@@ -1,5 +1,15 @@
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql';
+import type { BunSQLQueryResultHKT } from 'drizzle-orm/bun-sql/session';
+import type { PgDatabase } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { SqlExecutor } from './database';
+import type postgres from 'postgres';
+import { type SqlExecutor, createDatabase } from './database';
+import type {
+  BunSqlClient,
+  OxyBunSqlDatabase,
+  OxyBunSqlQueryResultHKT,
+  RawSqlClient,
+} from './driver';
 
 /**
  * Compile-time-only regression check: NOT excluded from `tsconfig.json`
@@ -49,3 +59,64 @@ function realHandlesSatisfySqlExecutor(
   void txExecutor;
 }
 void realHandlesSatisfySqlExecutor;
+
+/**
+ * The bun-sql half, held to the same standard and to drizzle's own types.
+ *
+ * `OxyBunSqlQueryResultHKT` restates drizzle's `BunSQLQueryResultHKT` so this
+ * package's declarations never import `drizzle-orm/bun-sql` (whose own
+ * declarations import `bun`, which a Node consumer has no types for). The
+ * restatement is only safe while the two stay interchangeable, so both
+ * directions are asserted against drizzle's real class — a drizzle bump that
+ * changes the result kind fails `bun run typescript` here instead of handing
+ * a consumer a handle whose `execute()` is typed wrongly.
+ */
+type BunTransactionHandle = Parameters<
+  Parameters<OxyBunSqlDatabase<Record<string, unknown>>['transaction']>[0]
+>[0];
+
+function bunSqlHandlesSatisfySqlExecutor(
+  db: OxyBunSqlDatabase<Record<string, unknown>>,
+  tx: BunTransactionHandle,
+  drizzleOwn: BunSQLDatabase<Record<string, unknown>>,
+  restated: PgDatabase<OxyBunSqlQueryResultHKT, Record<string, unknown>>,
+): void {
+  const poolExecutor: SqlExecutor = db;
+  void poolExecutor;
+  const txExecutor: SqlExecutor = tx;
+  void txExecutor;
+
+  const fromDrizzle: PgDatabase<OxyBunSqlQueryResultHKT, Record<string, unknown>> = drizzleOwn;
+  void fromDrizzle;
+  const toDrizzle: PgDatabase<BunSQLQueryResultHKT, Record<string, unknown>> = restated;
+  void toDrizzle;
+}
+void bunSqlHandlesSatisfySqlExecutor;
+
+/**
+ * Both drivers' clients satisfy `RawSqlClient`, which is what lets every
+ * `migrate/` reader take either one; and `createDatabase` picks its return
+ * type from `driver`, so a bun-sql caller never sees a postgres.js type.
+ */
+function clientsSatisfyRawSqlClient(pg: postgres.Sql, bun: BunSqlClient): void {
+  const fromPostgres: RawSqlClient = pg;
+  void fromPostgres;
+  const fromBun: RawSqlClient = bun;
+  void fromBun;
+
+  const schema = {};
+  const pgHandle = createDatabase({ databaseUrl: '', schema });
+  const pgClient: postgres.Sql = pgHandle.client;
+  void pgClient;
+  const bunHandle = createDatabase({ databaseUrl: '', schema, driver: 'bun-sql' });
+  const bunDb: OxyBunSqlDatabase<typeof schema> = bunHandle.db;
+  const bunClient: BunSqlClient = bunHandle.client;
+  void bunDb;
+  void bunClient;
+  // @ts-expect-error — a bun-sql handle's client is not a postgres.js client.
+  const notPostgres: postgres.Sql = bunHandle.client;
+  void notPostgres;
+  // @ts-expect-error — postgres.js options are refused on the bun-sql overload.
+  createDatabase({ databaseUrl: '', schema, driver: 'bun-sql', client: { idle_timeout: 5 } });
+}
+void clientsSatisfyRawSqlClient;
