@@ -11,6 +11,7 @@ import {
   closePersonalPlanCheckoutFromProvider,
   startPersonalPlanCheckout,
   resumePersonalPlanCheckout,
+  recoverPersonalPlanCheckout,
   type PersonalCheckoutSnapshot,
   personalCheckoutSnapshotFromIntent,
   type PersonalCheckoutProvider,
@@ -178,8 +179,12 @@ it('selects exact server price, replays one intent and blocks changed payload/ne
     startPersonalPlanCheckout(f.payer, f.request, deps),
     startPersonalPlanCheckout(f.payer, f.request, deps),
   ]);
-  expect(first).toEqual(second);
   expect(first.state).toBe('pending');
+  expect(second.state).toBe('pending');
+  if (first.state !== 'pending' || second.state !== 'pending')
+    throw new Error('Pending intents expected');
+  expect(first.intentId).toBe(second.intentId);
+  expect(f.create).toHaveBeenCalledTimes(1);
   expect(f.create.mock.calls[0][0]).toMatchObject({
     amountMinorUnits: 7,
     currency: 'usd',
@@ -360,7 +365,7 @@ it('replays a reserved intent with its frozen typed price after the catalogue ch
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
   expect(reserved).toMatchObject({
-    state: 'reserved',
+    state: 'pending',
     priceId: 'price_synthetic',
     priceProvider: 'peable',
     priceKind: 'oxy_one',
@@ -377,16 +382,27 @@ it('replays a reserved intent with its frozen typed price after the catalogue ch
     (
       await startPersonalPlanCheckout(f.payer, f.request, {
         catalogue: changed,
-        provider: f.provider,
+        provider: {
+          ...f.provider,
+          recover: async (input) => {
+            expect(input).toMatchObject({
+              intentId: reserved.id,
+              amountMinorUnits: 7,
+              currency: 'usd',
+              priceId: 'price_synthetic',
+            });
+            return {
+              state: 'found',
+              sessionId: 'cs_read',
+              checkoutUrl: 'https://checkout.invalid/read',
+              expiresAt: '2099-01-01T00:00:00.000Z',
+            };
+          },
+        },
       })
     ).state,
   ).toBe('pending');
-  expect(f.create.mock.calls[0][0]).toMatchObject({
-    intentId: reserved.id,
-    amountMinorUnits: 7,
-    currency: 'usd',
-    priceId: 'price_synthetic',
-  });
+  expect(f.create).not.toHaveBeenCalled();
 });
 
 it('binds a checkout to a registered bundle offer version at the database', async () => {
@@ -500,18 +516,20 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
     startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
     startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
   ]);
-  expect(result.every((r) => r.status === 'rejected')).toBe(true);
+  expect(result.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  expect(create).toHaveBeenCalledTimes(1);
   expect(preparations).toBe(2);
   expect(new Set(dispatched).size).toBe(1);
   const [stored] = await getDb()
     .select()
     .from(personalPlanCheckoutIntents)
     .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
-  const replayCreate = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
+  const recover = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
     expect(input.idempotencyKey).toBe(`personal-checkout:${stored.id}`);
     if (!input.snapshot) throw new Error('Missing replay snapshot');
     expect(input.snapshot.taxQuote.quote.id).toBe(dispatched[0]);
     return {
+      state: 'found' as const,
       sessionId: 'cs_recovered',
       checkoutUrl: 'https://checkout.invalid/recovered',
       expiresAt: '2099-01-01T00:00:00.000Z',
@@ -520,7 +538,7 @@ it('freezes the winning prepared quote before concurrent dispatch and restart af
   expect(
     (
       await resumePersonalPlanCheckout(stored.id, {
-        provider: { ...provider, create: replayCreate },
+        provider: { ...provider, recover },
       })
     ).state,
   ).toBe('pending');
@@ -562,6 +580,107 @@ it('does not recalculate or release a reserved quote that expired after a lost r
   expect(prepare).toHaveBeenCalledTimes(1);
   expect(create).toHaveBeenCalledTimes(1);
 });
+
+it.each([false, true])(
+  'uses only reads after restart and quote expiry, including legacy unmarked=%s',
+  async (legacy) => {
+    const f = await fixture();
+    const prepare = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) =>
+      authority(input, 'lost-response'),
+    );
+    const create = jest.fn(async () => {
+      throw new Error('lost response');
+    });
+    const provider: PersonalCheckoutProvider = { kind: 'synthetic', prepare, create };
+    await expect(
+      startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
+    ).rejects.toThrow('lost response');
+    const [intent] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+    expect(intent.dispatchClaimedAt).toBeInstanceOf(Date);
+    if (legacy)
+      await getDb()
+        .update(personalPlanCheckoutIntents)
+        .set({ dispatchClaimedAt: null, state: 'reserved' })
+        .where(eq(personalPlanCheckoutIntents.id, intent.id));
+    const recover = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
+      expect(input.snapshot).toEqual(personalCheckoutSnapshotFromIntent(intent));
+      return {
+        state: 'found' as const,
+        sessionId: 'cs_recovered_expired',
+        expiresAt: '2099-01-01T00:00:00.000Z',
+      };
+    });
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect(
+        await recoverPersonalPlanCheckout(intent.id, {
+          provider: { ...provider, recover },
+          now: new Date('2100-01-01T00:00:00Z'),
+        }),
+      ).toEqual({ state: 'pending', intentId: intent.id });
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(recover).toHaveBeenCalledTimes(1);
+    const [persisted] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.id, intent.id));
+    expect(persisted.providerSessionId).toBe('cs_recovered_expired');
+    expect(persisted.checkoutUrl).toBeNull();
+    expect(persisted.taxQuoteRef).toBe(intent.taxQuoteRef);
+    expect(persisted.state).toBe('pending');
+  },
+);
+
+it.each([false, true])(
+  'retains unknown operations without issuing another create, failed read=%s',
+  async (failed) => {
+    const f = await fixture();
+    const create = jest.fn(async () => {
+      throw new Error('lost');
+    });
+    const prepare = jest.fn(async (input: Parameters<PersonalCheckoutProvider['create']>[0]) =>
+      authority(input, 'held'),
+    );
+    const recover = jest.fn(async (): Promise<{ state: 'pending' }> => {
+      if (failed) throw new Error('uncertain operation');
+      return { state: 'pending' };
+    });
+    const provider: PersonalCheckoutProvider = { kind: 'synthetic', create, prepare, recover };
+    await expect(
+      startPersonalPlanCheckout(f.payer, f.request, { catalogue: f.catalogue, provider }),
+    ).rejects.toThrow('lost');
+    const [intent] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.subjectAccountId, f.payer));
+    if (failed)
+      await expect(recoverPersonalPlanCheckout(intent.id, { provider })).rejects.toThrow(
+        'uncertain',
+      );
+    else
+      expect(await recoverPersonalPlanCheckout(intent.id, { provider })).toEqual({
+        state: 'pending',
+        intentId: intent.id,
+      });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    await expect(
+      startPersonalPlanCheckout(
+        f.payer,
+        { ...f.request, idempotencyKey: randomUUID() },
+        { catalogue: f.catalogue, provider },
+      ),
+    ).rejects.toThrow('already pending');
+  },
+);
 
 it('rejects prepared authority for another subject without storing or dispatching it', async () => {
   const f = await fixture();

@@ -1,4 +1,4 @@
-import type { BillingTaxQuote, Peable } from '@peable.to/sdk';
+import type { BillingTaxQuote, BillingCheckoutOperationRecovery, Peable } from '@peable.to/sdk';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
@@ -86,14 +86,38 @@ function fixture() {
   const resolveCustomerLocationEvidence = jest.fn(async () => ({
     customerLocationEvidenceId: 'location_fixture',
   }));
+  const retrieveCheckoutOperation = jest.fn(
+    async (): Promise<BillingCheckoutOperationRecovery> => ({
+      state: 'succeeded',
+      source: {
+        idempotencyKey: input.idempotencyKey,
+        providerCustomerId: 'cus_fixture',
+        providerPriceId: input.priceId,
+        storeId: input.subjectAccountId,
+        planId: 'one_monthly',
+        merchantId: configuration.merchantId,
+        appId: configuration.applicationId,
+        mode: 'test',
+        environment: 'staging',
+        taxQuoteId: quote.quote.id,
+      },
+      checkout: {
+        id: 'cs_fixture',
+        url: 'https://checkout.example.invalid/fixture',
+        expiresAt: '2026-10-07T01:00:00.000Z',
+      },
+    }),
+  );
   const client = {
     merchants: { retrieve },
-    billing: { ensureCustomer, createTaxQuote, createCheckoutSession },
+    billing: { ensureCustomer, createTaxQuote, createCheckoutSession, retrieveCheckoutOperation },
   } as unknown as Pick<Peable, 'merchants' | 'billing'>;
   const provider = createPeablePersonalCheckoutProvider(client, configuration, () => now, {
     resolveCustomerLocationEvidence,
   });
   return {
+    client,
+    retrieveCheckoutOperation,
     retrieve,
     ensureCustomer,
     createTaxQuote,
@@ -102,6 +126,70 @@ function fixture() {
     provider,
   };
 }
+it('uses authenticated operation reads in production after quote expiry without preparing or creating', async () => {
+  const test = fixture();
+  const snapshot = await test.provider.prepare?.(input);
+  if (!snapshot) throw new Error('Fixture snapshot missing');
+  const provider = createPeablePersonalCheckoutProvider(
+    test.client,
+    configuration,
+    () => new Date('2026-10-08T00:00:00Z'),
+  );
+  if (!provider.recover) throw new Error('Missing SDK recovery');
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    expect(await provider.recover({ ...input, snapshot })).toEqual({
+      state: 'found',
+      sessionId: 'cs_fixture',
+      expiresAt: '2026-10-07T01:00:00.000Z',
+    });
+  } finally {
+    process.env.NODE_ENV = previous;
+  }
+  expect(test.retrieveCheckoutOperation).toHaveBeenCalledWith({
+    idempotencyKey: input.idempotencyKey,
+    providerCustomerId: snapshot.customerId,
+    providerPriceId: snapshot.priceId,
+    storeId: snapshot.subjectAccountId,
+    planId: snapshot.planId,
+  });
+  expect(test.createCheckoutSession).not.toHaveBeenCalled();
+  expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
+});
+it.each([
+  'merchantId',
+  'appId',
+  'mode',
+  'environment',
+  'storeId',
+  'planId',
+  'providerCustomerId',
+  'providerPriceId',
+  'taxQuoteId',
+  'idempotencyKey',
+] as const)('rejects a foreign operation %s before exposing a session', async (field) => {
+  const test = fixture();
+  const snapshot = await test.provider.prepare?.(input);
+  const value = await test.retrieveCheckoutOperation();
+  test.retrieveCheckoutOperation.mockResolvedValue({
+    ...value,
+    source: { ...value.source, [field]: 'foreign' },
+  } as BillingCheckoutOperationRecovery);
+  await expect(test.provider.recover?.({ ...input, snapshot })).rejects.toThrow('binding differs');
+  expect(test.createCheckoutSession).not.toHaveBeenCalled();
+});
+it.each(['pending', 'not_found', 'indeterminate'] as const)(
+  'holds a %s operation without another create',
+  async (state) => {
+    const test = fixture();
+    const snapshot = await test.provider.prepare?.(input);
+    const value = await test.retrieveCheckoutOperation();
+    test.retrieveCheckoutOperation.mockResolvedValue({ state, source: value.source });
+    expect(await test.provider.recover?.({ ...input, snapshot })).toEqual({ state: 'pending' });
+    expect(test.createCheckoutSession).not.toHaveBeenCalled();
+  },
+);
 it('prepares trusted customer and quote then replays only the frozen checkout snapshot', async () => {
   const test = fixture();
   const snapshot = await test.provider.prepare?.(input);

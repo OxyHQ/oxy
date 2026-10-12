@@ -9,6 +9,9 @@ import {
   accessOfferSegments,
   accessSubscriptionSources,
   personalPlanCheckoutIntents,
+  accessProviderPeriods,
+  users,
+  accountClosureFences,
 } from '../db/schema';
 import { logger } from '../utils/logger';
 import { peablePersonalManagementConfigurationSchema } from './peablePersonalManagement.service';
@@ -23,9 +26,10 @@ import {
 import {
   closePersonalPlanCheckoutFromProvider,
   personalCheckoutSnapshotFromIntent,
-  resumePersonalPlanCheckout,
+  recoverPersonalPlanCheckout,
   type PersonalCheckoutProvider,
 } from './personalPlanCheckout.service';
+import { createPeablePersonalCheckoutProvider } from './peablePersonalCheckout.service';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 
 const pinnedKeysSchema = z
@@ -178,15 +182,8 @@ export function createPeablePersonalRuntime(
       if (!intent) throw new Error('Peable checkout intent unavailable');
       if (intent.state === 'closed' || intent.state === 'fulfilled')
         return { status: 'no_invoice' as const };
-      if (!intent.providerSessionId) {
-        if (process.env.NODE_ENV === 'test' && dependencies.checkoutProvider)
-          await resumePersonalPlanCheckout(intent.id, {
-            provider: dependencies.checkoutProvider,
-            now: dependencies.clock?.(),
-          });
-        return { status: 'checkout_pending' as const };
-      }
       const snapshot = personalCheckoutSnapshotFromIntent(intent);
+      if (!intent.providerSessionId && !snapshot) return { status: 'checkout_pending' as const };
       if (
         !snapshot ||
         snapshot.applicationId !== configuration.applicationId ||
@@ -197,6 +194,38 @@ export function createPeablePersonalRuntime(
         snapshot.taxQuote.source.planId !== snapshot.planId
       )
         throw new Error('Peable checkout snapshot unavailable or differs');
+      if (!intent.providerSessionId) {
+        const provider =
+          process.env.NODE_ENV === 'test' && dependencies.checkoutProvider
+            ? dependencies.checkoutProvider
+            : createPeablePersonalCheckoutProvider(
+                client,
+                {
+                  merchantId: configuration.merchantId,
+                  applicationId: configuration.applicationId,
+                  namespace: configuration.namespace,
+                  sellerId: snapshot.taxQuote.quote.sellerId,
+                  invoiceIssuerId: snapshot.taxQuote.quote.invoiceIssuerId,
+                  taxRemitterId: snapshot.taxQuote.quote.taxRemitterId,
+                  returnUrl: snapshot.returnUrl,
+                  offers: [
+                    {
+                      offerId: snapshot.offerId,
+                      offerVersion: snapshot.offerVersion,
+                      planId: snapshot.planId,
+                      priceId: snapshot.priceId,
+                      amountMinorUnits: 2999,
+                      currency: 'USD',
+                      interval: 'month',
+                      trial: 'none',
+                    },
+                  ],
+                },
+                dependencies.clock,
+              );
+        await recoverPersonalPlanCheckout(intent.id, { provider, now: dependencies.clock?.() });
+        return { status: 'checkout_pending' as const };
+      }
       const merchant = await client.merchants.retrieve();
       if (
         merchant.id !== configuration.merchantId ||
@@ -226,8 +255,11 @@ export function createPeablePersonalRuntime(
         return { status: 'no_invoice' as const };
       }
       const subscription = session.subscription;
-      if (session.status !== 'complete' || !subscription?.latestInvoiceId)
+      if (session.status !== 'complete' || !subscription || !session.initialInvoiceId)
         return { status: 'checkout_pending' as const };
+      const initialInvoiceId = session.initialInvoiceId;
+      if (intent.initialInvoiceId !== null && intent.initialInvoiceId !== initialInvoiceId)
+        throw new Error('Peable initial checkout invoice differs');
       if (
         subscription.storeId !== snapshot.subjectAccountId ||
         subscription.planId !== snapshot.planId ||
@@ -251,8 +283,8 @@ export function createPeablePersonalRuntime(
         offerVersion: snapshot.offerVersion,
         checkoutIntentId: intent.id,
       };
-      // latestInvoiceId is discovery only. Peable's signed quote-bound authority
-      // rejects non-subscription_create invoices; exact frozen quote evidence is mandatory.
+      // The checkout's immutable subscription_create lineage is separate from
+      // latestInvoiceId, which may already point at a renewal after downtime.
       const scopedAuthority = {
         ...authority,
         readFinalInvoiceAuthority: async (
@@ -279,12 +311,86 @@ export function createPeablePersonalRuntime(
           return final;
         },
       };
-      return reconcilePeablePersonalInvoiceState(
+      const result = await reconcilePeablePersonalInvoiceState(
         scopedAuthority,
         context,
-        subscription.latestInvoiceId,
+        initialInvoiceId,
         dependencies.clock,
       );
+      if (result.status === 'historical_replayed') {
+        // Recover bookkeeping only from an already-recorded immutable paid
+        // period. Never materialize an unrecorded old month or change rights.
+        await getDb().transaction(async (tx) => {
+          const [account] = await tx
+            .select()
+            .from(users)
+            .where(eq(users.id, intent.subjectAccountId))
+            .for('update');
+          const [fence] = await tx
+            .select()
+            .from(accountClosureFences)
+            .where(eq(accountClosureFences.accountId, intent.subjectAccountId));
+          if (account?.kind !== 'personal' || account.accountStatus !== 'active' || fence)
+            throw new Error('Checkout account unavailable');
+          const [current] = await tx
+            .select()
+            .from(personalPlanCheckoutIntents)
+            .where(eq(personalPlanCheckoutIntents.id, intent.id))
+            .for('update');
+          if (
+            !current ||
+            current.state === 'closed' ||
+            current.subjectAccountId !== snapshot.subjectAccountId ||
+            current.providerAccountRef !== snapshot.merchantId ||
+            current.applicationRef !== snapshot.applicationId ||
+            current.customerRef !== snapshot.customerId ||
+            current.planRef !== snapshot.planId ||
+            current.priceId !== snapshot.priceId ||
+            current.offerId !== snapshot.offerId ||
+            current.offerVersion !== snapshot.offerVersion ||
+            current.mode !== snapshot.mode ||
+            current.environment !== snapshot.environment ||
+            current.taxQuoteRef !== snapshot.taxQuote.quote.id ||
+            (current.initialInvoiceId !== null && current.initialInvoiceId !== initialInvoiceId) ||
+            (current.fulfilledSourceId !== null && current.fulfilledSourceId !== result.sourceId)
+          )
+            throw new Error('Historical checkout attribution differs');
+          const [period] = await tx
+            .select()
+            .from(accessProviderPeriods)
+            .where(
+              and(
+                eq(accessProviderPeriods.sourceId, result.sourceId),
+                eq(accessProviderPeriods.segmentId, result.segmentId),
+                eq(accessProviderPeriods.provider, 'peable'),
+                eq(accessProviderPeriods.providerAccountRef, snapshot.merchantId),
+                eq(accessProviderPeriods.mode, snapshot.mode),
+                eq(accessProviderPeriods.environment, snapshot.environment),
+                eq(accessProviderPeriods.invoiceId, initialInvoiceId),
+                eq(
+                  accessProviderPeriods.providerSubscriptionId,
+                  subscription.providerSubscriptionId,
+                ),
+                eq(accessProviderPeriods.priceId, snapshot.priceId),
+                eq(accessProviderPeriods.payerAccountId, snapshot.subjectAccountId),
+                eq(accessProviderPeriods.beneficiaryAccountId, snapshot.subjectAccountId),
+                eq(accessProviderPeriods.offerId, snapshot.offerId),
+                eq(accessProviderPeriods.offerVersion, snapshot.offerVersion),
+                eq(accessProviderPeriods.origin, 'bundle'),
+              ),
+            );
+          if (!period) throw new Error('Historical paid attribution unavailable');
+          await tx
+            .update(personalPlanCheckoutIntents)
+            .set({
+              state: 'fulfilled',
+              initialInvoiceId: initialInvoiceId,
+              fulfilledSourceId: result.sourceId,
+            })
+            .where(eq(personalPlanCheckoutIntents.id, current.id));
+        });
+      }
+      return result;
     },
     async observe(sourceId: string, rawBody: string, signature: string) {
       if (!verify) throw new Error('Peable observations disabled');
