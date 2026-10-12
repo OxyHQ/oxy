@@ -1001,33 +1001,80 @@ describe('a scheduled send under a key', () => {
     expect((await listEmailOutbox(user.id, 100)).map((d) => d.id)).toContain(claim.id);
   });
 
-  it.each([
-    ['under a key', (key: string) => scheduled(key)],
-    ['without a key', (key: string) => ({ ...scheduled(key), idempotencyKey: undefined })],
-  ])(
-    'moved to Trash is not sent when due, says so, and is not sent once restored (%s)',
-    async (_case, build) => {
-      mockSendMail.mockResolvedValue({ response: '250 Ok' });
-      const row = await emailService.scheduleMessage(user.id, build(`schedule:${unique()}`));
-      await emailService.deleteMessage(user.id, row.id);
-      await due(row.id);
-      await emailService.processScheduledMessages();
-      expect(relayCallsFor(row.messageId)).toHaveLength(0);
-      expect(await deliveryOf(row.id)).toMatchObject({ state: 'failed', errorCode: 'cancelled' });
-      expect(deliveryEvents(row.id).length).toBeGreaterThanOrEqual(1);
-      // Its delivery cannot be retried from the message either.
-      await expect(retryMessageDelivery(user.id, row.id)).rejects.toMatchObject({
-        statusCode: 409,
+  /** A scheduled message is cancelled the moment it leaves Sent, and says so. */
+  async function expectCancelled(row: { id: string; messageId: string }, key?: string) {
+    const [stored] = await getDb()
+      .select({ scheduledAt: messages.scheduledAt })
+      .from(messages)
+      .where(eq(messages.id, row.id));
+    expect(stored.scheduledAt).toBeNull();
+    expect(await deliveryOf(row.id)).toMatchObject({ state: 'failed', errorCode: 'cancelled' });
+    if (key) {
+      expect(await claimOf(key)).toMatchObject({ status: 'cancelled', messageRowId: row.id });
+      // Every repeat of its key is refused, whatever it carries.
+      await expect(acceptOutboundMessage(reply(key))).rejects.toMatchObject({
+        statusCode: 422,
+        details: { id: row.id, deliveryState: 'cancelled', scheduledAt: null },
       });
+    }
+    // Nothing sends it: not the due job, not the worker, not after a restore.
+    const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
+    if (!sent) throw new Error('no Sent mailbox');
+    await emailService.moveMessage(user.id, row.id, sent.id);
+    await emailService.processScheduledMessages();
+    await processEmailOutbox();
+    expect(relayCallsFor(row.messageId)).toHaveLength(0);
+    // Nor can it be retried from the message.
+    await expect(retryMessageDelivery(user.id, row.id)).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  }
 
-      const sent = await emailService.getMailboxBySpecialUse(user.id, '\\Sent');
-      if (!sent) throw new Error('no Sent mailbox');
-      await emailService.moveMessage(user.id, row.id, sent.id);
-      await emailService.processScheduledMessages();
-      await processEmailOutbox();
-      expect(relayCallsFor(row.messageId)).toHaveLength(0);
-    },
-  );
+  it.each([
+    ['under a key', (key: string) => scheduled(key), true],
+    ['without a key', (key: string) => ({ ...scheduled(key), idempotencyKey: undefined }), false],
+  ])('moved to Trash is cancelled there and then (%s)', async (_case, build, keyed) => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, build(key));
+    await emailService.deleteMessage(user.id, row.id);
+    await expectCancelled(row, keyed ? key : undefined);
+  });
+
+  it('moved to a folder, in bulk, or snoozed is cancelled the same way', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const folder = await emailService.createMailbox(user.id, `Folder ${unique().slice(0, 8)}`);
+    const trash = await emailService.getMailboxBySpecialUse(user.id, '\\Trash');
+    if (!trash) throw new Error('no Trash');
+
+    const moved = `schedule:${unique()}`;
+    const toFolder = await emailService.scheduleMessage(user.id, scheduled(moved));
+    await emailService.moveMessage(user.id, toFolder.id, folder.id);
+    await expectCancelled(toFolder, moved);
+
+    const bulk = `schedule:${unique()}`;
+    const inBulk = await emailService.scheduleMessage(user.id, scheduled(bulk));
+    await emailService.bulkMoveMessages(user.id, [inBulk.id], trash.id);
+    await expectCancelled(inBulk, bulk);
+
+    const snoozed = `schedule:${unique()}`;
+    const asleep = await emailService.scheduleMessage(user.id, scheduled(snoozed));
+    await emailService.snoozeMessage(user.id, asleep.id, new Date(Date.now() + 86_400_000));
+    await expectCancelled(asleep, snoozed);
+  });
+
+  it('in a folder that is deleted is cancelled with the folder`s mail', async () => {
+    mockSendMail.mockResolvedValue({ response: '250 Ok' });
+    const key = `schedule:${unique()}`;
+    const row = await emailService.scheduleMessage(user.id, scheduled(key));
+    const folder = await emailService.createMailbox(user.id, `Folder ${unique().slice(0, 8)}`);
+    // Filed there while still scheduled — as a message moved before moves
+    // cancelled one was left.
+    await getDb().update(messages).set({ mailboxId: folder.id }).where(eq(messages.id, row.id));
+
+    await emailService.deleteMailbox(user.id, folder.id);
+    await expectCancelled(row, key);
+  });
 
   it('deleted for good cancels its claim: a repeat of its key is refused, never 202', async () => {
     mockSendMail.mockResolvedValue({ response: '250 Ok' });

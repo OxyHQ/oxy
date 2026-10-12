@@ -80,9 +80,9 @@ export interface SentUnderKey {
  * - it asks for a different message — not a retry: answering it as one reports
  *   it accepted while only the first message exists, and lets the caller
  *   delete the draft it was written in;
- * - or that send was cancelled and nothing of it is left to show (a scheduled
- *   message deleted before it was due) — answering would report a send that
- *   never happens.
+ * - or that send was cancelled (a scheduled message deleted or taken out of
+ *   Sent before it was due, a delivery the user cancelled) — answering would
+ *   report as accepted a send that never happens.
  *
  * The refusal names that send and says where it stands (`details`), so a
  * client that restored the key after a crash can tell the user the truth.
@@ -93,8 +93,7 @@ export function refuseReusedSendKey(
   sent: SentUnderKey,
 ): void {
   const same = sendRequestFingerprint(stored) === sendRequestFingerprint(requested);
-  const gone = sent.deliveryState === 'cancelled' && sent.id === null;
-  if (same && !gone) return;
+  if (same && sent.deliveryState !== 'cancelled') return;
   throw new ValidationError(
     same
       ? 'The message sent under this Idempotency-Key was cancelled. Send it again with a new key.'

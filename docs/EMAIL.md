@@ -324,6 +324,35 @@ Response (202 Accepted):
 
 If sending fails (e.g., remote server down), the message is queued for retry and `queued: true` is returned.
 
+**Idempotency-Key: one send per key, enforced by the claim.** A client sends one
+`Idempotency-Key` per compose session. The key's first send, immediate or
+`scheduledAt`, takes a claim: the row in `email_outbox` keyed by the unique
+index `(user_id, idempotency_key)`. It takes the claim in the same transaction
+that files its Sent copy (`claimSend` / `inClaimTransaction`). Because of that:
+
+- **Racing repeats are serialised.** A double press, a client retry, or Schedule
+  racing Send now waits on the claim. The wait is at most 5 s; after that the
+  answer is `503`, retryable with the same key. The repeat then gets the first
+  send's answer. If the first send was refused, the repeat makes the attempt
+  itself. One Sent row is filed and one message goes out, under one Message-ID.
+- **A repeat with a different message is refused.** It gets `422
+  VALIDATION_ERROR`, `details.reason: "idempotency_key_reused"`, with `id`,
+  `messageId`, `deliveryState` and `scheduledAt` describing the first send. A
+  repeat of a send that was cancelled is refused the same way. Only the fields
+  the client sent are compared (`sendRequestFingerprint`).
+- **A scheduled send's claim waits until it falls due.** The outbox worker and
+  the outbox API do not touch it. A scheduled message is cancelled by taking it
+  out of Sent or deleting it. Every path that does so cancels the claim in the
+  same transaction (`unscheduleMessages`): delete, move, bulk move, snooze,
+  folder deletion and account data deletion.
+
+**No unique index on `messages(user_id, message_id)`. This is deliberate
+(decided 2026-10-12).** The claim already guarantees one Sent row per key, so
+an index would add no protection to sending. It would also refuse legitimate
+inbound mail: the same message delivered twice to one mailbox is stored twice.
+Production holds exactly one such pair, from 2026-07-15. That duplicate is left
+as it is.
+
 **Save draft:**
 ```json
 POST /api/email/drafts

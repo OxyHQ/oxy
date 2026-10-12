@@ -12,8 +12,7 @@
   `sent`, `failed`, `cancelled`, or `unknown` for one from before deliveries
   were recorded), so a client that restored the key after a crash tells the
   user the truth rather than assuming it left. A repeat of a send that was
-  cancelled with nothing left to show for it (a scheduled message deleted
-  before it was due) is refused the same way, never answered 202. It
+  cancelled is refused the same way, never answered 202. It
   used to answer with the first send's acceptance and then delete the second
   request's draft, losing it. A repeat of the same message still answers with
   the first send, and the draft is deleted only once the message is filed in
@@ -28,11 +27,15 @@
   worker, until the send falls due. It is the message's, not the outbox's:
   `GET /email/outbox` does not list it and its retry and cancel routes (and
   the Alia tools over them) refuse it. A scheduled message is cancelled by
-  taking it out of Sent or deleting it: deleted, its claim is cancelled in the
-  same transaction; moved anywhere else (Trash, Snoozed, a folder), it is not
-  sent when due but unscheduled, and its delivery reads `failed`/`cancelled`,
-  so restoring it later sends nothing. Rows scheduled before this are compared
-  with their Sent row.
+  taking it out of Sent or deleting it, and every path that does so — delete,
+  move, bulk move, snooze, deleting the folder it is in, deleting the
+  account's mail — cancels its claim in the same transaction through one
+  helper (`unscheduleMessages`). One that stays is unscheduled and its
+  delivery reads `failed`/`cancelled`, so restoring it sends nothing; the due
+  job also sends only what is still in Sent. Rows scheduled before this are
+  compared with their Sent row. There is deliberately no unique index on
+  `messages(user_id, message_id)`: the claim makes a send leave once, and the
+  index would refuse inbound mail delivered twice (`docs/EMAIL.md`).
 - The parent a reply threads under is the earliest of the user's copies of it,
   not whichever an unordered `limit 1` returned.
 - A repeat waits at most 5 s on the first request's claim and then answers
