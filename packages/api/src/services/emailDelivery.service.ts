@@ -22,17 +22,23 @@ import { and, eq, like } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { EMAIL_DOMAIN, SMTP_OUTBOUND_CONFIG } from '../config/email.config';
 import { getDb } from '../config/postgres';
-import type { emailOutbox } from '../db/schema/emailOutbox';
+import type { emailOutbox, EmailOutboxPayload } from '../db/schema/emailOutbox';
 import { messages } from '../db/schema/messages';
 import { BadRequestError, ConflictError, NotFoundError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { emailService, type MessageDto } from './email.service';
-import { idempotentMessageId } from './emailIdempotency';
+import { idempotentMessageId, refuseReusedSendKey } from './emailIdempotency';
 import {
   claimDeliveryRetry,
   claimSend,
   EMAIL_OUTBOX_MAX_ATTEMPTS,
+  failAbandonedDeliveries as failAbandonedOutboxRows,
   findDeliveryForMessage,
+  findSendClaim,
+  inClaimTransaction,
+  isScheduledClaim,
+  isWaitingScheduledClaim,
+  linkOutboxToMessage,
   markDeliveriesBounced,
   markEmailOutboxFailed,
   markEmailOutboxSent,
@@ -79,12 +85,14 @@ function bodySize(payload: { text?: string; html?: string }): number {
  *
  * With an `idempotencyKey`, a repeat of the same key — a client retry, a double
  * press, a retry on another task — returns the first acceptance instead of
- * filing or sending again.
+ * filing or sending again. The repeat must be the same message: the key with
+ * a different one is refused (422).
  *
  * Refused synchronously, before anything is filed: no relay configured at all
- * (503, which no amount of waiting fixes), and a Sent copy that does not fit
- * the quota. Every other failure is the relay's, and is reported on the
- * message.
+ * (503, which no amount of waiting fixes), a Sent copy that does not fit the
+ * quota, and a repeat that waited too long on the first request's claim (503,
+ * retryable with the same key). Every other failure is the relay's, and is
+ * reported on the message.
  */
 export async function acceptOutboundMessage(message: OutboundMessage): Promise<AcceptedSend> {
   if (!isOutboundRelayConfigured()) throw missingRelayError();
@@ -93,12 +101,26 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
   const messageId = key
     ? idempotentMessageId(message.userId, key)
     : `<${randomUUID()}@${EMAIL_DOMAIN}>`;
+  const payload = outboxPayload(message);
 
   if (key) {
-    // Filed by an earlier attempt with this key, or delivered before deliveries
-    // were linked to their Sent rows.
-    const filed = await emailService.findMessageByRfcMessageId(message.userId, messageId);
-    if (filed) return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
+    const claimed = await findSendClaim(message.userId, key);
+    if (claimed) return answerRepeat(message.userId, claimed, payload);
+    // Filed under this key with no claim: a scheduled send not yet due, or one
+    // delivered before sends were claimed. The Sent row is what it asked for.
+    const { sent, row: filed } = await emailService.sentUnderKey(
+      message.userId,
+      undefined,
+      messageId,
+    );
+    if (filed) {
+      refuseReusedSendKey(
+        await emailService.filedOutboundPayload(message.userId, filed.id),
+        payload,
+        sent,
+      );
+      return { messageId, messageRowId: filed.id, delivery: filed.delivery ?? null };
+    }
   }
 
   // The claim and the Sent copy commit together. A repeat of the key racing
@@ -107,20 +129,20 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
   // back with the filing, so no answer can promise a send that never happens
   // and the key is free to try again once the cause is fixed.
   const target = await emailService.sentFilingTarget(message.userId);
-  const claim = await getDb().transaction(async (tx): Promise<FiledClaim> => {
+  const claim = await inClaimTransaction(async (tx): Promise<FiledClaim> => {
     const taken = await claimSend(
       {
         userId: message.userId,
         idempotencyKey: key,
         messageId,
-        payload: outboxPayload(message),
+        payload,
         owner: `request:${randomUUID()}`,
       },
       tx,
     );
     if (!taken.claimed) return taken;
     const messageRowId = await emailService.fileSentMessage(tx, message.userId, target, {
-      ...outboxPayload(message),
+      ...payload,
       messageId,
       relayMessageId: null,
       size: bodySize(message),
@@ -129,19 +151,7 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
     return { claimed: true, row: { ...taken.row, messageRowId }, messageRowId };
   });
 
-  if (!claim.claimed) {
-    const existing = claim.existing;
-    const messageRowId =
-      existing.messageRowId ??
-      // Accepted before sends were filed first.
-      (await emailService.findMessageByRfcMessageId(message.userId, existing.messageId))?.id ??
-      null;
-    return {
-      messageId: existing.messageId,
-      messageRowId,
-      delivery: toMessageDelivery(existing),
-    };
-  }
+  if (!claim.claimed) return answerRepeat(message.userId, claim.existing, payload);
 
   const { row, messageRowId } = claim;
   // A second device showing the Sent folder sees the message the moment it is
@@ -154,6 +164,26 @@ export async function acceptOutboundMessage(message: OutboundMessage): Promise<A
   });
   startDelivery(row);
   return { messageId, messageRowId, delivery: toMessageDelivery(row) };
+}
+
+/**
+ * Answer a repeat of an Idempotency-Key with the send it already claimed — if
+ * it asks for the same message ({@link refuseReusedSendKey}).
+ */
+async function answerRepeat(
+  userId: string,
+  existing: EmailOutboxRow,
+  requested: EmailOutboxPayload,
+): Promise<AcceptedSend> {
+  const { sent } = await emailService.sentUnderKey(userId, existing, existing.messageId);
+  refuseReusedSendKey(existing.payload, requested, sent);
+  const messageRowId = sent.id;
+  return {
+    messageId: existing.messageId,
+    messageRowId,
+    // A scheduled send has no delivery until it falls due.
+    delivery: isWaitingScheduledClaim(existing) ? null : toMessageDelivery(existing),
+  };
 }
 
 /** Deliver a claimed row in the background; the outcome is on the row. */
@@ -202,38 +232,70 @@ export async function deliverClaimed(row: EmailOutboxRow): Promise<'sent' | 'ret
     return outcome;
   }
 
+  // Nothing between the relay's acceptance and marking the row sent may throw:
+  // a row left `processing` after an accepted send is adopted by the worker
+  // when its lease runs out, and sent again. Both writes to the Sent copy are
+  // therefore best effort — the relay id before the mark, so a reader that
+  // sees `sent` also finds it; a missing Sent copy after it.
   let messageRowId = row.messageRowId;
-  if (messageRowId) {
-    if (relayMessageId) {
-      await emailService
-        .recordRelayMessageId(row.userId, messageRowId, relayMessageId)
-        .catch((error) =>
-          logger.warn('Could not record the relay Message-ID on the Sent row', {
-            outboxId: row.id,
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
-    }
-  } else {
-    // Accepted before sends were filed first. A worker can also crash after
-    // the relay accepted it and before the row was marked: the stable RFC
-    // Message-ID makes filing it idempotent.
-    const existing = await emailService.findMessageByRfcMessageId(row.userId, row.messageId);
-    messageRowId =
-      existing?.id ??
-      (
-        await emailService.storeSentMessage(row.userId, {
-          ...row.payload,
-          messageId: row.messageId,
-          relayMessageId,
-          size: bodySize(row.payload),
-          deliveryId: row.id,
-        })
-      ).id;
+  if (messageRowId && relayMessageId) {
+    await emailService
+      .recordRelayMessageId(row.userId, messageRowId, relayMessageId)
+      .catch((error) =>
+        logger.warn('Could not record the relay Message-ID on the Sent row', {
+          outboxId: row.id,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
   }
   await markEmailOutboxSent(row.id);
+  messageRowId ??= await fileUnfiledSentCopy(row, relayMessageId);
   await emitDeliveryChanged(row.userId, messageRowId);
   return 'sent';
+}
+
+/**
+ * File the Sent copy of a delivered message that has none: accepted before
+ * sends were filed first, or its Sent row was deleted since. Best effort — the
+ * message has left, and a mailbox over its quota must not make it look as if
+ * it had not. The stable RFC Message-ID makes filing it idempotent.
+ */
+async function fileUnfiledSentCopy(
+  row: EmailOutboxRow,
+  relayMessageId: string | null,
+): Promise<string | null> {
+  try {
+    const existing = await emailService.findMessageByRfcMessageId(row.userId, row.messageId);
+    if (existing) {
+      await linkOutboxToMessage(row.id, existing.id);
+      return existing.id;
+    }
+    const filed = await emailService.storeSentMessage(row.userId, {
+      ...row.payload,
+      messageId: row.messageId,
+      relayMessageId,
+      size: bodySize(row.payload),
+      deliveryId: row.id,
+    });
+    return filed.id;
+  } catch (error) {
+    logger.error(
+      'Delivered, but its Sent copy could not be filed',
+      error instanceof Error ? error : new Error(String(error)),
+      { outboxId: row.id, messageId: row.messageId },
+    );
+    return null;
+  }
+}
+
+/**
+ * Settle the deliveries whose task died mid-attempt with no attempts left —
+ * the worker no longer adopts them — and tell every open view of them.
+ */
+export async function failAbandonedDeliveries(): Promise<number> {
+  const settled = await failAbandonedOutboxRows();
+  for (const { userId, messageRowId } of settled) await emitDeliveryChanged(userId, messageRowId);
+  return settled.length;
 }
 
 async function recordFailure(row: EmailOutboxRow, error: unknown): Promise<'retrying' | 'failed'> {
@@ -284,6 +346,13 @@ export async function retryMessageDelivery(
     );
   }
 
+  if (isScheduledClaim(row)) {
+    // A scheduled message cancelled before it was due — moved out of Sent or
+    // deleted. Retrying would send it now, early, after the user stopped it.
+    throw new ConflictError(
+      'This scheduled message was cancelled before it was sent. Send it again as a new message.',
+    );
+  }
   const claimed = await claimDeliveryRetry(userId, row.id, `retry:${randomUUID()}`);
   if (!claimed) throw new ConflictError('This message is already being delivered or was delivered');
 

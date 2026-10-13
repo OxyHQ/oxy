@@ -6,7 +6,7 @@
  */
 
 import type { Request, Response } from 'express';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
 import { emailService } from '../services/email.service';
 import { acceptOutboundMessage, retryMessageDelivery } from '../services/emailDelivery.service';
@@ -173,6 +173,9 @@ async function findOwnMessageByRfcId(
     })
     .from(messages)
     .where(and(eq(messages.userId, userId), eq(messages.messageId, rfcMessageId)))
+    // A user can hold several copies of one message (a self-copy, the same mail
+    // delivered twice); the earliest is the original, and always the same one.
+    .orderBy(asc(messages.createdAt), asc(messages.id))
     .limit(1);
   return row;
 }
@@ -692,8 +695,11 @@ export async function sendMessageForUser(
   }
 
   // The message is filed in Sent and the server holds its delivery, so the
-  // draft has done its job whatever the relay says next.
-  if (draftId) {
+  // draft has done its job whatever the relay says next. Only then: a refused
+  // send (a full mailbox, an Idempotency-Key reused for another message) threw
+  // before this line, and a legacy send answered without a Sent copy leaves
+  // the draft as the only copy of what was written.
+  if (draftId && result.messageRowId) {
     await emailService.deleteSentDraft(userId, draftId);
   }
 
