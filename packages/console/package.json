@@ -76,7 +76,7 @@
     "@types/react-dom": "^19.2.4",
     "jsdom": "^29.1.1",
     "vitest": "^4.1.9",
-    "web-vitals": "^5.3.0",
+    "web-vitals": "^6.2.3",
     "vite-plugin-react-native-web": "catalog:"
   }
 }
