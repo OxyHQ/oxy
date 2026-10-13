@@ -63,7 +63,7 @@
     "typescript": "^5.9.2",
     "vaul": "^1.1.2",
     "vite": "npm:rolldown-vite@^7.3.1",
-    "vite-tsconfig-paths": "^5.1.4",
+    "vite-tsconfig-paths": "^6.1.1",
     "zustand": "catalog:"
   },
   "devDependencies": {
