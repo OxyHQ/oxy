@@ -158,7 +158,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                 entry.createdAt ? ` · ${new Date(entry.createdAt).toLocaleString()}` : ''
               }`}
               rightElement={
-                <Chip variant="subtle" size="small" color={entry.points > 0 ? 'success' : 'error'}>
+                <Chip variant="subtle" size="sm" color={entry.points > 0 ? 'success' : 'error'}>
                   {`${entry.points > 0 ? '+' : ''}${entry.points}`}
                 </Chip>
               }

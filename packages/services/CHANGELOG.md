@@ -1,5 +1,16 @@
 # Changelog
 
+## [11.2.0-oxy-one.5] - 2026-10-13
+
+### Changed
+
+- Admits `@oxy.so/bloom` 8.1.x and 9.0.x (peer ranges `>=8.0.0 <8.2.0` and
+  `>=9.0.0 <9.1.0`), verified against the official 8.1.1 package and the packed
+  9.0.0 release candidate: types and all 115 suites / 1050 tests pass with each
+  as the one Bloom resolution, and still with the 6.2.1 catalog.
+- The three trust screens ask Chip for `size="sm"` instead of `"small"`. Bloom
+  9.0 removed the long spellings; `sm` is accepted by every admitted line.
+
 ## [11.2.0-oxy-one.4] - 2026-10-12
 
 ### Fixed
