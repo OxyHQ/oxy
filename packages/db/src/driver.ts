@@ -111,10 +111,29 @@ export interface BunSqlClientOptions {
     | 'verify-full'
     | Readonly<Record<string, unknown>>;
   /**
-   * Named prepared statements; default `true` in both drivers. Set `false`
-   * behind a transaction-pooling proxy. postgres.js: `prepare`.
+   * Named prepared statements. **Always off on `bun-sql`**: omit it or pass
+   * `false`; `true` is refused (a type error here, and a thrown error at
+   * runtime for an untyped caller).
+   *
+   * Why: drizzle's `jsonb()`/`json()` columns `JSON.stringify` a value before
+   * binding it, and on a PREPARED statement `Bun.SQL` (1.4.3) learns from the
+   * server that the parameter is `jsonb` and JSON-encodes that string again.
+   * Every jsonb write then lands as a jsonb STRING holding the JSON text
+   * (`jsonb_typeof` = `'string'`), which drizzle's reader `JSON.parse`s back,
+   * so reads through drizzle look right while `->`, `@>` and every index on
+   * the column see a string. Unprepared, `Bun.SQL` sends the text untyped and
+   * the server parses it as JSON, as postgres.js does. The cost is a re-plan
+   * per statement, which is also what a transaction-pooling proxy forces.
+   *
+   * Side effect for raw `client` queries: unprepared, `Bun.SQL` does not
+   * JSON-encode an OBJECT bound to a jsonb parameter (it sends
+   * `[object Object]`, which the server rejects loudly). Bind
+   * `JSON.stringify(value)` instead, as drizzle does.
+   *
+   * postgres.js: `prepare` (default `true` there, where it is safe: drizzle
+   * makes postgres.js pass jsonb text through untouched).
    */
-  readonly prepare?: boolean;
+  readonly prepare?: false;
   /** Server runtime parameters sent at connect (`statement_timeout`, ...). postgres.js: `connection`. */
   readonly connection?: Readonly<Record<string, string | boolean | number>>;
 }
@@ -162,14 +181,31 @@ function requireBunRuntime(): BunRuntime {
 
 /**
  * Open a `Bun.SQL` pool on `databaseUrl`. `adapter` is pinned to `postgres`
- * so a URL with another scheme fails instead of silently selecting MySQL.
+ * so a URL with another scheme fails instead of silently selecting MySQL, and
+ * `prepare` is pinned to `false` so a drizzle `jsonb()` write is stored as the
+ * value it is rather than as a jsonb string of it (see
+ * {@link BunSqlClientOptions.prepare}). `Bun.SQL`'s own default is `true`, so
+ * leaving the option out is NOT enough: it is set here on every client, the
+ * migrator's and the test harness's included. A URL cannot turn it back on:
+ * `Bun.SQL` forwards an unknown `?prepare=` to the server as a runtime
+ * parameter, which the server refuses at connect.
  */
 export function openBunSqlClient(
   databaseUrl: string,
   options: BunSqlClientOptions = {},
 ): BunSqlClient {
   const { SQL } = requireBunRuntime();
-  return new SQL(databaseUrl, { ...options, adapter: 'postgres' });
+  // The type forbids `true`; this catches an untyped or cast caller, before any
+  // connection is opened, rather than letting it corrupt jsonb writes.
+  if ((options.prepare as boolean | undefined) === true) {
+    throw new Error(
+      "@oxy.so/db: driver 'bun-sql' refuses prepare: true. On a prepared statement " +
+        'Bun.SQL JSON-encodes the text drizzle already serialised for a jsonb column, so ' +
+        "every jsonb write is stored as a jsonb string (jsonb_typeof = 'string'). Omit " +
+        '`prepare` (it defaults to false on this driver) or pass false.',
+    );
+  }
+  return new SQL(databaseUrl, { ...options, adapter: 'postgres', prepare: false });
 }
 
 /** What `drizzle-orm/bun-sql` exports, to the extent this package calls it. */
