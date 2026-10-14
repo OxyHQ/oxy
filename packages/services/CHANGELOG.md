@@ -1,5 +1,14 @@
 # Changelog
 
+## [11.2.0-oxy-one.6] - 2026-10-14
+
+### Changed
+
+- Admits `@oxy.so/bloom` 10.0.x (peer range `>=10.0.0 <10.1.0`, beside the earlier lines),
+  verified against the official 10.0.0 package as the one Bloom resolution: types and all
+  115 suites / 1050 tests pass. Bloom 10 turns an avatar into one flat character and removes
+  `AvatarConfig` from `agent-avatar`; this package imports nothing from that family.
+
 ## [11.2.0-oxy-one.5] - 2026-10-13
 
 ### Changed
