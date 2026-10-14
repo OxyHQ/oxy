@@ -133,7 +133,9 @@ export interface CreateBunSqlDatabaseOptions<TSchema extends Record<string, unkn
  * refused with a clear error under Node, and never chosen implicitly (see
  * `driver.ts`). Both return synchronously and both hand back `{ db, client }`;
  * shut the bun-sql client down with `client.close({ timeout })` where the
- * postgres.js one uses `client.end({ timeout })`.
+ * postgres.js one uses `client.end({ timeout })`. The bun-sql client is always
+ * unprepared, because a prepared one double-encodes every `jsonb()` write (see
+ * `BunSqlClientOptions.prepare`).
  *
  * ## No consumer calls this yet, and that is not an oversight
  *
