@@ -217,7 +217,7 @@
     "@types/invariant": "^2.2.34",
     "@types/node": "^20.19.43",
     "expo-crypto": "~56.0.3",
-    "expo-secure-store": "~56.0.4",
+    "expo-secure-store": "~57.0.4",
     "express": "catalog:",
     "express-rate-limit": "catalog:",
     "jest": "^30.5.1",

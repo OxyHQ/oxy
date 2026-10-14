@@ -162,7 +162,7 @@
     "@types/supertest": "catalog:",
     "expo-crypto": "~56.0.3",
     "expo-modules-core": "catalog:",
-    "expo-secure-store": "~56.0.4",
+    "expo-secure-store": "~57.0.4",
     "express": "catalog:",
     "jest": "^30.5.1",
     "release-it": "catalog:",
