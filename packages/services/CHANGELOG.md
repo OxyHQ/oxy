@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.2.0-oxy-one.7] - 2026-10-14
+
+### Changed
+
+- The Bloom 10 peer range is the whole major, `>=10.0.0 <11.0.0`, instead of the
+  `10.0.x` window. Bloom 10.1 and 10.2 (latest 10.2.1) were refused by the window, so
+  an app on current Bloom could not install this package without a peer conflict, and
+  Bloom 9 for `@alia.onl/sdk` 11 and Bloom 10 could not be reconciled by any app.
+  Verified against the official 10.2.1 package as the one Bloom resolution: types and
+  all 115 suites / 1050 tests pass. The cap stays at the major, as the Bloom peer
+  note requires.
+
 ## [11.2.0-oxy-one.6] - 2026-10-14
 
 ### Changed
