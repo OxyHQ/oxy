@@ -214,15 +214,15 @@
     },
     "packages/app-preset": {
       "name": "@oxy.so/app-preset",
-      "version": "3.2.0",
+      "version": "3.2.1",
       "devDependencies": {
         "expo": "catalog:",
         "nativewind": "catalog:",
         "tailwindcss": "4.3.3",
       },
       "peerDependencies": {
-        "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || ^6.0.0",
-        "@oxy.so/services": "^11.0.0",
+        "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || >=6.0.0",
+        "@oxy.so/services": ">=11.0.0",
         "babel-plugin-module-resolver": "*",
         "babel-preset-expo": "*",
         "eslint": ">=9.0.0",

@@ -1,5 +1,14 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.2.1
+
+### Changed
+
+- The `@oxy.so/bloom` and `@oxy.so/services` peers are open-ended above their
+  floors (`>=6.0.0` for the last Bloom alternative, `>=11.0.0` for Services). The
+  `^6.0.0` and `^11.0.0` caps made every app on Bloom 7 or later report a peer
+  conflict, and would have done so again for each new major.
+
 ## 3.2.0
 
 ### Added
