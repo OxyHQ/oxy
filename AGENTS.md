@@ -36,7 +36,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - A module naming an OPTIONAL peer never reaches the root barrel: own export subpath.
 - Never hand-write `declare module '<pkg>'` for a package with types or `@types/` — #ambient-shims
 - ESM builds of core and contracts contain no `require()` — #esm-builds
-- Every peer range on a package that ships breaking majors has an UPPER bound — #peer-ranges
+- Peer ranges on third-party packages that ship breaking majors have an UPPER bound; first-party `@oxy.so/bloom` is deliberately open (`>=`) so apps always run the latest — #peer-ranges
 
 **Runtime traps**
 - Never ship a `\p{…}` regex atom in anything that runs on Hermes; transpile with `regexpu-core` — #hermes-property-escapes
