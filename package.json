@@ -210,7 +210,7 @@
   "dependencies": {
     "@expo/metro-runtime": "~57.0.8",
     "@oxy.so/bloom": "catalog:",
-    "expo-contacts": "~57.0.3",
+    "expo-contacts": "~58.0.6",
     "expo-image-picker": "~57.0.7",
     "expo-splash-screen": "~57.0.5",
     "is-arrayish": "^0.3.4",

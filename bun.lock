@@ -7,7 +7,7 @@
       "dependencies": {
         "@expo/metro-runtime": "~57.0.8",
         "@oxy.so/bloom": "catalog:",
-        "expo-contacts": "~57.0.3",
+        "expo-contacts": "~58.0.6",
         "expo-image-picker": "~57.0.7",
         "expo-splash-screen": "~57.0.5",
         "is-arrayish": "^0.3.4",
@@ -3203,7 +3203,7 @@
 
     "expo-constants": ["expo-constants@57.0.17", "", { "dependencies": { "@expo/env": "~2.4.3" }, "peerDependencies": { "expo": "*", "react-native": "*" } }, "sha512-cPWYBKN1SEbg2lXg2f8VkePJqGZrJPLvVdQDCTfbFu9sQHO1M31Y1zILReUuGnmt/VKeUz40ze579vR00xGu/A=="],
 
-    "expo-contacts": ["expo-contacts@57.0.4", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-PX+LXr+oLPtkRI38L+ttLoSkgi6SBNFH0DbJK1N2Y1vyUwLqPkqqd5U4ibH5equ4qg6F1RbIYs0sZpyegEO6KA=="],
+    "expo-contacts": ["expo-contacts@58.0.6", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-AFghGIc94oSjtEEg6+HH360H4e6NcPADLXE44YkYVnq78+8hozqfmjrLNQ5YuGKLM4sfHYY1z+50CShsk2r8Pw=="],
 
     "expo-crypto": ["expo-crypto@56.0.5", "", { "peerDependencies": { "expo": "*" } }, "sha512-H2gPvzWX+gt0BhWH7FaNHqO1RZ8fmbJP96d6z0/wHzEIiL5y+NV2i00qczZRW0Hu+Nu2LpNeBpArqzsRM8aWFA=="],
 
@@ -5088,6 +5088,8 @@
     "accepts/negotiator": ["negotiator@0.6.3", "", {}, "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg=="],
 
     "accounts/@types/react": ["@types/react@19.2.18", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w=="],
+
+    "accounts/expo-contacts": ["expo-contacts@57.0.4", "", { "peerDependencies": { "expo": "*", "react": "*", "react-native": "*" } }, "sha512-PX+LXr+oLPtkRI38L+ttLoSkgi6SBNFH0DbJK1N2Y1vyUwLqPkqqd5U4ibH5equ4qg6F1RbIYs0sZpyegEO6KA=="],
 
     "accounts/expo-crypto": ["expo-crypto@57.0.2", "", { "peerDependencies": { "expo": "*" } }, "sha512-OGLvHK7Hb7qsONMWGB9pJw3n+iY4OnZQmM/KwQEHRMrrOmNg0Lxj9+tp9bj46aAMMzXx0FTVA2jUKoplpXPnkA=="],
 
