@@ -1,5 +1,11 @@
 # Changelog
 
+## [11.2.0] - 2026-10-14
+
+Promoted from `11.2.0-oxy-one.7` to the stable release; no code change. It is the first
+stable Services that admits Bloom 8, 9 and 10 (the Bloom 10 peer is open-ended) and it
+needs `@oxy.so/core` 4.5.0. The `oxy-one` entries below are the candidate history.
+
 ## [11.2.0-oxy-one.7] - 2026-10-14
 
 ### Changed

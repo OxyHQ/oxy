@@ -1,6 +1,8 @@
 # Changelog — `@oxy.so/core`
 
-## 4.5.0-oxy-one.1
+## 4.5.0
+
+Promoted from `4.5.0-oxy-one.1` to the stable release; no code change.
 
 ### Changed (breaking for `auth.registerKey` callers)
 
