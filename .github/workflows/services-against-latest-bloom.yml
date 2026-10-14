@@ -1,0 +1,67 @@
+# @oxy.so/services declares an open-ended peer on @oxy.so/bloom (`>=10.0.0`,
+# see docs/package-rules.md): every app is meant to run the newest Bloom the
+# day it ships. The repo's own CI builds services against the catalog's Bloom,
+# which is older, so a Bloom release that breaks services would reach the apps
+# with no signal anywhere. This job is that signal: it swaps the newest
+# published Bloom into services and runs the typecheck, the suite and the
+# build. A red run means "services needs a fix or a peer cap before apps pick
+# up this Bloom" — it is not a gate on unrelated PRs, so it never blocks merge.
+name: Services against latest Bloom
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+  # A Bloom release can dispatch this with the version it just published.
+  repository_dispatch:
+    types: [bloom-released]
+  pull_request:
+    paths:
+      - '.github/workflows/services-against-latest-bloom.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: services-against-latest-bloom
+  cancel-in-progress: true
+
+jobs:
+  latest-bloom:
+    name: services typecheck, tests and build on the newest Bloom
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      # The repo pins Bloom once, in the root catalog (and the root overrides
+      # point at it), so a per-package `bun add` is silently overridden back to
+      # the catalog version. Move the catalog entry itself, then reinstall.
+      - name: Point the catalog at the newest published Bloom
+        run: |
+          LATEST=$(npm view @oxy.so/bloom@latest version)
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.workspaces.catalog['@oxy.so/bloom'] = process.argv[1];
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\\n');
+          " "$LATEST"
+          echo "Testing against @oxy.so/bloom $LATEST" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Install dependencies
+        run: bun install --minimum-release-age=0
+      - name: Check the installed Bloom is the one under test
+        run: node -e "console.log(require('@oxy.so/bloom/package.json').version)"
+        working-directory: ./packages/services
+      - name: Build contracts, protocol, core
+        run: bunx turbo run build --filter=@oxy.so/contracts --filter=@oxy.so/protocol --filter=@oxy.so/core
+      - name: Typecheck
+        run: bun run typescript
+        working-directory: ./packages/services
+      - name: Tests
+        run: bun run test
+        working-directory: ./packages/services
+      - name: Build and verify the publishable package
+        run: bun run build
+        working-directory: ./packages/services
