@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/app-preset",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "The Oxy distro of Expo \u2014 centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, \u2026). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -63,10 +63,10 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs",
     "test": "node --test __tests__/*.test.js"
   },
-  "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` requires `@oxy.so/services/plugins/withOxySharedPermissions` (services 11+, where it first exists, so the services floor is the major that ships it). Both peers retain a measured floor and a breaking-major cap so compatible patches deduplicate in consumers. Never replace either constraint with `*` or an uncapped range.",
+  "//peerDependencies": "THE TWO @oxy.so PEERS ARE DELIBERATE. This package couples to them by FILE PATH, not by API: `css/base.css` imports `@oxy.so/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` requires `@oxy.so/services/plugins/withOxySharedPermissions` (services 11+, where it first exists, so the services floor is the major that ships it). Both peers retain a measured floor and are deliberately OPEN-ENDED above it: Oxy apps always run the latest Bloom and Services, so a new release of either must never need a preset release first. A release that breaks this package's file-path coupling is caught by its own tests and the apps' CI, not by a cap. Never replace either constraint with `*`.",
   "peerDependencies": {
-    "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || ^6.0.0",
-    "@oxy.so/services": "^11.0.0",
+    "@oxy.so/bloom": "^2.0.0 || ^3.0.0 || ^4.2.0 || ^5.1.0 || >=6.0.0",
+    "@oxy.so/services": ">=11.0.0",
     "babel-plugin-module-resolver": "*",
     "babel-preset-expo": "*",
     "eslint": ">=9.0.0",
