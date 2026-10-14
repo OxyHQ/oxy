@@ -221,7 +221,7 @@
     "express": "catalog:",
     "express-rate-limit": "catalog:",
     "jest": "^30.5.1",
-    "regexpu-core": "^6.4.0",
+    "regexpu-core": "^6.5.3",
     "release-it": "catalog:",
     "typescript": "^5.9.2",
     "helmet": "catalog:"
