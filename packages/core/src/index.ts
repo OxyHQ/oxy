@@ -605,3 +605,5 @@ export type { PkcePair, BuildOAuthAuthorizeUrlParams, OxyAuthScreen } from './ut
 // Constants
 // ---------------------------------------------------------------------------
 export { packageInfo } from './constants/version';
+
+export type { AccountInvitation, AccountInvitationPreview } from './api/accounts';

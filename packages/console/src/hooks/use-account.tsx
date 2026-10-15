@@ -4,6 +4,7 @@ import { useAuth } from '@oxy.so/services';
 import { getNormalizedUserHandle } from '@oxy.so/core';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type {
+  AccountInvitation,
   AccountKind,
   AccountMember,
   AccountMemberSource,
@@ -430,10 +431,7 @@ export function useAccount() {
 }
 
 // ===========================================================================
-// Members — queried per-account. There is NO separate "invite" entity:
-// invitations are members with `status: 'invited'`. Pending invites are
-// therefore `members.filter((m) => m.status === 'invited')`, and cancelling an
-// invite is the same operation as removing a member.
+// Members are grants; invitations are separate, consent-based deliveries.
 // ===========================================================================
 
 export function useAccountMembers(
@@ -464,10 +462,11 @@ export function useInviteAccountMember() {
       accountId: string;
       usernameOrEmail: string;
       role: AssignableAccountRole;
-    }): Promise<AccountMember> =>
-      oxyServices.accounts.members.invite(accountId, { usernameOrEmail, role }),
+    }): Promise<AccountInvitation> =>
+      oxyServices.accounts.invitations.create(accountId, { email: usernameOrEmail, role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: ['account-invitations'] });
     },
   });
 }
@@ -489,6 +488,7 @@ export function useUpdateAccountMember() {
       oxyServices.accounts.members.update(accountId, memberId, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: ['account-invitations'] });
     },
   });
 }
@@ -510,6 +510,7 @@ export function useRemoveAccountMember() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: ['account-invitations'] });
     },
   });
 }
@@ -529,6 +530,7 @@ export function useTransferAccountOwnership() {
       oxyServices.accounts.transferOwnership(accountId, { userId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: ['account-invitations'] });
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
     },
   });

@@ -370,7 +370,8 @@ export class AccountMembersApi {
   }
 
   /**
-   * Add a member to an account.
+   * @deprecated The API returns 410. Use accounts.invitations.create with an email.
+   * Access is granted only after recipient confirmation.
    * @param accountId - The account's `_id`.
    * @param data - Target user's username or email and role (never `owner`).
    *   The server resolves `usernameOrEmail` to a personal account; an unknown
@@ -455,13 +456,93 @@ export class AccountAgentKeysApi {
   }
 }
 
+export interface AccountInvitation {
+  id: string;
+  accountId: string;
+  email: string;
+  role: Exclude<AccountRole, 'owner'>;
+  status: 'pending' | 'expired' | 'accepted' | 'cancelled';
+  expiresAt: string;
+  createdAt: string;
+}
+export interface AccountInvitationPreview {
+  invitation: AccountInvitation;
+  account: { id: string; username: string | null; displayName: string | null };
+}
+
+/** Consent-based invitations; never cached or queued as offline mutations. */
+export class AccountInvitationsApi {
+  constructor(private readonly ctx: OxyContext) {}
+  async list(accountId: string): Promise<AccountInvitation[]> {
+    return (
+      await this.ctx.request<{ invitations: AccountInvitation[] }>(
+        'GET',
+        `/accounts/${enc(accountId)}/invitations`,
+        undefined,
+        { cache: false },
+      )
+    ).invitations;
+  }
+  async create(
+    accountId: string,
+    data: { email: string; role: Exclude<AccountRole, 'owner'>; inherit?: boolean },
+  ): Promise<AccountInvitation> {
+    return (
+      await this.ctx.request<{ invitation: AccountInvitation }>(
+        'POST',
+        `/accounts/${enc(accountId)}/invitations`,
+        data,
+        { cache: false },
+      )
+    ).invitation;
+  }
+  async resend(accountId: string, id: string): Promise<AccountInvitation> {
+    return (
+      await this.ctx.request<{ invitation: AccountInvitation }>(
+        'POST',
+        `/accounts/${enc(accountId)}/invitations/${enc(id)}/resend`,
+        undefined,
+        { cache: false },
+      )
+    ).invitation;
+  }
+  async cancel(accountId: string, id: string): Promise<AccountSuccessResult> {
+    return this.ctx.request(
+      'DELETE',
+      `/accounts/${enc(accountId)}/invitations/${enc(id)}`,
+      undefined,
+      { cache: false },
+    );
+  }
+  async preview(token: string): Promise<AccountInvitationPreview> {
+    return this.ctx.request('POST', '/accounts/invitations/preview', { token }, { cache: false });
+  }
+  /** selectedUserId must equal the currently authenticated personal account. */
+  async accept(
+    token: string,
+    selectedUserId: string,
+  ): Promise<AccountSuccessResult & { accountId: string }> {
+    const result = await this.ctx.request<AccountSuccessResult & { accountId: string }>(
+      'POST',
+      '/accounts/invitations/accept',
+      { token, selectedUserId, confirmed: true },
+      { cache: false },
+    );
+    invalidateAccountMembership(this.ctx, result.accountId);
+    evictOxyAccountForestCache(this.ctx.http);
+    return result;
+  }
+}
+
 export class AccountsApi {
   /** Who can act on an account, and with what role. */
   readonly members: AccountMembersApi;
+  readonly invitations: AccountInvitationsApi;
   readonly agentKeys: AccountAgentKeysApi;
 
   constructor(private readonly ctx: OxyContext) {
     this.members = new AccountMembersApi(ctx);
+    this.invitations = new AccountInvitationsApi(ctx);
     this.agentKeys = new AccountAgentKeysApi(ctx);
   }
 

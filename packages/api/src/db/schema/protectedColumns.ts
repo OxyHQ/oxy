@@ -1,3 +1,4 @@
+import { accountInvitations } from './accountInvitations';
 /**
  * Columns That Must Not Reach a Client
  *
@@ -641,5 +642,10 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     reason:
       "Oxy's own OAuth client secret at a Mastodon-API instance. It authorizes " +
       'nothing without a user and PKCE, and it is still a client secret.',
+  },
+  {
+    table: accountInvitations,
+    column: accountInvitations.tokenHash,
+    reason: 'Invitation bearer verifier; never exposed to clients.',
   },
 ];
