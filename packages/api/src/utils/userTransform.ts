@@ -35,6 +35,7 @@ export type UserLike =
       linksMetadata?: unknown;
       verifiedDomains?: unknown;
       themePreference?: unknown;
+      userPreferences?: unknown;
       createdAt?: unknown;
       updatedAt?: unknown;
     }
@@ -304,6 +305,11 @@ export function formatUserResponse(user: unknown) {
     // Portable theme preference — rides this self/session payload (login, device
     // sessions, getUserBySession) so account switches carry the theme too.
     themePreference: toThemePreference(user.themePreference),
+    userPreferences:
+      isRecord(user.userPreferences) &&
+      ['USD', 'EUR', 'FAIR'].includes(String(user.userPreferences.displayCurrency))
+        ? { displayCurrency: user.userPreferences.displayCurrency }
+        : undefined,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

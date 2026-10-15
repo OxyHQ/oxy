@@ -419,7 +419,10 @@
       "pending": "Cancelación aceptada. La conciliación de la cuenta está pendiente.",
       "scheduled": "Cancelación programada para el final del período actual.",
       "failed": "No se pudo confirmar la cancelación. Actualiza antes de intentarlo de nuevo.",
-      "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada."
+      "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada.",
+      "checkout": "Continuar al pago",
+      "checkoutComplete": "Pago confirmado. Se ha actualizado el acceso.",
+      "checkoutClosed": "Este pago ha caducado. Puedes solicitar otra cotización."
     },
     "title": "Pagos y suscripciones",
     "subtitle": "Gestiona tus métodos de pago, suscripciones y monederos.",

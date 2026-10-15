@@ -1,11 +1,21 @@
 import React, { useState, useRef } from 'react';
 import { randomUUID } from 'expo-crypto';
-import { View, Pressable } from 'react-native';
+import { View, Pressable, Linking } from 'react-native';
 import { authenticatedApiCall } from '@oxy.so/core';
-import { useOxy, usePersonalPlans, usePersonalPlanSubscriptions } from '@oxy.so/services';
+import {
+  useOxy,
+  usePersonalPlans,
+  usePersonalPlanSubscriptions,
+  DisplayCurrencySelector,
+  useDisplayPrice,
+} from '@oxy.so/services';
 import { Section } from '@/components/section';
 import { ThemedText } from '@/components/themed-text';
 import { useTranslation } from '@/lib/i18n';
+import {
+  getPersonalPlanCheckoutKey,
+  clearPersonalPlanCheckoutKey,
+} from '@/lib/personal-plan-checkout';
 
 /** Remount confirmation state on every account/session change. */
 export function PersonalPlansCard() {
@@ -17,12 +27,47 @@ function PersonalPlansContent() {
   const { oxyServices, user, activeSessionId, isAuthenticated } = useOxy();
   const { t, locale } = useTranslation();
   const catalogue = usePersonalPlans();
+  const display = useDisplayPrice();
   const sources = usePersonalPlanSubscriptions();
   const [confirm, setConfirm] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const actions = useRef(new Map<string, string>());
   const [message, setMessage] = useState('');
   const [refreshWarning, setRefreshWarning] = useState(false);
+  async function purchase(offerId: string, offerVersion: number) {
+    if (!user?.id || !isAuthenticated || busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
+        oxyServices.billing.startPersonalPlanCheckout({
+          expectedSubjectAccountId: user.id,
+          offerId,
+          offerVersion,
+          idempotencyKey,
+        }),
+      );
+      if (result.state === 'pending' && result.checkoutUrl) {
+        const url = new URL(result.checkoutUrl);
+        url.searchParams.set('displayCurrency', display.currency);
+        await Linking.openURL(url.toString());
+      } else if (result.state === 'closed' || result.state === 'fulfilled') {
+        await clearPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
+        await sources.refetch();
+        setMessage(
+          t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
+        );
+      } else
+        setMessage(
+          t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
+        );
+    } catch {
+      setMessage(t('payments.one.failed'));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function cancel(sourceId: string) {
     if (!user?.id || !isAuthenticated || busy) return;
     const actionId = actions.current.get(sourceId) ?? randomUUID();
@@ -55,6 +100,7 @@ function PersonalPlansContent() {
     <Section title="Oxy One">
       <View style={{ gap: 12, padding: 16 }}>
         <ThemedText>{t('payments.one.description')}</ThemedText>
+        <DisplayCurrencySelector />
         {catalogue.isPending ? (
           <ThemedText>{t('payments.one.loading')}</ThemedText>
         ) : catalogue.isError ? (
@@ -70,12 +116,27 @@ function PersonalPlansContent() {
                   <>
                     <ThemedText>
                       {t('payments.one.monthlyPrice', {
-                        price: formatPersonalPlanPrice(plan.price, locale),
+                        price:
+                          plan.price.currency.toUpperCase() === 'USD'
+                            ? display.formatUsd(plan.price.amountMinorUnits)
+                            : formatPersonalPlanPrice(plan.price, locale),
                       })}
                     </ThemedText>
+                    {display.currency !== 'USD' && (
+                      <ThemedText>{formatPersonalPlanPrice(plan.price, locale)}</ThemedText>
+                    )}
                     <ThemedText>{t('payments.one.noTrial')}</ThemedText>
                     <ThemedText>{t('payments.one.finalTaxInclusive')}</ThemedText>
                   </>
+                )}
+                {String(catalogue.data?.purchase) === 'available' && isAuthenticated && (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={() => purchase(plan.offerId, plan.offerVersion)}
+                  >
+                    <ThemedText>{t('payments.one.checkout')}</ThemedText>
+                  </Pressable>
                 )}
                 {plan.benefits.map(({ displayName, benefit }) => (
                   <ThemedText key={`${benefit.productId}:${benefit.key}:${displayName}`}>
@@ -87,7 +148,9 @@ function PersonalPlansContent() {
                 ))}
               </View>
             ))}
-            <ThemedText>{t('payments.one.unconfigured')}</ThemedText>
+            {catalogue.data?.purchase === 'unavailable' && (
+              <ThemedText>{t('payments.one.unconfigured')}</ThemedText>
+            )}
           </>
         )}
         {isAuthenticated &&

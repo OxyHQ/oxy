@@ -26,8 +26,13 @@ import { restrictions } from '../db/schema/restrictions';
 import { userAncestors } from '../db/schema/userAncestors';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
-import { USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
-import { ACCOUNT_KINDS, ACCOUNT_STATUSES, USER_TYPES, users } from '../db/schema/users';
+import { type USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
+import {
+  type ACCOUNT_KINDS,
+  type ACCOUNT_STATUSES,
+  type USER_TYPES,
+  users,
+} from '../db/schema/users';
 import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
@@ -54,16 +59,16 @@ import {
 } from '../utils/profileTextNormalization';
 import { normalizeUsername } from '../utils/username';
 import { BadRequestError, ConflictError } from '../utils/error';
-import { Request } from 'express';
+import type { Request } from 'express';
 import {
-  PaginatedResponse,
-  PublicUserProfile,
-  ProfileUpdateInput,
-  UserStatistics,
-  FollowActionResult,
-  ViewerGraph,
-  FollowGraphParams,
-  FollowGraphSort,
+  type PaginatedResponse,
+  type PublicUserProfile,
+  type ProfileUpdateInput,
+  type UserStatistics,
+  type FollowActionResult,
+  type ViewerGraph,
+  type FollowGraphParams,
+  type FollowGraphSort,
   DEFAULT_FOLLOW_GRAPH_SORT,
 } from '../types/user.types';
 import {
@@ -109,6 +114,7 @@ import { discoverableUserPredicate } from '../utils/profileQuery';
  * `formatUserResponse` emits only under `includePrivateFields`.
  */
 export interface SelfUserView extends PublicUserView {
+  userPreferences?: { displayCurrency?: 'USD' | 'EUR' | 'FAIR' };
   phone?: string;
   address?: string;
   birthday?: string;
@@ -149,6 +155,7 @@ export interface UserResponseSource {
   birthday?: unknown;
   dateOfBirth?: unknown;
   themePreference?: unknown;
+  userPreferences?: unknown;
   type?: unknown;
   /** Account-graph classification (`personal` / `organization` / `channel` …). */
   kind?: unknown;
@@ -456,6 +463,7 @@ function computeIsAdult(dateOfBirth: string): boolean {
  */
 const selfUserColumns = {
   ...publicUserColumns,
+  preferenceDisplayCurrency: users.preferenceDisplayCurrency,
   phone: users.phone,
   address: users.address,
   birthday: users.birthday,
@@ -465,6 +473,7 @@ const selfUserColumns = {
 } as const;
 
 type SelfUserRow = PublicUserRow & {
+  preferenceDisplayCurrency: 'USD' | 'EUR' | 'FAIR' | null;
   phone: string | null;
   address: string | null;
   birthday: string | null;
@@ -483,6 +492,7 @@ type SelfUserRow = PublicUserRow & {
 function toSelfUserView(row: SelfUserRow): SelfUserView {
   const view: SelfUserView = {
     ...toPublicUserView(row),
+    userPreferences: { displayCurrency: row.preferenceDisplayCurrency ?? undefined },
     phone: row.phone ?? undefined,
     address: row.address ?? undefined,
     birthday: row.birthday ?? undefined,
@@ -835,6 +845,7 @@ export class UserService {
         theme: row.preferenceTheme,
         reduceMotion: row.preferenceReduceMotion,
         timezone: row.preferenceTimezone ?? undefined,
+        displayCurrency: row.preferenceDisplayCurrency ?? undefined,
       },
       themePreference:
         row.themePreferenceMode !== null && row.themePreferenceColorPreset !== null
@@ -894,6 +905,14 @@ export class UserService {
     req?: Request,
   ): Promise<SelfUserView> {
     const db = getDb();
+
+    if (isRecord(updates.userPreferences) && 'displayCurrency' in updates.userPreferences) {
+      const currency = updates.userPreferences.displayCurrency;
+      if (currency !== 'USD' && currency !== 'EUR' && currency !== 'FAIR')
+        throw new BadRequestError('Unsupported display currency', {
+          field: 'userPreferences.displayCurrency',
+        });
+    }
 
     // Allowed fields for updates
     const allowedFields = [
@@ -2144,6 +2163,11 @@ export class UserService {
     };
 
     if (options.includePrivateFields) {
+      if (isRecord(user.userPreferences)) {
+        const currency = user.userPreferences.displayCurrency;
+        if (currency === 'USD' || currency === 'EUR' || currency === 'FAIR')
+          response.userPreferences = { displayCurrency: currency };
+      }
       response.phone = stringOrUndefined(user.phone);
       response.address = stringOrUndefined(user.address);
       response.birthday = stringOrUndefined(user.birthday);
@@ -2287,6 +2311,12 @@ function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<strin
     }
     if (typeof prefs.reduceMotion === 'boolean') set.preferenceReduceMotion = prefs.reduceMotion;
     if (typeof prefs.timezone === 'string') set.preferenceTimezone = blankToNull(prefs.timezone);
+    if (
+      prefs.displayCurrency === 'USD' ||
+      prefs.displayCurrency === 'EUR' ||
+      prefs.displayCurrency === 'FAIR'
+    )
+      set.preferenceDisplayCurrency = prefs.displayCurrency;
   }
 
   if (isRecord(filtered.themePreference)) {

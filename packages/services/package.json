@@ -1,7 +1,7 @@
 {
   "name": "@oxy.so/services",
   "version": "11.2.0",
-  "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
+  "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/commonjs/index.d.ts",
@@ -156,7 +156,8 @@
   "dependencies": {
     "@expo/config-plugins": "catalog:",
     "@oxy.so/contracts": "workspace:4.12.0",
-    "color": "^5.0.3"
+    "color": "^5.0.3",
+    "@peable.to/sdk": "0.2.7-oxy-one.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",

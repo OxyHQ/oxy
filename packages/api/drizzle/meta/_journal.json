@@ -1114,6 +1114,13 @@
       "when": 1792047274383,
       "tag": "0159_account_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1792054682672,
+      "tag": "0160_display_currency",
+      "breakpoints": true
     }
   ]
 }

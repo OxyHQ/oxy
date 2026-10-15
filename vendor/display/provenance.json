@@ -1,0 +1,10 @@
+{
+  "sourceRepository": "Peable",
+  "sourceCommit": "12ecc1291ec84a7c979da156b63df3042a2e9a9a",
+  "purpose": "Unpublished source SDK review artifacts; build and publish owning packages before release.",
+  "files": {
+    "peable.to-contracts-0.1.0-12ecc129.tgz": "1f8cb7df5410fd3ad68b90057f7bc6c7892018c6d55d1a12c58a8904244ce635",
+    "peable.to-shared-types-0.3.4-oxy-one.0-12ecc129.tgz": "7a7718995254b94df8753c2740d5b945749900cc044ab694f26f642ead50f4a6",
+    "peable.to-sdk-0.2.7-oxy-one.0-12ecc129.tgz": "87031bd06d07ba0ed6af87d7e157792070460a528fe57c9f587ea60a659d8fc8"
+  }
+}
