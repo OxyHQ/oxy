@@ -3,6 +3,13 @@ import { SAFETY_CONSUMERS, safetyWorkloadSubject } from '../../config/safetyCons
 function fixture(): SafetyConsumerObservation {
   const t = SAFETY_CONSUMERS.allo;
   return {
+    owner: {
+      id: t.ownerAccountId,
+      status: 'active',
+      kind: 'personal',
+      reputation: 'standard',
+      supervised: false,
+    },
     application: {
       id: t.applicationId,
       ownerAccountId: t.ownerAccountId,
@@ -62,4 +69,14 @@ it('refuses wrong live authority and hashes every observed grant', () => {
     safetyConsumerPlan('allo', 'base', [], changed).planSha256,
   );
   expect(() => safetyConsumerPlan('allo', 'base', ['messaging'], original)).toThrow('never grants');
+});
+
+it('refuses unavailable or supervised owners even when workload grants still exist', () => {
+  const before = fixture();
+  for (const owner of [
+    { ...before.owner, status: 'archived' },
+    { ...before.owner, supervised: true },
+    { ...before.owner, reputation: 'restricted' },
+  ])
+    expect(() => safetyConsumerPlan('allo', 'base', [], { ...before, owner })).toThrow('identity');
 });

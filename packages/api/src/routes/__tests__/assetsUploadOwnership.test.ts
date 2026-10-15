@@ -27,6 +27,11 @@ const mockGetFile = jest.fn();
 const mockCompleteUpload = jest.fn();
 const mockUploadBuffer = jest.fn();
 
+jest.mock('../../services/supervisionPolicy.service', () => ({
+  ...jest.requireActual('../../services/supervisionPolicy.service'),
+  isSupervised: jest.fn().mockResolvedValue(false),
+}));
+
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: { _id: string } }, _res: unknown, next: () => void) => {
     req.user = { _id: mockCurrentUser };

@@ -34,9 +34,12 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 import router from '../supervision';
+import assetsRouter from '../assets';
+import { assetService } from '../../services/assetServiceSingleton';
+import { errorHandler } from '../../middleware/errorHandler';
 import { accountService } from '../../services/account.service';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { users, applications, applicationCredentials, sessions } from '../../db/schema';
+import { users, applications, applicationCredentials, sessions, files } from '../../db/schema';
 import sessionService from '../../services/session.service';
 import { inviteGuardian, acceptInvitation } from '../../services/supervision.service';
 let server: http.Server;
@@ -46,6 +49,8 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   app.use('/safety', router);
+  app.use('/assets', assetsRouter);
+  app.use(errorHandler);
   await new Promise<void>((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
@@ -185,15 +190,167 @@ it('keeps ordinary adults and explicit anonymous public policy reads valid witho
   ).toBe(422);
 });
 
+it('preserves a live authorized ordinary organization actor and revokes it when its human principal enrolls', async () => {
+  await consumer();
+  const operator = await person(),
+    guardian = await person();
+  const { account } = await accountService.createChildAccount(operator, operator, {
+    kind: 'organization',
+    username: `org${randomUUID().replaceAll('-', '').slice(0, 16)}`,
+  });
+  const current = await sessionService.createSession(
+    account.id,
+    { headers: { 'user-agent': 'Safety test' }, ip: '127.0.0.1', get: () => undefined } as never,
+    { deviceId: randomUUID(), operatedByUserId: operator },
+  );
+  const input = {
+    sessionId: current.sessionId,
+    accessToken: current.accessToken,
+    action: 'profile',
+  };
+  const result = await post('/service/session', input);
+  expect(result.status).toBe(200);
+  expect(result.body.actor).toMatchObject({
+    effectiveAccountId: account.id,
+    actorAccountId: operator,
+  });
+  await acceptInvitation((await inviteGuardian(operator, guardian)).id, guardian);
+  expect((await post('/service/session', input)).status).toBe(401);
+});
 
-it('preserves a live authorized ordinary organization actor and revokes it when its human principal enrolls',async()=>{
- await consumer();const operator=await person(),guardian=await person();
- const {account}=await accountService.createChildAccount(operator,operator,{kind:'organization',username:`org${randomUUID().replaceAll('-','').slice(0,16)}`});
- const current=await sessionService.createSession(account.id,{headers:{'user-agent':'Safety test'},ip:'127.0.0.1',get:()=>undefined} as never,{deviceId:randomUUID(),operatedByUserId:operator});
- const input={sessionId:current.sessionId,accessToken:current.accessToken,action:'profile'};
- const result=await post('/service/session',input);
- expect(result.status).toBe(200);
- expect(result.body.actor).toMatchObject({effectiveAccountId:account.id,actorAccountId:operator});
- await acceptInvitation((await inviteGuardian(operator,guardian)).id,guardian);
- expect((await post('/service/session',input)).status).toBe(401);
+it('lets supervised people list and upload only their own private files without exposing another owner', async () => {
+  const child = await person(),
+    guardian = await person();
+  const insert = async (ownerUserId: string, visibility: 'public' | 'private' = 'private') => {
+    const [file] = await getDb()
+      .insert(files)
+      .values({
+        ownerUserId,
+        visibility,
+        sha256: randomUUID().replaceAll('-', '').repeat(2),
+        size: 4,
+        mime: 'text/plain',
+        ext: '.txt',
+        storageKey: `test/${randomUUID()}`,
+        originalName: 'draft.txt',
+      })
+      .returning();
+    return file;
+  };
+  const own = await insert(child, 'public'),
+    other = await insert(guardian);
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  const current = await session(child);
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const headers = { authorization: `Bearer ${current.accessToken}` };
+  const listed = await fetch(`${origin}/assets?ownerUserId=${guardian}`, { headers });
+  expect(listed.status).toBe(200);
+  const listedBody = await listed.json();
+  expect(listedBody.data.files.map((file: { id: string }) => file.id)).toEqual([own.id]);
+  expect((await fetch(`${origin}/assets/${own.id}`, { headers })).status).toBe(200);
+  expect((await fetch(`${origin}/assets/${other.id}`, { headers })).status).toBe(403);
+  const setVisibility = async (id: string, visibility: string) =>
+    fetch(`${origin}/assets/${id}/visibility`, {
+      method: 'PATCH',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ visibility }),
+    });
+  // Relocation performs external object-store I/O; verify the authenticated route calls only the safe mutation.
+  const relocate = jest
+    .spyOn(assetService, 'updateFileVisibility')
+    .mockResolvedValue({ ...own, visibility: 'private', links: [], variants: [] });
+  try {
+    expect((await setVisibility(own.id, 'private')).status).toBe(200);
+    expect(relocate).toHaveBeenCalledWith(own.id, 'private');
+  } finally {
+    relocate.mockRestore();
+  }
+  expect((await setVisibility(own.id, 'public')).status).toBe(403);
+  expect((await setVisibility(own.id, 'unlisted')).status).toBe(403);
+  expect((await setVisibility(other.id, 'private')).status).toBe(403);
+  const upload = jest
+    .spyOn(assetService, 'uploadFileDirect')
+    .mockResolvedValue({ ...own, links: [], variants: [] });
+  try {
+    const data = new FormData();
+    data.append('file', new Blob(['text'], { type: 'text/plain' }), 'draft.txt');
+    expect(
+      (await fetch(`${origin}/assets/upload`, { method: 'POST', headers, body: data })).status,
+    ).toBe(200);
+    expect(upload).toHaveBeenCalledWith(
+      child,
+      expect.any(Buffer),
+      'text/plain',
+      'draft.txt',
+      'private',
+      undefined,
+    );
+    upload.mockClear();
+    data.append('visibility', 'public');
+    expect(
+      (await fetch(`${origin}/assets/upload`, { method: 'POST', headers, body: data })).status,
+    ).toBe(403);
+    expect(upload).not.toHaveBeenCalled();
+  } finally {
+    upload.mockRestore();
+  }
+  const complete = jest.spyOn(assetService, 'completeUpload');
+  try {
+    const response = await fetch(`${origin}/assets/complete`, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        fileId: own.id,
+        originalName: 'draft.txt',
+        size: 4,
+        mime: 'text/plain',
+        visibility: 'public',
+      }),
+    });
+    expect(response.status).toBe(403);
+    expect(complete).not.toHaveBeenCalled();
+  } finally {
+    complete.mockRestore();
+  }
+});
+
+it('authenticates batches once and distinguishes user decisions from reviewed background delivery', async () => {
+  const { app } = await consumer();
+  const child = await person(),
+    guardian = await person();
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  const current = await session(child);
+  await getDb()
+    .update(applications)
+    .set({ capabilities: ['safety:messaging:v1'] })
+    .where(eq(applications.id, app));
+  const items = [
+    { resourceId: 'self', participantAccountIds: [child] },
+    { resourceId: 'guardian', participantAccountIds: [child, guardian] },
+  ];
+  const response = await post('/service/message-access-batch', {
+    input: { items },
+    requester: { accessToken: current.accessToken },
+  });
+  expect(response.status).toBe(200);
+  expect(
+    response.body.items.map((item: { decision: { allowed: boolean } }) => item.decision.allowed),
+  ).toEqual([true, true]);
+  const delivery = { items: items.map((item) => ({ ...item, senderAccountId: child })) };
+  expect((await post('/service/delivery-access-batch', delivery)).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ capabilities: ['safety:messaging:v1', 'safety:messaging-delivery:v1'] })
+    .where(eq(applications.id, app));
+  expect((await post('/service/delivery-access-batch', delivery)).status).toBe(200);
+  await getDb().update(applications).set({ capabilities: [] }).where(eq(applications.id, app));
+  expect((await post('/service/delivery-access-batch', delivery)).status).toBe(403);
+  expect(
+    (
+      await post('/service/message-access-batch', {
+        input: { items },
+        requester: { accessToken: null },
+      })
+    ).status,
+  ).toBe(401);
 });

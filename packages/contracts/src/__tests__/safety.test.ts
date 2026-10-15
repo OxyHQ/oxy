@@ -3,6 +3,8 @@ import {
   safetyRequesterSchema,
   contentAccessInputSchema,
   messageAccessInputSchema,
+  messageAccessBatchInputSchema,
+  deliveryAccessBatchInputSchema,
 } from '../safety';
 
 const effects = () => ({
@@ -119,6 +121,32 @@ describe('supervised safety contracts', () => {
         classification: 'general',
         audience: 'private',
         authorAccountId: 'author',
+      }).success,
+    ).toBe(false);
+  });
+  it('bounds total message work without splitting a conversation or rejecting self-management', () => {
+    const item = { resourceId: 'self', participantAccountIds: ['owner'] };
+    expect(messageAccessBatchInputSchema.safeParse({ items: [item] }).success).toBe(true);
+    expect(messageAccessBatchInputSchema.safeParse({ items: [item, item] }).success).toBe(false);
+    expect(
+      messageAccessBatchInputSchema.safeParse({
+        items: Array.from({ length: 101 }, (_, i) => ({ ...item, resourceId: String(i) })),
+      }).success,
+    ).toBe(false);
+    const large = Array.from({ length: 1024 }, (_, i) => String(i));
+    const items = Array.from({ length: 4 }, (_, i) => ({
+      resourceId: String(i),
+      participantAccountIds: large,
+    }));
+    expect(messageAccessBatchInputSchema.safeParse({ items }).success).toBe(true);
+    expect(messageAccessBatchInputSchema.safeParse({ items: [...items, item] }).success).toBe(
+      false,
+    );
+    expect(deliveryAccessBatchInputSchema.safeParse({ items: [item] }).success).toBe(false);
+    const long = large.map((id) => '界'.repeat(100) + id);
+    expect(
+      messageAccessBatchInputSchema.safeParse({
+        items: items.map((entry) => ({ ...entry, participantAccountIds: long })),
       }).success,
     ).toBe(false);
   });

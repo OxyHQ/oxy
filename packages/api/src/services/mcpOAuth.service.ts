@@ -221,7 +221,8 @@ export async function grantAccountAuthorityHolds(
   grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'> &
     Partial<Pick<McpOauthGrantRow, 'authMethodId'>>,
 ): Promise<boolean> {
-  if (await isSupervised(grant.principalUserId) || await isSupervised(grant.effectiveAccountId)) return false;
+  if ((await isSupervised(grant.principalUserId)) || (await isSupervised(grant.effectiveAccountId)))
+    return false;
   if (grant.authMethodId) {
     if (
       !(await readLiveAgentKey({

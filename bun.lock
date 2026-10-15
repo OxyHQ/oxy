@@ -444,7 +444,7 @@
     },
     "packages/contracts": {
       "name": "@oxy.so/contracts",
-      "version": "4.14.0",
+      "version": "4.15.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -457,11 +457,11 @@
     },
     "packages/core": {
       "name": "@oxy.so/core",
-      "version": "4.8.0",
+      "version": "4.9.0",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
-        "@oxy.so/contracts": "workspace:4.14.0",
+        "@oxy.so/contracts": "workspace:4.15.0",
         "@oxy.so/protocol": "workspace:^",
         "@oxy.so/telemetry": "workspace:^",
         "@scure/bip39": "^1.6.0",
@@ -663,10 +663,11 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "11.3.0",
+      "version": "11.4.0",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
-        "@oxy.so/contracts": "workspace:*",
+        "@oxy.so/contracts": "workspace:4.15.0",
+        "@oxy.so/core": "workspace:4.9.0",
         "color": "^5.0.3",
       },
       "devDependencies": {

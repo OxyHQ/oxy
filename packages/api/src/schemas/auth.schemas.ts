@@ -1,4 +1,9 @@
-import { serviceTokenScopesSchema, commonsDenyReasonSchema, deviceProofSchema, usernameSchema } from '@oxy.so/contracts';
+import {
+  serviceTokenScopesSchema,
+  commonsDenyReasonSchema,
+  deviceProofSchema,
+  usernameSchema,
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
 

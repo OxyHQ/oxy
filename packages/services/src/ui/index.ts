@@ -58,4 +58,4 @@ export {
 } from './utils/errorHandlers';
 export type { HandleAuthErrorOptions } from './utils/errorHandlers';
 
-export {useSupervision,supervisionQueryKeys} from './hooks/queries/useSupervision';
+export { useSupervision, supervisionQueryKeys } from './hooks/queries/useSupervision';

@@ -1,8 +1,10 @@
 const dict = {
   supervision: {
-    exactHandleHint: 'Si el tutor tiene una cuenta privada, escribe el nombre de usuario exacto que te haya compartido.',
+    exactHandleHint:
+      'Si el tutor tiene una cuenta privada, escribe el nombre de usuario exacto que te haya compartido.',
     setupOwn: 'Configurar la supervisión de esta cuenta personal',
-    setupOwnDescription: 'Usa la cuenta que se va a supervisar. Invitar a un tutor la convierte en privada; cancelar la invitación no la vuelve pública.',
+    setupOwnDescription:
+      'Usa la cuenta que se va a supervisar. Invitar a un tutor la convierte en privada; cancelar la invitación no la vuelve pública.',
     title: 'Supervisión',
     entryDescription: 'Tutor, contactos aprobados y autorización de compras',
     description:

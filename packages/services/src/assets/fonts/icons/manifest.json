@@ -6,7 +6,7 @@
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
       "bytes": 43004,
-      "sha256": "367d1eb46c64097ace34b793d7fbff9257c0da191d8cab73329cfe8999e95611",
+      "sha256": "f6617b302f84bfad9625e5b7cfebe3bc1c2b29d5dfea4f727c5fdd7393069a73",
       "names": [
         "add",
         "add-circle-outline",
@@ -151,8 +151,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 28852,
-      "sha256": "844252d83e5510b012333218db9e16cc997164360d1ab4f24148c3ca384ab740",
+      "bytes": 29224,
+      "sha256": "b490224be59f3195d1907810f33dee438cfde45fc24d5d7f80a93b9d8af93eb7",
       "names": [
         "account",
         "account-circle",
@@ -213,6 +213,7 @@
         "code-tags",
         "cog",
         "cog-outline",
+        "contacts",
         "contain",
         "content-copy",
         "controller",
@@ -220,6 +221,7 @@
         "credit-card",
         "cube-outline",
         "database-outline",
+        "decimal",
         "delete",
         "delete-outline",
         "devices",
@@ -349,5 +351,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "25d2d86d08ea7238dfe49210cf98754ffcc60fefbe5b8ad812e13c2d3239948f"
+  "glyphMapsSha256": "96b7c9a8bfa5332ba2c27bf26a42ffd308d141861b4bc4b78744bc566afdf519"
 }

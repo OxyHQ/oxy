@@ -67,8 +67,14 @@ export const profileAccessBatchResponseSchema = z
       .max(100),
   })
   .strict();
+export const MESSAGE_ACCESS_MAX_RESOURCES = 100;
+export const MESSAGE_ACCESS_MAX_PARTICIPANTS = 1024;
+export const MESSAGE_ACCESS_MAX_SUPERVISED_PARTICIPANTS = 256;
+export const MESSAGE_ACCESS_MAX_PARTICIPANT_SLOTS = 4096;
+/** Leaves room for the original requester proof in a 512 KiB request. */
+export const MESSAGE_ACCESS_MAX_INPUT_BYTES = 448 * 1024;
 export const messageAccessInputSchema = z
-  .object({ participantAccountIds: uniqueIds(256, 2), resourceId })
+  .object({ participantAccountIds: uniqueIds(MESSAGE_ACCESS_MAX_PARTICIPANTS), resourceId })
   .strict();
 export const contactAccessInputSchema = z.object({ targetAccountIds: uniqueIds(1000) }).strict();
 export const contactAccessResponseSchema = z
@@ -165,6 +171,34 @@ export const contentAccessBatchResponseSchema = z
 export const deliveryAccessInputSchema = messageAccessInputSchema
   .extend({ senderAccountId: accountId })
   .strict();
+/** Count repeated participants across resources too: this bounds both graph and pair evaluations. */
+const messageBatch = <T extends typeof messageAccessInputSchema | typeof deliveryAccessInputSchema>(
+  schema: T,
+) =>
+  z
+    .object({ items: z.array(schema).min(1).max(MESSAGE_ACCESS_MAX_RESOURCES) })
+    .strict()
+    .refine(
+      (value) => new Set(value.items.map((item) => item.resourceId)).size === value.items.length,
+      'Resource IDs must be unique',
+    )
+    .refine(
+      (value) =>
+        value.items.reduce((total, item) => total + item.participantAccountIds.length, 0) <=
+        MESSAGE_ACCESS_MAX_PARTICIPANT_SLOTS,
+      'Participant budget exceeded',
+    )
+    .refine(
+      (value) =>
+        new TextEncoder().encode(JSON.stringify(value)).byteLength <=
+        MESSAGE_ACCESS_MAX_INPUT_BYTES,
+      'Message batch byte budget exceeded',
+    );
+export const messageAccessBatchInputSchema = messageBatch(messageAccessInputSchema);
+export const deliveryAccessBatchInputSchema = messageBatch(deliveryAccessInputSchema);
+export const messageAccessBatchResponseSchema = contentAccessBatchResponseSchema;
+export type MessageAccessBatchInput = z.infer<typeof messageAccessBatchInputSchema>;
+export type DeliveryAccessBatchInput = z.infer<typeof deliveryAccessBatchInputSchema>;
 export const safetyRequesterSchema = z.union([
   z.object({ accessToken: z.string().min(1).max(16384).nullable() }).strict(),
   z.object({ connectionToken: z.string().min(1).max(16384) }).strict(),

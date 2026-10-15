@@ -1,4 +1,4 @@
-import {inviteGuardian,acceptInvitation} from '../supervision.service';
+import { inviteGuardian, acceptInvitation } from '../supervision.service';
 import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
@@ -348,14 +348,27 @@ it('agent MCP acting as another account still requires current membership and ex
   expect(await resolveLiveMcpAccessToken(tokens.access_token, f.applicationId)).toBeNull();
 });
 
-
-it('invalidates an existing adult MCP connection when its human principal enrolls in supervision',async()=>{
- const f=await fixture();
- const verifier='v'.repeat(43);
- const approved=await authorizeMcpConnection({principalUserId:f.ownerId,effectiveAccountId:f.ownerId,client:f.client,descriptor:f.descriptor,redirectUri:f.redirectUri,codeChallenge:createHash('sha256').update(verifier).digest('base64url'),scopes:['resource.read']});
- const tokens=await exchangeMcpAuthorizationCode({code:approved.code,clientId:f.client.clientId,redirectUri:f.redirectUri,codeVerifier:verifier,resource:f.resource});
- expect(await resolveLiveMcpAccessToken(tokens.access_token,f.applicationId)).not.toBeNull();
- const [guardian]=await insertAccountFixtures({}, {id:users.id});
- await acceptInvitation((await inviteGuardian(f.ownerId,guardian.id)).id,guardian.id);
- expect(await resolveLiveMcpAccessToken(tokens.access_token,f.applicationId)).toBeNull();
+it('invalidates an existing adult MCP connection when its human principal enrolls in supervision', async () => {
+  const f = await fixture();
+  const verifier = 'v'.repeat(43);
+  const approved = await authorizeMcpConnection({
+    principalUserId: f.ownerId,
+    effectiveAccountId: f.ownerId,
+    client: f.client,
+    descriptor: f.descriptor,
+    redirectUri: f.redirectUri,
+    codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+    scopes: ['resource.read'],
+  });
+  const tokens = await exchangeMcpAuthorizationCode({
+    code: approved.code,
+    clientId: f.client.clientId,
+    redirectUri: f.redirectUri,
+    codeVerifier: verifier,
+    resource: f.resource,
+  });
+  expect(await resolveLiveMcpAccessToken(tokens.access_token, f.applicationId)).not.toBeNull();
+  const [guardian] = await insertAccountFixtures({}, { id: users.id });
+  await acceptInvitation((await inviteGuardian(f.ownerId, guardian.id)).id, guardian.id);
+  expect(await resolveLiveMcpAccessToken(tokens.access_token, f.applicationId)).toBeNull();
 });

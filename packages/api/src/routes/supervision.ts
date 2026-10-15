@@ -2,6 +2,7 @@ import {
   safetyProfileRequestSchema,
   safetyProfileBatchRequestSchema,
   safetyMessageRequestSchema,
+  safetyMessageBatchRequestSchema,
   safetyContactRequestSchema,
   safetyContentRequestSchema,
   safetyContentBatchRequestSchema,
@@ -23,6 +24,8 @@ import {
   profileAccessInputSchema,
   profileAccessDecisionSchema,
   messageAccessInputSchema,
+  messageAccessBatchResponseSchema,
+  deliveryAccessBatchInputSchema,
   contactAccessInputSchema,
   contactAccessResponseSchema,
   contentAccessInputSchema,
@@ -470,6 +473,56 @@ router.post(
     );
   }),
 );
+/**
+ * Evaluate bounded conversations using one live policy graph.
+ * @requestBody safetyMessageBatchRequestSchema
+ * @response 200 messageAccessBatchResponseSchema Per-resource decisions.
+ * @response 401 safetyErrorSchema Requester required.
+ * @response 403 safetyErrorSchema Consumer refused.
+ * @response 422 safetyErrorSchema Invalid batch.
+ * @response 503 safetyErrorSchema Authority unavailable.
+ */
+router.post(
+  '/service/message-access-batch',
+  handler(async (req, res) => {
+    const { input } = safetyMessageBatchRequestSchema.parse(req.body);
+    const { live, user } = await serviceContext(req, true);
+    if (!user) throw new supervision.SafetyError(401, 'unauthorized', 'Requester required');
+    res.json(
+      messageAccessBatchResponseSchema.parse(
+        await policy.decideMessagesBatch(
+          input.items.map((item) => ({ ...item, senderAccountId: user })),
+          live,
+        ),
+      ),
+    );
+  }),
+);
+/**
+ * Decide background delivery using live contacts without impersonating a sender.
+ * @requestBody deliveryAccessBatchInputSchema
+ * @response 200 messageAccessBatchResponseSchema Per-resource decisions.
+ * @response 401 safetyErrorSchema Consumer required.
+ * @response 403 safetyErrorSchema Consumer refused.
+ * @response 422 safetyErrorSchema Invalid batch.
+ * @response 503 safetyErrorSchema Authority unavailable.
+ */
+router.post(
+  '/service/delivery-access-batch',
+  handler(async (req, res) => {
+    const input = deliveryAccessBatchInputSchema.parse(req.body);
+    const live = await principal(req);
+    if (!policy.consumerSupports(live, 'messaging-delivery'))
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'Reviewed delivery authority is required',
+      );
+    res.json(
+      messageAccessBatchResponseSchema.parse(await policy.decideMessagesBatch(input.items, live)),
+    );
+  }),
+);
 async function purchasing(req: ServiceAuthRequest) {
   const live = await principal(req);
   if (!policy.consumerSupports(live, 'purchases'))
@@ -645,9 +698,16 @@ router.get(
  * @response 429 safetyErrorSchema Request refused.
  * @response 503 safetyErrorSchema Request refused.
  */
-router.post('/supervision/people', handler(async (req, res) => {
-  res.json(safetyPeopleResponseSchema.parse(await supervision.supervisionPeople(personal(req), safetyPeopleInputSchema.parse(req.body))));
-}));
+router.post(
+  '/supervision/people',
+  handler(async (req, res) => {
+    res.json(
+      safetyPeopleResponseSchema.parse(
+        await supervision.supervisionPeople(personal(req), safetyPeopleInputSchema.parse(req.body)),
+      ),
+    );
+  }),
+);
 /**
  * Authoritative supervised-personal policy operation.
  * @requestBody supervisionInviteInputSchema

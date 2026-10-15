@@ -2,7 +2,8 @@ const dict = {
   supervision: {
     exactHandleHint: 'For a private guardian, enter the exact username they shared with you.',
     setupOwn: 'Set up supervision for this personal account',
-    setupOwnDescription: 'Use the account to be supervised. Inviting a guardian makes it private; cancelling the invitation keeps it private.',
+    setupOwnDescription:
+      'Use the account to be supervised. Inviting a guardian makes it private; cancelling the invitation keeps it private.',
     title: 'Supervision',
     entryDescription: 'Guardian, approved contacts and purchase approvals',
     description:

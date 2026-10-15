@@ -214,28 +214,30 @@ function SupervisionBody({
       );
     if (!methods.data) return <OxyAuthLoading />;
     return (
-      <ReauthStep
-        title={confirmation.title}
-        description={confirmation.description}
-        action={confirmation.purchase ? 'supervision_purchase' : 'supervision'}
-        allowPassword={methods.data.hasPassword}
-        totpEnabled={methods.data.totpEnabled}
-        submitLabel={t('supervision.confirm')}
-        secondary={{ label: t('common.cancel'), onPress: () => setConfirmation(null) }}
-        onSubmit={async (reauth) => {
-          if (!active()) throw new Error(t('supervision.changeError'));
-          await confirmation.run(reauth);
-          if (active()) {
-            setConfirmation(null);
-            setAddingGuardian(false);
-            setAddingContact(false);
-            await refreshed();
-            setNotice(t('supervision.saved'));
-          }
-        }}
-      >
-        {confirmation.purchase ? <PurchaseEvidence purchase={confirmation.purchase} /> : null}
-      </ReauthStep>
+      <View style={styles.screen}>
+        <ReauthStep
+          title={confirmation.title}
+          description={confirmation.description}
+          action={confirmation.purchase ? 'supervision_purchase' : 'supervision'}
+          allowPassword={methods.data.hasPassword}
+          totpEnabled={methods.data.totpEnabled}
+          submitLabel={t('supervision.confirm')}
+          secondary={{ label: t('common.cancel'), onPress: () => setConfirmation(null) }}
+          onSubmit={async (reauth) => {
+            if (!active()) throw new Error(t('supervision.changeError'));
+            await confirmation.run(reauth);
+            if (active()) {
+              setConfirmation(null);
+              setAddingGuardian(false);
+              setAddingContact(false);
+              await refreshed();
+              setNotice(t('supervision.saved'));
+            }
+          }}
+        >
+          {confirmation.purchase ? <PurchaseEvidence purchase={confirmation.purchase} /> : null}
+        </ReauthStep>
+      </View>
     );
   }
   const selectGuardian = (person: SafetyPerson) =>
@@ -253,7 +255,6 @@ function SupervisionBody({
     });
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.title}>{t('supervision.title')}</Text>
       <AccountFlowNote>{t('supervision.description')}</AccountFlowNote>
       {notice ? <AccountFlowNotice>{notice}</AccountFlowNotice> : null}
       {error ? <AccountFlowNotice type="error">{error}</AccountFlowNotice> : null}
@@ -277,9 +278,11 @@ function SupervisionBody({
         ) : (
           <>
             <Text>{t('supervision.notActive')}</Text>
-            <Button onPress={() => setAddingGuardian(!addingGuardian)}>
-              {t('supervision.invite')}
-            </Button>
+            {state.data.children.length === 0 ? (
+              <Button onPress={() => setAddingGuardian(!addingGuardian)}>
+                {t('supervision.invite')}
+              </Button>
+            ) : null}
           </>
         )}
         {addingGuardian ? <PersonPicker exclude={[accountId]} onSelect={selectGuardian} /> : null}
@@ -586,6 +589,5 @@ const styles = StyleSheet.create({
   screen: { padding: 20, gap: 20 },
   section: { gap: 12, paddingVertical: 12 },
   row: { gap: 6, paddingVertical: 8 },
-  title: { fontSize: 24, fontWeight: '700' },
   heading: { fontSize: 18, fontWeight: '600' },
 });

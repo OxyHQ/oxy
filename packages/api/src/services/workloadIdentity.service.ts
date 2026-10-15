@@ -1,5 +1,5 @@
-import {isSupervised} from './supervisionPolicy.service';
-import {serviceTokenScopesSchema} from '@oxy.so/contracts';
+import { isSupervised } from './supervisionPolicy.service';
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import crypto from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
@@ -273,11 +273,21 @@ export async function exchangeWorkloadAttestation(input: {
    * holding a line, it was making ADR 0026's clean cut impossible for exactly
    * the services it was written for.
    */
-  if (await isSupervised(binding.ownerAccountId)) throw new WorkloadIdentityError(403, 'owner_restricted', 'This owner cannot authorize service credentials.');
+  if (await isSupervised(binding.ownerAccountId))
+    throw new WorkloadIdentityError(
+      403,
+      'owner_restricted',
+      'This owner cannot authorize service credentials.',
+    );
   const grantedScopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
-  const requestedScopes = input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
-  if (requestedScopes?.some(scope => !new Set<string>(grantedScopes).has(scope)))
-    throw new WorkloadIdentityError(403, 'scope_not_granted', 'A requested service scope is not granted.');
+  const requestedScopes =
+    input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
+  if (requestedScopes?.some((scope) => !new Set<string>(grantedScopes).has(scope)))
+    throw new WorkloadIdentityError(
+      403,
+      'scope_not_granted',
+      'A requested service scope is not granted.',
+    );
   const scopes = requestedScopes ?? grantedScopes;
 
   /**
