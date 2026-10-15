@@ -1,3 +1,4 @@
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import crypto from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
@@ -125,6 +126,7 @@ export async function exchangeWorkloadAttestation(input: {
   nonce: string;
   /** The resource server the token is for (Kaana ADR 0002); `oxy-api` when omitted. */
   audience?: ServiceTokenAudience;
+  scopes?: string[];
 }): Promise<WorkloadTokenGrant> {
   const audience = input.audience ?? OXY_API_AUDIENCE;
   if (!(await spendChallenge(input.nonce))) {
@@ -278,7 +280,17 @@ export async function exchangeWorkloadAttestation(input: {
    * holding a line, it was making ADR 0026's clean cut impossible for exactly
    * the services it was written for.
    */
-  const scopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
+  const grantedScopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
+  const requestedScopes =
+    input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
+  const grantedScopeSet = new Set<string>(grantedScopes);
+  if (requestedScopes?.some((scope) => !grantedScopeSet.has(scope)))
+    throw new WorkloadIdentityError(
+      403,
+      'scope_not_granted',
+      'A requested service scope is not granted.',
+    );
+  const scopes = requestedScopes ?? grantedScopes;
 
   // Kaana ADR 0002: the same audience rule as the credential mint. Checked
   // before the attribution row is touched, so a refused audience writes nothing.

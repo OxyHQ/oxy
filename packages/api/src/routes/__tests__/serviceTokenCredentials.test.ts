@@ -755,3 +755,27 @@ describe('POST /auth/service-token — audience (Kaana ADR 0002)', () => {
     expect(res.status).toBe(400);
   });
 });
+
+it('mints only the requested credential scope subset and rechecks revoked authority', async () => {
+  const c = await serviceClient(
+    { scopes: ['user:read', 'files:read'] },
+    { scopes: ['user:read', 'files:read'] },
+  );
+  const input = { apiKey: c.apiKey, apiSecret: c.apiSecret };
+  const narrowed = await post({ ...input, scopes: ['user:read'] });
+  expect(narrowed.status).toBe(200);
+  expect(decodeServiceJwt((narrowed.body.data as { token: string }).token).scopes).toEqual([
+    'user:read',
+  ]);
+  expect((await post({ ...input, scopes: ['files:write'] })).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applications.id, c.applicationId));
+  expect((await post({ ...input, scopes: ['files:read'] })).status).toBe(403);
+  await getDb()
+    .update(applicationCredentials)
+    .set({ status: 'revoked' })
+    .where(eq(applicationCredentials.id, c.credentialId));
+  expect((await post({ ...input, scopes: ['user:read'] })).status).toBe(401);
+});
