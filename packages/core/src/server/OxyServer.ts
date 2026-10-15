@@ -162,6 +162,22 @@ interface ServiceTokenCacheEntry {
 }
 
 const WORKLOAD_CACHE_KEY = 'workload-identity';
+
+/**
+ * The resource server a service token is minted for (Oxy's closed set,
+ * `packages/api/src/config/serviceTokenAudiences.ts`). A token is only ever
+ * accepted by its own audience: Oxy's API refuses a `kaana.ai` token and
+ * https://kaana.ai/v1 refuses an `oxy-api` one (Kaana ADR 0002 decision 6).
+ */
+export type ServiceTokenAudience = 'oxy-api' | 'kaana.ai' | 'oxy-api:kaana-control';
+
+/** What `serviceToken()` mints, and what Oxy assumes when no audience is sent. */
+export const DEFAULT_SERVICE_TOKEN_AUDIENCE: ServiceTokenAudience = 'oxy-api';
+
+/** Tokens of different audiences never share a cache entry; the default keeps its old key. */
+function audienceCacheKey(audience: ServiceTokenAudience, key: string): string {
+  return audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? key : `${audience}\u0000${key}`;
+}
 /** A token is reused until 60s before expiry (clock drift). */
 const TOKEN_REUSE_MARGIN_MS = 60_000;
 
@@ -298,6 +314,20 @@ export class OxyServer extends OxyServices {
    * {@link ServiceCredentialMismatchError} rather than return the cached token.
    */
   async serviceToken(apiKey?: string, apiSecret?: string): Promise<string> {
+    return this.serviceTokenFor(DEFAULT_SERVICE_TOKEN_AUDIENCE, apiKey, apiSecret);
+  }
+
+  /**
+   * A service token for `audience` — e.g. `kaana.ai` for https://kaana.ai/v1.
+   * Minted, cached and refreshed exactly as {@link serviceToken} (which is this
+   * with `oxy-api`), from the same credential or attested workload identity;
+   * each audience has its own cache entry, so one never answers for another.
+   */
+  async serviceTokenFor(
+    audience: ServiceTokenAudience,
+    apiKey?: string,
+    apiSecret?: string,
+  ): Promise<string> {
     const key = apiKey || this.serviceApiKey;
     const secret = apiSecret || this.serviceApiSecret;
 
@@ -305,7 +335,7 @@ export class OxyServer extends OxyServices {
       // No credential — prove what this process IS instead. The fallback, not the
       // preference: a deployment that still has a credential keeps using it.
       if (canAttestWorkloadIdentity()) {
-        return this.workloadServiceToken();
+        return this.workloadServiceToken(audience);
       }
       throw new Error(
         'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
@@ -314,7 +344,7 @@ export class OxyServer extends OxyServices {
 
     // The apiKey is the credential's PUBLIC id (`oxy_dk_…`, the OAuth
     // client_id), so it keys the in-memory cache as is; the secret never does.
-    const cacheKey = key;
+    const cacheKey = audienceCacheKey(audience, key);
     const now = Date.now();
     const providedSecretBuf = Buffer.from(secret, 'utf8');
 
@@ -351,7 +381,7 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.set(cacheKey, entry);
     }
 
-    const pending = this.mintServiceToken(key, secret, cacheKey, providedSecretBuf);
+    const pending = this.mintServiceToken(key, secret, cacheKey, providedSecretBuf, audience);
     entry.pending = pending;
     try {
       return await pending;
@@ -382,7 +412,10 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.clear();
       return;
     }
-    this.serviceTokens.delete(targetKey);
+    // Every audience minted from that credential goes with it.
+    for (const [cacheKey, entry] of this.serviceTokens) {
+      if (entry.apiKey === targetKey) this.serviceTokens.delete(cacheKey);
+    }
   }
 
   /**
@@ -580,11 +613,16 @@ export class OxyServer extends OxyServices {
     secret: string,
     cacheKey: string,
     secretBuf: Buffer,
+    audience: ServiceTokenAudience,
   ): Promise<string> {
     const response = await this.request<ServiceTokenResponse>(
       'POST',
       '/auth/service-token',
-      { apiKey: key, apiSecret: secret },
+      {
+        apiKey: key,
+        apiSecret: secret,
+        ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+      },
       { cache: false, retry: false, skipAuth: true },
     );
     const expiresAt = Date.now() + response.expiresIn * 1000;
@@ -605,9 +643,10 @@ export class OxyServer extends OxyServices {
     return response.token;
   }
 
-  /** A token obtained by attestation, cached like a credential's (one identity per process). */
-  private async workloadServiceToken(): Promise<string> {
-    const entry = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
+  /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
+  private async workloadServiceToken(audience: ServiceTokenAudience): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY);
+    const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
       reusableServiceToken(entry.token) &&
@@ -623,11 +662,14 @@ export class OxyServer extends OxyServices {
       pending: null,
       apiKey: WORKLOAD_CACHE_KEY,
     };
-    this.serviceTokens.set(WORKLOAD_CACHE_KEY, seeded);
+    this.serviceTokens.set(cacheKey, seeded);
 
     const pending = (async () => {
-      const granted = await requestWorkloadServiceToken({ baseUrl: this.baseURL });
-      const current = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
+      const granted = await requestWorkloadServiceToken({
+        baseUrl: this.baseURL,
+        ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+      });
+      const current = this.serviceTokens.get(cacheKey);
       if (current) {
         current.token = granted.token;
         current.expiresAt = Date.now() + granted.expiresIn * 1000;
@@ -639,12 +681,11 @@ export class OxyServer extends OxyServices {
     try {
       return await pending;
     } catch (error) {
-      const failed = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-      if (failed?.pending === pending && !failed.token)
-        this.serviceTokens.delete(WORKLOAD_CACHE_KEY);
+      const failed = this.serviceTokens.get(cacheKey);
+      if (failed?.pending === pending && !failed.token) this.serviceTokens.delete(cacheKey);
       throw error;
     } finally {
-      const settled = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
+      const settled = this.serviceTokens.get(cacheKey);
       if (settled?.pending === pending) settled.pending = null;
     }
   }
