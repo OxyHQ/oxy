@@ -81,6 +81,8 @@ export {
  */
 export {
   createDeliveryService,
+  DeliveryAuthorizationDeniedError,
+  type DeliveryAuthorizationContext,
   type DeliveryService,
   type DeliveryServiceConfig,
   type DeliveryLogger,
