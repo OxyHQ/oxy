@@ -166,7 +166,7 @@
     "react-native-keyboard-controller": "1.21.13",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2",
-    "turbo": "^2.10.8",
+    "turbo": "^2.11.7",
     "vite": "npm:rolldown-vite@^7.3.1"
   },
   "packageManager": "bun@1.4.3",
