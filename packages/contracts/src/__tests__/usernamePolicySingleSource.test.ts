@@ -92,6 +92,10 @@ const SUBJECT_WINDOW = 6;
  */
 const ALLOWED: ReadonlyMap<string, string> = new Map([
   [
+    'packages/api/src/routes/accounts.ts',
+    'Opaque 32-byte invitation credentials encoded as 43 base64url characters; the nearby asyncHandler is a route wrapper, not a users.username validator or allocator.',
+  ],
+  [
     'packages/api/src/capabilities/oxy-profile.transport.ts',
     'Base64url Capability JWS Authorization grammar; the nearby handleMcp invocation names a transport handler, not a local users.username validator or allocator.',
   ],
