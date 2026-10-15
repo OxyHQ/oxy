@@ -936,5 +936,15 @@
       "noSession": "No active session. Please sign in first.",
       "authorizeFailed": "Failed to authorize"
     }
+  },
+  "alia": {
+    "ask": "Ask Alia",
+    "askHint": "Opens a chat with Alia, the assistant",
+    "clientContext": "The person is using Oxy Accounts (accounts.oxy.so), the app where they manage their Oxy account: personal info, security and sign-in, devices and sessions, connected apps, data and privacy, storage, payments and family or managed accounts. Help them understand and use these settings. You cannot see or change anything in their account from here.",
+    "suggestion": {
+      "security": "How do I make my account more secure?",
+      "devices": "Which devices are signed in to my account?",
+      "data": "How can I download or delete my data?"
+    }
   }
 }

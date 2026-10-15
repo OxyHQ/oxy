@@ -936,5 +936,15 @@
       "noSession": "No hay ninguna sesión activa. Inicia sesión primero.",
       "authorizeFailed": "No se pudo autorizar"
     }
+  },
+  "alia": {
+    "ask": "Preguntar a Alia",
+    "askHint": "Abre un chat con Alia, la asistente",
+    "clientContext": "La persona usa Oxy Accounts (accounts.oxy.so), la aplicación donde gestiona su cuenta de Oxy: información personal, seguridad e inicio de sesión, dispositivos y sesiones, aplicaciones conectadas, datos y privacidad, almacenamiento, pagos y cuentas familiares o gestionadas. Ayúdala a entender y usar estos ajustes. Desde aquí no puedes ver ni cambiar nada de su cuenta.",
+    "suggestion": {
+      "security": "¿Cómo hago mi cuenta más segura?",
+      "devices": "¿Qué dispositivos tienen la sesión iniciada en mi cuenta?",
+      "data": "¿Cómo puedo descargar o eliminar mis datos?"
+    }
   }
 }

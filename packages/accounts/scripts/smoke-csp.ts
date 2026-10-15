@@ -85,6 +85,22 @@ record(
   'control hash correctly absent',
 );
 
+// Ask Alia loads the 3D avatar runtime (script + wasm) from alia.onl and talks to
+// its API; if the policy drops either, the header button still renders and the
+// sheet silently fails to start. The unrelated origin is the negative control.
+const connectSources = cspSourcesFor(policy, 'connect-src');
+record(
+  'script-src allows the Alia runtime and WebAssembly',
+  scriptSources.includes('https://alia.onl') && scriptSources.includes("'wasm-unsafe-eval'"),
+  '',
+);
+record(
+  'connect-src allows Alia',
+  connectSources.includes('https://alia.onl') &&
+    !connectSources.includes('https://not-alia.example'),
+  '',
+);
+
 // The effect, not just the header: hydration is the reason the hash exists.
 record(
   'the hydration flag Expo emits is present in the served HTML',

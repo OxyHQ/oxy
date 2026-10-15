@@ -14,6 +14,7 @@ import { getAccountDisplayName, getNormalizedUserHandle } from '@oxy.so/core';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { darkenColor } from '@/utils/color-utils';
 import { useTranslation } from '@/lib/i18n';
+import { AskAlia } from '@/components/ask-alia';
 import Animated, { useAnimatedStyle, withTiming, useDerivedValue } from 'react-native-reanimated';
 
 interface DrawerNavigation {
@@ -208,6 +209,7 @@ export function Header(_props: HeaderProps) {
           )}
 
           <View style={[styles.topBarRight, !isDesktop && styles.topBarRightMobile]}>
+            <AskAlia showLabel={isDesktop} />
             <TouchableOpacity
               onPressIn={handlePressIn}
               onPress={handleAvatarPress}
