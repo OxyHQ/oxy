@@ -4,6 +4,7 @@ import type { ProductBillingCatalogue } from './productBillingCatalogue.service'
 /** Never infer public offers from provider prices, grants or existing plan names. */
 export function readPersonalPlanCatalogue(
   catalogue: ProductBillingCatalogue,
+  purchasesEnabled = false,
 ): PersonalPlanCatalogue {
   const plans = catalogue.personalPlans.map((plan) => {
     const offer = catalogue.offers.find(
@@ -22,7 +23,7 @@ export function readPersonalPlanCatalogue(
   return personalPlanCatalogueSchema.parse({
     schemaVersion: 1,
     state: plans.length ? 'configured' : 'unconfigured',
-    purchase: 'unavailable',
+    purchase: purchasesEnabled && plans.length > 0 ? 'available' : 'unavailable',
     plans,
   });
 }

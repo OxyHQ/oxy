@@ -83,7 +83,7 @@ function same(actual: unknown, expected: unknown): void {
 export async function recordProductProviderPeriod(
   raw: ProductProviderPeriodInput,
   transaction?: Transaction,
-  options: { verifiedHistoricalPaidEvidence?: boolean } = {},
+  options: { verifiedHistoricalPaidEvidence?: boolean; quotaWindow?: 'month' } = {},
 ) {
   const input = inputSchema.parse(raw);
   const binding = { provider: input.subscription.provider, ...input.binding };
@@ -108,6 +108,7 @@ export async function recordProductProviderPeriod(
     quantity: input.paidLine.quantity,
     ...input.offer,
     period: input.paidLine.period,
+    ...(options.quotaWindow ? { quotaWindow: options.quotaWindow } : {}),
     ...(input.checkoutIntentId ? { checkoutIntentId: input.checkoutIntentId } : {}),
   };
   const payloadSha256 = digest(payload);
@@ -142,6 +143,7 @@ export async function recordProductProviderPeriod(
         advanceSourceSnapshot: true,
         expectedConfiguration: input.expectedConfiguration,
         allowHistoricalPaidSegment: options.verifiedHistoricalPaidEvidence,
+        quotaWindow: options.quotaWindow,
       },
       tx,
     );
@@ -238,7 +240,7 @@ export async function recordProductProviderPeriod(
         .for('update');
       if (
         !intent ||
-        input.offer.origin !== 'bundle' ||
+        input.offer.origin !== intent.offerKind ||
         input.subscription.provider !== 'peable' ||
         intent.subjectAccountId !== input.subscription.beneficiaryAccountId ||
         intent.subjectAccountId !== input.subscription.payerAccountId ||

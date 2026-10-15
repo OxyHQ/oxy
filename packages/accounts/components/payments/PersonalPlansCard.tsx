@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { randomUUID } from 'expo-crypto';
 import { View, Pressable, Linking } from 'react-native';
 import { authenticatedApiCall } from '@oxy.so/core';
@@ -55,6 +55,40 @@ function PersonalPlansContent() {
         await Linking.openURL(url.toString());
       } else if (result.state === 'closed' || result.state === 'fulfilled') {
         await clearPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
+        await sources.refetch();
+        setMessage(
+          t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
+        );
+      } else
+        setMessage(
+          t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
+        );
+    } catch {
+      setMessage(t('payments.one.failed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function renew(sourceId: string, periodEnd: string) {
+    if (!user?.id || !isAuthenticated || busy) return;
+    setBusy(true);
+    setMessage('');
+    const operation = `renew:${sourceId}:${periodEnd}`;
+    try {
+      const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, operation, 1);
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
+        oxyServices.billing.renewProductSubscription({
+          expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
+          sourceId,
+          idempotencyKey,
+        }),
+      );
+      if (result.state === 'pending' && result.checkoutUrl) {
+        const url = new URL(result.checkoutUrl);
+        url.searchParams.set('displayCurrency', display.currency);
+        await Linking.openURL(url.toString());
+      } else if (result.state === 'fulfilled' || result.state === 'closed') {
+        await clearPersonalPlanCheckoutKey(user.id, operation, 1);
         await sources.refetch();
         setMessage(
           t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
@@ -173,39 +207,46 @@ function PersonalPlansContent() {
                     {offer.current ? t('payments.one.current') : t('payments.one.history')}
                   </ThemedText>
                 ))}
-                {source.canCancel && !source.cancelAtPeriodEnd && (
-                  <>
-                    {confirm === source.sourceId ? (
-                      <>
-                        <ThemedText>{t('payments.one.confirm')}</ThemedText>
-                        <Pressable
-                          accessibilityRole="button"
-                          disabled={busy}
-                          onPress={() => cancel(source.sourceId)}
-                        >
-                          <ThemedText>{t('payments.one.confirmCancel')}</ThemedText>
-                        </Pressable>
-                        <Pressable
-                          accessibilityRole="button"
-                          disabled={busy}
-                          onPress={() => {
-                            actions.current.delete(source.sourceId);
-                            setConfirm(null);
-                          }}
-                        >
-                          <ThemedText>{t('payments.one.keep')}</ThemedText>
-                        </Pressable>
-                      </>
-                    ) : (
+                {source.canRenew && (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={() => renew(source.sourceId, source.period.end)}
+                  >
+                    <ThemedText>{t('payments.one.renew')}</ThemedText>
+                  </Pressable>
+                )}
+                {source.canCancel &&
+                  !source.cancelAtPeriodEnd &&
+                  (confirm === source.sourceId ? (
+                    <>
+                      <ThemedText>{t('payments.one.confirm')}</ThemedText>
                       <Pressable
                         accessibilityRole="button"
-                        onPress={() => setConfirm(source.sourceId)}
+                        disabled={busy}
+                        onPress={() => cancel(source.sourceId)}
                       >
-                        <ThemedText>{t('payments.one.cancel')}</ThemedText>
+                        <ThemedText>{t('payments.one.confirmCancel')}</ThemedText>
                       </Pressable>
-                    )}
-                  </>
-                )}
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={busy}
+                        onPress={() => {
+                          actions.current.delete(source.sourceId);
+                          setConfirm(null);
+                        }}
+                      >
+                        <ThemedText>{t('payments.one.keep')}</ThemedText>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setConfirm(source.sourceId)}
+                    >
+                      <ThemedText>{t('payments.one.cancel')}</ThemedText>
+                    </Pressable>
+                  ))}
               </View>
             ))
           ) : (

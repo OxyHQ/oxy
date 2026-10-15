@@ -25,15 +25,21 @@ export const personalPlanCheckoutIntents = pgTable(
     environment: text().notNull(),
     idempotencyHash: text().notNull(),
     requestHash: text().notNull(),
+    renewalSourceId: text().references(() => accessSubscriptionSources.id, {
+      onDelete: 'restrict',
+    }),
     offerId: text().notNull(),
     offerVersion: integer().notNull(),
-    offerKind: text({ enum: ['bundle'] }).notNull(),
+    offerKind: text({ enum: ['bundle', 'individual'] }).notNull(),
     providerAccountRef: text().notNull(),
     priceId: text().notNull(),
     priceProvider: text({ enum: ['stripe', 'peable'] }).notNull(),
-    priceKind: text({ enum: ['oxy_one'] }).notNull(),
+    priceKind: text({ enum: ['oxy_one', 'existing_product'] }).notNull(),
     currency: text().notNull(),
     amountMinorUnits: bigint({ mode: 'number' }).notNull(),
+    billingInterval: text({ enum: ['month', 'year'] })
+      .notNull()
+      .default('month'),
     priceValidFrom: timestamptz().notNull(),
     priceValidUntil: timestamptz(),
     state: text({ enum: ['reserved', 'pending', 'fulfilled', 'closed'] }).notNull(),
@@ -86,6 +92,10 @@ export const personalPlanCheckoutIntents = pgTable(
       foreignColumns: [accessOffers.id, accessOffers.version, accessOffers.kind],
     }).onDelete('restrict'),
     check(
+      'personal_checkout_interval',
+      sql`${t.billingInterval} IN ('month', 'year') AND (${t.priceKind} <> 'oxy_one' OR ${t.billingInterval} = 'month')`,
+    ),
+    check(
       'personal_checkout_namespace',
       sql`(${t.mode} = 'live' and ${t.environment} = 'production') or (${t.mode} = 'test' and ${t.environment} in ('test', 'staging', 'development'))`,
     ),
@@ -95,7 +105,7 @@ export const personalPlanCheckoutIntents = pgTable(
     ),
     check(
       'personal_checkout_price',
-      sql`${t.offerKind} = 'bundle' and ${t.priceKind} = 'oxy_one' and ${t.priceProvider} in ('stripe', 'peable') and ${t.currency} ~ '^[a-z]{3}$' and ${t.amountMinorUnits} > 0 and (${t.priceValidUntil} is null or ${t.priceValidUntil} > ${t.priceValidFrom})`,
+      sql`((${t.offerKind} = 'bundle' and ${t.priceKind} = 'oxy_one') or (${t.offerKind} = 'individual' and ${t.priceKind} = 'existing_product')) and ${t.priceProvider} in ('stripe', 'peable') and ${t.currency} ~ '^[a-z]{3}$' and ${t.amountMinorUnits} > 0 and (${t.priceValidUntil} is null or ${t.priceValidUntil} > ${t.priceValidFrom})`,
     ),
     check(
       'personal_checkout_authority_complete',

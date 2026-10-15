@@ -421,6 +421,7 @@
       "failed": "Cancellation could not be confirmed. Refresh before trying again.",
       "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected.",
       "checkout": "Continue to payment",
+      "renew": "Pay the next period with FairCoin",
       "checkoutComplete": "Payment confirmed. Your access is refreshed.",
       "checkoutClosed": "This checkout has closed. You can request a new quote."
     },

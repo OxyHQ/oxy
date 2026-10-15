@@ -421,6 +421,7 @@
       "failed": "No se pudo confirmar la cancelación. Actualiza antes de intentarlo de nuevo.",
       "refreshFailed": "No se pudo actualizar la lista de suscripciones. Tu cancelación no se ha visto afectada.",
       "checkout": "Continuar al pago",
+      "renew": "Pagar el siguiente período con FairCoin",
       "checkoutComplete": "Pago confirmado. Se ha actualizado el acceso.",
       "checkoutClosed": "Este pago ha caducado. Puedes solicitar otra cotización."
     },

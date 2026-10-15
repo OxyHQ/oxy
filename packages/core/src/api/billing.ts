@@ -1,5 +1,11 @@
 import {
   personalPlanCheckoutRequestSchema,
+  productPlanCheckoutRequestSchema,
+  productSubscriptionRenewalRequestSchema,
+  type ProductSubscriptionRenewalRequest,
+  productPlanCatalogueSchema,
+  type ProductPlanCheckoutRequest,
+  type ProductPlanCatalogue,
   personalPlanCheckoutResultSchema,
   type PersonalPlanCheckoutRequest,
   type PersonalPlanCheckoutResult,
@@ -126,6 +132,43 @@ export interface WalletTransactionsPage {
 
 export class BillingApi {
   constructor(protected readonly ctx: OxyContext) {}
+
+  async renewProductSubscription(
+    request: ProductSubscriptionRenewalRequest,
+  ): Promise<PersonalPlanCheckoutResult> {
+    return personalPlanCheckoutResultSchema.parse(
+      await this.ctx.request<unknown>(
+        'POST',
+        '/billing/product-subscriptions/renew',
+        productSubscriptionRenewalRequestSchema.parse(request),
+        { cache: false },
+      ),
+    );
+  }
+
+  async startProductPlanCheckout(
+    request: ProductPlanCheckoutRequest,
+  ): Promise<PersonalPlanCheckoutResult> {
+    return personalPlanCheckoutResultSchema.parse(
+      await this.ctx.request<unknown>(
+        'POST',
+        '/billing/checkout/product-plan',
+        productPlanCheckoutRequestSchema.parse(request),
+        { cache: false },
+      ),
+    );
+  }
+
+  async productPlans(productId: string): Promise<ProductPlanCatalogue> {
+    return productPlanCatalogueSchema.parse(
+      await this.ctx.request<unknown>(
+        'GET',
+        `/billing/product-plans/${encodeURIComponent(productId)}`,
+        undefined,
+        { cache: false },
+      ),
+    );
+  }
 
   async startPersonalPlanCheckout(
     request: PersonalPlanCheckoutRequest,
