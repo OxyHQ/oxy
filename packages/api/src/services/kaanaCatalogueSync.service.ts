@@ -295,10 +295,9 @@ const kaanaCatalogueResponseSchema = z
             providerRateCardVersionId: z.string().optional(),
             providerSourceVersion: z.string().optional(),
             acceptedParameters: z.array(z.string()).optional(),
-            // How the route may be sold (@kaana.ai/contracts 4.4.0
-            // `deploymentCommercialSchema`; Kaana publishes it on every
-            // descriptor since #178). Strict like the descriptor itself, so a
-            // new member is a reviewed change here rather than a silent pass.
+            // How the route may be sold: @kaana.ai/contracts
+            // `deploymentCommercialSchema`, the one validator Oxy applies to it
+            // (httpKaanaClient). Kaana publishes it on every descriptor (#178).
             commercial: kaanaDeploymentCommercialSchema.optional(),
           })
           .strict(),
