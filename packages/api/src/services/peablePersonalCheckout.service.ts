@@ -1,11 +1,29 @@
 import { createHash } from 'node:crypto';
-import type { BillingTaxQuote, Peable } from '@peable.to/sdk';
+import { PeableError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
+import { ApiError } from '../utils/error';
 import { z } from 'zod';
 import { billingNamespaceSchema } from '../config/billingNamespace';
 import type {
   PersonalCheckoutProvider,
   PersonalCheckoutSnapshot,
 } from './personalPlanCheckout.service';
+
+/** The SDK classifies HTTP errors and preserves the gateway's machine message.
+ * A review response is not an outage, expiry, or authorization to pay again. */
+function checkoutFailure(error: unknown): never {
+  if (
+    error instanceof PeableError &&
+    error.statusCode === 409 &&
+    error.code === 'invalid_request_error' &&
+    error.message === 'reconciliation_required'
+  )
+    throw new ApiError(
+      409,
+      'Payment needs review in Peable before another payment',
+      'PAYMENT_REVIEW_REQUIRED',
+    );
+  throw error;
+}
 
 export const peablePersonalCheckoutConfigurationSchema = z
   .object({
@@ -110,6 +128,28 @@ export function createPeablePersonalCheckoutProvider(
   };
   return {
     kind: 'peable',
+    async validateExistingCheckout(snapshot, sessionId) {
+      const merchant = await client.merchants.retrieve();
+      if (
+        merchant.id !== configuration.merchantId ||
+        merchant.oxyAppId !== configuration.applicationId ||
+        merchant.environment !== configuration.namespace.environment ||
+        snapshot.merchantId !== configuration.merchantId ||
+        snapshot.applicationId !== configuration.applicationId ||
+        snapshot.mode !== configuration.namespace.mode ||
+        snapshot.environment !== configuration.namespace.environment
+      )
+        throw new Error('Peable checkout credential owner differs');
+      const session = await client.billing.retrieveCheckout(sessionId).catch(checkoutFailure);
+      if (
+        session.id !== sessionId ||
+        session.storeId !== snapshot.subjectAccountId ||
+        session.planId !== snapshot.planId ||
+        session.providerCustomerId !== snapshot.customerId ||
+        session.providerPriceId !== snapshot.priceId
+      )
+        throw new Error('Peable checkout observation binding differs');
+    },
     async prepare(input) {
       assertEnabled();
       const offer = select(input);
@@ -205,13 +245,14 @@ export function createPeablePersonalCheckoutProvider(
         planId: snapshot.planId,
         taxQuote: structuredClone(snapshot.taxQuote),
       };
-      const session = input.renewalSubscriptionId
-        ? await client.billing.renewSubscription(input.renewalSubscriptionId, checkoutInput, {
+      const session = await (input.renewalSubscriptionId
+        ? client.billing.renewSubscription(input.renewalSubscriptionId, checkoutInput, {
             idempotencyKey: input.idempotencyKey,
           })
-        : await client.billing.createCheckoutSession(checkoutInput, {
+        : client.billing.createCheckoutSession(checkoutInput, {
             idempotencyKey: input.idempotencyKey,
-          });
+          })
+      ).catch(checkoutFailure);
       const parsed = z
         .object({
           id: z.string().min(1).max(160),
