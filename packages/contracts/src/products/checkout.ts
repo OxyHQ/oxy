@@ -32,3 +32,22 @@ export const personalPlanCheckoutResultSchema = z.discriminatedUnion('state', [
 ]);
 export type PersonalPlanCheckoutRequest = z.infer<typeof personalPlanCheckoutRequestSchema>;
 export type PersonalPlanCheckoutResult = z.infer<typeof personalPlanCheckoutResultSchema>;
+
+/** Explicit individual product offer; still owned and paid through Oxy. */
+export const productPlanCheckoutRequestSchema = personalPlanCheckoutRequestSchema
+  .extend({
+    productId: z.string().min(1).max(160),
+  })
+  .strict();
+export type ProductPlanCheckoutRequest = z.infer<typeof productPlanCheckoutRequestSchema>;
+
+export const productSubscriptionRenewalRequestSchema = z
+  .object({
+    expectedSubjectAccountId: oxyAccountIdSchema,
+    sourceId: z.string().min(1).max(160),
+    idempotencyKey: personalPlanCheckoutRequestSchema.shape.idempotencyKey,
+  })
+  .strict();
+export type ProductSubscriptionRenewalRequest = z.infer<
+  typeof productSubscriptionRenewalRequestSchema
+>;

@@ -2,7 +2,16 @@
   "commercialActivation": false,
   "saleCountryObjective": "worldwide",
   "enabledSaleCountries": [],
-  "invoiceIssuer": { "legalName": "The Oxy Collective, Inc.", "approved": true },
+  "invoiceIssuer": {
+    "legalName": "The Oxy Collective, Inc.",
+    "approved": false,
+    "taxIdentifier": null,
+    "registrationJurisdiction": null,
+    "intendedBrand": "Oxy",
+    "legalNameStatus": "user_proposed_not_independently_verified",
+    "issuerBrandApproved": true
+  },
+  "commercialScope": "all_countries_requested_not_fiscal_coverage",
   "offer": {
     "currency": "USD",
     "grossMinorUnits": 2999,
@@ -29,7 +38,6 @@
     "seller_id_and_invoice_issuer_id",
     "tax_remitter_registrations_and_sale_countries",
     "authoritative_tax_and_customer_location_service",
-    "fair_usd_source_quote_expiry_and_rounding",
     "renewal_failure_grace",
     "partial_refund_entitlement_policy"
   ]

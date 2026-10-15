@@ -228,7 +228,11 @@ export const accessGrants = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    unique('access_grants_segment_benefit_key').on(t.sourceSegmentId, t.benefitIndex),
+    unique('access_grants_segment_benefit_key').on(
+      t.sourceSegmentId,
+      t.benefitIndex,
+      t.periodStart,
+    ),
     foreignKey({
       name: 'access_grants_source_fk',
       columns: [t.sourceSegmentId, t.beneficiaryAccountId, t.offerId, t.offerVersion, t.origin],

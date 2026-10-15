@@ -18,7 +18,7 @@ export const personalPlanCatalogueSchema = z
   .object({
     schemaVersion: z.literal(1),
     state: z.enum(['unconfigured', 'configured']),
-    purchase: z.literal('unavailable'),
+    purchase: z.enum(['unavailable', 'available']),
     plans: z.array(
       z
         .object({
@@ -43,3 +43,23 @@ export const personalPlanCatalogueSchema = z
     'Catalogue state must match published plans',
   );
 export type PersonalPlanCatalogue = z.infer<typeof personalPlanCatalogueSchema>;
+
+export const productPlanCatalogueSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    productId: z.string().min(1).max(160),
+    purchase: z.enum(['unavailable', 'available']),
+    plans: z.array(
+      z
+        .object({
+          productId: z.string().min(1).max(160),
+          offerId: z.string().min(1).max(160),
+          offerVersion: z.number().int().positive().safe(),
+          displayName: z.string().min(1).max(100),
+          price: personalPlanDisplayPriceSchema.extend({ interval: z.enum(['month', 'year']) }),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type ProductPlanCatalogue = z.infer<typeof productPlanCatalogueSchema>;

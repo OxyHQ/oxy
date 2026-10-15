@@ -260,7 +260,14 @@ it('records the approved issuer and renewal choices without treating them as fis
   expect(proposed.commercialActivation).toBe(false);
   expect(proposed.saleCountryObjective).toBe('worldwide');
   expect(proposed.enabledSaleCountries).toEqual([]);
-  expect(proposed.invoiceIssuer).toEqual({ legalName: 'The Oxy Collective, Inc.', approved: true });
+  expect(proposed.invoiceIssuer).toMatchObject({
+    legalName: 'The Oxy Collective, Inc.',
+    approved: false,
+    issuerBrandApproved: true,
+    taxIdentifier: null,
+    registrationJurisdiction: null,
+    legalNameStatus: 'user_proposed_not_independently_verified',
+  });
   expect(proposed.faircoinRenewal).toEqual({
     customerChoices: ['manual_monthly', 'automatic_revocable'],
     mandatesEnabled: false,
@@ -276,7 +283,6 @@ it('records the approved issuer and renewal choices without treating them as fis
       'seller_id_and_invoice_issuer_id',
       'tax_remitter_registrations_and_sale_countries',
       'authoritative_tax_and_customer_location_service',
-      'fair_usd_source_quote_expiry_and_rounding',
       'renewal_failure_grace',
       'partial_refund_entitlement_policy',
     ]),

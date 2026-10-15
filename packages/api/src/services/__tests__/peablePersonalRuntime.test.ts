@@ -332,6 +332,7 @@ async function pendingCheckoutFixture() {
   };
   const session = {
     id: `cs_${intentId}`,
+    initialInvoiceId: subscription.latestInvoiceId,
     status: 'complete',
     storeId: account.payer,
     planId: 'plan_fixture',
@@ -698,4 +699,14 @@ it('rejects wrong SDK credential owner before owned checkout reads', async () =>
   });
   await expect(test.runtime.recoverCheckout(test.intentId)).rejects.toThrow('credential owner');
   expect(test.retrieveCheckout).not.toHaveBeenCalled();
+});
+
+it('recovers the immutable initial invoice after a newer renewal becomes latest', async () => {
+  const test = await pendingCheckoutFixture();
+  test.session.subscription.latestInvoiceId = 'in_later_renewal';
+  expect(await test.runtime.recoverCheckout(test.intentId)).toMatchObject({ status: 'recorded' });
+  expect(test.retrievePaidInvoice).toHaveBeenCalledWith(
+    test.paid.providerSubscriptionId,
+    test.paid.invoiceId,
+  );
 });

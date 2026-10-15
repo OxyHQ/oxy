@@ -31,7 +31,7 @@ export const peablePaidEvidenceSchema = z
     planId: z.string().min(1),
     livemode: z.boolean(),
     currency: z.literal('USD'),
-    amountPaid: z.literal('2999'),
+    amountPaid: z.string().regex(/^[1-9][0-9]*$/),
     netAmount: z
       .string()
       .regex(/^(0|[1-9][0-9]*)$/)
@@ -96,6 +96,10 @@ export function createPeablePersonalEvidenceAuthority(client: Peable): PeableEvi
 export interface PeablePersonalPaidContext {
   /** Present only for the immutable initial paid invoice of an owned checkout. */
   checkoutIntentId?: string;
+  /** Frozen central catalogue, never provider-reported commercial selection. */
+  amountMinorUnits?: number;
+  interval?: 'month' | 'year';
+  origin?: 'individual' | 'bundle';
   accountId: string;
   customerId: string;
   subscriptionId: string;
@@ -142,6 +146,7 @@ export async function reconcilePeablePersonalPaidInvoice(
   const validateTime = () => {
     const now = clock();
     if (
+      value.amountPaid !== String(context.amountMinorUnits ?? 2999) ||
       value.invoiceId !== invoiceId ||
       value.providerSubscriptionId !== context.subscriptionId ||
       value.providerCustomerId !== context.customerId ||
@@ -152,8 +157,7 @@ export async function reconcilePeablePersonalPaidInvoice(
       Date.parse(value.observedAt) > now.getTime() ||
       now.getTime() - Date.parse(value.observedAt) > 60_000 ||
       Date.parse(value.paidAt) > now.getTime() ||
-      Date.parse(value.periodStart) > now.getTime() ||
-      Date.parse(value.periodEnd) <= now.getTime()
+      Date.parse(value.periodEnd) <= Date.parse(value.periodStart)
     )
       throw new Error('Peable paid period ownership/time differs');
   };
@@ -197,6 +201,8 @@ export async function reconcilePeablePersonalPaidInvoice(
       },
       method,
       clock(),
+      new Date(value.paidAt),
+      context.amountMinorUnits ?? 2999,
     );
   const invoice = validateInvoice();
   if (
@@ -247,7 +253,11 @@ export async function reconcilePeablePersonalPaidInvoice(
       period: { start: value.periodStart, end: value.periodEnd },
       cancelAtPeriodEnd: false,
     },
-    offer: { offerId: context.offerId, offerVersion: context.offerVersion, origin: 'bundle' },
+    offer: {
+      offerId: context.offerId,
+      offerVersion: context.offerVersion,
+      origin: context.origin ?? 'bundle',
+    },
     paidLine: {
       invoiceId: value.invoiceId,
       lineId: value.lineId,
@@ -265,22 +275,34 @@ export async function reconcilePeablePersonalPaidInvoice(
   input.providerObservedAt = subscriptionObservedAt;
   if (
     subscription.providerSubscriptionId !== context.subscriptionId ||
-    subscription.interval !== 'month' ||
+    subscription.interval !== (context.interval ?? 'month') ||
     subscription.trialEndsAt !== null ||
     subscription.storeId !== context.accountId ||
     subscription.planId !== context.planId ||
     subscription.providerCustomerId !== context.customerId ||
     subscription.providerPriceId !== context.priceId ||
     subscription.livemode !== (context.mode === 'live') ||
-    subscription.currentPeriodStart !== value.periodStart ||
-    subscription.currentPeriodEnd !== value.periodEnd
+    !Number.isFinite(Date.parse(subscription.currentPeriodStart)) ||
+    !Number.isFinite(Date.parse(subscription.currentPeriodEnd)) ||
+    Date.parse(subscription.currentPeriodEnd) <= Date.parse(subscription.currentPeriodStart) ||
+    Date.parse(value.periodEnd) > Date.parse(subscription.currentPeriodEnd) ||
+    (Date.parse(value.periodStart) < Date.parse(subscription.currentPeriodStart) &&
+      Date.parse(value.periodEnd) > Date.parse(subscription.currentPeriodStart))
   )
     throw new Error('Peable current subscription differs');
+  input.subscription.period = {
+    start: subscription.currentPeriodStart,
+    end: subscription.currentPeriodEnd,
+  };
   input.subscription.status = subscription.status;
   input.subscription.cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
   validateTime();
   validateInvoice();
-  const result = await recordProductProviderPeriod(input);
+  const result = await recordProductProviderPeriod(input, undefined, {
+    verifiedHistoricalPaidEvidence: true,
+    quotaWindow:
+      context.interval === 'year' && context.origin === 'individual' ? 'month' : undefined,
+  });
   // A paid-line replay does not update an existing source snapshot. Explicitly
   // reconcile the later owned subscription read, preserving cancellation/status.
   await reconcileProductAccessFinancialState({
@@ -292,7 +314,7 @@ export async function reconcilePeablePersonalPaidInvoice(
     providerBinding: input.binding,
     providerObservedAt: subscriptionObservedAt,
     status: subscription.status,
-    period: { start: value.periodStart, end: value.periodEnd },
+    period: { start: subscription.currentPeriodStart, end: subscription.currentPeriodEnd },
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
   });
   return result;
@@ -325,6 +347,7 @@ export async function reconcilePeablePersonalInvoiceState(
     .parse(invoiceState);
   const now = clock().getTime();
   if (
+    value.amountPaid !== String(context.amountMinorUnits ?? 2999) ||
     value.invoiceId !== invoiceId ||
     value.providerSubscriptionId !== context.subscriptionId ||
     value.providerCustomerId !== context.customerId ||
@@ -360,11 +383,7 @@ export async function reconcilePeablePersonalInvoiceState(
             eq(accessProviderPeriods.lineId, value.lineId),
           ),
         );
-      if (!period)
-        return {
-          status: 'review_required' as const,
-          reason: 'historical_paid_period_not_recorded' as const,
-        };
+      if (!period) return reconcilePeablePersonalPaidInvoice(authority, context, invoiceId, clock);
       if (
         period.payerAccountId !== context.accountId ||
         period.beneficiaryAccountId !== context.accountId ||

@@ -27,9 +27,9 @@ export const peablePersonalCheckoutConfigurationSchema = z
             offerVersion: z.number().int().positive(),
             priceId: z.string().min(1),
             planId: z.string().min(1),
-            amountMinorUnits: z.literal(2999),
+            amountMinorUnits: z.number().int().positive().safe(),
             currency: z.literal('USD'),
-            interval: z.literal('month'),
+            interval: z.enum(['month', 'year']),
             trial: z.literal('none'),
           })
           .strict(),
@@ -38,12 +38,13 @@ export const peablePersonalCheckoutConfigurationSchema = z
   })
   .strict();
 
-/** Purchase effects remain disabled outside synthetic integration tests. */
+/** Explicit deployment opt-in; all customer, fiscal and price bindings still verify. */
 export function createPeablePersonalCheckoutProvider(
   client: Pick<Peable, 'merchants' | 'billing'>,
   rawConfiguration: z.input<typeof peablePersonalCheckoutConfigurationSchema>,
   clock: () => Date = () => new Date(),
   dependencies?: {
+    purchasesEnabled?: boolean;
     resolveCustomerLocationEvidence(subjectAccountId: string): Promise<{
       customerLocationEvidenceId: string;
     }>;
@@ -51,7 +52,7 @@ export function createPeablePersonalCheckoutProvider(
 ): PersonalCheckoutProvider {
   const configuration = peablePersonalCheckoutConfigurationSchema.parse(rawConfiguration);
   const assertEnabled = () => {
-    if (process.env.NODE_ENV !== 'test')
+    if (process.env.NODE_ENV !== 'test' && dependencies?.purchasesEnabled !== true)
       throw new Error('Peable final purchase authority is unconfigured');
   };
   const select = (input: Parameters<PersonalCheckoutProvider['create']>[0]) => {
@@ -74,7 +75,12 @@ export function createPeablePersonalCheckoutProvider(
       throw new Error('Peable checkout selection differs');
     return selection[0];
   };
-  const validateQuote = (quote: BillingTaxQuote, subjectAccountId: string, planId: string) => {
+  const validateQuote = (
+    quote: BillingTaxQuote,
+    subjectAccountId: string,
+    planId: string,
+    amountMinorUnits: number,
+  ) => {
     const now = clock().getTime();
     if (
       quote.schemaVersion !== 1 ||
@@ -85,13 +91,13 @@ export function createPeablePersonalCheckoutProvider(
       quote.source.mode !== configuration.namespace.mode ||
       quote.source.environment !== configuration.namespace.environment ||
       quote.quote.currency !== 'USD' ||
-      quote.quote.grossMinorUnits !== 2999 ||
+      quote.quote.grossMinorUnits !== amountMinorUnits ||
       quote.quote.taxTreatment !== 'inclusive' ||
       !Number.isSafeInteger(quote.quote.netMinorUnits) ||
       !Number.isSafeInteger(quote.quote.taxMinorUnits) ||
       quote.quote.netMinorUnits < 0 ||
       quote.quote.taxMinorUnits < 0 ||
-      quote.quote.netMinorUnits + quote.quote.taxMinorUnits !== 2999 ||
+      quote.quote.netMinorUnits + quote.quote.taxMinorUnits !== amountMinorUnits ||
       quote.quote.sellerId !== configuration.sellerId ||
       quote.quote.invoiceIssuerId !== configuration.invoiceIssuerId ||
       quote.quote.taxRemitterId !== configuration.taxRemitterId ||
@@ -141,7 +147,7 @@ export function createPeablePersonalCheckoutProvider(
         planId: offer.planId,
         customerLocationEvidenceId: location.customerLocationEvidenceId,
       });
-      validateQuote(quote, input.subjectAccountId, offer.planId);
+      validateQuote(quote, input.subjectAccountId, offer.planId, offer.amountMinorUnits);
       if (quote.quote.customerLocationEvidenceId !== location.customerLocationEvidenceId)
         throw new Error('Peable checkout customer location differs');
       const snapshot: PersonalCheckoutSnapshot = {
@@ -184,19 +190,28 @@ export function createPeablePersonalCheckoutProvider(
         input.idempotencyKey !== `personal-checkout:${input.intentId}`
       )
         throw new Error('Peable persisted checkout snapshot differs');
-      validateQuote(snapshot.taxQuote, input.subjectAccountId, snapshot.planId);
-      const session = await client.billing.createCheckoutSession(
-        {
-          providerCustomerId: snapshot.customerId,
-          providerPriceId: snapshot.priceId,
-          trialDays: 0,
-          returnUrl: snapshot.returnUrl,
-          storeId: snapshot.subjectAccountId,
-          planId: snapshot.planId,
-          taxQuote: structuredClone(snapshot.taxQuote),
-        },
-        { idempotencyKey: input.idempotencyKey },
+      validateQuote(
+        snapshot.taxQuote,
+        input.subjectAccountId,
+        snapshot.planId,
+        offer.amountMinorUnits,
       );
+      const checkoutInput = {
+        providerCustomerId: snapshot.customerId,
+        providerPriceId: snapshot.priceId,
+        trialDays: 0,
+        returnUrl: snapshot.returnUrl,
+        storeId: snapshot.subjectAccountId,
+        planId: snapshot.planId,
+        taxQuote: structuredClone(snapshot.taxQuote),
+      };
+      const session = input.renewalSubscriptionId
+        ? await client.billing.renewSubscription(input.renewalSubscriptionId, checkoutInput, {
+            idempotencyKey: input.idempotencyKey,
+          })
+        : await client.billing.createCheckoutSession(checkoutInput, {
+            idempotencyKey: input.idempotencyKey,
+          });
       const parsed = z
         .object({
           id: z.string().min(1).max(160),

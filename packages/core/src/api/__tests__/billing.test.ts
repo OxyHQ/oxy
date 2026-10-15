@@ -191,3 +191,35 @@ it('forwards one explicit cancellation action identity without regenerating it o
   await oxy.billing.cancelProductSubscriptionWithStatus('source', 'me', 'action_002');
   expect(request.mock.calls[2][2]).toMatchObject({ actionId: 'action_002' });
 });
+
+it('sends individual checkout and manual renewal through the central SDK with exact account/idempotency fences', async () => {
+  const { oxy, request } = stubbedClient('me');
+  request.mockResolvedValue({
+    state: 'pending',
+    intentId: 'intent',
+    checkoutUrl: 'https://checkout.invalid/c/one',
+  });
+  const input = {
+    expectedSubjectAccountId: 'me',
+    productId: 'alia/product',
+    offerId: 'alia/pro',
+    offerVersion: 1,
+    idempotencyKey: 'stable_key',
+  };
+  await oxy.billing.startProductPlanCheckout(input);
+  expect(request).toHaveBeenLastCalledWith('POST', '/billing/checkout/product-plan', input, {
+    cache: false,
+  });
+  const renewal = {
+    expectedSubjectAccountId: 'me',
+    sourceId: 'source',
+    idempotencyKey: 'renew_key',
+  };
+  await oxy.billing.renewProductSubscription(renewal);
+  expect(request).toHaveBeenLastCalledWith(
+    'POST',
+    '/billing/product-subscriptions/renew',
+    renewal,
+    { cache: false },
+  );
+});
