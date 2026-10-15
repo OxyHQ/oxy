@@ -1,5 +1,21 @@
 # Changelog — `@oxy.so/core`
 
+## 4.6.0
+
+### Added
+
+- `accounts.create` takes an optional `character` (an `AvatarCharacter`) for
+  `kind: 'bot'`; omitted, the API generates one. `accounts.update` replaces it
+  with the same authorization as the other fields (`account:update`). Both are a
+  400 for any kind but `bot`.
+- `User.character`: the 3D avatar character of a bot, present only on
+  `kind: 'bot'` accounts. `AvatarCharacter` is re-exported from
+  `@oxy.so/core`'s accounts module.
+
+### Changed
+
+- `User.isAgent` is `kind === 'bot'`, no longer `type === 'agent'`.
+
 ## 4.5.0
 
 Promoted from `4.5.0-oxy-one.1` to the stable release; no code change.

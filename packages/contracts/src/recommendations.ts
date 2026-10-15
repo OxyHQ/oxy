@@ -12,6 +12,7 @@
  */
 
 import { z } from 'zod';
+import { avatarCharacterSchema } from './avatarCharacter';
 import { userNameSchema } from './userResponse';
 
 /** User-type filters a caller may exclude from the recommendation surface. */
@@ -94,6 +95,8 @@ export const recommendationItemSchema = z
     username: z.string().optional(),
     name: userNameSchema,
     avatar: z.string().nullable().optional(),
+    /** A bot's 3D avatar character; absent for every other kind. */
+    character: avatarCharacterSchema.optional(),
     /** The account's accent colour, as on every profile; absent when unset. */
     color: z.string().optional(),
     description: z.string().nullable().optional(),

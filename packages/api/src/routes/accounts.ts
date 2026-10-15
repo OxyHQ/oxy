@@ -4,6 +4,7 @@ import { and, count, eq, ne } from 'drizzle-orm';
 import {
   isOperatorSwitchTargetKind,
   type AccountCategoryId,
+  type AvatarCharacter,
   type ChildAccountKind,
 } from '@oxy.so/contracts';
 import {
@@ -520,6 +521,7 @@ router.post(
       color?: string;
       accountCategories?: AccountCategoryId[];
       isPrivateAccount?: boolean;
+      character?: AvatarCharacter;
     };
 
     // WHERE it hangs is a question about the SUBJECT. Creating an agent while
@@ -571,6 +573,7 @@ router.post(
         // one, so a field the schema accepts but this list omits is dropped
         // between validation and the insert with no error anywhere.
         isPrivateAccount: body.isPrivateAccount,
+        character: body.character,
       },
     );
 
@@ -703,6 +706,7 @@ router.patch(
       color?: string;
       links?: string[];
       accountCategories?: AccountCategoryId[];
+      character?: AvatarCharacter;
     };
 
     const updated = await accountService.updateAccount(account.id, {

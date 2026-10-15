@@ -40,6 +40,17 @@ export type {
 } from './accountGraph';
 
 export {
+  AVATAR_EYE_SPACING,
+  AVATAR_PICKABLE_COLORS,
+  AVATAR_PICKABLE_SHAPES,
+  avatarCharacterFor,
+  avatarCharacterSchema,
+  parseAvatarCharacter,
+} from './avatarCharacter';
+
+export type { AvatarCharacter } from './avatarCharacter';
+
+export {
   ACCOUNT_ACTOR_NATURES,
   ACCOUNT_SUBJECT_CONTRACT_VERSION,
   FINANCIAL_EFFECT_DIRECTIONS,

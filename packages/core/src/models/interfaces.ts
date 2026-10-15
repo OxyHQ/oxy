@@ -1,6 +1,7 @@
 import type {
   AccountKind,
   AccountCategoryId,
+  AvatarCharacter,
   UserNameResponse,
   UserRelationship,
   ThemePreference,
@@ -180,7 +181,15 @@ export interface User {
   isFederated?: boolean;
   /** Allow sharing this user's content on the fediverse. Defaults to true. */
   fediverseSharing?: boolean;
+  /**
+   * Derived from `kind === 'bot'` (the SOLE definition), NOT from `type`.
+   */
   isAgent?: boolean;
+  /**
+   * The 3D avatar character of a `kind: 'bot'` account, drawn by Bloom's
+   * `Avatar`. Present ONLY on a bot; absent for every other kind.
+   */
+  character?: AvatarCharacter;
   isAutomated?: boolean;
   instance?: string;
   federation?: {
