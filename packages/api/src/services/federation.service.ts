@@ -1245,6 +1245,10 @@ class FederationService {
       // Split account/actor hosts are legitimate only when the account host's
       // WebFinger names this exact actor. Neither caller hints nor actor fields
       // may claim an unrelated remote account without that reverse binding.
+      // Only the account is relabelled: the transport stays the actor-host
+      // handle, as it does for every bridge, so an identity first registered
+      // under that handle is promoted to the verified one by the registry's
+      // transport rule instead of refused on every later resolve.
       const candidate =
         typeof actor.webfinger === 'string'
           ? normalizeFediverseHandle(actor.webfinger)
@@ -1262,7 +1266,6 @@ class FederationService {
         if (binding?.actorUri === actor.id) {
           profile.username = candidate.toLowerCase();
           profile.domain = candidateHost;
-          profile.transportAcct = candidate.toLowerCase();
         }
       }
       return { ok: true, profile };
