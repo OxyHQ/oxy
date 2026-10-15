@@ -6,7 +6,8 @@ repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 subject="$repository_root/packages/api/scripts/run-native-product-agent-bootstrap.sh"
 test_root=$(mktemp -d)
 real_mktemp=$(command -v mktemp)
-export TEST_SUCCESS_REPORT=$(node --input-type=module -e '
+export TEST_REAL_BUN=$(command -v bun)
+export TEST_SUCCESS_REPORT=$(bun -e '
 import {createHash} from "node:crypto";
 const plan={after:{},aliaManifest:{},before:{},desired:{},direction:"bootstrap",manifestVersion:1,operations:[]};
 console.log("NATIVE_PRODUCT_AGENTS_RESULT="+JSON.stringify({mode:"dry-run",direction:"bootstrap",planSha256:createHash("sha256").update(JSON.stringify(plan)).digest("hex"),plan}));')
@@ -16,6 +17,9 @@ mkdir -p "$test_root/bin"
 cat >"$test_root/bin/bun" <<'EOF'
 #!/bin/sh
 set -eu
+if [ "$1" = packages/api/scripts/validate-native-product-bootstrap-report.mjs ]; then
+  exec "$TEST_REAL_BUN" "$@"
+fi
 [ "$1" = run ]
 [ "$2" = packages/api/scripts/bootstrap-native-product-agents.ts ]
 [ "${LOG_LEVEL:-}" = silent ]
