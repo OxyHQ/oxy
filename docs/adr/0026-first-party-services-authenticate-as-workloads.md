@@ -265,3 +265,9 @@ at a terminal.
   BYOK validation callback it actually makes). Both now branch onto one shared
   definition of "a live binding", `resolveLiveAgencyWorkloadByHandle`. A fourth hop
   added this way is a bug; a fourth CALLER of that helper is not.
+
+## Requested scope subsets
+
+Both service-credential and workload mint requests accept an optional bounded, unique `scopes` array. Every requested scope must belong to the live effective application/credential or application/workload grant; missing authority is rejected rather than silently dropped. Omitting the field preserves the existing grant. Revoked applications, credentials and workload bindings remain unusable.
+
+`OxyServer.serviceToken(apiKey?, apiSecret?, {scopes?})` and `serviceRequest(..., {serviceTokenScopes})` expose the same canonical option. Normalized scope sets form part of the token cache key, so a full-grant token cannot satisfy a narrower request. Invalidation clears all credential variants and fences their pending mint results. The client verifies that the trusted mint response honored the exact requested set; it does not authenticate callers by decoding a token. This additive release leaves the existing safety/profile transport unchanged, allowing exact-scope inference callers to deploy before a later workload grant expands.

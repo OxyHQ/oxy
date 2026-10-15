@@ -1602,3 +1602,9 @@ export * from './products/checkout';
 export * from './organizations';
 
 export * from './safety';
+
+export {
+  serviceTokenScopesSchema,
+  serviceTokenOptionsSchema,
+  type ServiceTokenOptions,
+} from './serviceToken';
