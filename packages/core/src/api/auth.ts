@@ -24,6 +24,7 @@ import {
   type AgentProofClaims,
   type AgentSignature,
   emailSignInLinkResponseSchema,
+  emailSignInChooseAccountSchema,
   emailSignInPendingSchema,
   emailSignInStartResponseSchema,
   emailVerificationConfirmResponseSchema,
@@ -35,6 +36,7 @@ import {
   totpBackupCodesResponseSchema,
   totpEnrollResponseSchema,
   type EmailSignInPending,
+  type EmailSignInStepResult,
   type EmailSignInStartResponse,
   type EmailVerificationConfirmResponse,
   type EmailVerificationStartRequest,
@@ -502,6 +504,13 @@ function signInStep(ctx: OxyContext, res: unknown, path: string): SignInStepResu
   return plantSession(ctx, res, path);
 }
 
+/** Parse what proving an email answers: the account choice, the second-factor step, or a session. */
+function emailSignInStep(ctx: OxyContext, res: unknown, path: string): EmailSignInStepResult {
+  const choice = safeParseContract(emailSignInChooseAccountSchema, res);
+  if (choice) return choice;
+  return signInStep(ctx, res, path);
+}
+
 /** `oxy.auth.email` — email sign-in (code or link) and email confirmation codes. */
 export class AuthEmailApi {
   constructor(private readonly ctx: OxyContext) {}
@@ -566,14 +575,15 @@ export class AuthEmailApi {
   }
 
   /**
-   * The code from the email → a session, or the second-factor step. The code
-   * is 6 digits, or the 10-character long code (`XXXXX-XXXXX`) an account
-   * gets after too many guesses in a day — accept both in one field and pass
-   * it as typed.
+   * The code from the email → a session, the second-factor step, or — signed
+   * in with an email that holds several accounts — the accounts to choose
+   * from ({@link AuthEmailApi.choose}). The code is 6 digits, or the
+   * 10-character long code (`XXXXX-XXXXX`) an account gets after too many
+   * guesses in a day — accept both in one field and pass it as typed.
    */
   async confirm(
     request: { requestId: string; requestSecret: string; code: string } & SignInDeviceOptions,
-  ): Promise<SignInStepResult> {
+  ): Promise<EmailSignInStepResult> {
     const { requestId, requestSecret, code, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -581,16 +591,17 @@ export class AuthEmailApi {
       { requestId, requestSecret, code, ...(await signInEnvelope(this.ctx, options)) },
       { cache: false, skipAuth: true },
     );
-    return signInStep(this.ctx, res, 'auth/signin/email/confirm');
+    return emailSignInStep(this.ctx, res, 'auth/signin/email/confirm');
   }
 
   /**
    * Whether the email's link was opened in this browser: `{ status: 'pending' }`
-   * until it was, then a session (or the second-factor step). Poll it.
+   * until it was, then a session, the second-factor step, or the accounts to
+   * choose from. Poll it.
    */
   async collect(
     request: { requestId: string; requestSecret: string } & SignInDeviceOptions,
-  ): Promise<SignInStepResult | EmailSignInPending> {
+  ): Promise<EmailSignInStepResult | EmailSignInPending> {
     const { requestId, requestSecret, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -600,7 +611,24 @@ export class AuthEmailApi {
     );
     const pending = safeParseContract(emailSignInPendingSchema, res);
     if (pending) return pending;
-    return signInStep(this.ctx, res, 'auth/signin/email/collect');
+    return emailSignInStep(this.ctx, res, 'auth/signin/email/collect');
+  }
+
+  /**
+   * The account the person chose from those {@link AuthEmailApi.confirm} or
+   * {@link AuthEmailApi.collect} listed → a session, or the second-factor step.
+   */
+  async choose(
+    request: { requestId: string; requestSecret: string; userId: string } & SignInDeviceOptions,
+  ): Promise<SignInStepResult> {
+    const { requestId, requestSecret, userId, ...options } = request;
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/auth/signin/email/choose',
+      { requestId, requestSecret, userId, ...(await signInEnvelope(this.ctx, options)) },
+      { cache: false, skipAuth: true },
+    );
+    return signInStep(this.ctx, res, 'auth/signin/email/choose');
   }
 
   /**

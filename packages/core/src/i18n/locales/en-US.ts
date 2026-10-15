@@ -70,6 +70,10 @@ const dict = {
   signin: {
     title: 'Sign in',
     subtitle: 'Use your Oxy account',
+    emailAccounts: {
+      title: 'Choose an account',
+      description: '{{identifier}} has several accounts. Choose the one to sign in with.',
+    },
     chooser: {
       title: 'Choose an account',
       subtitle: 'Continue as an account below, or use another.',
@@ -94,7 +98,9 @@ const dict = {
       failed: "Couldn't start sign-in",
       failedDescription: 'Something went wrong. Please try again.',
       rateLimited: 'Too many attempts. Try again in {{seconds}}s.',
-      invalidCredentials: "That username, email or password isn't right.",
+      invalidCredentials:
+        "That username, email or password isn't right. If several accounts use this email, sign in with the username.",
+      emailAccountsFull: 'This email already has as many accounts as it can hold.',
       codeInvalid: "That code isn't right, or it has expired.",
       requestExpired: 'This sign-in expired. Send a new email.',
       secondFactorInvalid: "That code isn't right. Try the current one.",

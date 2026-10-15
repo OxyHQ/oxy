@@ -1,11 +1,11 @@
 /**
  * Email codes and tickets (ADR 0030).
  *
- * The sign-up `start` records one `email_verifications` row and — only when
- * the address has no account yet — mails a 6-digit code. For an address that
- * already has one it records a DECOY row whose code nobody was sent, mails a
- * notice pointing at sign-in instead, and answers identically, so it does not
- * tell a caller which emails have an account.
+ * The sign-up `start` records one `email_verifications` row and mails a
+ * 6-digit code, whether or not the address already holds accounts: one
+ * address may hold several (ADR 0040), so a sign-up never looks at who else
+ * uses it. Over the send budget it records a DECOY row whose code nobody was
+ * sent, and answers identically.
  *
  * Mail is sent after the answer is decided and is not awaited by it, so the
  * response time does not say which case ran. A code is confirmed at most
@@ -33,12 +33,11 @@ import {
 } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { emailVerifications } from '../db/schema/emailVerifications';
-import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { ApiError } from '../utils/error';
 import { logger } from '../utils/logger';
-import { sendAccountExistsNotice, sendVerificationCode } from './accountEmail.mail';
+import { sendVerificationCode } from './accountEmail.mail';
 import { reserveAttempt } from './loginLockout.service';
 import { SMTP_RELAYS } from '../config/email.config';
 
@@ -103,41 +102,9 @@ function newCode(): string {
     .padStart(EMAIL_CODE_LENGTH, '0');
 }
 
-function emailMatches(email: string) {
-  return sql`lower(btrim(${users.email})) = lower(btrim(${email}))`;
-}
-
-/** What the sign-up `start` decided, before anything is sent. */
-interface Delivery {
-  /** The rate-limit and matching key: `hashEmail` of the address. */
-  emailHash: string;
-  /** Where the code goes; `null` for a decoy. */
-  sendCodeTo: string | null;
-  /** A sign-up for an address that already has an account. */
-  sendNoticeTo: string | null;
-}
-
-async function resolveDelivery(request: EmailVerificationStartRequest): Promise<Delivery> {
-  const [existing] = await getDb()
-    .select({ id: users.id })
-    .from(users)
-    .where(emailMatches(request.email))
-    .limit(1);
-  return {
-    emailHash: hashEmail(request.email),
-    sendCodeTo: existing ? null : request.email,
-    sendNoticeTo: existing ? request.email : null,
-  };
-}
-
-/** Hand the mail off without making the caller wait on it. */
-function dispatch(delivery: Delivery, code: string): void {
-  const send = delivery.sendCodeTo
-    ? sendVerificationCode(delivery.sendCodeTo, code)
-    : delivery.sendNoticeTo
-      ? sendAccountExistsNotice(delivery.sendNoticeTo)
-      : null;
-  send?.catch((error: unknown) => {
+/** Hand the code off without making the caller wait on it. */
+function dispatch(to: string, code: string): void {
+  sendVerificationCode(to, code).catch((error: unknown) => {
     logger.error(
       'Sign-up email could not be sent',
       error instanceof Error ? error : new Error(String(error)),
@@ -236,22 +203,17 @@ export async function startEmailVerification(
   now: Date = new Date(),
 ): Promise<EmailVerificationStartResponse> {
   assertMailConfigured();
-  let delivery = await resolveDelivery(request);
-  const db = getDb();
-  if (
-    !(await reserveSendBudget({ group: 'public', emailHash: delivery.emailHash, requesterKey }))
-  ) {
-    // Over budget: the same answer, a decoy row, and nothing sent.
-    delivery = { ...delivery, sendCodeTo: null, sendNoticeTo: null };
-  }
+  const emailHash = hashEmail(request.email);
+  // Over budget: the same answer, a decoy row, and nothing sent.
+  const send = await reserveSendBudget({ group: 'public', emailHash, requesterKey });
 
   // A decoy's code is generated and hashed like a real one, and never sent.
   const { verificationId, code, expiresAt } = await recordVerification(
-    db,
-    { purpose: 'signup', emailHash: delivery.emailHash, userId: null },
+    getDb(),
+    { purpose: 'signup', emailHash, userId: null },
     now,
   );
-  dispatch(delivery, code);
+  if (send) dispatch(request.email, code);
   return { verificationId, expiresAt: expiresAt.getTime() };
 }
 
@@ -260,7 +222,7 @@ export async function startEmailVerification(
  * a wrong one. The right one marks the row confirmed, so it is spent. Returns
  * the row's account on success, or the error to throw AFTER the transaction
  * commits (so the wrong attempt counts). A row with no account — a decoy —
- * never succeeds.
+ * never succeeds, unless the caller says it names a mailbox (`accountless`).
  */
 export async function consumeEmailCode(
   tx: DatabaseOrTransaction,
@@ -273,9 +235,15 @@ export async function consumeEmailCode(
     reauthAction?: ReauthAction;
     /** Refuse even the right code (a cap was reached), counting it like a wrong one. */
     refuse?: boolean;
+    /**
+     * The code was sent to a mailbox, not to one account (a sign-in by email):
+     * its row names no account, and the caller, which knows it is no decoy,
+     * decides who signs in.
+     */
+    accountless?: boolean;
   },
   now: Date,
-): Promise<{ userId: string } | { error: ApiError }> {
+): Promise<{ userId: string | null } | { error: ApiError }> {
   const [row] = await tx
     .select({
       id: emailVerifications.id,
@@ -309,7 +277,7 @@ export async function consumeEmailCode(
   const expected = Buffer.from(row.codeHash, 'hex');
   const given = Buffer.from(hashCode(row.id, input.code), 'hex');
   const matches = expected.length === given.length && crypto.timingSafeEqual(expected, given);
-  if (!matches || !row.userId || input.refuse) {
+  if (!matches || (!row.userId && !input.accountless) || input.refuse) {
     const attempts = row.attempts + 1;
     await tx.update(emailVerifications).set({ attempts }).where(eq(emailVerifications.id, row.id));
     return { error: attempts >= EMAIL_CODE_MAX_ATTEMPTS ? tooManyAttempts() : codeInvalid() };

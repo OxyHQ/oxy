@@ -1704,8 +1704,8 @@ export class AccountService {
    * probe produces.
    *
    * Only `users_lower_username_key` is translated, by NAME. A `users` write can
-   * violate `users_lower_email_key` or `users_lower_public_key_key` just as
-   * easily, and reporting either as "that username is taken" would send the
+   * violate `users_lower_public_key_key` or `users_federation_actor_uri_key`
+   * just as easily, and reporting either as "that username is taken" would send the
    * caller to fix a field that was never the problem — a confident, wrong error
    * message, which is worse than the 500 it replaced. Everything else propagates
    * untouched.

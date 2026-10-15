@@ -3,10 +3,10 @@
  *
  * ## The guarantee this file exists for
  *
- * **The lookup matches the EXPRESSION the unique index is built on —
+ * **The lookup matches the EXPRESSION the indexes are built on —
  * `lower(btrim(column))` — for both a username and an email.**
  *
- * That is not cosmetic. `users_lower_username_key` and `users_lower_email_key`
+ * That is not cosmetic. `users_lower_username_key` and `users_lower_email_idx`
  * are indexes on `lower(btrim(...))`, so a plain `username = $1` is
  * correct-looking, case-sensitive, and does not use them: `Alice` would fail to
  * resolve for an account stored as `alice`, and an invite would 404 for a user
@@ -28,6 +28,9 @@
  * `lower(btrim(username))`, so the second account cannot be stored at all. The
  * write-side guarantee is asserted here, enforced one layer down where nothing
  * can forget it.
+ *
+ * An email is different: one address may hold several accounts, so the
+ * resolver itself refuses an email that does (409) instead of picking one.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -147,17 +150,23 @@ describe('the ambiguity the read-side guard used to cover', () => {
     ).rejects.toMatchObject({ cause: { code: '23505' } });
   });
 
-  it('refuses to STORE two emails differing only by surrounding space', async () => {
-    // `btrim` and not just `lower`: two rows that canonicalize to the same
-    // `hashed_email` must not be able to exist as separate accounts.
+  it('refuses to RESOLVE an email that holds several accounts, however it is spelled', async () => {
+    // A grant must land on the account the inviter meant; an email shared by
+    // two cannot say which.
     const email = `twin-${RUN}@example.com`;
     await insertAccount({ username: `twin-mail-${RUN}`, email });
+    await insertAccount({ username: `twin-mail2-${RUN}`, email: `  ${email}  ` });
 
-    await expect(
-      getDb()
-        .insert(users)
-        .values({ username: `twin-mail2-${RUN}`, email: `  ${email}  `, color: 'teal' }),
-    ).rejects.toMatchObject({ cause: { code: '23505' } });
+    await expect(resolveUserByIdentifier(email.toUpperCase())).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it('resolves an email that holds one account', async () => {
+    const email = `alone-${RUN}@example.com`;
+    const id = await insertAccount({ username: `alone-mail-${RUN}`, email });
+
+    expect((await resolveUserByIdentifier(` ${email.toUpperCase()} `))?.id).toBe(id);
   });
 
   it('resolves the surviving account, since only one can exist', async () => {

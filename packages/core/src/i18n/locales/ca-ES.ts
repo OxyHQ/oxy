@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: 'Massa intents. Torna-ho a provar d’aquí a {{seconds}} s.',
-      invalidCredentials: "El nom d'usuari, el correu o la contrasenya no són correctes.",
+      invalidCredentials:
+        "El nom d'usuari, el correu o la contrasenya no són correctes. Si diversos comptes fan servir aquest correu, entra amb el nom d'usuari.",
+      emailAccountsFull: 'Aquest correu ja té tots els comptes que pot tenir.',
       codeInvalid: 'Aquest codi no és correcte o ha caducat.',
       requestExpired: 'Aquest inici de sessió ha caducat. Envia un correu nou.',
       secondFactorInvalid: "Aquest codi no és correcte. Prova amb l'actual.",
@@ -31,6 +33,10 @@ const dict = {
         "{{app}} encara no està configurada per iniciar sessió. Contacta amb qui desenvolupa l'app.",
       failed: "No s'ha pogut iniciar la sessió",
       failedDescription: 'Alguna cosa ha anat malament. Torna-ho a provar.',
+    },
+    emailAccounts: {
+      title: 'Tria un compte',
+      description: '{{identifier}} té diversos comptes. Tria amb quin vols entrar.',
     },
     chooser: {
       subtitleToApp: 'per continuar a {{app}}',

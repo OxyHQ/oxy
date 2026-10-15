@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: '시도 횟수가 너무 많습니다. {{seconds}}초 후에 다시 시도하세요.',
-      invalidCredentials: '사용자 이름, 이메일 또는 비밀번호가 올바르지 않습니다.',
+      invalidCredentials:
+        '사용자 이름, 이메일 또는 비밀번호가 올바르지 않습니다. 여러 계정이 이 이메일을 사용하면 사용자 이름으로 로그인하세요.',
+      emailAccountsFull: '이 이메일로 만들 수 있는 계정 수를 이미 모두 사용했습니다.',
       codeInvalid: '코드가 올바르지 않거나 만료되었습니다.',
       requestExpired: '이 로그인은 만료되었습니다. 새 이메일을 보내세요.',
       secondFactorInvalid: '코드가 올바르지 않습니다. 현재 코드를 입력하세요.',
@@ -31,6 +33,10 @@ const dict = {
         '{{app}}은(는) 아직 로그인이 설정되지 않았습니다. 앱 개발자에게 문의하세요.',
       failed: '로그인을 시작할 수 없습니다',
       failedDescription: '문제가 발생했습니다. 다시 시도하세요.',
+    },
+    emailAccounts: {
+      title: '계정 선택',
+      description: '{{identifier}}에 여러 계정이 있습니다. 로그인할 계정을 선택하세요.',
     },
     chooser: {
       subtitleToApp: '{{app}}(으)로 계속',

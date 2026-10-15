@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: 'Trop de tentatives. Réessayez dans {{seconds}} s.',
-      invalidCredentials: "Le nom d'utilisateur, l'e-mail ou le mot de passe est incorrect.",
+      invalidCredentials:
+        "Le nom d'utilisateur, l'e-mail ou le mot de passe est incorrect. Si plusieurs comptes utilisent cet e-mail, connectez-vous avec le nom d'utilisateur.",
+      emailAccountsFull: 'Cet e-mail a déjà le nombre maximal de comptes.',
       codeInvalid: "Ce code n'est pas bon, ou il a expiré.",
       requestExpired: 'Cette connexion a expiré. Envoyez un nouvel e-mail.',
       secondFactorInvalid: "Ce code n'est pas bon. Essayez le code actuel.",
@@ -31,6 +33,11 @@ const dict = {
         "{{app}} n'est pas encore configurée pour la connexion. Contactez le développeur de l'application.",
       failed: 'Impossible de lancer la connexion',
       failedDescription: 'Un problème est survenu. Veuillez réessayer.',
+    },
+    emailAccounts: {
+      title: 'Choisissez un compte',
+      description:
+        '{{identifier}} a plusieurs comptes. Choisissez celui avec lequel vous connecter.',
     },
     chooser: {
       subtitleToApp: 'pour continuer vers {{app}}',

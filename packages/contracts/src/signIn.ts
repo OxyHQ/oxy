@@ -18,6 +18,11 @@
  *    one-use second-factor challenge instead of a session, and
  *    `POST /auth/signin/second-factor` takes the TOTP (or a backup code).
  *
+ * An email may hold several accounts (up to `EMAIL_ACCOUNTS_MAX`). Signing in
+ * with the email, once the code or the link proves it, answers the accounts to
+ * choose from when there are several, and `POST /auth/signin/email/choose`
+ * names one. A username always names one account.
+ *
  * `POST /auth/signup` creates an account from a username and an email confirmed
  * with `POST /auth/email/verify/{start,confirm}` (purpose `signup`).
  *
@@ -264,11 +269,77 @@ export const emailSignInPendingSchema: z.ZodType<EmailSignInPending> = z.object(
 /** What a first factor answers: a session, or the second-factor step. */
 export type SignInStepResult = LoginResult | SecondFactorRequired;
 
+/**
+ * How long, once the email is proven, the person has to choose which of its
+ * accounts signs in.
+ */
+export const EMAIL_SIGNIN_CHOICE_TTL_MS = 5 * 60 * 1000;
+/** Most accounts one email can hold; sign-up refuses another past it. */
+export const EMAIL_ACCOUNTS_MAX = 20;
+
+/** One account an email holds, as the choice after proving it shows it. */
+export interface EmailSignInAccountOption {
+  id: string;
+  username?: string;
+  /** The account's own display name; absent → show the handle. */
+  displayName?: string;
+  /** Asset id of the avatar. */
+  avatar?: string;
+}
+
+export const emailSignInAccountOptionSchema: z.ZodType<EmailSignInAccountOption> = z.object({
+  id: z.string().min(1).max(64),
+  username: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
+  avatar: z.string().min(1).optional(),
+});
+
+/**
+ * The email was signed in with, and it holds several accounts: the person
+ * chooses one (`POST /auth/signin/email/choose`) before `expiresAt`. Only the
+ * holder of the request's `requestSecret` ever sees this, after the code or
+ * the link proved the mailbox; a sign-in by username names one account and
+ * never asks.
+ */
+export interface EmailSignInChooseAccount {
+  chooseAccount: true;
+  accounts: EmailSignInAccountOption[];
+  /** Unix milliseconds. */
+  expiresAt: number;
+}
+
+export const emailSignInChooseAccountSchema: z.ZodType<EmailSignInChooseAccount> = z.object({
+  chooseAccount: z.literal(true),
+  accounts: z.array(emailSignInAccountOptionSchema).min(2).max(EMAIL_ACCOUNTS_MAX),
+  expiresAt: z.number().int().positive(),
+});
+
+/** What proving an email answers: a session, the second-factor step, or the account choice. */
+export type EmailSignInStepResult = SignInStepResult | EmailSignInChooseAccount;
+
+/** `POST /auth/signin/email/choose` — the account, from those {@link EmailSignInChooseAccount} listed. */
+export const emailSignInChooseRequestSchema = z
+  .object({
+    requestId: z.string().trim().min(1).max(64),
+    requestSecret: opaqueTokenSchema,
+    userId: z.string().trim().min(1).max(64),
+    ...sessionEnvelope,
+  })
+  .strict();
+export type EmailSignInChooseRequest = z.infer<typeof emailSignInChooseRequestSchema>;
+
 /** Narrow a {@link SignInStepResult}. */
 export function isSecondFactorRequired(
-  result: SignInStepResult | EmailSignInPending,
+  result: EmailSignInStepResult | EmailSignInPending,
 ): result is SecondFactorRequired {
   return (result as SecondFactorRequired).secondFactorRequired === true;
+}
+
+/** Narrow an {@link EmailSignInStepResult}. */
+export function isEmailSignInChooseAccount(
+  result: EmailSignInStepResult | EmailSignInPending,
+): result is EmailSignInChooseAccount {
+  return (result as EmailSignInChooseAccount).chooseAccount === true;
 }
 
 /**
@@ -427,5 +498,7 @@ export const SIGN_IN_ERROR_CODES = {
   originNotAllowed: 'SIGNIN_ORIGIN_NOT_ALLOWED',
   /** The username is taken. */
   usernameTaken: 'USERNAME_TAKEN',
+  /** The email already holds `EMAIL_ACCOUNTS_MAX` accounts: no sign-up adds another. */
+  emailAccountsFull: 'EMAIL_ACCOUNTS_FULL',
 } as const;
 export type SignInErrorCode = (typeof SIGN_IN_ERROR_CODES)[keyof typeof SIGN_IN_ERROR_CODES];

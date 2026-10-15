@@ -1,8 +1,6 @@
 /**
- * The mail an account's email receives (ADR 0030): a sign-up code, or — when
- * someone tries to create an account with an address that already has one — a
- * notice pointing at sign-in instead of a code; a sign-in code and link; a
- * re-verification code; and security notices. Plain text and a minimal HTML
+ * The mail an account's email receives (ADR 0030): a sign-up code; a sign-in
+ * code and link; a re-verification code; and security notices. Plain text and a minimal HTML
  * part, from `noreply@`.
  *
  * The relay is loaded on first send: `smtp.outbound` pulls in the mailbox and
@@ -58,36 +56,23 @@ export async function sendVerificationCode(to: string, code: string): Promise<vo
   });
 }
 
-/** Someone tried to create an account with an address that already has one. */
-export async function sendAccountExistsNotice(to: string): Promise<void> {
-  const signInUrl = `${getAuthWebOrigin()}/login`;
-  const paragraphs = [
-    'Someone tried to create an Oxy account with this email, but an account already uses it.',
-    `If it was you, sign in with this email instead: we send you a code. ${signInUrl}`,
-    "If it wasn't you, you can ignore this email.",
-  ];
-  await sendSystem({
-    to,
-    subject: 'Your Oxy account',
-    text: paragraphs.join('\n\n'),
-    html: htmlPage(paragraphs),
-  });
-}
-
 /**
  * A sign-in email: the 6-digit code and a one-use link to auth.oxy.so, either
  * of which signs the person in. The link's token travels in the URL FRAGMENT,
  * which a browser never sends to a server or in a `Referer`, so it reaches only
  * the auth.oxy.so page that reads it. Nothing about the account but its
- * username is in the email.
+ * username is in the email, and not even that when the address holds several
+ * accounts: which one is chosen after the code.
  */
 export async function sendSignInEmail(
   to: string,
-  message: { code: string; linkToken: string; username: string | null },
+  message: { code: string; linkToken: string; username: string | null; severalAccounts?: boolean },
 ): Promise<void> {
   const link = `${getAuthWebOrigin()}/email-signin#t=${encodeURIComponent(message.linkToken)}`;
   const greeting = message.username ? `Hi @${message.username},` : 'Hi,';
-  const lead = 'Enter this code in the app to sign in to Oxy:';
+  const lead = message.severalAccounts
+    ? 'Enter this code in the app to sign in to Oxy. Then choose which of the accounts on this email to use:'
+    : 'Enter this code in the app to sign in to Oxy:';
   const tail = [
     `Or open this link in the same browser: ${link}`,
     'The code expires in 10 minutes and the link in 15.',
