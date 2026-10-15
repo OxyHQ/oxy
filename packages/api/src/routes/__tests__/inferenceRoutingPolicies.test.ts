@@ -109,7 +109,7 @@ interface JsonResponse {
 }
 
 function request(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   options: { token?: string; body?: unknown; delegatedUserId?: string } = {},
 ): Promise<JsonResponse> {
@@ -1147,5 +1147,79 @@ describe('service rate-limit partitioning', () => {
       routingServiceRateLimitKey(requestFor('app-a', 'cred-a')),
     );
     expect(ROUTING_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Inference limits (Alia ADR 0017 §5): Console configuration, not constants  */
+/* -------------------------------------------------------------------------- */
+
+describe('application inference limits', () => {
+  const limits = (overrides: Record<string, unknown> = {}) => ({
+    maxConcurrentRealtimeSessions: 4,
+    maxConcurrentRealtimeSessionsPerCredential: 2,
+    maxConcurrentRequests: null,
+    maxRequestsPerUtcDay: 10_000,
+    ...overrides,
+  });
+
+  it('reads every limit unset until Console writes them, then the written values', async () => {
+    const tenant = await seedTenant();
+    currentUserId = tenant.ownerUserId;
+    const path = `${MOUNT}/applications/${tenant.applicationId}/limits`;
+    const unset = await request('GET', path);
+    expect(unset.status).toBe(200);
+    expect(unset.body.data).toEqual({
+      maxConcurrentRealtimeSessions: null,
+      maxConcurrentRealtimeSessionsPerCredential: null,
+      maxConcurrentRequests: null,
+      maxRequestsPerUtcDay: null,
+    });
+
+    const written = await request('PUT', path, { body: limits() });
+    expect(written.status).toBe(200);
+    expect(written.body.data).toEqual(limits());
+    expect((await request('GET', path)).body.data).toEqual(limits());
+
+    // A field written as null clears it.
+    const cleared = await request('PUT', path, { body: limits({ maxRequestsPerUtcDay: null }) });
+    expect((cleared.body.data as Record<string, unknown>).maxRequestsPerUtcDay).toBeNull();
+  });
+
+  it('refuses a per-credential session limit above the application’s, and a non-positive one', async () => {
+    const tenant = await seedTenant();
+    currentUserId = tenant.ownerUserId;
+    const path = `${MOUNT}/applications/${tenant.applicationId}/limits`;
+    expect(
+      (
+        await request('PUT', path, {
+          body: limits({ maxConcurrentRealtimeSessionsPerCredential: 5 }),
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request('PUT', path, { body: limits({ maxConcurrentRealtimeSessions: 0 }) })).status,
+    ).toBe(400);
+    expect((await request('PUT', path, { body: { ...limits(), extra: 1 } })).status).toBe(400);
+  });
+
+  it('lets a service token read its own application’s limits but never write them', async () => {
+    const tenant = await seedTenant();
+    const path = `${MOUNT}/applications/${tenant.applicationId}/limits`;
+    const token = serviceToken({
+      appId: tenant.applicationId,
+      ownerAccountId: tenant.accountId,
+      scopes: [READ_SCOPE, WRITE_SCOPE],
+    });
+    expect((await request('GET', path, { token })).status).toBe(200);
+    expect((await request('PUT', path, { token, body: limits() })).status).toBe(403);
+  });
+
+  it('answers 404 to a person with no access, as for the policy itself', async () => {
+    const tenant = await seedTenant();
+    currentUserId = await seedAccount();
+    const path = `${MOUNT}/applications/${tenant.applicationId}/limits`;
+    expect((await request('GET', path)).status).toBe(404);
+    expect((await request('PUT', path, { body: limits() })).status).toBe(404);
   });
 });
