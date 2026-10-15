@@ -157,7 +157,7 @@
     "@expo/config-plugins": "catalog:",
     "@oxy.so/contracts": "workspace:*",
     "color": "^5.0.3",
-    "@peable.to/sdk": "0.2.7-oxy-one.0"
+    "@peable.to/sdk": "0.2.7-oxy-one.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",

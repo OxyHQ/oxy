@@ -152,7 +152,7 @@
         "@oxy.so/protocol": "workspace:*",
         "@oxy.so/telemetry": "workspace:*",
         "@oxy.so/utils": "workspace:*",
-        "@peable.to/sdk": "0.2.6-oxy-one.0",
+        "@peable.to/sdk": "0.2.7-oxy-one.1",
         "@socket.io/redis-adapter": "^8.3.0",
         "@types/compression": "^1.8.1",
         "@types/express": "catalog:",
@@ -461,7 +461,7 @@
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
-        "@oxy.so/contracts": "workspace:4.12.0",
+        "@oxy.so/contracts": "workspace:4.14.0",
         "@oxy.so/protocol": "workspace:^",
         "@oxy.so/telemetry": "workspace:^",
         "@scure/bip39": "^1.6.0",
@@ -666,8 +666,8 @@
       "version": "11.3.0",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
-        "@oxy.so/contracts": "workspace:4.12.0",
-        "@peable.to/sdk": "0.2.7-oxy-one.0",
+        "@oxy.so/contracts": "workspace:*",
+        "@peable.to/sdk": "0.2.7-oxy-one.1",
         "color": "^5.0.3",
       },
       "devDependencies": {
@@ -961,7 +961,7 @@
     "@expo/code-signing-certificates": "file:./vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz",
     "@oxy.so/bloom": "catalog:",
     "@peable.to/contracts": "file:vendor/display/peable.to-contracts-0.1.0-4ec784e4c.tgz",
-    "@peable.to/sdk": "file:vendor/display/peable.to-sdk-0.2.7-oxy-one.0-4ec784e4c.tgz",
+    "@peable.to/sdk": "file:vendor/display/peable.to-sdk-0.2.7-oxy-one.1-037650339.tgz",
     "@peable.to/shared-types": "file:vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-4ec784e4c.tgz",
     "@radix-ui/react-slot": "1.2.3",
     "@types/express": "catalog:",
@@ -2070,7 +2070,7 @@
 
     "@peable.to/contracts": ["@peable.to/contracts@vendor/display/peable.to-contracts-0.1.0-4ec784e4c.tgz", { "dependencies": { "zod": "^4.3.6" } }, "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="],
 
-    "@peable.to/sdk": ["@peable.to/sdk@vendor/display/peable.to-sdk-0.2.7-oxy-one.0-4ec784e4c.tgz", { "dependencies": { "@fairco.in/core": "0.5.0", "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.3.4-oxy-one.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-nDqf8VLw3JlsCnPi4PCirjSa3h0PvIi1JFsMuqMtN097kQuZMGwCXsdWWTt5Jjxo0TctSHdykT6FuQ/y/PQhaA=="],
+    "@peable.to/sdk": ["@peable.to/sdk@vendor/display/peable.to-sdk-0.2.7-oxy-one.1-037650339.tgz", { "dependencies": { "@fairco.in/core": "0.5.0", "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.3.4-oxy-one.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-0deqObvvzXQu3fMEtykG7m4Jhs3Zd7vBb1lMVMO9k44XSvuahUL4hDl3VafKgJjEEvxEsCFpoJ0ZXuMA6ve0BA=="],
 
     "@peable.to/shared-types": ["@peable.to/shared-types@vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-4ec784e4c.tgz", { "dependencies": { "@peable.to/contracts": "0.1.0" } }, "sha512-JF4+RmAYtMYkmrtOcW2Xo6FYOGMdHXvOA7Jx517zDNfttQqTtj3a1uuyC+Ko+R0CviPUgQQxqaGlEmbgVQxabw=="],
 
