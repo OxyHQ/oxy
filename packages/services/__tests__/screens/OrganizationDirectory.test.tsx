@@ -352,3 +352,36 @@ it('does not reuse an owner membership when a different viewer opens the same or
   await screen.findByText('organizationDirectory.readonly');
   expect(accountGet).toHaveBeenCalledTimes(2);
 });
+
+it('hides private evidence after a review mutation rejects revoked staff authorization', async () => {
+  await openReview();
+  reviewClaim.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
+  fireEvent.change(screen.getByLabelText('organizationDirectory.review.evidence'), {
+    target: { value: 'review-case:456' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.review.approved' }));
+  await screen.findByText('organizationDirectory.review.forbidden');
+  expect(screen.queryByText('private-applicant-case')).toBeNull();
+  expect(screen.queryByLabelText('organizationDirectory.review.evidence')).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: 'organizationDirectory.review.rejected' }),
+  ).toBeNull();
+  expect(reviewClaim).toHaveBeenCalledTimes(1);
+});
+
+it('removes organization edit forms when the same viewer loses account access', async () => {
+  accountGet.mockResolvedValueOnce({
+    accountId: 'existing-org',
+    relationship: 'owner',
+    account: { id: 'existing-org', kind: 'organization', name: { displayName: 'Acme' } },
+    callerMembership: { permissions: ['account:update'] },
+  });
+  mount(<AccountSettingsScreen accountId="existing-org" />);
+  await screen.findByRole('button', { name: 'organizationDirectory.save' });
+  accountGet.mockRejectedValue(Object.assign(new Error('revoked'), { status: 403 }));
+  await clients[0].invalidateQueries({ queryKey: ['accounts', 'detail', 'existing-org'] });
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull(),
+  );
+  expect(screen.queryByLabelText('accounts.settings.displayName.label')).toBeNull();
+});

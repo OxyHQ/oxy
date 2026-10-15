@@ -103,6 +103,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
   const { oxyServices, user, canUsePrivateApi } = useOxy();
   const queryClient = useQueryClient();
   const [evidence, setEvidence] = useState('');
+  const [authorizationRevoked, setAuthorizationRevoked] = useState(false);
   const detail = useQuery({
     queryKey: ['oxy', 'organizations', 'review-detail', user?.id, canUsePrivateApi, claimId],
     queryFn: () => oxyServices.organizations.reviewClaimDetail(claimId),
@@ -114,6 +115,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
     mutationFn: (decision: OrganizationClaimReviewInput['decision']) => {
       if (
         !canUsePrivateApi ||
+        authorizationRevoked ||
         !detail.isSuccess ||
         !detail.data ||
         detail.data.claimantUserId === user?.id
@@ -123,6 +125,9 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
         claimId,
         organizationClaimReviewSchema.parse({ decision, evidenceReference: evidence }),
       );
+    },
+    onError: (error) => {
+      if (isHttpRequestError(error) && error.status === 403) setAuthorizationRevoked(true);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
@@ -148,7 +153,10 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
           <Button onPress={() => detail.refetch()}>{t('organizationDirectory.retry')}</Button>
         </>
       ) : null}
-      {detail.isSuccess && canUsePrivateApi ? (
+      {authorizationRevoked ? (
+        <Text accessibilityRole="alert">{t('organizationDirectory.review.forbidden')}</Text>
+      ) : null}
+      {detail.isSuccess && canUsePrivateApi && !authorizationRevoked ? (
         <>
           <Text>{t('organizationDirectory.evidence')}</Text>
           <Text selectable>{detail.data.evidenceReference}</Text>

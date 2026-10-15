@@ -59,7 +59,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
     enabled: canUsePrivateApi && id.length > 0,
   });
 
-  const node = accountQuery.data ?? null;
+  const node = canUsePrivateApi && accountQuery.isSuccess ? accountQuery.data : null;
   const permissions = node?.callerMembership?.permissions ?? [];
   const isImplicitOwner = node ? node.relationship !== 'member' : false;
   const can = useCallback(
