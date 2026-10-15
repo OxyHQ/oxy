@@ -130,6 +130,7 @@ export interface UsageUnitTotals {
   readonly cached_audio_input_tokens: number;
   readonly audio_output_tokens: number;
   readonly session_milliseconds: number;
+  readonly input_transcription_milliseconds: number;
 }
 
 export interface UsageRow {
@@ -420,6 +421,7 @@ export function toUsageUnits(units: UsageUnitTotals): UsageUnitTotals {
     cached_audio_input_tokens: units.cached_audio_input_tokens,
     audio_output_tokens: units.audio_output_tokens,
     session_milliseconds: units.session_milliseconds,
+    input_transcription_milliseconds: units.input_transcription_milliseconds,
   };
 }
 

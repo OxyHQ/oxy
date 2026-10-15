@@ -9,6 +9,8 @@ import {
   inferenceEconomicTreatmentSchema,
   inferenceFundingTierSchema,
 } from '@kaana.ai/contracts/internal';
+import { USAGE_UNITS as KAANA_USAGE_UNITS } from '@kaana.ai/contracts';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import {
   KAANA_FUNDING_TIERS,
   KAANA_GRANT_LANES,
@@ -22,6 +24,7 @@ describe('kaana_grants value sets match @kaana.ai/contracts/internal', () => {
     ['lanes', KAANA_GRANT_LANES, grantLaneSchema.options],
     ['treatments', KAANA_GRANT_TREATMENTS, inferenceEconomicTreatmentSchema.options],
     ['funding tiers', KAANA_FUNDING_TIERS, inferenceFundingTierSchema.options],
+    ['usage units (the ledger prices what Kaana reports)', USAGE_UNITS, KAANA_USAGE_UNITS],
   ])('%s', (_name, stored, contract) => {
     expect([...stored]).toEqual([...contract]);
   });
