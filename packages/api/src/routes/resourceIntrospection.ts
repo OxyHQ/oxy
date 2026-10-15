@@ -5,6 +5,7 @@ import {
   resourceDomainOwnershipResponseSchema,
 } from '@oxy.so/contracts';
 import { and, eq, sql } from 'drizzle-orm';
+import { resolveLiveAgencyServicePrincipal } from '../services/agencyServicePrincipal.service';
 import accountService from '../services/account.service';
 import sessionService from '../services/session.service';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
@@ -97,14 +98,16 @@ router.post(
 
       const service = verifyServiceToken(token);
       if (service.ok) {
+        const principal = await resolveLiveAgencyServicePrincipal(service.payload);
+        if (!principal) return response.json(inactive());
         return response.json({
           active: true,
-          accountId: service.payload.ownerAccountId,
-          applicationId: service.payload.appId,
-          credentialId: service.payload.credentialId,
+          accountId: principal.ownerAccountId,
+          applicationId: principal.applicationId,
+          credentialId: principal.credentialId,
           environment: service.payload.environment,
           tier: service.payload.tier,
-          scopes: service.payload.scopes,
+          scopes: [...principal.scopes],
           permissions: [],
           expiresAt: service.payload.exp
             ? new Date(service.payload.exp * 1_000).toISOString()
