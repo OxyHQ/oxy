@@ -34,7 +34,7 @@ export async function revokeApplicationCredential(
   if (
     actor.kind === 'operational_canary' &&
     (applicationId !== I03_CANARY_APPLICATION_ID ||
-      !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
+      !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
         actor.operatorArn,
       ) ||
       !/^[a-f0-9]{64}$/.test(actor.authorizationSha256) ||

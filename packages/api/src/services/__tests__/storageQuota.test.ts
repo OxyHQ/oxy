@@ -836,19 +836,23 @@ it('coalesces identical last-byte uploads in the committed-reservation gap befor
     pendingSeen = resolve;
   });
   let calls = 0;
-  const spy = jest.spyOn(locks, 'withContentHashLock').mockImplementation(async function <T>(
-    sha: string,
-    callback: (tx: import('../../config/postgres').Transaction) => Promise<T>,
-  ): Promise<T> {
-    const ordinal = sha === hash ? ++calls : 0;
-    if (ordinal === 2) {
-      gapReached();
-      await gap;
-    } // reservation transaction has COMMITTED, PUT transaction not started
-    const result = await realLock(sha, callback);
-    if (ordinal > 2 && (result as { kind?: string })?.kind === 'pending') pendingSeen();
-    return result;
-  });
+  const spy = jest
+    .spyOn(locks, 'withContentHashLock')
+    .mockImplementation(
+      async <T>(
+        sha: string,
+        callback: (tx: import('../../config/postgres').Transaction) => Promise<T>,
+      ): Promise<T> => {
+        const ordinal = sha === hash ? ++calls : 0;
+        if (ordinal === 2) {
+          gapReached();
+          await gap;
+        } // reservation transaction has COMMITTED, PUT transaction not started
+        const result = await realLock(sha, callback);
+        if (ordinal > 2 && (result as { kind?: string })?.kind === 'pending') pendingSeen();
+        return result;
+      },
+    );
   const bucket = new Map<string, Buffer>();
   const s3 = {
     uploadStream: jest.fn(async (key: string, source: Readable) => {

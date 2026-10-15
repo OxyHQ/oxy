@@ -25,7 +25,7 @@ import {
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
-import { ACCOUNT_KINDS, users } from '../db/schema/users';
+import { type ACCOUNT_KINDS, users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';

@@ -74,6 +74,8 @@ import {
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
+  availabilityScopeSchema,
+  commercialPermissionSchema,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
@@ -177,6 +179,27 @@ const MAX_KAANA_ATTESTATION_IDS = 64;
  */
 const MAX_KAANA_CATALOGUE_BYTES = 16 * 1024 * 1024;
 
+/**
+ * How a route may be sold: `deploymentCommercialSchema` of @kaana.ai/contracts
+ * 4.4.0, which Kaana publishes on every deployment descriptor (#178). The ONE
+ * validator for it: the attestation below and the catalogue sync both use it,
+ * so a descriptor member can never again be accepted by one reader and refused
+ * by the other (the 2026-10-15 outages were exactly that).
+ */
+export const kaanaDeploymentCommercialSchema = z
+  .object({
+    availabilityScope: availabilityScopeSchema,
+    commercialPermission: commercialPermissionSchema,
+    dedicatedCapacity: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.availabilityScope === 'byok_only') ===
+      (value.commercialPermission === 'customer_byok'),
+    { message: 'customer_byok if and only if byok_only' },
+  );
+
 const kaanaDeploymentAttestationSchema = z
   .object({
     snapshotId: z.string().min(1).max(256),
@@ -205,6 +228,7 @@ const kaanaDeploymentAttestationSchema = z
             upstreamModelId: z.string().min(1).max(256).optional(),
             providerRateCardVersionId: z.string().min(1).max(256).optional(),
             providerSourceVersion: z.string().min(1).max(256).optional(),
+            commercial: kaanaDeploymentCommercialSchema.optional(),
           })
           .strict(),
       )

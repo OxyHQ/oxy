@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { type InferenceError, type InferenceMessage, type ResponseFormat } from '@oxy.so/contracts';
+import type { InferenceError, InferenceMessage, ResponseFormat } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { INBOX_APPLICATION_ID, INBOX_ROUTING_PROFILE_ID } from '../config/inboxInference';
 import { applications } from '../db/schema/applications';

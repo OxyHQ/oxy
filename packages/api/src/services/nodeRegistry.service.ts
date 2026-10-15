@@ -47,9 +47,9 @@ import { safeFetch } from '@oxy.so/core/server';
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import {
-  USER_NODE_CONTROLLERS,
-  USER_NODE_MODES,
-  USER_NODE_STATUSES,
+  type USER_NODE_CONTROLLERS,
+  type USER_NODE_MODES,
+  type USER_NODE_STATUSES,
   userNodes,
 } from '../db/schema/userNodes';
 import { users } from '../db/schema/users';

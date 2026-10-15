@@ -41,10 +41,13 @@ import {
 } from '../config/postgres';
 import { bundles } from '../db/schema/bundles';
 import { contacts } from '../db/schema/contacts';
-import { EMAIL_FILTER_ACTION_TYPES, emailFilterActions } from '../db/schema/emailFilterActions';
 import {
-  EMAIL_FILTER_CONDITION_FIELDS,
-  EMAIL_FILTER_CONDITION_OPERATORS,
+  type EMAIL_FILTER_ACTION_TYPES,
+  emailFilterActions,
+} from '../db/schema/emailFilterActions';
+import {
+  type EMAIL_FILTER_CONDITION_FIELDS,
+  type EMAIL_FILTER_CONDITION_OPERATORS,
   emailFilterConditions,
 } from '../db/schema/emailFilterConditions';
 import { emailFilters, incompleteEmailFilters } from '../db/schema/emailFilters';
@@ -59,7 +62,7 @@ import { messageAttachments, type MessageAttachment } from '../db/schema/message
 import { messageRecipients } from '../db/schema/messageRecipients';
 import { messages, type EmailAddress, type MessageHighlight } from '../db/schema/messages';
 import {
-  MESSAGES_PROTECTED_COLUMNS,
+  type MESSAGES_PROTECTED_COLUMNS,
   PROTECTED_COLUMNS_BY_TABLE,
 } from '../db/schema/protectedColumns';
 import { reminders } from '../db/schema/reminders';

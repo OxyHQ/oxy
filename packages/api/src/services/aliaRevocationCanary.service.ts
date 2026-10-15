@@ -42,7 +42,7 @@ const fail = (): never => {
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function operator(actor: CanaryOperator) {
   if (
-    !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
+    !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
       actor.operatorArn,
     ) ||
     !/^[a-f0-9]{64}$/.test(actor.authorizationSha256)
