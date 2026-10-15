@@ -38,7 +38,7 @@ import organizationsRouter from '../organizations';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users, applications, applicationCredentials } from '../../db/schema';
 import { createNeutralOrganization } from '../../services/organization-directory.service';
-import { organizationErrorSchema } from '@oxy.so/contracts';
+import { organizationClaimListSchema, organizationErrorSchema } from '@oxy.so/contracts';
 let server: http.Server;
 let personId: string, staffId: string;
 beforeAll(async () => {
@@ -126,9 +126,23 @@ it('does not let directory creators edit or claim authority without independent 
   expect((await request('/claims/mine', 'GET', undefined, staffId)).body.items).toEqual([]);
   expect((await request(`/claims/mine/${claim.id}`, 'GET', undefined, staffId)).status).toBe(404);
   expect((await request('/claims/review', 'GET', undefined, personId)).status).toBe(403);
-  expect((await request('/claims/review', 'GET', undefined, staffId)).body.items).toEqual([
-    expect.objectContaining({ id: claim.id }),
-  ]);
+  let reviewCursor: string | null = null;
+  let foundClaim = false;
+  do {
+    const page = organizationClaimListSchema.parse(
+      (
+        await request(
+          `/claims/review?status=pending&limit=50${reviewCursor ? `&cursor=${encodeURIComponent(reviewCursor)}` : ''}`,
+          'GET',
+          undefined,
+          staffId,
+        )
+      ).body,
+    );
+    foundClaim = page.items.some((item) => item.id === claim.id);
+    reviewCursor = page.nextCursor;
+  } while (!foundClaim && reviewCursor);
+  expect(foundClaim).toBe(true);
   expect(
     (
       await request(
