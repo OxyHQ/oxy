@@ -1153,3 +1153,80 @@ describe('retired HS256 service tokens are refused', () => {
     expect(jwksFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('requested service scopes', () => {
+  it('isolates normalized scope sets from the full grant and invalidates every credential variant', async () => {
+    const oxy = new OxyServer({
+      baseURL: 'https://api.oxy.so',
+      serviceAuth: { apiKey: 'key', apiSecret: 'secret' },
+    });
+    const mint = jest
+      .spyOn(oxy as unknown as { request: jest.Mock }, 'request')
+      .mockImplementation(async (_method, _url, body: { scopes?: string[] }) => ({
+        token: signServiceToken({ scopes: body.scopes ?? ['user:read', 'files:read'] }),
+        expiresIn: 300,
+        appName: 'App',
+      }));
+    const full = await oxy.serviceToken();
+    const narrow = await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+    expect(narrow).not.toEqual(full);
+    await oxy.serviceToken(undefined, undefined, { scopes: ['files:read', 'user:read'] });
+    await oxy.serviceToken(undefined, undefined, { scopes: ['user:read', 'files:read'] });
+    expect(mint).toHaveBeenCalledTimes(3);
+    await expect(
+      oxy.serviceToken('key', 'wrong', { scopes: ['user:read'] }),
+    ).rejects.toBeInstanceOf(ServiceCredentialMismatchError);
+    oxy.invalidateServiceToken();
+    await oxy.serviceToken();
+    await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+    expect(mint).toHaveBeenCalledTimes(5);
+  });
+  it('refuses a mint that silently ignores the requested narrow scopes', async () => {
+    const oxy = new OxyServer({
+      baseURL: 'https://api.oxy.so',
+      serviceAuth: { apiKey: 'key', apiSecret: 'secret' },
+    });
+    jest.spyOn(oxy as unknown as { request: jest.Mock }, 'request').mockResolvedValue({
+      token: signServiceToken({ scopes: ['user:read', 'files:read'] }),
+      expiresIn: 300,
+      appName: 'App',
+    });
+    await expect(oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] })).rejects.toThrow(
+      'exact requested scopes',
+    );
+  });
+});
+
+it('fences an in-flight narrow mint when every credential variant is invalidated', async () => {
+  const oxy = new OxyServer({
+    baseURL: 'https://api.oxy.so',
+    serviceAuth: { apiKey: 'key', apiSecret: 'secret' },
+  });
+  const old = {
+    token: signServiceToken({ scopes: ['user:read'], appName: 'old' }),
+    expiresIn: 300,
+    appName: 'old',
+  };
+  const fresh = {
+    token: signServiceToken({ scopes: ['user:read'], appName: 'fresh' }),
+    expiresIn: 300,
+    appName: 'fresh',
+  };
+  let finish: (value: typeof old) => void = () => {
+    throw new Error('Mint not started');
+  };
+  const held = new Promise<typeof old>((resolve) => {
+    finish = resolve;
+  });
+  const mint = jest
+    .spyOn(oxy as unknown as { request: jest.Mock }, 'request')
+    .mockImplementationOnce(() => held)
+    .mockResolvedValue(fresh);
+  const first = oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+  oxy.invalidateServiceToken();
+  const replacement = await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+  finish(old);
+  await first;
+  expect(await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] })).toBe(replacement);
+  expect(mint).toHaveBeenCalledTimes(2);
+});

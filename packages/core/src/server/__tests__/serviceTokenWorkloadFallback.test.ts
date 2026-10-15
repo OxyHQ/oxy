@@ -85,3 +85,32 @@ describe('service token — workload fallback', () => {
     expect(attestations).not.toHaveBeenCalled();
   });
 });
+
+describe('workload scope cache separation', () => {
+  it('does not reuse a broad cached workload token for a narrow operation and clears every variant', async () => {
+    const previous = process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI;
+    process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = '/v2/credentials/scopes';
+    const token = (scopes: string[]) =>
+      `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300, scopes })).toString('base64url')}.fixture`;
+    attestations.mockClear();
+    attestations.mockImplementation(async (options: { scopes?: string[] }) => ({
+      token: token(options.scopes ?? ['user:read', 'files:read']),
+      expiresIn: 300,
+      appName: 'App',
+    }));
+    try {
+      const oxy = client(),
+        broad = await oxy.serviceToken();
+      expect(await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] })).not.toBe(
+        broad,
+      );
+      await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+      expect(attestations).toHaveBeenCalledTimes(2);
+      oxy.invalidateServiceToken();
+      await oxy.serviceToken(undefined, undefined, { scopes: ['user:read'] });
+      expect(attestations).toHaveBeenCalledTimes(3);
+    } finally {
+      process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI = previous ?? '';
+    }
+  });
+});
