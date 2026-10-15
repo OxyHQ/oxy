@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, type SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import {
   users,
@@ -9,9 +10,13 @@ import {
   followTargets,
   applications,
   userFollows,
+  canonicalUserRedirects,
 } from '../../db/schema';
 import {
+  getCanonicalUserRedirects,
+  getEquivalentUserGroups,
   registerExternalIdentity,
+  resolveCanonicalUserId,
   resolveExternalIdentityUsers,
 } from '../externalIdentityRegistry.service';
 import { userService } from '../user.service';
@@ -140,5 +145,42 @@ it('batch identity resolution returns every input with a fixed two-query budget'
   } finally {
     execute.mockRestore();
     select.mockRestore();
+  }
+});
+it('reads groups through the plan-cached function with one statement text for any seed count', async () => {
+  const { a, b, viewer } = await pair();
+  const [moved] = await getDb().insert(users).values({ username: name() }).returning();
+  await getDb()
+    .insert(canonicalUserRedirects)
+    .values({ userId: moved.id, canonicalUserId: viewer });
+  const execute = jest.spyOn(getDb(), 'execute');
+  try {
+    const one = await getEquivalentUserGroups([a]);
+    const many = await getEquivalentUserGroups([a, viewer, 'unknown']);
+    expect(new Set(one[a])).toEqual(new Set([a, b]));
+    expect(new Set(many[a])).toEqual(new Set([a, b]));
+    expect(new Set(many[viewer])).toEqual(new Set([viewer, moved.id]));
+    expect(many.unknown).toEqual(['unknown']);
+    expect(await getEquivalentUserGroups([moved.id])).toEqual({
+      [moved.id]: expect.arrayContaining([viewer, moved.id]),
+    });
+    const texts = execute.mock.calls.map(([query]) => new PgDialect().sqlToQuery(query as SQL).sql);
+    expect(texts).toHaveLength(3);
+    // The seeds are one array parameter, so Postgres sees one statement and keeps its plan.
+    expect(new Set(texts).size).toBe(1);
+    expect(texts[0]).toContain('external_identity_group_members(');
+  } finally {
+    execute.mockRestore();
+  }
+});
+it('reads the group of an already canonical user once for its redirects', async () => {
+  const { a, b } = await pair();
+  const canonical = await resolveCanonicalUserId(b);
+  const execute = jest.spyOn(getDb(), 'execute');
+  try {
+    expect(await getCanonicalUserRedirects(canonical)).toEqual([canonical === a ? b : a]);
+    expect(execute).toHaveBeenCalledTimes(1);
+  } finally {
+    execute.mockRestore();
   }
 });
