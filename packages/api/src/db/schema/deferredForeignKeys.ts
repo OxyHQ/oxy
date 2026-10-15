@@ -1,4 +1,8 @@
-import { supervisionPurchaseApprovals, supervisionAudit, supervisionPurchaseLines } from './supervision';
+import {
+  supervisionPurchaseApprovals,
+  supervisionAudit,
+  supervisionPurchaseLines,
+} from './supervision';
 import { organizationExternalIds, organizationDirectoryAudit } from './organizationProfiles';
 import {
   billingCreditInvoices,
@@ -129,7 +133,12 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
-  {table:supervisionPurchaseLines,column:supervisionPurchaseLines.merchantAccountId,reason:'Immutable authorization evidence names the merchant at approval time; its later erasure does not rewrite an outstanding exact payment instruction. This is not a live account permission.'},
+  {
+    table: supervisionPurchaseLines,
+    column: supervisionPurchaseLines.merchantAccountId,
+    reason:
+      'Immutable authorization evidence names the merchant at approval time; its later erasure does not rewrite an outstanding exact payment instruction. This is not a live account permission.',
+  },
   {
     table: supervisionPurchaseApprovals,
     column: supervisionPurchaseApprovals.operationId,

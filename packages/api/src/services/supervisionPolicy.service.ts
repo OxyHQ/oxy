@@ -1,5 +1,11 @@
 import { and, eq, inArray, ne } from 'drizzle-orm';
-import type { ContentAccessInput, SafetyDecision, SupervisedAction } from '@oxy.so/contracts';
+import {
+  MESSAGE_ACCESS_MAX_SUPERVISED_PARTICIPANTS,
+  type DeliveryAccessInput,
+  type ContentAccessInput,
+  type SafetyDecision,
+  type SupervisedAction,
+} from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { users, blocks, supervisionProfiles, supervisionContacts } from '../db/schema';
 import type { LiveAgencyServicePrincipal } from './agencyServicePrincipal.service';
@@ -146,22 +152,67 @@ function pair(
     return safetyDecision(false, 'contact_not_approved');
   return safetyDecision(true, 'allowed');
 }
+function decideMessageGraph(
+  participantIds: string[],
+  senderId: string,
+  principal: LiveAgencyServicePrincipal | null,
+  graph: Graph,
+): SafetyDecision {
+  if (!participantIds.includes(senderId) || !available(graph, senderId))
+    return safetyDecision(false, 'unavailable');
+  const supervised = participantIds.filter((id) => graph.profiles.has(id));
+  if (
+    supervised.length &&
+    (!consumerSupports(principal, 'messaging') ||
+      participantIds.length > MESSAGE_ACCESS_MAX_SUPERVISED_PARTICIPANTS)
+  )
+    return safetyDecision(false, 'unsupported_consumer');
+  for (const child of supervised) {
+    const profile = graph.profiles.get(child);
+    if (
+      !profile?.guardianAccountId ||
+      profile.status !== 'active' ||
+      !available(graph, profile.guardianAccountId) ||
+      graph.accounts.get(profile.guardianAccountId)?.kind !== 'personal'
+    )
+      return safetyDecision(false, 'contact_not_approved');
+    for (const other of participantIds) {
+      if (child === other) continue;
+      const decision = pair(graph, child, other, principal, 'messaging');
+      if (!decision.allowed) return decision;
+    }
+  }
+  // Adult group membership and blocking semantics remain the consumer's existing policy.
+  return safetyDecision(true, 'allowed');
+}
+export async function decideMessagesBatch(
+  items: DeliveryAccessInput[],
+  principal: LiveAgencyServicePrincipal | null,
+) {
+  const graph = await loadSafetyGraph(items.flatMap((item) => item.participantAccountIds));
+  return {
+    items: items.map((item) => ({
+      resourceId: item.resourceId,
+      decision: decideMessageGraph(
+        item.participantAccountIds,
+        item.senderAccountId,
+        principal,
+        graph,
+      ),
+    })),
+  };
+}
 export async function decideMessages(
   participantIds: string[],
   senderId: string,
   principal: LiveAgencyServicePrincipal | null,
 ): Promise<SafetyDecision> {
-  if (!participantIds.includes(senderId)) return safetyDecision(false, 'unavailable');
-  const graph = await loadSafetyGraph(participantIds);
-  for (let i = 0; i < participantIds.length; i++)
-    for (let j = i + 1; j < participantIds.length; j++) {
-      // Adult group membership and blocking semantics remain the consumer's existing policy.
-      if (!graph.profiles.has(participantIds[i]) && !graph.profiles.has(participantIds[j]))
-        continue;
-      const decision = pair(graph, participantIds[i], participantIds[j], principal, 'messaging');
-      if (!decision.allowed) return decision;
-    }
-  return safetyDecision(true, 'allowed');
+  return decideMessageGraph(
+    participantIds,
+    senderId,
+    principal,
+    await loadSafetyGraph(participantIds),
+  );
 }
 export async function decideContacts(
   targetIds: string[],
@@ -289,7 +340,11 @@ export async function decideSupervisedAsset(
   return supervisedAssetDecision(graph, owner, viewer);
 }
 
-function supervisedAssetDecision(graph: Graph, owner: string | null, viewer: string | undefined): SafetyDecision | null {
+function supervisedAssetDecision(
+  graph: Graph,
+  owner: string | null,
+  viewer: string | undefined,
+): SafetyDecision | null {
   const ownerSupervised = owner !== null && graph.profiles.has(owner);
   const viewerSupervised = viewer !== undefined && graph.profiles.has(viewer);
   if (!ownerSupervised && !viewerSupervised) return null;
@@ -305,12 +360,23 @@ function supervisedAssetDecision(graph: Graph, owner: string | null, viewer: str
 }
 
 /** Request-local bulk authority, never accepted from request metadata or cached across requests. */
-export type SupervisedAssetPolicy = (owner: string | null, viewer: string | undefined) => SafetyDecision | null;
-export async function createSupervisedAssetPolicy(owners: Array<string | null>, viewer: string | undefined): Promise<SupervisedAssetPolicy> {
+export type SupervisedAssetPolicy = (
+  owner: string | null,
+  viewer: string | undefined,
+) => SafetyDecision | null;
+export async function createSupervisedAssetPolicy(
+  owners: Array<string | null>,
+  viewer: string | undefined,
+): Promise<SupervisedAssetPolicy> {
   const ownerSet = new Set(owners);
-  const graph = await loadSafetyGraph([...owners.filter((id): id is string => id !== null), ...(viewer ? [viewer] : [])]);
-  return (owner, actualViewer) => actualViewer !== viewer || !ownerSet.has(owner)
-    ? safetyDecision(false, 'unavailable') : supervisedAssetDecision(graph, owner, viewer);
+  const graph = await loadSafetyGraph([
+    ...owners.filter((id): id is string => id !== null),
+    ...(viewer ? [viewer] : []),
+  ]);
+  return (owner, actualViewer) =>
+    actualViewer !== viewer || !ownerSet.has(owner)
+      ? safetyDecision(false, 'unavailable')
+      : supervisedAssetDecision(graph, owner, viewer);
 }
 
 export async function publicationPolicies(

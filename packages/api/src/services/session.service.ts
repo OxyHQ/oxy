@@ -481,7 +481,10 @@ class SessionService {
    * @param accessToken - The JWT access token to validate
    * @returns Validation result with session, user, and payload, or null if invalid
    */
-  async validateSession(accessToken: string, options: { allowSupervisedPolicyEvaluation?: boolean; throwOnError?: boolean } = {}): Promise<SessionValidationResult | null> {
+  async validateSession(
+    accessToken: string,
+    options: { allowSupervisedPolicyEvaluation?: boolean; throwOnError?: boolean } = {},
+  ): Promise<SessionValidationResult | null> {
     try {
       const validationResult = validateAccessToken(accessToken);
       if (!validationResult.valid || !validationResult.payload?.sessionId) {
@@ -495,15 +498,30 @@ class SessionService {
       }
 
       let { session, user } = result;
-      const supervised = await getDb().select({childAccountId: supervisionProfiles.childAccountId, sessionsValidAfter: supervisionProfiles.sessionsValidAfter}).from(supervisionProfiles).where(and(
-        inArray(supervisionProfiles.childAccountId, [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])]),
-        ne(supervisionProfiles.status, 'ended'),
-      ));
+      const supervised = await getDb()
+        .select({
+          childAccountId: supervisionProfiles.childAccountId,
+          sessionsValidAfter: supervisionProfiles.sessionsValidAfter,
+        })
+        .from(supervisionProfiles)
+        .where(
+          and(
+            inArray(supervisionProfiles.childAccountId, [
+              session.userId,
+              ...(session.operatedByUserId ? [session.operatedByUserId] : []),
+            ]),
+            ne(supervisionProfiles.status, 'ended'),
+          ),
+        );
       if (supervised.length) {
         // No cached identity, old session or managed-account context can bypass enrollment.
         if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
         const live = await this.getSessionWithUser(sessionId, { useCache: false });
-        if (!live || supervised.some(profile => live.session.createdAt <= profile.sessionsValidAfter)) return null;
+        if (
+          !live ||
+          supervised.some((profile) => live.session.createdAt <= profile.sessionsValidAfter)
+        )
+          return null;
         session = live.session;
         user = live.user;
         if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') return null;

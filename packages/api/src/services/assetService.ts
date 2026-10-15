@@ -2465,7 +2465,12 @@ export class AssetService {
     supervisionPolicy?: SupervisedAssetPolicy,
   ): Promise<boolean> {
     // Use the centralized MediaPrivacyService for comprehensive checks
-    const result = await mediaPrivacyService.checkMediaAccess(file, userId, context, supervisionPolicy);
+    const result = await mediaPrivacyService.checkMediaAccess(
+      file,
+      userId,
+      context,
+      supervisionPolicy,
+    );
     return result.allowed;
   }
 

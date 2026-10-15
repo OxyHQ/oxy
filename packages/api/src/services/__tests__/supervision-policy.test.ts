@@ -11,6 +11,7 @@ import {
 import type { LiveAgencyServicePrincipal } from '../agencyServicePrincipal.service';
 import {
   decideMessages,
+  decideMessagesBatch,
   decideProfiles,
   decideContent,
   publicationPolicies,
@@ -289,45 +290,146 @@ describe('live supervised-personal policy', () => {
   });
 });
 
-it('loads one request-local graph for a hundred assets and rechecks revoked contacts on the next request', async()=>{
- const {child,guardian,contact}=await enrolled();
- const select=jest.spyOn(getDb(),'select');
- const policy=await createSupervisedAssetPolicy(Array.from({length:100},()=>child),contact);
- const graphQueries=select.mock.calls.length;
- expect(graphQueries).toBeLessThanOrEqual(5);
- expect(graphQueries).toBeGreaterThan(0);
- for(let i=0;i<100;i++)expect(policy(child,contact)?.allowed).toBe(true);
- expect(select).toHaveBeenCalledTimes(graphQueries);
- expect(policy(child,guardian)?.allowed).toBe(false);
- select.mockRestore();
- await changeContact(child,contact,guardian,false);
- const next=await createSupervisedAssetPolicy([child],contact);
- expect(next(child,contact)?.allowed).toBe(false);
+it('loads one request-local graph for a hundred assets and rechecks revoked contacts on the next request', async () => {
+  const { child, guardian, contact } = await enrolled();
+  const select = jest.spyOn(getDb(), 'select');
+  const policy = await createSupervisedAssetPolicy(
+    Array.from({ length: 100 }, () => child),
+    contact,
+  );
+  const graphQueries = select.mock.calls.length;
+  expect(graphQueries).toBeLessThanOrEqual(5);
+  expect(graphQueries).toBeGreaterThan(0);
+  for (let i = 0; i < 100; i++) expect(policy(child, contact)?.allowed).toBe(true);
+  expect(select).toHaveBeenCalledTimes(graphQueries);
+  expect(policy(child, guardian)?.allowed).toBe(false);
+  select.mockRestore();
+  await changeContact(child, contact, guardian, false);
+  const next = await createSupervisedAssetPolicy([child], contact);
+  expect(next(child, contact)?.allowed).toBe(false);
 });
-it('returns only minimal eligible identities and never leaks unrelated private or blocked people',async()=>{
- const {child,guardian,contact}=await enrolled();const stranger=await person();
- await getDb().update(users).set({privacyIsPrivateAccount:true,nameDisplay:'Private guardian',bio:'Not for the selector'}).where(eq(users.id,guardian));
- await getDb().update(users).set({privacyIsPrivateAccount:true}).where(eq(users.id,stranger));
- const people=await supervisionPeople(child,{accountIds:[guardian,contact,stranger]});
- expect(people.items.map(p=>p.accountId).sort()).toEqual([guardian,contact].sort());
- expect(Object.keys(people.items[0]).sort()).toEqual(['accountId','displayName','username']);
- await getDb().insert(blocks).values({userId:contact,blockedId:child});
- expect((await supervisionPeople(child,{accountIds:[contact]})).items).toEqual([]);
- const [row]=await getDb().select({username:users.username}).from(users).where(eq(users.id,guardian));
- expect((await supervisionPeople(child,{query:row.username??'missing'})).items.map(p=>p.accountId)).toEqual([guardian]);
- expect((await supervisionPeople(child,{query:(row.username??'missing').slice(0,-1)})).items.map(p=>p.accountId)).not.toContain(guardian);
- await getDb().update(users).set({privacyProfileVisibility:false}).where(eq(users.id,guardian));
- expect((await supervisionPeople(child,{query:row.username??'missing'})).items).toEqual([]);
+it('returns only minimal eligible identities and never leaks unrelated private or blocked people', async () => {
+  const { child, guardian, contact } = await enrolled();
+  const stranger = await person();
+  await getDb()
+    .update(users)
+    .set({
+      privacyIsPrivateAccount: true,
+      nameDisplay: 'Private guardian',
+      bio: 'Not for the selector',
+    })
+    .where(eq(users.id, guardian));
+  await getDb().update(users).set({ privacyIsPrivateAccount: true }).where(eq(users.id, stranger));
+  const people = await supervisionPeople(child, { accountIds: [guardian, contact, stranger] });
+  expect(people.items.map((p) => p.accountId).sort()).toEqual([guardian, contact].sort());
+  expect(Object.keys(people.items[0]).sort()).toEqual(['accountId', 'displayName', 'username']);
+  await getDb().insert(blocks).values({ userId: contact, blockedId: child });
+  expect((await supervisionPeople(child, { accountIds: [contact] })).items).toEqual([]);
+  const [row] = await getDb()
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, guardian));
+  expect(
+    (await supervisionPeople(child, { query: row.username ?? 'missing' })).items.map(
+      (p) => p.accountId,
+    ),
+  ).toEqual([guardian]);
+  expect(
+    (await supervisionPeople(child, { query: (row.username ?? 'missing').slice(0, -1) })).items.map(
+      (p) => p.accountId,
+    ),
+  ).not.toContain(guardian);
+  await getDb()
+    .update(users)
+    .set({ privacyProfileVisibility: false })
+    .where(eq(users.id, guardian));
+  expect((await supervisionPeople(child, { query: row.username ?? 'missing' })).items).toEqual([]);
 });
 
-it('makes an invited account private immediately without claiming active supervision and keeps privacy after cancellation',async()=>{
- const child=await person(),guardian=await person();
- await getDb().update(users).set({privacyIsPrivateAccount:false}).where(eq(users.id,child));
- const invitation=await inviteGuardian(child,guardian);
- const privacy=async()=>{const [row]=await getDb().select({private:users.privacyIsPrivateAccount}).from(users).where(eq(users.id,child));return row.private;};
- expect(await privacy()).toBe(true);
- expect((await getSupervisionState(child)).self).toBeNull();
- expect((await getSupervisionState(guardian)).children).toEqual([]);
- await cancelInvitation(invitation.id,child);
- expect(await privacy()).toBe(true);
+it('makes an invited account private immediately without claiming active supervision and keeps privacy after cancellation', async () => {
+  const child = await person(),
+    guardian = await person();
+  await getDb().update(users).set({ privacyIsPrivateAccount: false }).where(eq(users.id, child));
+  const invitation = await inviteGuardian(child, guardian);
+  const privacy = async () => {
+    const [row] = await getDb()
+      .select({ private: users.privacyIsPrivateAccount })
+      .from(users)
+      .where(eq(users.id, child));
+    return row.private;
+  };
+  expect(await privacy()).toBe(true);
+  expect((await getSupervisionState(child)).self).toBeNull();
+  expect((await getSupervisionState(guardian)).children).toEqual([]);
+  await cancelInvitation(invitation.id, child);
+  expect(await privacy()).toBe(true);
+});
+
+it('prioritizes the exact shared handle before the bounded public prefix result', async () => {
+  const actor = await person(),
+    handle = `prefix${randomUUID().slice(0, 8)}`;
+  await getDb()
+    .insert(users)
+    .values(
+      Array.from({ length: 25 }, (_, i) => ({
+        username: `${handle}${i}`,
+        kind: 'personal' as const,
+        privacyProfileVisibility: true,
+      })),
+    );
+  const [exact] = await getDb()
+    .insert(users)
+    .values({
+      username: handle,
+      kind: 'personal',
+      privacyProfileVisibility: true,
+      privacyIsPrivateAccount: true,
+    })
+    .returning({ id: users.id });
+  const result = await supervisionPeople(actor, { query: handle.toUpperCase() });
+  expect(result.items).toHaveLength(20);
+  expect(result.items[0].accountId).toBe(exact.id);
+});
+
+it('loads one live graph for a hundred conversations and denies the next batch after contact revocation', async () => {
+  const { child, guardian, contact } = await enrolled();
+  const items = Array.from({ length: 100 }, (_, i) => ({
+    resourceId: `conversation-${i}`,
+    senderAccountId: child,
+    participantAccountIds: [child, contact],
+  }));
+  const select = jest.spyOn(getDb(), 'select');
+  try {
+    const result = await decideMessagesBatch(items, consumer);
+    expect(result.items).toHaveLength(100);
+    expect(result.items.every((item) => item.decision.allowed)).toBe(true);
+    expect(select.mock.calls.length).toBeGreaterThan(0);
+    expect(select.mock.calls.length).toBeLessThanOrEqual(5);
+  } finally {
+    select.mockRestore();
+  }
+  await changeContact(child, contact, guardian, false);
+  expect(
+    (await decideMessagesBatch(items, consumer)).items.every((item) => !item.decision.allowed),
+  ).toBe(true);
+});
+it('allows reviewed self-only groups but never uses them to bypass supervised consumer authority or guardian availability', async () => {
+  const { child, guardian } = await enrolled();
+  expect((await decideMessages([child], child, consumer)).allowed).toBe(true);
+  expect((await decideMessages([child], child, null)).allowed).toBe(false);
+  await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, guardian));
+  expect((await decideMessages([child], child, consumer)).allowed).toBe(false);
+});
+it('preserves larger adult groups but refuses oversized groups involving a supervised participant', async () => {
+  const { child } = await enrolled();
+  const rows = await getDb()
+    .insert(users)
+    .values(Array.from({ length: 257 }, () => ({ kind: 'personal' as const })))
+    .returning({ id: users.id });
+  const ids = rows.map((row) => row.id);
+  expect((await decideMessages(ids, ids[0], consumer)).allowed).toBe(true);
+  expect(await decideMessages([...ids, child], ids[0], consumer)).toMatchObject({
+    allowed: false,
+    reason: 'unsupported_consumer',
+  });
 });

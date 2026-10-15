@@ -7228,16 +7228,6 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -7260,9 +7250,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "operationId": "patchAssetsIdVisibility"
       }
@@ -8501,6 +8489,18 @@
                   "apiSecret": {
                     "type": "string",
                     "description": "ApplicationCredential plaintext secret"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "uniqueItems": true,
+                    "description": "Optional exact subset of the live credential/application grant. Omission preserves the default grant.",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    }
                   }
                 }
               }
@@ -8623,6 +8623,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  },
                   "provider": {
                     "type": "string",
                     "enum": [
@@ -46979,8 +46989,8 @@
                       "minLength": 1,
                       "maxLength": 128
                     },
-                    "minItems": 2,
-                    "maxItems": 256
+                    "minItems": 1,
+                    "maxItems": 1024
                   },
                   "resourceId": {
                     "type": "string",
@@ -47003,6 +47013,330 @@
           }
         },
         "operationId": "postSafetyServiceDeliveryAccess"
+      }
+    },
+    "/safety/service/delivery-access-batch": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Decide background delivery using live contacts without impersonating a sender.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/supervision.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Per-resource decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "decision": {
+                            "type": "object",
+                            "properties": {
+                              "allowed": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "allowed",
+                                  "owner",
+                                  "public",
+                                  "private",
+                                  "blocked",
+                                  "unavailable",
+                                  "unsupported_consumer",
+                                  "contact_not_approved",
+                                  "mature_content",
+                                  "unrated_content",
+                                  "approval_required"
+                                ]
+                              },
+                              "policyVersion": {
+                                "type": "string",
+                                "enum": [
+                                  "2"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "allowed",
+                              "reason",
+                              "policyVersion"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "resourceId",
+                          "decision"
+                        ]
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Consumer required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consumer refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid batch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "participantAccountIds": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "minItems": 1,
+                          "maxItems": 1024
+                        },
+                        "resourceId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        },
+                        "senderAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "required": [
+                        "participantAccountIds",
+                        "resourceId",
+                        "senderAccountId"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "items"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSafetyServiceDeliveryAccessBatch"
       }
     },
     "/safety/service/message-access": {
@@ -47393,8 +47727,8 @@
                           "minLength": 1,
                           "maxLength": 128
                         },
-                        "minItems": 2,
-                        "maxItems": 256
+                        "minItems": 1,
+                        "maxItems": 1024
                       },
                       "resourceId": {
                         "type": "string",
@@ -47450,6 +47784,366 @@
           }
         },
         "operationId": "postSafetyServiceMessageAccess"
+      }
+    },
+    "/safety/service/message-access-batch": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Evaluate bounded conversations using one live policy graph.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/supervision.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Per-resource decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "resourceId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          },
+                          "decision": {
+                            "type": "object",
+                            "properties": {
+                              "allowed": {
+                                "type": "boolean"
+                              },
+                              "reason": {
+                                "type": "string",
+                                "enum": [
+                                  "allowed",
+                                  "owner",
+                                  "public",
+                                  "private",
+                                  "blocked",
+                                  "unavailable",
+                                  "unsupported_consumer",
+                                  "contact_not_approved",
+                                  "mature_content",
+                                  "unrated_content",
+                                  "approval_required"
+                                ]
+                              },
+                              "policyVersion": {
+                                "type": "string",
+                                "enum": [
+                                  "2"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "allowed",
+                              "reason",
+                              "policyVersion"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "resourceId",
+                          "decision"
+                        ]
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Requester required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Consumer refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid batch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "properties": {
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "participantAccountIds": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "minItems": 1,
+                              "maxItems": 1024
+                            },
+                            "resourceId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 256
+                            }
+                          },
+                          "required": [
+                            "participantAccountIds",
+                            "resourceId"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 100
+                      }
+                    },
+                    "required": [
+                      "items"
+                    ]
+                  },
+                  "requester": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "accessToken": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "accessToken"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "connectionToken": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 16384
+                          }
+                        },
+                        "required": [
+                          "connectionToken"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "input",
+                  "requester"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSafetyServiceMessageAccessBatch"
       }
     },
     "/safety/service/profile-access": {
@@ -51882,6 +52576,44 @@
                           },
                           "maxItems": 4
                         },
+                        "character": {
+                          "type": "object",
+                          "properties": {
+                            "preset": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "shape": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "eyes": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "eyewear": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "accessory": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "color": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                            },
+                            "bodyColor": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$"
+                            },
+                            "eyeSpacing": {
+                              "type": "number",
+                              "minimum": 0.5,
+                              "maximum": 1.5
+                            }
+                          }
+                        },
                         "relationship": {
                           "type": "object",
                           "properties": {
@@ -55392,6 +56124,342 @@
           }
         },
         "operationId": "postSafetySupervisionInvitationsIdAccept"
+      }
+    },
+    "/safety/supervision/people": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Minimal identities for supervision selection and existing relationships.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/supervision.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Minimal identities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "accountId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "username": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "displayName": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "accountId",
+                          "username",
+                          "displayName"
+                        ]
+                      },
+                      "maxItems": 100
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Request refused.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "bad_request",
+                            "validation_failed",
+                            "unauthorized",
+                            "forbidden",
+                            "not_found",
+                            "conflict",
+                            "reauth_required",
+                            "limit_reached",
+                            "service_unavailable",
+                            "rate_limited"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "query": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "query"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "accountIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "minItems": 1,
+                        "maxItems": 100
+                      }
+                    },
+                    "required": [
+                      "accountIds"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postSafetySupervisionPeople"
       }
     },
     "/safety/supervision/purchases": {

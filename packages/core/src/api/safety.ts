@@ -11,6 +11,11 @@ import {
   profileAccessBatchInputSchema,
   profileAccessBatchResponseSchema,
   messageAccessInputSchema,
+  messageAccessBatchInputSchema,
+  deliveryAccessBatchInputSchema,
+  messageAccessBatchResponseSchema,
+  type MessageAccessBatchInput,
+  type DeliveryAccessBatchInput,
   contactAccessInputSchema,
   contactAccessResponseSchema,
   contentAccessInputSchema,
@@ -106,6 +111,20 @@ export class SafetyApi {
   async messageAccess(input: MessageAccessInput, options: SafetyRequester) {
     return safetyDecisionSchema.parse(
       await this.decision('message-access', messageAccessInputSchema.parse(input), options),
+    );
+  }
+  async messageAccessBatch(input: MessageAccessBatchInput, options: SafetyRequester) {
+    return messageAccessBatchResponseSchema.parse(
+      await this.decision(
+        'message-access-batch',
+        messageAccessBatchInputSchema.parse(input),
+        options,
+      ),
+    );
+  }
+  async deliveryAccessBatch(input: DeliveryAccessBatchInput) {
+    return messageAccessBatchResponseSchema.parse(
+      await this.service('delivery-access-batch', deliveryAccessBatchInputSchema.parse(input)),
     );
   }
   async contactAccess(input: ContactAccessInput, options: SafetyRequester) {

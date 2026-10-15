@@ -16,21 +16,44 @@ describe('canonical profile access context', () => {
     jest.restoreAllMocks();
   });
   it('requires explicit requester context on a server and never silently substitutes service identity', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid', serviceAuth: { apiKey: 'test-service-key', apiSecret: 'test-service-secret' } });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'test-service-key', apiSecret: 'test-service-secret' },
+    });
     await expect(oxy.safety.profileAccess({ subjectAccountId: 'subject' })).rejects.toThrow(
       'explicit requester',
     );
     expect(fetchMock).not.toHaveBeenCalled();
     const service = jest.spyOn(oxy, 'serviceRequest').mockResolvedValue(decision);
-    expect(await oxy.safety.profileAccess({ subjectAccountId: 'subject' }, { accessToken: null })).toEqual(decision);
-    expect(service).toHaveBeenCalledWith('POST', '/safety/service/profile-access', { input: { subjectAccountId: 'subject' }, requester: { accessToken: null } }, expect.objectContaining({cache:false,retry:false}));
+    expect(
+      await oxy.safety.profileAccess({ subjectAccountId: 'subject' }, { accessToken: null }),
+    ).toEqual(decision);
+    expect(service).toHaveBeenCalledWith(
+      'POST',
+      '/safety/service/profile-access',
+      { input: { subjectAccountId: 'subject' }, requester: { accessToken: null } },
+      expect.objectContaining({ cache: false, retry: false }),
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('forwards exactly the original bearer when supplied and does not refresh into another account', async () => {
-    const oxy = new OxyServer({ baseURL: 'http://test.invalid', serviceAuth: { apiKey: 'test-service-key', apiSecret: 'test-service-secret' } });
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'test-service-key', apiSecret: 'test-service-secret' },
+    });
     const service = jest.spyOn(oxy, 'serviceRequest').mockResolvedValue(decision);
-    expect(await oxy.safety.profileAccess({ subjectAccountId: 'subject' }, { accessToken: 'original-bearer' })).toEqual(decision);
-    expect(service).toHaveBeenCalledWith('POST', '/safety/service/profile-access', { input: { subjectAccountId: 'subject' }, requester: { accessToken: 'original-bearer' } }, expect.any(Object));
+    expect(
+      await oxy.safety.profileAccess(
+        { subjectAccountId: 'subject' },
+        { accessToken: 'original-bearer' },
+      ),
+    ).toEqual(decision);
+    expect(service).toHaveBeenCalledWith(
+      'POST',
+      '/safety/service/profile-access',
+      { input: { subjectAccountId: 'subject' }, requester: { accessToken: 'original-bearer' } },
+      expect.any(Object),
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('rejects caller-selected viewer IDs and malformed policy answers', async () => {
@@ -48,6 +71,41 @@ describe('canonical profile access context', () => {
     );
     await expect(
       oxy.safety.profileAccess({ subjectAccountId: 'subject' }, { accessToken: null }),
+    ).rejects.toThrow();
+  });
+  it('sends bounded message batches with original proof and delivery batches with service authority only', async () => {
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'key', apiSecret: 'secret' },
+    });
+    const items = [{ resourceId: 'self', participantAccountIds: ['person'] }];
+    const response = {
+      items: [
+        { resourceId: 'self', decision: { allowed: true, reason: 'allowed', policyVersion: '2' } },
+      ],
+    };
+    const service = jest.spyOn(oxy, 'serviceRequest').mockResolvedValue(response);
+    expect(await oxy.safety.messageAccessBatch({ items }, { accessToken: 'original' })).toEqual(
+      response,
+    );
+    expect(service).toHaveBeenLastCalledWith(
+      'POST',
+      '/safety/service/message-access-batch',
+      { input: { items }, requester: { accessToken: 'original' } },
+      expect.objectContaining({ serviceTokenScopes: ['safety:decide'], cache: false }),
+    );
+    await oxy.safety.deliveryAccessBatch({
+      items: items.map((item) => ({ ...item, senderAccountId: 'person' })),
+    });
+    expect(service).toHaveBeenLastCalledWith(
+      'POST',
+      '/safety/service/delivery-access-batch',
+      { items: [{ ...items[0], senderAccountId: 'person' }] },
+      expect.objectContaining({ cache: false }),
+    );
+    service.mockResolvedValueOnce({ items: [{ resourceId: 'self', decision: { allowed: true } }] });
+    await expect(
+      oxy.safety.messageAccessBatch({ items }, { accessToken: 'original' }),
     ).rejects.toThrow();
   });
 });

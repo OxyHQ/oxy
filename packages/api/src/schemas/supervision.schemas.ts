@@ -4,6 +4,7 @@ import {
   profileAccessInputSchema,
   profileAccessBatchInputSchema,
   messageAccessInputSchema,
+  messageAccessBatchInputSchema,
   contactAccessInputSchema,
   contentAccessInputSchema,
   contentAccessBatchInputSchema,
@@ -13,6 +14,7 @@ const request = <T extends z.ZodTypeAny>(input: T) =>
   z.object({ input, requester: safetyRequesterSchema }).strict();
 export const safetyProfileRequestSchema = request(profileAccessInputSchema);
 export const safetyProfileBatchRequestSchema = request(profileAccessBatchInputSchema);
+export const safetyMessageBatchRequestSchema = request(messageAccessBatchInputSchema);
 export const safetyMessageRequestSchema = request(messageAccessInputSchema);
 export const safetyContactRequestSchema = request(contactAccessInputSchema);
 export const safetyContentRequestSchema = request(contentAccessInputSchema);

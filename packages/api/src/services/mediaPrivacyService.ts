@@ -56,13 +56,14 @@ export class MediaPrivacyService {
       const isOwner = Boolean(viewerUserId) && ownerId === viewerUserId;
       // Applies to ordinary session reads and existing scoped stream tokens alike.
       // Unilateral follows and a historical public URL do not override current supervision.
-      const supervised = supervisionPolicy ? supervisionPolicy(ownerId, viewerUserId) : await decideSupervisedAsset(ownerId, viewerUserId);
+      const supervised = supervisionPolicy
+        ? supervisionPolicy(ownerId, viewerUserId)
+        : await decideSupervisedAsset(ownerId, viewerUserId);
       if (supervised) {
         if (!supervised.allowed) return { allowed: false, reason: supervised.reason };
         if (supervised.reason === 'owner') return { allowed: true, reason: 'owner' };
         // Approved adults still pass through restrictions and entity-level checks below.
       }
-
 
       if (isOwner) {
         return { allowed: true, reason: 'owner' };

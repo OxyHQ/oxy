@@ -268,6 +268,8 @@ export interface AuthMiddlewareOptions {
   loadUser?: boolean;
   /** Optional auth - attach user if token present but don't block (default: false) */
   optional?: boolean;
+  /** Keep anonymous access, but reject every supplied invalid credential or authority outage. */
+  strictOptionalBearer?: boolean;
   /**
    * Called whenever a PRESENTED credential is refused, on the optional path as
    * well as the blocking one. Runs before the response (if any) and after
@@ -414,6 +416,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
       expectedIssuer = OXY_JWT_ISSUER,
       expectedAudience = OXY_JWT_AUDIENCE,
     } = options;
+    const strictPresentedBearer = Boolean(options.supervisedAction || options.strictOptionalBearer);
 
     /**
      * Make a refusal observable to the HOST, without telling the client
@@ -481,7 +484,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         }
 
         if (!token) {
-          if (optional) {
+          if (optional && (!strictPresentedBearer || rawAuthHeader === undefined)) {
             req.userId = null;
             req.user = null;
             return next();
@@ -518,7 +521,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               decodeError,
             );
           }
-          if (optional && !options.supervisedAction) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -584,7 +587,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                   detail: verifyError.message,
                 });
               }
-              if (optional && !options.supervisedAction) {
+              if (optional && !strictPresentedBearer) {
                 req.userId = null;
                 req.user = null;
                 return next();
@@ -628,7 +631,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                 : 'Service token has no integer exp claim',
               status: 401,
             });
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -699,7 +702,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               })`,
               status: 401,
             });
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -825,7 +828,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'Token carries no usable user id claim',
             status: 401,
           });
-          if (optional && !options.supervisedAction) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -850,7 +853,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'User access token expired',
             status: 401,
           });
-          if (optional && !options.supervisedAction) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -879,7 +882,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'User access token is not bound to a session',
             status: 401,
           });
-          if (optional && !options.supervisedAction) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -910,7 +913,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session is invalid, revoked or expired',
               status: 401,
             });
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -935,7 +938,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session did not resolve to a usable identity',
               status: 401,
             });
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -968,7 +971,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               status: 401,
             });
 
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -1004,7 +1007,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session actor chain does not describe the validated session',
               status: 401,
             });
-            if (optional && !options.supervisedAction) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -1058,7 +1061,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             return res.status(403).json(refusal);
           }
           const validationStatus =
-            options.supervisedAction && extractErrorStatus(validationError) !== 401 ? 503 : 401;
+            strictPresentedBearer && extractErrorStatus(validationError) !== 401 ? 503 : 401;
           recordRefusal(req, {
             code: 'SESSION_VALIDATION_ERROR',
             stage: 'session',
@@ -1079,7 +1082,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             );
           }
 
-          if (optional && !options.supervisedAction) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();

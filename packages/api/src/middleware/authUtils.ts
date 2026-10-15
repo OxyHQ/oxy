@@ -159,16 +159,26 @@ export async function authenticateRequestNonBlocking(
   const source = req.headers.authorization ? 'header' : null;
 
   if (!token) {
-    if (requireAuth && req.headers.authorization !== undefined) throw new OptionalAuthenticationPolicyError(401, 'Invalid bearer authorization');
+    if (requireAuth && req.headers.authorization !== undefined)
+      throw new OptionalAuthenticationPolicyError(401, 'Invalid bearer authorization');
     return { user: null, source };
   }
 
   if (requireAuth) {
     try {
-      const result = await sessionService.validateSession(token, { allowSupervisedPolicyEvaluation: true, throwOnError: true });
+      const result = await sessionService.validateSession(token, {
+        allowSupervisedPolicyEvaluation: true,
+        throwOnError: true,
+      });
       if (!result) throw new OptionalAuthenticationPolicyError(401, 'Invalid or expired session');
-      if (await isSupervised(result.session.userId) || (result.session.operatedByUserId && await isSupervised(result.session.operatedByUserId))) {
-        throw new OptionalAuthenticationPolicyError(403, 'Reviewed consumer authorization is required');
+      if (
+        (await isSupervised(result.session.userId)) ||
+        (result.session.operatedByUserId && (await isSupervised(result.session.operatedByUserId)))
+      ) {
+        throw new OptionalAuthenticationPolicyError(
+          403,
+          'Reviewed consumer authorization is required',
+        );
       }
       return { user: normalizeUser(result.user), source, sessionId: result.session.sessionId };
     } catch (error) {

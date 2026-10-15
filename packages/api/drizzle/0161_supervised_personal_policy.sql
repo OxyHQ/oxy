@@ -1,3 +1,4 @@
+-- oxy:deploy-phase=pre
 CREATE TABLE "supervision_audit" (
 	"id" text PRIMARY KEY NOT NULL,
 	"child_account_id" text NOT NULL,

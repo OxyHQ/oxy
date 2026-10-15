@@ -268,8 +268,15 @@ export async function evaluateCapabilityAuthority(
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
-  const safetySubjects = [...new Set([authorization.requesterAccountId, authorization.ownerAccountId, authorization.effectiveAccountId])];
-  if ((await Promise.all(safetySubjects.map(isSupervised))).some(Boolean)) return denied('supervised_delegation_unsupported');
+  const safetySubjects = [
+    ...new Set([
+      authorization.requesterAccountId,
+      authorization.ownerAccountId,
+      authorization.effectiveAccountId,
+    ]),
+  ];
+  if ((await Promise.all(safetySubjects.map(isSupervised))).some(Boolean))
+    return denied('supervised_delegation_unsupported');
   if (
     authorization.requesterAuthMethodId &&
     !(await readLiveAgentKey({

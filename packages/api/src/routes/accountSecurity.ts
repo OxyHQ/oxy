@@ -81,7 +81,10 @@ const changeLimiter = accountLimiter('change', HOUR, 30);
 router.use(
   ['/sign-in-methods', '/reauth', '/password', '/totp'],
   requireOfficialOrigin,
-  (_req, res, next) => { res.locals.supervisedSelfOperation = true; next(); },
+  (_req, res, next) => {
+    res.locals.supervisedSelfOperation = true;
+    next();
+  },
   authMiddleware,
   requireFirstPartyDeviceAccess,
 );
