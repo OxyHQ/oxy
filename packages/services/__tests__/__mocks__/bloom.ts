@@ -664,6 +664,7 @@ export const TextField = passthrough('div');
 export const TextFieldInput = ({
   value,
   onValueChange,
+  onChangeText,
   onSubmitEditing,
   placeholder,
   testID,
@@ -673,6 +674,7 @@ export const TextFieldInput = ({
 }: {
   value?: string;
   onValueChange?: (next: string) => void;
+  onChangeText?: (next: string) => void;
   onSubmitEditing?: () => void;
   placeholder?: string | null;
   testID?: string;
@@ -689,7 +691,8 @@ export const TextFieldInput = ({
     placeholder: placeholder ?? undefined,
     'aria-label': label,
     'data-testid': testID,
-    onChange: (event: { target: { value: string } }) => onValueChange?.(event.target.value),
+    onChange: (event: { target: { value: string } }) =>
+      (onValueChange ?? onChangeText)?.(event.target.value),
     onKeyDown: (event: { key: string }) => {
       if (event.key === 'Enter') onSubmitEditing?.();
     },

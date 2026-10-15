@@ -1,4 +1,7 @@
 import type React from 'react';
+import type { OrganizationType } from '@oxy.so/contracts';
+import { OrganizationDirectorySearch } from '../components/organizations/OrganizationDirectorySearch';
+import { OrganizationTypePicker } from '../components/organizations/OrganizationTypePicker';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import Ionicons from '../icons/Ionicons';
@@ -114,7 +117,7 @@ const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUN
  */
 const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, parentAccountId }) => {
   const bloomTheme = useTheme();
-  const { oxyServices, createAccount, switchToAccount } = useOxy();
+  const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
   const { t, locale } = useI18n();
 
   useSurfaceHeader({
@@ -127,6 +130,8 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
   const parentId = typeof parentAccountId === 'string' ? parentAccountId : undefined;
 
   const [kind, setKind] = useState<CreatableAccountKind>('project');
+  const [organizationType, setOrganizationType] = useState<OrganizationType>('business');
+  const [newOrganization, setNewOrganization] = useState(false);
   /**
    * ORDER IS THE DATA: index 0 is the primary category. Selecting appends,
    * de-selecting removes, and neither sorts — so the list the user assembles is
@@ -254,6 +259,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
   const handleKindChange = useCallback(
     (nextKind: CreatableAccountKind) => {
       setKind(nextKind);
+      setNewOrganization(false);
       if (!username) return;
       const proposed = nextKind === 'bot' ? applyBotUsernameSuffix(username) : username;
       setUsername(proposed);
@@ -301,10 +307,12 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
   }, []);
 
   const canCreate =
+    canUsePrivateApi &&
     usernameStatus === 'available' &&
     displayName.trim().length > 0 &&
     !displayNameError &&
-    !isCreating;
+    !isCreating &&
+    (kind !== 'organization' || newOrganization);
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
@@ -313,6 +321,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
     try {
       const input: CreateAccountInput = {
         kind,
+        ...(kind === 'organization' ? { organizationType } : {}),
         username,
         name: { displayName: displayName.trim() },
         bio: bio.trim() || undefined,
@@ -352,6 +361,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
   }, [
     canCreate,
     kind,
+    organizationType,
     accountCategories,
     username,
     displayName,
@@ -405,128 +415,157 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
         })}
       </SettingsListGroup>
 
-      {/* Categories — multi-select, shown for every kind this screen can create
+      {kind === 'organization' && !newOrganization ? (
+        <OrganizationDirectorySearch
+          key={user?.id}
+          onCreateAccount={(name, type) => {
+            handleDisplayNameChange(name);
+            setOrganizationType(type);
+            setNewOrganization(true);
+          }}
+        />
+      ) : (
+        <>
+          {kind === 'organization' ? (
+            <>
+              <Button appearance="outline" onPress={() => setNewOrganization(false)}>
+                {t('organizationDirectory.back')}
+              </Button>
+              <OrganizationTypePicker
+                value={organizationType}
+                onChange={setOrganizationType}
+                disabled={isCreating}
+              />
+            </>
+          ) : null}
+          {/* Categories — multi-select, shown for every kind this screen can create
           (they are all non-personal). The badge on a selected row is its
           POSITION, so the primary is legible as "1" rather than being a rule the
           user has to be told. */}
-      <View className="gap-space-4">
-        <SettingsListGroup title={t('accounts.create.accountCategory.label')}>
-          {ACCOUNT_CATEGORY_OPTIONS.map((option) => {
-            const position = accountCategories.indexOf(option);
-            const selected = position >= 0;
-            const label = accountCategoryLabel(locale, option);
-            return (
-              <SettingsListItem
-                key={option}
-                title={label}
-                disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
-                onPress={() => toggleAccountCategory(option)}
-                showChevron={false}
-                rightElement={
-                  selected ? (
-                    <Text className="text-caption-1 font-semibold text-primary">
-                      {position + 1}
-                    </Text>
-                  ) : undefined
-                }
-                accessibilityLabel={label}
-              />
-            );
-          })}
-        </SettingsListGroup>
-        <Text className="text-caption font-caption text-text-tertiary px-space-4">
-          {t('accounts.create.accountCategory.hint', { max: MAX_ACCOUNT_CATEGORIES })}
-        </Text>
-      </View>
+          <View className="gap-space-4">
+            <SettingsListGroup title={t('accounts.create.accountCategory.label')}>
+              {ACCOUNT_CATEGORY_OPTIONS.map((option) => {
+                const position = accountCategories.indexOf(option);
+                const selected = position >= 0;
+                const label = accountCategoryLabel(locale, option);
+                return (
+                  <SettingsListItem
+                    key={option}
+                    title={label}
+                    disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
+                    onPress={() => toggleAccountCategory(option)}
+                    showChevron={false}
+                    rightElement={
+                      selected ? (
+                        <Text className="text-caption-1 font-semibold text-primary">
+                          {position + 1}
+                        </Text>
+                      ) : undefined
+                    }
+                    accessibilityLabel={label}
+                  />
+                );
+              })}
+            </SettingsListGroup>
+            <Text className="text-caption font-caption text-text-tertiary px-space-4">
+              {t('accounts.create.accountCategory.hint', { max: MAX_ACCOUNT_CATEGORIES })}
+            </Text>
+          </View>
 
-      {/* Details — a grouped section card hosting the form fields */}
-      <SettingsListGroup title={t('accounts.create.detailsSection') || 'Details'}>
-        <View className="p-space-16 gap-space-16">
-          {/* Username */}
-          <View className="gap-space-8">
-            <TextField isInvalid={usernameIsInvalid}>
-              <TextFieldInput
-                floatingLabel
-                label={t('accounts.create.username.label') || 'Username'}
-                value={username}
-                onChangeText={handleUsernameChange}
-                isInvalid={usernameIsInvalid}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="off"
-                maxLength={USERNAME_MAX_LENGTH}
-              />
-            </TextField>
-            {usernameStatus === 'checking' || usernameMessage ? (
-              <View className="flex-row items-center gap-space-4 px-space-4">
-                {usernameStatus === 'checking' ? (
-                  <ActivityIndicator size="small" color={bloomTheme.colors.primary} />
-                ) : usernameStatus === 'available' ? (
-                  <Ionicons name="checkmark-circle" size={16} color={bloomTheme.colors.success} />
-                ) : usernameIsInvalid ? (
-                  <Ionicons name="alert-circle" size={16} color={bloomTheme.colors.negative} />
+          {/* Details — a grouped section card hosting the form fields */}
+          <SettingsListGroup title={t('accounts.create.detailsSection') || 'Details'}>
+            <View className="p-space-16 gap-space-16">
+              {/* Username */}
+              <View className="gap-space-8">
+                <TextField isInvalid={usernameIsInvalid}>
+                  <TextFieldInput
+                    floatingLabel
+                    label={t('accounts.create.username.label') || 'Username'}
+                    value={username}
+                    onChangeText={handleUsernameChange}
+                    isInvalid={usernameIsInvalid}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="off"
+                    maxLength={USERNAME_MAX_LENGTH}
+                  />
+                </TextField>
+                {usernameStatus === 'checking' || usernameMessage ? (
+                  <View className="flex-row items-center gap-space-4 px-space-4">
+                    {usernameStatus === 'checking' ? (
+                      <ActivityIndicator size="small" color={bloomTheme.colors.primary} />
+                    ) : usernameStatus === 'available' ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color={bloomTheme.colors.success}
+                      />
+                    ) : usernameIsInvalid ? (
+                      <Ionicons name="alert-circle" size={16} color={bloomTheme.colors.negative} />
+                    ) : null}
+                    {usernameMessage ? (
+                      <Text className="text-caption font-caption" style={{ color: statusColor }}>
+                        {usernameMessage}
+                      </Text>
+                    ) : null}
+                  </View>
                 ) : null}
-                {usernameMessage ? (
-                  <Text className="text-caption font-caption" style={{ color: statusColor }}>
-                    {usernameMessage}
+              </View>
+
+              {/* Display Name */}
+              <View className="gap-space-4">
+                <TextField isInvalid={Boolean(displayNameError)}>
+                  <TextFieldInput
+                    floatingLabel
+                    label={t('accounts.create.displayName.label') || 'Display name'}
+                    value={displayName}
+                    onChangeText={handleDisplayNameChange}
+                    isInvalid={Boolean(displayNameError)}
+                    maxLength={DISPLAY_NAME_MAX}
+                  />
+                </TextField>
+                {displayNameError ? (
+                  <Text className="text-caption font-caption text-negative px-space-4">
+                    {displayNameError}
                   </Text>
                 ) : null}
               </View>
-            ) : null}
-          </View>
 
-          {/* Display Name */}
-          <View className="gap-space-4">
-            <TextField isInvalid={Boolean(displayNameError)}>
-              <TextFieldInput
-                floatingLabel
-                label={t('accounts.create.displayName.label') || 'Display name'}
-                value={displayName}
-                onChangeText={handleDisplayNameChange}
-                isInvalid={Boolean(displayNameError)}
-                maxLength={DISPLAY_NAME_MAX}
-              />
-            </TextField>
-            {displayNameError ? (
-              <Text className="text-caption font-caption text-negative px-space-4">
-                {displayNameError}
-              </Text>
-            ) : null}
-          </View>
+              {/* Bio */}
+              <View className="gap-space-4">
+                <TextField>
+                  <TextFieldInput
+                    floatingLabel
+                    label={t('accounts.create.bio.label') || 'Bio (optional)'}
+                    value={bio}
+                    onChangeText={setBio}
+                    maxLength={BIO_MAX}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </TextField>
+                <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
+                  {bio.length}/{BIO_MAX}
+                </Text>
+              </View>
+            </View>
+          </SettingsListGroup>
 
-          {/* Bio */}
-          <View className="gap-space-4">
-            <TextField>
-              <TextFieldInput
-                floatingLabel
-                label={t('accounts.create.bio.label') || 'Bio (optional)'}
-                value={bio}
-                onChangeText={setBio}
-                maxLength={BIO_MAX}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </TextField>
-            <Text className="text-caption font-caption text-text-tertiary px-space-4 text-right">
-              {bio.length}/{BIO_MAX}
-            </Text>
-          </View>
-        </View>
-      </SettingsListGroup>
-
-      {/* Create Button */}
-      <Button
-        appearance="solid"
-        tone="accent"
-        onPress={handleCreate}
-        disabled={!canCreate}
-        loading={isCreating}
-        accessibilityLabel={title}
-        className="w-full"
-      >
-        {title}
-      </Button>
+          {/* Create Button */}
+          <Button
+            appearance="solid"
+            tone="accent"
+            onPress={handleCreate}
+            disabled={!canCreate}
+            loading={isCreating}
+            accessibilityLabel={title}
+            className="w-full"
+          >
+            {title}
+          </Button>
+        </>
+      )}
     </View>
   );
 };

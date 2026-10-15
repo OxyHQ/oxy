@@ -1,4 +1,5 @@
 import type React from 'react';
+import { OrganizationSettings } from '../components/organizations/OrganizationSettings';
 import { useCallback, useMemo, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -259,6 +260,10 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
                   {t('accounts.settings.save') || 'Save changes'}
                 </Button>
               </View>
+            ) : null}
+
+            {node?.account.kind === 'organization' ? (
+              <OrganizationSettings key={id} accountId={id} canUpdate={canUpdate} />
             ) : null}
 
             {/* Members entry */}
