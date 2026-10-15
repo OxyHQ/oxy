@@ -55,7 +55,6 @@ function OrganizationForm({ organization }: { organization: Organization }) {
   const { oxyServices, canUsePrivateApi } = useOxy();
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const [name, setName] = useState(organization.name);
   const [legalName, setLegalName] = useState(organization.legalName ?? '');
   const [website, setWebsite] = useState(organization.websiteUrl ?? '');
   const [country, setCountry] = useState(organization.countryCode ?? '');
@@ -75,14 +74,6 @@ function OrganizationForm({ organization }: { organization: Organization }) {
   return (
     <SettingsListGroup title={t('organizationDirectory.title')}>
       <View className="gap-space-16 p-space-16">
-        <TextField>
-          <TextFieldInput
-            label={t('organizationDirectory.name')}
-            value={name}
-            onChangeText={setName}
-            maxLength={300}
-          />
-        </TextField>
         <TextField>
           <TextFieldInput
             label={t('organizationDirectory.legalName')}
@@ -124,7 +115,6 @@ function OrganizationForm({ organization }: { organization: Organization }) {
           loading={save.isPending}
           onPress={() => {
             const input = updateOrganizationSchema.safeParse({
-              name,
               legalName: legalName.trim() || null,
               websiteUrl: website.trim() || null,
               countryCode: country.trim().toUpperCase() || null,

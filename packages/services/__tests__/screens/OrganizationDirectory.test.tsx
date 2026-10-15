@@ -169,6 +169,9 @@ it('passes the chosen organization subtype through managed account creation', as
   await findCompany();
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.newAccount' }));
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.types.nonprofit' }));
+  fireEvent.change(screen.getByLabelText('accounts.create.displayName.label'), {
+    target: { value: 'Acme & Co.' },
+  });
   fireEvent.change(screen.getByLabelText('accounts.create.username.label'), {
     target: { value: 'acme_new' },
   });
@@ -176,7 +179,11 @@ it('passes the chosen organization subtype through managed account creation', as
   fireEvent.click(screen.getByRole('button', { name: 'accounts.create.title' }));
   await waitFor(() =>
     expect(createAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'organization', organizationType: 'nonprofit' }),
+      expect.objectContaining({
+        kind: 'organization',
+        organizationType: 'nonprofit',
+        name: { displayName: 'Acme & Co.' },
+      }),
     ),
   );
 });
@@ -196,7 +203,6 @@ it('validates canonical company fields and updates the existing ID, without repl
   fireEvent.click(screen.getByRole('button', { name: 'organizationDirectory.save' }));
   await waitFor(() =>
     expect(update).toHaveBeenCalledWith('existing-org', {
-      name: 'Acme',
       legalName: null,
       websiteUrl: 'https://new.example',
       countryCode: 'US',

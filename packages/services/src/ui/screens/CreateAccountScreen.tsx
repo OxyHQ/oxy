@@ -1,5 +1,9 @@
 import type React from 'react';
-import type { OrganizationType } from '@oxy.so/contracts';
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  organizationNameSchema,
+  type OrganizationType,
+} from '@oxy.so/contracts';
 import { OrganizationDirectorySearch } from '../components/organizations/OrganizationDirectorySearch';
 import { OrganizationTypePicker } from '../components/organizations/OrganizationTypePicker';
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -276,6 +280,14 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
         setDisplayNameError('');
         return;
       }
+      if (kind === 'organization') {
+        setDisplayNameError(
+          organizationNameSchema.safeParse(trimmed).success
+            ? ''
+            : t('organizationDirectory.invalidName'),
+        );
+        return;
+      }
       const nameParts = trimmed.split(/\s+/);
       const firstName = nameParts[0] || '';
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
@@ -286,7 +298,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
           : '',
       );
     },
-    [t],
+    [kind, t],
   );
 
   /**
@@ -521,7 +533,9 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
                     value={displayName}
                     onChangeText={handleDisplayNameChange}
                     isInvalid={Boolean(displayNameError)}
-                    maxLength={DISPLAY_NAME_MAX}
+                    maxLength={
+                      kind === 'organization' ? ORGANIZATION_NAME_MAX_LENGTH : DISPLAY_NAME_MAX
+                    }
                   />
                 </TextField>
                 {displayNameError ? (
