@@ -63,6 +63,22 @@ function makeEmptyAuthStore(): AuthStateStore {
   } as unknown as AuthStateStore;
 }
 
+/** An auth store holding this origin's device credential. */
+function makeCredentialAuthStore(): AuthStateStore {
+  return {
+    load: jest.fn(
+      async (): Promise<PersistedAuthState | null> => ({ deviceId: 'd1', deviceSecret: 's1' }),
+    ),
+    save: jest.fn(async () => undefined),
+    clear: jest.fn(async () => undefined),
+  } as unknown as AuthStateStore;
+}
+
+/** Put an OAuth return (`?code=`) on the address bar, as the IdP's redirect does. */
+function landWithAuthorizationCode(): void {
+  window.history.replaceState(null, '', '/?code=auth-code&state=auth-state');
+}
+
 interface Harness {
   options: RunProviderColdBootOptions;
   commitSession: jest.Mock;
@@ -120,6 +136,7 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
     mockTryCompleteOAuthReturn.mockClear();
     mockTryCompleteOAuthReturn.mockImplementation(async () => false);
     globalThis.sessionStorage?.clear();
+    window.history.replaceState(null, '', '/');
   });
 
   it('resolves a domain with no local credential SIGNED OUT instead of bouncing to the IdP', async () => {
@@ -160,7 +177,7 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
         return { kind: 'session', via: session.via, session } as const;
       },
     );
-    const { options, commitSession } = makeHarness();
+    const { options, commitSession } = makeHarness({ authStore: makeCredentialAuthStore() });
 
     await runProviderColdBoot(options);
 
@@ -176,6 +193,7 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
       // A popup-mode app lands here whenever the browser blocked the popup and
       // `startWebOAuthSignIn` fell back to a full-page redirect.
       mockTryCompleteOAuthReturn.mockImplementation(async () => true);
+      landWithAuthorizationCode();
       const { options, markAuthResolved, setTokenReady } = makeHarness();
 
       await runProviderColdBoot(options);
@@ -190,6 +208,7 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
 
     it('runs the return leg even on a boot that finds no session', async () => {
       stubSignedOutBoot();
+      landWithAuthorizationCode();
       const { options } = makeHarness();
 
       await runProviderColdBoot(options);
@@ -199,6 +218,7 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
 
     it('commits the OAuth return as a deliberate sign-in', async () => {
       mockTryCompleteOAuthReturn.mockImplementation(async () => true);
+      landWithAuthorizationCode();
       const { options } = makeHarness();
 
       await runProviderColdBoot(options);
@@ -225,14 +245,22 @@ describe('runProviderColdBoot — no SDK-initiated IdP navigation (#691 phase 7b
   });
 });
 
+// Each case lands with an OAuth return on the URL — the boot that must classify
+// before it does anything — so "nothing ran first" is a real claim. The web
+// origin with nothing to restore, which resolves before classification, is
+// covered on its own below.
 describe('registered cold-boot classification', () => {
   beforeEach(() => {
     mockRunSessionColdBoot.mockReset();
     mockTryCompleteOAuthReturn.mockReset();
     mockTryCompleteOAuthReturn.mockResolvedValue(false);
+    landWithAuthorizationCode();
+  });
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
   });
   it('external classification bypasses prior secrets, shared device and identity pin work', async () => {
-    const { options } = makeHarness();
+    const { options } = makeHarness({ authStore: makeCredentialAuthStore() });
     (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({
       id: 'external',
       name: 'External',
@@ -298,8 +326,9 @@ describe('registered cold-boot classification', () => {
 
 it('an unresponsive registry resolves signed-out without a late privileged continuation', async () => {
   jest.useFakeTimers();
+  landWithAuthorizationCode();
   try {
-    const { options } = makeHarness();
+    const { options } = makeHarness({ authStore: makeCredentialAuthStore() });
     let release!: (app: unknown) => void;
     (options.oxyServices.apps.getPublic as jest.Mock).mockImplementation(
       () =>
@@ -327,5 +356,139 @@ it('an unresponsive registry resolves signed-out without a late privileged conti
     expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
   } finally {
     jest.useRealTimers();
+    window.history.replaceState(null, '', '/');
   }
+});
+
+/**
+ * A web origin with nothing to restore — no warm token, no device secret, no
+ * OAuth return on the URL — ends signed out on either lane, so its routing does
+ * not wait on the registry round trip. Everything that would USE a credential
+ * still waits for the verdict.
+ */
+describe('web origin with nothing to restore', () => {
+  const official = {
+    id: 'registered-app',
+    name: 'Registered App',
+    type: 'first_party',
+    isOfficial: true,
+    isInternal: false,
+    scopes: [],
+  };
+
+  beforeEach(() => {
+    mockRunSessionColdBoot.mockReset();
+    mockTryCompleteOAuthReturn.mockReset();
+    mockTryCompleteOAuthReturn.mockResolvedValue(false);
+    window.history.replaceState(null, '', '/');
+  });
+
+  function pendingRegistry(options: RunProviderColdBootOptions): (app: unknown) => void {
+    let release!: (app: unknown) => void;
+    (options.oxyServices.apps.getPublic as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    return (app) => release(app);
+  }
+
+  it('resolves auth before the registry answers, and still classifies with no cache', async () => {
+    const { options, markAuthResolved } = makeHarness();
+    const onClassified = jest.fn();
+    const release = pendingRegistry(options);
+
+    const boot = runProviderColdBoot({ ...options, onClassified });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(markAuthResolved).toHaveBeenCalled();
+    expect(options.oxyServices.apps.getPublic).toHaveBeenCalledWith(CLIENT_ID, { cache: false });
+    expect(onClassified).not.toHaveBeenCalled();
+
+    release(official);
+    await boot;
+
+    expect(onClassified).toHaveBeenCalledWith('device');
+    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+    expect(mockTryCompleteOAuthReturn).not.toHaveBeenCalled();
+    expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
+    expect(options.commitSession).not.toHaveBeenCalled();
+  });
+
+  it('a failed classification after the early resolution restores nothing', async () => {
+    const { options, markAuthResolved } = makeHarness();
+    (options.oxyServices.apps.getPublic as jest.Mock).mockRejectedValue(new Error('offline'));
+
+    await runProviderColdBoot(options);
+
+    expect(markAuthResolved).toHaveBeenCalled();
+    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+    expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
+  });
+
+  it('an origin holding a device secret still waits for the verdict before using it', async () => {
+    stubSignedOutBoot();
+    const { options, markAuthResolved } = makeHarness({ authStore: makeCredentialAuthStore() });
+    const release = pendingRegistry(options);
+
+    const boot = runProviderColdBoot(options);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(markAuthResolved).not.toHaveBeenCalled();
+    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+    expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
+
+    release(official);
+    await boot;
+
+    expect(mockRunSessionColdBoot).toHaveBeenCalledTimes(1);
+    expect(markAuthResolved).toHaveBeenCalled();
+  });
+
+  it('an origin holding a device secret classified external never uses it', async () => {
+    const { options } = makeHarness({ authStore: makeCredentialAuthStore() });
+    (options.oxyServices.apps.getPublic as jest.Mock).mockResolvedValue({
+      ...official,
+      type: 'third_party',
+      isOfficial: false,
+    });
+
+    await runProviderColdBoot(options);
+
+    expect(mockRunSessionColdBoot).not.toHaveBeenCalled();
+    expect(options.syncDeviceCredentialToHost).not.toHaveBeenCalled();
+    expect(options.authStore.save).not.toHaveBeenCalled();
+    expect(options.authStore.clear).not.toHaveBeenCalled();
+  });
+
+  it('an OAuth return on the URL waits for the verdict', async () => {
+    landWithAuthorizationCode();
+    const { options, markAuthResolved } = makeHarness();
+    const release = pendingRegistry(options);
+
+    const boot = runProviderColdBoot(options);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(markAuthResolved).not.toHaveBeenCalled();
+    expect(options.authStore.load).not.toHaveBeenCalled();
+
+    release(official);
+    await boot;
+    expect(mockTryCompleteOAuthReturn).toHaveBeenCalledTimes(1);
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('identity mode always waits for the verdict', async () => {
+    stubSignedOutBoot();
+    const { options, markAuthResolved } = makeHarness({ sessionMode: 'identity' });
+    const release = pendingRegistry(options);
+
+    const boot = runProviderColdBoot(options);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(markAuthResolved).not.toHaveBeenCalled();
+
+    release(official);
+    await boot;
+    expect(markAuthResolved).toHaveBeenCalled();
+  });
 });

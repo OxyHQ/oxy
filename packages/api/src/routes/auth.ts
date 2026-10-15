@@ -2419,6 +2419,9 @@ const oauthUserinfoLimiter = rateLimit({
   max: process.env.NODE_ENV === 'development' ? 200 : 60,
 });
 
+/** Freshness of `GET /auth/oauth/client/:clientId` — see the handler. */
+const PUBLIC_CLIENT_METADATA_MAX_AGE_SECONDS = 60;
+
 const oauthClientLookupLimiter = rateLimit({
   prefix: 'rl:auth:client-lookup:',
   windowMs: 60 * 1000,
@@ -3510,6 +3513,13 @@ router.get(
 
     const developerName = await resolveDeveloperName(app);
 
+    // Public metadata every Oxy app reads on every cold boot to classify its
+    // session lane. A short shared freshness lets a reload reuse it instead of
+    // paying the round trip; 60 s matches the dynamic origin registry's own
+    // refresh interval, so a reclassified or deactivated application is seen
+    // no later than the API's trust snapshot sees it. Only the 200 is cacheable:
+    // a 404 stays uncached, so a newly activated client works at once.
+    res.set('Cache-Control', `public, max-age=${PUBLIC_CLIENT_METADATA_MAX_AGE_SECONDS}`);
     sendSuccess(res, {
       application: serializePublicApplication(app, developerName),
     });

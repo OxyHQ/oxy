@@ -39,6 +39,15 @@ entry point; it does not host a collector, open sockets or persist data itself.
 The PoP is the edge location serving the request, not a user's home or precise
 position. Neither header contains an account, user, session, device or IP.
 
+The SDK attaches both only to a request the browser preflights anyway (it has a
+bearer, a JSON body, a custom header or a non-simple method). A custom header
+makes an otherwise simple cross-origin GET wait for an `OPTIONS`, and browsers
+cache preflights per URL, so the headers cost every distinct anonymous read a
+round trip. Anonymous simple reads therefore arrive without them: they still
+count as requests, with no source PoP and no activity ID, and a page runtime is
+counted as active once it makes any preflighted request (on Mention, the
+`POST /users/by-ids` of its first feed).
+
 ## The 60-second metric
 
 “Active clients” means distinct ephemeral activity IDs seen for one PoP in the
