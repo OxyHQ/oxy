@@ -21,8 +21,9 @@ export {
   OxyServer,
   ServiceCredentialMismatchError,
   ANONYMOUS_SERVICE_TOKEN_RETRY_MS,
+  DEFAULT_SERVICE_TOKEN_AUDIENCE,
 } from './OxyServer';
-export type { OxyServerConfig, ServiceTokenResponse } from './OxyServer';
+export type { OxyServerConfig, ServiceTokenAudience, ServiceTokenResponse } from './OxyServer';
 export {
   ServerAppsApi,
   ServerAgencyApi,
