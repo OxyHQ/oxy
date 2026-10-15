@@ -43,9 +43,24 @@ const path = require('path');
 const { resolveOxyBuildId } = require('../build-id');
 const { requireFromProject } = require('../plugin/requireFromProject');
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function blockPath(dir) {
-  const resolved = path.resolve(dir);
-  return new RegExp(`${resolved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*`);
+  return new RegExp(`${escapeRegExp(path.resolve(dir))}/.*`);
+}
+
+/**
+ * Every directory called `name` BELOW one of `roots` — never one in a root's
+ * own path. An unanchored `.cache/` pattern also matched the CHECKOUT when it
+ * lived under `~/.cache` (a worktree there), blocking every file of the app and
+ * failing the bundle with "Unable to resolve module ./node_modules/expo-router/
+ * entry"; the same held for `.expo`, `.expo-shared`, `.metro` and `__tests__`.
+ */
+function dirsUnder(roots, name) {
+  const anyRoot = unique(roots.map((root) => escapeRegExp(path.resolve(root)))).join('|');
+  return new RegExp(`^(?:${anyRoot})/(?:.*/)?${escapeRegExp(name)}/.*`);
 }
 
 function unique(values) {
@@ -91,14 +106,12 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     // full node_modules; leaving them watchable makes Metro's file crawler walk
     // hundreds of thousands of extra directories and time out starting watch mode.
     blockPath(path.join(monorepoRoot, '.worktrees')),
-    /\.expo\/.*/,
-    /\.expo-shared\/.*/,
-    /\.metro\/.*/,
-    /\.cache\/.*/,
-    /node_modules\/\.cache\/.*/,
+    // Caches and tests anywhere inside what Metro crawls (`node_modules/.cache`
+    // and `.expo/types` included), and nowhere above it.
+    ...['.expo', '.expo-shared', '.metro', '.cache', '__tests__'].map((name) =>
+      dirsUnder([projectRoot, ...config.watchFolders], name),
+    ),
     /\.tsbuildinfo$/,
-    /.*\.expo\/types\/.*/,
-    /__tests__\/.*/,
     /\.test\.(js|ts|tsx|jsx)$/,
     /\.spec\.(js|ts|tsx|jsx)$/,
     /\.md$/,
