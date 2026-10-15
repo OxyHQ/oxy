@@ -142,9 +142,12 @@ export interface InternalMeteredRealtimePilot {
    * Exact USD ceiling on ONE MINUTE of session on a model line, quoted at the
    * line's price version over every duration unit a session can be billed in
    * (`audio_input_milliseconds`, `audio_output_milliseconds`,
-   * `session_milliseconds`, each at 60 000). A line priced in tokens has no
-   * per-minute figure that is a bound rather than a guess, so it does not quote
-   * and is not admitted.
+   * `session_milliseconds`, each at 60 000) and, where the line prices it
+   * apart, the input transcription of that minute
+   * (`input_transcription_milliseconds`, `@kaana.ai/contracts` 4.1.0): Alia's
+   * calls transcribe their input. A line priced in tokens has no per-minute
+   * figure that is a bound rather than a guess, so it does not quote and is
+   * not admitted.
    */
   readonly maxPricePerMinuteUsd: string;
 }
