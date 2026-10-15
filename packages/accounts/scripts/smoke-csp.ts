@@ -88,16 +88,20 @@ record(
 // Ask Alia loads the 3D avatar runtime (script + wasm) from alia.onl and talks to
 // its API; if the policy drops either, the header button still renders and the
 // sheet silently fails to start. The unrelated origin is the negative control.
+// EXACT token membership in a directive's source list (already split on `;` and
+// whitespace by `cspSourcesFor`) -- never a substring test on the header.
+const hasToken = (sources: readonly string[], token: string): boolean =>
+  sources.some((source) => source === token);
 const connectSources = cspSourcesFor(policy, 'connect-src');
 record(
   'script-src allows the Alia runtime and WebAssembly',
-  scriptSources.includes('https://alia.onl') && scriptSources.includes("'wasm-unsafe-eval'"),
+  hasToken(scriptSources, 'https://alia.onl') && hasToken(scriptSources, "'wasm-unsafe-eval'"),
   '',
 );
 record(
   'connect-src allows Alia',
-  connectSources.includes('https://alia.onl') &&
-    !connectSources.includes('https://not-alia.example'),
+  hasToken(connectSources, 'https://alia.onl') &&
+    !hasToken(connectSources, 'https://not-alia.example'),
   '',
 );
 
