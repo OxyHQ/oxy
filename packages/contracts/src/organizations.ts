@@ -27,11 +27,12 @@ export const organizationAliasSchema = z
     language: z.string().min(2).max(35).optional(),
   })
   .strict();
+export const ORGANIZATION_NAME_MAX_LENGTH = 300;
 export const organizationNameSchema = z
   .string()
   .trim()
   .min(1)
-  .max(300)
+  .max(ORGANIZATION_NAME_MAX_LENGTH)
   .refine(
     (value) =>
       !/[<>]/.test(value) &&

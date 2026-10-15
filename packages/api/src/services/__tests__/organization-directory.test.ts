@@ -1,3 +1,4 @@
+import { createAccountSchema, updateAccountSchema } from '../../schemas/account.schemas';
 import { userService } from '../user.service';
 import { hasOrganizationOperatingAuthority } from '../organizationAuthority.service';
 import { randomUUID } from 'node:crypto';
@@ -220,6 +221,43 @@ describe('canonical organization directory', () => {
     await expect(
       accountService.updateAccount(owner, { organizationType: 'business' }),
     ).rejects.toThrow('organization account');
+  });
+  it('uses the same title policy through account routes and direct profile edits', async () => {
+    const owner = await person();
+    const name = `3M & ${'A'.repeat(295)}`;
+    const input = createAccountSchema.parse({
+      kind: 'organization',
+      username: `long${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+      name: { displayName: name },
+      organizationType: 'business',
+    });
+    const result = await accountService.createChildAccount(owner, owner, input);
+    expect((await directory.getOrganization(result.account.id)).name).toBe(name);
+    await accountService.updateAccount(
+      result.account.id,
+      updateAccountSchema.parse({ name: { displayName: `7-Eleven ${'B'.repeat(291)}` } }),
+    );
+    expect((await directory.getOrganization(result.account.id)).name).toBe(
+      `7-Eleven ${'B'.repeat(291)}`,
+    );
+    for (const displayName of ['3M', '7-Eleven', 'AT&T', name]) {
+      await userService.updateUserProfile(result.account.id, { name: { displayName } });
+      expect((await directory.getOrganization(result.account.id)).name).toBe(displayName);
+    }
+    for (const displayName of ['A'.repeat(301), '<Company>', 'Company\u0000']) {
+      await expect(
+        accountService.updateAccount(result.account.id, { name: { displayName } }),
+      ).rejects.toThrow();
+      await expect(
+        userService.updateUserProfile(result.account.id, { name: { displayName } }),
+      ).rejects.toThrow();
+    }
+    await expect(
+      userService.updateUserProfile(owner, { name: { displayName: 'AT&T' } }),
+    ).rejects.toThrow();
+    await expect(
+      accountService.updateAccount(owner, { name: { displayName: 'A'.repeat(101) } }),
+    ).rejects.toThrow();
   });
   it('allows disabling existing membership after an organization becomes inactive', async () => {
     const owner = await person(),

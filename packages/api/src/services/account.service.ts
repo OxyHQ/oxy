@@ -136,16 +136,15 @@ function assertValidAccountName(
   kind?: string,
 ): void {
   if (!name || typeof name !== 'object') return;
-  // `displayName` is validated by the SAME policy as the human halves. It is a
-  // third write path onto the display string, so exempting it would mean the
-  // character policy holds only on whichever field the caller happened to use.
+  // Organization titles use the directory policy; human name halves and other
+  // account kinds retain the existing character policy and 100-character cap.
   for (const part of ['first', 'last', 'displayName'] as const) {
     const value = name[part];
     if (typeof value !== 'string') continue;
     const valid =
       kind === 'organization' && part === 'displayName'
         ? value === '' || organizationNameSchema.safeParse(value).success
-        : isValidDisplayName(value);
+        : value.trim().length <= 100 && isValidDisplayName(value);
     if (typeof value === 'string' && !valid) {
       throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
     }

@@ -14,6 +14,8 @@ Use query-cache keys scoped under `['oxy','organizations']`; invalidate the dire
 
 `oxy.accounts.create({kind:'organization',username,name:{displayName},organizationType:'business',...})` creates a genuinely managed account under the existing permission rules. `oxy.accounts.update(accountId,{organizationType})` changes classification through existing `account:update` authority. Other account kinds reject organizationType. Account-node responses retain their existing identity shape; fetch `organizations.get(accountId)` to show the subtype rather than adding a second subtype column.
 
+Organization titles use `organizationNameSchema` and `ORGANIZATION_NAME_MAX_LENGTH` (300) for directory writes, managed account creation/update and generic profile edits. Use those exports in form validation and input limits; human-name normalization must not strip company punctuation or digits. Other account kinds retain their existing name policy.
+
 CreateAccountScreen should search/select an existing organization before offering a new managed account. Choosing an unclaimed existing result starts a claim; it never creates a duplicate or assigns ownership by name. A separate directory-add action calls `organizations.create({name,organizationType,...})`, which creates an unclaimed entry and grants no capabilities. Existing organization managers use `organizations.update(accountId,changes)` for the canonical legal/name/alias/website fields.
 
 ## Claim and staff review UI

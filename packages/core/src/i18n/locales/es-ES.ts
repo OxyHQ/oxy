@@ -1,5 +1,6 @@
 const dict = {
   organizationDirectory: {
+    invalidName: 'Usa un nombre de organización en texto plano (hasta 300 caracteres).',
     review: {
       title: 'Revisar solicitudes de acceso a organizaciones',
       forbidden: 'Esta acción requiere autorización vigente del personal de Oxy.',

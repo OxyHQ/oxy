@@ -1,5 +1,6 @@
 const dict = {
   organizationDirectory: {
+    invalidName: 'Use a plain-text organization name (up to 300 characters).',
     review: {
       title: 'Review organization access requests',
       forbidden: 'This action requires current staff authorization.',

@@ -370,12 +370,24 @@ function normalizeProfileColor(value: unknown): unknown {
  * Fields with no text of their own (avatar id, birthday, preference objects,
  * …) pass through untouched.
  */
-function normalizeProfileField(key: string, value: unknown): unknown {
+function normalizeProfileField(key: string, value: unknown, kind?: string): unknown {
   switch (key) {
     case 'color':
       return normalizeProfileColor(value);
-    case 'name':
-      return normalizeProfileName(value);
+    case 'name': {
+      const normalized = normalizeProfileName(value);
+      if (
+        kind === 'organization' &&
+        isRecord(value) &&
+        isRecord(normalized) &&
+        typeof value.displayName === 'string'
+      ) {
+        // The title was validated with organizationNameSchema before normalization.
+        // Human-name cleanup would otherwise erase company punctuation and digits.
+        return { ...normalized, displayName: value.displayName.trim() };
+      }
+      return normalized;
+    }
     case 'username':
       return typeof value === 'string' ? normalizeUsername(value) : value;
     case 'linksMetadata':
@@ -952,19 +964,6 @@ export class UserService {
       updates as Record<string, unknown>,
     ) as ProfileUpdateInput;
 
-    // Organization titles preserve digits/punctuation; the canonical plain-text schema already validated them.
-    if (
-      existing.kind === 'organization' &&
-      updates.name &&
-      typeof updates.name === 'object' &&
-      typeof updates.name.displayName === 'string'
-    ) {
-      sanitizedUpdates.name = {
-        ...sanitizedUpdates.name,
-        displayName: updates.name.displayName.trim(),
-      };
-    }
-
     // Filter and validate updates
     const filteredUpdates: Record<string, unknown> = {};
 
@@ -980,7 +979,7 @@ export class UserService {
 
       // Canonicalize the value into EXACTLY the form that will be persisted,
       // before it is validated or compared — see `normalizeProfileField`.
-      const normalizedValue = normalizeProfileField(key, value);
+      const normalizedValue = normalizeProfileField(key, value, existing.kind);
 
       // Reserved colors are checked against the SAME normalized value the write
       // below persists (trim + lowercase), so ' oxy '/'OXY' cannot slip past the
