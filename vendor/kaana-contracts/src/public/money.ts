@@ -125,6 +125,23 @@ export const moneySchema = z
  * estimated from the audio, and a provider billed by the audio it carries (or
  * by tokens) never reports it.
  *
+ * **`input_transcription_milliseconds` is a second model's reading** (added in
+ * contract set 4.1.0): milliseconds of a realtime session's input audio that
+ * the deployment's own TRANSCRIPTION model transcribed, when the provider bills
+ * that model apart from the session model. OpenAI runs input transcription on
+ * a separate ASR model "billed according to the ASR model's pricing rather
+ * than the realtime model's", so the session model's `audio_input_tokens` and
+ * this unit are two charges for two models, each read once — which is why the
+ * partition rule holds: no other unit counts the transcription model's work.
+ * Reporting the ASR duration as `audio_input_milliseconds` beside the session
+ * model's audio tokens would be the "same audio as tokens and as milliseconds"
+ * this rule forbids, and folding it into the tokens would price it at the
+ * wrong model's rate. A provider whose session price already includes the
+ * transcription (xAI's Voice Agent) never reports it. A transcription model
+ * billed by TOKENS is a charge this unit does not express: the data plane
+ * declares only duration-billed transcription models and ends a session whose
+ * provider reports tokens for one, rather than approximate the charge.
+ *
  * No refinement in this package can enforce it, and saying so is part of the
  * rule: a nested report and a disjoint one are the same four non-negative
  * integers, so no predicate over a single report can tell them apart. The two
@@ -162,6 +179,7 @@ export const USAGE_UNITS = [
   'cached_audio_input_tokens',
   'audio_output_tokens',
   'session_milliseconds',
+  'input_transcription_milliseconds',
 ] as const;
 
 export const usageUnitSchema = z.enum(USAGE_UNITS);

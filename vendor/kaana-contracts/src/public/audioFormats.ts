@@ -37,6 +37,17 @@ export const audioInputMediaTypeSchema = z.enum([
   'audio/pcm',
 ]);
 
+/**
+ * The audio encodings a realtime session carries, in both directions. Named by
+ * what they ARE (sample format, rate) because a realtime stream has no
+ * container to say so.
+ *
+ * Declared here rather than in `realtime.ts` (where it was until contract set
+ * 4.1.0) because the catalogue publishes which of them a model takes, and the
+ * catalogue cannot import the realtime module that imports it.
+ */
+export const realtimeAudioFormatSchema = z.enum(['pcm16_24khz', 'g711_ulaw', 'g711_alaw']);
+
 const SPEECH_MEDIA_TYPES = {
   mp3: 'audio/mpeg',
   opus: 'audio/ogg',
@@ -60,5 +71,6 @@ export function speechMediaType(
 export type LanguageTag = z.infer<typeof languageTagSchema>;
 export type SpeechFormat = z.infer<typeof speechFormatSchema>;
 export type AudioInputMediaType = z.infer<typeof audioInputMediaTypeSchema>;
+export type RealtimeAudioFormat = z.infer<typeof realtimeAudioFormatSchema>;
 /** The media types speech produces; the contract calls the same set `inferenceAudioMediaTypeSchema`. */
 export type AudioMediaType = InferenceAudioMediaType;

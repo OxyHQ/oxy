@@ -5,7 +5,13 @@
  */
 
 import { z } from 'zod';
-import { realtimeSessionKindSchema, realtimeSessionTransportSchema } from './catalogue.js';
+import { realtimeAudioFormatSchema } from './audioFormats.js';
+import {
+  type ModelAudioCapabilities,
+  type ModelCapabilities,
+  realtimeSessionKindSchema,
+  realtimeSessionTransportSchema,
+} from './catalogue.js';
 import {
   inferenceTimestampSchema,
   modelReferenceSchema,
@@ -46,12 +52,6 @@ export const realtimeItemIdSchema = z.string().min(1).max(128);
 
 /** A response's identity within one session. */
 export const realtimeResponseIdSchema = z.string().min(1).max(128);
-
-/**
- * The audio encodings a session carries, in both directions. Named by what they
- * ARE (sample format, rate) because a realtime stream has no container to say so.
- */
-export const realtimeAudioFormatSchema = z.enum(['pcm16_24khz', 'g711_ulaw', 'g711_alaw']);
 
 /** What a session's responses produce. */
 export const realtimeOutputModalitySchema = z.enum(['text', 'audio']);
@@ -101,6 +101,16 @@ export const realtimeTurnDetectionSchema = z.discriminatedUnion('type', [
  * Transcription of the caller's input audio. Presence enables it; the
  * transcription model is the deployment's own, declared where the deployment
  * is, never chosen by a string here.
+ *
+ * In a `conversation` it is served only by a model whose catalogue entry says
+ * so (`capabilities.realtime.inputAudioTranscription`, contract set 4.1.0),
+ * and each transcribed turn arrives as `transcript.delta` / `transcript.done`
+ * with `source: 'input_audio'`. What it costs is settled with the session:
+ * where the provider bills the transcription apart from the session model, as
+ * `input_transcription_milliseconds` (see `USAGE_UNITS`); where the session's
+ * own price includes it, as nothing more.
+ *
+ * `language`, when given, is one of the model's published `audio.languages`.
  */
 export const realtimeInputTranscriptionSchema = z
   .object({
@@ -721,6 +731,95 @@ export const realtimeSessionOpenSchema = z
     }
   });
 
+/** Why a session open cannot be served by a model, before anything is held. */
+export interface RealtimeOpenIssue {
+  /** The open frame's field at fault, as `invalid_request.param` names it. */
+  readonly param: string;
+  readonly message: string;
+}
+
+/**
+ * Check a `session.open` against the model's published catalogue entry — its
+ * `capabilities.realtime` and its `audio` — the realtime counterpart of
+ * {@link checkSpeechRequest} (Kaana ADR 0002 decision 9; Alia ADR 0017 §5).
+ * Kaana refuses an open with `invalid_request` and the first issue's `param`
+ * BEFORE asking Oxy for a grant; a client may run the same check to choose a
+ * model.
+ *
+ * A field the catalogue leaves undeclared (an older producer) is not checked:
+ * absent is unknown, never "everything" and never "nothing". The one
+ * exception is input transcription in a conversation, which a model must
+ * declare to be asked for, because asking for it starts a charge.
+ *
+ * Returns every issue, in field order; an empty list means the model accepts
+ * the open.
+ */
+export function checkRealtimeSessionOpen(
+  open: z.infer<typeof realtimeSessionOpenSchema>,
+  model: { readonly capabilities: ModelCapabilities; readonly audio?: ModelAudioCapabilities },
+): RealtimeOpenIssue[] {
+  const realtime = model.capabilities.realtime;
+  if (realtime === undefined) {
+    return [{ param: 'kind', message: 'this model holds no realtime session' }];
+  }
+  const issues: RealtimeOpenIssue[] = [];
+  if (!realtime.sessionKinds.includes(open.kind)) {
+    issues.push({ param: 'kind', message: `this model holds no ${open.kind} session` });
+  }
+  const transport = open.transport ?? 'websocket';
+  if (!realtime.transports.includes(transport)) {
+    issues.push({ param: 'transport', message: `this model is not served over ${transport}` });
+  }
+  const { config } = open;
+  const formats = realtime.audioFormats;
+  if (formats !== undefined && !formats.input.includes(config.inputAudioFormat)) {
+    issues.push({
+      param: 'config.inputAudioFormat',
+      message: `this model does not take ${config.inputAudioFormat} input`,
+    });
+  }
+  if (
+    formats !== undefined &&
+    config.outputAudioFormat !== undefined &&
+    !formats.output.includes(config.outputAudioFormat)
+  ) {
+    issues.push({
+      param: 'config.outputAudioFormat',
+      message: `this model does not produce ${config.outputAudioFormat}`,
+    });
+  }
+  const audio = model.audio;
+  if (
+    audio !== undefined &&
+    config.voice !== undefined &&
+    !audio.voices.some((voice) => voice.id === config.voice)
+  ) {
+    issues.push({ param: 'config.voice', message: `this model has no voice ${config.voice}` });
+  }
+  const transcription = config.inputAudioTranscription;
+  if (
+    transcription !== undefined &&
+    open.kind === 'conversation' &&
+    realtime.inputAudioTranscription !== true
+  ) {
+    issues.push({
+      param: 'config.inputAudioTranscription',
+      message: 'this model does not transcribe its input inside a conversation',
+    });
+  }
+  if (
+    transcription?.language !== undefined &&
+    audio !== undefined &&
+    !audio.languages.includes(transcription.language)
+  ) {
+    issues.push({
+      param: 'config.inputAudioTranscription.language',
+      message: `this model does not declare the language ${transcription.language}`,
+    });
+  }
+  return issues;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Server events a public client reads                                        */
 /* -------------------------------------------------------------------------- */
@@ -814,7 +913,6 @@ export const realtimePublicServerEventSchema = z
     }
   });
 
-export type RealtimeAudioFormat = z.infer<typeof realtimeAudioFormatSchema>;
 export type RealtimeOutputModality = z.infer<typeof realtimeOutputModalitySchema>;
 export type RealtimeTurnDetection = z.infer<typeof realtimeTurnDetectionSchema>;
 export type RealtimeInputTranscription = z.infer<typeof realtimeInputTranscriptionSchema>;
