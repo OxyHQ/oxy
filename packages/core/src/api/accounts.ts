@@ -27,7 +27,12 @@ import {
   type AgentKeyOperationProof,
 } from '@oxy.so/contracts';
 import type { User } from '../models/interfaces';
-import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxy.so/contracts';
+import type {
+  AccountCategoryId,
+  AccountKind,
+  AvatarCharacter,
+  ChildAccountKind,
+} from '@oxy.so/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyContext } from '../client/context';
 import { normalizeUserIdentity } from '../utils/userIdentity';
@@ -57,7 +62,7 @@ const enc = encodeURIComponent;
  *
  * Single source of truth is `@oxy.so/contracts`.
  */
-export type { AccountCategoryId, AccountKind } from '@oxy.so/contracts';
+export type { AccountCategoryId, AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 export {
   ACCOUNT_CATEGORY_IDS,
   ACCOUNT_KINDS,
@@ -247,6 +252,13 @@ export interface CreateAccountInput {
    * discoverable at all, rather than discoverable until a second call lands.
    */
   isPrivateAccount?: boolean;
+  /**
+   * The 3D avatar character, for `kind: 'bot'` ONLY (any other kind is a 400).
+   * Optional: a bot created without one is given a look seeded from its
+   * handle, so every bot has a character from birth and its owner changes it
+   * afterwards with `accounts.update`.
+   */
+  character?: AvatarCharacter;
 }
 
 /** Input accepted by `accounts.update`. Tree placement changes go through `/move`. */
@@ -283,6 +295,12 @@ export interface UpdateAccountInput {
    * always allowed.
    */
   accountCategories?: AccountCategoryId[];
+  /**
+   * Replaces the WHOLE character of a `bot` account. Rejected (400) for any
+   * other kind, and not nullable: a bot always has one. Same authorization as
+   * every other field here (`account:update`).
+   */
+  character?: AvatarCharacter;
 }
 
 /** Input accepted by `accounts.members.invite`. The owner role cannot be invited. */

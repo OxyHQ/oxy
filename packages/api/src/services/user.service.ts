@@ -2122,6 +2122,7 @@ export class UserService {
       username: identity.username,
       name: identity.name,
       avatar: identity.avatar,
+      ...(identity.character ? { character: identity.character } : {}),
       verified: typeof user.verified === 'boolean' ? user.verified : undefined,
       bio: stringOrUndefined(user.bio),
       description: stringOrUndefined(user.description),

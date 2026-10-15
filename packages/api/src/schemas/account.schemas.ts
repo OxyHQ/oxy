@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   accountCategoriesSchema,
+  avatarCharacterSchema,
   createAccountRequestSchema,
   usernameSchema,
 } from '@oxy.so/contracts';
@@ -94,6 +95,13 @@ export const updateAccountSchema = z
      * previous value, so the service answers it, not this schema.
      */
     accountCategories: accountCategoriesSchema.optional(),
+    /**
+     * The WHOLE character, replaced (a bot's look is edited as one value in the
+     * agent creator). NOT nullable: a bot always has one, so there is no "clear"
+     * to spell. Whether the account IS a bot is a question about its stored
+     * kind, so `account.service` answers it, not this schema.
+     */
+    character: avatarCharacterSchema.optional(),
   })
   .strict();
 
