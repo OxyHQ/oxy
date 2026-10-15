@@ -58,8 +58,6 @@ import {
   inferenceProviderSlugSchema,
   modelIdSchema,
   modelReferenceSchema,
-  availabilityScopeSchema,
-  commercialPermissionSchema,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
 import { sourceReviewedScopedAudience } from './scopedExecution.service';
@@ -100,7 +98,11 @@ import {
   type ReviewedProviderRoute,
   type ReviewedProviderRouteIndex,
 } from '../config/kaanaReviewedProviderRoutes';
-import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
+import {
+  createHttpKaanaCatalogueReader,
+  type KaanaCatalogueReader,
+  kaanaDeploymentCommercialSchema,
+} from './httpKaanaClient';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
 import {
   createHttpKaanaCredentialEconomicsReader,
@@ -261,21 +263,6 @@ export interface ParsedKaanaCatalogue {
 
 const nullish = <T extends z.ZodTypeAny>(schema: T) =>
   schema.nullish().transform((value) => value ?? undefined);
-
-/** `deploymentCommercialSchema` of @kaana.ai/contracts 4.4.0, on Oxy's enums. */
-const kaanaDeploymentCommercialSchema = z
-  .object({
-    availabilityScope: availabilityScopeSchema,
-    commercialPermission: commercialPermissionSchema,
-    dedicatedCapacity: z.boolean().optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      (value.availabilityScope === 'byok_only') ===
-      (value.commercialPermission === 'customer_byok'),
-    { message: 'customer_byok if and only if byok_only' },
-  );
 
 const kaanaCatalogueResponseSchema = z
   .object({

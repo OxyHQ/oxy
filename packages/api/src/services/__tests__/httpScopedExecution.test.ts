@@ -73,6 +73,35 @@ it('keeps the ordinary exact query legacy bytes unchanged', async () => {
     }),
   ).resolves.toMatchObject({ snapshotId: 'synthetic' });
 });
+// 2026-10-15: Kaana #178 publishes `commercial` on every attested descriptor;
+// the strict attestation schema refused it and every inference was refused.
+it('reads the commercial facts on an attested descriptor and names a bad one', async () => {
+  const descriptor = {
+    deploymentId: 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01',
+    modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
+    provider: 'groq',
+    regions: ['us'],
+  };
+  const attest = (commercial: unknown) => {
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        response({ snapshotId: 'synthetic', deployments: [{ ...descriptor, commercial }] }),
+      );
+    return createHttpKaanaClient()!.attestDeployments([descriptor.deploymentId], {
+      signal: new AbortController().signal,
+    });
+  };
+  await expect(
+    attest({
+      availabilityScope: 'platform_internal',
+      commercialPermission: 'standard_application_use',
+    }),
+  ).resolves.toMatchObject({ snapshotId: 'synthetic' });
+  await expect(
+    attest({ availabilityScope: 'byok_only', commercialPermission: 'standard_application_use' }),
+  ).rejects.toThrow();
+});
 it('reads the full catalogue through the existing signer and rejects missing support', async () => {
   jest.spyOn(privateAutoSource, 'privateAutoClassifierSourceApproval').mockReturnValue(undefined);
   const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
