@@ -72,6 +72,8 @@ import {
   revokeEphemeralCredential,
 } from '../../services/mercariaEphemeralCredential.service';
 import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
+import { KAANA_CONTROL_AUDIENCE, KAANA_PUBLIC_AUDIENCE } from '../../config/serviceTokenAudiences';
+import { verifyServiceToken } from '../../middleware/serviceToken';
 
 interface JsonResponse {
   status: number;
@@ -683,5 +685,73 @@ describe('operator ephemeral credential through the real HTTP mint route', () =>
     ).toBe('revoked');
     expect((await post(credentials)).status).toBe(401);
     expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(200);
+  });
+});
+
+describe('POST /auth/service-token — audience (Kaana ADR 0002)', () => {
+  it('mints for oxy-api when no audience is named, and the token verifies only there', async () => {
+    const client = await serviceClient();
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+    expect(res.status).toBe(200);
+    const token = (res.body.data as { token: string }).token;
+    expect(decodeServiceJwt(token).aud).toBe('oxy-api');
+    expect(verifyServiceToken(token).ok).toBe(true);
+    expect(verifyServiceToken(token, KAANA_PUBLIC_AUDIENCE)).toEqual({
+      ok: false,
+      reason: 'invalid',
+    });
+  });
+
+  it('mints a kaana.ai token for an application holding inference:invoke', async () => {
+    const client = await serviceClient(
+      { scopes: ['inference:invoke'] },
+      { scopes: ['user:read', 'inference:invoke'] },
+    );
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+    expect(res.status).toBe(200);
+    const token = (res.body.data as { token: string }).token;
+    const claims = decodeServiceJwt(token);
+    expect(claims.aud).toBe('kaana.ai');
+    expect(claims.scopes).toEqual(['inference:invoke']);
+    // Oxy's API refuses it; only the grant API, asking for kaana.ai, accepts it.
+    expect(verifyServiceToken(token)).toEqual({ ok: false, reason: 'invalid' });
+    expect(verifyServiceToken(token, KAANA_PUBLIC_AUDIENCE).ok).toBe(true);
+  });
+
+  it('refuses kaana.ai to an application whose minted scopes lack inference:invoke', async () => {
+    const client = await serviceClient();
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses Kaana's control audience to every application but Kaana", async () => {
+    const client = await serviceClient(
+      { scopes: ['inference:invoke'] },
+      { scopes: ['user:read', 'inference:invoke'] },
+    );
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_CONTROL_AUDIENCE,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses an audience outside the closed set', async () => {
+    const client = await serviceClient();
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: 'api.kaana.ai',
+    });
+    expect(res.status).toBe(400);
   });
 });

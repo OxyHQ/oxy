@@ -3,6 +3,7 @@ import {
   type OxyServiceEnvironment,
 } from '@oxy.so/core/server';
 
+import { OXY_API_AUDIENCE, type ServiceTokenAudience } from '../config/serviceTokenAudiences';
 import { signServiceTokenEd25519 } from '../config/serviceTokenSigning';
 import type { ServiceTier } from '../middleware/serviceToken';
 
@@ -45,8 +46,14 @@ export interface ServiceTokenClaims {
  * Signs the claims with the Ed25519 service-token key (ADR 0012). There is no
  * symmetric fallback: a process that cannot sign EdDSA did not boot in
  * production, and outside production signs with a per-process ephemeral key.
+ *
+ * `audience` is the resource server the token is for (`config/serviceTokenAudiences.ts`).
+ * Whether the caller may hold it is the mint's decision, made before this runs.
  */
-export function mintServiceToken(claims: ServiceTokenClaims): string {
+export function mintServiceToken(
+  claims: ServiceTokenClaims,
+  audience: ServiceTokenAudience = OXY_API_AUDIENCE,
+): string {
   const now = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service' as const,
@@ -54,6 +61,6 @@ export function mintServiceToken(claims: ServiceTokenClaims): string {
     iat: now,
     exp: now + SERVICE_TOKEN_EXPIRY,
     iss: 'oxy-auth',
-    aud: 'oxy-api',
+    aud: audience,
   });
 }
