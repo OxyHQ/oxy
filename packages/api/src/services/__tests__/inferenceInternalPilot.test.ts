@@ -4,10 +4,25 @@ import {
   controlledInputBudget,
   fundedByPromotionalCredit,
   pilotAllowsDeployment,
+  pilotTermsFor,
   promotionalLaneLevels,
 } from '../inferenceInternalPilot';
 import { INTERNAL_METERED_RELATIONSHIPS } from '../../config/inferenceEconomicPolicy';
-import type { NormalizedEdgeRequest } from '../../schemas/inferenceEdge.schemas';
+import {
+  KAANA_SPEECH_CATALOGUE,
+  KAANA_SPEECH_DEPLOYMENT_ID,
+  KAANA_SPEECH_MAX_INPUT_CHARACTERS,
+  KAANA_SPEECH_MODEL_REFERENCE,
+  KAANA_SPEECH_PROVIDER_SLUG,
+} from '../../config/kaanaInitialCatalogue';
+import {
+  type EdgeOperation,
+  type NormalizedEdgeRequest,
+  normalizeSpeechRequest,
+  speechRequestSchema,
+} from '../../schemas/inferenceEdge.schemas';
+
+const COMPLETION: EdgeOperation = { kind: 'completion' };
 
 const request = (text: string): NormalizedEdgeRequest => ({
   operation: { kind: 'completion' },
@@ -88,12 +103,17 @@ it('requires the exact deployment, model revision and provider tuple', () => {
   const pilot = INTERNAL_METERED_RELATIONSHIPS[0].pilot;
   if (pilot === undefined) throw new Error('Production pilot missing');
   for (const route of pilot.deployments) {
-    expect(pilotAllowsDeployment(pilot, route)).toBe(true);
-    expect(pilotAllowsDeployment(pilot, { ...route, deploymentId: 'other' })).toBe(false);
+    expect(pilotAllowsDeployment(pilot, COMPLETION, route)).toBe(true);
+    expect(pilotAllowsDeployment(pilot, COMPLETION, { ...route, deploymentId: 'other' })).toBe(
+      false,
+    );
     expect(
-      pilotAllowsDeployment(pilot, { ...route, modelReference: 'openai/gpt-oss-120b@other' }),
+      pilotAllowsDeployment(pilot, COMPLETION, {
+        ...route,
+        modelReference: 'openai/gpt-oss-120b@other',
+      }),
     ).toBe(false);
-    expect(pilotAllowsDeployment(pilot, { ...route, provider: 'other' })).toBe(false);
+    expect(pilotAllowsDeployment(pilot, COMPLETION, { ...route, provider: 'other' })).toBe(false);
   }
 });
 
@@ -225,12 +245,118 @@ describe('scoped decisions pilot budget', () => {
       modelReference: permit.modelReference,
       provider: permit.provider,
     };
-    expect(pilotAllowsDeployment(pilot, route)).toBe(false);
-    expect(pilotAllowsDeployment(pilot, route, permit)).toBe(true);
-    expect(pilotAllowsDeployment(pilot, { ...route, deploymentId: 'other' }, permit)).toBe(false);
-    expect(pilotAllowsDeployment(pilot, pilot.deployments[0], permit)).toBe(false);
+    const decisions: EdgeOperation = { kind: 'decisions' };
+    expect(pilotAllowsDeployment(pilot, decisions, route)).toBe(false);
+    expect(pilotAllowsDeployment(pilot, decisions, route, permit)).toBe(true);
     expect(
-      pilotAllowsDeployment(pilot, route, { ...permit, expiresAt: '2020-01-01T00:00:00.000Z' }),
+      pilotAllowsDeployment(pilot, decisions, { ...route, deploymentId: 'other' }, permit),
     ).toBe(false);
+    expect(pilotAllowsDeployment(pilot, decisions, pilot.deployments[0], permit)).toBe(false);
+    expect(
+      pilotAllowsDeployment(pilot, decisions, route, {
+        ...permit,
+        expiresAt: '2020-01-01T00:00:00.000Z',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('speech terms (approved 2026-10-15)', () => {
+  const pilot = INTERNAL_METERED_RELATIONSHIPS[0].pilot;
+  if (pilot === undefined) throw new Error('Production pilot missing');
+  const speechRoute = {
+    deploymentId: KAANA_SPEECH_DEPLOYMENT_ID,
+    modelReference: KAANA_SPEECH_MODEL_REFERENCE,
+    provider: KAANA_SPEECH_PROVIDER_SLUG,
+  };
+  const speech = (input: string): NormalizedEdgeRequest =>
+    normalizeSpeechRequest(
+      speechRequestSchema.parse({ model: KAANA_SPEECH_MODEL_REFERENCE, input, voice: 'female' }),
+    );
+
+  it('admits only the reviewed xAI speech route, at 15,000 characters and USD 0.25', () => {
+    expect(pilot.speech).toEqual({
+      maxInputCharacters: 15_000,
+      maxPricePerRequestUsd: '0.25',
+      deployments: [speechRoute],
+    });
+    expect(KAANA_SPEECH_MAX_INPUT_CHARACTERS).toBe(15_000);
+    // The deployment tuple is the reviewed catalogue's own, not a copy of it.
+    expect(KAANA_SPEECH_CATALOGUE.providers.map((provider) => provider.deploymentId)).toEqual([
+      KAANA_SPEECH_DEPLOYMENT_ID,
+    ]);
+  });
+
+  it('quotes the full 15,000 characters at the list price under the speech ceiling', () => {
+    const [provider] = KAANA_SPEECH_CATALOGUE.providers;
+    const perCharacter = provider?.unitPrices.find((price) => price.unit === 'characters');
+    if (perCharacter === undefined) throw new Error('Speech character price missing');
+    // Integer micro-dollars: $15.00 per 1M characters is 15 micro-dollars each.
+    const microUsd =
+      (KAANA_SPEECH_MAX_INPUT_CHARACTERS * Number(perCharacter.amount) * 1_000_000) /
+      perCharacter.per;
+    expect(microUsd).toBe(225_000);
+    expect(microUsd).toBeLessThanOrEqual(Number(pilot.speech?.maxPricePerRequestUsd) * 1_000_000);
+  });
+
+  it('binds speech to its own terms and every other operation to the unchanged text terms', () => {
+    expect(pilotTermsFor(pilot, { kind: 'speech', characters: 1 })).toEqual({
+      maxInput: 15_000,
+      maxOutputTokens: undefined,
+      maxPricePerRequestUsd: '0.25',
+      deployments: [speechRoute],
+    });
+    expect(pilotTermsFor(pilot, COMPLETION)).toEqual({
+      maxInput: pilot.maxControlledCompletionInputBudget,
+      maxOutputTokens: 2048,
+      maxPricePerRequestUsd: '0.05',
+      deployments: pilot.deployments,
+    });
+    expect(pilotTermsFor(pilot, { kind: 'decisions' })).toMatchObject({
+      maxInput: pilot.maxControlledInputBudget,
+      maxPricePerRequestUsd: '0.05',
+    });
+  });
+
+  it('leaves speech outside a pilot without speech terms', () => {
+    const { speech: _speech, ...withoutSpeech } = pilot;
+    expect(pilotTermsFor(withoutSpeech, { kind: 'speech', characters: 1 })).toBeUndefined();
+    expect(
+      pilotAllowsDeployment(withoutSpeech, { kind: 'speech', characters: 1 }, speechRoute),
+    ).toBe(false);
+  });
+
+  it('never admits a speech route for a completion, nor a completion route for speech', () => {
+    const speechOperation: EdgeOperation = { kind: 'speech', characters: 1 };
+    expect(pilotAllowsDeployment(pilot, speechOperation, speechRoute)).toBe(true);
+    expect(pilotAllowsDeployment(pilot, COMPLETION, speechRoute)).toBe(false);
+    expect(pilotAllowsDeployment(pilot, { kind: 'decisions' }, speechRoute)).toBe(false);
+    for (const route of pilot.deployments) {
+      expect(pilotAllowsDeployment(pilot, speechOperation, route)).toBe(false);
+    }
+    expect(
+      pilotAllowsDeployment(pilot, speechOperation, { ...speechRoute, deploymentId: 'other' }),
+    ).toBe(false);
+    expect(
+      pilotAllowsDeployment(pilot, speechOperation, { ...speechRoute, provider: 'other' }),
+    ).toBe(false);
+    expect(
+      pilotAllowsDeployment(pilot, speechOperation, {
+        ...speechRoute,
+        modelReference: 'x-ai/text-to-speech@other',
+      }),
+    ).toBe(false);
+  });
+
+  it('measures speech in exact characters, the unit it is quoted and billed in', () => {
+    expect(controlledInputBudget(speech('Hola 👋'))).toBe('Hola 👋'.length);
+    expect(controlledInputBudget(speech('a'.repeat(15_000)))).toBe(15_000);
+    expect(controlledInputBudget(speech('a'.repeat(15_001)))).toBe(15_001);
+    // A count that does not describe the text sent is not a measurement.
+    const request = speech('abc');
+    expect(
+      controlledInputBudget({ ...request, operation: { kind: 'speech', characters: 2 } }),
+    ).toBeUndefined();
+    expect(controlledInputBudget({ ...request, stream: true })).toBeUndefined();
   });
 });
