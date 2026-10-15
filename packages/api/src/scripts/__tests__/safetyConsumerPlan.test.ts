@@ -80,3 +80,33 @@ it('refuses unavailable or supervised owners even when workload grants still exi
   ])
     expect(() => safetyConsumerPlan('allo', 'base', [], { ...before, owner })).toThrow('identity');
 });
+
+it('limits Clarity candidates to reviewed Experience privacy and unrated-content gates', () => {
+  expect(SAFETY_CONSUMERS.clarity.candidateActions).toEqual(['profile', 'content']);
+  const target = SAFETY_CONSUMERS.clarity;
+  const observed = fixture();
+  observed.owner.id = target.ownerAccountId;
+  observed.application = {
+    ...observed.application,
+    id: target.applicationId,
+    ownerAccountId: target.ownerAccountId,
+    type: target.type,
+  };
+  observed.workloads = target.roles.map((role) => ({
+    id: role,
+    applicationId: target.applicationId,
+    provider: 'aws-iam',
+    subject: safetyWorkloadSubject(role),
+    scopes: ['user:read', 'inference:invoke'],
+    expiresAt: null,
+  }));
+  const base = safetyConsumerPlan('clarity', 'base', [], observed).plan.after;
+  expect(base.application.capabilities).not.toContain('safety:content:v1');
+  expect(
+    safetyConsumerPlan('clarity', 'capability', ['profile', 'content'], base).plan.after.application
+      .capabilities,
+  ).toEqual(['existing:grant', 'safety:content:v1', 'safety:profile:v1']);
+  expect(() => safetyConsumerPlan('clarity', 'capability', ['content-publication'], base)).toThrow(
+    'candidate',
+  );
+});

@@ -5,6 +5,7 @@ import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
+import { organizationProfiles } from '../db/schema/organizationProfiles';
 /**
  * The user half of `getSessionWithUser` — the value that becomes `req.user`.
  *
@@ -439,7 +440,7 @@ class SessionService {
       }
 
       const userId = sessionRow.userId;
-      let user = userCache.get(userId);
+      let user = useCache ? userCache.get(userId) : undefined;
 
       if (!user) {
         const userDoc = await userService.readAccountDocument(userId);
@@ -574,6 +575,120 @@ class SessionService {
       if (options.throwOnError) throw error;
       return null;
     }
+  }
+
+  /**
+   * Live proofs for bounded realtime recipients. No session/user caches, token mint or DTO disclosure.
+   * Signature and exact row binding use the same canonical verifiers as validateSession.
+   */
+  async validateSessionProofs(
+    accessTokens: string[],
+  ): Promise<Array<{ session: CachedSession; supervised: boolean } | null>> {
+    const proofs = accessTokens.map((token) => validateAccessToken(token));
+    const ids = [
+      ...new Set(
+        proofs.flatMap((proof) =>
+          proof.valid && proof.payload?.sessionId ? [proof.payload.sessionId] : [],
+        ),
+      ),
+    ];
+    if (!ids.length) return proofs.map(() => null);
+    const db = getDb();
+    const rows = await db
+      .select(SESSION_COLUMNS)
+      .from(sessions)
+      .where(
+        and(
+          inArray(sessions.sessionId, ids),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, new Date()),
+        ),
+      );
+    const accountIds = [
+      ...new Set(
+        rows.flatMap((row) => [
+          row.userId,
+          ...(row.operatedByUserId ? [row.operatedByUserId] : []),
+        ]),
+      ),
+    ];
+    if (!accountIds.length) return proofs.map(() => null);
+    const [accounts, supervision] = await Promise.all([
+      db
+        .select({
+          id: users.id,
+          kind: users.kind,
+          status: users.accountStatus,
+          reputation: users.reputationTier,
+          claimStatus: organizationProfiles.claimStatus,
+          organizationStatus: organizationProfiles.status,
+        })
+        .from(users)
+        .leftJoin(organizationProfiles, eq(organizationProfiles.accountId, users.id))
+        .where(inArray(users.id, accountIds)),
+      db
+        .select({
+          childAccountId: supervisionProfiles.childAccountId,
+          sessionsValidAfter: supervisionProfiles.sessionsValidAfter,
+        })
+        .from(supervisionProfiles)
+        .where(
+          and(
+            inArray(supervisionProfiles.childAccountId, accountIds),
+            ne(supervisionProfiles.status, 'ended'),
+          ),
+        ),
+    ]);
+    const accountMap = new Map(accounts.map((account) => [account.id, account]));
+    const supervisionMap = new Map(supervision.map((profile) => [profile.childAccountId, profile]));
+    const sessionMap = new Map(rows.map((row) => [row.sessionId, row]));
+    const available = (id: string) => {
+      const account = accountMap.get(id);
+      return (
+        account?.status === 'active' &&
+        account.reputation !== 'restricted' &&
+        (account.kind !== 'organization' ||
+          (account.claimStatus === 'claimed' && account.organizationStatus === 'active'))
+      );
+    };
+    // Same actor/key can back multiple sockets. Re-prove special authority once per request, never across requests.
+    const authority = new Map<string, Promise<boolean>>();
+    return Promise.all(
+      proofs.map(async (proof) => {
+        if (!proof.valid || !proof.payload?.sessionId) return null;
+        const session = sessionMap.get(proof.payload.sessionId);
+        if (
+          !session ||
+          !available(session.userId) ||
+          (session.operatedByUserId && !available(session.operatedByUserId))
+        )
+          return null;
+        const supervised = supervisionMap.get(session.userId);
+        if (
+          (supervised ||
+            (session.operatedByUserId && supervisionMap.has(session.operatedByUserId))) &&
+          (session.operatedByUserId ||
+            (supervised && session.createdAt <= supervised.sessionsValidAfter))
+        )
+          return null;
+        if (!checkAccessTokenBinding(proof.payload, bindingRowOf(session)).ok) return null;
+        if (session.operatedByUserId || session.authMethodId) {
+          const key = JSON.stringify([
+            session.userId,
+            session.operatedByUserId,
+            session.authMethodId,
+            session.authMethodOwnerId,
+          ]);
+          let pending = authority.get(key);
+          if (!pending) {
+            pending = this.ensureManagedSessionAuthorized(session, { force: true });
+            authority.set(key, pending);
+          }
+          if (!(await pending)) return null;
+        }
+        return { session, supervised: !!supervised };
+      }),
+    );
   }
 
   /**

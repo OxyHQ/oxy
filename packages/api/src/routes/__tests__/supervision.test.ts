@@ -312,6 +312,8 @@ it('lets supervised people list and upload only their own private files without 
   } finally {
     complete.mockRestore();
   }
+  await getDb().update(users).set({ reputationTier: 'restricted' }).where(eq(users.id, child));
+  expect((await fetch(`${origin}/assets/${own.id}`, { headers })).status).toBe(401);
 });
 
 it('authenticates batches once and distinguishes user decisions from reviewed background delivery', async () => {
@@ -353,4 +355,57 @@ it('authenticates batches once and distinguishes user decisions from reviewed ba
       })
     ).status,
   ).toBe(401);
+});
+
+it('returns only current socket identities and refuses wrong-app proofs and revoked consumer capabilities', async () => {
+  const { app } = await consumer();
+  const adult = await person(),
+    child = await person(),
+    guardian = await person();
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  const a = await session(adult),
+    c = await session(child);
+  const [other] = await getDb()
+    .insert(applications)
+    .values({ name: 'Other receiver', ownerAccountId: adult })
+    .returning();
+  const wrong = await sessionService.createSession(
+    adult,
+    { headers: {}, get: () => undefined } as never,
+    {
+      deviceId: randomUUID(),
+      application: { applicationId: other.id, clientId: 'wrong-client', scopes: [] },
+    },
+  );
+  const input = {
+    items: [
+      { requestId: 'adult-socket', accessToken: a.accessToken },
+      { requestId: 'child-socket', accessToken: c.accessToken },
+      { requestId: 'wrong-app', accessToken: wrong.accessToken },
+      { requestId: 'bad', accessToken: 'malformed' },
+    ],
+  };
+  expect((await post('/service/messaging-sessions', input)).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ capabilities: ['safety:messaging-delivery:v1', 'safety:messaging:v1'] })
+    .where(eq(applications.id, app));
+  const result = await post('/service/messaging-sessions', input);
+  expect(result.status).toBe(200);
+  expect(result.body.items).toEqual([
+    { requestId: 'adult-socket', allowed: true, accountId: adult },
+    { requestId: 'child-socket', allowed: true, accountId: child },
+    { requestId: 'wrong-app', allowed: false },
+    { requestId: 'bad', allowed: false },
+  ]);
+  await getDb()
+    .update(applications)
+    .set({ capabilities: ['safety:messaging-delivery:v1'] })
+    .where(eq(applications.id, app));
+  expect((await post('/service/messaging-sessions', input)).body.items[1]).toEqual({
+    requestId: 'child-socket',
+    allowed: false,
+  });
+  await getDb().update(applications).set({ capabilities: [] }).where(eq(applications.id, app));
+  expect((await post('/service/messaging-sessions', input)).status).toBe(403);
 });

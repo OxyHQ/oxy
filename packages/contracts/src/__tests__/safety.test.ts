@@ -1,4 +1,6 @@
 import {
+  messagingSessionsInputSchema,
+  messagingSessionsResponseSchema,
   purchaseEffectsSchema,
   safetyRequesterSchema,
   contentAccessInputSchema,
@@ -147,6 +149,29 @@ describe('supervised safety contracts', () => {
     expect(
       messageAccessBatchInputSchema.safeParse({
         items: items.map((entry) => ({ ...entry, participantAccountIds: long })),
+      }).success,
+    ).toBe(false);
+  });
+  it('bounds socket proofs and never exposes denied identity or token fields', () => {
+    const item = { requestId: 'socket', accessToken: 'original' };
+    expect(messagingSessionsInputSchema.safeParse({ items: [item] }).success).toBe(true);
+    expect(messagingSessionsInputSchema.safeParse({ items: [item, item] }).success).toBe(false);
+    expect(
+      messagingSessionsInputSchema.safeParse({
+        items: Array.from({ length: 100 }, (_, i) => ({
+          requestId: String(i),
+          accessToken: 'a'.repeat(16384),
+        })),
+      }).success,
+    ).toBe(false);
+    expect(
+      messagingSessionsResponseSchema.safeParse({
+        items: [{ requestId: 'socket', allowed: false, accountId: 'leak' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      messagingSessionsResponseSchema.safeParse({
+        items: [{ requestId: 'socket', allowed: true, accountId: 'person', accessToken: 'leak' }],
       }).success,
     ).toBe(false);
   });
