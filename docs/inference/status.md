@@ -61,6 +61,8 @@ renaming unrelated SMTP, ATProto, device, OAuth or MCP/TNP relay roles.
 | Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxy.so/contracts` |
 | The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()`, typed `stream()` and generation reads are merged and published in `@oxy.so/core` by [#1145](https://github.com/OxyHQ/oxy/pull/1145). Publication proves the client surface, not a live Kaana route — [sdk.md](./sdk.md) |
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
+| Grant and settlement API for `kaana.ai/v1` (Kaana ADR 0002 phase 2) | `packages/api/src/routes/internalKaana.ts` | Mounted at `/internal/kaana/v1`, Kaana's workload only; **no caller** until Kaana's public server (phase 3) — [kaana-grants.md](./kaana-grants.md) |
+| Per-application inference limits (realtime sessions, internal capacity) | `application_inference_limits`, `GET/PUT /inference/routing-policies/applications/:id/limits` | Yes — Console (Inference → Routing); read by the grant API only |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
 **Since ADR 0027 (2026-09-25), deploying the API with the Kaana binding DOES
