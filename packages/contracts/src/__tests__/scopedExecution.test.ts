@@ -17,7 +17,7 @@ import {
 
 describe('restrictive scoped envelope', () => {
   it('keeps legacy 3.5/v2 independent of explicit 3.6/v3', () => {
-    expect(INFERENCE_CONTRACT_VERSION).toBe('3.8.0');
+    expect(INFERENCE_CONTRACT_VERSION).toBe('3.9.0');
     expect(SCOPED_EXECUTION_CONTRACT_VERSION).toBe('3.6.0');
     expect(SCOPED_REQUEST_ENVELOPE_VERSION).toBe(3);
     expect(scopedInferenceRequestSchema.safeParse(fixture).success).toBe(true);

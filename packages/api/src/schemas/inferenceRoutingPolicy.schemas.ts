@@ -33,6 +33,7 @@
  */
 
 import { z } from 'zod';
+import { MAX_APPLICATION_INFERENCE_LIMIT } from '../db/schema/applicationInferenceLimits';
 import {
   currencyCodeSchema,
   exactDecimalSchema,
@@ -148,3 +149,30 @@ export const routeSwitchQuery = z
  * only an empty one.
  */
 export const emptyBodySchema = z.object({}).strict();
+
+/**
+ * `PUT /inference/routing-policies/applications/:applicationId/limits` — the
+ * inference limits an application sets in Console (Alia ADR 0017 §5). The
+ * whole set is written each time; `null` clears a limit. The same rules as the
+ * table's CHECKs, so a caller gets a 400 rather than a constraint error.
+ */
+const applicationLimit = z.number().int().min(1).max(MAX_APPLICATION_INFERENCE_LIMIT).nullable();
+
+export const applicationInferenceLimitsBody = z
+  .object({
+    maxConcurrentRealtimeSessions: applicationLimit,
+    maxConcurrentRealtimeSessionsPerCredential: applicationLimit,
+    maxConcurrentRequests: applicationLimit,
+    maxRequestsPerUtcDay: applicationLimit,
+  })
+  .strict()
+  .refine(
+    (limits) =>
+      limits.maxConcurrentRealtimeSessionsPerCredential === null ||
+      limits.maxConcurrentRealtimeSessions === null ||
+      limits.maxConcurrentRealtimeSessionsPerCredential <= limits.maxConcurrentRealtimeSessions,
+    {
+      message: 'A per-credential session limit cannot exceed the application’s.',
+      path: ['maxConcurrentRealtimeSessionsPerCredential'],
+    },
+  );

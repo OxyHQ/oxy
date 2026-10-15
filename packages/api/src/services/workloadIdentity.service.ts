@@ -11,6 +11,11 @@ import { isTrustedApplication } from '../utils/trustedApplication';
 import { logger } from '../utils/logger';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from './serviceTokenMint.service';
 import {
+  audienceRefusal,
+  OXY_API_AUDIENCE,
+  type ServiceTokenAudience,
+} from '../config/serviceTokenAudiences';
+import {
   verifyWorkloadAttestation,
   type AttestationProvider,
   AttestationError,
@@ -118,7 +123,10 @@ export async function exchangeWorkloadAttestation(input: {
   provider: AttestationProvider;
   attestation: unknown;
   nonce: string;
+  /** The resource server the token is for (Kaana ADR 0002); `oxy-api` when omitted. */
+  audience?: ServiceTokenAudience;
 }): Promise<WorkloadTokenGrant> {
+  const audience = input.audience ?? OXY_API_AUDIENCE;
   if (!(await spendChallenge(input.nonce))) {
     // Logged like every other refusal: an unlogged 401 here cost an incident
     // its diagnosis (2026-09-25, Mention's MCP refused for 28 minutes with no
@@ -272,6 +280,23 @@ export async function exchangeWorkloadAttestation(input: {
    */
   const scopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
 
+  // Kaana ADR 0002: the same audience rule as the credential mint. Checked
+  // before the attribution row is touched, so a refused audience writes nothing.
+  const audienceRefused = audienceRefusal(audience, binding.applicationId, scopes);
+  if (audienceRefused !== undefined) {
+    logger.warn('[WorkloadIdentity] audience refused', {
+      provider: attested.provider,
+      applicationId: binding.applicationId,
+      audience,
+      reason: audienceRefused,
+    });
+    throw new WorkloadIdentityError(
+      403,
+      audienceRefused,
+      'This application may not hold a service token for that audience.',
+    );
+  }
+
   /**
    * The row the spend will be attributed to, before the token exists.
    *
@@ -315,33 +340,36 @@ export async function exchangeWorkloadAttestation(input: {
     throw error;
   }
 
-  const token = mintServiceToken({
-    appId: binding.applicationId,
-    appName: binding.appName,
-    /**
-     * The id of the row that was just materialised, not a second computation of
-     * it.
-     *
-     * The two are the same value by definition — `attested.attestationId` IS
-     * `workloadAttestationHandle(canonicalSubject)` and so is this — and taking
-     * it from the write is what makes them impossible to disagree. What this
-     * claim has to be is the id of a row the usage ledger can reference; using
-     * the one that was written says so, where using the verifier's copy would be
-     * a promise that two functions still agree.
-     */
-    credentialId: attribution.credentialId,
-    ownerAccountId: binding.ownerAccountId,
-    /**
-     * The environment is the DEPLOYMENT's, not the caller's — one definition,
-     * shared with the live re-read that meters and charges what this token
-     * goes on to do. See {@link workloadTokenEnvironment}.
-     */
-    environment: workloadTokenEnvironment(),
-    // Only a trusted application passes the gate above: a workload identity is
-    // always one of Oxy's own.
-    tier: 'internal',
-    scopes,
-  });
+  const token = mintServiceToken(
+    {
+      appId: binding.applicationId,
+      appName: binding.appName,
+      /**
+       * The id of the row that was just materialised, not a second computation of
+       * it.
+       *
+       * The two are the same value by definition — `attested.attestationId` IS
+       * `workloadAttestationHandle(canonicalSubject)` and so is this — and taking
+       * it from the write is what makes them impossible to disagree. What this
+       * claim has to be is the id of a row the usage ledger can reference; using
+       * the one that was written says so, where using the verifier's copy would be
+       * a promise that two functions still agree.
+       */
+      credentialId: attribution.credentialId,
+      ownerAccountId: binding.ownerAccountId,
+      /**
+       * The environment is the DEPLOYMENT's, not the caller's — one definition,
+       * shared with the live re-read that meters and charges what this token
+       * goes on to do. See {@link workloadTokenEnvironment}.
+       */
+      environment: workloadTokenEnvironment(),
+      // Only a trusted application passes the gate above: a workload identity is
+      // always one of Oxy's own.
+      tier: 'internal',
+      scopes,
+    },
+    audience,
+  );
 
   await getDb()
     .update(applications)

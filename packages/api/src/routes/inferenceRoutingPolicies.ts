@@ -71,7 +71,12 @@ import {
   routingPolicyControlsBody,
   routingPolicyParams,
   routingPolicyVersionParams,
+  applicationInferenceLimitsBody,
 } from '../schemas/inferenceRoutingPolicy.schemas';
+import {
+  readApplicationInferenceLimits,
+  writeApplicationInferenceLimits,
+} from '../services/applicationInferenceLimits.service';
 import {
   resolveApplicationOwnerAccount,
   resolveCallerAccountAccess,
@@ -664,6 +669,62 @@ router.get(
       'inference:routing:read',
     );
     res.json({ data: stored });
+  }),
+);
+
+/**
+ * `GET /inference/routing-policies/applications/:applicationId/limits`
+ *
+ * The inference limits the application set in Console (Alia ADR 0017 §5):
+ * concurrent realtime sessions per application and per credential, and the
+ * overrides of an internal relationship's request capacity. `null` is a limit
+ * the application did not set. Read like the policy: `inference:routing:read`.
+ */
+router.get(
+  '/applications/:applicationId/limits',
+  routingReadLimiter,
+  routingServiceReadLimiter,
+  validate({ params: routingPolicyApplicationParams }),
+  asyncHandler(async (req: RoutingRequest, res: Response) => {
+    const { applicationId } = routingPolicyApplicationParams.parse(req.params);
+    await authorizeApplication(
+      principalOf(req),
+      applicationId,
+      'inference:routing:read',
+      'inference:routing:read',
+    );
+    res.json({ data: await readApplicationInferenceLimits(applicationId) });
+  }),
+);
+
+/**
+ * `PUT /inference/routing-policies/applications/:applicationId/limits`
+ *
+ * Replace the application's inference limits. A PERSON in Console only: a
+ * service token is refused even with `inference:routing:write`, because these
+ * limits bound what the application itself may consume — the application
+ * raising its own ceiling would make the ceiling decorative.
+ */
+router.put(
+  '/applications/:applicationId/limits',
+  routingWriteLimiter,
+  validate({ params: routingPolicyApplicationParams, body: applicationInferenceLimitsBody }),
+  asyncHandler(async (req: RoutingRequest, res: Response) => {
+    const { applicationId } = routingPolicyApplicationParams.parse(req.params);
+    const principal = principalOf(req);
+    if (principal.kind !== 'user') {
+      throw new ForbiddenError('Inference limits are set by a person in Oxy Console.');
+    }
+    await authorizeApplication(
+      principal,
+      applicationId,
+      'inference:routing:write',
+      'inference:routing:write',
+    );
+    const limits = applicationInferenceLimitsBody.parse(req.body);
+    res.json({
+      data: await writeApplicationInferenceLimits(applicationId, limits, principal.userId),
+    });
   }),
 );
 

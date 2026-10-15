@@ -2,7 +2,7 @@ import expressRateLimit from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
 import type { RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../config/redis';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { hashedIpKey } from '../utils/ipKey';
 
 interface RateLimitOptions {
@@ -36,6 +36,12 @@ interface RateLimitOptions {
    * route, where it is visible.
    */
   skip?: (req: Request) => boolean;
+  /**
+   * What a limited request is answered with, for a surface whose refusals have
+   * a contract of their own (the grant API answers a public inference error).
+   * Absent: the default 429 with {@link RateLimitOptions.message}.
+   */
+  handler?: (req: Request, res: Response) => void;
 }
 
 function makeStore(prefix: string) {
@@ -75,6 +81,7 @@ export function rateLimit(options: RateLimitOptions) {
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,
     ...(options.skip ? { skip: options.skip } : {}),
+    ...(options.handler ? { handler: options.handler } : {}),
     // hashedIpKey already buckets IPv6 to /56 before HMAC (see ipKey.ts); the v8
     // static source scan false-positives on req.ip and spams ERR_ERL_KEY_GEN_IPV6.
     validate: { keyGeneratorIpFallback: false },

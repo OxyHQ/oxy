@@ -51,6 +51,7 @@ import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
+import internalKaanaRoutes, { MAX_SETTLEMENT_BYTES } from './routes/internalKaana';
 import accountEventRoutes from './routes/accountEvents';
 import accountRoutes from './routes/accounts';
 import organizationRoutes from './routes/organizations';
@@ -88,6 +89,7 @@ import { attachRealtimeEdge } from './routes/inferenceRealtime';
 import { createKaanaRealtimeClient } from './services/kaanaRealtimeClient';
 import { startKaanaCatalogueSyncSchedule } from './services/kaanaCatalogueSync.service';
 import { startProviderCostFeedSchedule } from './services/kaanaProviderCostFeed.service';
+import { startKaanaSettlementSchedule } from './services/kaanaSettlement.service';
 import { startCloudflareWebActivityPoller } from './services/cloudflareWebActivity.service';
 import { startMeteredReceiptReconciliationSchedule } from './services/inferenceMeteredUsage.service';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
@@ -293,6 +295,12 @@ function isEmailInboundWebhookRequest(req: express.Request): boolean {
 // Stripe webhook needs raw body for signature verification (must be before express.json)
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 app.use('/billing/peable/observations', express.raw({ type: 'application/json', limit: '1mb' }));
+// Kaana's settlements are verified against Kaana's signature over their exact
+// bytes (Kaana ADR 0002), so the body must reach the route unparsed.
+app.use(
+  '/internal/kaana/v1/settlements',
+  express.raw({ type: 'application/json', limit: MAX_SETTLEMENT_BYTES }),
+);
 // Email inbound webhook needs raw body for MIME parsing (must be before express.json).
 // Authenticate and rate-limit before raw parsing so unauthenticated clients
 // cannot force 25 MiB body buffering or consume the Cloudflare Worker quota.
@@ -805,6 +813,10 @@ app.use('/applications', applicationRoutes);
 // No `userRateLimiter` — that limiter keys on a
 // user session this router has none of; its limiter keys on the calling
 // application instead.
+// Kaana's control plane (Kaana ADR 0002): grants and settlements for
+// kaana.ai/v1. Its own gate (Kaana's workload, audience oxy-api:kaana-control),
+// mounted BEFORE `/internal`, whose gate accepts only `oxy-api` tokens.
+app.use('/internal/kaana/v1', internalKaanaRoutes);
 app.use('/internal', internalRoutes);
 // Account events (OxyHQ/Mention#1169): the pull feed each relying application
 // reconciles erasures from. Service tokens only, scoped to the caller's own
@@ -1414,6 +1426,10 @@ export async function bootstrap(
   // Kaana's per-attempt upstream cost, read over its signed operator feed into
   // `inference_provider_cost_attempts` (#1526). Read-only; same edge key.
   startProviderCostFeedSchedule();
+  // Grants for kaana.ai/v1 (Kaana ADR 0002): close the ones nothing settled,
+  // and, once Kaana delivers settlements, read its outbox for any whose
+  // delivery was lost. Idempotent per grant; failures logged.
+  startKaanaSettlementSchedule();
   startMeteredReceiptReconciliationSchedule();
   // Cloudflare-hosted web apps' traffic for the dashboard, read keylessly from
   // Cloudflare's analytics with one read-only token. Every task registers; a
