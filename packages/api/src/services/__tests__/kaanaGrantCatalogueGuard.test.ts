@@ -17,9 +17,10 @@
  * lint-sized unit suite, and it fails on the import line, naming it.
  *
  * To put a new file on the grant or settlement path, add it to
- * {@link NEW_PATH}. The one table the path may touch besides its own is
- * `inference_deployments`, from `kaanaGrantRoutes.service.ts` only, by Kaana's
- * deployment id, for the commercial permission to sell a route (see that file).
+ * {@link NEW_PATH}. There is no exception: not even `inference_deployments`.
+ * How a deployment may be sold (`commercial`) is published by Kaana on the
+ * deployment descriptor; the customer's own key (BYOK) is the customer's
+ * provider connection; the BYOK platform fee is billing configuration.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,6 +44,7 @@ const CATALOGUE_TABLES = [
   'inferenceModelRevisions',
   'inferencePublishers',
   'inferenceProviders',
+  'inferenceDeployments',
   'priceVersions',
   'priceVersionUnitPrices',
   'inferenceDeploymentRoutingScores',
@@ -86,12 +88,8 @@ const CATALOGUE_SERVICE_ALLOWED = new Set([
   'capabilityAdmits',
   'exceedsAmount',
   'routingConstraintsOf',
-  'selectableDeploymentWhere',
   'violatedConstraints',
 ]);
-
-/** The deployments table: route-level commercial permission, `kaanaGrantRoutes.service.ts` only. */
-const DEPLOYMENT_TABLE_FILES = new Set(['services/kaanaGrantRoutes.service.ts']);
 
 function code(file: string): string {
   return readFileSync(join(SRC, file), 'utf8')
@@ -135,11 +133,6 @@ describe('the grant and settlement path does not read Oxy’s catalogue tables f
   it.each(NEW_PATH)('%s imports only policy helpers from the catalogue service', (file) => {
     const imported = importsFrom(code(file), /inferenceCatalogue\.service$/);
     expect(imported.filter((name) => !CATALOGUE_SERVICE_ALLOWED.has(name))).toEqual([]);
-  });
-
-  it.each(NEW_PATH)('%s touches the deployments table only where it is allowed to', (file) => {
-    const touches = /\binferenceDeployments\b/.test(code(file));
-    expect(touches).toBe(DEPLOYMENT_TABLE_FILES.has(file));
   });
 
   it('the settlement rates from a price list handed by value, never a price version id', () => {

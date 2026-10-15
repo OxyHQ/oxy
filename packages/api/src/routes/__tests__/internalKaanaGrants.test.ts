@@ -27,7 +27,7 @@ import {
   signatureInput,
   type Grant,
 } from '@kaana.ai/contracts/internal';
-import type { UsageUnit } from '@oxy.so/contracts';
+import { USAGE_UNITS, type UsageUnit } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   KAANA_BASE_URL_VARIABLE,
@@ -52,6 +52,7 @@ import {
   inferenceMeteredUsage,
   inferenceModelRevisions,
   inferenceModels,
+  inferenceProviderConnections,
   inferenceProviders,
   inferencePublishers,
   inferenceRoutingPolicies,
@@ -83,7 +84,13 @@ import {
   type AudioFixture,
   type FixturePrice,
 } from '../__fixtures__/kaanaAudioFixtures';
-import { KaanaStub, declaredModel } from '../__fixtures__/kaanaDeclaredStub';
+import {
+  CUSTOMER_KEY,
+  KaanaStub,
+  PUBLIC_RESALE,
+  declaredModel,
+} from '../__fixtures__/kaanaDeclaredStub';
+import * as platformFee from '../../config/inferencePlatformFee';
 import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
@@ -608,6 +615,7 @@ afterAll(async () => {
 afterEach(() => {
   jest.restoreAllMocks();
   kaanaStub.clearOverrides();
+  kaanaStub.routes.clear();
   kaanaStub.failing = false;
 });
 
@@ -1930,6 +1938,367 @@ describe('a grant is rated from KAANA’s declared catalogue, not from Oxy’s t
     } finally {
       restore();
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Kaana chooses the provider; Kaana publishes how a route may be sold          */
+/* -------------------------------------------------------------------------- */
+
+describe('the grant admits every eligible route and Kaana chooses among them', () => {
+  async function twoProviders() {
+    const customer = await makeAudioFixture({
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      prices: TEXT_PRICES,
+      routes: 2,
+    });
+    return customer;
+  }
+  const request = (customer: AudioFixture) =>
+    inferenceRequest({
+      credential: customer.token,
+      target: { kind: 'model', modelLine: customer.modelReference },
+    });
+  const withFallback = async (
+    customer: AudioFixture,
+    fallback: { disabled: boolean; sameModelDeployment: boolean; authorizedCrossModel: string[] },
+  ) => {
+    await getDb()
+      .update(inferenceRoutingPolicies)
+      .set({ status: 'archived' })
+      .where(eq(inferenceRoutingPolicies.applicationId, customer.applicationId));
+    await createNeutralRoutingPolicy({
+      accountId: customer.accountId,
+      applicationId: customer.applicationId,
+      overrides: { fallback },
+    });
+  };
+
+  it('allows every provider that serves the line, not the first of them', async () => {
+    const customer = await twoProviders();
+    const grant = verifiedGrant(await authorize(request(customer)));
+    expect([...grant.steps[0].limits.providerAllowlist].sort()).toEqual(
+      [...customer.providers].sort(),
+    );
+  });
+
+  it('narrows to the providers the application’s policy allows, and no further', async () => {
+    const customer = await twoProviders();
+    await getDb()
+      .update(inferenceRoutingPolicies)
+      .set({ status: 'archived' })
+      .where(eq(inferenceRoutingPolicies.applicationId, customer.applicationId));
+    await createNeutralRoutingPolicy({
+      accountId: customer.accountId,
+      applicationId: customer.applicationId,
+      overrides: { providerDenylist: [customer.providers[1]] },
+    });
+    const grant = verifiedGrant(await authorize(request(customer)));
+    expect(grant.steps[0].limits.providerAllowlist).toEqual([customer.providers[0]]);
+  });
+
+  it('does not pick a provider when same-model failover is off: it grants only where none can happen', async () => {
+    const off = { disabled: false, sameModelDeployment: false, authorizedCrossModel: [] };
+    const many = await twoProviders();
+    await withFallback(many, off);
+    const refused = await authorize(request(many));
+    expect(refused.status).toBe(403);
+    expect(refused.body.code).toBe('policy_violation');
+    expect(await reservationsForRequest(String(refused.body.requestId))).toEqual([]);
+
+    // One eligible provider: failover cannot happen, so the policy is kept.
+    const one = await textCustomer();
+    await withFallback(one, off);
+    const grant = verifiedGrant(await authorize(request(one)));
+    expect(grant.steps[0].limits.providerAllowlist).toEqual([one.providers[0]]);
+  });
+});
+
+describe('Kaana publishes how a route may be sold', () => {
+  const request = (customer: AudioFixture) =>
+    inferenceRequest({
+      credential: customer.token,
+      target: { kind: 'model', modelLine: customer.modelReference },
+    });
+  const republish = (
+    customer: AudioFixture,
+    commercial?: Parameters<typeof kaanaStub.publish>[0]['commercial'],
+  ) =>
+    kaanaStub.publish({
+      deploymentId: customer.deploymentIds[0],
+      modelReference: customer.pinnedModelReference,
+      provider: customer.providers[0],
+      regions: ['us-west-2'],
+      ...(commercial === undefined ? {} : { commercial }),
+    });
+
+  it('sells a route published as resold to this audience, though Oxy’s own deployment rows say nothing of it', async () => {
+    const customer = await textCustomer();
+    await getDb()
+      .update(inferenceDeployments)
+      .set({ availabilityScope: 'enterprise', permissionState: 'retired', status: 'retired' })
+      .where(eq(inferenceDeployments.internalRouteId, customer.deploymentIds[0]));
+    expect(
+      verifiedGrant(await authorize(request(customer))).steps[0].limits.providerAllowlist,
+    ).toEqual([customer.providers[0]]);
+  });
+
+  it('does not sell a route for which Kaana publishes no commercial basis', async () => {
+    const customer = await textCustomer();
+    republish(customer);
+    const result = await authorize(request(customer));
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+  });
+
+  it.each([
+    [
+      'an enterprise route to a public application',
+      { availabilityScope: 'enterprise', commercialPermission: 'wholesale_contract' },
+    ],
+    [
+      'an internal-only route to a third party',
+      { availabilityScope: 'platform_internal', commercialPermission: 'standard_application_use' },
+    ],
+    [
+      'a scope and a permission that disagree',
+      { availabilityScope: 'public_payg', commercialPermission: 'customer_byok' },
+    ],
+  ] as const)('does not sell %s', async (_name, commercial) => {
+    const customer = await textCustomer();
+    republish(customer, commercial);
+    const result = await authorize(request(customer));
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+  });
+
+  it('honours a dedicated-capacity policy from the published flag', async () => {
+    const customer = await textCustomer();
+    await getDb()
+      .update(inferenceRoutingPolicies)
+      .set({ status: 'archived' })
+      .where(eq(inferenceRoutingPolicies.applicationId, customer.applicationId));
+    await createNeutralRoutingPolicy({
+      accountId: customer.accountId,
+      applicationId: customer.applicationId,
+      overrides: { dedicatedCapacity: 'require' },
+    });
+    republish(customer, { ...PUBLIC_RESALE });
+    expect((await authorize(request(customer))).body.code).toBe('policy_violation');
+    republish(customer, { ...PUBLIC_RESALE, dedicatedCapacity: true });
+    verifiedGrant(await authorize(request(customer)));
+  });
+});
+
+describe('a customer-key (BYOK) grant is platform_fee_only, rated at Oxy’s platform fee', () => {
+  const FEE = {
+    feeVersionId: 'oxy-platform-fee/test-1',
+    effectiveFrom: '2026-01-01T00:00:00.000Z',
+    currency: 'USD',
+    perRequest: '0.010000000000',
+    approvedBy: 'test-suite',
+    approvalRef: 'test',
+  };
+
+  /** A BYOK-only model Kaana declares with no list price, one customer-key route, and the customer's connection. */
+  async function byokCustomer(
+    options: { connect?: boolean; policy?: 'prefer' | 'require' | 'disabled' } = {},
+  ) {
+    const customer = await textCustomer();
+    const tagged = tag();
+    const modelId = `acmebyok${tagged}/model`;
+    const provider = `byokprov${tagged}`;
+    const deploymentId = `kaana-byok-${tagged}`;
+    kaanaStub.declare(declaredModel({ modelId }));
+    kaanaStub.publish({
+      deploymentId,
+      modelReference: `${modelId}@${AUDIO_REVISION}`,
+      provider,
+      regions: ['eu-central-1'],
+      commercial: CUSTOMER_KEY,
+    });
+    await getDb()
+      .insert(inferenceProviders)
+      .values({
+        slug: provider,
+        displayName: `BYOK ${provider}`,
+        kind: 'customer_byok',
+        retainsPayloads: false,
+        retentionDays: 0,
+        trainsOnCustomerData: false,
+        zeroDataRetentionAvailable: true,
+      });
+    const handle = `kcred_${tagged.replace(/[0189]/g, 'a')}${'a'.repeat(16)}`;
+    if (options.connect !== false) {
+      await getDb().insert(inferenceProviderConnections).values({
+        provider,
+        ownerAccountId: customer.accountId,
+        scopeKind: 'application',
+        applicationId: customer.applicationId,
+        environment: 'development',
+        status: 'active',
+        custodyState: 'ready',
+        credentialHandle: handle,
+        credentialRevision: 1,
+        validationState: 'valid',
+      });
+    }
+    if (options.policy !== undefined) {
+      await getDb()
+        .update(inferenceRoutingPolicies)
+        .set({ status: 'archived' })
+        .where(eq(inferenceRoutingPolicies.applicationId, customer.applicationId));
+      await createNeutralRoutingPolicy({
+        accountId: customer.accountId,
+        applicationId: customer.applicationId,
+        overrides: { byokPreference: options.policy },
+      });
+    }
+    return { customer, modelId, provider, deploymentId, handle };
+  }
+
+  const request = (customer: AudioFixture, modelLine: string) =>
+    inferenceRequest({ credential: customer.token, target: { kind: 'model', modelLine } });
+
+  it('holds and settles only the platform fee, never a model price', async () => {
+    const { customer, modelId, provider, handle } = await byokCustomer({ policy: 'prefer' });
+    jest.spyOn(platformFee, 'activePlatformFeeSchedule').mockReturnValue(FEE);
+    const grant = verifiedGrant(await authorize(request(customer, modelId)));
+
+    expect(grant.economics.treatment).toBe('platform_fee_only');
+    expect(grant.customerProviderCredential).toMatchObject({ credentialHandle: handle });
+    // One request at USD 0.01; the provider bills every token to the customer.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.010000000000', currency: 'USD' });
+    expect(grant.steps[0].limits.providerAllowlist).toEqual([provider]);
+    expect(grant.steps[0].limits.maxFundingTier).toBeUndefined();
+    expect(grant.steps[0].limits.admittedModelLines).toEqual([
+      { modelLine: modelId, priceVersionId: FEE.feeVersionId },
+    ]);
+
+    const settled = await settle(
+      settlementOf({
+        grant,
+        modelReference: `${modelId}@${AUDIO_REVISION}`,
+        provider,
+        units: { requests: 1, input_tokens: 800, output_tokens: 400 },
+      }),
+    );
+    expect(settled.body).toMatchObject({ status: 'settled' });
+    const [receipt] = await receiptsOf(customer.accountId);
+    expect(receipt).toMatchObject({
+      billedAmount: '0.010000000000',
+      priceVersionId: FEE.feeVersionId,
+      platformFeeOnly: true,
+    });
+  });
+
+  it('refuses a customer-key route while Oxy has no approved platform fee, never at zero', async () => {
+    const { customer, modelId } = await byokCustomer({ policy: 'prefer' });
+    // The shipped schedule list is empty until the owner approves an amount.
+    const result = await authorize(request(customer, modelId));
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+    expect(await receiptsOf(customer.accountId)).toEqual([]);
+  });
+
+  it('offers a customer-key route only to an application that connected a ready key', async () => {
+    const { customer, modelId } = await byokCustomer({ policy: 'prefer', connect: false });
+    jest.spyOn(platformFee, 'activePlatformFeeSchedule').mockReturnValue(FEE);
+    const result = await authorize(request(customer, modelId));
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+  });
+
+  it('follows the policy: disabled never serves the customer key, require serves nothing else', async () => {
+    const off = await byokCustomer({ policy: 'disabled' });
+    jest.spyOn(platformFee, 'activePlatformFeeSchedule').mockReturnValue(FEE);
+    expect((await authorize(request(off.customer, off.modelId))).body.code).toBe(
+      'policy_violation',
+    );
+
+    // `require` on a line Kaana serves on its own keys only: nothing qualifies.
+    const own = await textCustomer();
+    await getDb()
+      .update(inferenceRoutingPolicies)
+      .set({ status: 'archived' })
+      .where(eq(inferenceRoutingPolicies.applicationId, own.applicationId));
+    await createNeutralRoutingPolicy({
+      accountId: own.accountId,
+      applicationId: own.applicationId,
+      overrides: { byokPreference: 'require' },
+    });
+    expect((await authorize(request(own, own.modelReference))).body.code).toBe('policy_violation');
+  });
+
+  it('keeps Kaana’s own keys, at the declared list, unless the policy prefers the customer key', async () => {
+    const own = await textCustomer();
+    jest.spyOn(platformFee, 'activePlatformFeeSchedule').mockReturnValue(FEE);
+    kaanaStub.publish({
+      deploymentId: `kaana-byok-${tag()}`,
+      modelReference: own.pinnedModelReference,
+      provider: `byokprov${tag()}`,
+      regions: [],
+      commercial: CUSTOMER_KEY,
+    });
+    const grant = verifiedGrant(await authorize(request(own, own.modelReference)));
+    expect(grant.economics.treatment).toBe('commercial');
+    expect(grant.customerProviderCredential).toBeUndefined();
+  });
+});
+
+describe('the BYOK platform fee schedule', () => {
+  const schedule = (feeVersionId: string, effectiveFrom: string, perRequest: string) => ({
+    feeVersionId,
+    effectiveFrom,
+    currency: 'USD',
+    perRequest,
+    approvedBy: 'owner',
+    approvalRef: 'ref',
+  });
+
+  it('ships empty: no approved amount, so nothing is rated at a fee until one is', () => {
+    expect(platformFee.PLATFORM_FEE_SCHEDULES).toEqual([]);
+    expect(platformFee.activePlatformFeeSchedule(Date.now())).toBeUndefined();
+  });
+
+  it('applies the latest schedule in force and never one that has not started', () => {
+    const list = [
+      schedule('fee-1', '2026-01-01T00:00:00.000Z', '0.01'),
+      schedule('fee-2', '2026-06-01T00:00:00.000Z', '0.02'),
+      schedule('fee-3', '2027-01-01T00:00:00.000Z', '0.03'),
+    ];
+    const at = Date.parse('2026-10-15T00:00:00.000Z');
+    expect(platformFee.activePlatformFeeSchedule(at, list)?.feeVersionId).toBe('fee-2');
+    expect(
+      platformFee.activePlatformFeeSchedule(Date.parse('2025-01-01T00:00:00.000Z'), list),
+    ).toBeUndefined();
+  });
+
+  it('rejects a malformed schedule rather than rating at it', () => {
+    expect(() =>
+      platformFee.activePlatformFeeSchedule(Date.now(), [
+        schedule('bad', '2026-01-01T00:00:00.000Z', '-1'),
+      ]),
+    ).toThrow();
+  });
+
+  it('prices the fee on requests and every other unit at an explicit zero', () => {
+    const list = platformFee.platformFeePriceList(
+      schedule('fee-1', '2026-01-01T00:00:00.000Z', '0.01'),
+    );
+    expect(list.priceVersionId).toBe('fee-1');
+    expect(list.unitPrices.find((entry) => entry.unit === 'requests')).toEqual({
+      unit: 'requests',
+      amount: '0.01',
+      per: 1,
+    });
+    expect(
+      list.unitPrices
+        .filter((entry) => entry.unit !== 'requests')
+        .every((entry) => Number(entry.amount) === 0),
+    ).toBe(true);
+    expect(list.unitPrices).toHaveLength(USAGE_UNITS.length);
   });
 });
 

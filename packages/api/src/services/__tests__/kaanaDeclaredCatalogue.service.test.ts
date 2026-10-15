@@ -11,12 +11,14 @@ jest.mock('../../utils/logger', () => ({
 import http from 'node:http';
 import { generateKeyPairSync, verify } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
+import { availabilityScopeSchema, commercialPermissionSchema } from '@kaana.ai/contracts/internal';
 import { declaredModel } from '../../routes/__fixtures__/kaanaDeclaredStub';
 import {
   KAANA_KEY_ID_HEADER,
   KAANA_SIGNATURE_HEADER,
   KAANA_TIMESTAMP_HEADER,
   createHttpKaanaDeclaredCatalogueReader,
+  kaanaDeploymentCommercialSchema,
   kaanaSigningInput,
 } from '../httpKaanaClient';
 import {
@@ -30,6 +32,7 @@ import {
   requirePriceSnapshot,
   unpricedUnits,
 } from '../kaanaDeclaredCatalogue.service';
+import { createDeploymentPublicationCache } from '../kaanaDeploymentPublication.service';
 
 const prices = (priceVersionId: string, input = '3.000000000000') => ({
   priceVersionId,
@@ -276,5 +279,55 @@ describe('the signed read of GET /internal/v1/models', () => {
     await expect(reader().readDeclaredCatalogue(new AbortController().signal)).rejects.toThrow(
       /no declaredCatalogue/,
     );
+  });
+});
+
+describe('the commercial basis Kaana publishes on a deployment descriptor', () => {
+  it('speaks the contract’s own vocabulary, member for member', () => {
+    const shape = kaanaDeploymentCommercialSchema.shape;
+    expect([...shape.availabilityScope.options]).toEqual([...availabilityScopeSchema.options]);
+    expect([...shape.commercialPermission.options]).toEqual([
+      ...commercialPermissionSchema.options,
+    ]);
+  });
+
+  it('accepts a published basis and refuses an unknown word or an extra field', () => {
+    const ok = { availabilityScope: 'public_payg', commercialPermission: 'public_resale_approved' };
+    expect(kaanaDeploymentCommercialSchema.safeParse(ok).success).toBe(true);
+    expect(
+      kaanaDeploymentCommercialSchema.safeParse({ ...ok, dedicatedCapacity: true }).success,
+    ).toBe(true);
+    expect(
+      kaanaDeploymentCommercialSchema.safeParse({ ...ok, availabilityScope: 'free_for_all' })
+        .success,
+    ).toBe(false);
+    expect(kaanaDeploymentCommercialSchema.safeParse({ ...ok, price: '1' }).success).toBe(false);
+  });
+
+  it('is carried from Kaana’s published descriptor onto the route Oxy reads', async () => {
+    const commercial = {
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+    } as const;
+    const source = createDeploymentPublicationCache({
+      listPublishedDeployments: async () => ({
+        snapshotId: 's1',
+        deployments: [
+          {
+            deploymentId: 'dep-1',
+            modelReference: 'acme/one@r1',
+            provider: 'p',
+            regions: ['us'],
+            commercial,
+          },
+          { deploymentId: 'dep-2', modelReference: 'acme/one@r1', provider: 'q', regions: [] },
+        ],
+      }),
+    });
+    const observed = await source.current();
+    if (observed.status !== 'observed') throw new Error('unexpected');
+    expect(observed.routes?.get('dep-1')?.commercial).toEqual(commercial);
+    // Kaana did not publish a basis for dep-2: the route carries none.
+    expect(observed.routes?.get('dep-2')?.commercial).toBeUndefined();
   });
 });

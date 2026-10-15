@@ -143,6 +143,7 @@ import {
 } from './kaanaDeclaredCatalogue.service';
 import { currentDeploymentLiveness } from './kaanaDeploymentPublication.service';
 import {
+  type GrantLane,
   type GrantLine,
   type GrantLineResolution,
   type GrantRoute,
@@ -553,14 +554,23 @@ interface StepPlan {
   readonly maxFundingTier: 'credit' | undefined;
   /** Exact pilot routes this step is limited to; `undefined` for none. */
   readonly pilotDeployments: readonly InternalMeteredPilotDeployment[] | undefined;
-  /** Same-model failover off: the step is served on its best provider only. */
-  readonly singleProvider: boolean;
+  /**
+   * The policy turns same-model failover OFF. The grant cannot yet tell Kaana so
+   * (no field in `grantStepLimitsSchema`), so such a step is granted only where
+   * failover cannot happen: a line with a single eligible provider.
+   */
+  readonly failoverOff: boolean;
 }
 
 /** An admitted line: its best route (for the usage row) and the price it settles at. */
 interface AdmittedLine {
   readonly modelLine: string;
-  /** The list Kaana declared for the line: its id is the grant's `priceVersionId`. */
+  /** `list`: Kaana's own keys at the declared list. `byok`: the customer's key at Oxy's platform fee. */
+  readonly lane: 'list' | 'byok';
+  /**
+   * What the line settles at. `list`: the list Kaana declared (its id is the
+   * grant's `priceVersionId`). `byok`: Oxy's platform fee schedule, as a list.
+   */
   readonly price: PriceSnapshotInput;
   readonly quote: { readonly amount: string; readonly currency: string };
   readonly bestRoute: GrantRoute;
@@ -778,7 +788,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
       maxFundingTier: undefined,
       pilotDeployments: pilotTerms?.deployments,
-      singleProvider: !sameModelFailover,
+      failoverOff: !sameModelFailover,
     } as const;
     stepPlans.push({ ...step, target, candidates: [reference] });
     const crossModel =
@@ -825,6 +835,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       const resolution = await resolveGrantLine(
         evidence,
         viewer,
+        { applicationId: principal.applicationId, environment: principal.environment },
         candidate,
         constraints,
         plan.modality,
@@ -834,19 +845,21 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         if (stepPlan === stepPlans[0] && target.kind === 'model') primaryFailure ??= resolution;
         continue;
       }
-      const routes = resolution.line.routes.filter(
-        (route) =>
-          stepPlan.pilotDeployments === undefined ||
-          stepPlan.pilotDeployments.some(
-            (allowed) =>
-              allowed.deploymentId === route.deploymentId &&
-              allowed.modelReference === route.modelReference &&
-              allowed.provider === route.provider,
-          ),
-      );
-      const admitted = await admitLine(resolution.line, routes, plan, stepPlan);
-      if (admitted === 'over-price') sawPriceExclusion = true;
-      else if (admitted !== undefined) lines.push(admitted);
+      for (const lane of resolution.line.lanes) {
+        const routes = lane.routes.filter(
+          (route) =>
+            stepPlan.pilotDeployments === undefined ||
+            stepPlan.pilotDeployments.some(
+              (allowed) =>
+                allowed.deploymentId === route.deploymentId &&
+                allowed.modelReference === route.modelReference &&
+                allowed.provider === route.provider,
+            ),
+        );
+        const admitted = await admitLine(resolution.line, lane, routes, plan, stepPlan);
+        if (admitted === 'over-price') sawPriceExclusion = true;
+        else if (admitted !== undefined) lines.push(admitted);
+      }
     }
     if (lines.length > 0) {
       const providers = [...new Set(lines.flatMap((line) => line.providers))].sort();
@@ -870,16 +883,62 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     });
   }
 
-  // ---- Treatment -------------------------------------------------------------
-  // A customer-key (BYOK) route is never admitted here (kaanaGrantRoutes): its
-  // platform fee is Oxy's own price, not a model's declared list price. The
-  // grant is therefore always the economics the relationship resolved.
-  const primary = resolvedSteps[0]?.lines[0]?.bestRoute;
-  if (primary === undefined) {
+  // ---- Treatment: the lane the first line is served in ------------------------
+  // Lines come in lane-preference order. A grant has ONE economics, so it is
+  // served in the lane of its first line: Kaana's own keys at the declared list,
+  // or the customer's key (`platform_fee_only`, rated at Oxy's platform fee
+  // alone) with that one credential binding.
+  const primaryLine = resolvedSteps[0]?.lines[0];
+  if (primaryLine === undefined) {
     throw new GrantRefusal('no_route_available', 'No route is currently available.');
   }
-  const treatment: Grant['economics']['treatment'] = economics.treatment;
-  const steps = resolvedSteps;
+  const primary = primaryLine.bestRoute;
+  const byok = primary.customerProviderCredential;
+  if (byok !== undefined && economics.treatment === 'internal_metered') {
+    throw new GrantRefusal(
+      'policy_violation',
+      'An internal relationship is not served on a customer key.',
+      { reason: 'internal-byok' },
+    );
+  }
+  const treatment: Grant['economics']['treatment'] =
+    byok !== undefined ? 'platform_fee_only' : economics.treatment;
+  const steps: ResolvedStep[] = resolvedSteps
+    .map((step) => {
+      const lines = step.lines.filter(
+        (line) =>
+          line.lane === primaryLine.lane &&
+          line.bestRoute.customerProviderCredential?.credentialHandle === byok?.credentialHandle &&
+          line.bestRoute.customerProviderCredential?.credentialRevision ===
+            byok?.credentialRevision,
+      );
+      return {
+        plan: step.plan,
+        lines,
+        providers: [...new Set(lines.flatMap((line) => line.providers))].sort(),
+      };
+    })
+    .filter((step) => step.lines.length > 0);
+  if (steps.length === 0) {
+    throw new GrantRefusal('no_route_available', 'No route is currently available.', {
+      reason: 'no-line-in-lane',
+    });
+  }
+  // Kaana chooses the provider and key (cheapest first, failover, recovery) among
+  // the routes admitted. A policy that turns same-model failover off needs the
+  // grant to say so; it cannot yet, so it is granted only where the line has one
+  // eligible provider and failover cannot happen.
+  if (
+    steps.some(
+      (step) => step.plan.failoverOff && step.lines.some((line) => line.providers.length > 1),
+    )
+  ) {
+    throw new GrantRefusal(
+      'policy_violation',
+      'This application’s routing policy turns off same-model failover, which this grant cannot express yet.',
+      { reason: 'same_model_failover_off_unsupported' },
+    );
+  }
 
   // ---- The ceiling: the dearest admitted line ---------------------------
   let ceilingLine: AdmittedLine | undefined;
@@ -1064,7 +1123,8 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
           },
         }),
     ...(economics.treatment === 'internal_metered' ? { capacity: { meteredUsageId } } : {}),
-    steps: steps.map((step) => grantStepOf(step, constraints)),
+    steps: steps.map((step) => grantStepOf(step, constraints, byok !== undefined)),
+    ...(byok === undefined ? {} : { customerProviderCredential: byok }),
     ...(request.idempotencyKey === undefined ? {} : { idempotencyKey: request.idempotencyKey }),
     client: request.client.labels === undefined ? {} : { labels: request.client.labels },
     routingPolicy,
@@ -1141,6 +1201,10 @@ function refusalForResolution(
       return new GrantRefusal('no_route_available', `${name} cannot be priced per unit.`, {
         param: 'model',
         reason: `pricing:${resolution.error.code}`,
+      });
+    case 'platform-fee-unavailable':
+      return new GrantRefusal('no_route_available', 'No route is currently available.', {
+        reason: 'platform_fee_not_approved',
       });
     case 'policy-excluded':
       return new GrantRefusal(
@@ -1268,7 +1332,7 @@ function levelStepPlans(
     maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
     maxFundingTier: undefined,
     pilotDeployments: pilotTerms?.deployments,
-    singleProvider: false,
+    failoverOff: false,
   } as const;
 
   if (level === 'auto') {
@@ -1287,7 +1351,7 @@ function levelStepPlans(
         maxPrice: tighterPrice(policyPrice, lane.maxPricePerRequestUsd),
         maxFundingTier: 'credit',
         pilotDeployments: undefined,
-        singleProvider: false,
+        failoverOff: false,
       },
     ];
     if (lane.fallbackLevel !== level && levelAllowed(lane.fallbackLevel)) {
@@ -1309,20 +1373,20 @@ function levelStepPlans(
 }
 
 /**
- * Admit one model line under a step: quote it at the list price Kaana declared,
- * and keep it if that is under the step's price ceiling. There is one price per
- * line — the declared list — so «the dearest route» of the old edge is gone: the
- * hold covers whichever route Kaana serves because every route of a line is
- * rated at the same list (ADR 0002 decision 4, amendment 2026-10-15).
+ * Admit one lane of a model line under a step: quote it at the lane's price (the
+ * list Kaana declared, or Oxy's platform fee for the customer's own key) and
+ * keep it if that is under the step's price ceiling. There is one price per
+ * lane, so the hold covers whichever route Kaana serves.
  *
- * The providers are the ones the application's policy qualified. Same-model
- * failover off narrows the step to ONE provider — the first in provider order,
- * which is a deterministic choice and not a ranking: Oxy no longer holds the
- * scorecards that used to rank providers, and the grant carries no flag Kaana
- * could rank by (open point in `docs/inference/kaana-grants.md`).
+ * ALL the eligible routes are admitted: the providers are every one the
+ * application's policy qualified, and Kaana chooses among them — cheapest first,
+ * with failover and recovery (owner decision 2026-10-12). The customer's own
+ * key is the exception, by construction: the grant carries ONE credential, so a
+ * `byok` line is admitted for the provider that credential belongs to.
  */
 async function admitLine(
   line: GrantLine,
+  lane: GrantLane,
   routes: readonly GrantRoute[],
   plan: OperationPlan,
   step: StepPlan,
@@ -1331,13 +1395,13 @@ async function admitLine(
   if (best === undefined) return undefined;
   if (
     plan.family === 'transcription' &&
-    (await publishedUnitPrice(line.price, 'output_tokens')) === 'positive'
+    (await publishedUnitPrice(lane.price, 'output_tokens')) === 'positive'
   ) {
     // A transcript's text has no bound in the facts; a line that charges for it
     // could settle above any hold sized from them.
     return undefined;
   }
-  const quote = await quoteRouteCeiling(line.price, plan.plans(line));
+  const quote = await quoteRouteCeiling(lane.price, plan.plans(line));
   if (quote.status !== 'quoted') return undefined;
   const ceiling = step.maxPrice;
   if (
@@ -1346,12 +1410,12 @@ async function admitLine(
   ) {
     return 'over-price';
   }
-  const served = step.singleProvider
-    ? routes.filter((route) => route.provider === best.provider)
-    : routes;
+  const served =
+    lane.kind === 'byok' ? routes.filter((route) => route.provider === best.provider) : routes;
   return {
     modelLine: line.modelLine,
-    price: line.price,
+    lane: lane.kind,
+    price: lane.price,
     quote: { amount: quote.amount, currency: quote.currency },
     bestRoute: best,
     providers: [...new Set(served.map((route) => route.provider))],
@@ -1362,21 +1426,23 @@ async function admitLine(
 function grantStepOf(
   step: ResolvedStep,
   constraints: typeof UNCONSTRAINED_ROUTING,
+  byok: boolean,
 ): Record<string, unknown> {
   return {
     target: step.plan.target,
     limits: {
       ...(step.plan.maxPrice === undefined ? {} : { maxPricePerRequest: step.plan.maxPrice }),
-      ...(step.plan.maxFundingTier === undefined
+      ...(step.plan.maxFundingTier === undefined || byok
         ? {}
         : { maxFundingTier: step.plan.maxFundingTier }),
       admittedModelLines: step.lines.map((line) => ({
         modelLine: line.modelLine,
         priceVersionId: line.price.priceVersionId,
       })),
-      // Only providers that serve the line, that Oxy approved to sell to this
+      // Every provider that serves the line, that Kaana says may be sold to this
       // audience, and that the application's policy qualifies (data retention,
-      // training, regions, licences): Kaana may choose among them, never outside.
+      // training, regions, licences): Kaana chooses among them and fails over
+      // within them, never outside.
       providerAllowlist: [...step.providers],
       providerDenylist: constraints.providerDenylist.filter(
         (provider) => !step.providers.includes(provider),

@@ -120,6 +120,18 @@ export function declaredModel(input: DeclaredModelInput): DeclaredModel {
   });
 }
 
+/** How Kaana publishes an ordinary, resold deployment (`commercial` on its descriptor). */
+export const PUBLIC_RESALE = {
+  availabilityScope: 'public_payg',
+  commercialPermission: 'public_resale_approved',
+} as const;
+
+/** How Kaana publishes a deployment served on the customer's own provider key. */
+export const CUSTOMER_KEY = {
+  availabilityScope: 'byok_only',
+  commercialPermission: 'customer_byok',
+} as const;
+
 export class KaanaStub {
   /** The declared catalogue, by model id. */
   readonly models = new Map<string, DeclaredModel>();
@@ -256,6 +268,7 @@ export class KaanaStub {
         modelReference: `${row.modelId}@${row.revision}`,
         provider: row.provider,
         regions: row.regions,
+        commercial: PUBLIC_RESALE,
       });
       if (models.has(row.modelId)) continue;
       const unitPrices =
