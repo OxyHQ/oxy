@@ -37,6 +37,7 @@ export const personalPlanCheckoutIntents = pgTable(
     priceValidFrom: timestamptz().notNull(),
     priceValidUntil: timestamptz(),
     state: text({ enum: ['reserved', 'pending', 'fulfilled', 'closed'] }).notNull(),
+    dispatchClaimedAt: timestamptz(),
     closedReason: text(),
     providerSessionId: text(),
     checkoutUrl: text(),
@@ -92,6 +93,10 @@ export const personalPlanCheckoutIntents = pgTable(
     check(
       'personal_checkout_state',
       sql`${t.state} in ('reserved', 'pending', 'fulfilled', 'closed')`,
+    ),
+    check(
+      'personal_checkout_dispatch_state',
+      sql`${t.dispatchClaimedAt} is null or ${t.state} <> 'reserved'`,
     ),
     check(
       'personal_checkout_price',

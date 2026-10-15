@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { Peable, type BillingTaxQuote } from '@peable.to/sdk';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { eq } from 'drizzle-orm';
-import { personalPlanCheckoutIntents, accessGrants } from '../../db/schema';
+import {
+  personalPlanCheckoutIntents,
+  accessGrants,
+  accessProviderPeriods,
+  accessSubscriptionSources,
+} from '../../db/schema';
 import { logger } from '../../utils/logger';
 import { productAccessFixture } from '../__fixtures__/productAccessFixtures';
 import { recordProductAccessPeriod } from '../productAccessPersistence.service';
@@ -338,6 +343,7 @@ async function pendingCheckoutFixture() {
     providerCustomerId: 'customer_fixture',
     providerPriceId: 'price_fixture',
     subscription,
+    initialInvoiceId: subscription.latestInvoiceId,
   };
   const paid = {
     invoiceId: subscription.latestInvoiceId,
@@ -424,6 +430,22 @@ async function pendingCheckoutFixture() {
       retrieveSubscription: async () => subscription,
     },
   } as unknown as Peable;
+  const retrieveCheckoutOperation = jest.fn(async () => ({
+    state: 'pending' as const,
+    source: {
+      idempotencyKey: `personal-checkout:${intentId}`,
+      providerCustomerId: 'customer_fixture',
+      providerPriceId: 'price_fixture',
+      storeId: account.payer,
+      planId: 'plan_fixture',
+      merchantId: 'merch_fixture',
+      appId: account.app.id,
+      mode: 'live' as const,
+      environment: 'production' as const,
+      taxQuoteId: quote.quote.id,
+    },
+  }));
+  client.billing.retrieveCheckoutOperation = retrieveCheckoutOperation;
   const runtime = createPeablePersonalRuntime(
     client,
     {
@@ -446,6 +468,8 @@ async function pendingCheckoutFixture() {
   return {
     account,
     retrieveMerchant,
+    client,
+    retrieveCheckoutOperation,
     intentId,
     session,
     paid,
@@ -640,6 +664,48 @@ it.each([false, true])(
   },
 );
 
+it('does not attach historical evidence for a different initial invoice', async () => {
+  const test = await pendingCheckoutFixture();
+  await reconcilePeablePersonalPaidInvoice(
+    test.runtime.authority,
+    {
+      accountId: test.account.payer,
+      customerId: test.paid.providerCustomerId,
+      subscriptionId: test.paid.providerSubscriptionId,
+      priceId: test.paid.providerPriceId,
+      planId: test.paid.planId,
+      merchantId: 'merch_fixture',
+      appId: test.account.app.id,
+      mode: 'live',
+      environment: 'production',
+      offerId: test.account.offers[0].id,
+      offerVersion: 1,
+    },
+    test.paid.invoiceId,
+    () => test.account.now,
+  );
+  const later = new Date(Date.parse(test.paid.periodEnd) + 60_000);
+  test.session.initialInvoiceId = 'in_foreign_initial';
+  test.retrieveInvoiceState.mockResolvedValue({
+    ...test.paid,
+    observedAt: later.toISOString(),
+    chargeId: 'ch_initial',
+    amountRefunded: '0',
+    state: 'paid',
+  });
+  const runtime = createPeablePersonalRuntime(test.client, test.runtime.configuration, undefined, {
+    clock: () => later,
+  });
+  await expect(runtime.recoverCheckout(test.intentId)).rejects.toThrow('ownership/time');
+  const [intent] = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.id, test.intentId));
+  expect(intent.state).toBe('pending');
+  expect(intent.initialInvoiceId).toBeNull();
+  expect(intent.fulfilledSourceId).toBeNull();
+});
+
 it('keeps a partially refunded initial invoice under review without creating rights', async () => {
   const test = await pendingCheckoutFixture();
   test.retrieveInvoiceState.mockResolvedValue({
@@ -687,7 +753,98 @@ it('retains reservations without dispatch when ordinary runtime has no checkout 
   expect(test.runtime.checkoutProvider).toBeUndefined();
   expect(await test.runtime.recoverCheckout(test.intentId)).toEqual({ status: 'checkout_pending' });
   expect(test.retrieveCheckout).not.toHaveBeenCalled();
+  expect(test.retrieveCheckoutOperation).toHaveBeenCalledTimes(1);
 });
+
+it.each([false, true])(
+  'selects the immutable initial invoice after renewal; recorded initial=%s',
+  async (recorded) => {
+    const test = await pendingCheckoutFixture();
+    if (recorded)
+      await reconcilePeablePersonalPaidInvoice(
+        test.runtime.authority,
+        {
+          accountId: test.account.payer,
+          customerId: test.paid.providerCustomerId,
+          subscriptionId: test.paid.providerSubscriptionId,
+          priceId: test.paid.providerPriceId,
+          planId: test.paid.planId,
+          merchantId: 'merch_fixture',
+          appId: test.account.app.id,
+          mode: 'live',
+          environment: 'production',
+          offerId: test.account.offers[0].id,
+          offerVersion: 1,
+        },
+        test.paid.invoiceId,
+        () => test.account.now,
+      );
+    const beforeGrants = await getDb()
+      .select()
+      .from(accessGrants)
+      .where(eq(accessGrants.beneficiaryAccountId, test.account.payer));
+    const beforePeriods = await getDb()
+      .select()
+      .from(accessProviderPeriods)
+      .where(eq(accessProviderPeriods.beneficiaryAccountId, test.account.payer));
+    const beforeSources = await getDb()
+      .select()
+      .from(accessSubscriptionSources)
+      .where(eq(accessSubscriptionSources.beneficiaryAccountId, test.account.payer));
+    const later = new Date(Date.parse(test.paid.periodEnd) + 60_000);
+    test.session.subscription.latestInvoiceId = 'in_renewal_never_initial';
+    test.session.subscription.currentPeriodStart = test.paid.periodEnd;
+    test.session.subscription.currentPeriodEnd = new Date(
+      later.getTime() + 30 * 86_400_000,
+    ).toISOString();
+    test.retrieveInvoiceState.mockResolvedValue({
+      ...test.paid,
+      observedAt: later.toISOString(),
+      chargeId: 'ch_initial',
+      amountRefunded: '0',
+      state: 'paid',
+    });
+    const runtime = createPeablePersonalRuntime(
+      test.client,
+      test.runtime.configuration,
+      undefined,
+      { clock: () => later },
+    );
+    expect(await runtime.recoverCheckout(test.intentId)).toMatchObject(
+      recorded
+        ? { status: 'historical_replayed' }
+        : { status: 'review_required', reason: 'historical_paid_period_not_recorded' },
+    );
+    expect(test.retrieveInvoiceState).toHaveBeenLastCalledWith(
+      test.paid.providerSubscriptionId,
+      test.paid.invoiceId,
+    );
+    const [intent] = await getDb()
+      .select()
+      .from(personalPlanCheckoutIntents)
+      .where(eq(personalPlanCheckoutIntents.id, test.intentId));
+    expect(intent.state).toBe(recorded ? 'fulfilled' : 'pending');
+    expect(intent.initialInvoiceId).toBe(recorded ? test.paid.invoiceId : null);
+    expect(
+      await getDb()
+        .select()
+        .from(accessGrants)
+        .where(eq(accessGrants.beneficiaryAccountId, test.account.payer)),
+    ).toEqual(beforeGrants);
+    expect(
+      await getDb()
+        .select()
+        .from(accessProviderPeriods)
+        .where(eq(accessProviderPeriods.beneficiaryAccountId, test.account.payer)),
+    ).toEqual(beforePeriods);
+    expect(
+      await getDb()
+        .select()
+        .from(accessSubscriptionSources)
+        .where(eq(accessSubscriptionSources.beneficiaryAccountId, test.account.payer)),
+    ).toEqual(beforeSources);
+  },
+);
 
 it('rejects wrong SDK credential owner before owned checkout reads', async () => {
   const test = await pendingCheckoutFixture();
