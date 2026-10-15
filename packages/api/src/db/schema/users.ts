@@ -72,6 +72,7 @@ import {
   doublePrecision,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   uniqueIndex,
@@ -86,6 +87,7 @@ import {
   type AccountCategoryId,
   type AccountCategoryKind,
   type AccountKind as ContractAccountKind,
+  type AvatarCharacter,
   type TrustTier,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from '@oxy.so/db';
@@ -395,6 +397,20 @@ export const users = pgTable(
      * path validates it — `accountCategoriesSchema`.
      */
     accountCategories: text({ enum: ACCOUNT_CATEGORY_IDS }).array().notNull().default([]),
+    /**
+     * The 3D avatar character of a `bot` account (`avatarCharacterSchema` in
+     * `@oxy.so/contracts`), stored whole and drawn by Bloom's `Avatar`.
+     *
+     * Nullable for every other kind, and `users_character_kind_check` makes a
+     * non-bot with one unrepresentable. A bot gets one at creation
+     * (`createChildAccount` seeds it when the caller names none). The column is
+     * NOT `NOT NULL`-for-bots at the database yet only because bots minted
+     * before it existed have none; that CHECK follows the backfill.
+     *
+     * `jsonb` and not columns: it is read and written whole, never filtered by
+     * part, and the vocabulary inside it belongs to Bloom, not to this schema.
+     */
+    character: jsonb().$type<AvatarCharacter>(),
     /**
      * Immediate parent in the ownership tree; NULL means "root".
      *
@@ -753,6 +769,9 @@ export const users = pgTable(
       'users_account_categories_kind_check',
       sql`${t.kind} in (${sql.raw(inList(ACCOUNT_CATEGORY_KINDS))}) or cardinality(${t.accountCategories}) = 0`,
     ),
+    // Only a bot has a character. A CHECK that every bot HAS one waits for the
+    // backfill of the bots that predate the column.
+    check('users_character_kind_check', sql`${t.character} is null or ${t.kind} = 'bot'`),
     check(
       'users_account_status_check',
       sql`${t.accountStatus} in (${sql.raw(inList(ACCOUNT_STATUSES))})`,

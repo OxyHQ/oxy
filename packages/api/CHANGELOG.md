@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Added (a bot account carries a 3D avatar character)
+
+- `users.character` (nullable `jsonb`, migration `0158`, deploy phase `pre`) and
+  `users_character_kind_check`: only a `bot` row may carry one. The "every bot
+  has one" constraint follows the backfill of bots minted before the column.
+- `POST /accounts` with `kind: 'bot'` stores the `character` it is given or, when
+  none, `avatarCharacterFor(username)`; any other kind refuses one (400).
+  `PATCH /accounts/:id` replaces it (`account:update`, as for every field).
+- `character` rides the user DTOs for `kind: 'bot'` only (`userIdentityFields` is
+  the one definer; personal payloads do not grow): `formatUserResponse`,
+  `UserService.formatUserResponse` and the recommendation rows.
+
+### Changed
+
+- `isAgent` on recommendation rows is `kind === 'bot'` (`deriveIsAgent`), where it
+  was `type === 'agent'` and so was never true for the bots Alia mints. `type:
+  'agent'` still means a remote/automation actor resolved by `PUT /users/resolve`.
+
 ### Fixed (a send's Idempotency-Key, and a delivery the relay took)
 
 - `POST /email/messages` refuses an `Idempotency-Key` reused for a DIFFERENT

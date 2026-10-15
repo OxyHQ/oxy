@@ -8,7 +8,9 @@ import { getUserLanguages } from '@oxy.so/core';
 import {
   ACCOUNT_CATEGORY_IDS,
   isAccountKind,
+  parseAvatarCharacter,
   type AccountCategoryId,
+  type AvatarCharacter,
   type ThemePreference,
 } from '@oxy.so/contracts';
 import { formatUserNameResponse, type NameParts, type NameResponse } from './displayName';
@@ -150,6 +152,10 @@ export interface UserIdentitySource {
   publicKey?: unknown;
   /** The account type; a `federated` account's avatar is only ever a file id. */
   type?: unknown;
+  /** The account kind; only a `bot` has its `character` emitted. */
+  kind?: unknown;
+  /** The stored `jsonb` avatar character of a bot. */
+  character?: unknown;
 }
 
 /**
@@ -162,6 +168,29 @@ export interface UserIdentityFields {
   name: NameResponse;
   username: string | undefined;
   avatar: string | undefined;
+  /** A bot's 3D avatar character. Absent for every other kind — see {@link botCharacter}. */
+  character?: AvatarCharacter;
+}
+
+/**
+ * The SOLE definition of who carries a `character` on the wire: a `bot`
+ * account, and only when what is stored still parses. A personal account's
+ * payload never grows, and a malformed stored value is withheld rather than
+ * failing the whole DTO (consumers parse it against `avatarCharacterSchema`).
+ */
+function botCharacter(source: UserIdentitySource): AvatarCharacter | undefined {
+  if (source.kind !== 'bot') return undefined;
+  return parseAvatarCharacter(source.character) ?? undefined;
+}
+
+/**
+ * The SOLE definition of the derived public `isAgent` flag: an account is an
+ * agent iff its `kind` is `bot`. Not `type === 'agent'`, which describes a
+ * remote/automation actor resolved through the federation pipeline, not the
+ * bots Oxy accounts mint.
+ */
+export function deriveIsAgent(kind: unknown): boolean {
+  return kind === 'bot';
 }
 
 /**
@@ -228,7 +257,13 @@ export function userIdentityFields(source: UserIdentitySource): UserIdentityFiel
     }),
     username: stringValue(source.username),
     avatar: servedAvatar(source),
+    ...optionalCharacter(source),
   };
+}
+
+function optionalCharacter(source: UserIdentitySource): { character?: AvatarCharacter } {
+  const character = botCharacter(source);
+  return character ? { character } : {};
 }
 
 /**
@@ -273,6 +308,7 @@ export function formatUserResponse(user: unknown) {
     username: identity.username,
     email: stringValue(user.email),
     avatar: identity.avatar,
+    ...(identity.character ? { character: identity.character } : {}),
     color: stringValue(user.color),
     name: identity.name,
     privacySettings: user.privacySettings,

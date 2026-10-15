@@ -48,6 +48,7 @@ export const USER_PROFILE_COLOR_PRESETS = [
 import { z } from 'zod';
 import { verifiedDomainSchema } from './identity';
 import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
+import { avatarCharacterSchema } from './avatarCharacter';
 
 /**
  * Structured human name subdocument. Mirrors `User.name` (`NameSchema`).
@@ -294,6 +295,12 @@ export const userResponseSchema = z
      * `user.accountCategories ?? []`.
      */
     accountCategories: accountCategoriesSchema.optional(),
+    /**
+     * The 3D avatar character of a `kind: 'bot'` account — what Bloom's
+     * `Avatar` draws instead of a picture. Present ONLY on a bot's payload,
+     * never on a person's or an organization's, so those DTOs do not grow.
+     */
+    character: avatarCharacterSchema.optional(),
     /**
      * The authenticated viewer's relationship to this profile. Present ONLY
      * on single-profile fetches (`GET /profiles/username/:username`,

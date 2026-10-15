@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { avatarCharacterSchema } from './avatarCharacter';
 import { usernameSchema, usernameSchemaForAccountKind } from './username';
 
 /**
@@ -535,8 +536,23 @@ export const createAccountRequestSchema = z
      * remedy must not either.
      */
     isPrivateAccount: z.boolean().optional(),
+    /**
+     * The 3D avatar character of a `bot` — and ONLY of a bot (the refinement
+     * below). Optional on the wire: a bot created without one is given a look
+     * seeded from its handle (`avatarCharacterFor`), so every bot account has a
+     * character from birth and the owner customizes it afterwards.
+     */
+    character: avatarCharacterSchema.optional(),
   })
   .superRefine((request, ctx) => {
+    if (request.character !== undefined && request.kind !== 'bot') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['character'],
+        message: 'Only a bot account carries an avatar character',
+      });
+    }
+
     // The ONE place `kind` and `username` arrive in the same object, so it is the
     // only place a wire schema CAN apply the per-kind half of the policy: a bot's
     // handle must end in `bot`. Not a second rule — it asks

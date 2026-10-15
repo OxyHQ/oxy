@@ -370,20 +370,38 @@ describe('GET /profiles/:userId/similar — wire shape', () => {
     ]);
   });
 
-  it('omits instance and reports isAgent for a non-federated agent account', async () => {
+  it('reports isAgent for a bot account (kind), with its character, and omits instance', async () => {
     currentUserId = await curatedAccount();
     const target = await curatedAccount();
     const follower = await curatedAccount();
     await follow(follower, target);
-    const agent = await curatedAccount({ type: 'agent' });
-    await follow(follower, agent);
+    const character = { preset: 'alfred', bodyColor: '#ffaa00' };
+    const bot = await curatedAccount({ kind: 'bot', character });
+    await follow(follower, bot);
 
     const res = await similar(target, { limit: '10' });
 
     const row = res.body.data?.[0];
-    expect(row?.id).toBe(agent);
+    expect(row?.id).toBe(bot);
     expect(row?.isAgent).toBe(true);
+    expect(row?.character).toEqual(character);
     expect(row?.isFederated).toBe(false);
     expect(row).not.toHaveProperty('instance');
+  });
+
+  it('does not read `type: agent` as isAgent, and a personal account has no character', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const follower = await curatedAccount();
+    await follow(follower, target);
+    const resolved = await curatedAccount({ type: 'agent' });
+    await follow(follower, resolved);
+
+    const res = await similar(target, { limit: '10' });
+
+    const row = res.body.data?.[0];
+    expect(row?.id).toBe(resolved);
+    expect(row?.isAgent).toBe(false);
+    expect(row).not.toHaveProperty('character');
   });
 });

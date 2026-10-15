@@ -50,12 +50,14 @@ import { PROTECTED_COLUMNS_BY_TABLE, USERS_PROTECTED_COLUMNS } from '../db/schem
 import type { AccountKind } from '../db/schema/users';
 import {
   CHILD_ACCOUNT_KINDS,
+  avatarCharacterFor,
   RETIRED_ACCOUNT_CATEGORY_IDS,
   isDelegatedActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
   usernameSchemaForAccountKind,
   type AccountCategoryId,
+  type AvatarCharacter,
 } from '@oxy.so/contracts';
 import {
   effectivePermissionsForMember,
@@ -265,6 +267,12 @@ export interface CreateChildAccountInput {
    * for the full set of semantics the flag carries.
    */
   isPrivateAccount?: boolean;
+  /**
+   * A `bot`'s 3D avatar character. Omitted on a bot, one is generated from the
+   * handle (`avatarCharacterFor`) so a bot never exists without a look; any other
+   * kind refuses it.
+   */
+  character?: AvatarCharacter;
 }
 
 // ===========================================================================
@@ -441,6 +449,12 @@ export class AccountService {
 
     assertValidAccountName(input.name);
 
+    // `createAccountRequestSchema` refuses this on the wire; the service repeats
+    // it because `createChildAccount` has other callers than that route.
+    if (input.character !== undefined && input.kind !== 'bot') {
+      throw new BadRequestError('Only a bot account carries an avatar character');
+    }
+
     // After `assertUsernameAvailable`, so the reserved-color gate weighs the handle
     // the account will actually carry. `null` for the id: the row does not exist
     // yet, so there is no subscription to resolve and only the handle branch can
@@ -483,6 +497,8 @@ export class AccountService {
             // that says nothing gets exactly today's behaviour. Only an explicit
             // `true` opts the new account out of discovery.
             privacyIsPrivateAccount: input.isPrivateAccount,
+            character:
+              input.kind === 'bot' ? (input.character ?? avatarCharacterFor(username)) : null,
             parentAccountId: parent.account.id,
             rootAccountId,
             accountStatus: 'active',
@@ -634,6 +650,7 @@ export class AccountService {
       color?: string;
       links?: string[];
       accountCategories?: AccountCategoryId[];
+      character?: AvatarCharacter;
     },
   ): Promise<AccountRow> {
     const db = getDb();
@@ -675,6 +692,15 @@ export class AccountService {
       // it — index 0 is the primary category, so any rewrite here would change
       // an editorial choice without erroring.
       set.accountCategories = input.accountCategories;
+    }
+
+    if (input.character !== undefined) {
+      // `users_character_kind_check` refuses the row anyway; this answers with a
+      // 400 that names the rule instead of a 500 from the driver.
+      if (account.kind !== 'bot') {
+        throw new BadRequestError(`An account of kind "${account.kind}" cannot carry a character`);
+      }
+      set.character = input.character;
     }
 
     if (input.username !== undefined) {

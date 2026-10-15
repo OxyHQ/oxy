@@ -36,7 +36,7 @@ import {
 import { federationService, isFediverseHandle } from '../services/federation.service';
 import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
-import { userIdentityFields, deriveIsFederated } from '../utils/userTransform';
+import { userIdentityFields, deriveIsAgent, deriveIsFederated } from '../utils/userTransform';
 import {
   publicUserColumns,
   publicUserFollowCounts,
@@ -141,6 +141,9 @@ interface RecommendationRow {
   color?: string | null;
   description?: string | null;
   type?: string;
+  /** Selects `isAgent` and gates `character`: only a `bot` emits one. */
+  kind?: string;
+  character?: unknown;
   federationDomain?: string | null;
   verified?: boolean;
   reputationTier?: string;
@@ -169,6 +172,8 @@ const recommendationColumns = {
   color: users.color,
   description: users.description,
   type: users.type,
+  kind: users.kind,
+  character: users.character,
   federationDomain: users.federationDomain,
   verified: users.verified,
   reputationTier: users.reputationTier,
@@ -185,6 +190,7 @@ export function formatProfileResult(u: RecommendationRow) {
     username: identity.username,
     name: identity.name,
     avatar: identity.avatar,
+    ...(identity.character ? { character: identity.character } : {}),
     // A row of recommendations draws each person the way their profile does.
     // Without it every client re-fetched each recommended user one by one.
     // Every account has one (assigned at creation); a row built from a partial
@@ -197,7 +203,7 @@ export function formatProfileResult(u: RecommendationRow) {
     ...(typeof u.score === 'number' ? { score: u.score } : {}),
     ...(u.matchedSignals ? { matchedSignals: u.matchedSignals } : {}),
     isFederated: deriveIsFederated(u.type),
-    isAgent: u.type === 'agent',
+    isAgent: deriveIsAgent(u.kind),
     isAutomated: u.type === 'automated',
     instance: u.federationDomain ?? undefined,
     _count: {

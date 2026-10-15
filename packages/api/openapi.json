@@ -810,6 +810,44 @@
                   },
                   "isPrivateAccount": {
                     "type": "boolean"
+                  },
+                  "character": {
+                    "type": "object",
+                    "properties": {
+                      "preset": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "shape": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "eyes": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "eyewear": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "accessory": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "color": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "bodyColor": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      "eyeSpacing": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 1.5
+                      }
+                    }
                   }
                 },
                 "required": [
@@ -1091,6 +1129,44 @@
                       ]
                     },
                     "maxItems": 4
+                  },
+                  "character": {
+                    "type": "object",
+                    "properties": {
+                      "preset": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "shape": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "eyes": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "eyewear": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "accessory": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "color": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]{0,39}$"
+                      },
+                      "bodyColor": {
+                        "type": "string",
+                        "pattern": "^#[0-9a-fA-F]{6}$"
+                      },
+                      "eyeSpacing": {
+                        "type": "number",
+                        "minimum": 0.5,
+                        "maximum": 1.5
+                      }
+                    }
                   }
                 }
               }
