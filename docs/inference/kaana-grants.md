@@ -288,9 +288,12 @@ become `expired` (holds and slots already lapse on their own; a late
 settlement still settles them once), and — only when this deployment has both
 the Kaana binding and `KAANA_SETTLEMENT_PUBLIC_KEYS` — reads
 `GET kaana.ai/internal/v1/settlements?cursor=`, signed with the edge key under
-`oxy-kaana-settlements-read:v1` over the request target, cursor in
-`inference_provider_cost_feed_cursors` (`kaana-settlements`). Kaana builds that
-endpoint in phase 3 and must verify that signature.
+`SETTLEMENT_READ_SIGNATURE_DOMAIN` (`oxy-kaana-settlement-read:v1`) over the raw
+query string only, cursor in `inference_provider_cost_feed_cursors`
+(`kaana-settlements`). The domain, the path and the query come from
+`@kaana.ai/contracts/internal` (>= 4.4.1), never from a copy here: until
+2026-10-15 Oxy signed its own `oxy-kaana-settlements-read:v1` over `path?query`
+and Kaana refused every read as unsigned (`Kaana settlement feed answered 401`).
 
 ## Not in this phase
 

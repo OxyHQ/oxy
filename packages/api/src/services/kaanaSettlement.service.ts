@@ -51,9 +51,13 @@
 import { createHash, sign } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
+  SETTLEMENT_READ_PATH,
+  SETTLEMENT_READ_SIGNATURE_DOMAIN,
   type Settlement,
   type SettlementAcknowledgement,
   settlementPageSchema,
+  settlementReadQuery,
+  signatureInput,
 } from '@kaana.ai/contracts/internal';
 import type { UsageUnit } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
@@ -475,14 +479,6 @@ export async function expireLapsedGrants(limit = 500): Promise<number> {
 
 /** The feed cursor row Oxy keeps for Kaana's settlement outbox. */
 export const SETTLEMENT_FEED_NAME = 'kaana-settlements';
-export const SETTLEMENT_FEED_PATH = '/internal/v1/settlements';
-/**
- * The domain Oxy signs its read of Kaana's settlement outbox under, with the
- * edge key. The signed bytes are the request target (`path?query`), so a
- * captured read cannot be replayed with another cursor. Kaana verifies it in
- * phase 3, when the endpoint exists (ADR 0002 phase 3.1).
- */
-export const SETTLEMENT_READ_DOMAIN = 'oxy-kaana-settlements-read:v1';
 const SETTLEMENT_FEED_MAX_BYTES = 8 * 1024 * 1024;
 const SETTLEMENT_FEED_MAX_PAGES = 20;
 export const SETTLEMENT_FEED_INTERVAL_MS = 60_000;
@@ -491,29 +487,37 @@ export interface SettlementFeedReader {
   readPage(cursor: string | null): Promise<{ data: Settlement[]; nextCursor?: string }>;
 }
 
+/**
+ * The exact bytes Oxy signs for a read of Kaana's settlement outbox: the raw
+ * query under `SETTLEMENT_READ_SIGNATURE_DOMAIN`, with the edge key. The domain,
+ * the path and the query are Kaana's (`@kaana.ai/contracts/internal`), never
+ * restated here — until 2026-10-15 they were, one letter and one path apart,
+ * and every read was refused as unsigned.
+ */
 export function settlementReadSigningInput(
   keyId: string,
   timestamp: number,
-  target: string,
+  query: string,
 ): Buffer {
-  const digest = createHash('sha256').update(target, 'utf8').digest('hex');
-  return Buffer.from([SETTLEMENT_READ_DOMAIN, keyId, String(timestamp), digest].join('\n'), 'utf8');
+  const digest = createHash('sha256').update(query, 'utf8').digest('hex');
+  return Buffer.from(
+    signatureInput(SETTLEMENT_READ_SIGNATURE_DOMAIN, keyId, timestamp, digest),
+    'utf8',
+  );
 }
 
 export class HttpKaanaSettlementFeedReader implements SettlementFeedReader {
   constructor(private readonly config: KaanaDataPlaneConfig) {}
 
   async readPage(cursor: string | null): Promise<{ data: Settlement[]; nextCursor?: string }> {
-    const target =
-      cursor === null
-        ? SETTLEMENT_FEED_PATH
-        : `${SETTLEMENT_FEED_PATH}?cursor=${encodeURIComponent(cursor)}`;
+    const query = settlementReadQuery(cursor);
     const timestamp = Date.now();
     const signature = sign(
       null,
-      settlementReadSigningInput(this.config.keyId, timestamp, target),
+      settlementReadSigningInput(this.config.keyId, timestamp, query),
       this.config.privateKey,
     ).toString('base64');
+    const target = query === '' ? SETTLEMENT_READ_PATH : `${SETTLEMENT_READ_PATH}?${query}`;
     const response = await tracedFetch(`${this.config.baseUrl}${target}`, {
       method: 'GET',
       redirect: 'error',
