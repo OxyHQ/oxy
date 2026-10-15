@@ -127,7 +127,7 @@ it('does not substitute one-off Faircoin for recurring purchase', () => {
   expect(PEABLE_ONE_READINESS.platform).toBe('peable');
   expect(PEABLE_ONE_READINESS.purchase).toBe('unavailable');
   expect(PEABLE_ONE_READINESS.blockers).toContain(
-    'peable_sdk_adoption_and_recurring_observation_delivery',
+    'configured_watch_only_merchant_and_verified_chain_access',
   );
 });
 
