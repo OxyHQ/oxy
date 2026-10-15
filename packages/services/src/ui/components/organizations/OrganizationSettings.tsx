@@ -7,6 +7,7 @@ import {
   type OrganizationType,
 } from '@oxy.so/contracts';
 import { Button } from '@oxy.so/bloom/button';
+import { toast } from '@oxy.so/bloom/toast';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
@@ -66,6 +67,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
       return oxyServices.organizations.update(organization.accountId, input);
     },
     onSuccess: () => {
+      toast.success(t('organizationDirectory.saved'));
       void queryClient.invalidateQueries({ queryKey: ['oxy', 'organizations'] });
       void queryClient.invalidateQueries({ queryKey: ['accounts'] });
       void queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -106,9 +108,6 @@ function OrganizationForm({ organization }: { organization: Organization }) {
         ) : null}
         {save.isError ? (
           <Text accessibilityRole="alert">{t('organizationDirectory.saveFailed')}</Text>
-        ) : null}
-        {save.isSuccess ? (
-          <Text accessibilityRole="alert">{t('organizationDirectory.saved')}</Text>
         ) : null}
         <Button
           disabled={save.isPending || !canUsePrivateApi}
