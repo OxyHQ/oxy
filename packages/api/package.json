@@ -80,7 +80,7 @@
     "@opentelemetry/instrumentation-socket.io": "^0.69.0",
     "@opentelemetry/instrumentation-undici": "^0.32.0",
     "@opentelemetry/sdk-node": "^0.222.0",
-    "@kaana.ai/contracts": "4.3.0",
+    "@kaana.ai/contracts": "4.4.0",
     "@oxy.so/contracts": "workspace:*",
     "@oxy.so/core": "workspace:*",
     "@oxy.so/db": "workspace:*",
