@@ -123,7 +123,16 @@ export const grantRequestFactsSchema = z
     maxOutputTokens: z.number().int().positive().safe().optional(),
     /** Speech: the characters to read, UTF-16 code units. */
     inputCharacters: z.number().int().nonnegative().safe().optional(),
-    /** Transcription: the duration of the uploaded audio. */
+    /**
+     * Transcription: the duration of the uploaded audio, in milliseconds rounded
+     * up, as Kaana read it from the file's own container (`internal/audioprobe`)
+     * before asking: the WAV data chunk, the MPEG and ADTS frames, the FLAC
+     * stream info, the last Ogg granule, the Matroska/WebM blocks or the MP4
+     * sample tables. Never estimated from the byte count: an upload whose
+     * duration Kaana cannot read (raw `audio/pcm`, a damaged or mislabelled
+     * file) is refused `invalid_request` naming `file`, and no grant is asked
+     * for. Settlement still charges the provider's own measurement.
+     */
     audioInputMilliseconds: z.number().int().nonnegative().safe().optional(),
     /** Embeddings: how many inputs. Images: how many images. */
     embeddingInputs: z.number().int().positive().max(2048).optional(),

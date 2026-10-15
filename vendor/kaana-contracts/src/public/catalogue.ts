@@ -15,7 +15,11 @@ import {
   modelRevisionLabelSchema,
   publisherSlugSchema,
 } from './identifiers.js';
-import { audioInputMediaTypeSchema, languageTagSchema } from './audioFormats.js';
+import {
+  audioInputMediaTypeSchema,
+  languageTagSchema,
+  realtimeAudioFormatSchema,
+} from './audioFormats.js';
 import { priceSnapshotSchema } from './money.js';
 import { inferenceAudioMediaTypeSchema } from './streamEvents.js';
 
@@ -117,11 +121,32 @@ export const realtimeSessionTransportSchema = z.enum(['websocket']);
  * What a deployment can execute as a realtime session. Present only on a model
  * that holds sessions; absent means it holds none, which is the state of every
  * catalogue written before contract set 3.2.0.
+ *
+ * Two optional fields arrived in contract set 4.1.0 (Alia ADR 0017, Kaana
+ * phase 1), and ABSENT means undeclared — a catalogue from an older producer —
+ * never "every value":
+ *
+ * - `inputAudioTranscription` — the model transcribes the caller's speech
+ *   inside a `conversation` when the session asks for it
+ *   (`config.inputAudioTranscription`), and delivers each turn as a
+ *   `transcript.done` with `source: 'input_audio'`. Absent or `false`: a
+ *   session that asks is refused before anything is held.
+ * - `audioFormats` — the realtime encodings a session may name as
+ *   `config.inputAudioFormat` and `config.outputAudioFormat`. These are not the
+ *   media types of `audio.audioFormats`, which describe files.
  */
 export const modelRealtimeCapabilitiesSchema = z
   .object({
     transports: z.array(realtimeSessionTransportSchema).min(1),
     sessionKinds: z.array(realtimeSessionKindSchema).min(1),
+    inputAudioTranscription: z.boolean().optional(),
+    audioFormats: z
+      .object({
+        input: z.array(realtimeAudioFormatSchema).min(1),
+        output: z.array(realtimeAudioFormatSchema),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -192,6 +217,16 @@ export const modelCapabilitiesSchema = z
         path: ['realtime', 'transports'],
         message: 'each transport is declared at most once',
       });
+    }
+    for (const direction of ['input', 'output'] as const) {
+      const formats = realtime.audioFormats?.[direction];
+      if (formats !== undefined && new Set(formats).size !== formats.length) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['realtime', 'audioFormats', direction],
+          message: 'each realtime audio format is declared at most once',
+        });
+      }
     }
     // A realtime session consumes audio: a model that declares sessions and no
     // audio input is a declaration no session could honour.
@@ -339,7 +374,7 @@ export const cataloguePublisherSummarySchema = z
 /*  Audio capabilities (Kaana ADR 0002, decision 9)                           */
 /* -------------------------------------------------------------------------- */
 
-/** One voice a speech model can read text in. */
+/** One voice a speech or realtime model can speak in. */
 export const voiceSchema = z
   .object({
     /** What a speech request names in `voice`. */
@@ -367,6 +402,16 @@ export const voiceSchema = z
  *   names one is then refused.
  * - `maxInputCharacters` — the longest text one speech request may carry,
  *   counted in UTF-16 code units, as JavaScript's `length` counts.
+ *
+ * A REALTIME model publishes the same shape (contract set 4.1.0): `voices` are
+ * what a session's `config.voice` may name, `languages` what it converses in
+ * and what `config.inputAudioTranscription.language` may name, and
+ * `audioFormats` is empty in both directions because a session carries no
+ * files — its encodings are `capabilities.realtime.audioFormats`. An empty
+ * `languages` means the provider documents none, not that the model speaks
+ * none; a caller that needs a language then cannot choose the model.
+ * `gender` is published only where it has been reviewed against the
+ * provider's own catalogue; absent is unknown.
  */
 export const modelAudioCapabilitiesSchema = z
   .object({

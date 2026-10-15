@@ -101,7 +101,7 @@
  * change to, say, the catalogue reject every in-flight inference request; the
  * per-shape `schemaVersion` is what a message is validated against.
  */
-export const INFERENCE_CONTRACT_VERSION = '4.0.0';
+export const INFERENCE_CONTRACT_VERSION = '4.1.0';
 
 /**
  * Contract set 4.0.0 (Kaana ADR 0002) is the first published as
@@ -111,6 +111,15 @@ export const INFERENCE_CONTRACT_VERSION = '4.0.0';
  * 4.12.0 (set 3.8.0) every moved shape parses the same bytes, with two
  * deliberate exceptions: the signed envelope admits `audio_speech` with
  * `stream: true`, and the economic treatment gains `platform_fee_only`.
+ *
+ * Contract set 4.1.0 (Alia ADR 0017, Kaana phase 1) is MINOR: the closed usage
+ * unit set gains `input_transcription_milliseconds` (input transcription
+ * inside a realtime conversation, billed by the deployment's transcription
+ * model), `capabilities.realtime` gains the optional `inputAudioTranscription`
+ * and `audioFormats`, and `realtimeAudioFormatSchema` moves from `realtime.ts`
+ * to `audioFormats.ts` with the same members. A consumer on 4.0.0 refuses a
+ * usage report carrying the new unit, which is why the signed-envelope lane
+ * keeps refusing input transcription (docs/realtime.md).
  */
 
 /** The public API's one origin and version. */

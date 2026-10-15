@@ -1,6 +1,6 @@
 {
   "name": "@kaana.ai/contracts",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Kaana inference contract: the Zod schemas of the public API at https://kaana.ai/v1 and, under /internal, of the Oxy-Kaana grant, settlement and signed lane.",
   "type": "module",
   "sideEffects": false,
