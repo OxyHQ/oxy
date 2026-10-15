@@ -104,6 +104,7 @@ import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
 import { inferenceMeteredUsage } from './inferenceMeteredUsage';
+import { kaanaGrants } from './kaanaGrants';
 import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
@@ -1024,6 +1025,38 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'versioned in code with `economic_policy_version` beside it. There is no ' +
       'relationship table and there must not be one: the policy is reviewed data, ' +
       'not a row an operator can edit.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.requestId,
+    reason:
+      "(e) Kaana's `Kaana-Request-Id`, minted by the data plane at admission: a " +
+      'correlation key Oxy did not create and has no row for, exactly like ' +
+      '`usage_reservations.request_id`.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.economicRelationshipId,
+    reason: 'Same as `inference_metered_usage.economic_relationship_id`: a reviewed policy name.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.signingKeyId,
+    reason:
+      'The `kid` of the Oxy edge key that signed the grant (`KAANA_EDGE_SIGNING_KEY_ID`). ' +
+      "Keys live in SSM and in Kaana's `KAANA_EDGE_PUBLIC_KEYS`, never in this database.",
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.settlementId,
+    reason:
+      "Kaana's settlement-outbox row id, stable across redeliveries. The outbox is in " +
+      "Kaana's PostgreSQL; Oxy keeps the id only to make a second settlement visible.",
   },
   {
     table: inferenceProviderCostAttempts,
