@@ -119,7 +119,7 @@ const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUN
  * account via the `parentAccountId` prop. NOT the cryptographic Commons/DID
  * "identity" — that is a separate concept.
  */
-const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, parentAccountId }) => {
+const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, parentAccountId, navigate }) => {
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
   const { t, locale } = useI18n();
@@ -398,6 +398,9 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
 
   return (
     <View className="gap-space-16 px-screen-margin pt-space-16 pb-space-32">
+      {user?.kind === 'personal' && !parentId ? <SettingsListGroup title={t('supervision.title')}>
+        <SettingsListItem title={t('supervision.setupOwn')} description={t('supervision.setupOwnDescription')} onPress={()=>navigate?.('Supervision')} />
+      </SettingsListGroup> : null}
       {/* Account type — canonical grouped selection rows (checkmark on the chosen one) */}
       <SettingsListGroup title={t('accounts.create.typeSection') || 'Account type'}>
         {KIND_OPTIONS.map((option) => {

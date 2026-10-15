@@ -359,3 +359,24 @@ describe('canonical organization and profile-policy published contracts', () => 
     expect(routes[0]?.requestQueryTag).toBe('profileAccessInputSchema');
   });
 });
+
+
+it('applies static subtree authority without leaking it to a sibling or prefix collision',()=>{
+ const routes=parseRoutesFromFile(`router.post('/service/before',handler); router.use('/service',serviceAuthMiddleware); router.post('/service/session',handler); router.post('/service-other',handler); router.use('/supervision',authMiddleware); router.get('/supervision',handler);`);
+ expect(routes[0].middlewares).not.toContain('serviceAuthMiddleware');
+ expect(routes[1].middlewares).toContain('serviceAuthMiddleware');
+ expect(routes[2].middlewares).not.toContain('serviceAuthMiddleware');
+ expect(routes[3].middlewares).toContain('authMiddleware');
+ expect(routes[3].middlewares).not.toContain('serviceAuthMiddleware');
+});
+
+
+it('publishes 204 with no fictitious JSON response body',()=>{
+ const [route]=parseRoutesFromFile(`
+/**
+ * @response 204 none Completed.
+ */
+ router.delete('/entry',authMiddleware,handler);`);
+ const operation=buildOperation({route:{...route,filename:'test.ts',mountPrefix:'/test'},openApiPath:'/test/entry'});
+ expect(operation.responses['204']).toEqual({description:'Completed.'});
+});

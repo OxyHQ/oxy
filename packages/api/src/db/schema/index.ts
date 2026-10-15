@@ -199,3 +199,4 @@ export * from './personalPlanCheckoutIntents';
 export * from './storageByteReservations';
 export * from './productProviderRefunds';
 export * from './organizationProfiles';
+export * from './supervision';

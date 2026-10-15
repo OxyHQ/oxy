@@ -3,6 +3,7 @@ import type { BaseScreenProps } from '../types/navigation';
 
 // Define all available route names
 export type RouteName =
+  | 'Supervision'
   | 'ManageAccount' // Unified "Manage your Oxy Account" surface
   | 'AccountVerification'
   | 'PaymentGateway'
@@ -71,6 +72,7 @@ export type RouteName =
  * confines the gap to one documented widening in {@link getScreenComponent}.
  */
 const screenComponents: Record<RouteName, ComponentType<never>> = {
+  Supervision: lazy(() => import('../screens/SupervisionScreen')),
   ManageAccount: lazy(() => import('../screens/ManageAccountScreen')),
   AccountVerification: lazy(() => import('../screens/AccountVerificationScreen')),
   PaymentGateway: lazy(() => import('../screens/PaymentGatewayScreen')),

@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 /**
  * Whether an application may act as a user from its own backend, with no
  * session of that user's anywhere in the request.
@@ -143,7 +144,7 @@ export async function resolveServiceActingAsGrant(
   userId: string,
   credential?: ServiceActingAsCredentialContext,
 ): Promise<ServiceActingAsGrant> {
-  if (!applicationId || !userId) return DENIED;
+  if (!applicationId || !userId || await isSupervised(userId)) return DENIED;
   // Every authority read, including epoch, closure, credential/workload ceiling,
   // belongs to one snapshot. Mixing several READ COMMITTED snapshots could
   // pair the pre-revoke grant with the post-revoke epoch.

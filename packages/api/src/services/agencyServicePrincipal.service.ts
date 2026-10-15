@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import type { ServiceTokenPayload } from '../middleware/serviceToken';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
@@ -72,6 +73,7 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
     !isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })
   )
     return null;
+  if (await isSupervised(row.ownerAccountId)) return null;
   const scopes =
     row.credentialScopes.length > 0
       ? intersectScopes(row.credentialScopes, row.applicationScopes)
@@ -133,6 +135,7 @@ async function loadPrincipal(applicationId: string, credentialId: string) {
 export async function resolveLiveAgencyServicePrincipal(
   token: ServiceTokenPayload,
 ): Promise<LiveAgencyServicePrincipal | null> {
+  if (await isSupervised(token.ownerAccountId)) return null;
   if (isWorkloadAttestationHandle(token.credentialId)) {
     const binding = await resolveLiveAgencyWorkloadByHandle(token.appId, token.credentialId);
     if (
@@ -318,6 +321,7 @@ export async function resolveLiveAgencyWorkload(
   )
     return null;
 
+  if (await isSupervised(row.ownerAccountId)) return null;
   return {
     applicationId: row.applicationId,
     provider,

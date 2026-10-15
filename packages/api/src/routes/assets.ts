@@ -1,3 +1,4 @@
+import { createSupervisedAssetPolicy } from '../services/supervisionPolicy.service';
 import express from 'express';
 import multer from 'multer';
 import { assetService } from '../services/assetServiceSingleton';
@@ -80,6 +81,12 @@ interface AuthenticatedRequest extends express.Request {
 
 const router = express.Router();
 const upload = multer(); // memory storage
+/** Reviewed own-file operations: authentication still proves the original bearer. */
+const ownAssetAuth: express.RequestHandler = (req, res, next) => {
+  res.locals.supervisedSelfOperation = true;
+  return authMiddleware(req, res, next);
+};
+
 
 /**
  * Project a link/variant row onto the wire shape clients already receive.
@@ -334,7 +341,7 @@ router.get(
  */
 router.post(
   '/init',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: initUploadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -431,7 +438,7 @@ router.post(
  */
 router.post(
   '/complete',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: completeUploadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -483,7 +490,7 @@ router.post(
  */
 router.post(
   '/:id/upload-direct',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   upload.single('file'),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
@@ -572,7 +579,7 @@ router.post(
  */
 router.post(
   '/upload',
-  authMiddleware,
+  ownAssetAuth,
   upload.single('file'),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -1862,7 +1869,7 @@ router.delete(
  */
 router.get(
   '/:id',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -1876,6 +1883,8 @@ router.get(
     if (!file) {
       throw new NotFoundError('File not found');
     }
+
+    if (!(await assetService.canUserAccessFile(file, user._id))) throw new ForbiddenError('Access denied');
 
     logger.debug('File metadata retrieved', {
       userId: user._id,
@@ -1957,7 +1966,7 @@ router.get(
  */
 router.get(
   '/:id/url',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams, query: assetUrlQuerySchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -2485,7 +2494,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authMiddleware,
+  ownAssetAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
     if (!user?._id) {
@@ -2550,7 +2559,7 @@ interface BatchAccessResult {
  */
 router.post(
   '/batch-access',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: batchAccessSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -2571,6 +2580,7 @@ router.post(
     // variant) back to its file. Unknown ids resolve to a "not found" entry.
     const fetched = await assetService.getFilesByIds(requests.map((r) => r.fileId));
     const filesById = new Map(fetched.map((f) => [f.id, f]));
+    const supervisionPolicy = await createSupervisedAssetPolicy(fetched.map(file => file.ownerUserId), user?._id);
 
     const results: Record<string, BatchAccessResult> = {};
 
@@ -2582,7 +2592,7 @@ router.post(
           return;
         }
 
-        if (!(await assetService.canUserAccessFile(file, user?._id, context))) {
+        if (!(await assetService.canUserAccessFile(file, user?._id, context, supervisionPolicy))) {
           results[fileId] = { allowed: false, error: 'Access denied' };
           return;
         }
