@@ -30,12 +30,18 @@
  * @param {string[]} [options.extraWatchFolders=[]] Additional watch roots.
  * @param {string[]} [options.extraAssetExts=[]] Additional asset extensions.
  * @param {string[]} [options.extraSourceExts=[]] Additional source extensions.
+ * @param {boolean} [options.workletsBundleMode=false] react-native-worklets'
+ *   Bundle Mode: wraps the config with `getBundleModeMetroConfig` (worklets'
+ *   module ids, its resolver shims, inline requires), so a worker runtime can
+ *   load the app's bundle. Pair it with the Babel factory's option of the same
+ *   name; neither works alone. Needs `react-native-worklets` installed.
  * @returns {import('metro-config').MetroConfig}
  */
 const { getDefaultConfig } = require('expo/metro-config');
 const { withNativeWind } = require('nativewind/metro');
 const path = require('path');
 const { resolveOxyBuildId } = require('../build-id');
+const { requireFromProject } = require('../plugin/requireFromProject');
 
 function blockPath(dir) {
   const resolved = path.resolve(dir);
@@ -223,9 +229,29 @@ function withBloomSingleInstance(nativeWindConfig, projectRoot) {
   return nativeWindConfig;
 }
 
+/**
+ * Wraps the finished config for react-native-worklets' Bundle Mode. Applied
+ * LAST, so worklets' resolver sees every request first and hands the rest to
+ * the Bloom and NativeWind resolvers underneath.
+ */
+function withWorkletsBundleMode(config, projectRoot) {
+  let bundleMode;
+  try {
+    bundleMode = requireFromProject('react-native-worklets/bundleMode', projectRoot);
+  } catch (error) {
+    throw new Error(
+      "[@oxy.so/app-preset/metro] `workletsBundleMode` needs 'react-native-worklets' installed in the app. " +
+        `(${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  return bundleMode.getBundleModeMetroConfig(config);
+}
+
 function createOxyMetroConfigWithBloom(projectRoot, options = {}) {
+  const { workletsBundleMode = false } = options;
   const nativeWindConfig = createOxyMetroConfig(projectRoot, options);
-  return withBloomSingleInstance(nativeWindConfig, projectRoot);
+  const config = withBloomSingleInstance(nativeWindConfig, projectRoot);
+  return workletsBundleMode ? withWorkletsBundleMode(config, projectRoot) : config;
 }
 
 module.exports = { createOxyMetroConfig: createOxyMetroConfigWithBloom, withBloomSingleInstance };

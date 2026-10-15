@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `POST /auth/session/authorize/:sessionToken`, against a REAL Postgres.
  *
@@ -18,8 +19,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
 const mockCreateSession = jest.fn();
@@ -142,7 +143,7 @@ function post(
 }
 
 async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  const [row] = await insertAccountFixtures(fields, { id: users.id });
   return row.id;
 }
 

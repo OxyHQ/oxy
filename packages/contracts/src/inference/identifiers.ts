@@ -261,3 +261,18 @@ export type DelegatedUserId = z.infer<typeof delegatedUserIdSchema>;
 export type InferenceEnvironment = z.infer<typeof inferenceEnvironmentSchema>;
 export type ModelReference = z.infer<typeof modelReferenceSchema>;
 export type ModelId = z.infer<typeof modelIdSchema>;
+
+/**
+ * The economic tier of the provider capacity that funds a request, in the
+ * order Kaana spends it: `free` (costs nothing), `credit` (a promotional or
+ * trial grant, or a prepaid balance), `paid` (ordinary metered spend).
+ *
+ * Kaana owns provider keys, their economics and which key serves (Oxy ADR
+ * 0038, Kaana ADR 0001); Oxy owns what a customer may spend. The tier is the
+ * one economic fact the two exchange: Oxy BOUNDS a route by it
+ * (`maxFundingTier`), and Kaana REPORTS the tier that served
+ * (`normalizedUsageReportSchema.fundingTier`). No key id, label or price
+ * travels with it.
+ */
+export const inferenceFundingTierSchema = z.enum(['free', 'credit', 'paid']);
+export type InferenceFundingTier = z.infer<typeof inferenceFundingTierSchema>;

@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `/inference/reporting` against a REAL Postgres (issue #972, workstream 8).
  *
@@ -27,9 +28,9 @@
  */
 
 import express from 'express';
-import http from 'http';
-import crypto from 'crypto';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
 // service-token claims ARE the gate for the application lane, so restore it.
@@ -76,7 +77,6 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageRefunds } from '../../db/schema/usageRefunds';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { userAncestors } from '../../db/schema/userAncestors';
-import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import reportingRouter, {
   REPORTING_SERVICE_READS_PER_15_MINUTES,
@@ -162,10 +162,7 @@ function tag(): string {
 /* -------------------------------------------------------------------------- */
 
 async function seedAccount(kind: 'personal' | 'organization' | 'project' = 'personal') {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `rep-${tag()}`, kind })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({ username: `rep-${tag()}`, kind });
   return row.id;
 }
 
@@ -180,10 +177,11 @@ async function seedMember(
 }
 
 async function seedChildAccount(parentAccountId: string): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `rep-${tag()}`, kind: 'project', parentAccountId })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({
+    username: `rep-${tag()}`,
+    kind: 'project',
+    parentAccountId,
+  });
   await getDb()
     .insert(userAncestors)
     .values({ userId: row.id, depth: 0, ancestorId: parentAccountId });

@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * The browser bridge END TO END (ADR 0029 D2) — register → join-code → join,
  * then a Commons QR claim and an email/password sign-in that carry the device proof —
@@ -112,7 +113,7 @@ interface OfficialApp {
 
 async function user(): Promise<{ id: string; username: string }> {
   const username = `u${randomUUID().replace(/-/g, '').slice(0, 20)}`;
-  const [row] = await getDb().insert(users).values({ username }).returning({ id: users.id });
+  const [row] = await insertAccountFixtures({ username }, { id: users.id });
   return { id: row.id, username };
 }
 
@@ -521,13 +522,13 @@ describe('one browser, one session through the bridge', () => {
 describe('device token while another holder signs out the active organization', () => {
   async function sharedOrganization() {
     const person = await user();
-    const [org] = await getDb()
-      .insert(users)
-      .values({
+    const [org] = await insertAccountFixtures(
+      {
         username: `org${randomUUID().replace(/-/g, '').slice(0, 20)}`,
         kind: 'organization',
-      })
-      .returning({ id: users.id });
+      },
+      { id: users.id },
+    );
     await getDb().insert(accountMembers).values({
       accountId: org.id,
       memberUserId: person.id,

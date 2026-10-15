@@ -409,8 +409,16 @@ evidence into a claim that a provider is healthy.
 
 A route written by the Kaana catalogue sync takes its class from Kaana's signed
 credential economics: `promotional_credit` with a six-hour observation window
-when its provider has exactly one enabled key described `promotional`,
-otherwise `standard_payg` ([catalogue.md](./catalogue.md#funding-class-of-a-synced-route)).
+when any enabled key of its provider described `promotional` is available
+(Kaana walks the provider's key pool cheapest first, ADR 0038), otherwise
+`standard_payg` ([catalogue.md](./catalogue.md#funding-class-of-a-synced-route)).
+
+Since ADR 0038, Kaana — not Oxy — chooses the KEY inside each deployment, free →
+credits → paid. Where a route must not fall through to a dearer key, Oxy signs
+it with a funding ceiling (`authorizedRoutes[].maxFundingTier`, contract set
+3.8.0) and Kaana refuses the route instead; ADR 0037's Pro/Ultra lane is signed
+`credit`. Phase 2 moves the cross-provider order described here into Kaana as
+well (ADR 0038, "Phase 2").
 
 Because one stale score refuses every route, score expiry is a scheduled
 production cliff. A daily read-only monitor requires seven days of validity and

@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -5,7 +6,6 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
-import { users } from '../../db/schema/users';
 import { insertBearerSession } from '../../routes/__fixtures__/bearerSessionFixtures';
 
 jest.setTimeout(30_000);
@@ -78,10 +78,7 @@ afterAll(async () => {
 it.each(['validate', 'validate-header'])(
   '%s observes session revocation from another hot validation process',
   async (action) => {
-    const [user] = await getDb()
-      .insert(users)
-      .values({ username: `u${randomUUID().slice(0, 10)}` })
-      .returning();
+    const [user] = await insertAccountFixtures({ username: `u${randomUUID().slice(0, 10)}` });
     const sessionId = await insertBearerSession(user.id);
     const first = await worker();
     const second = await worker();
@@ -94,8 +91,8 @@ it.each(['validate', 'validate-header'])(
 );
 
 it('observes managed membership removal with both validation processes hot', async () => {
-  const [operator] = await getDb().insert(users).values({}).returning();
-  const [org] = await getDb().insert(users).values({ kind: 'organization' }).returning();
+  const [operator] = await insertAccountFixtures({});
+  const [org] = await insertAccountFixtures({ kind: 'organization' });
   await getDb()
     .insert(accountMembers)
     .values({ accountId: org.id, memberUserId: operator.id, role: 'admin', status: 'active' });

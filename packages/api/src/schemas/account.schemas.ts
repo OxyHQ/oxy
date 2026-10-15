@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import {
   accountCategoriesSchema,
+  avatarCharacterSchema,
+  accountNameSchema,
+  ORGANIZATION_TYPES,
   createAccountRequestSchema,
   usernameSchema,
 } from '@oxy.so/contracts';
@@ -23,20 +26,6 @@ export const listAccountsQuerySchema = z.object({
 });
 
 /**
- * Mirrors the create path's name shape (`accountNameSchema` in
- * `@oxy.so/contracts`), `displayName` included — an account that can be NAMED at
- * creation but only RE-named through `first`/`last` would force a title back
- * into a given-name field on every edit.
- */
-const nameSchema = z
-  .object({
-    first: z.string().trim().max(100).optional(),
-    last: z.string().trim().max(100).optional(),
-    displayName: z.string().trim().max(100).optional(),
-  })
-  .optional();
-
-/**
  * POST /accounts — create an account.
  *
  * `parentAccountId` is OPTIONAL: when omitted the new account is created under
@@ -52,7 +41,7 @@ export const updateAccountSchema = z
     // The ONE policy, same as a person's. `.min(1).max(100)` here is what used to
     // let a managed account rename itself to something no human could ask for.
     username: usernameSchema.optional(),
-    name: nameSchema,
+    name: accountNameSchema,
     // `null` CLEARS, and it has to be accepted here because the SDK's
     // `UpdateAccountInput` types both as `string | null` and documents exactly
     // that. Without `.nullable()` the schema rejects the WHOLE request, so an
@@ -94,6 +83,14 @@ export const updateAccountSchema = z
      * previous value, so the service answers it, not this schema.
      */
     accountCategories: accountCategoriesSchema.optional(),
+    /**
+     * The WHOLE character, replaced (a bot's look is edited as one value in the
+     * agent creator). NOT nullable: a bot always has one, so there is no "clear"
+     * to spell. Whether the account IS a bot is a question about its stored
+     * kind, so `account.service` answers it, not this schema.
+     */
+    character: avatarCharacterSchema.optional(),
+    organizationType: z.enum(ORGANIZATION_TYPES).optional(),
   })
   .strict();
 

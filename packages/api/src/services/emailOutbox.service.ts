@@ -1,16 +1,159 @@
-import { and, asc, desc, eq, inArray, isNull, lte, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { EmailDeliveryState } from '@oxy.so/contracts';
-import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
+import { sqlStateOf } from '@oxy.so/db';
+import {
+  getDb,
+  type Database,
+  type DatabaseOrTransaction,
+  type Transaction,
+} from '../config/postgres';
 import {
   emailOutbox,
   type EmailDeliveryErrorCode,
   type EmailOutboxPayload,
   type EmailOutboxStatus,
 } from '../db/schema/emailOutbox';
-import { ConflictError, NotFoundError } from '../utils/error';
+import { ConflictError, NotFoundError, ServiceUnavailableError } from '../utils/error';
 
 const LEASE_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
+
+/** Postgres `lock_not_available`: a `lock_timeout` ran out. */
+const LOCK_NOT_AVAILABLE = '55P03';
+
+/**
+ * How long taking a send's claim waits for a lock. The one wait that matters
+ * is a repeat of the key behind the first request's uncommitted claim, which a
+ * healthy request holds for the milliseconds filing takes. Unbounded, a first
+ * request whose task stopped answering with its TCP connection still open made
+ * every repeat, on every task, hold a pooled connection until keepalive fired.
+ */
+const CLAIM_LOCK_TIMEOUT = '5s';
+
+/**
+ * How long a claim's transaction may sit idle before Postgres ends its
+ * session. It never waits on anything but its own statements, so idling means
+ * its task stopped answering — and ending the session frees the claim it holds
+ * for the repeat that is waiting on it.
+ */
+const CLAIM_IDLE_TIMEOUT = '15s';
+
+/**
+ * `nextAttemptAt` of a scheduled send's claim until the send falls due: never,
+ * as far as the outbox worker is concerned. Only `processScheduledMessages`
+ * turns it into a delivery ({@link adoptScheduledClaim}); a scheduled message
+ * that is deleted or whose claim is cancelled is therefore never sent.
+ */
+export const SCHEDULED_CLAIM_DUE = new Date('9999-12-31T00:00:00.000Z');
+
+/**
+ * A scheduled send's claim that never became a delivery: still waiting for
+ * its send to fall due (`pending`), or cancelled with its scheduled message.
+ * It is the message's, not the outbox's: the outbox API neither lists,
+ * retries nor cancels one ({@link isOutboxDelivery}).
+ */
+export function isScheduledClaim(row: EmailOutboxRow): boolean {
+  return row.nextAttemptAt.getTime() === SCHEDULED_CLAIM_DUE.getTime();
+}
+
+/** A scheduled claim still waiting for its send to fall due. */
+export function isWaitingScheduledClaim(row: EmailOutboxRow): boolean {
+  return row.status === 'pending' && isScheduledClaim(row);
+}
+
+/** Rows that are deliveries, as the outbox API sees them — no scheduled claim. */
+function isOutboxDelivery() {
+  return ne(emailOutbox.nextAttemptAt, SCHEDULED_CLAIM_DUE);
+}
+
+/**
+ * Cancel the claims of these scheduled messages (by RFC Message-ID), in the
+ * transaction that unschedules or deletes them: a scheduled message that will
+ * not be sent must not leave a claim that answers its key as if it would.
+ * `linkTo` attaches each cancelled claim to its message row, so the message
+ * itself says it was not sent; it is left out when the row is going away.
+ * Returns how many claims it cancelled.
+ */
+export async function cancelScheduledClaims(
+  tx: Transaction,
+  userId: string,
+  scheduled: { messageId: string; linkTo?: string }[],
+): Promise<number> {
+  let cancelled = 0;
+  for (const { messageId, linkTo } of scheduled) {
+    const rows = await tx
+      .update(emailOutbox)
+      .set({ status: 'cancelled', ...(linkTo ? { messageRowId: linkTo } : {}) })
+      .where(
+        and(
+          eq(emailOutbox.userId, userId),
+          eq(emailOutbox.messageId, messageId),
+          eq(emailOutbox.status, 'pending'),
+          eq(emailOutbox.nextAttemptAt, SCHEDULED_CLAIM_DUE),
+        ),
+      )
+      .returning({ id: emailOutbox.id });
+    cancelled += rows.length;
+  }
+  return cancelled;
+}
+
+/**
+ * Record that a scheduled message without a claim (scheduled with no key) was
+ * not sent, on the message: a cancelled scheduled claim of its own.
+ */
+export async function recordScheduledCancelled(
+  tx: Transaction,
+  input: { userId: string; messageId: string; messageRowId: string; payload: EmailOutboxPayload },
+): Promise<void> {
+  await tx.insert(emailOutbox).values({
+    userId: input.userId,
+    messageId: input.messageId,
+    messageRowId: input.messageRowId,
+    payload: input.payload,
+    status: 'cancelled',
+    attempts: 0,
+    nextAttemptAt: SCHEDULED_CLAIM_DUE,
+  });
+}
+
+/**
+ * The transaction a send's claim is taken in — an immediate send's and a
+ * scheduled send's alike, so a repeat of the key waits on the claim the same
+ * bounded way whichever it races. A wait that runs out is a 503 the client
+ * retries with the same key: nothing was claimed or filed.
+ */
+export async function inClaimTransaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
+  try {
+    return await getDb().transaction(async (tx) => {
+      await tx.execute(
+        sql`select set_config('lock_timeout', ${CLAIM_LOCK_TIMEOUT}, true),
+                   set_config('idle_in_transaction_session_timeout', ${CLAIM_IDLE_TIMEOUT}, true)`,
+      );
+      return work(tx);
+    });
+  } catch (error) {
+    if (sqlStateOf(error) !== LOCK_NOT_AVAILABLE) throw error;
+    throw new ServiceUnavailableError(
+      'This message is still being accepted by an earlier request. Retry with the same Idempotency-Key.',
+      { retryable: true },
+    );
+  }
+}
 
 export interface EmailOutboxDto {
   id: string;
@@ -208,6 +351,20 @@ export async function enqueueEmailOutbox(input: EnqueueEmailOutboxInput): Promis
   }
 }
 
+/** The committed claim a send under this Idempotency-Key took, if one did. */
+export async function findSendClaim(
+  userId: string,
+  idempotencyKey: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<EmailOutboxRow | undefined> {
+  const [row] = await db
+    .select()
+    .from(emailOutbox)
+    .where(and(eq(emailOutbox.userId, userId), eq(emailOutbox.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  return row;
+}
+
 /** The outcome of {@link claimSend}. */
 export type SendClaim =
   | { claimed: true; row: EmailOutboxRow }
@@ -224,6 +381,16 @@ export type SendClaim =
  * press, a retry that landed on another API task) loses the unique-index race
  * and gets the existing row instead of sending again.
  *
+ * Claimed inside the transaction that files the Sent copy (`acceptOutboundMessage`),
+ * the claim and the filing commit as one: the loser's insert waits on the
+ * unique index until the holder commits — and then reads a row already linked
+ * to its Sent copy — or rolls back, and then claims the send itself.
+ *
+ * A SCHEDULED send under a key takes the same claim when it is filed
+ * (`scheduleMessage`), so a double press of Schedule, or Schedule racing Send
+ * now, files and sends once: the claim waits, unleased and unlinked, until the
+ * send falls due ({@link SCHEDULED_CLAIM_DUE}).
+ *
  * This replaces a per-process in-flight map plus a Redis result cache written
  * only AFTER the relay answered: two tasks could both miss both, and the same
  * reply went out twice.
@@ -237,6 +404,8 @@ export async function claimSend(
     messageRowId?: string;
     payload: EmailOutboxPayload;
     owner: string;
+    /** Hold the key for a scheduled send, to be delivered when it falls due. */
+    scheduled?: boolean;
   },
   /** A transaction to claim inside, when the claim must commit with another write. */
   db: DatabaseOrTransaction = getDb(),
@@ -250,11 +419,15 @@ export async function claimSend(
       messageId: input.messageId,
       idempotencyKey: input.idempotencyKey,
       payload: input.payload,
-      status: 'processing',
-      attempts: 1,
-      lockedAt: now,
-      lockedBy: input.owner,
-      nextAttemptAt: now,
+      ...(input.scheduled
+        ? { status: 'pending' as const, attempts: 0, nextAttemptAt: SCHEDULED_CLAIM_DUE }
+        : {
+            status: 'processing' as const,
+            attempts: 1,
+            lockedAt: now,
+            lockedBy: input.owner,
+            nextAttemptAt: now,
+          }),
     })
     .onConflictDoNothing({
       target: [emailOutbox.userId, emailOutbox.idempotencyKey],
@@ -266,57 +439,117 @@ export async function claimSend(
     throw new Error('Outbox insert without an idempotency key conflicted');
   }
 
-  const [existing] = await db
-    .select()
-    .from(emailOutbox)
-    .where(
-      and(
-        eq(emailOutbox.userId, input.userId),
-        eq(emailOutbox.idempotencyKey, input.idempotencyKey),
-      ),
-    )
-    .limit(1);
+  const existing = await findSendClaim(input.userId, input.idempotencyKey, db);
   if (!existing) {
-    // The holder released its claim (a refusal before anything was sent)
-    // between our insert and this read. Take the claim ourselves.
+    // The holder's row went away between our insert and this read. Take the
+    // claim ourselves.
     return claimSend(input, db);
   }
   return { claimed: false, existing };
 }
 
 /**
- * Give a claim back when the send is refused before anything was sent or
- * filed. No row may promise a delivery that will not happen — and the same key
- * must be free to try again once the sender has fixed the cause.
+ * Turn the claim a scheduled send took under its key into its delivery, now
+ * that it is due: leased to `owner` exactly as {@link claimSend} leases a new
+ * one, linked to its Sent row, and carrying the payload rebuilt from it.
+ *
+ * Returns undefined when the send took no claim (no key, or filed before
+ * scheduled sends were claimed); the caller claims it then. A claim that is no
+ * longer waiting — cancelled, or already the delivery of a Send now that won
+ * the key — is returned unclaimed, and nothing is sent.
  */
-export async function releaseSendClaim(outboxId: string): Promise<void> {
-  await getDb().delete(emailOutbox).where(eq(emailOutbox.id, outboxId));
+export async function adoptScheduledClaim(
+  tx: Transaction,
+  input: {
+    userId: string;
+    messageId: string;
+    messageRowId: string;
+    payload: EmailOutboxPayload;
+    owner: string;
+  },
+): Promise<SendClaim | undefined> {
+  const [held] = await tx
+    .select()
+    .from(emailOutbox)
+    .where(
+      and(
+        eq(emailOutbox.userId, input.userId),
+        eq(emailOutbox.messageId, input.messageId),
+        isNotNull(emailOutbox.idempotencyKey),
+      ),
+    )
+    .limit(1)
+    .for('update');
+  if (!held) return undefined;
+  if (!isWaitingScheduledClaim(held)) return { claimed: false, existing: held };
+  const now = new Date();
+  const [row] = await tx
+    .update(emailOutbox)
+    .set({
+      status: 'processing',
+      attempts: 1,
+      lockedAt: now,
+      lockedBy: input.owner,
+      nextAttemptAt: now,
+      messageRowId: input.messageRowId,
+      payload: input.payload,
+    })
+    .where(eq(emailOutbox.id, held.id))
+    .returning();
+  return { claimed: true, row };
 }
 
-/** Record which Sent row this delivery is the delivery of. */
-export async function linkOutboxToMessage(outboxId: string, messageRowId: string): Promise<void> {
-  await getDb().update(emailOutbox).set({ messageRowId }).where(eq(emailOutbox.id, outboxId));
+/**
+ * Record which Sent row this delivery is the delivery of — on the transaction
+ * that filed the row, when there is one: another connection cannot see a claim
+ * that transaction has not committed, and would link nothing.
+ */
+export async function linkOutboxToMessage(
+  outboxId: string,
+  messageRowId: string,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<void> {
+  await db.update(emailOutbox).set({ messageRowId }).where(eq(emailOutbox.id, outboxId));
 }
 
+/** A delivery in flight whose holder stopped holding it: its task died, or it never had a lease. */
+function abandonedDelivery(now: Date) {
+  return and(
+    eq(emailOutbox.status, 'processing'),
+    or(isNull(emailOutbox.lockedAt), lt(emailOutbox.lockedAt, new Date(now.getTime() - LEASE_MS))),
+  );
+}
+
+/**
+ * Claim the next delivery that is due: a retry whose time has come, or one
+ * whose holder died mid-attempt.
+ *
+ * Both are bounded by the same budget. An abandoned attempt may well have
+ * reached the relay — the task can die after the relay accepted and before the
+ * row said so — so adopting one is a resend, and adopting one whatever its
+ * attempt count turned any bookkeeping fault after an accepted send into the
+ * same message going out again every lease. {@link failAbandonedDeliveries}
+ * settles what this no longer adopts.
+ */
 export async function claimEmailOutbox(
   workerId: string,
 ): Promise<typeof emailOutbox.$inferSelect | undefined> {
   const db = getDb();
   const now = new Date();
-  const leaseExpiredAt = new Date(now.getTime() - LEASE_MS);
   return db.transaction(async (tx) => {
     const [candidate] = await tx
       .select()
       .from(emailOutbox)
       .where(
-        or(
-          and(
-            inArray(emailOutbox.status, ['pending', 'failed']),
-            lte(emailOutbox.nextAttemptAt, now),
-            lt(emailOutbox.attempts, MAX_ATTEMPTS),
+        and(
+          lt(emailOutbox.attempts, MAX_ATTEMPTS),
+          or(
+            and(
+              inArray(emailOutbox.status, ['pending', 'failed']),
+              lte(emailOutbox.nextAttemptAt, now),
+            ),
+            abandonedDelivery(now),
           ),
-          and(eq(emailOutbox.status, 'processing'), isNull(emailOutbox.lockedAt)),
-          and(eq(emailOutbox.status, 'processing'), lt(emailOutbox.lockedAt, leaseExpiredAt)),
         ),
       )
       .orderBy(asc(emailOutbox.nextAttemptAt), asc(emailOutbox.createdAt))
@@ -339,6 +572,30 @@ export async function claimEmailOutbox(
       .returning();
     return claimed;
   });
+}
+
+/**
+ * Settle every abandoned delivery with no attempts left as `failed`, so the
+ * message says it did not go out (as far as anyone knows) instead of reading
+ * as being retried forever. A user can still retry it, which is a resend they
+ * chose. Returns the rows that changed.
+ */
+export async function failAbandonedDeliveries(): Promise<
+  { userId: string; messageRowId: string | null }[]
+> {
+  return getDb()
+    .update(emailOutbox)
+    .set({
+      status: 'failed',
+      lockedAt: null,
+      lockedBy: null,
+      lastError:
+        'Delivery was interrupted before the relay answered, and its attempts are spent. ' +
+        'It may have been delivered; retry it to send it again.',
+      errorCode: 'relay_unavailable',
+    })
+    .where(and(abandonedDelivery(new Date()), gte(emailOutbox.attempts, MAX_ATTEMPTS)))
+    .returning({ userId: emailOutbox.userId, messageRowId: emailOutbox.messageRowId });
 }
 
 export async function markEmailOutboxSent(id: string): Promise<void> {
@@ -413,7 +670,7 @@ export async function listEmailOutbox(userId: string, limit = 50): Promise<Email
   const rows = await getDb()
     .select()
     .from(emailOutbox)
-    .where(eq(emailOutbox.userId, userId))
+    .where(and(eq(emailOutbox.userId, userId), isOutboxDelivery()))
     .orderBy(desc(emailOutbox.createdAt))
     .limit(Math.min(Math.max(limit, 1), 100));
   return rows.map(toDto);
@@ -436,6 +693,7 @@ export async function retryEmailOutbox(userId: string, id: string): Promise<Emai
         eq(emailOutbox.id, id),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['failed', 'cancelled']),
+        isOutboxDelivery(),
       ),
     )
     .returning();
@@ -471,6 +729,7 @@ export async function claimDeliveryRetry(
         eq(emailOutbox.id, outboxId),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['failed', 'cancelled']),
+        isOutboxDelivery(),
       ),
     )
     .returning();
@@ -520,6 +779,7 @@ export async function cancelEmailOutbox(userId: string, id: string): Promise<Ema
         eq(emailOutbox.id, id),
         eq(emailOutbox.userId, userId),
         inArray(emailOutbox.status, ['pending', 'failed']),
+        isOutboxDelivery(),
       ),
     )
     .returning();

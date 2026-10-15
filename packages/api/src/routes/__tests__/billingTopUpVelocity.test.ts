@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * Top-up attempts are bounded PER BILLING PROFILE (#972 sections 8 and 12, "rate
  * limits and fraud controls before enabling prepaid public inference").
@@ -156,10 +157,10 @@ async function seedAccount(
   kind: 'personal' | 'organization' | 'project',
   parentAccountId?: string,
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `topup-${tag()}`, kind, parentAccountId })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `topup-${tag()}`, kind, parentAccountId },
+    { id: users.id },
+  );
   if (parentAccountId !== undefined) {
     await getDb()
       .insert(userAncestors)

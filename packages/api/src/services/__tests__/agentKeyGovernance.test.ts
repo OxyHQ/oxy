@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /** Responsible humans/bots use the same current RBAC, with fresh proof and SQL. */
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
@@ -16,6 +17,7 @@ jest.mock('../../utils/logger', () => ({
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { organizationProfiles } from '../../db/schema/organizationProfiles';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { securityActivities } from '../../db/schema/securityActivities';
 import { authChallenges } from '../../db/schema/authChallenges';
@@ -41,11 +43,11 @@ function keys() {
 }
 async function fixture(kind: 'personal' | 'bot' = 'personal') {
   const actorKey = keys();
-  const [actor] = await getDb()
-    .insert(users)
-    .values({ kind, ...(kind === 'personal' ? { publicKey: actorKey.publicKey } : {}) })
-    .returning({ id: users.id });
-  const [target] = await getDb().insert(users).values({ kind: 'bot' }).returning({ id: users.id });
+  const [actor] = await insertAccountFixtures(
+    { kind, ...(kind === 'personal' ? { publicKey: actorKey.publicKey } : {}) },
+    { id: users.id },
+  );
+  const [target] = await insertAccountFixtures({ kind: 'bot' }, { id: users.id });
   let session: Awaited<ReturnType<typeof sessionService.createSession>>;
   if (kind === 'bot') {
     const [key] = await getDb()
@@ -112,10 +114,7 @@ it('bot self operations do not turn an explicit admin membership into owner auth
     .insert(accountMembers)
     .values({ accountId: f.actor.id, memberUserId: f.target.id, role: 'owner', status: 'active' })
     .returning({ id: accountMembers.id });
-  const [other] = await getDb()
-    .insert(users)
-    .values({ kind: 'personal' })
-    .returning({ id: users.id });
+  const [other] = await insertAccountFixtures({ kind: 'personal' }, { id: users.id });
   await getDb()
     .insert(accountMembers)
     .values({ accountId: f.actor.id, memberUserId: other.id, role: 'owner', status: 'active' });
@@ -419,7 +418,13 @@ it.each(['personal', 'organization', 'project', 'channel'] as const)(
   async (kind) => {
     const f = await fixture();
     const next = keys();
-    await getDb().update(users).set({ kind }).where(eq(users.id, f.target.id));
+    await getDb().transaction(async (tx) => {
+      await tx.update(users).set({ kind }).where(eq(users.id, f.target.id));
+      if (kind === 'organization')
+        await tx
+          .insert(organizationProfiles)
+          .values({ accountId: f.target.id, claimStatus: 'claimed' });
+    });
     await expect(
       requestAgentKeyOperation(f.session.sessionId, f.target.id, {
         operation: 'enroll',

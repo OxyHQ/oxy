@@ -71,12 +71,23 @@ export const appUserSignals = pgTable(
     // One roll-up per (application, user) — what makes the ingest `$inc` an
     // upsert rather than a duplicate.
     unique('app_user_signals_application_id_user_id_key').on(t.applicationId, t.userId),
-    // The scorer's top-N read (`routes/profiles.ts`): one application's rows,
-    // highest endorsement score first, limited to N. Without this index it
-    // would fetch every row for the application and sort them in memory.
+    // The scorer's top-N read (`routes/profiles.ts`): one application's rows
+    // with a positive endorsement score, highest first, limited to N. The read
+    // orders `desc nulls last` to match this index; a bare `desc` cannot use it
+    // and scans and sorts every row the application has.
     index('app_user_signals_application_id_endorsement_score_idx').on(
       t.applicationId,
       t.endorsementScore.desc(),
+    ),
+    // The scorer's second top-N read: the application's highest interest scores.
+    // `user_id` is the tiebreak, so the walk stops at N with no sort — interest
+    // ties are real (every score of 1 is one) and an unordered tie would hand
+    // each request a different slice of them. It costs the interest upsert its
+    // HOT update: that write now touches the indexes too.
+    index('app_user_signals_application_id_interest_score_user_id_idx').on(
+      t.applicationId,
+      t.interestScore.desc(),
+      t.userId,
     ),
     // Cross-app lookups for a single user, and the index that keeps a user
     // delete from scanning the table.

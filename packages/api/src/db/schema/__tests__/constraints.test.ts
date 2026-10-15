@@ -228,27 +228,43 @@ describe('updated_at is maintained by the application', () => {
   });
 });
 
-describe('concurrent email delivery and checkout migrations', () => {
-  it('applies both additions to the disposable database without losing either constraint', async () => {
+describe('checkout recovery coexists with merged platform migrations', () => {
+  it('preserves checkout recovery, email, signals, bot and organization additions together', async () => {
     const columns = await getDb().execute(sql`
       select table_name, column_name from information_schema.columns
       where table_schema = 'public' and (
         (table_name = 'email_outbox' and column_name = 'error_code') or
+        (table_name = 'users' and column_name = 'character') or
+        (table_name = 'organization_profiles' and column_name = 'claim_status') or
         (table_name = 'personal_plan_checkout_intents' and column_name = 'dispatch_claimed_at')
       ) order by table_name
     `);
     expect([...columns]).toEqual([
       { table_name: 'email_outbox', column_name: 'error_code' },
+      { table_name: 'organization_profiles', column_name: 'claim_status' },
       { table_name: 'personal_plan_checkout_intents', column_name: 'dispatch_claimed_at' },
+      { table_name: 'users', column_name: 'character' },
     ]);
     const constraints = await getDb().execute(sql`
       select conname from pg_constraint
-      where conname in ('email_outbox_error_code_check', 'personal_checkout_dispatch_state')
+      where conname in (
+        'email_outbox_error_code_check', 'personal_checkout_dispatch_state',
+        'users_character_kind_check', 'organization_profiles_status_check'
+      )
       order by conname
     `);
+    const indexes = await getDb().execute(sql`
+      select indexname from pg_indexes where schemaname = 'public'
+      and indexname = 'app_user_signals_application_id_interest_score_user_id_idx'
+    `);
+    expect([...indexes]).toEqual([
+      { indexname: 'app_user_signals_application_id_interest_score_user_id_idx' },
+    ]);
     expect([...constraints]).toEqual([
       { conname: 'email_outbox_error_code_check' },
+      { conname: 'organization_profiles_status_check' },
       { conname: 'personal_checkout_dispatch_state' },
+      { conname: 'users_character_kind_check' },
     ]);
   });
 });

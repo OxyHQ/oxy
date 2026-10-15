@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * A bot is a complete account (issue #1520, I01) — against a REAL Postgres.
  *
@@ -69,10 +70,7 @@ function request(headers: Record<string, string> = {}): Request {
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
   const suffix = randomUUID().slice(0, 12);
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u-${suffix}`, ...over })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures({ username: `u-${suffix}`, ...over }, { id: users.id });
   return row.id;
 }
 

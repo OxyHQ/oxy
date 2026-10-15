@@ -73,7 +73,10 @@ The seven Alia text presets (`kaana-lite`, `kaana-v1-codea`, `-cowork`,
 rows are not deleted by this change; remove them once no Alia release references
 them. Speech is unchanged: Alia still pins the reviewed `kaana-v1-speech`
 profile (`cc2471c8-807e-46ec-b5da-b6f3b39d2db5`) over the reviewed xAI route,
-because the sync does not write non-text-output models.
+because the sync does not write non-text-output models. Under Alia's
+`internal_metered` pilot, speech answers to the pilot's own speech terms
+(15,000 characters, that route only, USD 0.25) —
+[internal-metering.md](./internal-metering.md#speech-synthesis-2026-10-15).
 
 ### Scopes: what Alia holds, and what it does not
 

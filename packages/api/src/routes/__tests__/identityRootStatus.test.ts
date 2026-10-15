@@ -5,7 +5,7 @@
  */
 
 import express from 'express';
-import http from 'http';
+import type http from 'http';
 import type { AddressInfo } from 'net';
 
 let currentUserId = '';
@@ -76,7 +76,10 @@ it('reports an account with neither', async () => {
 it('reports a Commons account as self-custodied, with no recovery email even if a row still has one', async () => {
   const [row] = await getDb()
     .insert(users)
-    .values({ publicKey: `04${'b'.repeat(128)}`, email: `${randomUUID()}@example.com` })
+    .values({
+      publicKey: `04${randomUUID().replaceAll('-', '').repeat(4)}`,
+      email: `${randomUUID()}@example.com`,
+    })
     .returning({ id: users.id });
   currentUserId = row.id;
   expect((await status()).body).toEqual({ rootLinked: true, recoveryEmail: null });

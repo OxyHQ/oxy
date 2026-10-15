@@ -1,5 +1,44 @@
 # Changelog
 
+## [11.2.0] - 2026-10-14
+
+Promoted from `11.2.0-oxy-one.7` to the stable release; no code change. It is the first
+stable Services that admits Bloom 8, 9 and 10 (the Bloom 10 peer is open-ended) and it
+needs `@oxy.so/core` 4.5.0. The `oxy-one` entries below are the candidate history.
+
+## [11.2.0-oxy-one.7] - 2026-10-14
+
+### Changed
+
+- The Bloom 10 peer range is open-ended, `>=10.0.0`, instead of the
+  `10.0.x` window. Bloom 10.1 and 10.2 (latest 10.2.1) were refused by the window, so
+  an app on current Bloom could not install this package without a peer conflict, and
+  Bloom 9 for `@alia.onl/sdk` 11 and Bloom 10 could not be reconciled by any app.
+  Verified against the official 10.2.1 package as the one Bloom resolution: types and
+  all 115 suites / 1050 tests pass. Deliberately uncapped, by decision: Oxy apps always run the latest Bloom, so a
+  new Bloom release must never need a Services release first. A Bloom release that
+  breaks Services is caught by running this package's suite against Bloom `latest`.
+
+## [11.2.0-oxy-one.6] - 2026-10-14
+
+### Changed
+
+- Admits `@oxy.so/bloom` 10.0.x (peer range `>=10.0.0 <10.1.0`, beside the earlier lines),
+  verified against the official 10.0.0 package as the one Bloom resolution: types and all
+  115 suites / 1050 tests pass. Bloom 10 turns an avatar into one flat character and removes
+  `AvatarConfig` from `agent-avatar`; this package imports nothing from that family.
+
+## [11.2.0-oxy-one.5] - 2026-10-13
+
+### Changed
+
+- Admits `@oxy.so/bloom` 8.1.x and 9.0.x (peer ranges `>=8.0.0 <8.2.0` and
+  `>=9.0.0 <9.1.0`), verified against the official 8.1.1 package and the packed
+  9.0.0 release candidate: types and all 115 suites / 1050 tests pass with each
+  as the one Bloom resolution, and still with the 6.2.1 catalog.
+- The three trust screens ask Chip for `size="sm"` instead of `"small"`. Bloom
+  9.0 removed the long spellings; `sm` is accepted by every admitted line.
+
 ## [11.2.0-oxy-one.4] - 2026-10-12
 
 ### Fixed
@@ -18,6 +57,9 @@
 
 - Admits `@oxy.so/bloom` 7.32.x and 7.33.x (peer cap `<7.34.0`), verified
   against the official 7.32.0 and 7.33.0 packages.
+- Admits `@oxy.so/bloom` 8.0.x. Bloom 8.0.0's one break moves
+  `LinkPreviewCard` off the root barrel to `@oxy.so/bloom/link-preview`, which
+  this package does not import.
 
 ## [11.2.0-oxy-one.3] - 2026-10-10
 

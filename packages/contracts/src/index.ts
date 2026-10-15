@@ -29,6 +29,7 @@ export {
   RETIRED_ACCOUNT_CATEGORY_IDS,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
   createAccountRequestSchema,
+  accountNameSchema,
 } from './accountGraph';
 
 export type {
@@ -38,6 +39,17 @@ export type {
   ChildAccountKind,
   CreateAccountRequest,
 } from './accountGraph';
+
+export {
+  AVATAR_EYE_SPACING,
+  AVATAR_PICKABLE_COLORS,
+  AVATAR_PICKABLE_SHAPES,
+  avatarCharacterFor,
+  avatarCharacterSchema,
+  parseAvatarCharacter,
+} from './avatarCharacter';
+
+export type { AvatarCharacter } from './avatarCharacter';
 
 export {
   ACCOUNT_ACTOR_NATURES,
@@ -822,6 +834,8 @@ export {
   inferenceProviderSlugSchema,
   deploymentIdSchema,
   inferenceRegionSchema,
+  // The economic tier Oxy bounds a route by and Kaana reports (ADR 0038)
+  inferenceFundingTierSchema,
   RESERVED_ALIA_PUBLISHER,
 } from './inference/identifiers';
 
@@ -829,6 +843,7 @@ export type {
   OxyAccountId,
   DelegatedUserId,
   InferenceEnvironment,
+  InferenceFundingTier,
   ModelReference,
   ModelId,
 } from './inference/identifiers';
@@ -1584,3 +1599,6 @@ export {
   type PersonalPlanCatalogue,
 } from './products/plans';
 export * from './products/checkout';
+export * from './organizations';
+
+export * from './safety';

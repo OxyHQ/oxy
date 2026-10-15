@@ -6,7 +6,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { and, eq, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, notInArray, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { getDb } from '../config/postgres';
 import { appAffinityEdges } from '../db/schema/appAffinityEdges';
 import { applications } from '../db/schema/applications';
@@ -36,7 +37,7 @@ import {
 import { federationService, isFediverseHandle } from '../services/federation.service';
 import { validate } from '../middleware/validate';
 import { usernameParams, profileSearchQuerySchema } from '../schemas/profiles.schemas';
-import { userIdentityFields, deriveIsFederated } from '../utils/userTransform';
+import { userIdentityFields, deriveIsAgent, deriveIsFederated } from '../utils/userTransform';
 import {
   publicUserColumns,
   publicUserFollowCounts,
@@ -45,6 +46,7 @@ import {
 } from '../utils/publicUserProjection';
 import {
   eligibleUserPredicate,
+  visibleOrganizationIdentityPredicate,
   FEDERATED_RECOMMENDATION_MAX_AGE_MS,
   isPublicGraphTarget,
   normalizePeopleSearchTerm,
@@ -141,6 +143,9 @@ interface RecommendationRow {
   color?: string | null;
   description?: string | null;
   type?: string;
+  /** Selects `isAgent` and gates `character`: only a `bot` emits one. */
+  kind?: string;
+  character?: unknown;
   federationDomain?: string | null;
   verified?: boolean;
   reputationTier?: string;
@@ -169,6 +174,8 @@ const recommendationColumns = {
   color: users.color,
   description: users.description,
   type: users.type,
+  kind: users.kind,
+  character: users.character,
   federationDomain: users.federationDomain,
   verified: users.verified,
   reputationTier: users.reputationTier,
@@ -185,6 +192,7 @@ export function formatProfileResult(u: RecommendationRow) {
     username: identity.username,
     name: identity.name,
     avatar: identity.avatar,
+    ...(identity.character ? { character: identity.character } : {}),
     // A row of recommendations draws each person the way their profile does.
     // Without it every client re-fetched each recommended user one by one.
     // Every account has one (assigned at creation); a row built from a partial
@@ -197,7 +205,7 @@ export function formatProfileResult(u: RecommendationRow) {
     ...(typeof u.score === 'number' ? { score: u.score } : {}),
     ...(u.matchedSignals ? { matchedSignals: u.matchedSignals } : {}),
     isFederated: deriveIsFederated(u.type),
-    isAgent: u.type === 'agent',
+    isAgent: deriveIsAgent(u.kind),
     isAutomated: u.type === 'automated',
     instance: u.federationDomain ?? undefined,
     _count: {
@@ -220,7 +228,7 @@ async function loadProfileByPredicate(
   const [row] = await getDb()
     .select({ ...publicUserColumns, ...publicUserFollowCounts })
     .from(users)
-    .where(predicate)
+    .where(and(predicate, visibleOrganizationIdentityPredicate()))
     .limit(1);
   if (!row) return null;
   return {
@@ -255,7 +263,7 @@ const validatePagination = (req: Request, res: Response, next: () => void): void
   const limit = query.limit ? Number.parseInt(query.limit, 10) : undefined;
   const offset = query.offset ? Number.parseInt(query.offset, 10) : undefined;
 
-  if (limit !== undefined && (isNaN(limit) || limit < 0 || limit > PAGINATION.MAX_LIMIT)) {
+  if (limit !== undefined && (Number.isNaN(limit) || limit < 0 || limit > PAGINATION.MAX_LIMIT)) {
     res.status(400).json({
       error: 'BAD_REQUEST',
       message: `Invalid limit parameter. Must be between 1 and ${PAGINATION.MAX_LIMIT}`,
@@ -263,7 +271,7 @@ const validatePagination = (req: Request, res: Response, next: () => void): void
     return;
   }
 
-  if (offset !== undefined && (isNaN(offset) || offset < 0)) {
+  if (offset !== undefined && (Number.isNaN(offset) || offset < 0)) {
     res.status(400).json({
       error: 'BAD_REQUEST',
       message: 'Invalid offset parameter. Must be >= 0',
@@ -390,16 +398,16 @@ router.get(
       if (canonicalId !== profile.view._id)
         profile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
+    // A bridge migration row is never served before first discovery, and a
+    // read never performs that discovery: it runs in the background and the
+    // row stays "not found" until it lands (see `deferUnverifiedBridgeActor`).
     const legacyActor = profile?.view.federation?.actorUri;
     if (
       legacyActor &&
       profile?.view.accountStatus !== 'archived' &&
-      (await federationService.needsBridgeCanonicalization(legacyActor))
+      (await federationService.deferUnverifiedBridgeActor(legacyActor))
     ) {
-      const verified = await federationService.resolveExternalActorIdentity(legacyActor);
-      profile = verified
-        ? await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId))
-        : null;
+      throw new NotFoundError('Profile not found');
     }
 
     // If not found and it's a fediverse handle, resolve via WebFinger
@@ -629,17 +637,16 @@ router.get(
         localProfile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
     const legacyActorUri = localProfile?.view.federation?.actorUri;
+    // A transport identity may be shown after the source declined upstream
+    // proof (e.g. bridge admin), but never before an unverified migration row
+    // has gone through the same first-discovery authority — which runs in the
+    // background, never on this read (see `deferUnverifiedBridgeActor`).
     if (
       legacyActorUri &&
       localProfile?.view.accountStatus !== 'archived' &&
-      (await federationService.needsBridgeCanonicalization(legacyActorUri))
+      (await federationService.deferUnverifiedBridgeActor(legacyActorUri))
     ) {
-      const verified = await federationService.resolveExternalActorIdentity(legacyActorUri);
-      // A transport identity may be shown after the source declined upstream
-      // proof (e.g. bridge admin), but never before an unverified migration row
-      // has gone through the same first-discovery authority.
-      if (!verified) return sendSuccess(res, null);
-      localProfile = await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId));
+      return sendSuccess(res, null);
     }
 
     if (localProfile) {
@@ -1033,6 +1040,38 @@ async function buildPopularFallback(
 }
 
 /**
+ * The app-signal candidates for one application: its top endorsed users and its
+ * top interest-scored users, each read off its own
+ * `(application_id, <score> desc, …)` index and tie-broken on `user_id`, in one
+ * round trip. Only rows that carry the signal qualify — a zero contributes
+ * nothing to the score.
+ *
+ * Ordering the whole application by endorsement alone, as this used to, scanned
+ * and sorted every row the application has (almost all of them tied at zero)
+ * and kept an arbitrary slice of the ties, so each request scored a different
+ * random set of people.
+ */
+export function appSignalCandidates(clientId: string) {
+  const topBy = (
+    score: typeof appUserSignals.endorsementScore | typeof appUserSignals.interestScore,
+  ) =>
+    getDb()
+      .select({
+        userId: appUserSignals.userId,
+        endorsementScore: appUserSignals.endorsementScore,
+        interestScore: appUserSignals.interestScore,
+      })
+      .from(appUserSignals)
+      .where(and(eq(appUserSignals.applicationId, clientId), gt(score, 0)))
+      // `nulls last` is what the index stores; a bare `desc` means `nulls first`,
+      // which the index cannot serve even on a NOT NULL column, and the planner
+      // falls back to scanning and sorting the whole application.
+      .orderBy(sql`${score} desc nulls last`, asc(appUserSignals.userId))
+      .limit(MAX_APP_SIGNAL_CANDIDATES);
+  return topBy(appUserSignals.endorsementScore).unionAll(topBy(appUserSignals.interestScore));
+}
+
+/**
  * SCORED recommendation builder. A single aggregation over the candidate
  * union (mutual-overlap window ∪ app-signal candidates ∪ boost members) minus
  * the viewer/following/excludeIds, ranked by a weighted composite of:
@@ -1051,85 +1090,86 @@ async function buildRecommendationsScored(
   const db = getDb();
 
   // ---- Pre-queries -------------------------------------------------------
-  // 1. The viewer's following set (for graph signal + exclusion).
-  let followingIds: string[] = [];
-  if (viewerId) {
-    const following = await db
-      .select({ followedId: userFollows.followedId })
-      .from(userFollows)
-      .where(eq(userFollows.followerId, viewerId))
+  // The four reads are independent of one another, so they run concurrently:
+  // the request pays one round trip here instead of four in a row.
+  //
+  // 1. The viewer's following set (for graph signal + exclusion), and
+  // 2. the mutual-overlap map over that same set (people followed by the people
+  //    the viewer follows), bounded to the top window so the in-memory map stays
+  //    small. The overlap reads the following window as a subquery rather than
+  //    waiting for (1) to come back; both order it by `followed_id`, which the
+  //    `(follower_id, followed_id)` unique index serves, so the two are the SAME
+  //    window even for a viewer who follows more than the cap.
+  const viewerFollowing = alias(userFollows, 'viewer_following');
+  const followingWindow = (viewer: string) =>
+    db
+      .select({ followedId: viewerFollowing.followedId })
+      .from(viewerFollowing)
+      .where(eq(viewerFollowing.followerId, viewer))
+      .orderBy(viewerFollowing.followedId)
       .limit(MAX_FOLLOWING_FOR_MUTUALS);
-    followingIds = following.map((edge) => edge.followedId);
-  }
 
-  // 2. Mutual-overlap map (people followed by the people the viewer follows),
-  //    bounded to the top window so the in-memory map stays small.
+  // 3. App-signal candidates: see {@link appSignalCandidates}.
+  // 3b. Interaction-affinity edges: the viewer's strongest directed edges within
+  //     the selected app, `nulls last` for the same index reason as (3). Empty
+  //     when the viewer has no edges (no app context, or no events folded yet)
+  //     → 0 contribution and no injected candidates.
+  const [followingRows, mutualRows, signalRows, affinityRows] = await Promise.all([
+    viewerId ? followingWindow(viewerId) : [],
+    viewerId
+      ? db
+          .select({
+            id: userFollows.followedId,
+            mutualCount: sql<number>`count(*)::int`,
+          })
+          .from(userFollows)
+          .where(inArray(userFollows.followerId, followingWindow(viewerId)))
+          .groupBy(userFollows.followedId)
+          .orderBy(sql`count(*) desc`, sql`${userFollows.followedId} asc`)
+          .limit(MUTUAL_COUNT_WINDOW)
+      : [],
+    opts.clientId ? appSignalCandidates(opts.clientId) : [],
+    viewerId && opts.clientId
+      ? db
+          .select({
+            toUserId: appAffinityEdges.toUserId,
+            affinity: appAffinityEdges.affinity,
+            lastEventAt: appAffinityEdges.lastEventAt,
+          })
+          .from(appAffinityEdges)
+          .where(
+            and(
+              eq(appAffinityEdges.applicationId, opts.clientId),
+              eq(appAffinityEdges.fromUserId, viewerId),
+            ),
+          )
+          .orderBy(sql`${appAffinityEdges.affinity} desc nulls last`)
+          .limit(MAX_AFFINITY_CANDIDATES)
+      : [],
+  ]);
+
+  const followingIds = followingRows.map((edge) => edge.followedId);
   const mutualMap = new Map<string, number>();
-  if (followingIds.length > 0) {
-    const mutualRows = await db
-      .select({
-        id: userFollows.followedId,
-        mutualCount: sql<number>`count(*)::int`,
-      })
-      .from(userFollows)
-      .where(inArray(userFollows.followerId, followingIds))
-      .groupBy(userFollows.followedId)
-      .orderBy(sql`count(*) desc`, sql`${userFollows.followedId} asc`)
-      .limit(MUTUAL_COUNT_WINDOW);
-    for (const row of mutualRows) {
-      mutualMap.set(row.id, row.mutualCount);
-    }
+  for (const row of mutualRows) {
+    mutualMap.set(row.id, row.mutualCount);
   }
 
-  // 3. App-signal candidates for the selected app (top endorsement/interest).
+  // A user in both top lists arrives twice with identical values.
   const appSignalMap = new Map<string, { endorsementScore: number; interestScore: number }>();
-  if (opts.clientId) {
-    const signalRows = await db
-      .select({
-        userId: appUserSignals.userId,
-        endorsementScore: appUserSignals.endorsementScore,
-        interestScore: appUserSignals.interestScore,
-      })
-      .from(appUserSignals)
-      .where(eq(appUserSignals.applicationId, opts.clientId))
-      .orderBy(sql`${appUserSignals.endorsementScore} desc`)
-      .limit(MAX_APP_SIGNAL_CANDIDATES);
-    for (const row of signalRows) {
-      appSignalMap.set(row.userId, {
-        endorsementScore: row.endorsementScore,
-        interestScore: row.interestScore,
-      });
-    }
+  for (const row of signalRows) {
+    appSignalMap.set(row.userId, {
+      endorsementScore: row.endorsementScore,
+      interestScore: row.interestScore,
+    });
   }
 
-  // 3b. Interaction-affinity map (candidate id → decayed-on-read affinity).
-  //     The viewer's strongest directed affinity edges within the selected app,
-  //     decayed once more on read so a dormant relationship fades toward 0.
-  //     Empty when the viewer has no edges (no app context, or no events folded
-  //     yet) → 0 contribution and no injected candidates (strict no-op).
+  // Decayed once more on read so a dormant relationship fades toward 0.
+  const nowMs = Date.now();
   const affinityMap = new Map<string, number>();
-  if (viewerId && opts.clientId) {
-    const nowMs = Date.now();
-    const affinityRows = await db
-      .select({
-        toUserId: appAffinityEdges.toUserId,
-        affinity: appAffinityEdges.affinity,
-        lastEventAt: appAffinityEdges.lastEventAt,
-      })
-      .from(appAffinityEdges)
-      .where(
-        and(
-          eq(appAffinityEdges.applicationId, opts.clientId),
-          eq(appAffinityEdges.fromUserId, viewerId),
-        ),
-      )
-      .orderBy(sql`${appAffinityEdges.affinity} desc`)
-      .limit(MAX_AFFINITY_CANDIDATES);
-    for (const row of affinityRows) {
-      const decayed = decayAffinity(row.affinity, row.lastEventAt, nowMs);
-      if (decayed > 0) {
-        affinityMap.set(row.toUserId, decayed);
-      }
+  for (const row of affinityRows) {
+    const decayed = decayAffinity(row.affinity, row.lastEventAt, nowMs);
+    if (decayed > 0) {
+      affinityMap.set(row.toUserId, decayed);
     }
   }
 

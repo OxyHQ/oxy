@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `ensureManagedSessionAuthorized` must FAIL CLOSED when the `account:act_as`
  * membership lookup cannot be answered (issue #937).
@@ -54,10 +55,10 @@ function request(): Request {
 }
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u-${randomUUID().slice(0, 12)}`, ...over })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `u-${randomUUID().slice(0, 12)}`, ...over },
+    { id: users.id },
+  );
   return row.id;
 }
 

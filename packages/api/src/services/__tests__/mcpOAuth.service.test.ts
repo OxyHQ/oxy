@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { createHash, generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -50,7 +51,7 @@ afterAll(async () => {
 });
 
 async function fixture() {
-  const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+  const [owner] = await insertAccountFixtures({ color: 'teal' }, { id: users.id });
   const appSlug = `mcp-${randomUUID()}`;
   const resource = `https://${appSlug}.example.test`;
   const [application] = await getDb()
@@ -322,10 +323,7 @@ it('agent A revocation and B reapproval never rebind old MCP tokens or widen the
 
 it('agent MCP acting as another account still requires current membership and exact principal ownership', async () => {
   const f = await autonomousFixture();
-  const [org] = await getDb()
-    .insert(users)
-    .values({ kind: 'organization' })
-    .returning({ id: users.id });
+  const [org] = await insertAccountFixtures({ kind: 'organization' }, { id: users.id });
   await expect(f.approve(f.binding(0), org.id)).rejects.toMatchObject({ code: 'access_denied' });
   await getDb()
     .insert(accountMembers)

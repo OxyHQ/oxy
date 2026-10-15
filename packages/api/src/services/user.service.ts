@@ -1,3 +1,4 @@
+import { organizationNameSchema } from '@oxy.so/contracts';
 import { externalIdentities, externalIdentityActors } from '../db/schema/externalIdentities';
 /**
  * User Service
@@ -26,8 +27,13 @@ import { restrictions } from '../db/schema/restrictions';
 import { userAncestors } from '../db/schema/userAncestors';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
-import { USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
-import { ACCOUNT_KINDS, ACCOUNT_STATUSES, USER_TYPES, users } from '../db/schema/users';
+import { type USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
+import {
+  type ACCOUNT_KINDS,
+  type ACCOUNT_STATUSES,
+  type USER_TYPES,
+  users,
+} from '../db/schema/users';
 import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
@@ -54,16 +60,16 @@ import {
 } from '../utils/profileTextNormalization';
 import { normalizeUsername } from '../utils/username';
 import { BadRequestError, ConflictError } from '../utils/error';
-import { Request } from 'express';
+import type { Request } from 'express';
 import {
-  PaginatedResponse,
-  PublicUserProfile,
-  ProfileUpdateInput,
-  UserStatistics,
-  FollowActionResult,
-  ViewerGraph,
-  FollowGraphParams,
-  FollowGraphSort,
+  type PaginatedResponse,
+  type PublicUserProfile,
+  type ProfileUpdateInput,
+  type UserStatistics,
+  type FollowActionResult,
+  type ViewerGraph,
+  type FollowGraphParams,
+  type FollowGraphSort,
   DEFAULT_FOLLOW_GRAPH_SORT,
 } from '../types/user.types';
 import {
@@ -102,7 +108,10 @@ import {
 } from '../utils/recommendationWeights';
 import graphCache from '../utils/graphCache';
 import blockCache, { restrictCache } from '../utils/blockCache';
-import { discoverableUserPredicate } from '../utils/profileQuery';
+import {
+  discoverableUserPredicate,
+  visibleOrganizationIdentityPredicate,
+} from '../utils/profileQuery';
 
 /**
  * A profile as its OWNER sees it — the public view plus the fields
@@ -361,12 +370,24 @@ function normalizeProfileColor(value: unknown): unknown {
  * Fields with no text of their own (avatar id, birthday, preference objects,
  * …) pass through untouched.
  */
-function normalizeProfileField(key: string, value: unknown): unknown {
+function normalizeProfileField(key: string, value: unknown, kind?: string): unknown {
   switch (key) {
     case 'color':
       return normalizeProfileColor(value);
-    case 'name':
-      return normalizeProfileName(value);
+    case 'name': {
+      const normalized = normalizeProfileName(value);
+      if (
+        kind === 'organization' &&
+        isRecord(value) &&
+        isRecord(normalized) &&
+        typeof value.displayName === 'string'
+      ) {
+        // The title was validated with organizationNameSchema before normalization.
+        // Human-name cleanup would otherwise erase company punctuation and digits.
+        return { ...normalized, displayName: value.displayName.trim() };
+      }
+      return normalized;
+    }
     case 'username':
       return typeof value === 'string' ? normalizeUsername(value) : value;
     case 'linksMetadata':
@@ -865,7 +886,7 @@ export class UserService {
     const [row] = await getDb()
       .select(publicUserColumns)
       .from(users)
-      .where(eq(users.id, userId))
+      .where(and(eq(users.id, userId), visibleOrganizationIdentityPredicate()))
       .limit(1);
     return row ? toPublicUserView(row) : null;
   }
@@ -894,6 +915,9 @@ export class UserService {
     req?: Request,
   ): Promise<SelfUserView> {
     const db = getDb();
+
+    const existing = await this.getUserById(userId);
+    if (!existing) throw new Error('User not found');
 
     // Allowed fields for updates
     const allowedFields = [
@@ -924,7 +948,12 @@ export class UserService {
     if (updates.name && typeof updates.name === 'object') {
       for (const part of ['first', 'last', 'displayName'] as const) {
         const value = updates.name[part];
-        if (typeof value === 'string' && !isValidDisplayName(value)) {
+        if (typeof value !== 'string') continue;
+        const valid =
+          existing.kind === 'organization' && part === 'displayName'
+            ? value === '' || organizationNameSchema.safeParse(value).success
+            : isValidDisplayName(value);
+        if (typeof value === 'string' && !valid) {
           throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
         }
       }
@@ -950,7 +979,7 @@ export class UserService {
 
       // Canonicalize the value into EXACTLY the form that will be persisted,
       // before it is validated or compared — see `normalizeProfileField`.
-      const normalizedValue = normalizeProfileField(key, value);
+      const normalizedValue = normalizeProfileField(key, value, existing.kind);
 
       // Reserved colors are checked against the SAME normalized value the write
       // below persists (trim + lowercase), so ' oxy '/'OXY' cannot slip past the
@@ -1054,11 +1083,6 @@ export class UserService {
 
       // Assign other fields
       filteredUpdates[key] = normalizedValue;
-    }
-
-    const existing = await this.getUserById(userId);
-    if (!existing) {
-      throw new Error('User not found');
     }
 
     // A username is a routing key (`/@alice`, `acct:alice@…`), not prose: it must
@@ -1871,8 +1895,7 @@ export class UserService {
         .from(users)
         .where(eq(users.id, oxyUserId))
         .for('update');
-      if (!subject || subject.type !== 'federated')
-        throw new BadRequestError('Federated user not found');
+      if (subject?.type !== 'federated') throw new BadRequestError('Federated user not found');
       const members = await getEquivalentUserIds(oxyUserId, tx);
       const actors = await tx
         .select({ uri: externalIdentityActors.actorUri })
@@ -2122,6 +2145,7 @@ export class UserService {
       username: identity.username,
       name: identity.name,
       avatar: identity.avatar,
+      ...(identity.character ? { character: identity.character } : {}),
       verified: typeof user.verified === 'boolean' ? user.verified : undefined,
       bio: stringOrUndefined(user.bio),
       description: stringOrUndefined(user.description),

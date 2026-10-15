@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * POST /accounts/:id/switch — true account switch (mints a REAL session whose
  * user IS the target managed account), replacing the old X-Acting-As delegation.
@@ -20,8 +21,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { eq } from 'drizzle-orm';
 
 const OPERATOR_ID = '6a0000000000000000000001';
@@ -117,15 +118,13 @@ async function seedTargetAccount(values: {
   kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel';
   accountStatus?: 'active' | 'suspended' | 'archived';
 }): Promise<void> {
-  await getDb()
-    .insert(users)
-    .values({
-      id: ORG_ID,
-      color: 'teal',
-      username: values.username,
-      kind: values.kind,
-      accountStatus: values.accountStatus ?? 'active',
-    });
+  await insertAccountFixtures({
+    id: ORG_ID,
+    color: 'teal',
+    username: values.username,
+    kind: values.kind,
+    accountStatus: values.accountStatus ?? 'active',
+  });
 }
 
 interface JsonResponse {

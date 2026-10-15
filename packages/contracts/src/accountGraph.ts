@@ -8,6 +8,12 @@
  */
 
 import { z } from 'zod';
+import { avatarCharacterSchema } from './avatarCharacter';
+import {
+  ORGANIZATION_TYPES,
+  ORGANIZATION_NAME_MAX_LENGTH,
+  organizationNameSchema,
+} from './organizations';
 import { usernameSchema, usernameSchemaForAccountKind } from './username';
 
 /**
@@ -436,11 +442,11 @@ export function kindAcceptsAccountCategories(kind: AccountKind | null | undefine
  * `composeDisplayName`, which already preferred an explicit value — only the
  * storage for one was missing).
  */
-const accountNameSchema = z
+export const accountNameSchema = z
   .object({
     first: z.string().trim().max(100).optional(),
     last: z.string().trim().max(100).optional(),
-    displayName: z.string().trim().max(100).optional(),
+    displayName: z.string().trim().max(ORGANIZATION_NAME_MAX_LENGTH).optional(),
   })
   .optional();
 
@@ -494,6 +500,7 @@ export const createAccountRequestSchema = z
     color: z.string().trim().max(32).optional(),
     /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
     accountCategories: accountCategoriesSchema.optional(),
+    organizationType: z.enum(ORGANIZATION_TYPES).optional(),
     /**
      * Create the account already opted OUT of discovery.
      *
@@ -535,8 +542,41 @@ export const createAccountRequestSchema = z
      * remedy must not either.
      */
     isPrivateAccount: z.boolean().optional(),
+    /**
+     * The 3D avatar character of a `bot` — and ONLY of a bot (the refinement
+     * below). Optional on the wire: a bot created without one is given a look
+     * seeded from its handle (`avatarCharacterFor`), so every bot account has a
+     * character from birth and the owner customizes it afterwards.
+     */
+    character: avatarCharacterSchema.optional(),
   })
   .superRefine((request, ctx) => {
+    if (request.character !== undefined && request.kind !== 'bot') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['character'],
+        message: 'Only a bot account carries an avatar character',
+      });
+    }
+
+    const displayName = request.name?.displayName;
+    if (displayName) {
+      const parsedName =
+        request.kind === 'organization'
+          ? organizationNameSchema.safeParse(displayName)
+          : z.string().max(100).safeParse(displayName);
+      if (!parsedName.success) {
+        for (const issue of parsedName.error.issues) {
+          ctx.addIssue({ ...issue, path: ['name', 'displayName', ...issue.path] });
+        }
+      }
+    }
+    if (request.organizationType !== undefined && request.kind !== 'organization')
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['organizationType'],
+        message: 'Organization type requires an organization account',
+      });
     // The ONE place `kind` and `username` arrive in the same object, so it is the
     // only place a wire schema CAN apply the per-kind half of the policy: a bot's
     // handle must end in `bot`. Not a second rule — it asks

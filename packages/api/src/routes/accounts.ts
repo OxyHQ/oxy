@@ -1,17 +1,14 @@
+import type { OrganizationType } from '@oxy.so/contracts';
 import express from 'express';
 import type { Request } from 'express';
 import { and, count, eq, ne } from 'drizzle-orm';
 import {
   isOperatorSwitchTargetKind,
   type AccountCategoryId,
+  type AvatarCharacter,
   type ChildAccountKind,
 } from '@oxy.so/contracts';
-import {
-  authMiddleware,
-  serviceAuthMiddleware,
-  type AuthRequest,
-  type ServiceAuthRequest,
-} from '../middleware/auth';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -24,7 +21,6 @@ import {
   type AccountRow,
   type EffectiveAccess,
 } from '../services/account.service';
-import type { ApplicationScope } from '../utils/applicationScopes';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
@@ -39,7 +35,6 @@ import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { logger } from '../utils/logger';
 import type { SessionAuthResponse } from '../types/session';
 import { resolveUserByIdentifier } from '../utils/resolveUserIdentifier';
-import { accountMembers } from '../db/schema/accountMembers';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { formatUserResponse } from '../utils/userTransform';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
@@ -519,7 +514,9 @@ router.post(
       description?: string;
       color?: string;
       accountCategories?: AccountCategoryId[];
+      organizationType?: OrganizationType;
       isPrivateAccount?: boolean;
+      character?: AvatarCharacter;
     };
 
     // WHERE it hangs is a question about the SUBJECT. Creating an agent while
@@ -567,10 +564,12 @@ router.post(
         description: body.description,
         color: body.color,
         accountCategories: body.accountCategories,
+        organizationType: body.organizationType,
         // Threaded explicitly, like every other field: this handler names each
         // one, so a field the schema accepts but this list omits is dropped
         // between validation and the insert with no error anywhere.
         isPrivateAccount: body.isPrivateAccount,
+        character: body.character,
       },
     );
 
@@ -703,6 +702,8 @@ router.patch(
       color?: string;
       links?: string[];
       accountCategories?: AccountCategoryId[];
+      character?: AvatarCharacter;
+      organizationType?: OrganizationType;
     };
 
     const updated = await accountService.updateAccount(account.id, {
@@ -783,7 +784,7 @@ router.post(
       newParentId,
       req.sessionId,
     );
-    if (!destAccess || !destAccess.permissions.includes('children:create')) {
+    if (!destAccess?.permissions.includes('children:create')) {
       throw new ForbiddenError('Missing permission to add children to the destination account');
     }
 

@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * Profile-discovery predicates, executed against a REAL Postgres.
  *
@@ -70,9 +71,7 @@ function eligibleDefaults(id: string): typeof users.$inferInsert {
 
 async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<string> {
   const id = uniqueId();
-  await getDb()
-    .insert(users)
-    .values({ ...eligibleDefaults(id), ...overrides });
+  await insertAccountFixture({ ...eligibleDefaults(id), ...overrides });
   return id;
 }
 

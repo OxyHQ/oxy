@@ -187,6 +187,36 @@ describe('@oxy.so/contracts account kinds', () => {
     }
   });
 
+  it('shares the directory title limit for organizations while preserving other account limits', () => {
+    const input = {
+      kind: 'organization',
+      username: 'organization',
+      name: { displayName: 'A'.repeat(300) },
+    };
+    expect(createAccountRequestSchema.safeParse(input).success).toBe(true);
+    expect(
+      createAccountRequestSchema.safeParse({ ...input, name: { displayName: 'A'.repeat(301) } })
+        .success,
+    ).toBe(false);
+    expect(
+      createAccountRequestSchema.safeParse({
+        ...input,
+        kind: 'project',
+        name: { displayName: 'A'.repeat(101) },
+      }).success,
+    ).toBe(false);
+    for (const displayName of ['3M', '7-Eleven', 'AT&T']) {
+      expect(
+        createAccountRequestSchema.safeParse({ ...input, name: { displayName } }).success,
+      ).toBe(true);
+    }
+    for (const displayName of ['<script>', 'Company\u0000']) {
+      expect(
+        createAccountRequestSchema.safeParse({ ...input, name: { displayName } }).success,
+      ).toBe(false);
+    }
+  });
+
   it('accepts an explicit displayName when creating an account', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'channel',

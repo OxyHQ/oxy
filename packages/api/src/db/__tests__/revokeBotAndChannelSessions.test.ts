@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../__fixtures__/accountIdentity';
 /**
  * The REPAIR, which is a different property from the prevention.
  *
@@ -75,10 +76,7 @@ async function accountWithSession(
   kind: AccountKind,
   options: { active?: boolean } = {},
 ): Promise<{ accountId: string; sessionId: string }> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({ color: 'teal', kind, username: unique(kind) })
-    .returning();
+  const [account] = await insertAccountFixtures({ color: 'teal', kind, username: unique(kind) });
   const [session] = await getDb()
     .insert(sessions)
     .values({

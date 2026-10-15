@@ -32,6 +32,16 @@ export const NATIVE_PRODUCT_AGENTS = {
         displayName: 'Sindi',
       },
       applicationId: '6a2f851751b784a86fd0e922',
+      /** Reviewed authority for source-stable neutral company ingestion only. */
+      organizationImport: {
+        namespace: 'homiio',
+        scope: 'organizations:import',
+        capability: 'organizations:import:homiio',
+        workerWorkload: {
+          provider: 'aws-iam',
+          subject: 'arn:aws:iam::237343248947:role/oxy-homiio-worker-task',
+        },
+      },
       /**
        * What the Homiio backend IS: its ECS task role, attested (ADR 0026) and
        * bound to `applicationId` in `application_workload_identities`. This is
@@ -106,6 +116,7 @@ export const NATIVE_PRODUCT_AGENTS = {
       backendApplication: {
         id: '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e',
         name: 'Clarity Backend',
+        webhookUrl: 'https://api.clarity.surf/webhooks/oxy/account-events',
         type: 'internal',
         scopes: ['user:read', 'inference:invoke'],
       },

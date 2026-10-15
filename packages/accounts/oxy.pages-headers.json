@@ -1,6 +1,14 @@
 {
   "csp": {
-    "imgSrc": ["blob:"],
-    "connectSrc": ["blob:", "https://eu.i.posthog.com"]
+    "scriptSrc": ["'wasm-unsafe-eval'", "https://alia.onl"],
+    "workerSrc": ["'self'"],
+    "imgSrc": ["blob:", "https://alia.onl"],
+    "connectSrc": [
+      "blob:",
+      "https://eu.i.posthog.com",
+      "https://alia.onl",
+      "https://api.alia.onl",
+      "wss://api.alia.onl"
+    ]
   }
 }

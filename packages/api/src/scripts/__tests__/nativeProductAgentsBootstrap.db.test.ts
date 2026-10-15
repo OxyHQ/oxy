@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * The native product-agent bootstrap, run for real against PostgreSQL.
  *
@@ -25,7 +26,6 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { securityActivities } from '../../db/schema/securityActivities';
-import { users } from '../../db/schema/users';
 import { createTestDatabase, dropTestDatabase } from '../../db/testDatabase';
 
 const ORG = NATIVE_PRODUCT_AGENTS.oxyOrganizationId;
@@ -98,7 +98,7 @@ beforeAll(async () => {
   // organisation, the pre-existing Homiio application, and a LIVE Sindi
   // credential whose secret lived in SSM. Clarity is left entirely absent, the
   // fresh-environment case.
-  await getDb().insert(users).values({ id: ORG, kind: 'organization', accountStatus: 'active' });
+  await insertAccountFixture({ id: ORG, kind: 'organization', accountStatus: 'active' });
   await getDb()
     .insert(applications)
     .values({
@@ -110,6 +110,14 @@ beforeAll(async () => {
       isInternal: false,
       ownerAccountId: ORG,
       scopes: ['user:read', ...SINDI.scopes],
+      capabilities: ['existing-capability'],
+    });
+  await getDb()
+    .insert(applicationWorkloadIdentities)
+    .values({
+      applicationId: homiio.applicationId,
+      ...homiio.organizationImport.workerWorkload,
+      scopes: ['user:read'],
     });
   await getDb()
     .insert(applicationCredentials)
@@ -176,6 +184,12 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
       planSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     expect((await sindiCredential()).status).toBe('active');
+    const [beforeApp] = await getDb()
+      .select()
+      .from(applications)
+      .where(eq(applications.id, homiio.applicationId));
+    expect(beforeApp.scopes).not.toContain(homiio.organizationImport.scope);
+    expect(beforeApp.capabilities).toEqual(['existing-capability']);
 
     const apply = runBootstrap({
       APPLY: '1',
@@ -202,6 +216,34 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
         ]),
       );
     expect(clarityCredentials).toEqual([{ id: clarity.publicCredential.id, secretHash: null }]);
+    const [backend] = await getDb()
+      .select({ webhookUrl: applications.webhookUrl })
+      .from(applications)
+      .where(eq(applications.id, clarity.backendApplication.id));
+    expect(backend.webhookUrl).toBe(clarity.backendApplication.webhookUrl);
+    const [importer] = await getDb()
+      .select()
+      .from(applications)
+      .where(eq(applications.id, homiio.applicationId));
+    expect(importer.scopes).toEqual(
+      expect.arrayContaining(['user:read', ...SINDI.scopes, homiio.organizationImport.scope]),
+    );
+    expect(importer.capabilities).toEqual([
+      'existing-capability',
+      homiio.organizationImport.capability,
+    ]);
+    const [binding] = await getDb()
+      .select()
+      .from(applicationWorkloadIdentities)
+      .where(eq(applicationWorkloadIdentities.subject, ROLE));
+    expect(binding.scopes).toEqual([...SINDI.scopes]);
+    const [workerBinding] = await getDb()
+      .select()
+      .from(applicationWorkloadIdentities)
+      .where(
+        eq(applicationWorkloadIdentities.subject, homiio.organizationImport.workerWorkload.subject),
+      );
+    expect(workerBinding.scopes).toEqual(['user:read', homiio.organizationImport.scope]);
 
     const [audit] = await getDb()
       .select({ metadata: securityActivities.metadata })
@@ -217,7 +259,7 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
     ).toBe(false);
   });
 
-  it('leaves a revoked credential alone without needing its binding any more', async () => {
+  it('leaves retired credentials alone when the API binding is absent but the importer worker remains live', async () => {
     await getDb()
       .delete(applicationWorkloadIdentities)
       .where(eq(applicationWorkloadIdentities.subject, ROLE));
@@ -225,5 +267,89 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
     expect(rerun.status).toBe(0);
     expect(rerun.result).toMatchObject({ mode: 'dry-run', direction: 'bootstrap' });
     expect((await sindiCredential()).status).toBe('revoked');
+    await bindHomiio(SINDI.scopes);
+  });
+  it('applies an already provisioned import grant idempotently and refuses stale reviewed plans', async () => {
+    const dry = runBootstrap();
+    expect(dry.status).toBe(0);
+    await getDb()
+      .update(applications)
+      .set({
+        capabilities: [
+          'existing-capability',
+          homiio.organizationImport.capability,
+          'new-preserved-capability',
+        ],
+      })
+      .where(eq(applications.id, homiio.applicationId));
+    const stale = runBootstrap({
+      APPLY: '1',
+      BOOTSTRAP_ACTOR: 'native-agent-db-test',
+      BOOTSTRAP_REASON: 'review importer scope',
+      EXPECTED_PLAN_SHA256: String(dry.result?.planSha256),
+    });
+    expect(stale.status).toBe(1);
+    const fresh = runBootstrap();
+    expect(fresh.result?.planSha256).not.toBe(dry.result?.planSha256);
+    const applied = runBootstrap({
+      APPLY: '1',
+      BOOTSTRAP_ACTOR: 'native-agent-db-test',
+      BOOTSTRAP_REASON: 'review importer scope',
+      EXPECTED_PLAN_SHA256: String(fresh.result?.planSha256),
+    });
+    expect(applied.status).toBe(0);
+    const [app] = await getDb()
+      .select()
+      .from(applications)
+      .where(eq(applications.id, homiio.applicationId));
+    expect(app.capabilities).toEqual([
+      'existing-capability',
+      homiio.organizationImport.capability,
+      'new-preserved-capability',
+    ]);
+    expect(app.scopes.filter((scope) => scope === homiio.organizationImport.scope)).toHaveLength(1);
+  });
+  it('refuses import provisioning when the worker binding is expired', async () => {
+    await getDb()
+      .update(applicationWorkloadIdentities)
+      .set({ expiresAt: new Date(0) })
+      .where(
+        eq(applicationWorkloadIdentities.subject, homiio.organizationImport.workerWorkload.subject),
+      );
+    try {
+      expect(runBootstrap().result).toMatchObject({
+        code: 'live_state_drift',
+        target: 'homiio_workload_binding',
+      });
+    } finally {
+      await getDb()
+        .update(applicationWorkloadIdentities)
+        .set({ expiresAt: null })
+        .where(
+          eq(
+            applicationWorkloadIdentities.subject,
+            homiio.organizationImport.workerWorkload.subject,
+          ),
+        );
+    }
+  });
+  it('refuses to replace an unrelated existing Clarity webhook', async () => {
+    await getDb()
+      .update(applications)
+      .set({ webhookUrl: 'https://example.test/existing' })
+      .where(eq(applications.id, clarity.backendApplication.id));
+    try {
+      expect(runBootstrap().status).toBe(1);
+      const [app] = await getDb()
+        .select({ webhookUrl: applications.webhookUrl })
+        .from(applications)
+        .where(eq(applications.id, clarity.backendApplication.id));
+      expect(app.webhookUrl).toBe('https://example.test/existing');
+    } finally {
+      await getDb()
+        .update(applications)
+        .set({ webhookUrl: clarity.backendApplication.webhookUrl })
+        .where(eq(applications.id, clarity.backendApplication.id));
+    }
   });
 });

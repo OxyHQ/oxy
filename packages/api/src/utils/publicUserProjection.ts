@@ -38,7 +38,7 @@
  */
 
 import { sql, type SQL } from 'drizzle-orm';
-import type { AccountCategoryId, AccountKind } from '@oxy.so/contracts';
+import type { AccountCategoryId, AccountKind, AvatarCharacter } from '@oxy.so/contracts';
 import { qualified } from '@oxy.so/db';
 import { userFollows } from '../db/schema/userFollows';
 import { userLinkMetadata } from '../db/schema/userLinkMetadata';
@@ -148,6 +148,7 @@ export const publicUserColumns = {
   nameDisplay: users.nameDisplay,
   kind: users.kind,
   accountCategories: users.accountCategories,
+  character: users.character,
   avatar: users.avatar,
   color: users.color,
   bio: users.bio,
@@ -175,6 +176,7 @@ export interface PublicUserRow {
   nameDisplay: string | null;
   kind: AccountKind;
   accountCategories: AccountCategoryId[];
+  character: AvatarCharacter | null;
   avatar: string | null;
   color: string;
   bio: string | null;

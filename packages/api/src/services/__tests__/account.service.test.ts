@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * account.service tests — unified Account graph, against a REAL Postgres.
  *
@@ -78,18 +79,15 @@ interface SeedOptions {
 }
 
 async function seedAccount(options: SeedOptions = {}): Promise<AccountRow> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({
-      color: 'teal',
-      kind: options.kind ?? 'personal',
-      username: options.username ?? uniqueUsername('acct'),
-      nameFirst: options.nameFirst,
-      nameLast: options.nameLast,
-      parentAccountId: options.parentAccountId,
-      rootAccountId: options.rootAccountId,
-    })
-    .returning();
+  const account = await insertAccountFixture({
+    color: 'teal',
+    kind: options.kind ?? 'personal',
+    username: options.username ?? uniqueUsername('acct'),
+    nameFirst: options.nameFirst,
+    nameLast: options.nameLast,
+    parentAccountId: options.parentAccountId,
+    rootAccountId: options.rootAccountId,
+  });
 
   const ancestors = options.ancestors ?? [];
   if (ancestors.length > 0) {

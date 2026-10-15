@@ -15,7 +15,7 @@
 
 > Moved out of `AGENTS.md` unchanged.
 
-**Every peer range on a package that ships breaking majors needs an UPPER bound.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a major the package cannot work with, with no warning from bun at all — the only thing that catches it is `tsc` reaching into `node_modules`, which it does only because the `react-native` condition points at published `src/`, so an app whose typecheck skips `node_modules` gets a green build and a white screen. Raise a floor only to a version MEASURED to be the first that works (bisect the published tarballs), and re-raise it in the same commit as the code that requires it.
+**Every peer range on a THIRD-PARTY package that ships breaking majors needs an UPPER bound. The first-party `@oxy.so/bloom`, `@oxy.so/services` and `@alia.onl/sdk` peers are deliberately open-ended (`>=`) by decision: Oxy apps always run the latest, and a capped range turned every new release into a peer conflict until a republish. The cost is the failure described next, so a breaking release is caught by running the suite against the latest peer, not by a cap.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a major the package cannot work with, with no warning from bun at all — the only thing that catches it is `tsc` reaching into `node_modules`, which it does only because the `react-native` condition points at published `src/`, so an app whose typecheck skips `node_modules` gets a green build and a white screen. Raise a floor only to a version MEASURED to be the first that works (bisect the published tarballs), and re-raise it in the same commit as the code that requires it.
 
 ## ESM builds
 

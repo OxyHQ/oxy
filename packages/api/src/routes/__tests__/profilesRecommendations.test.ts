@@ -1,7 +1,7 @@
 /**
  * `GET` / `POST /profiles/recommendations` against a REAL Postgres.
  *
- * Four things here are worth a test, each checked against real rows rather
+ * Five things here are worth a test, each checked against real rows rather
  * than against a query the test builds itself:
  *
  *  1. **The exclusion set.** The viewer, everyone they already follow, and any
@@ -17,6 +17,9 @@
  *     application's owning account, may use it.
  *  4. **The ranking.** Composite score descending, `id` ascending as the stable
  *     tiebreak.
+ *  5. **The app-signal candidates.** An application's top endorsed and top
+ *     interest-scored users, read off their indexes — never a scan of every
+ *     user the application has, and never a row that carries no signal.
  *
  * ## Isolation
  *
@@ -80,7 +83,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { inArray } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appAffinityEdges } from '../../db/schema/appAffinityEdges';
 import { applications } from '../../db/schema/applications';
@@ -89,7 +92,7 @@ import { userFollows } from '../../db/schema/userFollows';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { FEDERATED_RECOMMENDATION_MAX_AGE_MS } from '../../utils/profileQuery';
-import profilesRouter from '../profiles';
+import profilesRouter, { appSignalCandidates } from '../profiles';
 
 interface RecommendationsResponse {
   status: number;
@@ -739,6 +742,59 @@ describe('POST /profiles/recommendations — boosts and weights', () => {
     const res = await postRecommendations({ limit: 0 });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /profiles/recommendations — app-signal candidates', () => {
+  it('takes the top endorsed and the top interest-scored users, and nobody carrying neither', async () => {
+    const appId = await application(await curatedAccount());
+    const endorsed = await curatedAccount();
+    const interesting = await curatedAccount();
+    // A row with no signal at all. Ordering the application by endorsement used
+    // to hand it to the scorer anyway — a zero tie is still a row — so every
+    // request ranked an arbitrary slice of the application's silent users.
+    const silent = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values([
+        { applicationId: appId, userId: endorsed, endorsementScore: 8 },
+        { applicationId: appId, userId: interesting, interestScore: 0.9 },
+        { applicationId: appId, userId: silent },
+      ]);
+    // A service token with no delegated viewer: no graph, no affinity, so the
+    // app signals are the whole candidate union.
+    currentServiceApp = { appId, scopes: ['user:read'] };
+
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
+
+    expect(res.status).toBe(200);
+    const byId = new Map((res.body.data ?? []).map((row) => [row.id as string, row]));
+    expect(byId.get(endorsed)?.matchedSignals).toContain('curation');
+    expect(byId.get(interesting)?.matchedSignals).toContain('interest');
+    expect(byId.has(silent)).toBe(false);
+  });
+
+  it('reads both top lists off their indexes, never scanning the application', async () => {
+    const appId = await application(await curatedAccount());
+    // `enable_seqscan = off` is LOCAL to this transaction, so it cannot leak into
+    // another test's plans. The invariant is that an index-ORDERED plan exists,
+    // which a small table cannot make flaky. An ORDER BY whose null ordering
+    // differs from the index's still reaches an index, but only to filter: every
+    // matching row is then sorted, and the LIMIT no longer bounds the read.
+    const rows = await getDb().transaction(async (tx) => {
+      await tx.execute(sql`set local enable_seqscan = off`);
+      return tx.execute<{ 'QUERY PLAN': string }>(
+        sql`explain (costs off) ${appSignalCandidates(appId)}`,
+      );
+    });
+    const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
+
+    expect(plan).toContain('using app_user_signals_application_id_endorsement_score_idx');
+    expect(plan).toContain('using app_user_signals_application_id_interest_score_user_id_idx');
+    expect(plan).not.toContain('Seq Scan');
+    // Only the `user_id` tiebreak within one endorsement score may be sorted
+    // (an Incremental Sort); a full Sort means the index did not supply the order.
+    expect(plan).not.toMatch(/(^|->)\s*Sort$/m);
   });
 });
 

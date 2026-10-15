@@ -18,6 +18,7 @@
  *     keychainGroup: 'group.so.oxy.shared', // false → skip iOS keychain entitlement
  *     ios: { deploymentTarget: '17.0' },    // false → skip iOS build properties
  *     android: { targetSdkVersion: 34 },    // false → skip Android build properties
+ *     webgpu: true,                         // opt-in: react-native-webgpu's config plugin
  *   }]
  *
  * Android never gets `android:sharedUserId`: each Oxy app has its own UID and
@@ -33,6 +34,9 @@
  * @param {string|false} [options.keychainGroup='group.so.oxy.shared']
  * @param {object|false}  [options.ios]
  * @param {object|false}  [options.android]
+ * @param {boolean}       [options.webgpu=false] Apply `react-native-webgpu`'s
+ *   config plugin (an app drawing with WebGPU on native). Needs
+ *   `react-native-webgpu` installed in the app.
  */
 const withOxyKeychain = require('./withOxyKeychain');
 const withOxyBuildProperties = require('./withOxyBuildProperties');
@@ -54,7 +58,7 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     }
   }
 
-  const { keychainGroup = 'group.so.oxy.shared', ios = {}, android = {} } = options;
+  const { keychainGroup = 'group.so.oxy.shared', ios = {}, android = {}, webgpu = false } = options;
 
   let next = config;
 
@@ -79,6 +83,19 @@ module.exports = function withOxyAppPreset(config, options = {}) {
     );
   }
   next = withOxySharedPermissions(next);
+
+  if (webgpu) {
+    let withWebGPU;
+    try {
+      withWebGPU = requireFromProject('react-native-webgpu/app.plugin.js', projectRootOf(config));
+    } catch (error) {
+      throw new Error(
+        "[@oxy.so/app-preset] `webgpu: true` needs 'react-native-webgpu' installed in the app. " +
+          `(${error instanceof Error ? error.message : String(error)})`,
+      );
+    }
+    next = withWebGPU(next);
+  }
 
   return next;
 };

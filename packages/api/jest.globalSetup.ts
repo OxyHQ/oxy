@@ -16,9 +16,13 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { constants, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createTestDatabases } from './src/db/testDatabase';
+import {
+  createTestDatabases,
+  dropTestDatabase,
+  reapOrphanedTestDatabases,
+} from './src/db/testDatabase';
 
 // biome-ignore lint/style/noCommonJs: jest.workerCount.cjs is a CommonJS helper shared with the Jest config
 const { computeMaxWorkers, OXY_JEST_DATABASE_MANIFEST } = require('./jest.workerCount.cjs');
@@ -52,11 +56,30 @@ const { computeMaxWorkers, OXY_JEST_DATABASE_MANIFEST } = require('./jest.worker
  */
 const TEST_MAX_POOL_SIZE = '8';
 
+/**
+ * Jest runs no teardown for a run stopped by a signal — Ctrl-C, a closed
+ * terminal, a tool's timeout — and every such run left its databases behind.
+ * Drop them, then exit as the signal would have.
+ */
+function dropOnSignal(urls: string[]): void {
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.once(signal, () => {
+      void Promise.allSettled(urls.map((url) => dropTestDatabase(url))).finally(() =>
+        process.exit(128 + constants.signals[signal]),
+      );
+    });
+  }
+}
+
 export default async function globalSetup(): Promise<void> {
   process.env.PG_MAX_POOL_SIZE ??= TEST_MAX_POOL_SIZE;
 
+  // What a run killed outright (SIGKILL) on this host left behind.
+  await reapOrphanedTestDatabases();
+
   const workerCount = computeMaxWorkers();
   const urls = await createTestDatabases(workerCount);
+  dropOnSignal(urls);
 
   const manifestPath = join(tmpdir(), `oxy-jest-databases-${process.pid}.json`);
   writeFileSync(manifestPath, JSON.stringify(urls));

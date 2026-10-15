@@ -66,7 +66,7 @@ it.each([
     await handler(req as unknown as Request, res as unknown as Response, jest.fn());
     expect(res.status).toHaveBeenCalledWith(status);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code }));
-    expect(res.setHeader).toHaveBeenCalledWith('X-Oxy-Inference-Contract-Version', '3.5.0');
+    expect(res.setHeader).toHaveBeenCalledWith('X-Oxy-Inference-Contract-Version', '3.8.0');
     expect(reserve).not.toHaveBeenCalled();
     jest.restoreAllMocks();
   },

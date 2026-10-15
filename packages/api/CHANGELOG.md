@@ -2,6 +2,98 @@
 
 ## Unreleased
 
+### Added (a bot account carries a 3D avatar character)
+
+- `users.character` (nullable `jsonb`, migration `0159`, deploy phase `pre`) and
+  `users_character_kind_check`: only a `bot` row may carry one. The "every bot
+  has one" constraint follows the backfill of bots minted before the column.
+- `POST /accounts` with `kind: 'bot'` stores the `character` it is given or, when
+  none, `avatarCharacterFor(username)`; any other kind refuses one (400).
+  `PATCH /accounts/:id` replaces it (`account:update`, as for every field).
+- `character` rides the user DTOs for `kind: 'bot'` only (`userIdentityFields` is
+  the one definer; personal payloads do not grow): `formatUserResponse`,
+  `UserService.formatUserResponse` and the recommendation rows.
+
+### Changed
+
+- `isAgent` on recommendation rows is `kind === 'bot'` (`deriveIsAgent`), where it
+  was `type === 'agent'` and so was never true for the bots Alia mints. `type:
+  'agent'` still means a remote/automation actor resolved by `PUT /users/resolve`.
+
+### Fixed (a send's Idempotency-Key, and a delivery the relay took)
+
+- `POST /email/messages` refuses an `Idempotency-Key` reused for a DIFFERENT
+  message (recipients, subject, body, the parent it replies to, attachments)
+  with `422 VALIDATION_ERROR`, `details: { reason: "idempotency_key_reused",
+  id, messageId, deliveryState, scheduledAt }` — the send the key already made
+  and where it stands (`scheduled` with its time, `sending`, `retrying`,
+  `sent`, `failed`, `cancelled`, or `unknown` for one from before deliveries
+  were recorded), so a client that restored the key after a crash tells the
+  user the truth rather than assuming it left. A repeat of a send that was
+  cancelled is refused the same way, never answered 202. It
+  used to answer with the first send's acceptance and then delete the second
+  request's draft, losing it. A repeat of the same message still answers with
+  the first send, and the draft is deleted only once the message is filed in
+  Sent. Only what the client chose is compared, normalised as the Sent row
+  stores it: threading is the `inReplyTo` it named, never the `References`
+  derived from that parent (a retry after the parent changed or was deleted is
+  still a retry), and a read-receipt request is not part of it.
+- A `scheduledAt` send under a key takes the same outbox claim, in the
+  transaction that files it: a double press of Schedule, or Schedule racing
+  Send now, files and sends ONE message (both used to file a row and both went
+  out under the same Message-ID). The claim waits, invisible to the outbox
+  worker, until the send falls due. It is the message's, not the outbox's:
+  `GET /email/outbox` does not list it and its retry and cancel routes (and
+  the Alia tools over them) refuse it. A scheduled message is cancelled by
+  taking it out of Sent or deleting it, and every path that does so — delete,
+  move, bulk move, snooze, blocking its sender (Sent mail moves to Junk),
+  deleting the folder it is in, deleting the account's mail — cancels its
+  claim in the same transaction through one helper (`unscheduleMessages`),
+  and only if it is still scheduled under the row lock: a message the due job
+  sent meanwhile stays sent, never marked cancelled. One that stays is unscheduled and its
+  delivery reads `failed`/`cancelled`, so restoring it sends nothing; the due
+  job also sends only what is still in Sent, and a retry of a cancelled
+  scheduled message is refused as cancelled (`409`), not "already being
+  delivered". Rows scheduled before this are compared with their Sent row,
+  and read `cancelled` once unscheduled. There is deliberately no unique index on
+  `messages(user_id, message_id)`: the claim makes a send leave once, and the
+  index would refuse inbound mail delivered twice (`docs/EMAIL.md`).
+- The parent a reply threads under is the earliest of the user's copies of it,
+  not whichever an unordered `limit 1` returned.
+- A repeat waits at most 5 s on the first request's claim and then answers
+  `503 SERVICE_UNAVAILABLE` (`details.retryable: true`); the client retries
+  with the same key. The claim's transaction also ends its own session after
+  15 s idle, so a first request whose task stopped answering frees its claim
+  instead of holding a pooled connection on every repeat until keepalive.
+- A delivery the relay accepted is marked `sent` before anything else is
+  recorded. A send claimed before Sent copies were filed first, whose Sent copy
+  then did not fit the quota, was never marked and went out again every time
+  the outbox worker re-adopted it (about every 10 minutes).
+- The outbox worker adopts an abandoned delivery only while it has attempts
+  left; one without is settled as `failed` (`retries_exhausted`) rather than
+  re-sent without end.
+
+### Fixed (a repeated send always names its Sent row)
+
+- `POST /email/messages` claims the send and files its Sent copy in ONE
+  transaction. A repeat of the same `Idempotency-Key` that raced the first
+  used to answer 202 with `id: null` while the first was still filing, and was
+  told the message was accepted even when the first was then refused (a full
+  mailbox) and nothing was filed or sent — after which the controller deleted
+  the draft. The repeat now waits on the claim: it answers with the filed row,
+  or, if the first was refused, makes the attempt itself.
+
+### Changed (Kaana owns provider keys and routing, ADR 0038)
+
+- A provider's synced routes are funded at the best tier AVAILABLE among all
+  its enabled Kaana keys: any available promotional grant keeps them
+  `promotional_credit`, because Kaana walks the provider's key pool cheapest
+  first. A second key no longer collapses the provider into `standard_payg`.
+- A route the Pro/Ultra promotional lane admits (ADR 0037) is signed with
+  `maxFundingTier: "credit"` (contract set 3.8.0), so Kaana never serves it on
+  a paid key; a usage report naming a dearer tier logs
+  `inference.edge.funding_ceiling_breached`.
+
 ### Changed (a sent message shows whether it left)
 
 - `POST /email/messages` files the message in Sent and answers 202 **before**

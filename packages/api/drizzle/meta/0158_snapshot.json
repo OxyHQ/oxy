@@ -1,5 +1,5 @@
 {
-  "id": "aab183f3-43b8-4ce9-8658-54d4ec9d7edb",
+  "id": "0d5c202d-559b-491f-8689-202091432c3c",
   "prevId": "00d36c16-e664-4507-8970-dff4024decc0",
   "version": "7",
   "dialect": "postgresql",
@@ -3533,6 +3533,33 @@
               "expression": "endorsement_score",
               "isExpression": false,
               "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "app_user_signals_application_id_interest_score_user_id_idx": {
+          "name": "app_user_signals_application_id_interest_score_user_id_idx",
+          "columns": [
+            {
+              "expression": "application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "interest_score",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
               "nulls": "last"
             }
           ],
@@ -37238,12 +37265,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "dispatch_claimed_at": {
-          "name": "dispatch_claimed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "closed_reason": {
           "name": "closed_reason",
           "type": "text",
@@ -37539,10 +37560,6 @@
         "personal_checkout_state": {
           "name": "personal_checkout_state",
           "value": "\"personal_plan_checkout_intents\".\"state\" in ('reserved', 'pending', 'fulfilled', 'closed')"
-        },
-        "personal_checkout_dispatch_state": {
-          "name": "personal_checkout_dispatch_state",
-          "value": "\"personal_plan_checkout_intents\".\"dispatch_claimed_at\" is null or \"personal_plan_checkout_intents\".\"state\" <> 'reserved'"
         },
         "personal_checkout_price": {
           "name": "personal_checkout_price",

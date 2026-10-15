@@ -1,11 +1,14 @@
 /** Controlled payload budget, not a certified provider token or billing ceiling. */
-import type { InternalMeteredPilot } from '../config/inferenceEconomicPolicy';
+import type {
+  InternalMeteredPilot,
+  InternalMeteredPilotDeployment,
+} from '../config/inferenceEconomicPolicy';
 import {
   type InferenceFundingPriority,
   PROMOTIONAL_CREDIT_FUNDING_PRIORITY,
 } from './inferenceCatalogue.service';
 import type { ConcretePowerLevel } from './inferencePowerLevels.service';
-import type { NormalizedEdgeRequest } from '../schemas/inferenceEdge.schemas';
+import type { EdgeOperation, NormalizedEdgeRequest } from '../schemas/inferenceEdge.schemas';
 import type { ScopedExecutionAudience } from '@oxy.so/contracts';
 import { hashScopedInput } from './scopedExecution.service';
 
@@ -15,10 +18,63 @@ const BASE_OVERHEAD = 256;
 const MESSAGE_OVERHEAD = 32;
 const TOOL_OVERHEAD = 32;
 
+/**
+ * The pilot terms that bind ONE operation. Speech answers to the pilot's own
+ * speech block — exact characters, its own routes and quote ceiling, and no
+ * generated-token ceiling — and is outside the pilot (`undefined`) without
+ * one. Every other operation answers to the pilot's text terms, unchanged.
+ */
+export interface InternalPilotOperationTerms {
+  /** Ceiling for {@link controlledInputBudget}'s figure for this operation. */
+  readonly maxInput: number;
+  /** Generated-token ceiling; `undefined` for an operation that generates none. */
+  readonly maxOutputTokens: number | undefined;
+  readonly maxPricePerRequestUsd: string | undefined;
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
+export function pilotTermsFor(
+  pilot: InternalMeteredPilot,
+  operation: EdgeOperation,
+): InternalPilotOperationTerms | undefined {
+  if (operation.kind === 'speech') {
+    const speech = pilot.speech;
+    return speech === undefined
+      ? undefined
+      : {
+          maxInput: speech.maxInputCharacters,
+          maxOutputTokens: undefined,
+          maxPricePerRequestUsd: speech.maxPricePerRequestUsd,
+          deployments: speech.deployments,
+        };
+  }
+  return {
+    maxInput:
+      operation.kind === 'completion'
+        ? (pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget)
+        : pilot.maxControlledInputBudget,
+    maxOutputTokens: pilot.maxOutputTokens,
+    maxPricePerRequestUsd: pilot.maxPricePerRequestUsd,
+    deployments: pilot.deployments,
+  };
+}
+
 export function controlledInputBudget(
   request: NormalizedEdgeRequest,
   scopedPermit?: ScopedExecutionAudience,
 ): number | undefined {
+  // Speech is measured in what it is billed in: the exact characters of the one
+  // text input (`input.length`, the figure the hold and quote use), never a
+  // UTF-8 framing estimate. Any other shape is not a speech request this pilot knows.
+  if (request.operation.kind === 'speech') {
+    return request.input.format === 'text' &&
+      request.input.text.length === request.operation.characters &&
+      !request.stream &&
+      request.audioOutput === undefined &&
+      request.tools.length === 0
+      ? request.operation.characters
+      : undefined;
+  }
   // Only an already authenticated, source-bound permit may extend this pilot.
   // Count the whole controlled input, including every question and choice.
   if (
@@ -71,13 +127,11 @@ export function controlledInputBudget(
   );
 }
 
+/** Whether `route` is one of the exact tuples the pilot admits for `operation`. */
 export function pilotAllowsDeployment(
   pilot: InternalMeteredPilot,
-  route: {
-    readonly deploymentId: string;
-    readonly modelReference: string;
-    readonly provider: string;
-  },
+  operation: EdgeOperation,
+  route: InternalMeteredPilotDeployment,
   scopedPermit?: ScopedExecutionAudience,
 ): boolean {
   if (scopedPermit !== undefined)
@@ -87,7 +141,8 @@ export function pilotAllowsDeployment(
       scopedPermit.modelReference === route.modelReference &&
       scopedPermit.provider === route.provider
     );
-  return pilot.deployments.some(
+  const deployments = pilotTermsFor(pilot, operation)?.deployments ?? [];
+  return deployments.some(
     (allowed) =>
       allowed.deploymentId === route.deploymentId &&
       allowed.modelReference === route.modelReference &&

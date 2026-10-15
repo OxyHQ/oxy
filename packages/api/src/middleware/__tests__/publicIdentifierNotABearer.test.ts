@@ -22,8 +22,8 @@
  */
 
 import express, { type Response } from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
 /*
@@ -179,7 +179,7 @@ async function signIn(userId: string): Promise<string> {
 }
 
 /** A REAL service JWT, signed exactly as `POST /auth/service-token` signs one. */
-function serviceToken(): string {
+async function serviceToken(): Promise<string> {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service',
@@ -189,7 +189,7 @@ function serviceToken(): string {
     // The full attribution tuple the real mint emits (ADR 0007). Omitting
     // `ownerAccountId` makes `verifyServiceToken` answer `not_service`, which
     // would quietly turn the positive control below into a second negative.
-    ownerAccountId: randomUUID(),
+    ownerAccountId: await account(),
     environment: 'production',
     scopes: ['user:read'],
     iss: 'oxy-auth',
@@ -271,7 +271,7 @@ describe('lane 4 — serviceAuthMiddleware (the service token bearer)', () => {
   });
 
   it('POSITIVE CONTROL: a real service token authenticates', async () => {
-    const res = await get('/probe/service', serviceToken());
+    const res = await get('/probe/service', await serviceToken());
 
     expect(res.status).toBe(200);
     expect(res.body.authenticated).toBe(true);

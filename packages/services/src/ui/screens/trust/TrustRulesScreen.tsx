@@ -93,7 +93,7 @@ const TrustRulesScreen: React.FC<BaseScreenProps> = () => {
                   rightElement={
                     <Chip
                       variant="subtle"
-                      size="small"
+                      size="sm"
                       color={rule.points > 0 ? 'success' : rule.points < 0 ? 'error' : 'default'}
                     >
                       {rule.points > 0 ? `+${rule.points}` : `${rule.points}`}

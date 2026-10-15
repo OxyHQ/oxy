@@ -1,6 +1,7 @@
 # ADR 0036 — Reviewed facts and Kaana-reported funding for synced routes
 
-- Status: accepted
+- Status: accepted; decision 4 superseded by [ADR 0038](0038-kaana-owns-provider-keys-costs-and-routing.md)
+  (a provider's funding is the best available tier among all its keys)
 - Date: 2026-10-11
 - Changes: ADR 0027 decision 5 (where a synced route's price comes from) and
   its unstated default that every synced scorecard is `standard_payg`.

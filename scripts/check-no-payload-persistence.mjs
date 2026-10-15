@@ -165,6 +165,12 @@ const BANNED_NAME_PATTERNS = [
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
   {
+    table: 'organization_profiles',
+    column: 'aliases',
+    holds:
+      'Bounded organizationAliasSchema entries (alias, closed kind, optional language), canonical public directory identity facts; no inference payload or authority evidence.',
+  },
+  {
     table: 'inference_deployments',
     column: 'privateAutoSourceApproval',
     holds:
@@ -182,6 +188,12 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'evidenceLinks',
     holds:
       'at most 32 unique source-asserted Instagram/Threads HTTPS profile URI strings, each at most 2048 characters; no actor document, biography, inference request or response',
+  },
+  {
+    table: 'users',
+    column: 'character',
+    holds:
+      "a bot account's 3D avatar look: the closed avatarCharacterSchema from @oxy.so/contracts, a handful of short catalogue ids (preset, accessory, colour and the like) chosen by the owner or generated from the username; a CHECK allows it on kind = 'bot' rows only, and the API rejects any other key; no text, prompt, completion, tool argument or credential",
   },
   {
     table: 'linked_account_oauth_challenges',

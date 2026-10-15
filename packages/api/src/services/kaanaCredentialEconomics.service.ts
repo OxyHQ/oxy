@@ -10,16 +10,24 @@
  * key with its operator-stated capacity category and its latest capacity
  * evidence per kind, and no label, email or secret.
  *
- * ## Which key funds a deployment
+ * ## Which keys fund a deployment
  *
- * Kaana runs each deployment on one exact key: the key an operator bound it to,
- * or, when its provider holds exactly one key, that key by default (Kaana
- * `docs/key-pools.md`). Ordinary deployment descriptors do not name the key, so
- * Oxy applies the one rule it can verify from this read: a provider with exactly
- * one enabled key funds every deployment on that provider with that key. A
- * provider with several keys, a key nobody described, and a failed read are all
- * UNKNOWN, and an unknown funding source keeps the synced default,
- * `standard_payg` — never a cheaper class nobody proved.
+ * Kaana owns provider keys and chooses among them (ADR 0038, Kaana ADR 0001):
+ * a deployment without an operator pin executes on its provider's whole key
+ * pool, cheapest stated funding first — free, then credits (promotional or
+ * trial grants, then prepaid), then paid. So the funding a route can count on
+ * is the BEST tier that is available among its provider's enabled keys right
+ * now: a provider with one promotional key whose grant is available funds its
+ * routes as `promotional_credit`, whatever else it holds, because Kaana spends
+ * that grant first. When no promotional key is available the provider's routes
+ * are `standard_payg` if any other key can still serve them (Kaana walks on to
+ * it), or the promotional keys' own spent/throttled state if they are all it
+ * has. A failed read is unknown and keeps the synced default, `standard_payg` —
+ * never a cheaper class nobody proved.
+ *
+ * Where a route must NOT fall through to a dearer key, Oxy says so on the
+ * signed route (`maxFundingTier`, ADR 0038) and Kaana refuses the route rather
+ * than spend past it. ADR 0037's Pro/Ultra lane is the one such route today.
  *
  * ## What it maps
  *
@@ -160,8 +168,10 @@ function capacityState(
 
 /**
  * Derive each provider's funding evidence from one credential-economics read
- * made at `now`. Only a provider with exactly one enabled key, described as
- * `promotional`, gets an entry; every other provider is left unknown.
+ * made at `now`: the best available tier among each provider's enabled keys
+ * (see "Which keys fund a deployment"). Only a provider holding at least one
+ * key described `promotional` gets an entry; every other provider is left
+ * unknown, which the sync writes as `standard_payg`.
  */
 export function fundingEvidenceByProvider(
   response: CredentialEconomicsResponse,
@@ -176,29 +186,64 @@ export function fundingEvidenceByProvider(
   const at = now.getTime();
   const index = new Map<string, ProviderFundingEvidence>();
   for (const [provider, keys] of keysByProvider) {
-    const [key] = keys;
-    if (keys.length !== 1 || key === undefined) continue;
-    if (key.description?.capacityCategory !== 'promotional') continue;
-    let validUntil = at + FUNDING_EVIDENCE_TTL_MS;
-    for (const observation of key.capacityEvidence ?? []) {
-      const expiresAt = observation.kind === 'expiry' ? instant(observation.expiresAt) : undefined;
-      if (expiresAt !== undefined && expiresAt > at && expiresAt < validUntil) {
-        validUntil = expiresAt;
-      }
+    const promotional = keys
+      .filter((key) => key.description?.capacityCategory === 'promotional')
+      .sort((a, b) => a.keyId.localeCompare(b.keyId));
+    if (promotional.length === 0) continue;
+    const judged = promotional.map((key) => ({
+      key,
+      state: capacityState(key.capacityEvidence ?? [], at),
+      validUntil: grantValidUntil(key, at),
+    }));
+    const available = judged.filter((entry) => entry.state === 'available');
+    if (available.length === 0 && promotional.length < keys.length) {
+      // Every grant is spent or throttled, and the provider still holds a key
+      // Kaana walks on to: its routes are ordinary paid usage now.
+      continue;
     }
+    const [funding] = available.length > 0 ? available : judged;
+    if (funding === undefined) continue;
+    const state: ProviderFundingEvidence['fundingState'] =
+      available.length > 0
+        ? 'available'
+        : judged.some((entry) => entry.state === 'rate_limited')
+          ? 'rate_limited'
+          : 'exhausted';
+    // Any available grant funds the route, so the class holds until the last
+    // of them lapses (each already bounded by the evidence window).
+    const validUntil = Math.max(
+      ...(available.length > 0 ? available : judged).map((entry) => entry.validUntil),
+    );
+    const revision = funding.key.description?.revision ?? 0;
     index.set(provider, {
       fundingClass: 'promotional_credit',
-      fundingState: capacityState(key.capacityEvidence ?? [], at),
+      fundingState: state,
       fundingEvidenceRef:
-        `kaana-credential-economics:${provider}:${key.keyId}:description-revision-${key.description.revision}`.slice(
-          0,
-          500,
-        ),
+        `kaana-credential-economics:${provider}:${funding.key.keyId}:description-revision-${revision}${
+          promotional.length > 1
+            ? `:promotional-keys-${available.length}-of-${promotional.length}-available`
+            : ''
+        }`.slice(0, 500),
       fundingObservedAt: now,
       fundingValidUntil: new Date(validUntil),
     });
   }
   return index;
+}
+
+/** The end of one grant's evidence window: the TTL, or an earlier stated expiry. */
+function grantValidUntil(
+  key: CredentialEconomicsResponse['credentials'][number],
+  at: number,
+): number {
+  let validUntil = at + FUNDING_EVIDENCE_TTL_MS;
+  for (const observation of key.capacityEvidence ?? []) {
+    const expiresAt = observation.kind === 'expiry' ? instant(observation.expiresAt) : undefined;
+    if (expiresAt !== undefined && expiresAt > at && expiresAt < validUntil) {
+      validUntil = expiresAt;
+    }
+  }
+  return validUntil;
 }
 
 /**
