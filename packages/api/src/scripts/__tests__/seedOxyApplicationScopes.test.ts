@@ -1,3 +1,4 @@
+import { organizationProfiles } from '../../db/schema/organizationProfiles';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -66,10 +67,16 @@ beforeEach(async () => {
     type: 'local',
     accountStatus: 'active',
   } as const;
-  await getDb()
-    .insert(users)
-    .values({ id: ownerId, ...owner })
-    .onConflictDoUpdate({ target: users.id, set: owner });
+  await getDb().transaction(async (tx) => {
+    await tx
+      .insert(users)
+      .values({ id: ownerId, ...owner })
+      .onConflictDoUpdate({ target: users.id, set: owner });
+    await tx
+      .insert(organizationProfiles)
+      .values({ accountId: ownerId, claimStatus: 'claimed' })
+      .onConflictDoNothing();
+  });
   await getDb().insert(applications).values({
     id: appId,
     name: 'Mention',

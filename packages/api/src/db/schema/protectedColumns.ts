@@ -77,6 +77,7 @@ import { signInSecondFactorChallenges } from './signInChallenges';
 import { userPasswords } from './userPasswords';
 import { userTotp, userTotpBackupCodes } from './userTotp';
 import { linkedAccountOauthChallenges, mastodonAppRegistrations } from './userLinkedAccounts';
+import { organizationClaims, organizationDirectoryAudit } from './organizationProfiles';
 import { users } from './users';
 
 /**
@@ -336,6 +337,12 @@ export const SIGNIN_SECOND_FACTOR_CHALLENGES_PROTECTED_COLUMNS = ['challengeHash
  * own doc comment for exactly what widening it would cost).
  */
 export const PROTECTED_COLUMNS_BY_TABLE = {
+  organization_claims: [
+    'evidenceReference',
+    'reviewEvidenceReference',
+    'reviewedByUserId',
+  ] as const,
+  organization_directory_audit: ['actorUserId', 'evidenceReference'] as const,
   users: USERS_PROTECTED_COLUMNS,
   sessions: SESSIONS_PROTECTED_COLUMNS,
   auth_sessions: AUTH_SESSIONS_PROTECTED_COLUMNS,
@@ -368,6 +375,16 @@ export interface ProtectedColumn {
  * the test asserts the two agree, so neither can drift.
  */
 export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
+  ...(['evidenceReference', 'reviewEvidenceReference', 'reviewedByUserId'] as const).map((key) => ({
+    table: organizationClaims,
+    column: organizationClaims[key],
+    reason: 'Private organization claim review evidence and reviewer identity.',
+  })),
+  ...(['actorUserId', 'evidenceReference'] as const).map((key) => ({
+    table: organizationDirectoryAudit,
+    column: organizationDirectoryAudit[key],
+    reason: 'Private directory decision actor and evidence.',
+  })),
   {
     table: users,
     column: users.phone,

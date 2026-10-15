@@ -37,7 +37,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
-import { z, ZodTypeAny } from 'zod';
+import { z, type ZodTypeAny } from 'zod';
 import { catalogInvocationTemplatesEquivalent } from '@oxy.so/contracts';
 import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 
@@ -394,6 +394,8 @@ export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
       }
       return out;
     }
+    case 'ZodNull':
+      return { type: 'null' };
     case 'ZodBoolean':
       return { type: 'boolean' };
     case 'ZodDate':
@@ -626,6 +628,8 @@ interface RouteEntry {
   responseTags: ResponseTag[];
   /** `@requestBody` declaration from the leading JSDoc, for routes that validate inline. */
   requestBodyTag?: string;
+  /** Query schema for routes validating inline without changing their error contract. */
+  requestQueryTag?: string;
   /** Header object schema for a route that validates header values inline. */
   requestHeadersTag?: string;
   /** Identifier → module specifier, from the route file's own imports. */
@@ -670,6 +674,8 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'locationSearch.ts': ['/location-search'],
   'applications.ts': ['/applications'],
   'accounts.ts': ['/accounts'],
+  'organizations.ts': ['/organizations'],
+  'safety.ts': ['/safety'],
   'devices.ts': ['/devices'],
   'security.ts': ['/security'],
   'subscription.routes.ts': ['/subscription'],
@@ -725,6 +731,8 @@ const TAG_GROUPS: Record<string, string> = {
   '/location-search': 'Misc',
   '/applications': 'Developer',
   '/accounts': 'Users',
+  '/organizations': 'Organizations',
+  '/safety': 'Safety',
   '/devices': 'Devices',
   '/security': 'Security',
   '/subscription': 'Subscription',
@@ -1081,6 +1089,15 @@ export function parseRequestBodyTag(jsdoc: string): string | undefined {
   return undefined;
 }
 
+/** Query fields and requiredness come from the route-owned Zod object. */
+export function parseRequestQueryTag(jsdoc: string): string | undefined {
+  for (const line of jsdoc.split(/\r?\n/)) {
+    const match = /^\s*@requestQuery\s+(\S+)\s*$/.exec(line);
+    if (match?.[1] !== undefined) return match[1];
+  }
+  return undefined;
+}
+
 /** Header names and requiredness come from the route-owned Zod object. */
 export function parseRequestHeadersTag(jsdoc: string): string | undefined {
   for (const line of jsdoc.split(/\r?\n/)) {
@@ -1318,6 +1335,7 @@ export function parseRoutesFromFile(
       validate,
       responseTags: jsdoc === undefined ? [] : parseResponseTags(jsdoc),
       requestBodyTag: jsdoc === undefined ? undefined : parseRequestBodyTag(jsdoc),
+      requestQueryTag: jsdoc === undefined ? undefined : parseRequestQueryTag(jsdoc),
       requestHeadersTag: jsdoc === undefined ? undefined : parseRequestHeadersTag(jsdoc),
       imports,
       localConsts,
@@ -1566,6 +1584,32 @@ export function buildOperation({ route, openApiPath }: BuildOperationInput): Ope
         required: queryRequired.has(name),
         schema,
       });
+    }
+  }
+
+  if (route.requestQueryTag !== undefined) {
+    if (validate?.query !== undefined) {
+      unresolvedSchemaReferences.push({
+        filename: route.filename,
+        identifier: route.requestQueryTag,
+        reason: 'Declare query validation once: middleware or @requestQuery.',
+      });
+    }
+    const querySchema = resolveRouteSchema(route, route.requestQueryTag);
+    if (querySchema) {
+      const object = zodToOpenApi(querySchema);
+      const properties = object.properties as Record<string, Record<string, unknown>> | undefined;
+      if (object.type !== 'object' || !properties || Object.keys(properties).length === 0)
+        unresolvedSchemaReferences.push({
+          filename: route.filename,
+          identifier: route.requestQueryTag,
+          reason: '@requestQuery must resolve to a non-empty object schema.',
+        });
+      else {
+        const required = new Set((object.required ?? []) as string[]);
+        for (const [name, schema] of Object.entries(properties))
+          parameters.push({ name, in: 'query', required: required.has(name), schema });
+      }
     }
   }
 

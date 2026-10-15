@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `/models` — the catalogue's HTTP surface (issue #972, §16, workstream 11).
  *
@@ -20,9 +21,9 @@
  */
 
 import express from 'express';
-import http from 'http';
+import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import type { AddressInfo } from 'net';
+import type { AddressInfo } from 'node:net';
 
 // `jest.setup.cjs` stubs `jsonwebtoken` globally. The service-token claims are
 // what `viewerForRequest` reads, so the real implementation is required.
@@ -51,7 +52,6 @@ import {
   inferenceProviders,
   inferencePublishers,
 } from '../../db/schema';
-import { users } from '../../db/schema/users';
 import { MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
 import { errorHandler } from '../../middleware/errorHandler';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
@@ -237,10 +237,7 @@ async function tokenForApplication(input: {
   applicationStatus?: 'active' | 'suspended';
   credentialStatus?: 'active' | 'revoked';
 }): Promise<string> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({ username: `cat-${suffix()}`, kind: 'organization' })
-    .returning({ id: users.id });
+  const account = await insertAccountFixture({ username: `cat-${suffix()}`, kind: 'organization' });
   const [application] = await getDb()
     .insert(applications)
     .values({
@@ -296,10 +293,10 @@ async function machineTokenForApplication(input: {
   isInternal?: boolean;
   status?: 'active' | 'revoked';
 }): Promise<string> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({ username: `mcat-${suffix()}`, kind: 'organization' })
-    .returning({ id: users.id });
+  const account = await insertAccountFixture({
+    username: `mcat-${suffix()}`,
+    kind: 'organization',
+  });
   const [application] = await getDb()
     .insert(applications)
     .values({
@@ -372,10 +369,10 @@ async function attestedTokenForApplication(input: {
   expiresAt?: Date;
   bind?: boolean;
 }): Promise<{ token: string; handle: string; applicationId: string; bindingId?: string }> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({ username: `wcat-${suffix()}`, kind: 'organization' })
-    .returning({ id: users.id });
+  const account = await insertAccountFixture({
+    username: `wcat-${suffix()}`,
+    kind: 'organization',
+  });
   const [application] = await getDb()
     .insert(applications)
     .values({

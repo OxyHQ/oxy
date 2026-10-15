@@ -31,6 +31,7 @@ import {
 } from "../src/config/postgres";
 import {
   applicationCredentials,
+  applicationWorkloadIdentities,
   applications,
   internalCostCenters,
   securityActivities,
@@ -131,11 +132,14 @@ interface BootstrapObservations {
   costCenters: CostCenterObservation[];
   homiioOwnerAccountId: string;
   homiioApplicationScopes: string[];
+  homiioApplicationCapabilities: string[];
+  homiioImportWorkloads: { id: string; scopes: string[]; expiresAt: Date | null }[];
   homiioSindiCredential: RetiredServiceCredentialObservation;
   homiioApplicationBefore: unknown;
   clarityApplicationExists: boolean;
   clarityCredentialExists: boolean;
   clarityBackendApplicationExists: boolean;
+  clarityBackendWebhookUrl: string | null;
   clarityBackendCredential: RetiredServiceCredentialObservation;
   clarityApplicationBefore: unknown;
   clarityCredentialBefore: unknown;
@@ -659,6 +663,7 @@ async function observeBootstrap(
       isOfficial: applications.isOfficial,
       isInternal: applications.isInternal,
       scopes: applications.scopes,
+      capabilities: applications.capabilities,
     })
     .from(applications)
     .where(eq(applications.id, homiio.applicationId))
@@ -699,6 +704,21 @@ async function observeBootstrap(
     scopes: homiio.sindiServiceCredential.scopes,
     workload: homiio.workload,
   });
+
+  const homiioImportWorkloads: BootstrapObservations["homiioImportWorkloads"] = [];
+  for (const workload of [homiio.organizationImport.workerWorkload]) {
+    const [binding] = await tx
+      .select({ id: applicationWorkloadIdentities.id, scopes: applicationWorkloadIdentities.scopes,
+        expiresAt: applicationWorkloadIdentities.expiresAt, applicationId: applicationWorkloadIdentities.applicationId })
+      .from(applicationWorkloadIdentities)
+      .where(and(eq(applicationWorkloadIdentities.provider, workload.provider), eq(applicationWorkloadIdentities.subject, workload.subject)))
+      .for("update");
+    if (!binding || binding.applicationId !== homiio.applicationId ||
+        (binding.expiresAt && binding.expiresAt <= new Date())) {
+      throw new NativeProductAgentStateDriftError("homiio_workload_binding", "subject");
+    }
+    homiioImportWorkloads.push(binding);
+  }
 
   const [clarityApplication] = await tx
     .select({
@@ -813,6 +833,7 @@ async function observeBootstrap(
     .select({
       id: applications.id,
       name: applications.name,
+      webhookUrl: applications.webhookUrl,
       type: applications.type,
       status: applications.status,
       isOfficial: applications.isOfficial,
@@ -841,6 +862,9 @@ async function observeBootstrap(
     throw new Error(
       `Application name collision for Clarity Backend: held by ${clarityBackendNameHolder.id}`,
     );
+  }
+  if (clarityBackendApplication?.webhookUrl && clarityBackendApplication.webhookUrl !== clarity.backendApplication.webhookUrl) {
+    throw new Error("Clarity backend already declares another webhook; review its routing before replacing it");
   }
   if (clarityBackendApplication) {
     assertExact(
@@ -883,11 +907,14 @@ async function observeBootstrap(
     costCenters,
     homiioOwnerAccountId: homiioApplication.ownerAccountId,
     homiioApplicationScopes: homiioApplication.scopes,
+    homiioApplicationCapabilities: homiioApplication.capabilities,
+    homiioImportWorkloads,
     homiioSindiCredential,
     homiioApplicationBefore: homiioApplication,
     clarityApplicationExists: clarityApplication !== undefined,
     clarityCredentialExists: clarityCredential !== undefined,
     clarityBackendApplicationExists: clarityBackendApplication !== undefined,
+    clarityBackendWebhookUrl: clarityBackendApplication?.webhookUrl ?? null,
     clarityBackendCredential,
     clarityApplicationBefore: clarityApplication ?? null,
     clarityCredentialBefore: clarityCredential
@@ -923,15 +950,18 @@ function bootstrapOperations(observed: BootstrapObservations): string[] {
     observed.homiioOwnerAccountId === homiio.project.id
       ? `assert application-owner ${homiio.applicationId}=${homiio.project.id}`
       : `move application ${homiio.applicationId} owner ${observed.homiioOwnerAccountId}->${homiio.project.id}`,
-    ...homiio.sindiServiceCredential.scopes.map((scope) =>
+    ...[...homiio.sindiServiceCredential.scopes, homiio.organizationImport.scope].map((scope) =>
       observed.homiioApplicationScopes.includes(scope)
         ? `assert application-scope ${homiio.applicationId}:${scope}`
         : `grant application-scope ${homiio.applicationId}:${scope}`,
     ),
+    `${observed.homiioApplicationCapabilities.includes(homiio.organizationImport.capability) ? "assert" : "grant"} application-capability ${homiio.applicationId}:${homiio.organizationImport.capability}`,
+    ...observed.homiioImportWorkloads.map(binding => `${binding.scopes.includes(homiio.organizationImport.scope) ? "assert" : "grant"} workload-scope ${binding.id}:${homiio.organizationImport.scope}`),
     retiredCredentialOperation(observed.homiioSindiCredential),
     `${observed.clarityApplicationExists ? "assert" : "insert"} application ${clarity.application.id}`,
     `${observed.clarityCredentialExists ? "assert" : "insert"} credential ${clarity.publicCredential.id}`,
     `${observed.clarityBackendApplicationExists ? "assert" : "insert"} application ${clarity.backendApplication.id}`,
+    `${observed.clarityBackendWebhookUrl ? "assert" : "register"} webhook ${clarity.backendApplication.id}=${clarity.backendApplication.webhookUrl}`,
     retiredCredentialOperation(observed.clarityBackendCredential),
   ];
 }
@@ -950,7 +980,7 @@ async function applyBootstrap(
       .set({ ownerAccountId: homiio.project.id })
       .where(eq(applications.id, homiio.applicationId));
   }
-  const missingHomiioAppScopes = homiio.sindiServiceCredential.scopes.filter(
+  const missingHomiioAppScopes = [...homiio.sindiServiceCredential.scopes, homiio.organizationImport.scope].filter(
     (scope) => !observed.homiioApplicationScopes.includes(scope),
   );
   if (missingHomiioAppScopes.length > 0) {
@@ -963,6 +993,14 @@ async function applyBootstrap(
         ],
       })
       .where(eq(applications.id, homiio.applicationId));
+  }
+  if (!observed.homiioApplicationCapabilities.includes(homiio.organizationImport.capability)) {
+    await tx.update(applications).set({ capabilities: [...observed.homiioApplicationCapabilities, homiio.organizationImport.capability] }).where(eq(applications.id, homiio.applicationId));
+  }
+  for (const binding of observed.homiioImportWorkloads) {
+    if (!binding.scopes.includes(homiio.organizationImport.scope)) {
+      await tx.update(applicationWorkloadIdentities).set({ scopes: [...binding.scopes, homiio.organizationImport.scope] }).where(eq(applicationWorkloadIdentities.id, binding.id));
+    }
   }
   if (!observed.clarityApplicationExists) {
     await tx.insert(applications).values({
@@ -999,6 +1037,7 @@ async function applyBootstrap(
     await tx.insert(applications).values({
       id: clarity.backendApplication.id,
       name: clarity.backendApplication.name,
+      webhookUrl: clarity.backendApplication.webhookUrl,
       description: "Internal service identity for the Clarity Alia agent",
       type: clarity.backendApplication.type,
       status: "active",
@@ -1010,6 +1049,9 @@ async function applyBootstrap(
       ownerAccountId: clarity.project.id,
       createdByUserId: NATIVE_PRODUCT_AGENTS.oxyOrganizationId,
     });
+  }
+  if (observed.clarityBackendApplicationExists && observed.clarityBackendWebhookUrl === null) {
+    await tx.update(applications).set({webhookUrl:clarity.backendApplication.webhookUrl}).where(eq(applications.id,clarity.backendApplication.id));
   }
   // Last, so a backend application this run creates already exists — though a
   // credential this run could revoke can only belong to one that did.
@@ -1096,7 +1138,11 @@ async function execute(): Promise<BootstrapReport> {
         status: "active",
         isOfficial: true,
         isInternal: false,
+        requiredCapabilities: [NATIVE_PRODUCT_AGENTS.products.homiio.organizationImport.capability],
+        importWorkloads: [NATIVE_PRODUCT_AGENTS.products.homiio.organizationImport.workerWorkload],
+        requiredWorkloadScopes: [NATIVE_PRODUCT_AGENTS.products.homiio.organizationImport.scope],
         requiredApplicationScopes: [
+          NATIVE_PRODUCT_AGENTS.products.homiio.organizationImport.scope,
           ...NATIVE_PRODUCT_AGENTS.products.homiio.sindiServiceCredential
             .scopes,
         ],
@@ -1190,8 +1236,8 @@ async function execute(): Promise<BootstrapReport> {
           operation: ROLLBACK
             ? "rollback_native_product_agents"
             : "bootstrap_native_product_agents",
-          actor: approval!.actor,
-          reason: approval!.reason,
+          actor: approval?.actor,
+          reason: approval?.reason,
           planSha256,
           operations: plan.operations,
         },

@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `POST /users/search` (`UsersController.searchUsers`) against a REAL Postgres.
  *
@@ -73,7 +74,7 @@ async function search(query: unknown): Promise<SearchOutcome> {
 }
 
 async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  const [row] = await insertAccountFixtures(fields, { id: users.id });
   return row.id;
 }
 

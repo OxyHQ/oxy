@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 import { randomUUID } from 'node:crypto';
 import type { Server } from 'node:http';
 import { eq } from 'drizzle-orm';
@@ -145,8 +146,8 @@ const managedSessionId = `settings-managed-${randomUUID()}`;
 
 beforeAll(async () => {
   await connectPostgres();
-  await getDb().insert(users).values({ id: USER_ID, color: 'teal' });
-  await getDb().insert(users).values({ id: ORG_ID, color: 'teal', kind: 'organization' });
+  await insertAccountFixtures({ id: USER_ID, color: 'teal' });
+  await insertAccountFixtures({ id: ORG_ID, color: 'teal', kind: 'organization' });
   await getDb()
     .insert(sessions)
     .values({
@@ -162,15 +163,15 @@ beforeAll(async () => {
       isActive: true,
     });
   mockApprovingSessionId = managedSessionId;
-  const [agent] = await getDb()
-    .insert(users)
-    .values({
+  const [agent] = await insertAccountFixtures(
+    {
       color: 'teal',
       kind: 'bot',
       username: `settings-agent-${randomUUID()}`,
       parentAccountId: USER_ID,
-    })
-    .returning({ id: users.id });
+    },
+    { id: users.id },
+  );
   agentId = agent.id;
   const [application] = await getDb()
     .insert(applications)

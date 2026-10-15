@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `GET /session/device/directory` and `POST /session/device/activate` — the two
  * ADR 0002 endpoints, over real HTTP against a real Postgres.
@@ -79,10 +80,10 @@ let callerSessionId = 's1';
 let callerDeviceId = 'd1';
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u-${randomUUID().slice(0, 12)}`, ...over })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `u-${randomUUID().slice(0, 12)}`, ...over },
+    { id: users.id },
+  );
   return row.id;
 }
 

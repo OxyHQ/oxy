@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * GET /accounts/:id/members — the roster, and the inherited members it used to
  * leave out.
@@ -35,8 +36,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomBytes } from 'node:crypto';
 
 let actingUserId = '';
@@ -80,7 +81,6 @@ import { errorHandler } from '../../middleware/errorHandler';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { userAncestors } from '../../db/schema/userAncestors';
-import { users } from '../../db/schema/users';
 import { accountService } from '../../services/account.service';
 import { permissionsForAccountRole, type AccountRole } from '../../utils/accountRoles';
 
@@ -111,16 +111,13 @@ async function seedAccount(
   kind: 'personal' | 'organization' | 'project' | 'channel',
   parentAccountId?: string,
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({
-      color: 'teal',
-      username: uniqueUsername(kind),
-      kind,
-      parentAccountId,
-      rootAccountId: parentAccountId,
-    })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({
+    color: 'teal',
+    username: uniqueUsername(kind),
+    kind,
+    parentAccountId,
+    rootAccountId: parentAccountId,
+  });
   if (parentAccountId) {
     await getDb()
       .insert(userAncestors)

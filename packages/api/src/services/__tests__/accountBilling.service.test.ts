@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * Account-scoped billing, against a REAL Postgres.
  *
@@ -58,15 +59,15 @@ afterAll(async () => {
 
 async function seedAccount(parentAccountId?: string): Promise<string> {
   const suffix = randomUUID().slice(0, 8);
-  const [account] = await getDb()
-    .insert(users)
-    .values({
+  const [account] = await insertAccountFixtures(
+    {
       username: `bill-${suffix}`,
       email: `bill-${suffix}@example.test`,
       kind: parentAccountId === undefined ? 'organization' : 'project',
       parentAccountId,
-    })
-    .returning({ id: users.id });
+    },
+    { id: users.id },
+  );
 
   if (parentAccountId !== undefined) {
     // Root FIRST, matching `user_ancestors.depth` ordering — the same shape

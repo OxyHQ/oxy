@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../__fixtures__/accountIdentity';
 /** Additive 0137 constraints against the real migrated PostgreSQL, no auth mocks. */
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
@@ -14,8 +15,8 @@ beforeAll(connectPostgres);
 afterAll(closePostgres);
 
 async function fixture() {
-  const [actor] = await getDb().insert(users).values({ kind: 'bot' }).returning();
-  const [subject] = await getDb().insert(users).values({ kind: 'organization' }).returning();
+  const [actor] = await insertAccountFixtures({ kind: 'bot' });
+  const [subject] = await insertAccountFixtures({ kind: 'organization' });
   const [key] = await getDb()
     .insert(userAuthMethods)
     .values({

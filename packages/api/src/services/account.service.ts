@@ -1,3 +1,4 @@
+import type { OrganizationType } from '@oxy.so/contracts';
 /**
  * Account Service — unified Account graph (tree + membership + credentials).
  *
@@ -45,8 +46,13 @@ import { getDb, type Database } from '../config/postgres';
 import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
+import { organizationNameSchema } from '@oxy.so/contracts';
+import { organizationProfiles } from '../db/schema/organizationProfiles';
 import { publicColumns } from '@oxy.so/db/assert';
-import { PROTECTED_COLUMNS_BY_TABLE, USERS_PROTECTED_COLUMNS } from '../db/schema/protectedColumns';
+import {
+  PROTECTED_COLUMNS_BY_TABLE,
+  type USERS_PROTECTED_COLUMNS,
+} from '../db/schema/protectedColumns';
 import type { AccountKind } from '../db/schema/users';
 import {
   CHILD_ACCOUNT_KINDS,
@@ -127,14 +133,19 @@ function usernameTakenError(username: string): ConflictError {
  */
 function assertValidAccountName(
   name: { first?: string; last?: string; displayName?: string } | undefined,
+  kind?: string,
 ): void {
   if (!name || typeof name !== 'object') return;
-  // `displayName` is validated by the SAME policy as the human halves. It is a
-  // third write path onto the display string, so exempting it would mean the
-  // character policy holds only on whichever field the caller happened to use.
+  // Organization titles use the directory policy; human name halves and other
+  // account kinds retain the existing character policy and 100-character cap.
   for (const part of ['first', 'last', 'displayName'] as const) {
     const value = name[part];
-    if (typeof value === 'string' && !isValidDisplayName(value)) {
+    if (typeof value !== 'string') continue;
+    const valid =
+      kind === 'organization' && part === 'displayName'
+        ? value === '' || organizationNameSchema.safeParse(value).success
+        : value.trim().length <= 100 && isValidDisplayName(value);
+    if (typeof value === 'string' && !valid) {
       throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
     }
   }
@@ -260,6 +271,7 @@ export interface CreateChildAccountInput {
    * kind check on this path — see `createAccountRequestSchema`.
    */
   accountCategories?: AccountCategoryId[];
+  organizationType?: OrganizationType;
   /**
    * Born opted OUT of discovery. Omitted leaves the column default (`false`),
    * which is the unchanged behaviour for every existing caller — see
@@ -447,7 +459,9 @@ export class AccountService {
 
     const username = await this.assertUsernameAvailable(input.username, input.kind);
 
-    assertValidAccountName(input.name);
+    if (input.organizationType !== undefined && input.kind !== 'organization')
+      throw new BadRequestError('Organization type requires an organization account');
+    assertValidAccountName(input.name, input.kind);
 
     // `createAccountRequestSchema` refuses this on the wire; the service repeats
     // it because `createChildAccount` has other callers than that route.
@@ -520,6 +534,12 @@ export class AccountService {
           })
           .returning();
 
+        if (input.kind === 'organization' && input.organizationType !== undefined) {
+          await tx
+            .update(organizationProfiles)
+            .set({ organizationType: input.organizationType })
+            .where(eq(organizationProfiles.accountId, created.id));
+        }
         return { account: created, membership: member };
       }),
     );
@@ -651,6 +671,7 @@ export class AccountService {
       links?: string[];
       accountCategories?: AccountCategoryId[];
       character?: AvatarCharacter;
+      organizationType?: OrganizationType;
     },
   ): Promise<AccountRow> {
     const db = getDb();
@@ -663,6 +684,8 @@ export class AccountService {
       throw new NotFoundError('Account not found');
     }
 
+    if (input.organizationType !== undefined && account.kind !== 'organization')
+      throw new BadRequestError('Organization type requires an organization account');
     const set: Partial<typeof users.$inferInsert> = {};
 
     if (input.accountCategories !== undefined) {
@@ -707,7 +730,7 @@ export class AccountService {
       set.username = await this.assertUsernameAvailable(input.username, account.kind, accountId);
     }
     if (input.name !== undefined) {
-      assertValidAccountName(input.name);
+      assertValidAccountName(input.name, account.kind);
       // The two columns are independent, so only the supplied half is written.
       if (input.name.first !== undefined) set.nameFirst = input.name.first;
       if (input.name.last !== undefined) set.nameLast = input.name.last;
@@ -745,14 +768,24 @@ export class AccountService {
     // Same race as creation, on the rename: `set.username` was probed, and the
     // window between the probe and this statement is another request's chance to
     // take it.
-    const updated =
-      Object.keys(set).length > 0
-        ? (
-            await this.rejectingTakenUsername(set.username, () =>
-              db.update(users).set(set).where(eq(users.id, accountId)).returning(),
-            )
-          )[0]
-        : account;
+    const updated = await this.rejectingTakenUsername(set.username, () =>
+      db.transaction(async (tx) => {
+        if (input.organizationType !== undefined) {
+          await tx
+            .update(organizationProfiles)
+            .set({ organizationType: input.organizationType, updatedAt: new Date() })
+            .where(eq(organizationProfiles.accountId, accountId));
+        }
+        if (Object.keys(set).length === 0) return account;
+        const [changed] = await tx
+          .update(users)
+          .set(set)
+          .where(eq(users.id, accountId))
+          .returning();
+        if (!changed) throw new NotFoundError('Account not found');
+        return changed;
+      }),
+    );
 
     userCache.invalidate(accountId);
 
@@ -903,6 +936,20 @@ export class AccountService {
     }
 
     const db = getDb();
+    // A directory identity has no operating authority until its claim is approved.
+    const [directoryProfile] = await db
+      .select({
+        claimStatus: organizationProfiles.claimStatus,
+        status: organizationProfiles.status,
+      })
+      .from(organizationProfiles)
+      .where(eq(organizationProfiles.accountId, accountId))
+      .limit(1);
+    if (
+      directoryProfile &&
+      (directoryProfile.claimStatus !== 'claimed' || directoryProfile.status !== 'active')
+    )
+      return null;
     const ancestors = await loadAncestors(db, accountId);
     const pathIds = [accountId, ...ancestors];
 

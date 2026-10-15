@@ -218,3 +218,7 @@ describe('zodToOpenApi: the OpenAPI 3.1 dialect', () => {
     expect(zodToOpenApi(z.unknown().nullable())).toEqual({});
   });
 });
+
+it('preserves an explicitly null cursor as JSON Schema null', () => {
+  expect(zodToOpenApi(z.null())).toEqual({ type: 'null' });
+});

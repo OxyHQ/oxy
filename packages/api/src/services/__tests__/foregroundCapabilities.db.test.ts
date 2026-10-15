@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /** Real PostgreSQL/JWT/HTTP capability issuance and Oxy domain receiver.
  * Only AWS attestation and Redis nonce transport are isolated in this fixture.
  */
@@ -53,7 +54,6 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applicationWorkloadIdentities } from '../../db/schema/applicationWorkloadIdentities';
 import { appUserSignals } from '../../db/schema/appUserSignals';
 import { buildRecommendations } from '../../routes/profiles';
-import { users } from '../../db/schema/users';
 import { sessions } from '../../db/schema/sessions';
 import { appGrants } from '../../db/schema/appGrants';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -107,7 +107,7 @@ app.use('/_oxy/capabilities', foregroundProfilesRouter);
 app.use(errorHandler);
 
 async function presenter() {
-  const [owner] = await getDb().insert(users).values({}).returning();
+  const [owner] = await insertAccountFixtures({});
   const [application] = await getDb()
     .insert(applications)
     .values({
@@ -163,10 +163,9 @@ async function presenter() {
   return { owner, application, service, client, token };
 }
 async function requester(p: Awaited<ReturnType<typeof presenter>>, appBound = false) {
-  const [user] = await getDb()
-    .insert(users)
-    .values({ username: `foreground_${randomUUID().slice(0, 8)}` })
-    .returning();
+  const [user] = await insertAccountFixtures({
+    username: `foreground_${randomUUID().slice(0, 8)}`,
+  });
   const session = await sessionService.createSession(user.id, { headers: {} } as Request, {
     deviceId: randomUUID(),
     ...(appBound
@@ -447,10 +446,10 @@ it('rejects free ids, standing/automation authority, stale pins and another pres
 
 it('a live bot requester retains its real key provenance and rejects a revoked signer', async () => {
   const p = await presenter();
-  const [bot] = await getDb()
-    .insert(users)
-    .values({ kind: 'bot', username: `fgbot${randomUUID().slice(0, 8)}` })
-    .returning();
+  const [bot] = await insertAccountFixtures({
+    kind: 'bot',
+    username: `fgbot${randomUUID().slice(0, 8)}`,
+  });
   const [key] = await getDb()
     .insert(userAuthMethods)
     .values({
@@ -536,13 +535,10 @@ it('private application signals and viewer ranking match the existing domain bui
   const p = await presenter();
   const r = await requester(p);
   process.env.MENTION_APPLICATION_ID = p.application.id;
-  const [candidate] = await getDb()
-    .insert(users)
-    .values({
-      username: `private_${randomUUID().slice(0, 8)}`,
-      nameFirst: 'Private signal candidate',
-    })
-    .returning();
+  const [candidate] = await insertAccountFixtures({
+    username: `private_${randomUUID().slice(0, 8)}`,
+    nameFirst: 'Private signal candidate',
+  });
   await getDb().insert(appUserSignals).values({
     applicationId: p.application.id,
     userId: candidate.id,
@@ -598,10 +594,10 @@ it('private application signals and viewer ranking match the existing domain bui
 it('principal A operating subject B stays separate and membership withdrawal cannot switch the ticket subject', async () => {
   const p = await presenter();
   const r = await requester(p);
-  const [subject] = await getDb()
-    .insert(users)
-    .values({ kind: 'organization', username: `subject_${randomUUID().slice(0, 8)}` })
-    .returning();
+  const [subject] = await insertAccountFixtures({
+    kind: 'organization',
+    username: `subject_${randomUUID().slice(0, 8)}`,
+  });
   const [membership] = await getDb()
     .insert(accountMembers)
     .values({ accountId: subject.id, memberUserId: r.user.id, role: 'owner', status: 'active' })

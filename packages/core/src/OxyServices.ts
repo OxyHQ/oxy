@@ -1,3 +1,4 @@
+import { SafetyApi } from './api/safety';
 /**
  * `OxyServices` — the Oxy API client.
  *
@@ -32,6 +33,7 @@ import { PrivacyApi } from './api/privacy';
 import { NotificationsApi } from './api/notifications';
 import { AssetsApi } from './api/assets';
 import { IdentityApi } from './api/identity';
+import { OrganizationsApi } from './api/organizations';
 import { AccountsApi } from './api/accounts';
 import { AppsApi } from './api/apps';
 import { LinkedAccountsApi } from './api/linkedAccounts';
@@ -191,6 +193,8 @@ export class OxyServices {
   private _assets?: AssetsApi;
   private _identity?: IdentityApi;
   private _accounts?: AccountsApi;
+  private _organizations?: OrganizationsApi;
+  private _safety?: SafetyApi;
   private _apps?: AppsApi;
   private _linkedAccounts?: LinkedAccountsApi;
   private _agency?: AgencyApi;
@@ -245,6 +249,16 @@ export class OxyServices {
     return this._identity;
   }
   /** The account graph: accounts and their members. */
+  get safety(): SafetyApi {
+    if (!this._safety) this._safety = new SafetyApi(this.context);
+    return this._safety;
+  }
+
+  get organizations(): OrganizationsApi {
+    if (!this._organizations) this._organizations = new OrganizationsApi(this.context);
+    return this._organizations;
+  }
+
   get accounts(): AccountsApi {
     if (!this._accounts) this._accounts = new AccountsApi(this.context);
     return this._accounts;

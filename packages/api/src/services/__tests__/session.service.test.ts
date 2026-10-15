@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `session.service` against a REAL Postgres.
  *
@@ -73,10 +74,7 @@ function request(headers: Record<string, string> = {}): Request {
 }
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u-${randomUUID().slice(0, 12)}`, ...over })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}`, ...over });
   return row.id;
 }
 

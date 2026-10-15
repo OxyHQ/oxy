@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * Approving a sign-in from an OPERATED session never drops the operator
  * (issue #1520, I01) — against a REAL Postgres, real `authMiddleware`, real
@@ -22,8 +23,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
@@ -110,10 +111,10 @@ function post(path: string, bearer: string, body: unknown = {}): Promise<JsonRes
 }
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u${randomUUID().replace(/-/g, '').slice(0, 14)}`, ...over })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `u${randomUUID().replace(/-/g, '').slice(0, 14)}`, ...over },
+    { id: users.id },
+  );
   return row.id;
 }
 

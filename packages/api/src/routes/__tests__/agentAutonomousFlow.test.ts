@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /** Real HTTP/JWT/secp256k1/Postgres. Only rate limits, logging and sockets are external stubs. */
 import express from 'express';
 import http from 'node:http';
@@ -104,11 +105,8 @@ async function post(
 async function fixture() {
   const privateKey = (++keyCounter).toString(16).padStart(64, '0');
   const publicKey = SignatureService.canonicalizePublicKey(deriveSecp256k1PublicKey(privateKey));
-  const [bot] = await getDb().insert(users).values({ kind: 'bot' }).returning({ id: users.id });
-  const [org] = await getDb()
-    .insert(users)
-    .values({ kind: 'organization' })
-    .returning({ id: users.id });
+  const [bot] = await insertAccountFixtures({ kind: 'bot' }, { id: users.id });
+  const [org] = await insertAccountFixtures({ kind: 'organization' }, { id: users.id });
   const [key] = await getDb()
     .insert(userAuthMethods)
     .values({
@@ -552,7 +550,7 @@ it.each(['compressed', 'uncompressed', 'uppercase'] as const)(
         : encoding === 'uppercase'
           ? canonical.toUpperCase()
           : canonical;
-    const [bot] = await getDb().insert(users).values({ kind: 'bot' }).returning();
+    const [bot] = await insertAccountFixtures({ kind: 'bot' });
     const [method] = await getDb()
       .insert(userAuthMethods)
       .values({
@@ -593,7 +591,7 @@ it('SDK signer compressed, uncompressed and mixed-case forms converge on one SQL
   const privateKey = (++keyCounter).toString(16).padStart(64, '0');
   const compressed = deriveSecp256k1PublicKey(privateKey, true);
   const canonical = SignatureService.canonicalizePublicKey(compressed);
-  const [bot] = await getDb().insert(users).values({ kind: 'bot' }).returning();
+  const [bot] = await insertAccountFixtures({ kind: 'bot' });
   const [method] = await getDb()
     .insert(userAuthMethods)
     .values({

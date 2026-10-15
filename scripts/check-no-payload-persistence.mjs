@@ -165,6 +165,12 @@ const BANNED_NAME_PATTERNS = [
  */
 const DECLARED_FREE_SHAPED_COLUMNS = [
   {
+    table: 'organization_profiles',
+    column: 'aliases',
+    holds:
+      'Bounded organizationAliasSchema entries (alias, closed kind, optional language), canonical public directory identity facts; no inference payload or authority evidence.',
+  },
+  {
     table: 'inference_deployments',
     column: 'privateAutoSourceApproval',
     holds:

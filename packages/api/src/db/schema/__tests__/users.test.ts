@@ -1,3 +1,5 @@
+import { organizationProfiles } from '../organizationProfiles';
+import { insertAccountFixtures } from '../../__fixtures__/accountIdentity';
 /**
  * `users` behaviour, against a REAL Postgres.
  *
@@ -14,13 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { maybeHashEmail, maybeHashPhone } from '../../../utils/contactHash';
-import {
-  ACCOUNT_KINDS,
-  ACCOUNT_STATUSES,
-  USER_COLOR_PRESETS,
-  randomUserColor,
-  users,
-} from '../users';
+import { USER_COLOR_PRESETS, randomUserColor, users } from '../users';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -59,10 +55,7 @@ async function rejection(query: Promise<unknown>): Promise<unknown> {
 
 /** Insert a minimal valid user and return its id. */
 async function insertUser(values: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal', ...values })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures({ color: 'teal', ...values }, { id: users.id });
   return row.id;
 }
 
@@ -275,11 +268,18 @@ describe('closed value sets and value constraints', () => {
   ])(
     'accepts a declared %s (guards against a check that rejects everything)',
     async (column, value) => {
+      const id = unique();
       await expect(
-        getDb().execute(sql`
-        insert into users (id, color, ${sql.raw(column)})
-        values (${unique()}, 'teal', ${value})
-      `),
+        getDb().transaction(async (tx) => {
+          const result = await tx.execute(
+            sql`insert into users (id,color,${sql.raw(column)}) values (${id},'teal',${value})`,
+          );
+          if (column === 'kind' && value === 'organization')
+            await tx
+              .insert(organizationProfiles)
+              .values({ accountId: id, claimStatus: 'unclaimed' });
+          return result;
+        }),
       ).resolves.toBeDefined();
     },
   );
@@ -375,7 +375,7 @@ describe('defaults', () => {
   });
 
   it('picks a random non-premium color when none is supplied', async () => {
-    const [row] = await getDb().insert(users).values({}).returning({ color: users.color });
+    const [row] = await insertAccountFixtures({}, { color: users.color });
 
     expect(USER_COLOR_PRESETS).toContain(row.color);
     expect(row.color).not.toBe('oxy');
@@ -387,7 +387,7 @@ describe('defaults', () => {
 
   it('stores an ObjectId hex verbatim and mints uuid v7 otherwise', async () => {
     const legacy = 'a1b2c3d4e5f60718293a4b5d';
-    await getDb().insert(users).values({ id: legacy, color: 'teal' });
+    await insertAccountFixtures({ id: legacy, color: 'teal' });
     const [kept] = await getDb().select({ id: users.id }).from(users).where(eq(users.id, legacy));
     expect(kept.id).toBe(legacy);
 

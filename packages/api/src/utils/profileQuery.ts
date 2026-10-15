@@ -1,3 +1,4 @@
+import { organizationProfiles } from '../db/schema/organizationProfiles';
 /**
  * Profile-discovery predicates.
  *
@@ -42,10 +43,16 @@ function nonEmpty(column: SQL | ReturnType<typeof sql>): SQL {
  * The floor under every people surface: not an archived account, not in the
  * punitive `restricted` reputation tier.
  */
+/** A suppressed or redirected directory entry cannot reappear through generic profile APIs. */
+export function visibleOrganizationIdentityPredicate(): SQL {
+  return sql`(${users.kind} <> 'organization' or exists (select 1 from ${organizationProfiles} where ${organizationProfiles.accountId} = ${users.id} and ${organizationProfiles.status} in ('active','inactive'))) `;
+}
+
 export function discoverableUserPredicate(): SQL {
   const predicate = and(
     ne(users.accountStatus, 'archived'),
     ne(users.reputationTier, 'restricted'),
+    visibleOrganizationIdentityPredicate(),
   );
   // `and()` of two non-undefined arguments is always defined; the cast-free
   // narrowing keeps the return type honest for callers that compose it.

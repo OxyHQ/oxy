@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * Authority over a payer-owned record is the PAYER's, not the path account's.
  *
@@ -27,9 +28,9 @@
  */
 
 import express from 'express';
-import http from 'http';
-import crypto from 'crypto';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 
 // The verified token names the human operator as `principalUserId` when the
 // session speaks as a managed account; a missing or unreadable session leaves
@@ -134,10 +135,10 @@ async function seedAccount(
   kind: 'personal' | 'organization' | 'project',
   parentAccountId?: string,
 ): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `bill-${tag()}`, kind, parentAccountId })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `bill-${tag()}`, kind, parentAccountId },
+    { id: users.id },
+  );
 
   if (parentAccountId !== undefined) {
     await getDb()
@@ -386,10 +387,10 @@ describe('managed-session billing writes retain account and staff gates', () => 
   });
   it('does not confer staff on a managed subject even when its operator is staff', async () => {
     const workspace = await seedAccount('organization');
-    const [operator] = await getDb()
-      .insert(users)
-      .values({ username: `bill-staff-${tag()}`, kind: 'personal', isStaff: true })
-      .returning({ id: users.id });
+    const [operator] = await insertAccountFixtures(
+      { username: `bill-staff-${tag()}`, kind: 'personal', isStaff: true },
+      { id: users.id },
+    );
     await seedMember(workspace, operator.id);
     currentUserId = workspace;
     currentOperatorId = operator.id;
