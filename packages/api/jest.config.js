@@ -40,12 +40,6 @@ module.exports = {
     // regex below; the contracts source only imports `zod`, which resolves
     // normally from node_modules.
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
-    // `@kaana.ai/contracts` (Kaana ADR 0002) is vendored from an exact Kaana
-    // commit until it is published (`vendor/kaana-contracts/provenance.json`).
-    // From source for the same reason as `@oxy.so/contracts`; its own `zod` 4
-    // resolves from the vendored package's node_modules.
-    '^@kaana.ai/contracts$': '<rootDir>/../../vendor/kaana-contracts/src/index.ts',
-    '^@kaana.ai/contracts/internal$': '<rootDir>/../../vendor/kaana-contracts/src/internal.ts',
     // The protocol node subpath (NodeClient, used by nodeSync.service) — resolve
     // from source like the protocol root so the api-test job needs no prior build.
     '^@oxy.so/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
@@ -128,7 +122,25 @@ module.exports = {
         tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'node10' },
       },
     ],
+    // `@kaana.ai/contracts` (Kaana ADR 0002) is published ESM-only. Jest's CJS
+    // runtime cannot load its `dist/*.js`, so they are lowered to CommonJS by
+    // the same per-file transpile as the API's own sources.
+    '^.+/@kaana\\.ai/contracts/dist/.+\\.js$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: {
+          isolatedModules: true,
+          module: 'commonjs',
+          moduleResolution: 'node10',
+          allowJs: true,
+        },
+      },
+    ],
   },
+  // node_modules stays untransformed except @kaana.ai, whose ESM build needs
+  // the transform above (bun's isolated linker nests it under node_modules/.bun).
+  transformIgnorePatterns: ['/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/)'],
   // Balances `--shard=i/N` by measured duration; changes which runner runs a
   // file, never whether it runs. See jest.shardSequencer.cjs.
   testSequencer: '<rootDir>/jest.shardSequencer.cjs',

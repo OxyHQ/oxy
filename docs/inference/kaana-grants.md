@@ -14,8 +14,7 @@ over a private API:
 | `POST /internal/kaana/v1/settlements` | settles one grant, exactly once, from Kaana's measured units |
 
 Shapes are `@kaana.ai/contracts/internal` (`grant.ts`, `settlement.ts`),
-vendored at `vendor/kaana-contracts` from an exact Kaana commit until the
-package is on npm (`scripts/vendor-kaana-contracts.mjs`, `provenance.json`).
+the published npm package pinned exactly in `packages/api/package.json`.
 Code: `packages/api/src/routes/internalKaana.ts`,
 `services/kaanaGrant.service.ts`, `kaanaGrantReads.service.ts`,
 `kaanaSettlement.service.ts`, `kaanaGrantSigning.ts`.
