@@ -1,3 +1,4 @@
+import { safetyOrganizationIdentities } from '../services/organization-directory.service';
 import {
   safetyProfileRequestSchema,
   safetyProfileBatchRequestSchema,
@@ -16,6 +17,8 @@ import {
   messagingSessionsInputSchema,
   messagingSessionsResponseSchema,
   safetyErrorSchema,
+  safetyOrganizationsInputSchema,
+  safetyOrganizationsResponseSchema,
   safetyPeopleInputSchema,
   safetyPeopleResponseSchema,
   publicationPolicySchema,
@@ -728,6 +731,29 @@ router.get(
   handler(async (req, res) =>
     res.json(supervisionStateSchema.parse(await supervision.getSupervisionState(personal(req)))),
   ),
+);
+/**
+ * Minimal existing employer identities for an authenticated personal account.
+ * @requestBody safetyOrganizationsInputSchema
+ * @response 200 safetyOrganizationsResponseSchema Minimal organization identities.
+ * @response 401 safetyErrorSchema Request refused.
+ * @response 403 safetyErrorSchema Request refused.
+ * @response 422 safetyErrorSchema Request refused.
+ * @response 429 safetyErrorSchema Request refused.
+ * @response 503 safetyErrorSchema Request refused.
+ */
+router.post(
+  '/supervision/organizations',
+  handler(async (req, res) => {
+    res.json(
+      safetyOrganizationsResponseSchema.parse(
+        await safetyOrganizationIdentities(
+          personal(req),
+          safetyOrganizationsInputSchema.parse(req.body),
+        ),
+      ),
+    );
+  }),
 );
 /**
  * Minimal identities for supervision selection and existing relationships.

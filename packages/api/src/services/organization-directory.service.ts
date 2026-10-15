@@ -1,8 +1,10 @@
 import { alias } from 'drizzle-orm/pg-core';
 import userCache from '../utils/userCache';
 import { createHash, randomUUID } from 'node:crypto';
-import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import type {
+  SafetyOrganizationsInput,
+  SafetyOrganizationIdentity,
   CreateOrganization,
   Organization,
   OrganizationClaim,
@@ -17,6 +19,7 @@ import type {
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {
   users,
+  blocks,
   files,
   applications,
   billingProfiles,
@@ -96,7 +99,7 @@ async function presentMany(
 }
 
 /** Redirects are flattened on merge, so every batch needs at most two identity queries. */
-export async function batchOrganizations(ids: string[], db: DatabaseOrTransaction = getDb()) {
+async function batchOrganizationRows(ids: string[], db: DatabaseOrTransaction, extra?: SQL) {
   const unique = [...new Set(ids)];
   if (!unique.length) return { items: [], missingIds: [] };
   const initial = await publicRows(db).where(
@@ -106,6 +109,7 @@ export async function batchOrganizations(ids: string[], db: DatabaseOrTransactio
       ne(users.accountStatus, 'archived'),
       eq(users.privacyIsPrivateAccount, false),
       ne(organizationProfiles.status, 'suppressed'),
+      extra,
     ),
   );
   const redirects = initial.flatMap((row) =>
@@ -119,12 +123,12 @@ export async function batchOrganizations(ids: string[], db: DatabaseOrTransactio
           ne(users.accountStatus, 'archived'),
           eq(users.privacyIsPrivateAccount, false),
           inArray(organizationProfiles.status, ['active', 'inactive']),
+          extra,
         ),
       )
     : [];
-  const all = await presentMany(db, [...initial, ...targets]);
-  const byId = new Map(all.map((row) => [row.accountId, row]));
-  const items: { requestedAccountId: string; organization: Organization }[] = [];
+  const byId = new Map([...initial, ...targets].map((row) => [row.accountId, row]));
+  const items: { requestedAccountId: string; organization: DirectoryRow }[] = [];
   const missingIds: string[] = [];
   for (const requestedAccountId of unique) {
     const original = byId.get(requestedAccountId);
@@ -136,6 +140,25 @@ export async function batchOrganizations(ids: string[], db: DatabaseOrTransactio
   }
   return { items, missingIds };
 }
+export async function batchOrganizations(ids: string[], db: DatabaseOrTransaction = getDb()) {
+  const resolved = await batchOrganizationRows(ids, db);
+  const identities = new Map(
+    (
+      await presentMany(
+        db,
+        resolved.items.map((item) => item.organization),
+      )
+    ).map((row) => [row.accountId, row]),
+  );
+  return {
+    items: resolved.items.map((item) => {
+      const organization = identities.get(item.organization.accountId);
+      if (!organization) throw missing();
+      return { requestedAccountId: item.requestedAccountId, organization };
+    }),
+    missingIds: resolved.missingIds,
+  };
+}
 export async function getOrganization(
   accountId: string,
   db: DatabaseOrTransaction = getDb(),
@@ -145,7 +168,11 @@ export async function getOrganization(
   return result.items[0].organization;
 }
 
-export async function searchOrganizations(input: OrganizationSearch) {
+async function searchOrganizationRows(
+  input: OrganizationSearch,
+  extra?: SQL,
+  safetyActor?: string,
+) {
   const query = (input.query ?? '').trim().toLowerCase();
   const limit = Number(input.limit ?? 20);
   const fingerprint = createHash('sha256')
@@ -189,6 +216,15 @@ export async function searchOrganizations(input: OrganizationSearch) {
         ne(organizationProfiles.status, 'suppressed'),
         eq(sourceIdentity.privacyIsPrivateAccount, false),
         ne(sourceIdentity.accountStatus, 'archived'),
+        safetyActor
+          ? and(
+              eq(sourceIdentity.accountStatus, 'active'),
+              eq(sourceIdentity.privacyProfileVisibility, true),
+              ne(sourceIdentity.reputationTier, 'restricted'),
+              inArray(organizationProfiles.status, ['active', 'merged']),
+              sql`not exists (select 1 from ${blocks} b where (b.user_id = ${safetyActor} and b.blocked_id = ${sourceIdentity.id}) or (b.blocked_id = ${safetyActor} and b.user_id = ${sourceIdentity.id}))`,
+            )
+          : undefined,
       ),
     );
   const rows = await publicRows(getDb())
@@ -198,6 +234,7 @@ export async function searchOrganizations(input: OrganizationSearch) {
         ne(users.accountStatus, 'archived'),
         eq(users.privacyIsPrivateAccount, false),
         inArray(organizationProfiles.status, ['active', 'inactive']),
+        extra,
         input.organizationType
           ? eq(organizationProfiles.organizationType, input.organizationType)
           : undefined,
@@ -210,13 +247,56 @@ export async function searchOrganizations(input: OrganizationSearch) {
   const visible = rows.slice(0, limit);
   const last = visible[visible.length - 1];
   return {
-    items: await presentMany(getDb(), visible),
+    items: visible,
     nextCursor:
       rows.length > limit && last
         ? Buffer.from(
             JSON.stringify({ kind: 'organizations', fingerprint, after: last.accountId }),
           ).toString('base64url')
         : null,
+  };
+}
+
+export async function searchOrganizations(input: OrganizationSearch) {
+  const result = await searchOrganizationRows(input);
+  return { ...result, items: await presentMany(getDb(), result.items) };
+}
+/** Same indexed directory and flattened redirects, with a strict safety identity projection. */
+export async function safetyOrganizationIdentities(actor: string, input: SafetyOrganizationsInput) {
+  const available = and(
+    eq(users.accountStatus, 'active'),
+    eq(users.privacyProfileVisibility, true),
+    ne(users.reputationTier, 'restricted'),
+    inArray(organizationProfiles.status, ['active', 'merged']),
+    sql`not exists (select 1 from ${blocks} b where (b.user_id = ${actor} and b.blocked_id = ${users.id}) or (b.blocked_id = ${actor} and b.user_id = ${users.id}))`,
+  );
+  const identity = (row: DirectoryRow): SafetyOrganizationIdentity => ({
+    accountId: row.accountId,
+    username: row.username,
+    name: row.name ?? row.username ?? '',
+    organizationType: row.organizationType,
+  });
+  if ('ids' in input) {
+    const result = await batchOrganizationRows(input.ids, getDb(), available);
+    return {
+      items: result.items.map((item) => ({
+        requestedAccountId: item.requestedAccountId,
+        organization: identity(item.organization),
+      })),
+      missingIds: result.missingIds,
+    };
+  }
+  const result = await searchOrganizationRows(
+    { query: input.query, limit: input.limit ?? 20 },
+    available,
+    actor,
+  );
+  return {
+    items: result.items.map((row) => ({
+      requestedAccountId: row.accountId,
+      organization: identity(row),
+    })),
+    missingIds: [],
   };
 }
 

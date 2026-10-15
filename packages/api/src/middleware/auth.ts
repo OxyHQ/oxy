@@ -189,6 +189,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         // Use session service for optimized validation with caching
         const validationResult = await sessionService.validateSession(token, {
           allowSupervisedPolicyEvaluation: res.locals.supervisedSelfOperation === true,
+          throwOnError: res.locals.supervisedSelfOperation === true,
         });
 
         if (!validationResult) {
@@ -239,7 +240,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
             method: 'authMiddleware',
           },
         );
-        return sendAuthFailure(res, 500, {
+        return sendAuthFailure(res, res.locals.supervisedSelfOperation === true ? 503 : 500, {
           error: 'Database error',
           message: 'Error validating session',
         });
