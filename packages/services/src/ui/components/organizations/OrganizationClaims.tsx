@@ -57,7 +57,7 @@ export function OrganizationClaims() {
             showChevron={false}
           />
         ))}
-      {requests.hasNextPage ? (
+      {!requests.isError && requests.hasNextPage ? (
         <Button onPress={() => requests.fetchNextPage()} disabled={requests.isFetchingNextPage}>
           {t('organizationDirectory.loadMore')}
         </Button>

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 
+const accountGet = jest.fn();
 const search = jest.fn();
 const claim = jest.fn();
 const create = jest.fn();
@@ -18,6 +19,7 @@ const checkUsername = jest.fn();
 let user = { id: 'person', kind: 'personal' };
 let ready = true;
 const oxyServices = {
+  accounts: { get: accountGet },
   organizations: {
     search,
     claim,
@@ -44,6 +46,7 @@ import { OrganizationDirectorySearch } from '../../src/ui/components/organizatio
 import { OrganizationSettings } from '../../src/ui/components/organizations/OrganizationSettings';
 import { OrganizationClaims } from '../../src/ui/components/organizations/OrganizationClaims';
 import { OrganizationClaimReview } from '../../src/ui/components/organizations/OrganizationClaimReview';
+import AccountSettingsScreen from '../../src/ui/screens/AccountSettingsScreen';
 import CreateAccountScreen from '../../src/ui/screens/CreateAccountScreen';
 
 const organization = {
@@ -316,4 +319,30 @@ it('hides private review evidence and actions when a fresh authorization check i
     screen.queryByRole('button', { name: 'organizationDirectory.review.rejected' }),
   ).toBeNull();
   expect(reviewClaim).not.toHaveBeenCalled();
+});
+
+it('does not reuse an owner membership when a different viewer opens the same organization', async () => {
+  accountGet.mockResolvedValueOnce({
+    accountId: 'existing-org',
+    relationship: 'owned',
+    account: { id: 'existing-org', kind: 'organization', name: { displayName: 'Acme' } },
+    callerMembership: { permissions: ['account:update'] },
+  });
+  const view = mount(<AccountSettingsScreen accountId="existing-org" />);
+  await screen.findByRole('button', { name: 'organizationDirectory.save' });
+  accountGet.mockResolvedValueOnce({
+    accountId: 'existing-org',
+    relationship: 'member',
+    account: { id: 'existing-org', kind: 'organization', name: { displayName: 'Acme' } },
+    callerMembership: { permissions: [] },
+  });
+  user = { id: 'read-only-member', kind: 'personal' };
+  view.rerender(
+    <QueryClientProvider client={clients[0]}>
+      <AccountSettingsScreen accountId="existing-org" />
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByRole('button', { name: 'organizationDirectory.save' })).toBeNull();
+  await screen.findByText('organizationDirectory.readonly');
+  expect(accountGet).toHaveBeenCalledTimes(2);
 });

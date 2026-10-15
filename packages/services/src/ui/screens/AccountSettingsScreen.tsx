@@ -53,7 +53,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
   const id = typeof accountId === 'string' ? accountId : '';
 
   const accountQuery = useQuery({
-    queryKey: ['accounts', 'detail', id],
+    queryKey: ['accounts', 'detail', id, user?.id, canUsePrivateApi],
     queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });

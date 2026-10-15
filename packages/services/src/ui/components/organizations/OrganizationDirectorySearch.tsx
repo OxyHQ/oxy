@@ -52,7 +52,8 @@ export function OrganizationDirectorySearch({
   });
   const claim = useMutation({
     mutationFn: () => {
-      if (!personalReady || !selected) throw new Error('A personal session is required');
+      if (!personalReady || !selected || selected.status !== 'active')
+        throw new Error('An active organization and personal session are required');
       return oxyServices.organizations.claim(
         selected.accountId,
         organizationClaimInputSchema.parse({ evidenceReference: evidence }),
@@ -86,6 +87,9 @@ export function OrganizationDirectorySearch({
       <SettingsListGroup title={selected.name}>
         <View className="gap-space-16 p-space-16">
           <Text>{t(`organizationDirectory.${selected.claimStatus}`)}</Text>
+          {selected.status === 'inactive' ? (
+            <Text>{t('organizationDirectory.inactive')}</Text>
+          ) : null}
           {selected.claimStatus === 'unclaimed' ? (
             <>
               <Text>{t('organizationDirectory.claimHint')}</Text>
@@ -103,7 +107,12 @@ export function OrganizationDirectorySearch({
               ) : (
                 <Button
                   onPress={() => claim.mutate()}
-                  disabled={!personalReady || !evidence.trim() || claim.isPending}
+                  disabled={
+                    !personalReady ||
+                    selected.status !== 'active' ||
+                    !evidence.trim() ||
+                    claim.isPending
+                  }
                   loading={claim.isPending}
                 >
                   {t('organizationDirectory.claim')}

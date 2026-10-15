@@ -138,7 +138,13 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
       {detail.isPending ? <ActivityIndicator /> : null}
       {detail.isError ? (
         <>
-          <Text accessibilityRole="alert">{t('organizationDirectory.review.forbidden')}</Text>
+          <Text accessibilityRole="alert">
+            {t(
+              isHttpRequestError(detail.error) && detail.error.status === 403
+                ? 'organizationDirectory.review.forbidden'
+                : 'organizationDirectory.requestError',
+            )}
+          </Text>
           <Button onPress={() => detail.refetch()}>{t('organizationDirectory.retry')}</Button>
         </>
       ) : null}
