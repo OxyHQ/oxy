@@ -420,6 +420,10 @@ export const KAANA_SPEECH_MODEL_REFERENCE = `${KAANA_SPEECH_MODEL_ID}@observed-2
  */
 export const KAANA_SPEECH_MAX_INPUT_CHARACTERS = 15_000;
 
+/** The one reviewed speech route: its serving provider and exact Kaana deployment. */
+export const KAANA_SPEECH_PROVIDER_SLUG = 'xai';
+export const KAANA_SPEECH_DEPLOYMENT_ID = 'dep_xai_tts_observed_2026_09_24';
+
 export const KAANA_SPEECH_PUBLISHER = {
   slug: 'x-ai',
   displayName: 'xAI',
@@ -481,7 +485,7 @@ const KAANA_SPEECH_SCORECARD_REASON =
 
 export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
   {
-    slug: 'xai',
+    slug: KAANA_SPEECH_PROVIDER_SLUG,
     displayName: 'xAI',
     websiteUrl: 'https://x.ai/',
     // xAI stores API requests and responses for 30 days for abuse auditing,
@@ -492,7 +496,7 @@ export const KAANA_SPEECH_PROVIDERS: readonly KaanaInitialProvider[] = [
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
     policyUrl: 'https://docs.x.ai/developers/faq/security',
-    deploymentId: 'dep_xai_tts_observed_2026_09_24',
+    deploymentId: KAANA_SPEECH_DEPLOYMENT_ID,
     upstreamModelId: 'tts',
     legalEvidenceRef:
       'owner-approval-2026-09-24:https://x.ai/legal/terms-of-service-enterprise;https://docs.x.ai/developers/faq/security;scope=internal-alia-standard-application-use-not-api-resale',

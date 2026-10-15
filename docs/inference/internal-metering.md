@@ -87,8 +87,9 @@ decisions retain their **8192** base ceiling and independent scoped authority.
 It counts UTF-8 serialized normalized
 input, tools, tool choice and response format, plus explicit local allowances
 of 256 base, 32 per message and 32 per tool. It includes roles, tool arguments
-and schemas. Only text completions can satisfy this guard; unsupported modalities
-and operations fail before claims or execution. This is a conservative budget
+and schemas. Only text completions (and speech, under its own terms below) can
+satisfy this guard; unsupported modalities and operations fail before claims or
+execution. This is a conservative budget
 of content Oxy controls, **not** a certified maximum of provider tokens, hidden
 prompts, framing or billable usage. No tokenizer or upstream consumption guarantee
 is inferred. Strict provider-token enforcement requires a verified Kaana/provider
@@ -139,6 +140,34 @@ the XHigh failover serves — never a paid Anthropic key. The scorecard stays
 `promotional_credit` while ANY Anthropic grant is available. Input
 and output bounds are unchanged: the fallback signed beside Claude must fit the
 same request.
+
+### Speech synthesis (2026-10-15)
+
+Version `oxy-inference-economics/2026-10-15.1` gives the pilot an explicit
+`speech` block (`InternalMeteredSpeechPilot` in
+`config/inferenceEconomicPolicy.ts`), approved by Nate on 2026-10-15. Before
+it, the pilot had no speech terms and every Alia `POST /v1/audio/speech` was
+refused `unsupported_modality` from #1557 (2026-10-03) on; past that, the text
+terms would still have refused it (the 2048 output cap is above the speech
+model's `maxOutputTokens` of 1, its route was not a listed tuple, and 15,000
+characters quote over USD 0.05). Speech answers only to these terms, never to
+the text ones above:
+
+| Term | Speech | Text (unchanged) |
+| --- | --- | --- |
+| Input measure | exact characters, `input.length` — the unit it is quoted, held and settled in | UTF-8 framing budget |
+| Input ceiling | **15,000** (`KAANA_SPEECH_MAX_INPUT_CHARACTERS`); one more is `context_length_exceeded` | 126976 completion / 8192 decisions |
+| Output ceiling | none: speech generates no tokens, so the 2048 cap is not applied or signed | 2048 |
+| Quote ceiling | **USD 0.25** per request | USD 0.05 (1.00 on the ADR 0037 lane) |
+| Signed routes | only `dep_xai_tts_observed_2026_09_24` / `x-ai/text-to-speech@observed-2026-09-24` / `xai` | the exact text tuples above |
+
+The full 15,000 characters quote USD 0.225 at the reviewed $15.00 per 1M
+list price. A speech route is never admitted for a completion or decisions, and
+no text tuple is admitted for speech; the promotional lane never applies to
+speech. A pilot without a `speech` block refuses speech exactly as before
+(`unsupported_modality`, `param: input`). Capacity (32 in flight, 5,000 a day)
+is shared with every other Alia request, and the usage row records the
+characters with no money hold or receipt.
 
 ### Deployment order and reversal
 

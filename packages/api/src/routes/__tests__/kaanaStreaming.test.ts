@@ -70,22 +70,16 @@ import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
-  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
-  inferenceRoutingProfileCandidates,
-  inferenceRoutingProfiles,
 } from '../../db/schema';
 import {
-  KAANA_REVIEWED_CANDIDATE_PRIORITY,
   KAANA_SPEECH_CATALOGUE,
   KAANA_SPEECH_ROUTING_PROFILE_ID,
-  kaanaCurrentScorecardReview,
 } from '../../config/kaanaInitialCatalogue';
-import { kaanaReviewedScorecardFields } from '../../scripts/kaanaScorecardRenewal';
 import { inferenceUsageEvents } from '../../db/schema/inferenceUsageEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { usageReceipts } from '../../db/schema/usageReceipts';
@@ -109,6 +103,7 @@ import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
+import { seedReviewedSpeechCatalogue } from '../__fixtures__/reviewedSpeechCatalogue';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -2383,105 +2378,6 @@ describe('the reviewed speech catalogue through the signed edge and ledger', () 
   const catalogue = KAANA_SPEECH_CATALOGUE;
   const provider = catalogue.providers[0]!;
   let fixture: { accountId: string; token: string } | undefined;
-
-  async function seedReviewedSpeechCatalogue(reviewerUserId: string): Promise<void> {
-    const db = getDb();
-    await db.insert(inferencePublishers).values(catalogue.publisher);
-    const [model] = await db
-      .insert(inferenceModels)
-      .values({
-        ...catalogue.model,
-        inputModalities: [...catalogue.model.inputModalities],
-        outputModalities: [...catalogue.model.outputModalities],
-      })
-      .returning({ id: inferenceModels.id, modelId: inferenceModels.modelId });
-    expect(model.modelId).toBe(catalogue.modelId);
-    const [revision] = await db
-      .insert(inferenceModelRevisions)
-      .values({
-        modelId: model.id,
-        ...catalogue.revision,
-        releasedAt: new Date(catalogue.revision.releasedAt),
-      })
-      .returning({ id: inferenceModelRevisions.id });
-    await db.insert(inferenceProviders).values({
-      slug: provider.slug,
-      displayName: provider.displayName,
-      kind: 'third_party',
-      websiteUrl: provider.websiteUrl,
-      retainsPayloads: provider.retainsPayloads,
-      retentionDays: provider.retentionDays,
-      trainsOnCustomerData: provider.trainsOnCustomerData,
-      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
-      policyUrl: provider.policyUrl,
-    });
-    const [price] = await db
-      .insert(priceVersions)
-      .values({
-        modelReference: catalogue.modelReference,
-        provider: provider.slug,
-        status: 'active',
-        currency: 'USD',
-        effectiveFrom: new Date(provider.priceEffectiveFrom!),
-      })
-      .returning({ id: priceVersions.id });
-    await db
-      .insert(priceVersionUnitPrices)
-      .values(provider.unitPrices.map((unitPrice) => ({ priceVersionId: price.id, ...unitPrice })));
-    await db.insert(inferenceDeployments).values({
-      modelRevisionId: revision.id,
-      providerSlug: provider.slug,
-      regions: [],
-      retainsPayloads: provider.retainsPayloads,
-      retentionDays: provider.retentionDays,
-      trainsOnCustomerData: provider.trainsOnCustomerData,
-      zeroDataRetentionAvailable: provider.zeroDataRetentionAvailable,
-      policyUrl: provider.policyUrl,
-      availabilityScope: 'platform_internal',
-      commercialPermission: 'standard_application_use',
-      permissionState: 'approved',
-      legalReviewStatus: 'approved',
-      legalReviewEvidenceRef: provider.legalEvidenceRef,
-      legalReviewedAt: new Date(provider.reviewedAt!),
-      legalReviewedByUserId: reviewerUserId,
-      permissionStateChangedAt: new Date(provider.reviewedAt!),
-      permissionStateChangedByUserId: reviewerUserId,
-      permissionStateNote: provider.permissionStateNote!,
-      status: 'active',
-      dedicatedCapacity: false,
-      priceVersionId: price.id,
-      internalRouteId: provider.deploymentId,
-    });
-    // Every reviewed field, except that validity is moved relative to NOW so
-    // this proof does not expire with the reviewed 2026-11-01 horizon.
-    const reviewed = kaanaReviewedScorecardFields(provider, kaanaCurrentScorecardReview(provider), {
-      priceVersionId: price.id,
-      reviewerUserId,
-    });
-    const validUntil = new Date(Date.now() + 3_600_000);
-    await db.insert(inferenceDeploymentRoutingScores).values({
-      ...reviewed,
-      fundingClass: reviewed.fundingClass,
-      fundingState: reviewed.fundingState,
-      fundingEvidenceRef: reviewed.fundingEvidenceRef,
-      latencyValidUntil: validUntil,
-      throughputValidUntil: validUntil,
-      balancedValidUntil: validUntil,
-    });
-    for (const profile of catalogue.routingProfiles) {
-      await db.insert(inferenceRoutingProfiles).values({
-        ...profile,
-        description: `Oxy-owned ${profile.displayName} routing policy over exact Kaana deployments.`,
-        isProductPreset: true,
-      });
-      await db.insert(inferenceRoutingProfileCandidates).values({
-        routingProfileId: profile.id,
-        modelId: null,
-        modelRevisionId: revision.id,
-        priority: KAANA_REVIEWED_CANDIDATE_PRIORITY,
-      });
-    }
-  }
 
   beforeAll(async () => {
     const db = getDb();

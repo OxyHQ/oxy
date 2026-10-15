@@ -22,6 +22,10 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { InferenceRequest } from '@oxy.so/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { ALIA_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
+import {
+  KAANA_SPEECH_DEPLOYMENT_ID,
+  KAANA_SPEECH_MODEL_REFERENCE,
+} from '../../config/kaanaInitialCatalogue';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 import {
   accountBalances,
@@ -71,6 +75,7 @@ import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
+import { seedReviewedSpeechCatalogue } from '../__fixtures__/reviewedSpeechCatalogue';
 import aliaHello from '../__fixtures__/aliaHello21Tools.json';
 import approvedHigh from '../__fixtures__/aliaApprovedHighRoute.json';
 
@@ -128,9 +133,14 @@ beforeEach(() => {
 interface RawResponse {
   readonly status: number;
   readonly body: Record<string, unknown>;
+  readonly contentType?: string;
 }
 
-function post(body: unknown, headers: Record<string, string>): Promise<RawResponse> {
+function post(
+  body: unknown,
+  headers: Record<string, string>,
+  path = '/v1/responses',
+): Promise<RawResponse> {
   const { port } = server.address() as AddressInfo;
   const payload = JSON.stringify(body);
   return new Promise((resolve, reject) => {
@@ -138,7 +148,7 @@ function post(body: unknown, headers: Record<string, string>): Promise<RawRespon
       {
         hostname: '127.0.0.1',
         port,
-        path: '/v1/responses',
+        path,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,12 +159,18 @@ function post(body: unknown, headers: Record<string, string>): Promise<RawRespon
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () =>
+        res.on('end', () => {
+          const contentType = res.headers['content-type'] ?? '';
+          const raw = Buffer.concat(chunks);
           resolve({
             status: res.statusCode ?? 0,
-            body: JSON.parse(Buffer.concat(chunks).toString('utf8')),
-          }),
-        );
+            // Speech answers with audio bytes, every other path with JSON.
+            body: contentType.includes('json')
+              ? JSON.parse(raw.toString('utf8'))
+              : { bytes: raw.toString('base64') },
+            contentType,
+          });
+        });
       },
     );
     req.on('error', reject);
@@ -190,22 +206,41 @@ function getGeneration(id: string, headers: Record<string, string>): Promise<Raw
   });
 }
 
+const SPEECH_CLIP = Buffer.from([73, 68, 51, 4]).toString('base64');
+
 function completionFor(envelope: InferenceRequest): KaanaCompletion {
   const route = envelope.authorizedRoutes[0];
   const now = new Date().toISOString();
+  // A speech envelope is answered as Kaana answers one: audio, metered in characters.
+  const speech = envelope.speech !== undefined && envelope.input.format === 'text';
   return {
     generationId: nextGenerationId ?? `gen-${randomUUID()}`,
-    output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
+    output: [
+      {
+        role: 'assistant',
+        content: speech
+          ? [
+              {
+                type: 'audio',
+                source: { kind: 'inline', mediaType: 'audio/mpeg', data: SPEECH_CLIP },
+              },
+            ]
+          : [{ type: 'text', text: 'Hello.' }],
+      },
+    ],
     finishReason: 'stop',
     usage: {
       schemaVersion: 2,
       requestId: envelope.attribution.requestId,
       attribution: envelope.attribution,
       outcome: 'completed',
-      units: [
-        { unit: 'input_tokens', quantity: 1000 },
-        { unit: 'output_tokens', quantity: 2000 },
-      ],
+      units:
+        speech && envelope.input.format === 'text'
+          ? [{ unit: 'characters', quantity: envelope.input.text.length }]
+          : [
+              { unit: 'input_tokens', quantity: 1000 },
+              { unit: 'output_tokens', quantity: 2000 },
+            ],
       usageSource: 'provider_reported',
       resolvedModelReference: route.modelReference,
       servingProvider: route.provider,
@@ -2450,6 +2485,140 @@ describe('approved production pilot admission', () => {
       expect(executions).toBe(0);
     },
   );
+});
+
+/**
+ * Alia's speech synthesis under the approved pilot (Nate, 2026-10-15): the
+ * pilot's own speech terms — exact characters up to 15,000, the one reviewed
+ * xAI route, USD 0.25 per request — never the text terms, and nothing else.
+ */
+describe('approved production pilot speech', () => {
+  let caller: Caller;
+  beforeAll(async () => {
+    caller = await alia();
+    await seedReviewedSpeechCatalogue(caller.accountId);
+  });
+
+  const speak = (input: string, headers: Record<string, string> = {}) =>
+    post(
+      { model: KAANA_SPEECH_MODEL_REFERENCE, input, voice: 'female', response_format: 'mp3' },
+      { ...bearer(serviceToken(caller)), ...headers },
+      '/v1/audio/speech',
+    );
+  const speechClaims = () =>
+    getDb()
+      .select()
+      .from(inferenceMeteredUsage)
+      .where(
+        and(
+          eq(inferenceMeteredUsage.applicationId, caller.applicationId),
+          eq(inferenceMeteredUsage.admittedDeploymentId, KAANA_SPEECH_DEPLOYMENT_ID),
+        ),
+      );
+  /** The production relationship with its speech terms replaced (or removed). */
+  const withSpeechTerms = (speech: economicPolicy.InternalMeteredSpeechPilot | undefined): void => {
+    jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockImplementation((principal) =>
+      resolveProductionEconomics(
+        principal,
+        economicPolicy.INTERNAL_METERED_RELATIONSHIPS.map((relationship) => {
+          if (relationship.pilot === undefined) return relationship;
+          const { speech: _speech, ...pilot } = relationship.pilot;
+          return { ...relationship, pilot: speech === undefined ? pilot : { ...pilot, speech } };
+        }),
+      ),
+    );
+  };
+
+  it('serves the full 15,000 characters on the reviewed xAI route, metered without money', async () => {
+    const before = await speechClaims();
+    const response = await speak('a'.repeat(15_000));
+    expect(response.status).toBe(200);
+    expect(response.contentType).toMatch(/^audio\/mpeg/);
+    expect(response.body.bytes).toBe(SPEECH_CLIP);
+    expect(executions).toBe(1);
+    const [envelope] = pilotEnvelopes;
+    expect(envelope.modality).toBe('audio');
+    expect(envelope.authorizedRoutes.map((route) => [route.deploymentId, route.provider])).toEqual([
+      [KAANA_SPEECH_DEPLOYMENT_ID, 'xai'],
+    ]);
+    // Speech generates no tokens: the pilot's 2048 text ceiling is not signed.
+    expect(envelope.maxOutputTokens).toBeUndefined();
+    const added = (await speechClaims()).filter(
+      (row) => !before.some((earlier) => earlier.id === row.id),
+    );
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({
+      status: 'settled',
+      outcome: 'completed',
+      economicTreatment: 'internal_metered',
+      economicRelationshipId: 'alia-kaana',
+      economicPolicyVersion: economicPolicy.INFERENCE_ECONOMIC_POLICY_VERSION,
+      characters: 15_000,
+    });
+    expect(await moneyRowsFor(caller.accountId)).toEqual({
+      reservations: [],
+      receipts: [],
+      balances: [],
+    });
+  });
+
+  it('refuses one character over the pilot ceiling before any claim or execution', async () => {
+    const before = await speechClaims();
+    const response = await speak('a'.repeat(15_001));
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ code: 'context_length_exceeded', param: 'input' });
+    expect(executions).toBe(0);
+    expect(await speechClaims()).toEqual(before);
+  });
+
+  it('refuses a speech route outside the pilot speech tuple', async () => {
+    const original = catalogue.resolveEdgeRoute;
+    jest.spyOn(catalogue, 'resolveEdgeRoute').mockImplementation(async (...args) => {
+      const result = await original(...args);
+      return result.status !== 'resolved'
+        ? result
+        : {
+            ...result,
+            route: { ...result.route, deploymentId: 'dep_xai_tts_unreviewed' },
+            alternates: [],
+          };
+    });
+    const before = await speechClaims();
+    const response = await speak('Hola');
+    expect(response.status).toBe(503);
+    expect(executions).toBe(0);
+    expect(await speechClaims()).toEqual(before);
+  });
+
+  it('refuses a quote over the speech ceiling before any claim', async () => {
+    withSpeechTerms({
+      ...(economicPolicy.INTERNAL_METERED_RELATIONSHIPS[0].pilot?.speech ??
+        (() => {
+          throw new Error('Production speech terms missing');
+        })()),
+      // 15,000 characters quote USD 0.225 at the reviewed list price.
+      maxPricePerRequestUsd: '0.20',
+    });
+    const before = await speechClaims();
+    const response = await speak('a'.repeat(15_000));
+    expect(response.body).toMatchObject({ code: 'policy_violation' });
+    expect(executions).toBe(0);
+    expect(await speechClaims()).toEqual(before);
+  });
+
+  it('keeps refusing speech exactly as before for a pilot without speech terms', async () => {
+    withSpeechTerms(undefined);
+    const before = await speechClaims();
+    const response = await speak('Hola');
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({
+      code: 'unsupported_modality',
+      param: 'input',
+      message: 'The input is outside the controlled internal pilot.',
+    });
+    expect(executions).toBe(0);
+    expect(await speechClaims()).toEqual(before);
+  });
 });
 
 describe('original-key receipt recovery', () => {

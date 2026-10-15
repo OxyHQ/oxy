@@ -181,8 +181,24 @@ reaches the provider and settlement occurs exactly once.
 
 `POST /v1/audio/speech` and `POST /v1/images/generations` are mounted in
 `packages/api/src/routes/inferenceEdge.ts`, synchronous and gated on a route
-whose catalogue capabilities declare that output; Kaana serves neither yet, so
-a request today ends at the route gate. `POST /v1/embeddings` and `/v1/rerank`
+whose catalogue capabilities declare that output.
+
+- **Speech is served** by one reviewed route: `x-ai/text-to-speech@observed-2026-09-24`
+  on `xai`, deployment `dep_xai_tts_observed_2026_09_24`, at $15.00 per 1M
+  characters and at most 15,000 characters per request (`KAANA_SPEECH_*` in
+  `config/kaanaInitialCatalogue.ts`; written by the reviewed bootstrap, not the
+  sync). It is reached by that exact model or the pinned `kaana-v1-speech`
+  profile; the hold and settlement are in exact characters.
+- **Alia's speech** goes through its `internal_metered` pilot, which admits
+  speech only under its own speech terms — 15,000 characters, that one route,
+  USD 0.25 per request ([internal-metering.md](./internal-metering.md#speech-synthesis-2026-10-15)).
+  From #1557 (2026-10-03) until policy `oxy-inference-economics/2026-10-15.1`
+  the pilot had no speech terms, so every Alia speech request was refused
+  `400 unsupported_modality` ("The input is outside the controlled internal pilot.").
+- **Images:** no catalogue route declares image output, so a request ends at
+  the route gate.
+
+`POST /v1/embeddings` and `/v1/rerank`
 do not exist. `/v1/audio/transcriptions` and `/v1/batches` are deliberately
 not mounted — the comment above the audio route in `inferenceEdge.ts` records
 why (no sound cost ceiling; batches do not fit the reserve → settle protocol

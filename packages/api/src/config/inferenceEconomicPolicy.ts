@@ -45,12 +45,18 @@ import type {
   InferenceEnvironment,
   PowerLevel,
 } from '@oxy.so/contracts';
+import {
+  KAANA_SPEECH_DEPLOYMENT_ID,
+  KAANA_SPEECH_MAX_INPUT_CHARACTERS,
+  KAANA_SPEECH_MODEL_REFERENCE,
+  KAANA_SPEECH_PROVIDER_SLUG,
+} from './kaanaInitialCatalogue';
 
 /**
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-12.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.1';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -96,20 +102,42 @@ export interface InternalMeteredPromotionalCredit {
   readonly maxPricePerRequestUsd: string;
 }
 
+/** One exact signed route: deployment, model revision and serving provider together. */
+export interface InternalMeteredPilotDeployment {
+  readonly deploymentId: string;
+  readonly modelReference: string;
+  readonly provider: string;
+}
+
+/**
+ * The pilot's terms for `POST /v1/audio/speech`, kept apart from the text
+ * terms because speech is measured and billed in exact characters
+ * (`input.length`), generates no tokens and runs on its own routes. A speech
+ * route is never admitted for a completion, nor a completion route for speech.
+ */
+export interface InternalMeteredSpeechPilot {
+  /** Exact characters (`input.length`, UTF-16 units) one speech request may carry. */
+  readonly maxInputCharacters: number;
+  /** Exact USD tariff quote ceiling for one speech request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+  /** The only routes a speech request may sign, including failovers. */
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
 export interface InternalMeteredPilot {
   readonly maxControlledInputBudget: number;
   /** Optional text-completion ceiling; decisions retain the base ceiling. */
   readonly maxControlledCompletionInputBudget?: number;
+  /** Generated-token ceiling; speech generates none and is not bound by it. */
   readonly maxOutputTokens: number;
   /** Exact USD tariff quote ceiling, before any claim; not an upstream invoice guarantee. */
   readonly maxPricePerRequestUsd?: string;
-  readonly deployments: readonly {
-    readonly deploymentId: string;
-    readonly modelReference: string;
-    readonly provider: string;
-  }[];
+  /** Every operation's exact routes except speech, which has its own below. */
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
   /** Absent: only the exact {@link deployments} above are ever admitted. */
   readonly promotionalCredit?: InternalMeteredPromotionalCredit;
+  /** Absent: every speech request is outside the pilot and refused. */
+  readonly speech?: InternalMeteredSpeechPilot;
 }
 
 export interface InternalMeteredRelationship {
@@ -192,6 +220,22 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
         levels: ['pro', 'ultra'],
         fallbackLevel: 'xhigh',
         maxPricePerRequestUsd: '1.00',
+      },
+      // Approved by Nate on 2026-10-15: Alia's speech synthesis, refused since
+      // the pilot began (2026-10-03, #1557) because the pilot had no speech
+      // terms. Up to the 15,000 characters Kaana's xAI translation serves, on
+      // the one reviewed xAI route only. At its $15.00 per 1M characters list
+      // price the full request quotes USD 0.225, under the USD 0.25 ceiling.
+      speech: {
+        maxInputCharacters: KAANA_SPEECH_MAX_INPUT_CHARACTERS,
+        maxPricePerRequestUsd: '0.25',
+        deployments: [
+          {
+            deploymentId: KAANA_SPEECH_DEPLOYMENT_ID,
+            modelReference: KAANA_SPEECH_MODEL_REFERENCE,
+            provider: KAANA_SPEECH_PROVIDER_SLUG,
+          },
+        ],
       },
     },
   },

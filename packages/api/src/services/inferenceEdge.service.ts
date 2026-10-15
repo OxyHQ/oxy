@@ -237,6 +237,7 @@ import {
   controlledInputBudget,
   fundedByPromotionalCredit,
   pilotAllowsDeployment,
+  pilotTermsFor,
   promotionalLaneLevels,
 } from './inferenceInternalPilot';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
@@ -1032,15 +1033,15 @@ async function admitWithAutoDecision(
   }
 
   const pilot = economics.treatment === 'internal_metered' ? economics.relationship.pilot : undefined;
+  // The terms that bind THIS operation: speech has its own (characters, routes,
+  // quote ceiling); a pilot without them leaves speech outside it.
+  const pilotTerms = pilot === undefined ? undefined : pilotTermsFor(pilot, request.operation);
   const pilotInputBudget = pilot === undefined ? undefined : privateApproval === undefined ? controlledInputBudget(request, scopedPermit) :
     Buffer.byteLength(JSON.stringify({ input: request.input, tools: request.tools }), 'utf8') + 256;
   if (pilot !== undefined) {
-    if (pilotInputBudget === undefined) return refuse('unsupported_modality',
+    if (pilotInputBudget === undefined || pilotTerms === undefined) return refuse('unsupported_modality',
       'The input is outside the controlled internal pilot.', { param: 'input' });
-    const inputCeiling = request.operation.kind === 'completion'
-      ? pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget
-      : pilot.maxControlledInputBudget;
-    if (pilotInputBudget > inputCeiling) return refuse('context_length_exceeded',
+    if (pilotInputBudget > pilotTerms.maxInput) return refuse('context_length_exceeded',
       'The controlled input exceeds the internal pilot budget.', { param: 'input' });
   }
   // ADR 0037: the route priorities a pilot request resolves at a promotional
@@ -1054,7 +1055,7 @@ async function admitWithAutoDecision(
     if (privateApproval !== undefined) {
       return route.deploymentId === privateApproval.deploymentId && route.modelReference === privateApproval.modelReference && route.provider === privateApproval.provider;
     }
-    if (pilotAllowsDeployment(pilot, route, scopedPermit)) return true;
+    if (pilotAllowsDeployment(pilot, request.operation, route, scopedPermit)) return true;
     if (scopedPermit !== undefined || !promotionalPriorities.has(priority) || !fundedByPromotionalCredit(route)) return false;
     promotionallyAdmitted.add(route.deploymentId);
     return true;
@@ -1132,8 +1133,11 @@ async function admitWithAutoDecision(
   const requiredModality = requirementForRequest(request, context.apiFormat);
   // maxOutputTokens is a caller upper bound. Cap older Alia defaults as well as
   // omitted values before route qualification, quotes, claims and signed attempts.
-  const requestedOutput = pilot === undefined ? request.maxOutputTokens
-    : Math.min(request.maxOutputTokens ?? pilot.maxOutputTokens, pilot.maxOutputTokens);
+  // Speech generates no tokens: its pilot terms carry no output ceiling, so the
+  // text cap never becomes a requirement a speech route (max 1) cannot meet.
+  const pilotOutputCeiling = pilotTerms?.maxOutputTokens;
+  const requestedOutput = pilotOutputCeiling === undefined ? request.maxOutputTokens
+    : Math.min(request.maxOutputTokens ?? pilotOutputCeiling, pilotOutputCeiling);
   const estimatedInputTokens = pilotInputBudget ?? estimateInputTokens(request);
   const contextInputTokens = request.input.format === 'decisions'
     ? decisionInputBudget(request.input.decisions).context
@@ -1265,8 +1269,8 @@ async function admitWithAutoDecision(
     { readonly status: 'resolved' }
   > | undefined;
   let maxPricePerRequest = routingConstraints.maxPricePerRequest;
-  const parsedPilotPrice = pilot?.maxPricePerRequestUsd === undefined
-    ? undefined : exactDecimalSchema.safeParse(pilot.maxPricePerRequestUsd);
+  const parsedPilotPrice = pilotTerms?.maxPricePerRequestUsd === undefined
+    ? undefined : exactDecimalSchema.safeParse(pilotTerms.maxPricePerRequestUsd);
   if (parsedPilotPrice !== undefined && !parsedPilotPrice.success) {
     return refuse('policy_violation', 'The internal pilot quote ceiling is invalid.');
   }
@@ -2014,7 +2018,8 @@ async function admitWithAutoDecision(
   }
 
   // Every signed route against its own pilot ceiling: the lane's for a route
-  // admitted by its promotional funding, the pilot's for every other one.
+  // admitted by its promotional funding, the pilot's ceiling for this operation
+  // (speech has its own) for every other one.
   if (pilotPriceLimit !== undefined) {
     for (const authorized of authorizedRoutes) {
       const authorizedQuote = quotes.get(authorized.deploymentId);
