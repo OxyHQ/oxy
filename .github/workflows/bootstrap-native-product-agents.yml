@@ -260,5 +260,7 @@ jobs:
               .direction == $direction and
               (.planSha256 | test("^[a-f0-9]{64}$"))
             ' <<<"$result_json" >/dev/null
+          printf 'NATIVE_PRODUCT_AGENTS_RESULT=%s\n' "$result_json" |
+            node packages/api/scripts/validate-native-product-bootstrap-report.mjs
           observed_plan=$(jq -r '.planSha256' <<<"$result_json")
           echo "validated $REQUESTED_MODE plan sha256: $observed_plan"

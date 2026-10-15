@@ -1272,6 +1272,7 @@ async function main(): Promise<void> {
         mode: report.mode,
         direction: report.direction,
         planSha256: report.planSha256,
+        plan: report.plan,
       })}\n`,
     );
   } finally {

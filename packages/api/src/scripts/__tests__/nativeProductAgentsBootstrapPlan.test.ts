@@ -189,3 +189,18 @@ describe('native product agent bootstrap approval', () => {
     });
   });
 });
+
+it('hashes observed dates exactly as the reviewable JSON report represents them', () => {
+  const plan = {
+    manifestVersion: 1,
+    direction: 'bootstrap' as const,
+    desired: {},
+    before: { expiresAt: new Date('2026-10-15T00:00:00.000Z') },
+    after: {},
+    aliaManifest: {},
+    operations: [],
+  };
+  expect(nativeProductBootstrapPlanSha256(plan)).toBe(
+    nativeProductBootstrapPlanSha256(JSON.parse(JSON.stringify(plan))),
+  );
+});
