@@ -14,6 +14,7 @@ import { useApplication, useCallerAccess } from '@/hooks/use-applications';
 import { AppDetailHeader } from '@/components/apps/app-detail-header';
 import { InferenceOverviewSection } from '@/components/apps/inference-overview-section';
 import { RoutingPolicySection } from '@/components/apps/routing-policy-section';
+import { InferenceLimitsSection } from '@/components/apps/inference-limits-section';
 import { ProviderConnectionsSection } from '@/components/apps/provider-connections-section';
 import { ApplicationUsageSpendSection } from '@/components/apps/application-usage-spend-section';
 import { ApplicationBudgetsSection } from '@/components/apps/application-budgets-section';
@@ -101,8 +102,9 @@ function AppInferencePage() {
             <InferenceOverviewSection application={application} access={access} />
           </TabsContent>
 
-          <TabsContent value="routing" className="max-w-3xl">
+          <TabsContent value="routing" className="max-w-3xl space-y-10">
             <RoutingPolicySection application={application} access={access} />
+            <InferenceLimitsSection application={application} access={access} />
           </TabsContent>
 
           <TabsContent value="byok" className="max-w-3xl">
