@@ -57,7 +57,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 jest.mock('../../services/assetServiceSingleton', () => ({
-  assetService: { getFile: (...args: unknown[]) => mockGetFile(...args) },
+  assetService: { getFile: (...args: unknown[]) => mockGetFile(...args), canUserAccessFile: jest.fn().mockResolvedValue(true) },
   s3Service: {},
 }));
 

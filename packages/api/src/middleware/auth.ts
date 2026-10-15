@@ -1,3 +1,4 @@
+import { isSupervised } from '../services/supervisionPolicy.service';
 import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
@@ -186,7 +187,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
       try {
         // Use session service for optimized validation with caching
-        const validationResult = await sessionService.validateSession(token);
+        const validationResult = await sessionService.validateSession(token, { allowSupervisedPolicyEvaluation: res.locals.supervisedSelfOperation === true });
 
         if (!validationResult) {
           if (process.env.NODE_ENV === 'development') {
@@ -328,7 +329,8 @@ export const serviceAuthMiddleware = async (
   const verification = verifyServiceToken(token);
   if (verification.ok) {
     try {
-      if (!(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId)))
+      if ((await isSupervised(verification.payload.ownerAccountId)) ||
+          !(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId)))
         return sendAuthFailure(res, 403, {
           error: 'Forbidden',
           message: 'The owning account has no operating authority',

@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
@@ -220,6 +221,7 @@ export async function grantAccountAuthorityHolds(
   grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'> &
     Partial<Pick<McpOauthGrantRow, 'authMethodId'>>,
 ): Promise<boolean> {
+  if (await isSupervised(grant.principalUserId) || await isSupervised(grant.effectiveAccountId)) return false;
   if (grant.authMethodId) {
     if (
       !(await readLiveAgentKey({

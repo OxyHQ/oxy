@@ -685,3 +685,16 @@ describe('operator ephemeral credential through the real HTTP mint route', () =>
     expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(200);
   });
 });
+
+it('mints only the requested credential scope subset and rechecks revoked authority',async()=>{
+ const c=await serviceClient({scopes:['user:read','safety:decide']},{scopes:['user:read','safety:decide']});
+ const input={apiKey:c.apiKey,apiSecret:c.apiSecret};
+ const narrowed=await post({...input,scopes:['user:read']});
+ expect(narrowed.status).toBe(200);
+ expect(decodeServiceJwt((narrowed.body.data as {token:string}).token).scopes).toEqual(['user:read']);
+ expect((await post({...input,scopes:['files:write']})).status).toBe(403);
+ await getDb().update(applications).set({scopes:['user:read']}).where(eq(applications.id,c.applicationId));
+ expect((await post({...input,scopes:['safety:decide']})).status).toBe(403);
+ await getDb().update(applicationCredentials).set({status:'revoked'}).where(eq(applicationCredentials.id,c.credentialId));
+ expect((await post({...input,scopes:['user:read']})).status).toBe(401);
+});

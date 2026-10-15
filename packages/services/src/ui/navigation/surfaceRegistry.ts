@@ -24,6 +24,7 @@ type SurfaceRoute<Props = Record<string, unknown>, Result = void> = {
 };
 
 export interface SurfaceRegistry {
+  Supervision: SurfaceRoute<{ approvalId?: string; childAccountId?: string }>;
   ManageAccount: SurfaceRoute;
   AccountVerification: SurfaceRoute;
   PaymentGateway: SurfaceRoute;

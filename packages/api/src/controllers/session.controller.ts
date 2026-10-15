@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { isSupervised } from '../services/supervisionPolicy.service';
 import type { Request, Response } from 'express';
 import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import { publicColumns } from '@oxy.so/db/assert';
@@ -779,6 +780,9 @@ export class SessionController {
 
       // Remote validation is an authority decision: read the live row and membership.
       const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
+      if (result && (await isSupervised(result.session.userId) || (result.session.operatedByUserId && await isSupervised(result.session.operatedByUserId)))) {
+        return res.status(403).json({ message: 'Supervised accounts require verified consumer authorization' });
+      }
 
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
@@ -806,7 +810,7 @@ export class SessionController {
     }
   }
 
-  // Validate session from header with device fingerprint validation
+  // Preserve the ordinary legacy endpoint; supervised identities require the service policy lane.
   static async validateSessionFromHeader(req: Request, res: Response) {
     try {
       const sessionId = req.params.sessionId;
@@ -819,7 +823,18 @@ export class SessionController {
       }
 
       // Remote validation is an authority decision: read the live row and membership.
-      const result = await sessionService.validateSessionById(sessionId, true, { useCache: false });
+      const authorization = req.headers?.authorization;
+      if (authorization !== undefined && (!authorization.startsWith('Bearer ') || !authorization.slice(7).trim())) {
+        return res.status(401).json({ message: 'Invalid bearer authorization' });
+      }
+      const token = authorization?.slice(7) ?? null;
+      const result = token
+        ? await sessionService.validateSession(token, { allowSupervisedPolicyEvaluation: true })
+        : await sessionService.validateSessionById(sessionId, true, { useCache: false });
+      if (result && (await isSupervised(result.session.userId) || (result.session.operatedByUserId && await isSupervised(result.session.operatedByUserId)))) {
+        return res.status(403).json({ error: { code: 'forbidden', message: 'Reviewed consumer authorization is required' } });
+      }
+      if (result && result.session.sessionId !== sessionId) return res.status(401).json({message:'Token does not match session'});
 
       if (!result || !result.session || !result.user) {
         return res.status(401).json({
