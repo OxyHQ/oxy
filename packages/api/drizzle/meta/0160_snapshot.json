@@ -32102,10 +32102,6 @@
         "users_staff_capabilities_check": {
           "name": "users_staff_capabilities_check",
           "value": "\"users\".\"staff_capabilities\" <@ array['inference:catalogue:publish', 'billing:adjust', 'billing:cost_centers']::text[]"
-        },
-        "users_character_kind_check": {
-          "name": "users_character_kind_check",
-          "value": "\"users\".\"character\" is null or \"users\".\"kind\" = 'bot'"
         }
       },
       "isRLSEnabled": false
