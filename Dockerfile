@@ -30,6 +30,9 @@ COPY package.json bun.lock ./
 COPY patches/ patches/
 COPY vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz ./vendor/expo-native/
 COPY packages/ packages/
+# `@kaana.ai/contracts`, vendored from an exact Kaana commit until it is
+# published (scripts/vendor-kaana-contracts.mjs). A workspace like the others.
+COPY vendor/kaana-contracts/package.json vendor/kaana-contracts/package.json
 RUN find packages -type f ! -name package.json -delete
 
 FROM bun-node AS builder
@@ -74,6 +77,7 @@ COPY packages/federation/ packages/federation/
 COPY packages/db/ packages/db/
 COPY packages/utils/ packages/utils/
 COPY packages/api/ packages/api/
+COPY vendor/kaana-contracts/ vendor/kaana-contracts/
 
 # drizzle-orm's runtime migrator reads the SQL files and meta/_journal.json.
 # The 46 historical drizzle-kit snapshots are generation inputs only and added
@@ -90,6 +94,7 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 # hook), then utils (same shape — `@oxy.so/utils/sql` is types-and-all inside
 # dist/, and packages/api imports it), then api.
 RUN bun run --filter @oxy.so/contracts build
+RUN bun run --filter @kaana.ai/contracts build
 RUN bun run --filter @oxy.so/protocol build
 RUN bun run --filter @oxy.so/telemetry build
 RUN bun run --filter @oxy.so/core build
@@ -151,6 +156,7 @@ WORKDIR /app
 COPY --from=production-deps /app/package.json ./
 COPY --from=production-deps /app/packages packages/
 COPY --from=production-deps /app/node_modules node_modules/
+COPY --from=production-deps /app/vendor/kaana-contracts vendor/kaana-contracts/
 
 # Copy built artifacts. @oxy.so/db's dist is needed HERE and not only in the
 # builder: `bun install --production` above resolves the same `workspace:*`, and
@@ -162,6 +168,7 @@ COPY --from=builder /app/packages/telemetry/dist packages/telemetry/dist
 COPY --from=builder /app/packages/mcp/dist packages/mcp/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
+COPY --from=builder /app/vendor/kaana-contracts/dist vendor/kaana-contracts/dist
 COPY --from=builder /app/packages/federation/dist packages/federation/dist
 COPY --from=builder /app/packages/db/dist packages/db/dist
 COPY --from=builder /app/packages/utils/dist packages/utils/dist

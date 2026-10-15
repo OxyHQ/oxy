@@ -1,0 +1,44 @@
+{
+  "name": "@kaana.ai/contracts",
+  "version": "4.0.0",
+  "description": "Kaana inference contract: the Zod schemas of the public API at https://kaana.ai/v1 and, under /internal, of the Oxy-Kaana grant, settlement and signed lane.",
+  "type": "module",
+  "sideEffects": false,
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://kaana.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OxyHQ/Kaana.git",
+    "directory": "packages/contracts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "default": "./dist/internal.js"
+    },
+    "./openapi.json": "./openapi.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NOTICE",
+    "dist",
+    "openapi.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": ">=4.4.3 <4.5.0"
+  }
+}

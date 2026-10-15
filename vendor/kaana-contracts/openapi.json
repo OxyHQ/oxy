@@ -1,0 +1,6888 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kaana API",
+    "version": "4.0.0",
+    "description": "Kaana inference API. Generated from @kaana.ai/contracts; the Zod source is the authority. Accounts, applications, oxy_sk_ keys, limits and billing are managed in Oxy Console: https://console.oxy.so"
+  },
+  "servers": [
+    {
+      "url": "https://kaana.ai/v1"
+    }
+  ],
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "paths": {
+    "/models": {
+      "get": {
+        "summary": "List the models the credential may use, with prices and capabilities.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/{publisher}/{model}": {
+      "get": {
+        "summary": "One model.",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/power-levels": {
+      "get": {
+        "summary": "The power levels the credential may use and the model lines each can choose.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerLevelList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/responses": {
+      "post": {
+        "summary": "Generate a response (native dialect).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponsesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "With `stream: true`."
+                },
+                "x-kaana-event": {
+                  "$ref": "#/components/schemas/ResponseStreamEvent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat/completions": {
+      "post": {
+        "summary": "Generate a chat completion (OpenAI-compatible).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletion"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "With `stream: true`: chunks, then `data: [DONE]`; a failure is a `chatCompletionError` frame."
+                },
+                "x-kaana-event": {
+                  "$ref": "#/components/schemas/ChatCompletionChunk"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/embeddings": {
+      "post": {
+        "summary": "Embed text (OpenAI-compatible).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audio/speech": {
+      "post": {
+        "summary": "Read text aloud.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/mpeg"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/ogg"
+                }
+              },
+              "audio/aac": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/aac"
+                }
+              },
+              "audio/flac": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/flac"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/wav"
+                }
+              },
+              "audio/pcm": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "audio/pcm"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "With `stream: true` and `stream_format: \"sse\"`."
+                },
+                "x-kaana-event": {
+                  "$ref": "#/components/schemas/SpeechStreamEvent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audio/transcriptions": {
+      "post": {
+        "summary": "Transcribe an uploaded audio file (synchronous).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/TranscriptionRequest"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "file"
+                    ],
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "contentMediaType": "application/octet-stream",
+                        "description": "At most 20971520 bytes, of one of the AudioInputMediaType types."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transcription"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/generations": {
+      "post": {
+        "summary": "Generate images (OpenAI-compatible).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageGenerationsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageGenerations"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/decisions": {
+      "post": {
+        "summary": "Answer structured questions about a state.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Makes a retried request return the original generation instead of running twice.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionSuccess"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generations/{id}": {
+      "get": {
+        "summary": "The usage and cost record of one generation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRecord"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generations": {
+      "get": {
+        "summary": "The record of the generation an idempotency key produced.",
+        "parameters": [
+          {
+            "name": "idempotency_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          {
+            "name": "X-Oxy-User-Id",
+            "in": "header",
+            "required": false,
+            "description": "Delegated end user, attribution only; honoured only with an Oxy service token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRecord"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/realtime": {
+      "get": {
+        "summary": "Open a realtime session over WebSocket. The first frame is RealtimeSessionOpen (or session.resume); every frame is one JSON message.",
+        "parameters": [
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ModelReference"
+            }
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Switching Protocols: the WebSocket is open."
+          },
+          "default": {
+            "description": "A failure decided before the first byte. After it, a stream ends with its terminal error event instead.",
+            "headers": {
+              "Kaana-Request-Id": {
+                "description": "The request id; quote it when reporting a problem.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Kaana-Contract-Version": {
+                "description": "The contract set that answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicError"
+                }
+              }
+            }
+          }
+        },
+        "x-kaana-websocket": {
+          "open": {
+            "$ref": "#/components/schemas/RealtimeSessionOpen"
+          },
+          "client": {
+            "$ref": "#/components/schemas/RealtimeClientCommand"
+          },
+          "server": {
+            "$ref": "#/components/schemas/RealtimePublicServerEvent"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An oxy_sk_ key from Oxy Console, an Oxy service token for the kaana.ai audience, or an Oxy app session with inference:invoke."
+      }
+    },
+    "schemas": {
+      "AudioInputMediaType": {
+        "type": "string",
+        "enum": [
+          "audio/mpeg",
+          "audio/mp4",
+          "audio/wav",
+          "audio/ogg",
+          "audio/webm",
+          "audio/flac",
+          "audio/aac",
+          "audio/pcm"
+        ]
+      },
+      "CataloguePublisherSummary": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "$ref": "#/components/schemas/PublisherSlug"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "websiteUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          }
+        },
+        "required": [
+          "slug",
+          "displayName"
+        ],
+        "additionalProperties": false
+      },
+      "ChargedGenerationRecord": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "generationId": {
+            "$ref": "#/components/schemas/GenerationId"
+          },
+          "applicationId": {
+            "$ref": "#/components/schemas/OxyApplicationId"
+          },
+          "credentialId": {
+            "$ref": "#/components/schemas/OxyCredentialId"
+          },
+          "delegatedUserId": {
+            "$ref": "#/components/schemas/DelegatedUserId"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/InferenceEnvironment"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/InferenceRequestOutcome"
+          },
+          "usageSource": {
+            "$ref": "#/components/schemas/UsageSource"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/RequestLabels"
+          },
+          "settledAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "kind": {
+            "type": "string",
+            "const": "charge"
+          },
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "priceSnapshot": {
+            "$ref": "#/components/schemas/PriceSnapshot"
+          },
+          "billedAmount": {
+            "$ref": "#/components/schemas/ExactDecimal"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "platformFeeOnly": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "applicationId",
+          "credentialId",
+          "environment",
+          "outcome",
+          "usageSource",
+          "units",
+          "model",
+          "settledAt",
+          "kind",
+          "receiptId",
+          "priceSnapshot",
+          "billedAmount",
+          "currency",
+          "platformFeeOnly"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletionChunk": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion.chunk"
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "delta": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "const": "assistant"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "refusal": {
+                      "type": "string"
+                    },
+                    "audio": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "transcript": {
+                          "type": "string"
+                        },
+                        "expires_at": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "function"
+                          },
+                          "function": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "arguments": {
+                                "type": "string"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "function"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "finish_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "index",
+                "delta",
+                "finish_reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ChatCompletionUsage"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "model",
+          "choices"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletionError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "minLength": 1
+              },
+              "param": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "code": {
+                "$ref": "#/components/schemas/PublicErrorCode"
+              }
+            },
+            "required": [
+              "message",
+              "type",
+              "param",
+              "code"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletionMessage": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "developer",
+              "user",
+              "assistant",
+              "tool"
+            ]
+          },
+          "content": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/InferenceContentPart"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "tool_call_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "type": {
+                  "type": "string",
+                  "const": "function"
+                },
+                "function": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "arguments": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "arguments"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "function"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "object": {
+            "type": "string",
+            "const": "chat.completion"
+          },
+          "created": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "const": "assistant"
+                    },
+                    "content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "audio": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "transcript": {
+                          "type": "string"
+                        },
+                        "expires_at": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "data",
+                        "transcript",
+                        "expires_at"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "function"
+                          },
+                          "function": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 128
+                              },
+                              "arguments": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "arguments"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "function"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "role",
+                    "content"
+                  ],
+                  "additionalProperties": false
+                },
+                "finish_reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "index",
+                "message",
+                "finish_reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ChatCompletionUsage"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "model",
+          "choices",
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletionUsage": {
+        "type": "object",
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "prompt_tokens_details": {
+            "type": "object",
+            "properties": {
+              "cached_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "audio_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "cached_tokens_details": {
+                "type": "object",
+                "properties": {
+                  "audio_tokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "audio_tokens"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "cached_tokens"
+            ],
+            "additionalProperties": false
+          },
+          "completion_tokens_details": {
+            "type": "object",
+            "properties": {
+              "reasoning_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "audio_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "reasoning_tokens"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "prompt_tokens",
+          "completion_tokens",
+          "total_tokens",
+          "prompt_tokens_details",
+          "completion_tokens_details"
+        ],
+        "additionalProperties": false
+      },
+      "ChatCompletionsRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelTarget"
+          },
+          "messages": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatCompletionMessage"
+            }
+          },
+          "max_tokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "max_completion_tokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "top_p": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "presence_penalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              }
+            ]
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "tools": {
+            "maxItems": 128,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "function"
+                },
+                "function": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "description": {
+                      "type": "string",
+                      "maxLength": 2000
+                    },
+                    "parameters": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    },
+                    "strict": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "parameters"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "function"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tool_choice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "none",
+                  "required"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "function"
+                  },
+                  "function": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "function"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "response_format": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "json_object"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "json_schema"
+                  },
+                  "json_schema": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "schema": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      },
+                      "strict": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "schema"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "json_schema"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "reasoning_effort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
+          },
+          "modalities": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text",
+                "audio"
+              ]
+            }
+          },
+          "audio": {
+            "type": "object",
+            "properties": {
+              "voice": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "wav",
+                  "mp3",
+                  "flac",
+                  "opus",
+                  "pcm16"
+                ]
+              }
+            },
+            "required": [
+              "voice",
+              "format"
+            ],
+            "additionalProperties": false
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "model",
+          "messages"
+        ],
+        "additionalProperties": false
+      },
+      "CurrencyCode": {
+        "type": "string",
+        "pattern": "^[A-Z]{3}$"
+      },
+      "DecisionAnswer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "const": "choice"
+              },
+              "reply": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "probabilities": {
+                "minItems": 2,
+                "maxItems": 255,
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "reply",
+              "confidence",
+              "probabilities"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "const": "score"
+              },
+              "reply": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 9
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "mean": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 9
+              },
+              "distribution": {
+                "minItems": 2,
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "reply",
+              "confidence",
+              "mean",
+              "distribution"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "kind": {
+                "type": "string",
+                "const": "noul"
+              },
+              "probability": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "probability"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "DecisionEffort": {
+        "type": "string",
+        "enum": [
+          "instant",
+          "low",
+          "medium",
+          "high",
+          "xhigh"
+        ]
+      },
+      "DecisionInput": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "questions": {
+            "minItems": 1,
+            "maxItems": 255,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionQuestion"
+            }
+          },
+          "effort": {
+            "$ref": "#/components/schemas/DecisionEffort"
+          }
+        },
+        "required": [
+          "state",
+          "questions"
+        ],
+        "additionalProperties": false
+      },
+      "DecisionQuestion": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "criteria": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "kind": {
+                "type": "string",
+                "const": "choice"
+              },
+              "options": {
+                "minItems": 2,
+                "maxItems": 255,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536
+                }
+              }
+            },
+            "required": [
+              "id",
+              "question",
+              "kind",
+              "options"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "criteria": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "kind": {
+                "type": "string",
+                "const": "score"
+              },
+              "levels": {
+                "minItems": 2,
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536
+                }
+              }
+            },
+            "required": [
+              "id",
+              "question",
+              "kind",
+              "levels"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "criteria": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536
+              },
+              "kind": {
+                "type": "string",
+                "const": "noul"
+              }
+            },
+            "required": [
+              "id",
+              "question",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "DecisionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 65536
+          },
+          "instructions": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 65536
+          },
+          "questions": {
+            "minItems": 1,
+            "maxItems": 255,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionQuestion"
+            }
+          },
+          "effort": {
+            "$ref": "#/components/schemas/DecisionEffort"
+          }
+        },
+        "required": [
+          "model",
+          "state",
+          "questions"
+        ],
+        "additionalProperties": false
+      },
+      "DecisionSuccess": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "data": {
+            "minItems": 1,
+            "maxItems": 255,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionAnswer"
+            }
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "routingPolicy": {
+            "$ref": "#/components/schemas/RoutingPolicyReference"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "model",
+          "data",
+          "usage",
+          "routingPolicy"
+        ],
+        "additionalProperties": false
+      },
+      "DelegatedUserId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "EmbeddingsRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "minItems": 1,
+                "maxItems": 2048,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            ]
+          },
+          "encoding_format": {
+            "type": "string",
+            "const": "float"
+          },
+          "dimensions": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 1024
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "model",
+          "input"
+        ],
+        "additionalProperties": false
+      },
+      "EmbeddingsResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "const": "list"
+          },
+          "data": {
+            "minItems": 1,
+            "maxItems": 2048,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "object": {
+                  "type": "string",
+                  "const": "embedding"
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "embedding": {
+                  "minItems": 1,
+                  "maxItems": 1024,
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              },
+              "required": [
+                "object",
+                "index",
+                "embedding"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "total_tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "prompt_tokens",
+              "total_tokens"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "object",
+          "data",
+          "model",
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "ExactDecimal": {
+        "type": "string",
+        "pattern": "^(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,12})?$"
+      },
+      "GenerationId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "GenerationRecord": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ChargedGenerationRecord"
+          },
+          {
+            "$ref": "#/components/schemas/MeteredGenerationRecord"
+          }
+        ]
+      },
+      "IdempotencyKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255
+      },
+      "ImageGenerationsRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32000
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "size": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "quality": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "style": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ]
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "ImageGenerations": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "b64_json": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "b64_json"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "created",
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceApiFormat": {
+        "type": "string",
+        "enum": [
+          "responses",
+          "chat_completions",
+          "embeddings",
+          "decisions",
+          "images_generations",
+          "audio_transcriptions",
+          "audio_speech",
+          "rerank",
+          "batches"
+        ]
+      },
+      "InferenceAudioMediaType": {
+        "type": "string",
+        "enum": [
+          "audio/mpeg",
+          "audio/wav",
+          "audio/ogg",
+          "audio/aac",
+          "audio/flac",
+          "audio/pcm"
+        ]
+      },
+      "InferenceAudioOutputParameters": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "wav",
+              "mp3",
+              "flac",
+              "opus",
+              "pcm"
+            ]
+          }
+        },
+        "required": [
+          "voice",
+          "format"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceContentPart": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "text"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "image"
+              },
+              "source": {
+                "$ref": "#/components/schemas/InferenceContentSource"
+              },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "low",
+                  "high"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "audio"
+              },
+              "source": {
+                "$ref": "#/components/schemas/InferenceContentSource"
+              }
+            },
+            "required": [
+              "type",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "file"
+              },
+              "source": {
+                "$ref": "#/components/schemas/InferenceContentSource"
+              },
+              "filename": {
+                "type": "string",
+                "maxLength": 255
+              }
+            },
+            "required": [
+              "type",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "refusal"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "InferenceContentSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "url"
+              },
+              "url": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              }
+            },
+            "required": [
+              "kind",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "inline"
+              },
+              "mediaType": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "data": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "mediaType",
+              "data"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "InferenceDataPolicy": {
+        "type": "object",
+        "properties": {
+          "retainsPayloads": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          },
+          "trainsOnCustomerData": {
+            "type": "boolean"
+          },
+          "zeroDataRetentionAvailable": {
+            "type": "boolean"
+          },
+          "subprocessors": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "policyUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          }
+        },
+        "required": [
+          "retainsPayloads",
+          "retentionDays",
+          "trainsOnCustomerData",
+          "zeroDataRetentionAvailable"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceDate": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+      },
+      "InferenceEnvironment": {
+        "type": "string",
+        "enum": [
+          "development",
+          "staging",
+          "production"
+        ]
+      },
+      "InferenceFinishReason": {
+        "type": "string",
+        "enum": [
+          "stop",
+          "length",
+          "tool_calls",
+          "content_filter",
+          "refusal",
+          "cancelled"
+        ]
+      },
+      "InferenceHttpsUrl": {
+        "type": "string",
+        "maxLength": 2048,
+        "pattern": "^https:\\/\\/[^\\s]+$"
+      },
+      "InferenceMessageRole": {
+        "type": "string",
+        "enum": [
+          "system",
+          "developer",
+          "user",
+          "assistant",
+          "tool"
+        ]
+      },
+      "InferenceMessage": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/InferenceMessageRole"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceContentPart"
+            }
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "toolCallId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "toolCalls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceToolCall"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceModality": {
+        "type": "string",
+        "enum": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "embedding"
+        ]
+      },
+      "InferenceOutputModality": {
+        "type": "string",
+        "enum": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "embedding",
+          "decisions"
+        ]
+      },
+      "InferenceReasoning": {
+        "type": "object",
+        "properties": {
+          "effort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
+          }
+        },
+        "required": [
+          "effort"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceRegion": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+      },
+      "InferenceRequestOutcome": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "partial",
+          "cancelled",
+          "failed"
+        ]
+      },
+      "InferenceSpeechParameters": {
+        "type": "object",
+        "properties": {
+          "voice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "responseFormat": {
+            "type": "string",
+            "enum": [
+              "mp3",
+              "opus",
+              "aac",
+              "flac",
+              "wav",
+              "pcm"
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 4
+          }
+        },
+        "required": [
+          "voice",
+          "responseFormat"
+        ],
+        "additionalProperties": false
+      },
+      "InferenceStreamAudioEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "audio"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "outputIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/InferenceAudioMediaType"
+          },
+          "data": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 65536,
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "outputIndex",
+          "mediaType",
+          "data"
+        ]
+      },
+      "InferenceStreamDeltaEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "delta"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "outputIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "output_text",
+              "reasoning",
+              "refusal",
+              "output_audio_transcript"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "outputIndex",
+          "channel",
+          "text"
+        ]
+      },
+      "InferenceStreamDoneEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "done"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "generationId": {
+            "$ref": "#/components/schemas/GenerationId"
+          },
+          "finishReason": {
+            "$ref": "#/components/schemas/InferenceFinishReason"
+          },
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "completedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "finishReason",
+          "completedAt"
+        ]
+      },
+      "InferenceStreamToolCallEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "tool_call"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "toolCallId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "argumentsDelta": {
+            "type": "string"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "toolCallId",
+          "complete"
+        ]
+      },
+      "InferenceTimestamp": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+      },
+      "InferenceToolCall": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "arguments": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "arguments"
+        ],
+        "additionalProperties": false
+      },
+      "LanguageTag": {
+        "type": "string",
+        "maxLength": 35,
+        "pattern": "^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
+      },
+      "MeteredGenerationRecord": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "generationId": {
+            "$ref": "#/components/schemas/GenerationId"
+          },
+          "applicationId": {
+            "$ref": "#/components/schemas/OxyApplicationId"
+          },
+          "credentialId": {
+            "$ref": "#/components/schemas/OxyCredentialId"
+          },
+          "delegatedUserId": {
+            "$ref": "#/components/schemas/DelegatedUserId"
+          },
+          "environment": {
+            "$ref": "#/components/schemas/InferenceEnvironment"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/InferenceRequestOutcome"
+          },
+          "usageSource": {
+            "$ref": "#/components/schemas/UsageSource"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/RequestLabels"
+          },
+          "settledAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "kind": {
+            "type": "string",
+            "const": "metered_usage"
+          },
+          "meteredUsageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "parentRequestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "tariff": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "quoted"
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/ExactDecimal"
+                  },
+                  "currency": {
+                    "$ref": "#/components/schemas/CurrencyCode"
+                  },
+                  "priceVersionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "status",
+                  "amount",
+                  "currency",
+                  "priceVersionId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "unpriced"
+                  },
+                  "priceVersionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "priceVersionId"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "customerCharge": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "const": "not_charged"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "applicationId",
+          "credentialId",
+          "environment",
+          "outcome",
+          "usageSource",
+          "units",
+          "model",
+          "settledAt",
+          "kind",
+          "meteredUsageId",
+          "tariff",
+          "customerCharge"
+        ],
+        "additionalProperties": false
+      },
+      "ModelAudioCapabilities": {
+        "type": "object",
+        "properties": {
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Voice"
+            }
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageTag"
+            }
+          },
+          "audioFormats": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AudioInputMediaType"
+                }
+              },
+              "output": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InferenceAudioMediaType"
+                }
+              }
+            },
+            "required": [
+              "input",
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "speed": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 4
+              },
+              "max": {
+                "type": "number",
+                "minimum": 0.25,
+                "maximum": 4
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "maxInputCharacters": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "voices",
+          "languages",
+          "audioFormats"
+        ],
+        "additionalProperties": false
+      },
+      "ModelCapabilities": {
+        "type": "object",
+        "properties": {
+          "inputModalities": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceModality"
+            }
+          },
+          "outputModalities": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceOutputModality"
+            }
+          },
+          "tools": {
+            "type": "boolean"
+          },
+          "parallelToolCalls": {
+            "type": "boolean"
+          },
+          "structuredOutput": {
+            "type": "boolean"
+          },
+          "jsonMode": {
+            "type": "boolean"
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "reasoningEfforts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReasoningEffort"
+            }
+          },
+          "streaming": {
+            "type": "boolean"
+          },
+          "promptCaching": {
+            "type": "boolean"
+          },
+          "maxContextTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "apiFormats": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceApiFormat"
+            }
+          },
+          "realtime": {
+            "$ref": "#/components/schemas/ModelRealtimeCapabilities"
+          }
+        },
+        "required": [
+          "inputModalities",
+          "outputModalities",
+          "tools",
+          "parallelToolCalls",
+          "structuredOutput",
+          "jsonMode",
+          "reasoning",
+          "streaming",
+          "promptCaching",
+          "maxContextTokens",
+          "maxOutputTokens"
+        ],
+        "additionalProperties": false
+      },
+      "ModelDeprecation": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "deprecated",
+              "retired"
+            ]
+          },
+          "replacementModelReference": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "announcedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "sunsetAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "ModelEvaluationResult": {
+        "type": "object",
+        "properties": {
+          "suite": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "metric": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "score": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "evaluatedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "reportUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          }
+        },
+        "required": [
+          "suite",
+          "metric",
+          "score"
+        ],
+        "additionalProperties": false
+      },
+      "ModelId": {
+        "type": "string",
+        "maxLength": 129,
+        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+      },
+      "ModelLicense": {
+        "type": "object",
+        "properties": {
+          "licenseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "url": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          },
+          "commercialUseAllowed": {
+            "type": "boolean"
+          },
+          "requiresAttribution": {
+            "type": "boolean"
+          },
+          "acceptableUsePolicyUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          }
+        },
+        "required": [
+          "licenseId",
+          "displayName",
+          "commercialUseAllowed",
+          "requiresAttribution"
+        ],
+        "additionalProperties": false
+      },
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "ModelPowerClass": {
+        "type": "string",
+        "enum": [
+          "instant",
+          "medium",
+          "high",
+          "pro",
+          "ultra"
+        ]
+      },
+      "ModelProvenance": {
+        "type": "object",
+        "properties": {
+          "releaseKind": {
+            "type": "string",
+            "enum": [
+              "first_party_original",
+              "first_party_derived",
+              "open_weight",
+              "third_party_hosted"
+            ]
+          },
+          "baseModelId": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "trainingOrganization": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "releaseKind"
+        ],
+        "additionalProperties": false
+      },
+      "ModelRealtimeCapabilities": {
+        "type": "object",
+        "properties": {
+          "transports": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeSessionTransport"
+            }
+          },
+          "sessionKinds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeSessionKind"
+            }
+          }
+        },
+        "required": [
+          "transports",
+          "sessionKinds"
+        ],
+        "additionalProperties": false
+      },
+      "ModelReference": {
+        "type": "string",
+        "maxLength": 194,
+        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$"
+      },
+      "ModelRevisionLabel": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$"
+      },
+      "ModelSafetyMetadata": {
+        "type": "object",
+        "properties": {
+          "safetyCardUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          },
+          "contentFilteringDefault": {
+            "type": "string",
+            "enum": [
+              "none",
+              "provider_default",
+              "strict"
+            ]
+          },
+          "knownLimitations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "provenanceMarking": {
+            "type": "string",
+            "enum": [
+              "none",
+              "visible_watermark",
+              "invisible_watermark",
+              "c2pa"
+            ]
+          }
+        },
+        "required": [
+          "contentFilteringDefault",
+          "provenanceMarking"
+        ],
+        "additionalProperties": false
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "modelId": {
+            "$ref": "#/components/schemas/ModelId"
+          },
+          "publisher": {
+            "$ref": "#/components/schemas/CataloguePublisherSummary"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "currentRevision": {
+            "$ref": "#/components/schemas/ModelRevisionLabel"
+          },
+          "availableRevisions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelRevisionLabel"
+            }
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "audio": {
+            "$ref": "#/components/schemas/ModelAudioCapabilities"
+          },
+          "license": {
+            "$ref": "#/components/schemas/ModelLicense"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ModelProvenance"
+          },
+          "knowledgeCutoff": {
+            "$ref": "#/components/schemas/InferenceDate"
+          },
+          "releasedOn": {
+            "$ref": "#/components/schemas/InferenceDate"
+          },
+          "releasedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "regions": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceRegion"
+            }
+          },
+          "dataPolicy": {
+            "$ref": "#/components/schemas/InferenceDataPolicy"
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/PriceSnapshot"
+          },
+          "deprecation": {
+            "$ref": "#/components/schemas/ModelDeprecation"
+          },
+          "evaluations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelEvaluationResult"
+            }
+          },
+          "safety": {
+            "$ref": "#/components/schemas/ModelSafetyMetadata"
+          },
+          "modelCardUrl": {
+            "$ref": "#/components/schemas/InferenceHttpsUrl"
+          },
+          "powerClass": {
+            "$ref": "#/components/schemas/ModelPowerClass"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "modelId",
+          "publisher",
+          "displayName",
+          "currentRevision",
+          "availableRevisions",
+          "capabilities",
+          "license",
+          "provenance",
+          "dataPolicy",
+          "deprecation"
+        ]
+      },
+      "ModelSlug": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+      },
+      "ModelTarget": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          {
+            "$ref": "#/components/schemas/PowerLevel"
+          }
+        ]
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/ExactDecimal"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "OxyApplicationId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "OxyCredentialId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "PowerLevelEntry": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/PowerLevel"
+          },
+          "powerClass": {
+            "$ref": "#/components/schemas/ModelPowerClass"
+          },
+          "reasoningEffort": {
+            "$ref": "#/components/schemas/ReasoningEffort"
+          },
+          "modelLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelId"
+            }
+          }
+        },
+        "required": [
+          "level",
+          "modelLines"
+        ],
+        "additionalProperties": false
+      },
+      "PowerLevelList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PowerLevelEntry"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "PowerLevel": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "instant",
+          "medium",
+          "high",
+          "xhigh",
+          "pro",
+          "ultra"
+        ]
+      },
+      "PriceSnapshot": {
+        "type": "object",
+        "properties": {
+          "priceVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "unitPrices": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitPrice"
+            }
+          }
+        },
+        "required": [
+          "priceVersionId",
+          "currency",
+          "unitPrices"
+        ],
+        "additionalProperties": false
+      },
+      "PublicErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "authentication_failed",
+          "permission_denied",
+          "insufficient_scope",
+          "model_not_found",
+          "unsupported_modality",
+          "context_length_exceeded",
+          "request_too_large",
+          "output_limit_exceeded",
+          "idempotency_conflict",
+          "insufficient_balance",
+          "spending_limit_exceeded",
+          "quota_exceeded",
+          "byok_credential_invalid",
+          "policy_violation",
+          "commercial_permission_denied",
+          "no_route_available",
+          "upstream_content_filtered",
+          "cancelled",
+          "rate_limited",
+          "provider_error",
+          "provider_timeout",
+          "provider_overloaded",
+          "service_unavailable",
+          "internal_error"
+        ]
+      },
+      "PublicError": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "code": {
+            "$ref": "#/components/schemas/PublicErrorCode"
+          },
+          "message": {
+            "$ref": "#/components/schemas/SafeErrorText"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "retryAfterMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "param": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "upstreamCategory": {
+            "$ref": "#/components/schemas/UpstreamErrorCategory"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "code",
+          "message",
+          "retryable",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "PublisherSlug": {
+        "type": "string",
+        "maxLength": 64,
+        "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$"
+      },
+      "RealtimeAudioFormat": {
+        "type": "string",
+        "enum": [
+          "pcm16_24khz",
+          "g711_ulaw",
+          "g711_alaw"
+        ]
+      },
+      "RealtimeClientCommand": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeSessionUpdateCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemCreateCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemDeleteCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemTruncateCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeInputAudioAppendCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeInputAudioCommitCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeInputAudioClearCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeResponseCreateCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeResponseCancelCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSessionResumeCommand"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSessionCloseCommand"
+          }
+        ]
+      },
+      "RealtimeCommandAcceptedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "command.accepted"
+          },
+          "duplicate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "commandId",
+          "type",
+          "duplicate"
+        ]
+      },
+      "RealtimeCommandId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "RealtimeContentPart": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "input_text"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1048576
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "input_audio"
+              },
+              "format": {
+                "$ref": "#/components/schemas/RealtimeAudioFormat"
+              },
+              "data": {
+                "type": "string",
+                "minLength": 4,
+                "maxLength": 65536,
+                "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+              },
+              "transcript": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "format"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "output_text"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "output_audio"
+              },
+              "format": {
+                "$ref": "#/components/schemas/RealtimeAudioFormat"
+              },
+              "transcript": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "format"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "RealtimeConversationItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "message"
+              },
+              "itemId": {
+                "$ref": "#/components/schemas/RealtimeItemId"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "system",
+                  "user",
+                  "assistant"
+                ]
+              },
+              "content": {
+                "minItems": 1,
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RealtimeContentPart"
+                }
+              }
+            },
+            "required": [
+              "type",
+              "role",
+              "content"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function_call"
+              },
+              "itemId": {
+                "$ref": "#/components/schemas/RealtimeItemId"
+              },
+              "callId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "arguments": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "callId",
+              "name",
+              "arguments"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function_call_output"
+              },
+              "itemId": {
+                "$ref": "#/components/schemas/RealtimeItemId"
+              },
+              "callId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "output": {
+                "type": "string",
+                "maxLength": 1048576
+              }
+            },
+            "required": [
+              "type",
+              "callId",
+              "output"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "RealtimeInputAudioAppendCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.append"
+          },
+          "data": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 65536,
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "data"
+        ]
+      },
+      "RealtimeInputAudioClearCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.clear"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type"
+        ]
+      },
+      "RealtimeInputAudioClearedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.cleared"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type"
+        ]
+      },
+      "RealtimeInputAudioCommitCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.commit"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type"
+        ]
+      },
+      "RealtimeInputAudioCommittedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.committed"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "previousItemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId"
+        ]
+      },
+      "RealtimeInputTranscription": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4096
+          }
+        },
+        "additionalProperties": false
+      },
+      "RealtimeItemAddedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.added"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "previousItemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "item": {
+            "$ref": "#/components/schemas/RealtimeConversationItem"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId",
+          "item"
+        ]
+      },
+      "RealtimeItemCreateCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.create"
+          },
+          "previousItemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "item": {
+            "$ref": "#/components/schemas/RealtimeConversationItem"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "item"
+        ]
+      },
+      "RealtimeItemDeleteCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.delete"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "itemId"
+        ]
+      },
+      "RealtimeItemDeletedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.deleted"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId"
+        ]
+      },
+      "RealtimeItemDoneEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.done"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "item": {
+            "$ref": "#/components/schemas/RealtimeConversationItem"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId",
+          "item"
+        ]
+      },
+      "RealtimeItemId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "RealtimeItemTruncateCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.truncate"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "audioEndMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "itemId",
+          "contentIndex",
+          "audioEndMs"
+        ]
+      },
+      "RealtimeItemTruncatedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "conversation.item.truncated"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "audioEndMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId",
+          "contentIndex",
+          "audioEndMs"
+        ]
+      },
+      "RealtimeOpenLimits": {
+        "type": "object",
+        "properties": {
+          "maxDurationMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 3600000
+          },
+          "idleTimeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 3600000
+          },
+          "maxInputAudioBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 172800000
+          },
+          "maxOutputAudioBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 172800000
+          },
+          "maxResponses": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          },
+          "maxTextItems": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        },
+        "additionalProperties": false
+      },
+      "RealtimeOutputAudioDeltaEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "output_audio.delta"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "format": {
+            "$ref": "#/components/schemas/RealtimeAudioFormat"
+          },
+          "data": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 65536,
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId",
+          "itemId",
+          "contentIndex",
+          "format",
+          "data"
+        ]
+      },
+      "RealtimeOutputAudioDoneEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "output_audio.done"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId",
+          "itemId",
+          "contentIndex"
+        ]
+      },
+      "RealtimeOutputModality": {
+        "type": "string",
+        "enum": [
+          "text",
+          "audio"
+        ]
+      },
+      "RealtimePublicErrorEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "error"
+          },
+          "fatal": {
+            "type": "boolean"
+          },
+          "error": {
+            "$ref": "#/components/schemas/PublicError"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "fatal",
+          "error"
+        ]
+      },
+      "RealtimePublicResponseDoneEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "response.done"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RealtimeResponseStatus"
+          },
+          "finishReason": {
+            "$ref": "#/components/schemas/InferenceFinishReason"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "usageSource": {
+            "$ref": "#/components/schemas/UsageSource"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId",
+          "status",
+          "units",
+          "usageSource"
+        ]
+      },
+      "RealtimePublicServerEvent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RealtimePublicSessionCreatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSessionUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSessionResumedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeCommandAcceptedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemAddedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemDeletedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeItemTruncatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSpeechStartedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeSpeechStoppedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeInputAudioCommittedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeInputAudioClearedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeResponseCreatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeOutputAudioDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeOutputAudioDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeTranscriptDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeTranscriptDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeTextDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimeToolCallEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimePublicResponseDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimePublicErrorEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RealtimePublicSessionClosedEvent"
+          }
+        ]
+      },
+      "RealtimePublicSessionClosedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.closed"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RealtimeSessionCloseReason"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "usageSource": {
+            "$ref": "#/components/schemas/UsageSource"
+          },
+          "closedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "reason",
+          "units",
+          "usageSource",
+          "closedAt"
+        ]
+      },
+      "RealtimePublicSessionCreatedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.created"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RealtimeSessionKind"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RealtimeSessionConfig"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RealtimeSessionLimits"
+          },
+          "resumeWindowMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60000
+          },
+          "startedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "model",
+          "kind",
+          "config",
+          "limits",
+          "resumeWindowMs",
+          "startedAt",
+          "expiresAt"
+        ]
+      },
+      "RealtimeResponseCancelCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "response.cancel"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type"
+        ]
+      },
+      "RealtimeResponseCreateCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "response.create"
+          },
+          "response": {
+            "$ref": "#/components/schemas/RealtimeResponseParameters"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type"
+        ]
+      },
+      "RealtimeResponseCreatedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "response.created"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId"
+        ]
+      },
+      "RealtimeResponseId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "RealtimeResponseParameters": {
+        "type": "object",
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "maxLength": 32768
+          },
+          "outputModalities": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeOutputModality"
+            }
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "toolChoice": {
+            "$ref": "#/components/schemas/ToolChoice"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RealtimeResponseStatus": {
+        "type": "string",
+        "enum": [
+          "completed",
+          "cancelled",
+          "incomplete",
+          "failed"
+        ]
+      },
+      "RealtimeSessionCloseCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.close"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type"
+        ]
+      },
+      "RealtimeSessionCloseReason": {
+        "type": "string",
+        "enum": [
+          "client_closed",
+          "max_duration",
+          "idle_timeout",
+          "limit_exceeded",
+          "resume_expired",
+          "upstream_closed",
+          "upstream_error",
+          "no_route_available",
+          "server_shutdown"
+        ]
+      },
+      "RealtimeSessionConfig": {
+        "type": "object",
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "maxLength": 32768
+          },
+          "outputModalities": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeOutputModality"
+            }
+          },
+          "voice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "inputAudioFormat": {
+            "$ref": "#/components/schemas/RealtimeAudioFormat"
+          },
+          "outputAudioFormat": {
+            "$ref": "#/components/schemas/RealtimeAudioFormat"
+          },
+          "turnDetection": {
+            "$ref": "#/components/schemas/RealtimeTurnDetection"
+          },
+          "inputAudioTranscription": {
+            "$ref": "#/components/schemas/RealtimeInputTranscription"
+          },
+          "translation": {
+            "$ref": "#/components/schemas/RealtimeTranslation"
+          },
+          "tools": {
+            "maxItems": 128,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolDefinition"
+            }
+          },
+          "toolChoice": {
+            "$ref": "#/components/schemas/ToolChoice"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "inputAudioFormat",
+          "turnDetection"
+        ],
+        "additionalProperties": false
+      },
+      "RealtimeSessionConfigUpdate": {
+        "type": "object",
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "maxLength": 32768
+          },
+          "outputModalities": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RealtimeOutputModality"
+            }
+          },
+          "turnDetection": {
+            "$ref": "#/components/schemas/RealtimeTurnDetection"
+          },
+          "inputAudioTranscription": {
+            "$ref": "#/components/schemas/RealtimeInputTranscription"
+          },
+          "tools": {
+            "maxItems": 128,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolDefinition"
+            }
+          },
+          "toolChoice": {
+            "$ref": "#/components/schemas/ToolChoice"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "additionalProperties": false
+      },
+      "RealtimeSessionKind": {
+        "type": "string",
+        "enum": [
+          "conversation",
+          "transcription",
+          "translation"
+        ]
+      },
+      "RealtimeSessionLimits": {
+        "type": "object",
+        "properties": {
+          "maxDurationMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 3600000
+          },
+          "idleTimeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 3600000
+          },
+          "maxInputAudioBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 172800000
+          },
+          "maxOutputAudioBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 172800000
+          },
+          "maxResponses": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 10000
+          }
+        },
+        "required": [
+          "maxDurationMs",
+          "idleTimeoutMs",
+          "maxInputAudioBytes",
+          "maxOutputAudioBytes",
+          "maxResponses"
+        ],
+        "additionalProperties": false
+      },
+      "RealtimeSessionOpen": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "session.open"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RealtimeSessionKind"
+          },
+          "transport": {
+            "$ref": "#/components/schemas/RealtimeSessionTransport"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RealtimeSessionConfig"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/RealtimeOpenLimits"
+          },
+          "clientSessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "labels": {
+            "$ref": "#/components/schemas/RequestLabels"
+          }
+        },
+        "required": [
+          "type",
+          "kind",
+          "config"
+        ],
+        "additionalProperties": false
+      },
+      "RealtimeSessionResumeCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.resume"
+          },
+          "afterSequence": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "afterSequence"
+        ]
+      },
+      "RealtimeSessionResumedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.resumed"
+          },
+          "afterSequence": {
+            "type": "integer",
+            "minimum": -1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "afterSequence"
+        ]
+      },
+      "RealtimeSessionTransport": {
+        "type": "string",
+        "enum": [
+          "websocket"
+        ]
+      },
+      "RealtimeSessionUpdateCommand": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.update"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RealtimeSessionConfigUpdate"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "commandId",
+          "type",
+          "config"
+        ]
+      },
+      "RealtimeSessionUpdatedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "session.updated"
+          },
+          "config": {
+            "$ref": "#/components/schemas/RealtimeSessionConfig"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "config"
+        ]
+      },
+      "RealtimeSpeechStartedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.speech_started"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "audioStartMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId",
+          "audioStartMs"
+        ]
+      },
+      "RealtimeSpeechStoppedEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "input_audio.speech_stopped"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "audioEndMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "itemId",
+          "audioEndMs"
+        ]
+      },
+      "RealtimeTextDeltaEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "text.delta"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId",
+          "itemId",
+          "contentIndex",
+          "text"
+        ]
+      },
+      "RealtimeToolCallEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "tool_call"
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "toolCallId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "argumentsDelta": {
+            "type": "string"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "responseId",
+          "itemId",
+          "toolCallId",
+          "complete"
+        ]
+      },
+      "RealtimeTranscriptDeltaEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "transcript.delta"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RealtimeTranscriptSource"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "source",
+          "itemId",
+          "contentIndex",
+          "text"
+        ]
+      },
+      "RealtimeTranscriptDoneEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "commandId": {
+            "$ref": "#/components/schemas/RealtimeCommandId"
+          },
+          "type": {
+            "type": "string",
+            "const": "transcript.done"
+          },
+          "source": {
+            "$ref": "#/components/schemas/RealtimeTranscriptSource"
+          },
+          "itemId": {
+            "$ref": "#/components/schemas/RealtimeItemId"
+          },
+          "contentIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "responseId": {
+            "$ref": "#/components/schemas/RealtimeResponseId"
+          },
+          "transcript": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "sequence",
+          "type",
+          "source",
+          "itemId",
+          "contentIndex",
+          "transcript"
+        ]
+      },
+      "RealtimeTranscriptSource": {
+        "type": "string",
+        "enum": [
+          "input_audio",
+          "output_audio"
+        ]
+      },
+      "RealtimeTranslation": {
+        "type": "object",
+        "properties": {
+          "targetLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          }
+        },
+        "required": [
+          "targetLanguage"
+        ],
+        "additionalProperties": false
+      },
+      "RealtimeTurnDetection": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "none"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "server_vad"
+              },
+              "threshold": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "prefixPaddingMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 5000
+              },
+              "silenceDurationMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "createResponse": {
+                "type": "boolean"
+              },
+              "interruptResponse": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "createResponse",
+              "interruptResponse"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "semantic_vad"
+              },
+              "eagerness": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "auto"
+                ]
+              },
+              "createResponse": {
+                "type": "boolean"
+              },
+              "interruptResponse": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "eagerness",
+              "createResponse",
+              "interruptResponse"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ReasoningEffort": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "RequestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "RequestLabels": {
+        "type": "object",
+        "propertyNames": {
+          "type": "string"
+        },
+        "additionalProperties": {
+          "type": "string",
+          "maxLength": 256
+        }
+      },
+      "ResponseFormat": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "text"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "json_object"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "json_schema"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "schema": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "strict": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "type",
+              "name",
+              "schema",
+              "strict"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Response": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "generationId": {
+            "$ref": "#/components/schemas/GenerationId"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "finishReason": {
+            "$ref": "#/components/schemas/InferenceFinishReason"
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InferenceMessage"
+            }
+          },
+          "usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "routingPolicy": {
+            "$ref": "#/components/schemas/RoutingPolicyReference"
+          },
+          "latencyMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "model",
+          "finishReason",
+          "output",
+          "usage",
+          "routingPolicy",
+          "latencyMs"
+        ],
+        "additionalProperties": false
+      },
+      "ResponseStreamErrorEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "error"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "error": {
+            "$ref": "#/components/schemas/PublicError"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "error"
+        ]
+      },
+      "ResponseStreamEvent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ResponseStreamStartEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InferenceStreamDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InferenceStreamAudioEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InferenceStreamToolCallEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ResponseStreamUsageEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ResponseStreamErrorEvent"
+          },
+          {
+            "$ref": "#/components/schemas/InferenceStreamDoneEvent"
+          }
+        ]
+      },
+      "ResponseStreamStartEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "start"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "generationId": {
+            "$ref": "#/components/schemas/GenerationId"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "startedAt": {
+            "$ref": "#/components/schemas/InferenceTimestamp"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "model",
+          "startedAt"
+        ]
+      },
+      "ResponseStreamUsageEvent": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "type": {
+            "type": "string",
+            "const": "usage"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "units": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsageQuantity"
+            }
+          },
+          "usageSource": {
+            "$ref": "#/components/schemas/UsageSource"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "type",
+          "requestId",
+          "sequence",
+          "units",
+          "usageSource"
+        ]
+      },
+      "ResponsesRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelTarget"
+          },
+          "input": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InferenceMessage"
+                }
+              }
+            ]
+          },
+          "maxOutputTokens": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "topP": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "topK": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "frequencyPenalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "presencePenalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "stopSequences": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          },
+          "tools": {
+            "maxItems": 128,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolDefinition"
+            }
+          },
+          "toolChoice": {
+            "$ref": "#/components/schemas/ToolChoice"
+          },
+          "responseFormat": {
+            "$ref": "#/components/schemas/ResponseFormat"
+          },
+          "reasoning": {
+            "$ref": "#/components/schemas/InferenceReasoning"
+          },
+          "labels": {
+            "$ref": "#/components/schemas/RequestLabels"
+          },
+          "clientRequestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "additionalProperties": false
+      },
+      "RoutingPolicyReference": {
+        "type": "object",
+        "properties": {
+          "routingPolicyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "policyVersion": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "routingPolicyId",
+          "policyVersion"
+        ],
+        "additionalProperties": false
+      },
+      "SafeErrorText": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2000
+      },
+      "SamplingParameters": {
+        "type": "object",
+        "properties": {
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "topP": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "topK": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "frequencyPenalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "presencePenalty": {
+            "type": "number",
+            "minimum": -2,
+            "maximum": 2
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "stopSequences": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Sha256Digest": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "SpeechAudioDeltaEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "speech.audio.delta"
+          },
+          "audio": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 65536,
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        },
+        "required": [
+          "type",
+          "audio"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechAudioDoneEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "speech.audio.done"
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "type",
+          "requestId",
+          "model",
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechFormat": {
+        "type": "string",
+        "enum": [
+          "mp3",
+          "opus",
+          "aac",
+          "flac",
+          "wav",
+          "pcm"
+        ]
+      },
+      "SpeechRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "voice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "response_format": {
+            "$ref": "#/components/schemas/SpeechFormat"
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.25,
+            "maximum": 4
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "stream_format": {
+            "$ref": "#/components/schemas/SpeechStreamFormat"
+          },
+          "user": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "model",
+          "input",
+          "voice"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechStreamErrorEvent": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "error"
+          },
+          "error": {
+            "$ref": "#/components/schemas/PublicError"
+          }
+        },
+        "required": [
+          "type",
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechStreamEvent": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SpeechAudioDeltaEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SpeechAudioDoneEvent"
+          },
+          {
+            "$ref": "#/components/schemas/SpeechStreamErrorEvent"
+          }
+        ]
+      },
+      "SpeechStreamFormat": {
+        "type": "string",
+        "enum": [
+          "audio",
+          "sse"
+        ]
+      },
+      "ToolChoice": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "auto",
+              "none",
+              "required"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "type",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "ToolDefinition": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "function"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "parameters": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "strict": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "parameters"
+        ],
+        "additionalProperties": false
+      },
+      "TranscriptionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "language": {
+            "$ref": "#/components/schemas/LanguageTag"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "timestamps": {
+            "type": "string",
+            "enum": [
+              "none",
+              "segment",
+              "word"
+            ]
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "additionalProperties": false
+      },
+      "Transcription": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "number",
+            "const": 1
+          },
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          },
+          "model": {
+            "$ref": "#/components/schemas/ModelReference"
+          },
+          "text": {
+            "type": "string"
+          },
+          "language": {
+            "$ref": "#/components/schemas/LanguageTag"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "endMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "startMs",
+                "endMs",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "endMs": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "word": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "startMs",
+                "endMs",
+                "word"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "model",
+          "text",
+          "usage"
+        ],
+        "additionalProperties": false
+      },
+      "UnitPrice": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "$ref": "#/components/schemas/UsageUnit"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/ExactDecimal"
+          },
+          "per": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "currency": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          }
+        },
+        "required": [
+          "unit",
+          "amount",
+          "per",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "UpstreamErrorCategory": {
+        "type": "string",
+        "enum": [
+          "rate_limit",
+          "quota",
+          "timeout",
+          "overloaded",
+          "server_error",
+          "content_filter",
+          "invalid_request",
+          "authentication",
+          "unknown"
+        ]
+      },
+      "UsageQuantity": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "$ref": "#/components/schemas/UsageUnit"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "unit",
+          "quantity"
+        ],
+        "additionalProperties": false
+      },
+      "Usage": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/UsageQuantity"
+        }
+      },
+      "UsageSource": {
+        "type": "string",
+        "enum": [
+          "provider_reported",
+          "oxy_measured",
+          "estimated"
+        ]
+      },
+      "UsageUnit": {
+        "type": "string",
+        "enum": [
+          "input_tokens",
+          "cached_input_tokens",
+          "output_tokens",
+          "reasoning_tokens",
+          "requests",
+          "images",
+          "audio_input_milliseconds",
+          "audio_output_milliseconds",
+          "video_milliseconds",
+          "characters",
+          "embeddings",
+          "audio_input_tokens",
+          "cached_audio_input_tokens",
+          "audio_output_tokens",
+          "session_milliseconds"
+        ]
+      },
+      "Voice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LanguageTag"
+            }
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "female",
+              "male",
+              "neutral"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "languages"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

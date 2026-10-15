@@ -40,6 +40,12 @@ module.exports = {
     // regex below; the contracts source only imports `zod`, which resolves
     // normally from node_modules.
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    // `@kaana.ai/contracts` (Kaana ADR 0002) is vendored from an exact Kaana
+    // commit until it is published (`vendor/kaana-contracts/provenance.json`).
+    // From source for the same reason as `@oxy.so/contracts`; its own `zod` 4
+    // resolves from the vendored package's node_modules.
+    '^@kaana.ai/contracts$': '<rootDir>/../../vendor/kaana-contracts/src/index.ts',
+    '^@kaana.ai/contracts/internal$': '<rootDir>/../../vendor/kaana-contracts/src/internal.ts',
     // The protocol node subpath (NodeClient, used by nodeSync.service) — resolve
     // from source like the protocol root so the api-test job needs no prior build.
     '^@oxy.so/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
