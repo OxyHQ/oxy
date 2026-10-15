@@ -1,3 +1,5 @@
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
+import { serviceTokenOptionsSchema, type ServiceTokenOptions } from '@oxy.so/contracts';
 import {
   subjectProductAccessQuerySchema,
   subjectProductGrantSnapshotSchema,
@@ -174,9 +176,9 @@ export type ServiceTokenAudience = 'oxy-api' | 'kaana.ai' | 'oxy-api:kaana-contr
 /** What `serviceToken()` mints, and what Oxy assumes when no audience is sent. */
 export const DEFAULT_SERVICE_TOKEN_AUDIENCE: ServiceTokenAudience = 'oxy-api';
 
-/** Tokens of different audiences never share a cache entry; the default keeps its old key. */
-function audienceCacheKey(audience: ServiceTokenAudience, key: string): string {
-  return audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? key : `${audience}\u0000${key}`;
+/** Audience, credential and normalized scope set are independent cache dimensions. */
+function audienceCacheKey(audience: ServiceTokenAudience, key: string, scopes?: string[]): string {
+  return JSON.stringify([audience, key, scopes ?? null]);
 }
 /** A token is reused until 60s before expiry (clock drift). */
 const TOKEN_REUSE_MARGIN_MS = 60_000;
@@ -313,8 +315,12 @@ export class OxyServer extends OxyServices {
    * constant-time match the secret that produced it, this throws
    * {@link ServiceCredentialMismatchError} rather than return the cached token.
    */
-  async serviceToken(apiKey?: string, apiSecret?: string): Promise<string> {
-    return this.serviceTokenFor(DEFAULT_SERVICE_TOKEN_AUDIENCE, apiKey, apiSecret);
+  async serviceToken(
+    apiKey?: string,
+    apiSecret?: string,
+    options: ServiceTokenOptions = {},
+  ): Promise<string> {
+    return this.serviceTokenFor(DEFAULT_SERVICE_TOKEN_AUDIENCE, apiKey, apiSecret, options);
   }
 
   /**
@@ -327,7 +333,9 @@ export class OxyServer extends OxyServices {
     audience: ServiceTokenAudience,
     apiKey?: string,
     apiSecret?: string,
+    options: ServiceTokenOptions = {},
   ): Promise<string> {
+    const { scopes } = serviceTokenOptionsSchema.parse(options);
     const key = apiKey || this.serviceApiKey;
     const secret = apiSecret || this.serviceApiSecret;
 
@@ -335,7 +343,7 @@ export class OxyServer extends OxyServices {
       // No credential — prove what this process IS instead. The fallback, not the
       // preference: a deployment that still has a credential keeps using it.
       if (canAttestWorkloadIdentity()) {
-        return this.workloadServiceToken(audience);
+        return this.workloadServiceToken(audience, scopes);
       }
       throw new Error(
         'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
@@ -344,7 +352,7 @@ export class OxyServer extends OxyServices {
 
     // The apiKey is the credential's PUBLIC id (`oxy_dk_…`, the OAuth
     // client_id), so it keys the in-memory cache as is; the secret never does.
-    const cacheKey = audienceCacheKey(audience, key);
+    const cacheKey = audienceCacheKey(audience, key, scopes);
     const now = Date.now();
     const providedSecretBuf = Buffer.from(secret, 'utf8');
 
@@ -381,7 +389,7 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.set(cacheKey, entry);
     }
 
-    const pending = this.mintServiceToken(key, secret, cacheKey, providedSecretBuf, audience);
+    const pending = this.mintServiceToken(key, secret, cacheKey, entry, audience, scopes);
     entry.pending = pending;
     try {
       return await pending;
@@ -412,7 +420,7 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.clear();
       return;
     }
-    // Every audience minted from that credential goes with it.
+    // Every audience and scope set minted from that credential goes with it.
     for (const [cacheKey, entry] of this.serviceTokens) {
       if (entry.apiKey === targetKey) this.serviceTokens.delete(cacheKey);
     }
@@ -469,10 +477,10 @@ export class OxyServer extends OxyServices {
     method: HttpMethod,
     url: string,
     data?: unknown,
-    options: RequestOptions & { actAs?: string } = {},
+    options: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] } = {},
   ): Promise<T> {
-    const { actAs, headers, ...rest } = options;
-    const token = await this.serviceToken();
+    const { actAs, headers, serviceTokenScopes, ...rest } = options;
+    const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
@@ -612,8 +620,9 @@ export class OxyServer extends OxyServices {
     key: string,
     secret: string,
     cacheKey: string,
-    secretBuf: Buffer,
+    expectedEntry: ServiceTokenCacheEntry,
     audience: ServiceTokenAudience,
+    scopes?: string[],
   ): Promise<string> {
     const response = await this.request<ServiceTokenResponse>(
       'POST',
@@ -622,30 +631,28 @@ export class OxyServer extends OxyServices {
         apiKey: key,
         apiSecret: secret,
         ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+        ...(scopes ? { scopes } : {}),
       },
       { cache: false, retry: false, skipAuth: true },
     );
+    assertRequestedServiceScopes(response.token, scopes);
     const expiresAt = Date.now() + response.expiresIn * 1000;
     const entry = this.serviceTokens.get(cacheKey);
-    if (entry) {
+    // Invalidation also fences in-flight mints: an old response cannot repopulate
+    // a cleared cache or replace the newly minted token for the same scope set.
+    if (entry === expectedEntry) {
       entry.token = response.token;
       entry.expiresAt = expiresAt;
-      entry.secretBuf = secretBuf;
-    } else {
-      this.serviceTokens.set(cacheKey, {
-        token: response.token,
-        expiresAt,
-        secretBuf,
-        pending: null,
-        apiKey: key,
-      });
     }
     return response.token;
   }
 
   /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
-  private async workloadServiceToken(audience: ServiceTokenAudience): Promise<string> {
-    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY);
+  private async workloadServiceToken(
+    audience: ServiceTokenAudience,
+    scopes?: string[],
+  ): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY, scopes);
     const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
@@ -668,9 +675,11 @@ export class OxyServer extends OxyServices {
       const granted = await requestWorkloadServiceToken({
         baseUrl: this.baseURL,
         ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+        ...(scopes ? { scopes } : {}),
       });
+      assertRequestedServiceScopes(granted.token, scopes);
       const current = this.serviceTokens.get(cacheKey);
-      if (current) {
+      if (current === seeded) {
         current.token = granted.token;
         current.expiresAt = Date.now() + granted.expiresIn * 1000;
       }

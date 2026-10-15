@@ -1,4 +1,9 @@
-import { commonsDenyReasonSchema, deviceProofSchema, usernameSchema } from '@oxy.so/contracts';
+import {
+  serviceTokenScopesSchema,
+  commonsDenyReasonSchema,
+  deviceProofSchema,
+  usernameSchema,
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
 
@@ -158,6 +163,7 @@ export const authSessionClaimSchema = z.object({
 
 // POST /auth/service-token
 export const serviceTokenSchema = z.object({
+  scopes: serviceTokenScopesSchema.optional(),
   apiKey: z.string().trim().min(1),
   apiSecret: z.string().trim().min(1),
 });
@@ -169,6 +175,7 @@ export const serviceTokenSchema = z.object({
 // provider's verifier, so it is only constrained to "an object" here — a schema
 // that guessed at AWS's fields would have to change to admit the next provider.
 export const workloadServiceTokenSchema = z.object({
+  scopes: serviceTokenScopesSchema.optional(),
   provider: z.enum(ATTESTATION_PROVIDERS),
   nonce: z.string().trim().min(1).max(256),
   attestation: z.record(z.string(), z.unknown()),

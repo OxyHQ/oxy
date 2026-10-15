@@ -436,3 +436,33 @@ describe('workload-identity mint', () => {
     });
   });
 });
+
+it('narrows requested workload scopes without widening a binding or surviving its revocation', async () => {
+  const app = await applicationFixture({ scopes: ['user:read', 'files:read'] }),
+    subject = `${SUBJECT}-narrow`;
+  await bind(app.id, subject, { scopes: ['user:read', 'files:read'] });
+  const narrow = async (scopes: string[]) => {
+    const { nonce } = await issueWorkloadChallenge();
+    return exchangeWorkloadAttestation({
+      provider: 'aws-iam',
+      nonce,
+      attestation: { subject, answersNonce: nonce },
+      scopes,
+    });
+  };
+  expect(scopesOf((await narrow(['user:read'])).token)).toEqual(['user:read']);
+  await expect(narrow(['files:write'])).rejects.toMatchObject({
+    status: 403,
+    reason: 'scope_not_granted',
+  });
+  await getDb()
+    .update(applicationWorkloadIdentities)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applicationWorkloadIdentities.applicationId, app.id));
+  await expect(narrow(['files:read'])).rejects.toMatchObject({ status: 403 });
+  await getDb()
+    .update(applications)
+    .set({ status: 'suspended' })
+    .where(eq(applications.id, app.id));
+  await expect(narrow(['user:read'])).rejects.toMatchObject({ status: 403 });
+});
