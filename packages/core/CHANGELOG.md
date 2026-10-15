@@ -1,5 +1,25 @@
 # Changelog — `@oxy.so/core`
 
+## 4.9.0
+
+### Added
+
+- `OxyServer.serviceTokenFor(audience, apiKey?, apiSecret?)`: a service token
+  minted FOR a resource server, `kaana.ai` being the credential for
+  https://kaana.ai/v1 (Kaana ADR 0002 decision 6). Both mints name it — the
+  credential's `POST /auth/service-token` and the attested workload's
+  `POST /auth/service-token/workload` — and each audience has its own cache
+  entry, so one is never answered with another's token.
+  `invalidateServiceToken(apiKey)` drops every audience that credential
+  minted. Exported with `ServiceTokenAudience` and
+  `DEFAULT_SERVICE_TOKEN_AUDIENCE` from `@oxy.so/core/server`.
+- `requestWorkloadServiceToken({ audience })`.
+
+### Unchanged
+
+- `serviceToken()` mints for `oxy-api` and sends no `audience`, byte for byte
+  as before.
+
 ## 4.6.0
 
 ### Added
