@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { randomUUID } from 'expo-crypto';
 import { View, Pressable, Linking } from 'react-native';
 import { authenticatedApiCall } from '@oxy.so/core';
+import { oxyAccountIdSchema } from '@oxy.so/contracts';
 import {
   useOxy,
   usePersonalPlans,
@@ -42,7 +43,7 @@ function PersonalPlansContent() {
       const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
       const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
         oxyServices.billing.startPersonalPlanCheckout({
-          expectedSubjectAccountId: user.id,
+          expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
           offerId,
           offerVersion,
           idempotencyKey,
