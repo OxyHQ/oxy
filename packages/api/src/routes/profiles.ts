@@ -16,10 +16,7 @@ import { appUserSignals } from '../db/schema/appUserSignals';
 import { userFollows } from '../db/schema/userFollows';
 import { users } from '../db/schema/users';
 import { authMiddleware } from '../middleware/auth';
-import {
-  resolveViewerId,
-  type OptionalUserOrServiceRequest,
-} from '../middleware/optionalAuth';
+import { resolveViewerId, type OptionalUserOrServiceRequest } from '../middleware/optionalAuth';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
 import { NotFoundError, BadRequestError, UnauthorizedError } from '../utils/error';

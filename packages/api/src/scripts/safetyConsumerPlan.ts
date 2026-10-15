@@ -7,6 +7,7 @@ import {
 } from '../config/safetyConsumers';
 import { workloadBindingScopes } from '../utils/applicationScopes';
 export interface SafetyConsumerObservation {
+  owner: { id: string; status: string; kind: string; reputation: string; supervised: boolean };
   application: {
     id: string;
     ownerAccountId: string;
@@ -34,6 +35,11 @@ export function safetyConsumerPlan(
 ) {
   const target = SAFETY_CONSUMERS[consumer];
   if (
+    before.owner.id !== target.ownerAccountId ||
+    before.owner.status !== 'active' ||
+    before.owner.kind !== 'personal' ||
+    before.owner.reputation === 'restricted' ||
+    before.owner.supervised ||
     before.application.id !== target.applicationId ||
     before.application.ownerAccountId !== target.ownerAccountId ||
     before.application.type !== target.type ||
@@ -71,6 +77,7 @@ export function safetyConsumerPlan(
   )
     throw new Error('Provision base scope before reviewing supervised action capabilities');
   const after = {
+    owner: before.owner,
     application: {
       ...before.application,
       scopes:

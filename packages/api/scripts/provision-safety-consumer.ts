@@ -1,7 +1,13 @@
 /** Dry-run by default; APPLY=1 requires the exact observed hash, actor and reason. */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../src/config/postgres';
-import { applications, applicationWorkloadIdentities, securityActivities } from '../src/db/schema';
+import {
+  applications,
+  applicationWorkloadIdentities,
+  securityActivities,
+  users,
+  supervisionProfiles,
+} from '../src/db/schema';
 import {
   SAFETY_CONSUMERS,
   safetyWorkloadSubject,
@@ -60,7 +66,29 @@ try {
       )
       .orderBy(applicationWorkloadIdentities.subject)
       .for('update');
+    const [owner] = await tx
+      .select({
+        id: users.id,
+        status: users.accountStatus,
+        kind: users.kind,
+        reputation: users.reputationTier,
+      })
+      .from(users)
+      .where(eq(users.id, target.ownerAccountId))
+      .for('share');
+    if (!owner) throw new Error('Canonical application owner is missing');
+    const [supervised] = await tx
+      .select({ id: supervisionProfiles.childAccountId })
+      .from(supervisionProfiles)
+      .where(
+        and(
+          eq(supervisionProfiles.childAccountId, owner.id),
+          ne(supervisionProfiles.status, 'ended'),
+        ),
+      )
+      .limit(1);
     const before: SafetyConsumerObservation = {
+      owner: { ...owner, supervised: !!supervised },
       application,
       workloads: rows.map((row) => ({ ...row, expiresAt: row.expiresAt?.toISOString() ?? null })),
     };
@@ -84,23 +112,21 @@ try {
             .set({ scopes: desired.scopes })
             .where(eq(applicationWorkloadIdentities.id, desired.id));
       }
-      await tx
-        .insert(securityActivities)
-        .values({
-          userId: target.ownerAccountId,
-          eventType: 'security_settings_changed',
-          eventDescription: 'Reviewed safety consumer policy authority provisioned',
-          severity: 'high',
-          metadata: {
-            operation: 'provision_safety_consumer',
-            actor: approval.actor,
-            reason: approval.reason,
-            consumer: selected,
-            stage,
-            actions,
-            planSha256: result.planSha256,
-          },
-        });
+      await tx.insert(securityActivities).values({
+        userId: target.ownerAccountId,
+        eventType: 'security_settings_changed',
+        eventDescription: 'Reviewed safety consumer policy authority provisioned',
+        severity: 'high',
+        metadata: {
+          operation: 'provision_safety_consumer',
+          actor: approval.actor,
+          reason: approval.reason,
+          consumer: selected,
+          stage,
+          actions,
+          planSha256: result.planSha256,
+        },
+      });
     }
     return { mode: process.env.APPLY === '1' ? 'apply' : 'dry-run', ...result };
   });

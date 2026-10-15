@@ -21,7 +21,7 @@ import {
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
@@ -3586,6 +3586,16 @@ const serviceTokenAddressLimiter = rateLimit({
  *               apiSecret:
  *                 type: string
  *                 description: ApplicationCredential plaintext secret
+ *               scopes:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 100
+ *                 uniqueItems: true
+ *                 description: Optional exact subset of the live credential/application grant. Omission preserves the default grant.
+ *                 items:
+ *                   type: string
+ *                   minLength: 1
+ *                   maxLength: 128
  *     responses:
  *       200:
  *         description: Service token issued

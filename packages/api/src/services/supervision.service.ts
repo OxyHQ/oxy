@@ -265,7 +265,7 @@ export async function inviteGuardian(child: string, guardian: string) {
     if (same) return invitationDto(same);
     if (existing.length >= 100) throw limit();
     // The invitation is not active supervision, but opting into this flow makes the account private immediately.
-    await tx.update(users).set({privacyIsPrivateAccount:true}).where(eq(users.id,child));
+    await tx.update(users).set({ privacyIsPrivateAccount: true }).where(eq(users.id, child));
     const [row] = await tx
       .insert(supervisionInvitations)
       .values({
@@ -828,7 +828,10 @@ export async function finishPurchase(
 
 /** Only the identity needed to choose or recognize supervision participants. */
 export async function supervisionPeople(actor: string, input: SafetyPeopleInput) {
-  const publicPerson = and(eq(users.privacyIsPrivateAccount, false), eq(users.privacyProfileVisibility, true));
+  const publicPerson = and(
+    eq(users.privacyIsPrivateAccount, false),
+    eq(users.privacyProfileVisibility, true),
+  );
   const related = sql`(
     ${users.id} = ${actor}
     or exists (select 1 from ${supervisionProfiles} p
@@ -847,16 +850,41 @@ export async function supervisionPeople(actor: string, input: SafetyPeopleInput)
       where (${actor} = a.child_account_id or ${actor} = p.guardian_account_id)
       and ${users.id} = any(a.merchant_account_ids))
   )`;
-  const selection = 'query' in input
-    ? and(eq(users.kind, 'personal'), eq(users.privacyProfileVisibility, true), or(
-        and(publicPerson, sql`${users.username} ilike ${input.query.replace(/[\\%_]/g, '\\$&') + '%'}`),
-        sql`lower(btrim(${users.username})) = lower(btrim(${input.query}))`,
-      ))
-    : and(inArray(users.id, input.accountIds), or(publicPerson, related));
-  const items = await getDb().select({ accountId: users.id, username: users.username, displayName: users.nameDisplay })
-    .from(users).where(and(
-      eq(users.accountStatus, 'active'), ne(users.reputationTier, 'restricted'), visibleOrganizationIdentityPredicate(), selection,
-      sql`not exists (select 1 from ${blocks} b where (b.user_id = ${actor} and b.blocked_id = ${users.id}) or (b.blocked_id = ${actor} and b.user_id = ${users.id}))`,
-    )).orderBy(asc(users.username), asc(users.id)).limit('query' in input ? 20 : 100);
-  return {items};
+  const selection =
+    'query' in input
+      ? and(
+          eq(users.kind, 'personal'),
+          eq(users.privacyProfileVisibility, true),
+          or(
+            and(
+              publicPerson,
+              sql`${users.username} ilike ${input.query.replace(/[\\%_]/g, '\\$&') + '%'}`,
+            ),
+            sql`lower(btrim(${users.username})) = lower(btrim(${input.query}))`,
+          ),
+        )
+      : and(inArray(users.id, input.accountIds), or(publicPerson, related));
+  const items = await getDb()
+    .select({ accountId: users.id, username: users.username, displayName: users.nameDisplay })
+    .from(users)
+    .where(
+      and(
+        eq(users.accountStatus, 'active'),
+        ne(users.reputationTier, 'restricted'),
+        visibleOrganizationIdentityPredicate(),
+        selection,
+        sql`not exists (select 1 from ${blocks} b where (b.user_id = ${actor} and b.blocked_id = ${users.id}) or (b.blocked_id = ${actor} and b.user_id = ${users.id}))`,
+      ),
+    )
+    .orderBy(
+      ...('query' in input
+        ? [
+            sql`case when lower(btrim(${users.username})) = lower(btrim(${input.query})) then 0 else 1 end`,
+          ]
+        : []),
+      asc(users.username),
+      asc(users.id),
+    )
+    .limit('query' in input ? 20 : 100);
+  return { items };
 }

@@ -43,7 +43,17 @@ export async function optionalAuthMiddleware(
     next();
   } catch (error) {
     if (error instanceof OptionalAuthenticationPolicyError) {
-      res.status(error.status).json({ error: { code: error.status === 403 ? 'forbidden' : error.status === 401 ? 'unauthorized' : 'service_unavailable', message: error.message } });
+      res.status(error.status).json({
+        error: {
+          code:
+            error.status === 403
+              ? 'forbidden'
+              : error.status === 401
+                ? 'unauthorized'
+                : 'service_unavailable',
+          message: error.message,
+        },
+      });
       return;
     }
     logger.error('Optional auth middleware error:', error);
@@ -186,7 +196,17 @@ export async function optionalUserOrServiceAuth(
     next();
   } catch (error) {
     if (error instanceof OptionalAuthenticationPolicyError) {
-      res.status(error.status).json({ error: { code: error.status === 403 ? 'forbidden' : error.status === 401 ? 'unauthorized' : 'service_unavailable', message: error.message } });
+      res.status(error.status).json({
+        error: {
+          code:
+            error.status === 403
+              ? 'forbidden'
+              : error.status === 401
+                ? 'unauthorized'
+                : 'service_unavailable',
+          message: error.message,
+        },
+      });
       return;
     }
     logger.error('Optional dual auth middleware error:', error);

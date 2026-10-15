@@ -381,11 +381,11 @@ describe('optionalAuthMiddleware — the non-blocking identity', () => {
     expect(res.body.present).toBe(false);
   });
 
-  it('serves a request with an invalid bearer as anonymous', async () => {
+  it('rejects a presented invalid bearer instead of serving anonymous content', async () => {
     const res = await get('/probe/optional', 'not-a-token');
 
-    expect(res.status).toBe(200);
-    expect(res.body.present).toBe(false);
+    expect(res.status).toBe(401);
+    expect(res.body).toMatchObject({ error: { code: 'unauthorized' } });
   });
 });
 

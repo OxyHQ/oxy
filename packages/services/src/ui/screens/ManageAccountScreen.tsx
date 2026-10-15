@@ -396,9 +396,15 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
           />
         </SettingsListGroup>
 
-        {user?.kind === 'personal' ? <SettingsListGroup title={t('supervision.title')}>
-          <SettingsListItem title={t('supervision.title')} description={t('supervision.entryDescription')} onPress={()=>navigate?.('Supervision')} />
-        </SettingsListGroup> : null}
+        {user?.kind === 'personal' ? (
+          <SettingsListGroup title={t('supervision.title')}>
+            <SettingsListItem
+              title={t('supervision.title')}
+              description={t('supervision.entryDescription')}
+              onPress={() => navigate?.('Supervision')}
+            />
+          </SettingsListGroup>
+        ) : null}
 
         {/* Sessions section */}
         <SettingsListGroup title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>

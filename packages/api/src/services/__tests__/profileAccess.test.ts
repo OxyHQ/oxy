@@ -1,4 +1,4 @@
-import {inviteGuardian,acceptInvitation} from '../supervision.service';
+import { inviteGuardian, acceptInvitation } from '../supervision.service';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { connectPostgres, closePostgres, getDb } from '../../config/postgres';
@@ -68,11 +68,21 @@ it('honors both block directions, the profile visibility toggle, and erased/miss
   });
 });
 
-
-it('keeps the foundation legacy policy path private after supervised enrollment',async()=>{
- const child=await person(),guardian=await person(),other=await person();
- await acceptInvitation((await inviteGuardian(child,guardian)).id,guardian);
- expect(await decideProfileAccess(child,null)).toMatchObject({allowed:false,reason:'private'});
- expect(await decideProfileAccess(child,other)).toMatchObject({allowed:false,reason:'private'});
- expect(await decideProfileAccess(child,guardian)).toMatchObject({allowed:false,reason:'private'});
+it('keeps the foundation legacy policy path private after supervised enrollment', async () => {
+  const child = await person(),
+    guardian = await person(),
+    other = await person();
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  expect(await decideProfileAccess(child, null)).toMatchObject({
+    allowed: false,
+    reason: 'private',
+  });
+  expect(await decideProfileAccess(child, other)).toMatchObject({
+    allowed: false,
+    reason: 'private',
+  });
+  expect(await decideProfileAccess(child, guardian)).toMatchObject({
+    allowed: false,
+    reason: 'private',
+  });
 });

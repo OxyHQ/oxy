@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, integer, check, index, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  integer,
+  check,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxy.so/db';
 import {
   SUPERVISION_STATUSES,
@@ -119,7 +129,10 @@ export const supervisionPurchaseApprovals = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check('supervision_purchase_approvals_merchants_check', sql`cardinality(${t.merchantAccountIds}) between 1 and 100`),
+    check(
+      'supervision_purchase_approvals_merchants_check',
+      sql`cardinality(${t.merchantAccountIds}) between 1 and 100`,
+    ),
     check(
       'supervision_purchase_approvals_status_check',
       sql`${t.status} in (${values(PURCHASE_APPROVAL_STATUSES)})`,
@@ -153,14 +166,28 @@ export const supervisionAudit = pgTable(
 );
 
 /** Immutable authorization evidence, not the merchant's mutable cart or financial ledger. */
-export const supervisionPurchaseLines = pgTable('supervision_purchase_lines', {
-  approvalId: text().notNull().references(()=>supervisionPurchaseApprovals.id,{onDelete:'cascade'}),
-  position: integer().notNull(), itemReference: text().notNull(), title: text().notNull(), optionsText: text().notNull(),
-  merchantAccountId: text().notNull(), quantity: integer().notNull(),
-  unitAmountMinor: bigint({mode:'number'}).notNull(), lineAmountMinor: bigint({mode:'number'}).notNull(),
-}, t=>[
-  primaryKey({columns:[t.approvalId,t.position]}),
-  check('supervision_purchase_lines_position_check',sql`${t.position} between 0 and 199`),
-  check('supervision_purchase_lines_quantity_check',sql`${t.quantity} between 1 and 1000000`),
-  check('supervision_purchase_lines_amounts_check',sql`${t.unitAmountMinor} between 0 and 9007199254740991 and ${t.lineAmountMinor} between 0 and 9007199254740991`),
-]);
+export const supervisionPurchaseLines = pgTable(
+  'supervision_purchase_lines',
+  {
+    approvalId: text()
+      .notNull()
+      .references(() => supervisionPurchaseApprovals.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    itemReference: text().notNull(),
+    title: text().notNull(),
+    optionsText: text().notNull(),
+    merchantAccountId: text().notNull(),
+    quantity: integer().notNull(),
+    unitAmountMinor: bigint({ mode: 'number' }).notNull(),
+    lineAmountMinor: bigint({ mode: 'number' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.approvalId, t.position] }),
+    check('supervision_purchase_lines_position_check', sql`${t.position} between 0 and 199`),
+    check('supervision_purchase_lines_quantity_check', sql`${t.quantity} between 1 and 1000000`),
+    check(
+      'supervision_purchase_lines_amounts_check',
+      sql`${t.unitAmountMinor} between 0 and 9007199254740991 and ${t.lineAmountMinor} between 0 and 9007199254740991`,
+    ),
+  ],
+);
