@@ -42,8 +42,9 @@ authorize  (kaanaGrant + kaanaGrantRoutes)
    1. model          declared? audience admits the viewer? not `retired`?   else model_not_found
    2. shape          modalities, apiFormats, realtime kind, context/output   else unsupported_modality / *_limit_exceeded
    3. price          `pricing` present? priceVersionId not republished?      else no_route_available (typed), never 0
-   4. routes         deployments Kaana PUBLISHES for the line ∩ approved to sell by Oxy (inference_deployments by
-                     internal_route_id) ∩ the application's policy (providers, regions, ZDR, licences, price caps)
+   4. routes         deployments Kaana PUBLISHES for the line, with how Kaana says each may be sold (`commercial`)
+                     ∩ the application's policy (providers, regions, ZDR, licences, price caps). EVERY eligible
+                     route is admitted; Kaana chooses provider and key among them and fails over within them
    5. quote          the ceiling scenarios of the operation × the declared unit prices (the ledger's own SQL arithmetic)
    6. grant          admittedModelLines[{modelLine, priceVersionId}] and COPY of the unit prices:
                      kaana_grant_admitted_lines + kaana_grant_line_unit_prices
@@ -79,9 +80,59 @@ settle     rates at the COPY on the grant (the version the grant admitted), neve
 - **What is still Oxy's** (the customer's, read from Oxy as before): the
   application's routing policy (allowed models and levels, providers, regions,
   data controls, price caps), Console limits, budgets and spending limits,
-  holds, receipts, discounts and margins. The only legacy table the path still
-  reads is `inference_deployments`, by Kaana's `internal_route_id`, for the
-  commercial permission to sell a route (`kaanaGrantRoutes.service.ts`).
+  holds, receipts, discounts and margins, the customer's provider connections
+  (BYOK) and the BYOK platform fee (below). No Oxy catalogue table is read —
+  `inference_deployments` included: how a deployment may be sold is published
+  by Kaana.
+
+### Kaana chooses the provider
+
+Owner decision 2026-10-12: Kaana picks provider and key, cheapest first, with
+failover and recovery. The grant therefore never narrows a step to one provider
+and ranks nothing. `providerAllowlist` is every provider with an eligible route
+under the application's policy (and the declared `denylist`, regions, ZDR,
+licences are passed as values for Kaana to filter by).
+
+One policy cannot be expressed yet: **same-model failover off**
+(`fallback.sameModelDeployment = false`, or `fallback.disabled`). The step
+limits have no field to tell Kaana not to fail over, so such a grant is made
+only where failover cannot happen (the line has a single eligible provider) and
+is otherwise refused `policy_violation` with reason
+`same_model_failover_off_unsupported`. It is never granted with failover on. It
+needs the additive Kaana contract field listed under «What Kaana must publish».
+
+### Kaana publishes how a route may be sold
+
+The commercial basis of a deployment is a fact of the deployment and the
+provider, so Kaana publishes it, per deployment, as `commercial` on the
+deployment descriptor (the descriptors Oxy already reads for
+`kaanaDeploymentPublication.service.ts`). Oxy sells a route only if the
+descriptor carries it, its `availabilityScope` is one the viewer holds
+(`byok_only` is decided apart, below), and its `commercialPermission` agrees
+with the scope (`customer_byok` is exactly the `byok_only` permission). A
+descriptor without `commercial` is not sold (fail closed).
+
+### BYOK: platform_fee_only at Oxy's platform fee
+
+A `byok_only` route is served on the customer's own provider key, which the
+customer connected in Oxy (`inference_provider_connections`; a ready, valid
+connection for the application, provider and environment, else the route does
+not exist for that application). The grant is then `platform_fee_only`, carries
+that one credential binding, takes no `maxFundingTier`, and is rated at Oxy's
+**platform fee alone**: one flat fee per request, every metered unit at an
+explicit zero (the provider bills those to the customer).
+
+The fee is Oxy billing configuration, not a model price: typed, versioned and
+reviewed in code in `config/inferencePlatformFee.ts` (`PlatformFeeSchedule`:
+`feeVersionId`, `effectiveFrom`, `currency`, `perRequest`, approval). It is not
+in `price_versions` and not in Kaana's catalogue (a BYOK-only model declares no
+`pricing`). The list of approved schedules **ships empty**: the owner has not
+approved an amount, and production stays fail-closed (`billing.md`) — a BYOK
+route is refused (`no_route_available`) rather than rated at zero. A grant
+copies the schedule's entries like any other list, so its settlement is rated
+at the version it was granted under. Kaana's own keys are used unless the
+policy prefers the customer's key (`byokPreference: prefer`) or has none to
+offer; `require` serves only the customer's key and `disabled` never.
 
 ### What serves the old edge only
 
@@ -179,7 +230,7 @@ credential only) in the public shape: amount, never provider.
 | service token of Alia in production (`alia-kaana`) | Alia's owner; `internal_metered`, `relationshipId: alia-kaana` | **no** | `capacity.meteredUsageId`; pilot tuples and USD ceilings; realtime and transcription under their own terms |
 | Alia outside production | owner of the Alia app; `commercial` | yes | relationship lists production only |
 | Alia naming `pro`/`ultra` (ADR 0037) | `internal_metered` | no | step 1: the level, `maxFundingTier: credit`, USD 1.00; step 2: `xhigh` on the pilot's lines and providers, USD 0.05 |
-| BYOK route | — | — | **not admitted**: its platform fee is Oxy's own price, not a model's declared list price, and a BYOK-only model declares none. Customer-key deployments are never routes of a grant; `byokPreference: require` is `policy_violation` |
+| BYOK route | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | rated at Oxy's platform fee (`config/inferencePlatformFee.ts`), never a model price; no `maxFundingTier`; internal + BYOK is refused; no approved fee schedule yet, so refused |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
 | `product_session` (Inbox, app sessions) | — | — | **not yet**: needs the public credential and Inbox's session check |
 | scoped permit, Private Auto, Mention classifier, `decisions` | — | — | **not yet**: approvals must be re-issued under `canonicalInputSha256` |
@@ -249,12 +300,32 @@ endpoint in phase 3 and must verify that signature.
 - Re-issued source approvals (scoped, Private Auto, Jev) and `decisions` grants.
 - Commercial realtime grants (the contract needs session ceiling facts).
 - `OxyServer.serviceToken({ audience: 'kaana.ai' })` in `@oxy.so/core`.
-- A provider ranking for «same-model failover off»: Oxy no longer holds the
-  scorecards that picked the one provider, and the grant has no flag Kaana
-  could rank by, so the step is narrowed to the first provider in provider
-  order. Kaana should accept the policy and choose.
-- Customer-key (BYOK) routes: they need an Oxy-owned fee schedule outside the
-  model price lists.
+- An approved BYOK platform fee amount (the schedule list ships empty).
 - Revisions: the declared catalogue names a model, not its revisions, so a
   pinned `@revision` is held to the deployments Kaana publishes for it.
 - Deletion of the old edge, `@oxy.so/core/inference` and `api.oxy.so/v1` (phase 5).
+
+## What Kaana must publish
+
+For Oxy to stop reading any Oxy catalogue table on this path, Kaana publishes:
+
+1. **`commercial` on each deployment descriptor** (the descriptor of
+   `POST /internal/v1/deployments/query` and `/internal/v1/models/query`, i.e.
+   `inventory.DeploymentDescriptor`), optional on the wire, strict object:
+
+   | Field | Type | Meaning |
+   |---|---|---|
+   | `availabilityScope` | `"platform_internal" \| "public_payg" \| "enterprise" \| "byok_only" \| "oxy_hosted"` (`availabilityScopeSchema`) | the audience that may be served from it; `byok_only` = the customer's own key |
+   | `commercialPermission` | `"standard_application_use" \| "public_resale_approved" \| "wholesale_contract" \| "customer_byok" \| "open_weight_hosting"` (`commercialPermissionSchema`) | the basis on which Oxy may serve it; `customer_byok` iff `byok_only` |
+   | `dedicatedCapacity` | `boolean`, optional (absent = false) | capacity reserved for one customer, for the `dedicatedCapacity` policy |
+
+   Oxy parses it (`kaanaDeploymentCommercialSchema`) and carries it on
+   `PublishedRoute.commercial`. Until Kaana publishes it, Oxy sells no route.
+   (`GET /internal/v1/models` itself carries no `deployments` today; Oxy reads
+   the descriptors from the deployment query, so no change there is needed.)
+2. **`sameModelFailover` on the grant step limits** (`grantStepLimitsSchema`,
+   `@kaana.ai/contracts/internal`), additive, `z.boolean().default(true)`:
+   `false` means Kaana must serve each admitted line on one provider and key and
+   must not fail over to another provider or key of the same model within the
+   step. Oxy then sends the application's policy value instead of refusing it.
+   Contract set 4.4.0.
