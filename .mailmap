@@ -1,0 +1,6 @@
+# Commits made by the owner's own agents under a repo-local git identity
+# ("c4p0") that was left in this machine's .git/config; they are Nate's.
+# Git tools (log, blame, shortlog) read this file. See git-check-mailmap(1).
+Nate I. <nate@oxy.so> c4p0 <capo@quodvis.net>
+Nate I. <nate@oxy.so> c4p0 <nate@oxy.so>
+Nate I. <nate@oxy.so> c4p0 <lady@oxy.so>
