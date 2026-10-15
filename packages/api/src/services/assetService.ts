@@ -56,6 +56,7 @@ import type {
 } from '../types/file.types';
 
 import { mediaPrivacyService } from './mediaPrivacyService';
+import type { SupervisedAssetPolicy } from './supervisionPolicy.service';
 import type { MediaAccessContext } from '../types/mediaPrivacy.types';
 import fileCache from '../utils/fileCache';
 import { BadRequestError } from '../utils/error';
@@ -2461,9 +2462,10 @@ export class AssetService {
     file: FileRecord,
     userId?: string,
     context?: MediaAccessContext,
+    supervisionPolicy?: SupervisedAssetPolicy,
   ): Promise<boolean> {
     // Use the centralized MediaPrivacyService for comprehensive checks
-    const result = await mediaPrivacyService.checkMediaAccess(file, userId, context);
+    const result = await mediaPrivacyService.checkMediaAccess(file, userId, context, supervisionPolicy);
     return result.allowed;
   }
 

@@ -1,3 +1,5 @@
+import {isSupervised} from '../services/supervisionPolicy.service';
+import {serviceTokenScopesSchema} from '@oxy.so/contracts';
 /**
  * Authentication Routes
  *
@@ -3733,11 +3735,15 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
   // requested no scopes is a legacy credential: it inherits only the app's
   // non-privileged grants. Privileged authority must always have been named on
   // the credential itself, where creation applies the staff-only gate.
+  if (await isSupervised(app.ownerAccountId)) throw new ForbiddenError('Supervised accounts cannot authorize service credentials');
   const appScopes = app.scopes;
-  const scopes =
+  const grantedScopes =
     credential.scopes.length > 0
       ? intersectScopes(credential.scopes, appScopes)
       : appScopes.filter((scope) => !isPrivilegedScope(scope));
+  const requestedScopes = req.body.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(req.body.scopes);
+  if (requestedScopes?.some(scope => !grantedScopes.includes(scope))) throw new ForbiddenError('Requested service scope is not granted');
+  const scopes = requestedScopes ?? grantedScopes;
   const serviceClaims = {
     appId: app.id,
     appName: app.name,
@@ -3830,9 +3836,9 @@ router.post(
   workloadTokenLimiter,
   validate({ body: workloadServiceTokenSchema }),
   asyncHandler(async (req, res) => {
-    const { provider, nonce, attestation } = req.body;
+    const { provider, nonce, attestation, scopes } = req.body;
     try {
-      sendSuccess(res, await exchangeWorkloadAttestation({ provider, nonce, attestation }));
+      sendSuccess(res, await exchangeWorkloadAttestation({ provider, nonce, attestation, scopes }));
     } catch (error: unknown) {
       throw asWorkloadHttpError(error);
     }

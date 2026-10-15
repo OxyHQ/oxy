@@ -1,3 +1,5 @@
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { createHash, createHmac } from 'node:crypto';
 import { trimTrailingSlashes } from '../utils/slashes';
 
@@ -39,6 +41,7 @@ const STS_REGION = 'us-east-1';
 const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 
 export interface WorkloadServiceTokenOptions {
+  scopes?: string[];
   /** Oxy's base URL, e.g. `https://api.oxy.so`. */
   baseUrl: string;
   /** Injected in tests; defaults to the global. */
@@ -213,6 +216,8 @@ export async function attestWorkloadIdentity(options: {
 export async function requestWorkloadServiceToken(
   options: WorkloadServiceTokenOptions,
 ): Promise<WorkloadServiceToken> {
+  const requestedScopes =
+    options.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(options.scopes);
   const fetchImpl = options.fetch ?? fetch;
   const base = trimTrailingSlashes(options.baseUrl);
 
@@ -233,7 +238,12 @@ export async function requestWorkloadServiceToken(
   const tokenResponse = await fetchImpl(`${base}/auth/service-token/workload`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ provider: 'aws-iam', nonce: challenge.nonce, attestation }),
+    body: JSON.stringify({
+      provider: 'aws-iam',
+      nonce: challenge.nonce,
+      attestation,
+      ...(requestedScopes ? { scopes: requestedScopes } : {}),
+    }),
   });
   if (!tokenResponse.ok) {
     // The body carries a bounded `reason`; the token never travels on a failure,
@@ -244,6 +254,7 @@ export async function requestWorkloadServiceToken(
   if (!granted?.token || typeof granted.expiresIn !== 'number') {
     throw new Error('Oxy answered the attestation without a usable token.');
   }
+  assertRequestedServiceScopes(granted.token, requestedScopes);
   return { token: granted.token, expiresIn: granted.expiresIn, appName: granted.appName ?? '' };
 }
 

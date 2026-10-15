@@ -1,3 +1,5 @@
+import { supervisionProfiles } from '../db/schema/supervision';
+import { inArray } from 'drizzle-orm';
 import { hasOrganizationOperatingAuthority } from './organizationAuthority.service';
 import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
@@ -479,7 +481,7 @@ class SessionService {
    * @param accessToken - The JWT access token to validate
    * @returns Validation result with session, user, and payload, or null if invalid
    */
-  async validateSession(accessToken: string): Promise<SessionValidationResult | null> {
+  async validateSession(accessToken: string, options: { allowSupervisedPolicyEvaluation?: boolean; throwOnError?: boolean } = {}): Promise<SessionValidationResult | null> {
     try {
       const validationResult = validateAccessToken(accessToken);
       if (!validationResult.valid || !validationResult.payload?.sessionId) {
@@ -492,7 +494,20 @@ class SessionService {
         return null;
       }
 
-      const { session } = result;
+      let { session, user } = result;
+      const supervised = await getDb().select({childAccountId: supervisionProfiles.childAccountId, sessionsValidAfter: supervisionProfiles.sessionsValidAfter}).from(supervisionProfiles).where(and(
+        inArray(supervisionProfiles.childAccountId, [session.userId, ...(session.operatedByUserId ? [session.operatedByUserId] : [])]),
+        ne(supervisionProfiles.status, 'ended'),
+      ));
+      if (supervised.length) {
+        // No cached identity, old session or managed-account context can bypass enrollment.
+        if (!options.allowSupervisedPolicyEvaluation || session.operatedByUserId) return null;
+        const live = await this.getSessionWithUser(sessionId, { useCache: false });
+        if (!live || supervised.some(profile => live.session.createdAt <= profile.sessionsValidAfter)) return null;
+        session = live.session;
+        user = live.user;
+        if (user.accountStatus !== 'active' || user.reputationTier === 'restricted') return null;
+      }
 
       // A managed-account session is only valid while its operator still holds
       // act_as over the account. Revoked membership → deactivate + reject.
@@ -525,7 +540,7 @@ class SessionService {
 
       return {
         session,
-        user: result.user,
+        user,
         payload: validationResult.payload,
         token: binding.identity,
       };
@@ -538,6 +553,7 @@ class SessionService {
           method: 'validateSession',
         },
       );
+      if (options.throwOnError) throw error;
       return null;
     }
   }

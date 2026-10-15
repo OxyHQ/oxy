@@ -281,6 +281,8 @@ export const REAUTH_ACTIONS = [
   'link_commons',
   'delete_account',
   'credentials_manage',
+  'supervision',
+  'supervision_purchase',
 ] as const;
 export type ReauthAction = (typeof REAUTH_ACTIONS)[number];
 
