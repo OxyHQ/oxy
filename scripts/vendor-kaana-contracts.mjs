@@ -116,7 +116,9 @@ if (args.includes('--check')) {
   const from = args[args.indexOf('--from') + 1];
   const ref = args[args.indexOf('--ref') + 1];
   if (!args.includes('--from') || !args.includes('--ref') || !from || !ref) {
-    console.error('usage: vendor-kaana-contracts.mjs --from <kaana checkout> --ref <commit> | --check');
+    console.error(
+      'usage: vendor-kaana-contracts.mjs --from <kaana checkout> --ref <commit> | --check',
+    );
     process.exit(2);
   }
   vendor(from, ref);
