@@ -91,3 +91,37 @@ describe('resolveEconomicTreatment', () => {
     }
   });
 });
+
+describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () => {
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'alia-kaana',
+  );
+
+  it('admits realtime conversation sessions under a per-minute price ceiling, and nothing else', () => {
+    expect(relationship?.pilot?.realtime).toEqual({
+      sessionKinds: ['conversation'],
+      maxPricePerMinuteUsd: '0.25',
+    });
+  });
+
+  it('admits transcriptions of at most Alia’s 5-minute clip under a per-request ceiling', () => {
+    expect(relationship?.pilot?.transcription).toEqual({
+      maxInputAudioMilliseconds: 300_000,
+      maxPricePerRequestUsd: '0.05',
+    });
+  });
+
+  it('carries no concurrency or spend of its own for voice: those are Console configuration', () => {
+    const realtime = relationship?.pilot?.realtime ?? {};
+    const transcription = relationship?.pilot?.transcription ?? {};
+    for (const terms of [realtime, transcription]) {
+      expect(Object.keys(terms).some((key) => /concurren|session.*limit|spend/i.test(key))).toBe(
+        false,
+      );
+    }
+  });
+
+  it('stamps the version that introduced the voice terms', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-15.2');
+  });
+});

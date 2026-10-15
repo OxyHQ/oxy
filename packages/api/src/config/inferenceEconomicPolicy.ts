@@ -56,7 +56,7 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.2';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
@@ -124,6 +124,44 @@ export interface InternalMeteredSpeechPilot {
   readonly deployments: readonly InternalMeteredPilotDeployment[];
 }
 
+/**
+ * The pilot's terms for a realtime session granted on `kaana.ai/v1/realtime`
+ * (Kaana ADR 0002, Alia ADR 0017 §5). Only the grant API reads them: the old
+ * edge's pilot refuses realtime and keeps doing so until it is deleted.
+ *
+ * A session is one grant, held open for its whole life and settled at close.
+ * How long it lasts and how many answers it gives are the CONSUMER's product
+ * rules (Alia: 30 minutes, 2 minutes idle), and how many may be open at once
+ * is the application's Console configuration (`application_inference_limits`).
+ * What the relationship decides is which models it may run on, by price:
+ */
+export interface InternalMeteredRealtimePilot {
+  /** The session kinds admitted; Alia's calls are `conversation` sessions. */
+  readonly sessionKinds: readonly ('conversation' | 'transcription' | 'translation')[];
+  /**
+   * Exact USD ceiling on ONE MINUTE of session on a model line, quoted at the
+   * line's price version over every duration unit a session can be billed in
+   * (`audio_input_milliseconds`, `audio_output_milliseconds`,
+   * `session_milliseconds`, each at 60 000). A line priced in tokens has no
+   * per-minute figure that is a bound rather than a guess, so it does not quote
+   * and is not admitted.
+   */
+  readonly maxPricePerMinuteUsd: string;
+}
+
+/**
+ * The pilot's terms for `POST kaana.ai/v1/audio/transcriptions` (Alia ADR
+ * 0017 §7: dictation). Kaana measures the upload's duration before it asks for
+ * the grant (`facts.audioInputMilliseconds`), so a transcription is bounded
+ * exactly, in the unit it is billed in.
+ */
+export interface InternalMeteredTranscriptionPilot {
+  /** Exact milliseconds of audio one transcription may carry. */
+  readonly maxInputAudioMilliseconds: number;
+  /** Exact USD tariff quote ceiling for one transcription, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
 export interface InternalMeteredPilot {
   readonly maxControlledInputBudget: number;
   /** Optional text-completion ceiling; decisions retain the base ceiling. */
@@ -138,6 +176,10 @@ export interface InternalMeteredPilot {
   readonly promotionalCredit?: InternalMeteredPromotionalCredit;
   /** Absent: every speech request is outside the pilot and refused. */
   readonly speech?: InternalMeteredSpeechPilot;
+  /** Absent: every realtime grant is outside the pilot and refused. */
+  readonly realtime?: InternalMeteredRealtimePilot;
+  /** Absent: every transcription grant is outside the pilot and refused. */
+  readonly transcription?: InternalMeteredTranscriptionPilot;
 }
 
 export interface InternalMeteredRelationship {
@@ -236,6 +278,26 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
             provider: KAANA_SPEECH_PROVIDER_SLUG,
           },
         ],
+      },
+      // Alia ADR 0017 (accepted 2026-10-15): calls are realtime conversation
+      // sessions and dictation is batch transcription, both on kaana.ai/v1
+      // through a grant. Granted only by the grant API (Kaana ADR 0002 phase 2);
+      // nothing calls it before phase 3. Concurrency and spend are the Alia
+      // application's Console configuration, not terms here.
+      //
+      // USD 0.25 a minute admits the one reviewed realtime voice line (xAI's
+      // Voice Agent, $0.08/min audio in + $0.08 out + $0.08 session, held all
+      // three: $0.24) and no token-priced realtime line.
+      realtime: {
+        sessionKinds: ['conversation'],
+        maxPricePerMinuteUsd: '0.25',
+      },
+      // Alia's dictation clip is capped at 5 minutes (ADR 0017 §7). USD 0.05
+      // covers a full clip at up to $0.01/min; batch transcription lists at
+      // $0.003-0.006/min (2026-10-15).
+      transcription: {
+        maxInputAudioMilliseconds: 300_000,
+        maxPricePerRequestUsd: '0.05',
       },
     },
   },
