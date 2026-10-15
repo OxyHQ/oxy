@@ -8,7 +8,7 @@ import {
   type AvatarCharacter,
   type ChildAccountKind,
 } from '@oxy.so/contracts';
-import { authMiddleware, serviceAuthMiddleware, type AuthRequest, type ServiceAuthRequest } from '../middleware/auth';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';

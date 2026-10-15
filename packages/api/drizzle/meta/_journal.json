@@ -1114,6 +1114,13 @@
       "when": 1792045443772,
       "tag": "0159_bot_account_character",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1792051235623,
+      "tag": "0160_organization_directory",
+      "breakpoints": true
     }
   ]
 }

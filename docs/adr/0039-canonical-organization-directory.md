@@ -26,6 +26,6 @@ Contracts live in `@oxy.so/contracts`; both browser `OxyServices` and backend `O
 
 ## Rollout and limits
 
-Apply migration 0159 before deploying the API. Publish reviewed `@oxy.so/contracts@4.14.0` and `@oxy.so/core@4.8.0` builds from merged source before consumers adopt the registry versions. These versions avoid other in-flight SDK releases; the release build must include all preceding merged SDK changes. Directory UI must mark unclaimed entries and offer a claim action rather than imply an official managed profile. Experience is self-declared; selecting a canonical employer does not verify employment.
+Apply migration 0160 before deploying the API. Publish reviewed `@oxy.so/contracts@4.14.0` and `@oxy.so/core@4.8.0` builds from merged source before consumers adopt the registry versions. These versions avoid other in-flight SDK releases; the release build must include all preceding merged SDK changes. Directory UI must mark unclaimed entries and offer a claim action rather than imply an official managed profile. Experience is self-declared; selecting a canonical employer does not verify employment.
 
 Supervised personal accounts and guardian policy are a separate safety domain. Organization membership, family organization or parent-account ownership never makes someone a guardian or grants authority over a personal identity.
