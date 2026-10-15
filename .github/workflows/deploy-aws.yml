@@ -74,6 +74,13 @@ jobs:
     # protected main branch may assume the AWS deploy role.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
+    # p50 ~7m, p95 ~8m, max ~13m over the last 30 runs. NOT 2x p95: the job's
+    # own bounded waits add up past that on a legitimate slow path (up to 20m
+    # for the queue image, a fallback build, the one-shot migrators' start
+    # budget, then the ECS rollout's own >= 20m budget), and a job killed
+    # mid-rollout leaves an unmonitored rollout in ECS (see `concurrency`). This
+    # only replaces GitHub's 360m default for a runner that is truly wedged.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
         with:

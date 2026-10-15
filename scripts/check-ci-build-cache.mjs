@@ -43,6 +43,13 @@
  *     - Builds a superset of every workspace ci.yml asks Turbo to build, so the
  *       cache it writes covers what the jobs look for.
  *
+ *   The BuildKit layer cache (`docker buildx ... type=gha`), the same two walls:
+ *     - ci.yml never EXPORTS one: no `cache-to` anywhere in it, so no pull
+ *       request or merge-queue run writes a layer another run imports.
+ *     - Every `type=gha` scope ci.yml imports is one ci-build-cache.yml exports
+ *       (`--cache-to type=gha,scope=<same>`): a scope nothing on main writes is
+ *       a cache that silently never hits.
+ *
  * Paths resolve from the working directory, so scripts/test-check-ci-build-cache.mjs
  * can run this against mutated copies. No install: YAML and JSON through Bun.
  */
@@ -203,6 +210,36 @@ for (const [id, job] of Object.entries(ci?.jobs ?? {})) {
 }
 if (turboJobs === 0) fail(`${CI} runs Turbo nowhere; this check would be vacuous.`);
 
+// ── BuildKit: ci.yml imports, only main's writer exports ─────────────────
+const GHA_SCOPE = /type=gha,(?:[^\s,]+,)*scope=([A-Za-z0-9._-]+)/;
+if (/cache-to/.test(ciText)) {
+  fail(
+    `${CI} mentions \`cache-to\`: a BuildKit export from a pull request or merge-queue run is a write path into ` +
+      'what other runs import. Only ci-build-cache.yml (push to main) may export.',
+  );
+}
+const importedScopes = new Set();
+for (const match of ciText.matchAll(/--cache-from[=\s]+(\S+)/g)) {
+  const scope = match[1].match(GHA_SCOPE)?.[1];
+  if (scope) importedScopes.add(scope);
+  else if (match[1].includes('type=gha'))
+    fail(`${CI} imports a \`type=gha\` BuildKit cache with no literal scope (${match[1]}).`);
+}
+const writerText = read(WRITER);
+const exportedScopes = new Set(
+  [...writerText.matchAll(/--cache-to[=\s]+(\S+)/g)]
+    .map((match) => match[1].match(GHA_SCOPE)?.[1])
+    .filter(Boolean),
+);
+for (const scope of [...importedScopes].sort()) {
+  if (!exportedScopes.has(scope)) {
+    fail(
+      `${CI} imports the BuildKit scope \`${scope}\`, which ${WRITER} never exports (--cache-to type=gha,scope=${scope}): ` +
+        'every build would miss it.',
+    );
+  }
+}
+
 // ── ci-build-cache.yml ─────────────────────────────────────────────────────
 const triggers = writer?.on ?? writer?.[true];
 const triggerNames =
@@ -306,5 +343,6 @@ if (problems.length > 0) {
 }
 console.log(
   `Turbo build cache: only \`build\` is cacheable, ${GLOBAL_INPUTS.length} global inputs hashed, ${turboJobs} ci.yml ` +
-    `step(s) run Turbo after a read-only restore, and ${WRITER} (push to main only) builds all ${ciFilters.size} of their targets.`,
+    `step(s) run Turbo after a read-only restore, and ${WRITER} (push to main only) builds all ${ciFilters.size} of their targets; ` +
+    `${importedScopes.size} BuildKit scope(s) imported read-only, every one exported by ${WRITER}.`,
 );

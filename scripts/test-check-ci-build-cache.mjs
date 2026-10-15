@@ -300,6 +300,40 @@ expectCheck(
   'asks Turbo to build @oxy.so/ship',
 );
 
+// ── BuildKit: ci.yml imports read-only, only the writer exports ───────────
+expectCheck(
+  'a-buildkit-export-in-ci-fails',
+  [
+    ci((y) =>
+      y.replace(
+        '--cache-from type=gha,scope=oxy-api-ci-amd64 \\\n',
+        '--cache-from type=gha,scope=oxy-api-ci-amd64 \\\n            --cache-to type=gha,scope=oxy-api-ci-amd64,mode=max \\\n',
+      ),
+    ),
+  ],
+  1,
+  'mentions `cache-to`',
+);
+expectCheck(
+  'a-buildkit-scope-the-writer-never-exports-fails',
+  [
+    writer((y) =>
+      y.replace(
+        '--cache-to type=gha,scope=oxy-api-ci-amd64,mode=max',
+        '--cache-to type=gha,scope=oxy-api-ci-other,mode=max',
+      ),
+    ),
+  ],
+  1,
+  'imports the BuildKit scope `oxy-api-ci-amd64`',
+);
+expectCheck(
+  'the-real-tree-imports-a-buildkit-scope',
+  [],
+  0,
+  '1 BuildKit scope(s) imported read-only',
+);
+
 for (const root of fixtures) rmSync(root, { recursive: true, force: true });
 
 if (failures.length > 0) {

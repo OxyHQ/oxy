@@ -1,6 +1,8 @@
 name: CI build cache
 
-# The ONLY writer of the Turbo build cache that `ci.yml` restores.
+# The ONLY writer of the Turbo build cache that `ci.yml` restores, and the
+# per-merge writer of the amd64 BuildKit scope (`oxy-api-ci-amd64`) that
+# `ci.yml`'s `api-image` reads (see "THE BUILDKIT CACHE" below).
 #
 # `ci.yml` runs no push on main (the queue already tested the exact tree), so
 # without this nothing would ever write the one cache scope every pull request
@@ -23,7 +25,20 @@ name: CI build cache
 #     Turbo then matches task by task on its content hash, so a stale entry
 #     costs misses, never wrong output.
 #
-# One runner for ~2 minutes per merge; superseded by the next push to main.
+# THE BUILDKIT CACHE. `api-image` builds the production Dockerfile for amd64
+# on every API-reaching pull request and merge-queue entry (~190s cold). The
+# same steps run here last, after the Turbo save, so a cancelled export never
+# costs the Turbo entry: an amd64 build of main exported to its own scope with
+# `mode=max` (every stage, so `workspace-manifests` and both installs hit while
+# the manifests are unchanged). It reads its own scope first, like the
+# deploy's arm64 build does, so a merge re-exports only the layers it changed;
+# the staleness that would leave in OS-package layers (`apk add`) is what
+# refresh-image-cache.yml's weekly `--pull --no-cache` rebuild clears, for
+# this scope as for the arm64 one. `--output type=cacheonly`: nothing is
+# pushed, and the job holds no credentials. ci.yml only reads it
+# (scripts/check-ci-build-cache.mjs).
+#
+# One runner for ~2-4 minutes per merge; superseded by the next push to main.
 on:
   push:
     branches: [main]
@@ -39,7 +54,7 @@ jobs:
   warm:
     name: Build and save the Turbo build cache
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -69,3 +84,22 @@ jobs:
         with:
           path: .turbo/cache
           key: turbo-build-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # `type=gha` needs the Actions runtime token and cache URL, which only
+      # JavaScript actions receive; without this buildx silently skips the
+      # cache (see deploy-aws.yml).
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
+      - name: Export the API image's amd64 layers (read by ci.yml api-image)
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --cache-from type=gha,scope=oxy-api-ci-amd64 \
+            --cache-to type=gha,scope=oxy-api-ci-amd64,mode=max \
+            -f Dockerfile \
+            --output type=cacheonly \
+            .
