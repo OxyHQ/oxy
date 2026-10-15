@@ -48,7 +48,7 @@ The API's runtime secrets (`DATABASE_URL`, `ACCESS_TOKEN_SECRET`, `REFRESH_TOKEN
 
 Setting or rotating a value is `aws ssm put-parameter --type SecureString --overwrite --name /oxy/oxy-api/<NAME>` by its owner, then a rollout (oxy-infra `docs/runbooks/46-app-secrets-in-ssm.md`). A NEW secret: write the parameter FIRST, then bind it in the task definition — a task naming a parameter that does not exist cannot start. Until 2026-10-10 the deploy copied GitHub repo secrets into SSM on every run; that path is gone.
 
-GitHub holds only what CI itself spends: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` (Cloudflare deploys and DNS), `NPM_TOKEN` (package releases), `ADD_TO_PROJECT_TOKEN` (roadmap automation) and `CREDENTIAL_OUTPUT_ENCRYPTION_KEY` (encrypts `provision-service-credential.yml`'s output).
+GitHub holds only what CI itself spends: `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` (Cloudflare deploys and DNS), `NPM_TOKEN` (package releases) and `CREDENTIAL_OUTPUT_ENCRYPTION_KEY` (encrypts `provision-service-credential.yml`'s output).
 
 ### Dockerfile (multi-stage, linux/arm64)
 
