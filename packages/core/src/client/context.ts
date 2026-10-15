@@ -24,7 +24,7 @@ export interface ServiceLane {
     method: HttpMethod,
     url: string,
     data?: unknown,
-    options?: RequestOptions & { actAs?: string },
+    options?: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] },
   ): Promise<T>;
 }
 

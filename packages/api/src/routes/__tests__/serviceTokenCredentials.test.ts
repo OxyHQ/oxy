@@ -755,3 +755,67 @@ describe('POST /auth/service-token — audience (Kaana ADR 0002)', () => {
     expect(res.status).toBe(400);
   });
 });
+
+it('mints only the requested credential scope subset and rechecks revoked authority', async () => {
+  const c = await serviceClient(
+    { scopes: ['user:read', 'files:read'] },
+    { scopes: ['user:read', 'files:read'] },
+  );
+  const input = { apiKey: c.apiKey, apiSecret: c.apiSecret };
+  const narrowed = await post({ ...input, scopes: ['user:read'] });
+  expect(narrowed.status).toBe(200);
+  expect(decodeServiceJwt((narrowed.body.data as { token: string }).token).scopes).toEqual([
+    'user:read',
+  ]);
+  expect((await post({ ...input, scopes: ['files:write'] })).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applications.id, c.applicationId));
+  expect((await post({ ...input, scopes: ['files:read'] })).status).toBe(403);
+  await getDb()
+    .update(applicationCredentials)
+    .set({ status: 'revoked' })
+    .where(eq(applicationCredentials.id, c.credentialId));
+  expect((await post({ ...input, scopes: ['user:read'] })).status).toBe(401);
+});
+
+it('applies audience permission to the exact requested minted credential scopes', async () => {
+  const client = await serviceClient(
+    { scopes: ['user:read', 'inference:invoke'] },
+    { scopes: ['user:read', 'inference:invoke'] },
+  );
+  const input = { apiKey: client.apiKey, apiSecret: client.apiSecret };
+  // A wider stored grant must not rescue a token which explicitly omitted inference.
+  expect(
+    (await post({ ...input, audience: KAANA_PUBLIC_AUDIENCE, scopes: ['user:read'] })).status,
+  ).toBe(403);
+  const allowed = await post({
+    ...input,
+    audience: KAANA_PUBLIC_AUDIENCE,
+    scopes: ['inference:invoke'],
+  });
+  expect(allowed.status).toBe(200);
+  const token = (allowed.body.data as { token: string }).token;
+  expect(decodeServiceJwt(token)).toMatchObject({
+    aud: KAANA_PUBLIC_AUDIENCE,
+    scopes: ['inference:invoke'],
+  });
+  expect(verifyServiceToken(token, KAANA_PUBLIC_AUDIENCE).ok).toBe(true);
+  expect(verifyServiceToken(token).ok).toBe(false);
+  const ordinary = await post({ ...input, scopes: ['user:read'] });
+  expect(ordinary.status).toBe(200);
+  expect(decodeServiceJwt((ordinary.body.data as { token: string }).token)).toMatchObject({
+    aud: 'oxy-api',
+    scopes: ['user:read'],
+  });
+  expect(
+    (
+      await post({
+        ...input,
+        audience: KAANA_PUBLIC_AUDIENCE,
+        scopes: ['inference:invoke', 'files:write'],
+      })
+    ).status,
+  ).toBe(403);
+});

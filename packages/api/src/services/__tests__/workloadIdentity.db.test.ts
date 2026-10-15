@@ -490,3 +490,65 @@ describe('workload-identity mint — audience (Kaana ADR 0002)', () => {
     });
   });
 });
+
+it('narrows requested workload scopes without widening a binding or surviving its revocation', async () => {
+  const app = await applicationFixture({ scopes: ['user:read', 'files:read'] }),
+    subject = `${SUBJECT}-narrow`;
+  await bind(app.id, subject, { scopes: ['user:read', 'files:read'] });
+  const narrow = async (scopes: string[]) => {
+    const { nonce } = await issueWorkloadChallenge();
+    return exchangeWorkloadAttestation({
+      provider: 'aws-iam',
+      nonce,
+      attestation: { subject, answersNonce: nonce },
+      scopes,
+    });
+  };
+  expect(scopesOf((await narrow(['user:read'])).token)).toEqual(['user:read']);
+  await expect(narrow(['files:write'])).rejects.toMatchObject({
+    status: 403,
+    reason: 'scope_not_granted',
+  });
+  await getDb()
+    .update(applicationWorkloadIdentities)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applicationWorkloadIdentities.applicationId, app.id));
+  await expect(narrow(['files:read'])).rejects.toMatchObject({ status: 403 });
+  await getDb()
+    .update(applications)
+    .set({ status: 'suspended' })
+    .where(eq(applications.id, app.id));
+  await expect(narrow(['user:read'])).rejects.toMatchObject({ status: 403 });
+});
+
+it('checks audience against the narrowed workload scopes before creating attribution', async () => {
+  const application = await applicationFixture({ scopes: ['user:read', 'inference:invoke'] });
+  const subject = `${SUBJECT}-audience-subset`;
+  await bind(application.id, subject, { scopes: ['user:read', 'inference:invoke'] });
+  const mint = async (scopes: string[], audience: ServiceTokenAudience = KAANA_PUBLIC_AUDIENCE) => {
+    const { nonce } = await issueWorkloadChallenge();
+    return exchangeWorkloadAttestation({
+      provider: 'aws-iam',
+      nonce,
+      attestation: { subject, answersNonce: nonce },
+      audience,
+      scopes,
+    });
+  };
+  await expect(mint(['user:read'])).rejects.toMatchObject({
+    status: 403,
+    reason: 'kaana_requires_inference_scope',
+  });
+  expect(await readCredentialRow(workloadAttestationHandle(subject))).toBeUndefined();
+  const grant = await mint(['inference:invoke']);
+  const verified = verifyServiceToken(grant.token, KAANA_PUBLIC_AUDIENCE);
+  expect(verified.ok).toBe(true);
+  if (!verified.ok) throw new Error('Expected narrowed audience token');
+  expect(verified.payload.scopes).toEqual(['inference:invoke']);
+  expect(verifyServiceToken(grant.token).ok).toBe(false);
+  expect(scopesOf((await mint(['user:read'], 'oxy-api')).token)).toEqual(['user:read']);
+  await expect(mint(['inference:invoke', 'files:write'])).rejects.toMatchObject({
+    status: 403,
+    reason: 'scope_not_granted',
+  });
+});
