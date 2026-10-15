@@ -19,6 +19,8 @@ interface RateLimitOptions {
   max: number;
   keyGenerator?: (req: Request) => string;
   message?: string;
+  /** Structured errors for new cross-product APIs. */
+  errorFormat?: 'nested';
   /**
    * Skip this limiter entirely for a request.
    *
@@ -54,6 +56,21 @@ export function rateLimit(options: RateLimitOptions) {
     windowMs: options.windowMs,
     max: options.max,
     message: options.message || 'Too many requests, please try again later.',
+    ...(options.errorFormat === 'nested'
+      ? {
+          handler: (_req: Request, res: import('express').Response) => {
+            const retryAfterSeconds = Math.max(1, Math.ceil(options.windowMs / 1000));
+            res.setHeader('Retry-After', retryAfterSeconds);
+            res.status(429).json({
+              error: {
+                code: 'rate_limited',
+                message: options.message || 'Too many requests',
+                details: { retryAfterSeconds },
+              },
+            });
+          },
+        }
+      : {}),
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,

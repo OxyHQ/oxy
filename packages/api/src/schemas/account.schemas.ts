@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   accountCategoriesSchema,
   avatarCharacterSchema,
+  ORGANIZATION_TYPES,
   createAccountRequestSchema,
   usernameSchema,
 } from '@oxy.so/contracts';
@@ -102,6 +103,7 @@ export const updateAccountSchema = z
      * kind, so `account.service` answers it, not this schema.
      */
     character: avatarCharacterSchema.optional(),
+    organizationType: z.enum(ORGANIZATION_TYPES).optional(),
   })
   .strict();
 

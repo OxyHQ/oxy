@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `/inference/routing-policies` against a REAL Postgres (issue #972, §16).
  *
@@ -38,9 +39,9 @@
  */
 
 import express from 'express';
-import http from 'http';
-import crypto from 'crypto';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
 // service-token claims ARE the gate for one of this router's two lanes, so the
@@ -83,7 +84,6 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { applications } from '../../db/schema/applications';
 import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRoutingPolicyVersions';
-import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import routingPolicyRouter, {
   ROUTING_SERVICE_READS_PER_15_MINUTES,
@@ -166,10 +166,7 @@ function tag(): string {
 /* -------------------------------------------------------------------------- */
 
 async function seedAccount(kind: 'personal' | 'organization' = 'personal'): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `rpr-${tag()}`, kind })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({ username: `rpr-${tag()}`, kind });
   return row.id;
 }
 

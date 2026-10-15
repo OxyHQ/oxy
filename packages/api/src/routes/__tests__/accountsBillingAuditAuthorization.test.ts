@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `GET /accounts/:id/billing/audit` — who may read an account's funding history.
  *
@@ -28,8 +29,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomBytes } from 'node:crypto';
 
 let actingUserId = '';
@@ -126,10 +127,10 @@ function get(path: string): Promise<JsonResponse> {
 }
 
 async function seedUser(kind: 'personal' | 'organization'): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `bau-${kind}-${tag()}`, kind })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `bau-${kind}-${tag()}`, kind },
+    { id: users.id },
+  );
   return row.id;
 }
 

@@ -1,4 +1,58 @@
 const dict = {
+  organizationDirectory: {
+    title: 'Organization directory',
+    search: 'Find your organization',
+    searchHint:
+      'Find an existing organization before creating an account. Its identity is shared across Oxy apps.',
+    empty: 'No organizations found.',
+    retry: 'Try again',
+    loadMore: 'Show more',
+    failed: 'Could not load the organization directory.',
+    unclaimed: 'Unclaimed',
+    claimed: 'Managed organization',
+    inactive: 'Inactive',
+    newAccount: 'Create a new organization account',
+    newAccountHint:
+      'Create and manage a new organization. Choose an existing entry if your organization is already listed.',
+    addDirectory: 'Add to directory',
+    directoryHint:
+      'This creates a shared, unclaimed entry. It does not give you access to manage the organization.',
+    added: 'Organization added to the directory',
+    back: 'Back to search',
+    type: 'Organization type',
+    types: {
+      business: 'Business',
+      nonprofit: 'Nonprofit',
+      public_body: 'Public body',
+      community: 'Community',
+      other: 'Other',
+    },
+    name: 'Organization name',
+    legalName: 'Legal name',
+    website: 'Website',
+    country: 'Country code',
+    save: 'Save organization',
+    saved: 'Organization updated',
+    invalid:
+      'Check the organization details. Use a complete website URL and a two-letter country code.',
+    saveFailed: 'Could not save the organization. Try again.',
+    claim: 'Request management access',
+    claimHint:
+      'Oxy reviews evidence of your authority. A request does not grant access or verify your role.',
+    evidence: 'Supporting evidence reference',
+    evidenceHint:
+      'Provide a reference to your private verification case or supporting records. Only you and reviewers can read it.',
+    claimSent: 'Request submitted for review',
+    claimFailed: 'Could not submit your request. Try again.',
+    claimedHint: 'This organization already has managers. Contact a manager to request access.',
+    requests: 'Organization access requests',
+    pending: 'Pending review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    requestError: 'Could not load your access requests.',
+    view: 'Organization details',
+    readonly: 'You do not have permission to edit this organization.',
+  },
   signin: {
     title: 'Sign in',
     subtitle: 'Use your Oxy account',

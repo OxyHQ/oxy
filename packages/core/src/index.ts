@@ -605,3 +605,14 @@ export type { PkcePair, BuildOAuthAuthorizeUrlParams, OxyAuthScreen } from './ut
 // Constants
 // ---------------------------------------------------------------------------
 export { packageInfo } from './constants/version';
+
+export type {
+  Organization,
+  OrganizationType,
+  CreateOrganization,
+  UpdateOrganization,
+  OrganizationSearch,
+  OrganizationClaim,
+} from '@oxy.so/contracts';
+
+export type { ProfileAccessInput, ProfileAccessDecision } from '@oxy.so/contracts';

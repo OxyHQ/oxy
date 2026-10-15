@@ -1,4 +1,58 @@
 const dict = {
+  organizationDirectory: {
+    title: 'Directorio de organizaciones',
+    search: 'Busca tu organización',
+    searchHint:
+      'Busca una organización existente antes de crear una cuenta. Su identidad se comparte entre las aplicaciones de Oxy.',
+    empty: 'No se encontraron organizaciones.',
+    retry: 'Reintentar',
+    loadMore: 'Mostrar más',
+    failed: 'No se pudo cargar el directorio de organizaciones.',
+    unclaimed: 'Sin reclamar',
+    claimed: 'Organización administrada',
+    inactive: 'Inactiva',
+    newAccount: 'Crear una nueva cuenta de organización',
+    newAccountHint:
+      'Crea y administra una organización nueva. Si ya aparece en el directorio, elige la entrada existente.',
+    addDirectory: 'Añadir al directorio',
+    directoryHint:
+      'Esto crea una entrada compartida sin reclamar. No te da acceso para administrar la organización.',
+    added: 'Organización añadida al directorio',
+    back: 'Volver a la búsqueda',
+    type: 'Tipo de organización',
+    types: {
+      business: 'Empresa',
+      nonprofit: 'Sin ánimo de lucro',
+      public_body: 'Organismo público',
+      community: 'Comunidad',
+      other: 'Otro',
+    },
+    name: 'Nombre de la organización',
+    legalName: 'Nombre legal',
+    website: 'Sitio web',
+    country: 'Código de país',
+    save: 'Guardar organización',
+    saved: 'Organización actualizada',
+    invalid: 'Revisa los datos. Usa una URL completa y un código de país de dos letras.',
+    saveFailed: 'No se pudo guardar la organización. Inténtalo de nuevo.',
+    claim: 'Solicitar acceso de administración',
+    claimHint:
+      'Oxy revisará las pruebas de tu autorización. Una solicitud no concede acceso ni verifica tu cargo.',
+    evidence: 'Referencia de la documentación',
+    evidenceHint:
+      'Indica una referencia a tu expediente privado de verificación o documentación acreditativa. Solo tú y los revisores podéis verla.',
+    claimSent: 'Solicitud enviada para revisión',
+    claimFailed: 'No se pudo enviar la solicitud. Inténtalo de nuevo.',
+    claimedHint:
+      'Esta organización ya tiene administradores. Contacta con uno para solicitar acceso.',
+    requests: 'Solicitudes de acceso a organizaciones',
+    pending: 'Pendiente de revisión',
+    approved: 'Aprobada',
+    rejected: 'Rechazada',
+    requestError: 'No se pudieron cargar tus solicitudes.',
+    view: 'Datos de la organización',
+    readonly: 'No tienes permiso para editar esta organización.',
+  },
   signin: {
     title: 'Iniciar sesión',
     subtitle: 'Usa tu cuenta de Oxy',

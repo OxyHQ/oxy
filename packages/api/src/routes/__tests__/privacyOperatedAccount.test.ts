@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `POST /privacy/blocked/:targetId` and `POST /privacy/restricted/:targetId`
  * must REFUSE a target the caller operates — not merely hide the button.
@@ -34,8 +35,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { and, eq } from 'drizzle-orm';
 
 /**
@@ -138,15 +139,15 @@ async function seedAccount(
   kind: 'personal' | 'organization' | 'project' | 'bot' | 'channel',
 ): Promise<string> {
   seedCounter += 1;
-  const [row] = await getDb()
-    .insert(users)
-    .values({
+  const [row] = await insertAccountFixtures(
+    {
       color: 'teal',
       kind,
       username: `blockop${seedCounter}z${Date.now().toString(36)}`,
       accountStatus: 'active',
-    })
-    .returning({ id: users.id });
+    },
+    { id: users.id },
+  );
   return row.id;
 }
 

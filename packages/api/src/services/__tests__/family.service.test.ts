@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * family.service tests — Oxy Family membership, against a REAL Postgres.
  *
@@ -27,18 +28,18 @@ function uniqueUsername(prefix: string): string {
 }
 
 async function personalUser(): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal', kind: 'personal', username: uniqueUsername('fam') })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { color: 'teal', kind: 'personal', username: uniqueUsername('fam') },
+    { id: users.id },
+  );
   return row.id;
 }
 
 async function organizationAccount(): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal', kind: 'organization', username: uniqueUsername('org') })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { color: 'teal', kind: 'organization', username: uniqueUsername('org') },
+    { id: users.id },
+  );
   return row.id;
 }
 

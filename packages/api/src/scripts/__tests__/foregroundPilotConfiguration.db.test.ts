@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /** Configuration integrity uses real SQL and the canonical workload-attribution writer. No AWS/HTTP dispatch. */
 import { randomBytes } from 'node:crypto';
 import { eq, inArray, sql } from 'drizzle-orm';
@@ -170,10 +171,7 @@ async function snapshots(ownerId: string) {
 }
 
 it('applies only the reviewed delta, rejects drift/fences, rolls back partial SQL, and retains audited ephemeral history', async () => {
-  const [owner] = await getDb()
-    .insert(users)
-    .values({ username: 'oxy', kind: 'organization' })
-    .returning();
+  const [owner] = await insertAccountFixtures({ username: 'oxy', kind: 'organization' });
   await getDb()
     .insert(applications)
     .values({
@@ -539,10 +537,7 @@ async function baselineFixture(
   backendAlreadyHasScope: boolean,
   applicationAlreadyHasGrants: boolean,
 ) {
-  const [owner] = await getDb()
-    .insert(users)
-    .values({ username: 'oxy', kind: 'organization' })
-    .returning();
+  const [owner] = await insertAccountFixtures({ username: 'oxy', kind: 'organization' });
   await getDb()
     .insert(applications)
     .values({

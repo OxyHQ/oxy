@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `POST /internal/accounts/:id/service-switch`, over real HTTP against a real
  * Postgres, with the REAL service-token middleware and the REAL account and
@@ -26,8 +27,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
 /** The middleware verifies the token itself, so the real JWT must be used. */
@@ -106,14 +107,14 @@ interface SeededApp {
 let server: http.Server;
 
 async function account(kind: AccountKind, status: 'active' | 'archived' = 'active') {
-  const [row] = await getDb()
-    .insert(users)
-    .values({
+  const [row] = await insertAccountFixtures(
+    {
       username: `acct-${randomUUID().slice(0, 18)}`,
       kind,
       accountStatus: status,
-    })
-    .returning({ id: users.id });
+    },
+    { id: users.id },
+  );
   return row.id;
 }
 

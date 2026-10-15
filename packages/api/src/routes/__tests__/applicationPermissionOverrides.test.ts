@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * A per-member permission override reaches the APPLICATION lane (issue #978).
  *
@@ -28,9 +29,9 @@
  */
 
 import express from 'express';
-import http from 'http';
-import crypto from 'crypto';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 import { eq } from 'drizzle-orm';
 
 jest.mock('../../middleware/auth', () => ({
@@ -129,10 +130,10 @@ function request(method: string, path: string, payload?: unknown): Promise<JsonR
 
 /** A real `users` row — every account in this graph is one. */
 async function seedAccount(kind: 'personal' | 'organization' = 'personal'): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `perm-${crypto.randomBytes(6).toString('hex')}`, kind })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { username: `perm-${crypto.randomBytes(6).toString('hex')}`, kind },
+    { id: users.id },
+  );
   return row.id;
 }
 

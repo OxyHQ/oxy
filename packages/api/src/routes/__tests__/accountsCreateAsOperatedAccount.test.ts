@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * Creating a child while OPERATING a managed account.
  *
@@ -49,8 +50,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
@@ -139,10 +140,10 @@ function uniqueBotUsername(prefix: string): string {
 }
 
 async function seedAccount(kind: 'personal' | 'organization'): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ color: 'teal', username: uniqueUsername(kind), kind })
-    .returning({ id: users.id });
+  const [row] = await insertAccountFixtures(
+    { color: 'teal', username: uniqueUsername(kind), kind },
+    { id: users.id },
+  );
   return row.id;
 }
 

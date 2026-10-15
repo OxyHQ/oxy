@@ -87,8 +87,14 @@ let db: PostgresJsDatabase<typeof schema>;
 
 /** A `users` row of a given account kind, returning its id. */
 async function user(kind: 'personal' | 'organization'): Promise<string> {
-  const [row] = await db.insert(users).values({ kind }).returning({ id: users.id });
-  return row.id;
+  return db.transaction(async (tx) => {
+    const [row] = await tx.insert(users).values({ kind }).returning({ id: users.id });
+    if (kind === 'organization')
+      await tx
+        .insert(schema.organizationProfiles)
+        .values({ accountId: row.id, claimStatus: 'claimed' });
+    return row.id;
+  });
 }
 
 /** A `device_sessions` row, returning `{ id, deviceId }`. */

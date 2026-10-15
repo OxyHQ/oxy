@@ -1,3 +1,4 @@
+import { organizationExternalIds, organizationDirectoryAudit } from './organizationProfiles';
 import {
   billingCreditInvoices,
   billingCreditGrants,
@@ -127,6 +128,21 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: organizationExternalIds,
+    column: organizationExternalIds.externalId,
+    reason:
+      'Source-system identifier scoped by namespace; the referenced row belongs to the importing product, not Oxy.',
+  },
+  ...(['accountId', 'actorUserId', 'actorApplicationId', 'relatedAccountId'] as const).map(
+    (key) => ({
+      table: organizationDirectoryAudit,
+      column: organizationDirectoryAudit[key],
+      reason:
+        'Immutable directory decision attribution retained when its actor, source or target identity is deleted; not a live authorization reference. Evidence is staff-only.',
+    }),
+  ),
+
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.requesterSessionId,

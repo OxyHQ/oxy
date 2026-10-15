@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * The device DIRECTORY and the ONE activation write (issue #937, ADR 0002),
  * against a REAL Postgres, a REAL account graph and a REAL session minter.
@@ -62,10 +63,7 @@ function request(): Request {
 const newDeviceId = () => `dev-${randomUUID()}`;
 
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb()
-    .insert(users)
-    .values({ username: `u-${randomUUID().slice(0, 12)}`, ...over })
-    .returning({ id: users.id });
+  const row = await insertAccountFixture({ username: `u-${randomUUID().slice(0, 12)}`, ...over });
   return row.id;
 }
 

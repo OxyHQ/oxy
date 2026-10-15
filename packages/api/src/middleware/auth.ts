@@ -1,3 +1,4 @@
+import { hasOrganizationOperatingAuthority } from '../services/organizationAuthority.service';
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
@@ -5,12 +6,7 @@ import sessionService from '../services/session.service';
 import type { AccountDocument } from '../services/user.service';
 import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { verifyServiceToken, type ServiceTokenPayload } from './serviceToken';
-import {
-  extractTokenFromRequest,
-  decodeToken,
-  validateSessionToken,
-  type TokenDecoded,
-} from './authUtils';
+import { decodeToken, type TokenDecoded } from './authUtils';
 
 /**
  * Interface for requests with full user object.
@@ -114,12 +110,32 @@ export const rejectQueryToken = (req: Request, res: Response, next: NextFunction
  * @param res - Express response object
  * @param next - Express next function
  */
+/** New product APIs opt into the shared nested error contract without intercepting responses. */
+function sendAuthFailure(res: Response, status: number, body: { error: string; message: string }) {
+  if (res.locals.apiErrorFormat === 'nested') {
+    return res.status(status).json({
+      error: {
+        code:
+          status === 401
+            ? 'unauthorized'
+            : status === 403
+              ? 'forbidden'
+              : status === 503
+                ? 'service_unavailable'
+                : 'internal_error',
+        message: body.message,
+      },
+    });
+  }
+  return res.status(status).json(body);
+}
+
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({
+      return sendAuthFailure(res, 401, {
         error: 'Authentication required',
         message: 'Invalid or missing authorization header',
       });
@@ -129,7 +145,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
     if (!process.env.ACCESS_TOKEN_SECRET) {
       logger.error('ACCESS_TOKEN_SECRET not configured');
-      return res.status(500).json({
+      return sendAuthFailure(res, 500, {
         error: 'Server configuration error',
         message: 'Server configuration error',
       });
@@ -140,7 +156,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       const decoded = decodeToken(token);
 
       if (!decoded) {
-        return res.status(401).json({
+        return sendAuthFailure(res, 401, {
           error: 'Invalid token',
           message: 'Token could not be decoded',
         });
@@ -157,7 +173,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
 
       // Only session-based tokens are supported
       if (!decoded.sessionId) {
-        return res.status(401).json({
+        return sendAuthFailure(res, 401, {
           error: 'Invalid token',
           message: 'Token must be session-based (include a sessionId claim).',
         });
@@ -176,7 +192,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
           if (process.env.NODE_ENV === 'development') {
             logger.debug('Session validation failed', { sessionId: decoded.sessionId });
           }
-          return res.status(401).json({
+          return sendAuthFailure(res, 401, {
             error: 'Invalid session',
             message: 'Session not found or expired',
           });
@@ -185,7 +201,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         const { user } = validationResult;
 
         if (!user) {
-          return res.status(401).json({
+          return sendAuthFailure(res, 401, {
             error: 'Invalid session',
             message: 'User not found',
           });
@@ -220,7 +236,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
             method: 'authMiddleware',
           },
         );
-        return res.status(500).json({
+        return sendAuthFailure(res, 500, {
           error: 'Database error',
           message: 'Error validating session',
         });
@@ -236,20 +252,20 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       );
 
       if (error instanceof jwt.TokenExpiredError) {
-        return res.status(401).json({
+        return sendAuthFailure(res, 401, {
           error: 'Token expired',
           message: 'Your session has expired. Please log in again.',
         });
       }
 
       if (error instanceof jwt.JsonWebTokenError) {
-        return res.status(401).json({
+        return sendAuthFailure(res, 401, {
           error: 'Invalid token',
           message: 'The provided authentication token is invalid',
         });
       }
 
-      return res.status(401).json({
+      return sendAuthFailure(res, 401, {
         error: 'Authentication error',
         message: 'An error occurred while authenticating your request',
       });
@@ -263,7 +279,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         method: 'authMiddleware',
       },
     );
-    return res.status(500).json({
+    return sendAuthFailure(res, 500, {
       error: 'Server error',
       message: 'An error occurred while authenticating your request',
     });
@@ -294,14 +310,14 @@ export interface ServiceAuthRequest extends Request {
  * @param res - Express response object
  * @param next - Express next function
  */
-export const serviceAuthMiddleware = (
+export const serviceAuthMiddleware = async (
   req: ServiceAuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
-    return res.status(401).json({
+    return sendAuthFailure(res, 401, {
       error: 'Authentication required',
       message: 'Invalid or missing authorization header',
     });
@@ -311,23 +327,35 @@ export const serviceAuthMiddleware = (
 
   const verification = verifyServiceToken(token);
   if (verification.ok) {
+    try {
+      if (!(await hasOrganizationOperatingAuthority(verification.payload.ownerAccountId)))
+        return sendAuthFailure(res, 403, {
+          error: 'Forbidden',
+          message: 'The owning account has no operating authority',
+        });
+    } catch {
+      return sendAuthFailure(res, 503, {
+        error: 'Unavailable',
+        message: 'Account authority could not be verified',
+      });
+    }
     req.serviceApp = verification.payload;
     return next();
   }
 
   if (verification.reason === 'expired') {
-    return res.status(401).json({
+    return sendAuthFailure(res, 401, {
       error: 'Token expired',
       message: 'Service token has expired',
     });
   }
   if (verification.reason === 'not_service') {
-    return res.status(403).json({
+    return sendAuthFailure(res, 403, {
       error: 'Forbidden',
       message: 'This endpoint requires a service token',
     });
   }
-  return res.status(401).json({
+  return sendAuthFailure(res, 401, {
     error: 'Invalid token',
     message: 'The provided service token is invalid',
   });

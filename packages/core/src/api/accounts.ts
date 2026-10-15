@@ -1,3 +1,4 @@
+import type { OrganizationType } from '@oxy.so/contracts';
 /**
  * `oxy.accounts` — the unified account graph (`/accounts`).
  *
@@ -236,6 +237,7 @@ export interface CreateAccountInput {
    * keep working. At most `MAX_ACCOUNT_CATEGORIES`, no duplicates.
    */
   accountCategories?: AccountCategoryId[];
+  organizationType?: OrganizationType;
   /**
    * Create the account already opted OUT of discovery — kept out of people
    * search, the follow-graph lists, `/similar` and the recommendation pools,
@@ -301,6 +303,7 @@ export interface UpdateAccountInput {
    * every other field here (`account:update`).
    */
   character?: AvatarCharacter;
+  organizationType?: OrganizationType;
 }
 
 /** Input accepted by `accounts.members.invite`. The owner role cannot be invited. */

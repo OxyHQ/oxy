@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * `POST /auth/oauth/token` — RFC 6749 §4.1.3 authorization-code exchange,
  * against a REAL Postgres.
@@ -34,8 +35,8 @@
  */
 
 import express from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import * as nodeCrypto from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 
@@ -225,7 +226,7 @@ async function client(
   credentialFields: Partial<typeof applicationCredentials.$inferInsert> = {},
   appFields: Partial<typeof applications.$inferInsert> = {},
 ): Promise<{ clientId: string; applicationId: string }> {
-  const [owner] = await getDb().insert(users).values({}).returning({ id: users.id });
+  const [owner] = await insertAccountFixtures({}, { id: users.id });
   const [app] = await getDb()
     .insert(applications)
     .values({
@@ -252,7 +253,7 @@ async function client(
 
 /** The subject of the grant — a real `users` row the exchange resolves. */
 async function subject(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  const [row] = await insertAccountFixtures(fields, { id: users.id });
   return row.id;
 }
 
@@ -337,7 +338,7 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(res.headers['pragma']).toBe('no-cache');
+    expect(res.headers.pragma).toBe('no-cache');
   });
 
   it('reports the granted scope as a space-delimited string', async () => {

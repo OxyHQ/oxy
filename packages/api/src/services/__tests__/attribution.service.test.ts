@@ -1,3 +1,4 @@
+import { insertAccountFixtures } from '../../db/__fixtures__/accountIdentity';
 /**
  * attribution.service tests — against a REAL Postgres.
  *
@@ -61,17 +62,17 @@ async function seedAccount(
     accountStatus?: 'active' | 'archived';
   } = {},
 ): Promise<string> {
-  const [account] = await getDb()
-    .insert(users)
-    .values({
+  const [account] = await insertAccountFixtures(
+    {
       color: 'teal',
       kind: options.kind ?? 'personal',
       username: `attrib${uniqueSuffix()}`,
       parentAccountId: options.parentAccountId,
       rootAccountId: options.rootAccountId,
       accountStatus: options.accountStatus ?? 'active',
-    })
-    .returning({ id: users.id });
+    },
+    { id: users.id },
+  );
 
   const ancestors = options.ancestors ?? [];
   if (ancestors.length > 0) {

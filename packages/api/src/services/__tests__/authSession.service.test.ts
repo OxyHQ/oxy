@@ -1,3 +1,4 @@
+import { insertAccountFixture } from '../../db/__fixtures__/accountIdentity';
 /**
  * `authSession.service` against a REAL Postgres.
  *
@@ -62,7 +63,7 @@ import { appGrants } from '../../db/schema/appGrants';
 import { applications } from '../../db/schema/applications';
 import { authChallenges } from '../../db/schema/authChallenges';
 import { authSessions } from '../../db/schema/authSessions';
-import { users } from '../../db/schema/users';
+import type { users } from '../../db/schema/users';
 import { insertBearerSession } from '../../routes/__fixtures__/bearerSessionFixtures';
 import {
   approvalMintsSession,
@@ -78,7 +79,7 @@ const REDIRECT_URI = 'https://rp.example/callback';
 
 /** A personal `users` row. */
 async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
-  const [row] = await getDb().insert(users).values(over).returning({ id: users.id });
+  const row = await insertAccountFixture(over);
   return row.id;
 }
 

@@ -46,6 +46,7 @@ import {
 } from '../utils/publicUserProjection';
 import {
   eligibleUserPredicate,
+  visibleOrganizationIdentityPredicate,
   FEDERATED_RECOMMENDATION_MAX_AGE_MS,
   isPublicGraphTarget,
   normalizePeopleSearchTerm,
@@ -227,7 +228,7 @@ async function loadProfileByPredicate(
   const [row] = await getDb()
     .select({ ...publicUserColumns, ...publicUserFollowCounts })
     .from(users)
-    .where(predicate)
+    .where(and(predicate, visibleOrganizationIdentityPredicate()))
     .limit(1);
   if (!row) return null;
   return {
@@ -262,7 +263,7 @@ const validatePagination = (req: Request, res: Response, next: () => void): void
   const limit = query.limit ? Number.parseInt(query.limit, 10) : undefined;
   const offset = query.offset ? Number.parseInt(query.offset, 10) : undefined;
 
-  if (limit !== undefined && (isNaN(limit) || limit < 0 || limit > PAGINATION.MAX_LIMIT)) {
+  if (limit !== undefined && (Number.isNaN(limit) || limit < 0 || limit > PAGINATION.MAX_LIMIT)) {
     res.status(400).json({
       error: 'BAD_REQUEST',
       message: `Invalid limit parameter. Must be between 1 and ${PAGINATION.MAX_LIMIT}`,
@@ -270,7 +271,7 @@ const validatePagination = (req: Request, res: Response, next: () => void): void
     return;
   }
 
-  if (offset !== undefined && (isNaN(offset) || offset < 0)) {
+  if (offset !== undefined && (Number.isNaN(offset) || offset < 0)) {
     res.status(400).json({
       error: 'BAD_REQUEST',
       message: 'Invalid offset parameter. Must be >= 0',

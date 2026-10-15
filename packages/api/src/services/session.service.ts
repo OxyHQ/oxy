@@ -1,3 +1,4 @@
+import { hasOrganizationOperatingAuthority } from './organizationAuthority.service';
 import { and, desc, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { sessions } from '../db/schema/sessions';
@@ -22,7 +23,6 @@ import {
   generateDeviceFingerprint,
   registerDevice,
   deriveServiceDeviceId,
-  DeviceFingerprint,
 } from '../utils/deviceUtils';
 import {
   checkAccessTokenBinding,
@@ -39,7 +39,7 @@ import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { broadcastDeviceState } from '../utils/socket';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
 import type {
   SessionValidationResult,
   SessionCreateOptions,
@@ -229,6 +229,7 @@ class SessionService {
     >,
     opts: { force?: boolean } = {},
   ): Promise<boolean> {
+    if (!(await hasOrganizationOperatingAuthority(session.userId))) return false;
     if (session.authMethodId) {
       try {
         if (
@@ -1404,7 +1405,7 @@ class SessionService {
             expiresAt: refreshResult.session.expiresAt,
           };
         }
-      } catch (tokenError) {
+      } catch (_tokenError) {
         // Token invalid, try to refresh
         const refreshResult = await this.refreshTokens(session.refreshToken);
         if (!refreshResult) {

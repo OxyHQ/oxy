@@ -27,9 +27,8 @@ import { requestAgentChallenge, verifyAgentChallenge } from '../agentKeyAuth.ser
 import { verifyServiceToken } from '../../middleware/serviceToken';
 
 const request = { headers: { 'user-agent': 'agent-fixture' } } as Request;
-let counter = 1;
 async function fixture() {
-  const privateKey = (++counter).toString(16).padStart(64, '0');
+  const privateKey = randomUUID().replaceAll('-', '').padStart(64, '0');
   const publicKey = SignatureService.canonicalizePublicKey(deriveSecp256k1PublicKey(privateKey));
   const [bot] = await getDb()
     .insert(users)

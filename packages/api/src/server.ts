@@ -1,3 +1,4 @@
+import safetyRoutes from './routes/safety';
 import {
   initializePlatformInfrastructure,
   refreshInfrastructure,
@@ -5,7 +6,7 @@ import {
 } from './services/platformInfrastructure.service';
 import { shutdownTelemetry } from './telemetry';
 import express from 'express';
-import http from 'http';
+import http from 'node:http';
 import { count, ne, sql } from 'drizzle-orm';
 import { Server as SocketIOServer, type Socket } from 'socket.io';
 import profilesRouter from './routes/profiles';
@@ -52,6 +53,7 @@ import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
 import accountEventRoutes from './routes/accountEvents';
 import accountRoutes from './routes/accounts';
+import organizationRoutes from './routes/organizations';
 import familyRoutes from './routes/families';
 import capabilityRoutes from './routes/capabilities';
 import devicesRouter from './routes/devices';
@@ -565,7 +567,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // API Routes
-app.get('/', async (req, res) => {
+app.get('/', async (_req, res) => {
   try {
     const [{ value: usersCount }] = await getDb().select({ value: count() }).from(users);
     res.json({
@@ -598,7 +600,7 @@ app.get('/', async (req, res) => {
 // from under a LIVE pool; that is the only way the difference between "the
 // pool object exists" and "the server answers" becomes observable. See
 // `src/__tests__/healthGate.test.ts`.
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     const isDatabaseUp = await isDatabaseReachable();
     const redisClient = getRedisClient();
@@ -815,6 +817,8 @@ app.use('/accounts', accountRoutes);
 // Oxy Family membership (organizer + member personal accounts). Per-route
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
 app.use('/families', familyRoutes);
+app.use('/organizations', organizationRoutes);
+app.use('/safety', safetyRoutes);
 app.use('/capabilities', userRateLimiter, capabilityRoutes);
 app.use('/devices', userRateLimiter, devicesRouter);
 app.use('/security', userRateLimiter, securityRoutes);
