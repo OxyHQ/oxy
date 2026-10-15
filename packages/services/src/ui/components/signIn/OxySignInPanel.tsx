@@ -16,6 +16,8 @@
  *                 (the start response does not say which, by design); meanwhile
  *                 the screen asks whether the link was opened in this browser,
  *                 and signs in when it was.
+ *   choose        the email holds several accounts, and the code or the link just
+ *                 proved it: which one signs in (a username never gets here).
  *   password      the alternative for an account that has one.
  *   second-factor the authenticator's code, or a backup code, when the account has one.
  *
@@ -39,9 +41,11 @@ import {
   EMAIL_SIGNIN_LONG_CODE_LENGTH,
   SIGN_IN_ERROR_CODES,
   TOTP_DIGITS,
+  isEmailSignInChooseAccount,
   isSecondFactorRequired,
+  type EmailSignInAccountOption,
+  type EmailSignInStepResult,
   type LoginResult,
-  type SignInStepResult,
 } from '@oxy.so/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../../context/OxyContext';
@@ -56,6 +60,7 @@ import { SIGN_IN_SLIDES } from './artwork';
 import { InlineCommonsQr } from './InlineCommonsQr';
 import { OxyAccountPicker } from './OxyAccountPicker';
 import { OxyAuthScreen, OxyAuthScreenHeader, OxyAuthSplit, OxyAuthTerms } from './OxyAuthScreen';
+import { OxyEmailAccountChoice } from './OxyEmailAccountChoice';
 import {
   AccountFlowAction,
   AccountFlowCodeField,
@@ -94,6 +99,13 @@ const SIGN_IN_FLOW_KEY = 'signin';
 type Step =
   | { name: 'start' }
   | { name: 'check-email'; identifier: string; requestId: string; requestSecret: string }
+  | {
+      name: 'choose';
+      identifier: string;
+      requestId: string;
+      requestSecret: string;
+      accounts: EmailSignInAccountOption[];
+    }
   | { name: 'password'; identifier: string }
   | { name: 'second-factor'; challengeId: string; identifier: string };
 
@@ -153,6 +165,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   const [useBackupCode, setUseBackupCode] = useState(saved?.useBackupCode ?? false);
   const [longCode, setLongCode] = useState(saved?.longCode ?? false);
   const [pending, setPending] = useState(false);
+  const [choosingId, setChoosingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
@@ -225,8 +238,25 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
   // One sign-in ends once: the typed code and the opened link can race.
   const finishingRef = useRef(false);
   const finish = useCallback(
-    async (result: SignInStepResult, from: string): Promise<void> => {
+    async (
+      result: EmailSignInStepResult,
+      from: string,
+      request?: { requestId: string; requestSecret: string },
+    ): Promise<void> => {
       if (finishingRef.current) return;
+      if (isEmailSignInChooseAccount(result)) {
+        if (!request) return;
+        setError(null);
+        setNotice(null);
+        setStep({
+          name: 'choose',
+          identifier: from,
+          requestId: request.requestId,
+          requestSecret: request.requestSecret,
+          accounts: result.accounts,
+        });
+        return;
+      }
       if (isSecondFactorRequired(result)) {
         setError(null);
         setSecondFactorCode('');
@@ -301,12 +331,33 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
         requestSecret: request.requestSecret,
         code: typed.trim(),
       })
-      .then((result) => finish(result, request.identifier))
+      .then((result) => finish(result, request.identifier, request))
       .catch((reason: unknown) => {
         setCode('');
         fail(reason);
       })
       .finally(() => setPending(false));
+  };
+
+  const chooseAccount = (account: EmailSignInAccountOption) => {
+    if (step.name !== 'choose' || blocked) return;
+    const request = step;
+    const name = account.username ?? request.identifier;
+    setError(null);
+    setPending(true);
+    setChoosingId(account.id);
+    oxyServices.auth.email
+      .choose({
+        requestId: request.requestId,
+        requestSecret: request.requestSecret,
+        userId: account.id,
+      })
+      .then((result) => finish(result, name))
+      .catch(fail)
+      .finally(() => {
+        setPending(false);
+        setChoosingId(null);
+      });
   };
 
   const submitPassword = () => {
@@ -369,7 +420,7 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
       try {
         const result = await oxyServices.auth.email.collect({ requestId, requestSecret });
         if (!('status' in result)) {
-          await finishRef.current(result, requestIdentifier);
+          await finishRef.current(result, requestIdentifier, { requestId, requestSecret });
           return;
         }
         if (stopped) return;
@@ -539,6 +590,40 @@ export const OxySignInPanel: React.FC<OxySignInPanelProps> = ({
               disabled={pending}
               testID="signin-use-password"
             />
+            <SubtleLink
+              label={t('signin.checkEmail.differentAccount')}
+              onPress={backToIdentifier}
+              disabled={pending}
+              testID="signin-different-account"
+            />
+          </View>
+        </OxyAuthScreen>
+      );
+      break;
+    }
+    case 'choose': {
+      const request = step;
+      form = (
+        <OxyAuthScreen className={splits ? 'md:max-w-none' : undefined}>
+          <OxyAuthScreenHeader
+            title={t('signin.emailAccounts.title')}
+            description={t('signin.emailAccounts.description', {
+              identifier: request.identifier,
+            })}
+          />
+          <OxyEmailAccountChoice
+            accounts={request.accounts}
+            onChoose={chooseAccount}
+            pendingId={choosingId}
+            disabled={blocked}
+          />
+          {error ? (
+            <AccountFlowNotice type="error" testID="signin-choose-error">
+              {error}
+            </AccountFlowNotice>
+          ) : null}
+          {rateLimitNotice}
+          <View style={styles.links}>
             <SubtleLink
               label={t('signin.checkEmail.differentAccount')}
               onPress={backToIdentifier}

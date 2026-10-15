@@ -1,7 +1,10 @@
 # ADR 0030 — Email, code, password and authenticator; passkeys removed
 
 - Status: accepted; implemented (#1421 the API, #1422 the dialog, the passkey
-  removal in the change that adds this ADR)
+  removal in the change that adds this ADR); D1 and D2 changed by
+  [ADR 0040](0040-one-email-several-accounts.md) (one email, several accounts:
+  signing in by email can end in a choice; a sign-up for a used address gets a
+  code)
 - Date: 2026-09-26
 - Decided by: the owner (product direction, "súper seguro"), recorded here
 - Changes: ADR 0029 D1 (no auth.oxy.so window in an app's sign-in; only the

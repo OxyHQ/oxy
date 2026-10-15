@@ -120,6 +120,14 @@ const CHALLENGE = {
   expiresAt: 1_900_000_000_000,
 };
 const PENDING = { status: 'pending' as const, expiresAt: 1_900_000_000_000 };
+const CHOICE = {
+  chooseAccount: true as const,
+  accounts: [
+    { id: 'user-1', username: 'ada' },
+    { id: 'user-2', username: 'ada_work', displayName: 'Ada at work', avatar: 'file-2' },
+  ],
+  expiresAt: 1_900_000_000_000,
+};
 const apiError = (code: string, status = 401, details?: Record<string, unknown>) =>
   Object.assign(new Error(code), { code, status, ...(details ? { details } : {}) });
 
@@ -132,6 +140,7 @@ const oxyServices = {
       start: jest.fn(async (_identifier: string): Promise<Record<string, unknown>> => REQUEST),
       confirm: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
       collect: jest.fn(async (_request: unknown): Promise<unknown> => PENDING),
+      choose: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
     },
     password: {
       signIn: jest.fn(async (_request: unknown): Promise<unknown> => SESSION),
@@ -216,6 +225,7 @@ beforeEach(() => {
   oxyServices.auth.email.start.mockImplementation(async () => REQUEST);
   oxyServices.auth.email.confirm.mockImplementation(async () => SESSION);
   oxyServices.auth.email.collect.mockImplementation(async () => PENDING);
+  oxyServices.auth.email.choose.mockImplementation(async () => SESSION);
   oxyServices.auth.password.signIn.mockImplementation(async () => SESSION);
   oxyServices.auth.completeSecondFactor.mockImplementation(async () => SESSION);
   handleWebSession.mockImplementation(async () => undefined);
@@ -547,6 +557,83 @@ describe('"Check your email" — the code or the link', () => {
   });
 });
 
+describe('an email that holds several accounts', () => {
+  it('after the code, lists them; the one chosen signs in', async () => {
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHOICE);
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+
+    await screen.findByTestId('email-account-choice');
+    expect(screen.getByText('Choose an account')).toBeTruthy();
+    expect(
+      screen.getByText('ada@example.com has several accounts. Choose the one to sign in with.'),
+    ).toBeTruthy();
+    // A name when the account has one, and the handle under it; else the handle.
+    expect(screen.getByText('@ada')).toBeTruthy();
+    expect(screen.getByText('Ada at work')).toBeTruthy();
+    expect(screen.getByText('@ada_work')).toBeTruthy();
+    expect(handleWebSession).not.toHaveBeenCalled();
+
+    press('email-account-user-2');
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    expect(oxyServices.auth.email.choose).toHaveBeenCalledWith({
+      requestId: REQUEST.requestId,
+      requestSecret: REQUEST.requestSecret,
+      userId: 'user-2',
+    });
+    expect(handleWebSession).toHaveBeenCalledWith(SESSION);
+  });
+
+  it('after the link too (the collect poll), and the poll stops', async () => {
+    jest.useFakeTimers();
+    try {
+      renderPanel({ host: 'dialog' });
+      await reachCheckEmail();
+      oxyServices.auth.email.collect.mockResolvedValueOnce(CHOICE);
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS);
+      });
+      expect(screen.getByTestId('email-account-choice')).toBeTruthy();
+      const polls = oxyServices.auth.email.collect.mock.calls.length;
+      await act(async () => {
+        jest.advanceTimersByTime(EMAIL_SIGNIN_POLL_MS * 3);
+      });
+      expect(oxyServices.auth.email.collect).toHaveBeenCalledTimes(polls);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('the chosen account still asks for its authenticator', async () => {
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHOICE);
+    oxyServices.auth.email.choose.mockResolvedValueOnce(CHALLENGE);
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+    await screen.findByTestId('email-account-choice');
+    press('email-account-user-1');
+
+    await screen.findByTestId('signin-second-factor');
+    expect(handleWebSession).not.toHaveBeenCalled();
+  });
+
+  it('says so when the choice expired, and goes back with "Use a different account"', async () => {
+    oxyServices.auth.email.confirm.mockResolvedValueOnce(CHOICE);
+    oxyServices.auth.email.choose.mockRejectedValueOnce(apiError('SIGNIN_REQUEST_INVALID'));
+    renderPanel();
+    await reachCheckEmail();
+    type('signin-code', '123456');
+    await screen.findByTestId('email-account-choice');
+    press('email-account-user-1');
+
+    await screen.findByTestId('signin-choose-error');
+    expect(screen.getByText('This sign-in expired. Send a new email.')).toBeTruthy();
+    press('signin-different-account');
+    expect(screen.getByTestId('signin-identifier')).toBeTruthy();
+  });
+});
+
 describe('in the dialog, the step outlives a remount of the screen', () => {
   // Bloom's responsive surface renders a bottom sheet below `md` and a centered
   // card from `md`: crossing the breakpoint remounts the screen inside. The
@@ -648,7 +735,11 @@ describe('the password, instead of the email', () => {
     type('signin-password', 'nope');
     press('signin-password-continue');
 
-    await waitFor(() => expect(alertText()).toBe("That username, email or password isn't right."));
+    await waitFor(() =>
+      expect(alertText()).toBe(
+        "That username, email or password isn't right. If several accounts use this email, sign in with the username.",
+      ),
+    );
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 

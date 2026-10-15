@@ -101,6 +101,36 @@ describe('email sign-in', () => {
     );
   });
 
+  it('answers the account choice for an email holding several, planting nothing; choose signs in', async () => {
+    const choice = {
+      chooseAccount: true as const,
+      accounts: [
+        { id: 'user-1', username: 'ada' },
+        { id: 'user-2', username: 'ada_work', displayName: 'Ada at work', avatar: 'file-2' },
+      ],
+      expiresAt: 1_900_000_000_000,
+    };
+    makeRequest.mockResolvedValueOnce(choice);
+    expect(
+      await oxy.auth.email.confirm({ requestId: 'r1', requestSecret: TOKEN, code: '123456' }),
+    ).toEqual(choice);
+    makeRequest.mockResolvedValueOnce(choice);
+    expect(await oxy.auth.email.collect({ requestId: 'r1', requestSecret: TOKEN })).toEqual(choice);
+    expect(setTokens).not.toHaveBeenCalled();
+
+    makeRequest.mockResolvedValueOnce(SESSION);
+    expect(
+      await oxy.auth.email.choose({ requestId: 'r1', requestSecret: TOKEN, userId: 'user-2' }),
+    ).toEqual(SESSION);
+    expect(setTokens).toHaveBeenCalledWith('access-1');
+    expect(makeRequest).toHaveBeenLastCalledWith(
+      'POST',
+      '/auth/signin/email/choose',
+      { requestId: 'r1', requestSecret: TOKEN, userId: 'user-2', device: DEVICE },
+      PRE_SESSION,
+    );
+  });
+
   it("approves a link with this browser's device, and refuses without one", async () => {
     makeRequest.mockResolvedValueOnce({ approved: true });
     expect(await oxy.auth.email.approveLink(TOKEN)).toEqual({ approved: true });

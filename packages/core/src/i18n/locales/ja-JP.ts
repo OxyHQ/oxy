@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: '試行回数が多すぎます。{{seconds}} 秒後にもう一度お試しください。',
-      invalidCredentials: 'ユーザー名、メールアドレス、またはパスワードが正しくありません。',
+      invalidCredentials:
+        'ユーザー名、メールアドレス、またはパスワードが正しくありません。 複数のアカウントがこのメールアドレスを使っている場合は、ユーザー名でサインインしてください。',
+      emailAccountsFull: 'このメールアドレスで作成できるアカウント数の上限に達しています。',
       codeInvalid: 'コードが正しくないか、有効期限が切れています。',
       requestExpired: 'このサインインは期限切れです。新しいメールを送ってください。',
       secondFactorInvalid: 'コードが正しくありません。現在のコードをお試しください。',
@@ -31,6 +33,11 @@ const dict = {
         '{{app}} はまだサインインの設定がされていません。アプリの開発者にお問い合わせください。',
       failed: 'サインインを開始できませんでした',
       failedDescription: '問題が発生しました。もう一度お試しください。',
+    },
+    emailAccounts: {
+      title: 'アカウントを選択',
+      description:
+        '{{identifier}} には複数のアカウントがあります。サインインするアカウントを選んでください。',
     },
     chooser: {
       subtitleToApp: '{{app}} に進む',

@@ -85,6 +85,8 @@ export function describeSignInError(error: unknown, t: Translate): string {
       return t('signin.errors.originNotAllowed');
     case SIGN_IN_ERROR_CODES.usernameTaken:
       return t('signup.username.taken');
+    case SIGN_IN_ERROR_CODES.emailAccountsFull:
+      return t('signin.errors.emailAccountsFull');
     case EMAIL_VERIFICATION_ERROR_CODES.codeInvalid:
       return t('emailCode.errors.codeInvalid');
     case EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts:

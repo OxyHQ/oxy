@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.5.0] - 2026-10-15
+
+Needs `@oxy.so/core` 4.10.0. (11.4.0 is #1721's.)
+
+### Added
+
+- One email, several accounts (ADR 0040): after the code or the link proves an
+  email that holds several accounts, the sign-in panel lists them
+  (`OxyEmailAccountChoice`, name, `@handle` and avatar) and signs in the one
+  chosen; its authenticator still applies. A username signs in only its
+  account, as before.
+- The sign-up panel names `EMAIL_ACCOUNTS_FULL`.
 ## [11.3.1] - 2026-10-15
 
 Needs `@oxy.so/core` 4.9.1.

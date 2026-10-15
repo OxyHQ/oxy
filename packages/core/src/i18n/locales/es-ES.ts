@@ -70,6 +70,10 @@ const dict = {
   signin: {
     title: 'Iniciar sesión',
     subtitle: 'Usa tu cuenta de Oxy',
+    emailAccounts: {
+      title: 'Elige una cuenta',
+      description: '{{identifier}} tiene varias cuentas. Elige con cuál entrar.',
+    },
     chooser: {
       title: 'Elige una cuenta',
       subtitle: 'Continúa con una de tus cuentas o usa otra.',
@@ -94,7 +98,9 @@ const dict = {
       failed: 'No se pudo iniciar sesión',
       failedDescription: 'Algo ha ido mal. Inténtalo de nuevo.',
       rateLimited: 'Demasiados intentos. Vuelve a probar en {{seconds}} s.',
-      invalidCredentials: 'El nombre de usuario, el email o la contraseña no son correctos.',
+      invalidCredentials:
+        'El nombre de usuario, el email o la contraseña no son correctos. Si varias cuentas usan este email, entra con el nombre de usuario.',
+      emailAccountsFull: 'Este email ya tiene todas las cuentas que puede tener.',
       codeInvalid: 'Ese código no es correcto o ha caducado.',
       requestExpired: 'Este inicio de sesión ha caducado. Envía un email nuevo.',
       secondFactorInvalid: 'Ese código no es correcto. Prueba con el actual.',

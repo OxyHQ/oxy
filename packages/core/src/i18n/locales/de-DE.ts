@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: 'Zu viele Versuche. Versuche es in {{seconds}} s erneut.',
-      invalidCredentials: 'Benutzername, E-Mail oder Passwort stimmen nicht.',
+      invalidCredentials:
+        'Benutzername, E-Mail oder Passwort stimmen nicht. Wenn mehrere Konten diese E-Mail-Adresse nutzen, melde dich mit dem Benutzernamen an.',
+      emailAccountsFull: 'Diese E-Mail-Adresse hat bereits so viele Konten, wie sie haben kann.',
       codeInvalid: 'Dieser Code stimmt nicht oder ist abgelaufen.',
       requestExpired: 'Diese Anmeldung ist abgelaufen. Sende eine neue E-Mail.',
       secondFactorInvalid: 'Dieser Code stimmt nicht. Versuch es mit dem aktuellen.',
@@ -31,6 +33,11 @@ const dict = {
         '{{app}} ist noch nicht für die Anmeldung eingerichtet. Wende dich an die Entwickler der App.',
       failed: 'Anmeldung konnte nicht gestartet werden',
       failedDescription: 'Etwas ist schiefgelaufen. Bitte versuch es noch einmal.',
+    },
+    emailAccounts: {
+      title: 'Konto auswählen',
+      description:
+        '{{identifier}} hat mehrere Konten. Wähle das, mit dem du dich anmelden möchtest.',
     },
     chooser: {
       subtitleToApp: 'um mit {{app}} fortzufahren',

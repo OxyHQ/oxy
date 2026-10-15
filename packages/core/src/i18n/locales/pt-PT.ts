@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: 'Demasiadas tentativas. Tenta novamente dentro de {{seconds}} s.',
-      invalidCredentials: 'O nome de utilizador, o email ou a palavra-passe não estão certos.',
+      invalidCredentials:
+        'O nome de utilizador, o email ou a palavra-passe não estão certos. Se várias contas usam este email, entra com o nome de utilizador.',
+      emailAccountsFull: 'Este email já tem todas as contas que pode ter.',
       codeInvalid: 'Esse código não está certo ou expirou.',
       requestExpired: 'Este início de sessão expirou. Envia um novo email.',
       secondFactorInvalid: 'Esse código não está certo. Experimenta o atual.',
@@ -31,6 +33,10 @@ const dict = {
         '{{app}} ainda não está configurada para iniciar sessão. Contacta quem desenvolve a app.',
       failed: 'Não foi possível iniciar sessão',
       failedDescription: 'Algo correu mal. Tenta novamente.',
+    },
+    emailAccounts: {
+      title: 'Escolhe uma conta',
+      description: '{{identifier}} tem várias contas. Escolhe com qual queres entrar.',
     },
     chooser: {
       subtitleToApp: 'para continuar para {{app}}',

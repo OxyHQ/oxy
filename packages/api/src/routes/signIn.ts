@@ -2,9 +2,10 @@
  * Signing in and creating an account, mounted under `/auth`:
  *
  *  - `POST /signin/email/start`    `{ identifier, device? }` → `{ requestId, requestSecret, expiresAt }`
- *  - `POST /signin/email/confirm`  `{ requestId, requestSecret, code, device? }` → session | second factor
+ *  - `POST /signin/email/confirm`  `{ requestId, requestSecret, code, device? }` → session | second factor | choose account
  *  - `POST /signin/email/link`     auth.oxy.so: `{ token, device }` → `{ approved: true }`
- *  - `POST /signin/email/collect`  `{ requestId, requestSecret, device? }` → pending | session | second factor
+ *  - `POST /signin/email/collect`  `{ requestId, requestSecret, device? }` → pending | session | second factor | choose account
+ *  - `POST /signin/email/choose`   `{ requestId, requestSecret, userId, device? }` → session | second factor
  *  - `POST /signin/password`       `{ identifier, password, device? }` → session | second factor
  *  - `POST /signin/second-factor`  `{ challengeId, code, device? }` → session
  *  - `POST /signup`                `{ username, email, emailTicket, device? }` → session
@@ -16,9 +17,11 @@
  * same lockout as a known one. Codes, secrets and passwords are never logged.
  */
 import { Router, type Request, type Response } from 'express';
-import { sql } from 'drizzle-orm';
+import { and, count, eq, isNull, sql } from 'drizzle-orm';
 import {
+  EMAIL_ACCOUNTS_MAX,
   SIGN_IN_ERROR_CODES,
+  emailSignInChooseRequestSchema,
   emailSignInCollectRequestSchema,
   emailSignInConfirmRequestSchema,
   emailSignInLinkRequestSchema,
@@ -28,6 +31,7 @@ import {
   secondFactorSignInRequestSchema,
   signUpRequestSchema,
   USERNAME_INVALID_MESSAGE,
+  type EmailSignInChooseRequest,
   type EmailSignInCollectRequest,
   type EmailSignInConfirmRequest,
   type EmailSignInLinkRequest,
@@ -46,6 +50,7 @@ import { validate } from '../middleware/validate';
 import { spendSignupTicket } from '../services/accountEmail.service';
 import {
   approveEmailSignInLink,
+  chooseEmailSignInAccount,
   collectEmailSignIn,
   confirmEmailSignIn,
   startEmailSignIn,
@@ -59,7 +64,8 @@ import {
   mintSignInSession,
 } from '../services/signInSession.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ApiError, BadRequestError, ConflictError } from '../utils/error';
+import { ApiError, BadRequestError } from '../utils/error';
+import { hashEmail } from '../utils/contactHash';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
 import { normalizeUsername } from '../utils/username';
@@ -83,13 +89,13 @@ const confirmLimiter = ipLimiter('email-confirm', HOUR, 60);
 const linkLimiter = ipLimiter('email-link', HOUR, 30);
 /** The dialog polls every 2 s for the link's 15 minutes. */
 const collectLimiter = ipLimiter('email-collect', HOUR, 1200);
+const chooseLimiter = ipLimiter('email-choose', HOUR, 60);
 const passwordLimiter = ipLimiter('password', 15 * 60 * 1000, 30);
 const secondFactorLimiter = ipLimiter('second-factor', 15 * 60 * 1000, 30);
 const signupLimiter = ipLimiter('signup', HOUR, 10);
 
-/** SQLSTATE-named unique indexes a sign-up can collide with. */
+/** The SQLSTATE-named unique index a sign-up can collide with. */
 const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
-const EMAIL_UNIQUE_CONSTRAINT = 'users_lower_email_key';
 
 function envelopeOf(body: {
   deviceName?: string;
@@ -122,8 +128,12 @@ router.post(
   validate({ body: emailSignInConfirmRequestSchema }),
   asyncHandler(async (req: Request, res: Response) => {
     const body = req.body as EmailSignInConfirmRequest;
-    const userId = await confirmEmailSignIn({ ...body, requesterKey: hashedIpKey(req) });
-    res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body)));
+    const outcome = await confirmEmailSignIn({ ...body, requesterKey: hashedIpKey(req) });
+    if ('choice' in outcome) {
+      res.status(200).json(outcome.choice);
+      return;
+    }
+    res.status(200).json(await completeFirstFactor(req, outcome.userId, envelopeOf(body)));
   }),
 );
 
@@ -150,7 +160,24 @@ router.post(
       res.status(200).json(outcome);
       return;
     }
+    if ('choice' in outcome) {
+      res.status(200).json(outcome.choice);
+      return;
+    }
     res.status(200).json(await completeFirstFactor(req, outcome.userId, envelopeOf(body)));
+  }),
+);
+
+/** The account, of those a proven email holds, the person chose. */
+router.post(
+  '/signin/email/choose',
+  requireOfficialOrigin,
+  chooseLimiter,
+  validate({ body: emailSignInChooseRequestSchema }),
+  asyncHandler(async (req: Request, res: Response) => {
+    const body = req.body as EmailSignInChooseRequest;
+    const userId = await chooseEmailSignInAccount(body);
+    res.status(200).json(await completeFirstFactor(req, userId, envelopeOf(body)));
   }),
 );
 
@@ -167,6 +194,8 @@ function lockedOut(retryAfterSeconds?: number): ApiError {
  * A personal, active account WITHOUT a Commons key the identifier names — the
  * only kind a password signs in. A Commons account signs in with Commons
  * (linking deleted its password); it is answered exactly like an unknown name.
+ * So is an email holding several such accounts: which one the password is for
+ * cannot be told, and the username can (the same one query runs either way).
  */
 async function passwordAccount(identifier: string): Promise<string | null> {
   // The same normalisation the lockout key uses; outside it, no account (the
@@ -176,19 +205,19 @@ async function passwordAccount(identifier: string): Promise<string | null> {
   const match = lookup.includes('@')
     ? sql`lower(btrim(${users.email})) = ${lookup}`
     : sql`lower(btrim(${users.username})) = ${lookup}`;
-  const [row] = await getDb()
-    .select({
-      id: users.id,
-      kind: users.kind,
-      accountStatus: users.accountStatus,
-      publicKey: users.publicKey,
-    })
+  const rows = await getDb()
+    .select({ id: users.id })
     .from(users)
-    .where(match)
-    .limit(1);
-  return row && row.kind === 'personal' && row.accountStatus === 'active' && !row.publicKey
-    ? row.id
-    : null;
+    .where(
+      and(
+        match,
+        eq(users.kind, 'personal'),
+        eq(users.accountStatus, 'active'),
+        isNull(users.publicKey),
+      ),
+    )
+    .limit(2);
+  return rows.length === 1 ? rows[0].id : null;
 }
 
 router.post(
@@ -215,7 +244,7 @@ router.post(
     if (!ok || !userId) {
       throw new ApiError(
         401,
-        'That username, email or password is not right.',
+        'That username, email or password is not right. When several accounts use this email, sign in with the username.',
         SIGN_IN_ERROR_CODES.invalidCredentials,
       );
     }
@@ -270,6 +299,21 @@ router.post(
     try {
       account = await db.transaction(async (tx) => {
         await spendSignupTicket(tx, body.emailTicket, body.email);
+        // One address holds at most EMAIL_ACCOUNTS_MAX accounts. Serialised per
+        // address, so two sign-ups cannot both see room for one more.
+        const emailHash = hashEmail(body.email);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${emailHash}, 0))`);
+        const [held] = await tx
+          .select({ n: count() })
+          .from(users)
+          .where(eq(users.hashedEmail, emailHash));
+        if ((held?.n ?? 0) >= EMAIL_ACCOUNTS_MAX) {
+          throw new ApiError(
+            409,
+            'This email already holds as many accounts as it can.',
+            SIGN_IN_ERROR_CODES.emailAccountsFull,
+          );
+        }
         const [created] = await tx
           .insert(users)
           .values({ username, email: body.email })
@@ -279,9 +323,6 @@ router.post(
     } catch (error) {
       if (isUniqueViolation(error, USERNAME_UNIQUE_CONSTRAINT)) {
         throw new ApiError(409, 'Username already taken', SIGN_IN_ERROR_CODES.usernameTaken);
-      }
-      if (isUniqueViolation(error, EMAIL_UNIQUE_CONSTRAINT)) {
-        throw new ConflictError('This email already belongs to an account');
       }
       throw error;
     }

@@ -35,11 +35,16 @@
  * column sits unreferenced and NULL-filling — nothing reads or writes it, and a
  * `text` column that is NULL satisfies its own `is null or in (…)` CHECK.
  *
- * ## Case-insensitive unique on the three identifiers
+ * ## Case-insensitive unique on the two identifiers; email is not one
  *
- * `email` and `public_key` are stored lower-cased, so a unique index on
- * `lower(...)` is equivalent on existing data — but it also survives a call
- * site that forgets to normalize, which Postgres has no setter to cover.
+ * `public_key` is stored lower-cased, so a unique index on `lower(...)` is
+ * equivalent on existing data — but it also survives a call site that forgets
+ * to normalize, which Postgres has no setter to cover.
+ *
+ * `email` is NOT unique: one address may hold several accounts
+ * (`EMAIL_ACCOUNTS_MAX`). Signing in with the address proves the mailbox and
+ * then asks which of its accounts (`services/emailSignIn.service.ts`); a
+ * username always names exactly one.
  *
  * `username` is matched case-insensitively by every lookup, so `Nate` and
  * `nate` must not be able to coexist, and `lower(username)` is also what lets
@@ -634,18 +639,17 @@ export const users = pgTable(
   (t) => [
     // ---- identity uniqueness (trimmed, case-insensitive) ------------------
     // `lower(btrim(...))` and not `lower(...)`: the stored values are ALREADY
-    // trimmed and lower-cased, so the two are
-    // equivalent on existing data — but only this one keeps `' a@b.com'` from
-    // becoming a second account, which matters because it is byte-identical to
-    // `'a@b.com'` under `hashed_email`'s canonicalization. Two rows that hash to
-    // the same contact-discovery token must not be able to coexist.
+    // trimmed and lower-cased, so the two are equivalent on existing data —
+    // but only this one keeps `' nate'` from becoming a second `nate`.
     //
     // The cost is real and belongs at every call site: a lookup must be written
     // `where lower(btrim(username)) = lower(btrim($1))`. A plain
     // `username = $1` is correct-looking, case-sensitive, and will not use this
     // index.
     uniqueIndex('users_lower_username_key').on(sql`lower(btrim(${t.username}))`),
-    uniqueIndex('users_lower_email_key').on(sql`lower(btrim(${t.email}))`),
+    // Not unique: an address may hold several accounts. The lookup a sign-in by
+    // email runs, written the same way.
+    index('users_lower_email_idx').on(sql`lower(btrim(${t.email}))`),
     uniqueIndex('users_lower_public_key_key').on(sql`lower(btrim(${t.publicKey}))`),
     uniqueIndex('users_federation_actor_uri_key').on(t.federationActorUri),
 

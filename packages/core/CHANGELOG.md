@@ -1,5 +1,26 @@
 # Changelog — `@oxy.so/core`
 
+## 4.10.0
+
+Needs `@oxy.so/contracts` 4.16.0. One email may hold several accounts
+(ADR 0040).
+
+### Added
+
+- `oxy.auth.email.choose({ requestId, requestSecret, userId })`: signs in the
+  account chosen from those an email holds → a session or the second-factor
+  step.
+- Locale strings `signin.emailAccounts.*` and
+  `signin.errors.emailAccountsFull`, in every locale.
+
+### Changed
+
+- `oxy.auth.email.confirm` and `collect` may answer
+  `{ chooseAccount: true, accounts, expiresAt }` (an `EmailSignInStepResult`)
+  instead of a session; nothing is planted then.
+- `signin.errors.invalidCredentials` says to use the username when several
+  accounts share the email.
+
 ## 4.9.1
 
 ### Fixed

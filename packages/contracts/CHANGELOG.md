@@ -1,8 +1,27 @@
 # Changelog: `@oxy.so/contracts`
 
-## Unreleased (MINOR — inference contract set **3.9.0**: a closed enum gains a member)
+## 4.16.0
+
+One email may hold several accounts (ADR 0040). Additive only: no export
+removed. (4.15.0 is #1721's.)
 
 ### Added
+
+- `EMAIL_ACCOUNTS_MAX` (20) and `EMAIL_SIGNIN_CHOICE_TTL_MS` (5 minutes).
+- `EmailSignInChooseAccount` / `emailSignInChooseAccountSchema`: what
+  `POST /auth/signin/email/confirm` and `/collect` answer when the email holds
+  several accounts, with `EmailSignInAccountOption` /
+  `emailSignInAccountOptionSchema` for each; `EmailSignInStepResult`;
+  `isEmailSignInChooseAccount`.
+- `emailSignInChooseRequestSchema` / `EmailSignInChooseRequest`:
+  `POST /auth/signin/email/choose`.
+- `SIGN_IN_ERROR_CODES.emailAccountsFull` (`EMAIL_ACCOUNTS_FULL`).
+
+### Changed
+
+- `isSecondFactorRequired` also accepts an `EmailSignInStepResult`.
+
+### Added — inference contract set **3.9.0** (a closed enum gains a member)
 
 - `USAGE_UNITS` gains `input_transcription_milliseconds`: milliseconds of a
   realtime session's input audio transcribed by the deployment's own
