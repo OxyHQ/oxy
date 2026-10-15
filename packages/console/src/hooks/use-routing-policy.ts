@@ -217,3 +217,59 @@ export function useArchiveRoutingPolicy() {
     },
   });
 }
+
+// ===========================================================================
+// Inference limits (Alia ADR 0017 §5): the application's own configuration of
+// what the grant API lets it consume — never a constant in Oxy, Alia or Kaana.
+// ===========================================================================
+
+/** Every limit, `null` where the application set none. */
+export interface ApplicationInferenceLimits {
+  readonly maxConcurrentRealtimeSessions: number | null;
+  readonly maxConcurrentRealtimeSessionsPerCredential: number | null;
+  readonly maxConcurrentRequests: number | null;
+  readonly maxRequestsPerUtcDay: number | null;
+}
+
+const limitsKey = (applicationId: string) => ['inference-limits', applicationId] as const;
+
+export function useApplicationInferenceLimits(applicationId: string, enabled: boolean = true) {
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  return useQuery({
+    queryKey: limitsKey(applicationId),
+    queryFn: () =>
+      oxyServices.request<ApplicationInferenceLimits>(
+        'GET',
+        `/inference/routing-policies/applications/${applicationId}/limits`,
+        undefined,
+        { cache: false },
+      ),
+    enabled: isReady && isAuthenticated && !!applicationId && enabled,
+    staleTime: 1000 * 30,
+    retry: 1,
+  });
+}
+
+/** Replace the limits whole; a `null` clears one. */
+export function useWriteApplicationInferenceLimits() {
+  const { oxyServices } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      limits,
+    }: {
+      applicationId: string;
+      limits: ApplicationInferenceLimits;
+    }): Promise<ApplicationInferenceLimits> =>
+      oxyServices.request<ApplicationInferenceLimits>(
+        'PUT',
+        `/inference/routing-policies/applications/${applicationId}/limits`,
+        limits,
+        { retry: false },
+      ),
+    onSuccess: (_limits, { applicationId }) => {
+      queryClient.invalidateQueries({ queryKey: limitsKey(applicationId) });
+    },
+  });
+}
