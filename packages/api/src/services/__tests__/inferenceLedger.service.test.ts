@@ -39,7 +39,7 @@ import { applications } from '../../db/schema/applications';
 import { billingProfiles } from '../../db/schema/billingProfiles';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { spendingLimitNotifications, spendingLimits } from '../../db/schema/spendingLimits';
-import { usageReceipts } from '../../db/schema/usageReceipts';
+import { usageReceiptUnitPrices, usageReceipts } from '../../db/schema/usageReceipts';
 import { usageRefunds } from '../../db/schema/usageRefunds';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
@@ -52,8 +52,11 @@ import {
   reserve,
   resolveBillingAccount,
   reverseReceipt,
+  publishedUnitPrice,
+  quoteUnits,
   settle,
   type LedgerAttribution,
+  type PriceSnapshotInput,
 } from '../inferenceLedger.service';
 
 jest.setTimeout(60_000);
@@ -2043,5 +2046,134 @@ describe('internal promotional-only reservations', () => {
       holder.release();
       if (contender) await contender;
     }
+  });
+});
+
+describe('a price list handed by value (grants of kaana.ai/v1)', () => {
+  /** The same $3 / $15 as `insertPriceVersion`, under an id no Oxy table holds. */
+  const snapshot = (): PriceSnapshotInput => ({
+    priceVersionId: `kaana-pv-${randomUUID()}`,
+    currency: 'USD',
+    unitPrices: [
+      { unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
+      { unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+    ],
+  });
+
+  it('quotes exactly what the same list quotes as a price_versions row', async () => {
+    const f = await makeFixture();
+    const list = snapshot();
+    const units = { input_tokens: 1000, output_tokens: 200 };
+    const byValue = await quoteUnits(list, units);
+    const byRow = await quoteUnits(f.priceVersionId, units);
+    expect(byValue).toEqual({ status: 'quoted', amount: '0.006000000000', currency: 'USD' });
+    expect(byRow).toEqual(byValue);
+  });
+
+  it('quotes a unit the list does not price as unpriced, never as free', async () => {
+    const list = snapshot();
+    expect(await quoteUnits(list, { input_tokens: 10, audio_input_tokens: 4 })).toEqual({
+      status: 'unpriced-units',
+      priceVersionId: list.priceVersionId,
+      unpricedUnits: 1,
+    });
+    expect(await publishedUnitPrice(list, 'output_tokens')).toBe('positive');
+    expect(await publishedUnitPrice(list, 'reasoning_tokens')).toBe('missing');
+    expect(
+      await publishedUnitPrice(
+        { ...list, unitPrices: [{ unit: 'output_tokens', amount: '0.000000000000', per: 1 }] },
+        'output_tokens',
+      ),
+    ).toBe('zero');
+  });
+
+  it('holds and settles against a version no Oxy table names, and copies the list onto the receipt', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const list = snapshot();
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: list.priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error(`reserve failed: ${reserved.status}`);
+    const settled = await settle({
+      idempotencyKey: `s-${randomUUID()}`,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: { input_tokens: 1000, output_tokens: 200 },
+      resolvedModelReference: 'acme/declared',
+      servingProvider: 'acme',
+      priceVersionId: list.priceVersionId,
+      priceSnapshot: list,
+    });
+    if (settled.status !== 'settled') throw new Error(`settle failed: ${settled.status}`);
+    await expectAmount(settled.receipt.billedAmount, '0.006000000000');
+
+    const [receipt] = await getDb()
+      .select()
+      .from(usageReceipts)
+      .where(eq(usageReceipts.id, settled.receipt.receiptId));
+    expect(receipt?.priceVersionId).toBe(list.priceVersionId);
+    const copied = await getDb()
+      .select()
+      .from(usageReceiptUnitPrices)
+      .where(eq(usageReceiptUnitPrices.receiptId, settled.receipt.receiptId));
+    expect(copied.map((entry) => [entry.unit, Number(entry.amount), entry.per]).sort()).toEqual([
+      ['input_tokens', 3, 1_000_000],
+      ['output_tokens', 15, 1_000_000],
+    ]);
+  });
+
+  it('refuses to settle a unit the list does not price, writing no receipt', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const list = snapshot();
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: list.priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error(`reserve failed: ${reserved.status}`);
+    const settled = await settle({
+      idempotencyKey: `s-${randomUUID()}`,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: { input_tokens: 1000, audio_input_tokens: 5 },
+      resolvedModelReference: 'acme/declared',
+      servingProvider: 'acme',
+      priceVersionId: list.priceVersionId,
+      priceSnapshot: list,
+    });
+    expect(settled).toMatchObject({ status: 'unpriced-units', unpricedUnits: 1 });
+    expect(
+      await getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, f.accountId)),
+    ).toEqual([]);
+  });
+
+  it('refuses a snapshot that is not the version being settled', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const list = snapshot();
+    await expect(
+      settle({
+        idempotencyKey: `s-${randomUUID()}`,
+        attribution: f.attribution,
+        outcome: 'completed',
+        usageSource: 'provider_reported',
+        units: { input_tokens: 10 },
+        resolvedModelReference: 'acme/declared',
+        servingProvider: 'acme',
+        priceVersionId: 'another-version',
+        priceSnapshot: list,
+      }),
+    ).rejects.toThrow(/not the price version being settled/);
   });
 });

@@ -214,6 +214,7 @@ import {
   previewReservation,
   settle,
   type LedgerAttribution,
+  type PriceRef,
   type ReservationView,
 } from './inferenceLedger.service';
 import {
@@ -4386,7 +4387,7 @@ async function quoteRouteForRequest(
 
 /** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
 export async function quoteRouteCeiling(
-  priceVersionId: string,
+  priceVersionId: PriceRef,
   plans: readonly RouteCeilingPlan[]
 ): Promise<RouteCeilingQuote> {
   let reason = 'no-ceiling-plan';

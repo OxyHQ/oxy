@@ -29,7 +29,9 @@
  */
 
 import { sql } from 'drizzle-orm';
+import { USAGE_UNITS } from '@oxy.so/contracts';
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -46,7 +48,6 @@ import { applications } from './applications';
 import { inferenceMeteredUsage } from './inferenceMeteredUsage';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
 import { currencyCodeCheck, exactAmount } from './ledgerColumns';
-import { priceVersions } from './priceVersions';
 import { INFERENCE_ENVIRONMENTS, usageReservations } from './usageReservations';
 import { users } from './users';
 
@@ -268,9 +269,13 @@ export const kaanaGrantAdmittedLines = pgTable(
     stepIndex: smallint().notNull(),
     /** `publisher/model`, never a revision: Kaana serves the line's current one. */
     modelLine: text().notNull(),
-    priceVersionId: text()
-      .notNull()
-      .references(() => priceVersions.id, { onDelete: 'restrict' }),
+    /**
+     * Kaana's `priceVersionId` for the line's declared list price
+     * (`declaredCatalogue`, contract set 4.3.0). A label, not a key: Oxy owns no
+     * table that resolves it. The list itself is {@link kaanaGrantLineUnitPrices}.
+     */
+    priceVersionId: text().notNull(),
+    currency: text().notNull(),
   },
   (t) => [
     primaryKey({ columns: [t.grantId, t.stepIndex, t.modelLine] }),
@@ -280,6 +285,46 @@ export const kaanaGrantAdmittedLines = pgTable(
       foreignColumns: [kaanaGrantSteps.grantId, kaanaGrantSteps.stepIndex],
     }).onDelete('cascade'),
     index('kaana_grant_admitted_lines_price_idx').on(t.priceVersionId),
+    check('kaana_grant_admitted_lines_currency_check', currencyCodeCheck(t.currency)),
+  ],
+);
+
+/**
+ * The unit prices of an admitted line, COPIED from Kaana's declared catalogue
+ * when the grant was signed.
+ *
+ * This is the grant's own evidence, not a catalogue: the settlement of the
+ * grant is rated at exactly these entries, whatever Kaana has declared since,
+ * and never at a row of Oxy's `price_versions`. It is the same discipline as
+ * `usage_receipt_unit_prices` — what a charge is computed from is copied onto
+ * the record that charges it. A line with no entry for a unit it is settled in
+ * is a settlement Oxy rejects (`unpriced_unit`); a unit is never free by
+ * absence.
+ */
+export const kaanaGrantLineUnitPrices = pgTable(
+  'kaana_grant_line_unit_prices',
+  {
+    grantId: text().notNull(),
+    stepIndex: smallint().notNull(),
+    modelLine: text().notNull(),
+    unit: text({ enum: USAGE_UNITS }).notNull(),
+    /** Price for `per` units of `unit`, in the line's currency. */
+    amount: exactAmount().notNull(),
+    per: bigint({ mode: 'number' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.grantId, t.stepIndex, t.modelLine, t.unit] }),
+    foreignKey({
+      name: 'kaana_grant_line_unit_prices_line_fk',
+      columns: [t.grantId, t.stepIndex, t.modelLine],
+      foreignColumns: [
+        kaanaGrantAdmittedLines.grantId,
+        kaanaGrantAdmittedLines.stepIndex,
+        kaanaGrantAdmittedLines.modelLine,
+      ],
+    }).onDelete('cascade'),
+    check('kaana_grant_line_unit_prices_amount_check', sql`${t.amount} >= 0`),
+    check('kaana_grant_line_unit_prices_per_check', sql`${t.per} > 0`),
   ],
 );
 

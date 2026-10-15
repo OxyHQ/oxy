@@ -524,6 +524,28 @@ export type QuoteResult =
     };
 
 /**
+ * A price list handed to the ledger BY VALUE: the unit prices a grant admitted
+ * (Kaana's declared catalogue, `docs/inference/kaana-grants.md`), exactly as
+ * they were when the grant was signed.
+ *
+ * A bare string is a row of Oxy's own `price_versions`, which only the old edge
+ * (`api.oxy.so/v1`) prices with. A snapshot is never looked up: the ledger
+ * computes the charge from these entries, the receipt copies them, and the
+ * `priceVersionId` it carries is only the label Kaana gave the list.
+ */
+export interface PriceSnapshotInput {
+  readonly priceVersionId: string;
+  readonly currency: string;
+  readonly unitPrices: readonly {
+    readonly unit: UsageUnit;
+    readonly amount: string;
+    readonly per: number;
+  }[];
+}
+
+export type PriceRef = string | PriceSnapshotInput;
+
+/**
  * Whether a price version PUBLISHES a unit at exactly zero.
  *
  * Absence is not zero: an unpriced unit is `missing`, and the caller must fail
@@ -532,9 +554,15 @@ export type QuoteResult =
  * exact charge of whatever the provider truthfully reports.
  */
 export async function publishedUnitPrice(
-  priceVersionId: string,
+  price: PriceRef,
   unit: UsageUnit,
 ): Promise<'zero' | 'positive' | 'missing'> {
+  if (typeof price !== 'string') {
+    const entry = price.unitPrices.find((candidate) => candidate.unit === unit);
+    if (entry === undefined) return 'missing';
+    return /^0+(\.0+)?$/.test(entry.amount) ? 'zero' : 'positive';
+  }
+  const priceVersionId = price;
   const [row] = await getDb()
     .select({ amount: priceVersionUnitPrices.amount })
     .from(priceVersionUnitPrices)
@@ -565,10 +593,23 @@ export async function publishedUnitPrice(
  * request execute unreserved.
  */
 export async function quoteUnits(
-  priceVersionId: string,
+  price: PriceRef,
   units: Partial<Record<UsageUnit, number>>,
 ): Promise<QuoteResult> {
   const db = getDb();
+
+  if (typeof price !== 'string') {
+    const charge = await computeCharge(db, price, units);
+    if (charge.unpricedUnits > 0) {
+      return {
+        status: 'unpriced-units',
+        priceVersionId: price.priceVersionId,
+        unpricedUnits: charge.unpricedUnits,
+      };
+    }
+    return { status: 'quoted', amount: charge.amount, currency: price.currency };
+  }
+  const priceVersionId = price;
 
   const [version] = await db
     .select({ currency: priceVersions.currency })
@@ -835,6 +876,13 @@ export interface SettleInput {
   /** The version the charge is computed from AND snapshotted onto the receipt. */
   readonly priceVersionId: string;
   /**
+   * The unit prices of that version, by value. Present for a grant of
+   * `kaana.ai/v1`: the charge is computed from, and the receipt copies, THESE
+   * entries and no row of Oxy's `price_versions` is read. Its `priceVersionId`
+   * must equal {@link SettleInput.priceVersionId}.
+   */
+  readonly priceSnapshot?: PriceSnapshotInput;
+  /**
    * The routing policy revision this request executed under (#972 workstream 6).
    *
    * OPTIONAL, because the caller that always has one is the public inference
@@ -976,7 +1024,17 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
       return { status: 'zero-usage', reportedUnitKeys: Object.keys(input.units).length };
     }
 
-    const charge = await computeCharge(tx, input.priceVersionId, input.units);
+    if (
+      input.priceSnapshot !== undefined &&
+      input.priceSnapshot.priceVersionId !== input.priceVersionId
+    ) {
+      throw new Error('the price snapshot is not the price version being settled');
+    }
+    const charge = await computeCharge(
+      tx,
+      input.priceSnapshot ?? input.priceVersionId,
+      input.units,
+    );
     if (charge.unpricedUnits > 0) {
       return {
         status: 'unpriced-units',
@@ -1070,12 +1128,23 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
 
     // The price SNAPSHOT: a copy, so the receipt's arithmetic is checkable
     // without the price version still existing.
-    await tx.execute(sql`
-      insert into ${usageReceiptUnitPrices} (receipt_id, unit, amount, per, created_at)
-      select ${receipt.id}, p.unit, p.amount, p.per, ${NOW}
-      from ${priceVersionUnitPrices} p
-      where p.price_version_id = ${input.priceVersionId}
-    `);
+    if (input.priceSnapshot === undefined) {
+      await tx.execute(sql`
+        insert into ${usageReceiptUnitPrices} (receipt_id, unit, amount, per, created_at)
+        select ${receipt.id}, p.unit, p.amount, p.per, ${NOW}
+        from ${priceVersionUnitPrices} p
+        where p.price_version_id = ${input.priceVersionId}
+      `);
+    } else {
+      await tx.insert(usageReceiptUnitPrices).values(
+        input.priceSnapshot.unitPrices.map((entry) => ({
+          receiptId: receipt.id,
+          unit: entry.unit,
+          amount: entry.amount,
+          per: entry.per,
+        })),
+      );
+    }
 
     if (reservation !== undefined && heldSplit !== undefined) {
       const split = await splitHold(tx, heldSplit, charge.amount);
@@ -1746,7 +1815,7 @@ async function computeDraw(
  */
 async function computeCharge(
   tx: DatabaseOrTransaction,
-  priceVersionId: string,
+  price: PriceRef,
   units: Partial<Record<UsageUnit, number>>,
 ): Promise<{ amount: string; unpricedUnits: number }> {
   const metered = Object.entries(units).filter(
@@ -1761,6 +1830,37 @@ async function computeCharge(
     metered.map(([unit, quantity]) => sql`(${unit}::text, ${quantity}::bigint)`),
     sql`, `,
   );
+
+  if (typeof price !== 'string') {
+    // A list handed by value: the same arithmetic over a VALUES table instead
+    // of the `price_version_unit_prices` rows. An empty list prices nothing,
+    // so every metered unit is counted as unpriced.
+    const listed =
+      price.unitPrices.length === 0
+        ? sql`select null::text as unit, null::numeric as amount, null::bigint as per where false`
+        : sql`select * from (values ${sql.join(
+            price.unitPrices.map(
+              (entry) => sql`(${entry.unit}::text, ${entry.amount}::numeric, ${entry.per}::bigint)`,
+            ),
+            sql`, `,
+          )}) as v(unit, amount, per)`;
+    const [snapshotRow] = await executeRows<{ amount: string; unpriced: number }>(
+      tx,
+      sql`
+        select
+          round(
+            coalesce(sum(p.amount * q.quantity::numeric / p.per::numeric), 0),
+            ${MONEY_SCALE}
+          )::text as amount,
+          count(*) filter (where p.unit is null)::int as unpriced
+        from (values ${values}) as q(unit, quantity)
+        left join (${listed}) p on p.unit = q.unit
+      `,
+    );
+    if (!snapshotRow) throw new Error('charge computation returned no row');
+    return { amount: snapshotRow.amount, unpricedUnits: snapshotRow.unpriced };
+  }
+  const priceVersionId = price;
 
   const [row] = await executeRows<{ amount: string; unpriced: number }>(
     tx,
