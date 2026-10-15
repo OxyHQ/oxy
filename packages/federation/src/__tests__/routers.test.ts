@@ -375,6 +375,30 @@ describe('webfinger router — the instance (server) actor', () => {
 });
 
 describe('actor router — GET /ap/users/:username', () => {
+  it('keeps the existing half-hour actor caching default', async () => {
+    const response = await request(makeActorApp())
+      .get('/ap/users/alice')
+      .set('Accept', 'application/activity+json');
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('max-age=1800');
+  });
+  it.each(['alice', 'instance'])(
+    'serves %s without HTTP caching when TTL is zero',
+    async (username) => {
+      const response = await request(makeActorApp({ actorConfig: { httpCacheTtlSeconds: 0 } }))
+        .get(`/ap/users/${username}`)
+        .set('Accept', 'application/activity+json');
+      expect(response.status).toBe(200);
+      expect(response.headers['cache-control']).toBe('no-store');
+    },
+  );
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 86401])(
+    'rejects invalid actor cache TTL %s',
+    (httpCacheTtlSeconds) => {
+      expect(() => makeActorApp({ actorConfig: { httpCacheTtlSeconds } })).toThrow(RangeError);
+    },
+  );
+
   it('serves the actor as 200 (NOT a redirect) for an AP Accept', async () => {
     const res = await request(makeActorApp())
       .get('/ap/users/alice')

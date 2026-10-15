@@ -23,6 +23,8 @@ boolean reports local relationship removal; it does not confirm remote delivery.
 
 `createWebfingerRouter({ httpCacheTtlSeconds })` controls HTTP caching of fresh,
 cached and instance WebFinger responses. The default remains 3600 seconds.
+`createActorRouter` accepts the same option for human and instance actor
+responses, retaining its existing 1800-second default.
 Use `0` for `Cache-Control: no-store` when live privacy decisions must govern
 each request. Only whole seconds from 0 through 86400 are accepted. This does
 not change the injected JRD cache: applications must also authorize its reads

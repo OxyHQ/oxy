@@ -13,6 +13,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { discoveryCacheControl } from './httpCacheControl';
 import { isSameFederationHost } from '../apUri';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
@@ -74,11 +75,7 @@ export interface WebfingerRouterConfig {
 export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
   const router = Router();
   const { domain } = config;
-  const httpTtl = config.httpCacheTtlSeconds ?? WEBFINGER_CACHE_TTL;
-  if (!Number.isInteger(httpTtl) || httpTtl < 0 || httpTtl > 86400) {
-    throw new RangeError('httpCacheTtlSeconds must be an integer from 0 to 86400');
-  }
-  const httpCacheControl = httpTtl === 0 ? 'no-store' : `max-age=${httpTtl}`;
+  const httpCacheControl = discoveryCacheControl(config.httpCacheTtlSeconds, WEBFINGER_CACHE_TTL);
   const webfingerTemplate = `https://${domain}/.well-known/webfinger?resource={uri}`;
 
   router.get('/webfinger', async (req: Request, res: Response) => {
