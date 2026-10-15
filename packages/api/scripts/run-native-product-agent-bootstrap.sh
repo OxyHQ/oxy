@@ -26,7 +26,7 @@ fail_pre_entrypoint() {
 }
 
 is_valid_success_result() {
-  printf '%s\n' "$1" | grep -Eq '^NATIVE_PRODUCT_AGENTS_RESULT=\{"mode":"(dry-run|apply)","direction":"(bootstrap|rollback)","planSha256":"[a-f0-9]{64}"\}$' >/dev/null 2>&1
+  printf '%s\n' "$1" | bun packages/api/scripts/validate-native-product-bootstrap-report.mjs --check >/dev/null 2>&1
 }
 
 if [ -n "${HOMIIO_SINDI_SERVICE_SECRET_VALUE+x}" ] || [ -n "${CLARITY_BACKEND_SERVICE_SECRET_VALUE+x}" ]; then
