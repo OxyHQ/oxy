@@ -325,6 +325,7 @@ flags, gates and dated evidence are in [status.md](./status.md) and
 | Doc | Read it when you need |
 |---|---|
 | [status.md](./status.md) | what is built, where it lives, and which rollout gates remain |
+| [kaana-grants.md](./kaana-grants.md) | Kaana ADR 0002 phase 2: the grant and settlement API Kaana calls to serve `kaana.ai/v1`, who pays per lane, Console limits |
 | [request-routing.md](./request-routing.md) | which product features go through Alia and which call Oxy directly, and provider-key custody |
 | [sdk.md](./sdk.md) | `OxyInferenceClient`, the OpenAI SDK in TypeScript and Python, response headers |
 | [credentials.md](./credentials.md) | service tokens, `oxy_sk_*` machine keys, scopes |
