@@ -262,7 +262,8 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
     expect(row.avatar).toBe('instagram-file');
   });
 
-  it('canonicalizes an unverified migrated bridge row before a public profile response', async () => {
+  /** A bridge row exactly as the registry backfill left it: never through first discovery. */
+  async function migratedBridgeRow() {
     const handle = `migrated${token()}`;
     const uri = `https://bird.makeup/users/${handle}`;
     const id = await account({
@@ -284,22 +285,85 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
         protocol: 'activitypub',
         updatedAt: new Date(0),
       });
-    serveActor(uri, {
+    const officialLink = {
       attachment: [
         {
           name: 'Official',
           value: `<a href="https://https://twitter.com/${handle}" rel="me">Official</a>`,
         },
       ],
-    });
+    };
+    return { handle, uri, id, officialLink };
+  }
+
+  function getPath(path: string) {
     const address = server.address() as AddressInfo;
-    const response = await fetch(
-      `http://127.0.0.1:${address.port}/profiles/resolve?handle=${encodeURIComponent(`${handle}@bird.makeup`)}`,
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { data: { id: string; username: string; bio: string } };
+    return fetch(`http://127.0.0.1:${address.port}${path}`);
+  }
+
+  it('canonicalizes an unverified migrated bridge row off the read path, never serving it first', async () => {
+    const { handle, uri, id, officialLink } = await migratedBridgeRow();
+    serveActor(uri, officialLink);
+    const discovery = jest.spyOn(federationService, 'resolveExternalActorIdentity');
+    const path = `/profiles/resolve?handle=${encodeURIComponent(`${handle}@bird.makeup`)}`;
+
+    const first = await getPath(path);
+    expect(first.status).toBe(200);
+    expect(((await first.json()) as { data: unknown }).data).toBeNull();
+    expect(discovery).toHaveBeenCalledTimes(1);
+    expect(discovery).toHaveBeenCalledWith(uri);
+    await discovery.mock.results[0].value;
+
+    const second = await getPath(path);
+    const body = (await second.json()) as { data: { id: string; username: string; bio: string } };
     expect(body.data).toMatchObject({ id, username: `${handle}@x.com`, bio: 'Source biography' });
     expect((await storedByActorUri(uri)).username).toBe(`${handle}@x.com`);
+    expect(discovery).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a profile read without waiting on the remote bridge, then serves the canonical profile', async () => {
+    const { handle, uri, id, officialLink } = await migratedBridgeRow();
+    let release!: () => void;
+    const remoteAnswered = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    mockSafeFetch.mockImplementation(async (url: string) => {
+      await remoteAnswered;
+      return url === uri
+        ? webFingerResult(200, publishedActor(uri, officialLink))
+        : webFingerResult(404, {});
+    });
+    const discovery = jest.spyOn(federationService, 'resolveExternalActorIdentity');
+
+    // The remote has not answered, and the read has.
+    const pending = await getPath(`/profiles/username/${handle}@bird.makeup`);
+    expect(pending.status).toBe(404);
+    expect(discovery).toHaveBeenCalledTimes(1);
+
+    release();
+    await discovery.mock.results[0].value;
+    const served = await getPath(`/profiles/username/${handle}@x.com`);
+    expect(served.status).toBe(200);
+    expect(((await served.json()) as { data: unknown }).data).toMatchObject({
+      id,
+      username: `${handle}@x.com`,
+    });
+  });
+
+  it('never answers a profile read with the conflict its background canonicalization meets', async () => {
+    const { handle, uri, officialLink } = await migratedBridgeRow();
+    // The verified source handle already names a LOCAL account, so the registry
+    // refuses the bridge row: a ConflictError that used to become this read's 409.
+    await account({ type: 'local', username: `${handle}@x.com` });
+    serveActor(uri, officialLink);
+    const discovery = jest.spyOn(federationService, 'resolveExternalActorIdentity');
+
+    const response = await getPath(`/profiles/username/${handle}@bird.makeup`);
+    expect(response.status).toBe(404);
+    await expect(discovery.mock.results[0].value).rejects.toThrow(
+      'External identity conflicts with local user',
+    );
+    expect((await storedByActorUri(uri)).username).toBe(`${handle}@bird.makeup`);
   });
 
   it('refuses user-id-only retirement when another source actor remains', async () => {

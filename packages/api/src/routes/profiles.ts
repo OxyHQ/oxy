@@ -391,16 +391,16 @@ router.get(
       if (canonicalId !== profile.view._id)
         profile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
+    // A bridge migration row is never served before first discovery, and a
+    // read never performs that discovery: it runs in the background and the
+    // row stays "not found" until it lands (see `deferUnverifiedBridgeActor`).
     const legacyActor = profile?.view.federation?.actorUri;
     if (
       legacyActor &&
       profile?.view.accountStatus !== 'archived' &&
-      (await federationService.needsBridgeCanonicalization(legacyActor))
+      (await federationService.deferUnverifiedBridgeActor(legacyActor))
     ) {
-      const verified = await federationService.resolveExternalActorIdentity(legacyActor);
-      profile = verified
-        ? await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId))
-        : null;
+      throw new NotFoundError('Profile not found');
     }
 
     // If not found and it's a fediverse handle, resolve via WebFinger
@@ -630,17 +630,16 @@ router.get(
         localProfile = await loadProfileByPredicate(eq(users.id, canonicalId));
     }
     const legacyActorUri = localProfile?.view.federation?.actorUri;
+    // A transport identity may be shown after the source declined upstream
+    // proof (e.g. bridge admin), but never before an unverified migration row
+    // has gone through the same first-discovery authority — which runs in the
+    // background, never on this read (see `deferUnverifiedBridgeActor`).
     if (
       legacyActorUri &&
       localProfile?.view.accountStatus !== 'archived' &&
-      (await federationService.needsBridgeCanonicalization(legacyActorUri))
+      (await federationService.deferUnverifiedBridgeActor(legacyActorUri))
     ) {
-      const verified = await federationService.resolveExternalActorIdentity(legacyActorUri);
-      // A transport identity may be shown after the source declined upstream
-      // proof (e.g. bridge admin), but never before an unverified migration row
-      // has gone through the same first-discovery authority.
-      if (!verified) return sendSuccess(res, null);
-      localProfile = await loadProfileByPredicate(eq(users.id, verified.externalIdentity.userId));
+      return sendSuccess(res, null);
     }
 
     if (localProfile) {
