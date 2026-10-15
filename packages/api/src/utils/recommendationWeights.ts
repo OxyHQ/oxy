@@ -108,7 +108,11 @@ export const MAX_FOLLOWS_OF_FOLLOWS_IDS = 5000;
  */
 export const MAX_FOF_FIRST_HOP = 500;
 
-/** Max app-signal candidates pulled into the candidate union per request. */
+/**
+ * Max app-signal candidates pulled into the candidate union per request, PER
+ * signal: the top endorsed users and the top interest-scored users are each
+ * capped at this, so the union holds at most twice as many.
+ */
 export const MAX_APP_SIGNAL_CANDIDATES = 500;
 
 /** Upper bound on the per-viewer Redis result-cache TTL (seconds). */
