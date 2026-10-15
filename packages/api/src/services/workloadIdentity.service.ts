@@ -1,3 +1,4 @@
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import crypto from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
@@ -118,6 +119,7 @@ export async function exchangeWorkloadAttestation(input: {
   provider: AttestationProvider;
   attestation: unknown;
   nonce: string;
+  scopes?: string[];
 }): Promise<WorkloadTokenGrant> {
   if (!(await spendChallenge(input.nonce))) {
     // Logged like every other refusal: an unlogged 401 here cost an incident
@@ -270,7 +272,17 @@ export async function exchangeWorkloadAttestation(input: {
    * holding a line, it was making ADR 0026's clean cut impossible for exactly
    * the services it was written for.
    */
-  const scopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
+  const grantedScopes = workloadBindingScopes(binding.bindingScopes, binding.applicationScopes);
+  const requestedScopes =
+    input.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(input.scopes);
+  const grantedScopeSet = new Set<string>(grantedScopes);
+  if (requestedScopes?.some((scope) => !grantedScopeSet.has(scope)))
+    throw new WorkloadIdentityError(
+      403,
+      'scope_not_granted',
+      'A requested service scope is not granted.',
+    );
+  const scopes = requestedScopes ?? grantedScopes;
 
   /**
    * The row the spend will be attributed to, before the token exists.
