@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query';
+import type { AccountInvitation } from '@oxy.so/core';
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import * as Skeleton from '@oxy.so/bloom/skeleton';
@@ -59,7 +61,7 @@ import {
   useTransferAccountOwnership,
   useUpdateAccountMember,
 } from '@/hooks/use-account';
-import { USER_NOT_FOUND_MESSAGE, getErrorMessage, isUserNotFoundError } from '@/lib/api-error';
+import { getErrorMessage } from '@/lib/api-error';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 
 export const Route = createFileRoute('/_layout/settings/account')({
@@ -145,7 +147,12 @@ function AccountSettingsPage() {
   const membersQuery = useAccountMembers(accountId, !!currentAccount && !isPersonal);
   const members = membersQuery.data ?? [];
   const activeMembers = members.filter((m) => m.status === 'active');
-  const pendingInvites = members.filter((m) => m.status === 'invited');
+  const invitationsQuery = useQuery({
+    queryKey: ['account-invitations', accountId],
+    queryFn: () => oxyServices.accounts.invitations.list(accountId ?? ''),
+    enabled: !!accountId && !!currentAccount && !isPersonal,
+  });
+  const pendingInvites = invitationsQuery.data ?? [];
   // DIRECT owners only. The list also carries members whose row lives on an
   // ancestor account, and the last-owner rule this count feeds is about the rows
   // on THIS account — which is what the server's own guard counts. Including an
@@ -261,7 +268,7 @@ function AccountSettingsPage() {
   const handleInvite = async () => {
     const usernameOrEmail = inviteIdentifier.trim();
     if (!usernameOrEmail) {
-      setInviteError('Enter a username or email to invite');
+      setInviteError('Enter an email to invite');
       return;
     }
     setInviteError(null);
@@ -277,11 +284,7 @@ function AccountSettingsPage() {
       setInviteIdentifier('');
       setInviteRole('editor');
     } catch (error) {
-      if (isUserNotFoundError(error)) {
-        setInviteError(USER_NOT_FOUND_MESSAGE);
-        toast.error(USER_NOT_FOUND_MESSAGE);
-        return;
-      }
+      await invitationsQuery.refetch();
       toast.error(getErrorMessage(error, 'Failed to send invitation'));
     }
   };
@@ -323,11 +326,10 @@ function AccountSettingsPage() {
     }
   };
 
-  // Invitations are members with `status: 'invited'`; cancelling one is the
-  // same operation as removing a member.
-  const handleCancelInvite = async (invite: AccountMember) => {
+  const handleCancelInvite = async (invite: AccountInvitation) => {
     try {
-      await removeMemberMutation.mutateAsync({ accountId, memberId: invite._id });
+      await oxyServices.accounts.invitations.cancel(accountId ?? '', invite.id);
+      await invitationsQuery.refetch();
       toast.success('Invitation cancelled');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to cancel invitation'));
@@ -596,7 +598,7 @@ function AccountSettingsPage() {
               <div className="space-y-2">
                 {pendingInvites.map((invite) => (
                   <div
-                    key={invite._id}
+                    key={invite.id}
                     className="flex items-center justify-between py-3 px-4 rounded-lg border border-dashed"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -608,17 +610,37 @@ function AccountSettingsPage() {
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-mono truncate" title={invite.memberUserId}>
-                          {shortUserId(invite.memberUserId)}
+                        <p className="text-sm font-mono truncate" title={invite.email}>
+                          {invite.email}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Invited as {roleLabels[invite.role]}
+                          {invite.status} • {roleLabels[invite.role]}
                           {invite.createdAt
                             ? ` • ${new Date(invite.createdAt).toLocaleDateString()}`
                             : ''}
                         </p>
                       </div>
                     </div>
+                    {canManage && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await oxyServices.accounts.invitations.resend(
+                              accountId ?? '',
+                              invite.id,
+                            );
+                            await invitationsQuery.refetch();
+                            toast.success('Invitation resent');
+                          } catch (error) {
+                            toast.error(getErrorMessage(error, 'Could not resend invitation'));
+                          }
+                        }}
+                      >
+                        Resend
+                      </Button>
+                    )}
                     {canManage && (
                       <Button variant="ghost" size="sm" onClick={() => handleCancelInvite(invite)}>
                         Cancel
@@ -681,7 +703,7 @@ function AccountSettingsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="invite-identifier">Username or email</Label>
+              <Label htmlFor="invite-identifier">Email</Label>
               <Input
                 id="invite-identifier"
                 value={inviteIdentifier}

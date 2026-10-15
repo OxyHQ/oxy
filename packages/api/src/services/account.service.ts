@@ -42,7 +42,7 @@ import type { OrganizationType } from '@oxy.so/contracts';
  */
 
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
-import { getDb, type Database } from '../config/postgres';
+import { getDb, type Database, type DatabaseOrTransaction } from '../config/postgres';
 import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
@@ -392,7 +392,7 @@ async function loadAccount(db: Database, accountId: string): Promise<AccountWith
 }
 
 /** The root→parent path of one account. */
-async function loadAncestors(db: Database, accountId: string): Promise<string[]> {
+async function loadAncestors(db: DatabaseOrTransaction, accountId: string): Promise<string[]> {
   const rows = await db
     .select({ ancestorId: userAncestors.ancestorId })
     .from(userAncestors)
@@ -895,8 +895,8 @@ export class AccountService {
     userId: string,
     accountId: string,
     sessionId?: string,
+    db: DatabaseOrTransaction = getDb(),
   ): Promise<EffectiveAccess | null> {
-    const db = getDb();
     const [account] = await db
       .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus })
       .from(users)
@@ -905,7 +905,7 @@ export class AccountService {
     if (!account || account.accountStatus === 'archived') {
       return null;
     }
-    return this.effectiveAccessForAccount(userId, account, sessionId);
+    return this.effectiveAccessForAccount(userId, account, sessionId, db);
   }
 
   /**
@@ -919,6 +919,7 @@ export class AccountService {
     userId: string,
     account: { id?: unknown; _id?: unknown; kind?: unknown },
     sessionId?: string,
+    db: DatabaseOrTransaction = getDb(),
   ): Promise<EffectiveAccess | null> {
     const raw = account.id ?? account._id;
     const accountId = typeof raw === 'string' ? raw : String(raw ?? '');
@@ -935,7 +936,6 @@ export class AccountService {
       };
     }
 
-    const db = getDb();
     // A directory identity has no operating authority until its claim is approved.
     const [directoryProfile] = await db
       .select({

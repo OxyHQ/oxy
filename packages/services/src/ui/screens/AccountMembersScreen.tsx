@@ -30,13 +30,8 @@ const ASSIGNABLE_ROLES: AssignableRole[] = ['admin', 'editor', 'developer', 'bil
 const errorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback;
 
-const isUserNotFound = (error: unknown): boolean => {
-  const message = error instanceof Error ? error.message.toLowerCase() : '';
-  return message.includes('user not found') || message.includes('not found');
-};
-
 /**
- * Manage the members of an account (invite by username/email, change roles,
+ * Manage the members of an account (invite by email, change roles,
  * remove, transfer ownership). Gated on the caller's `callerMembership`
  * permissions. Receives the target `accountId` via navigation props.
  */
@@ -86,6 +81,27 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     queryFn: () => oxyServices.accounts.members.list(id),
     enabled: canUsePrivateApi && id.length > 0 && canRead,
   });
+  const invitationsQuery = useQuery({
+    queryKey: ['account-invitations', id],
+    queryFn: () => oxyServices.accounts.invitations.list(id),
+    enabled: canUsePrivateApi && !!id && canRead,
+  });
+  const invitationAction = useMutation({
+    mutationFn: async ({
+      invitationId,
+      action,
+    }: {
+      invitationId: string;
+      action: 'resend' | 'cancel';
+    }) => {
+      if (action === 'resend') await oxyServices.accounts.invitations.resend(id, invitationId);
+      else await oxyServices.accounts.invitations.cancel(id, invitationId);
+    },
+    onSuccess: () => {
+      void invitationsQuery.refetch();
+    },
+    onError: (error) => toast.error(errorMessage(error, 'Could not update invitation')),
+  });
   const members = useMemo<AccountMember[]>(() => membersQuery.data ?? [], [membersQuery.data]);
   const memberUserIds = useMemo(
     () => [...new Set(members.map((member) => member.memberUserId).filter((id) => id.length > 0))],
@@ -126,6 +142,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
     // tables — mirror the SDK's per-account prefix sweep so every cached member
     // list refetches, not only the account that was mutated.
     queryClient.invalidateQueries({ queryKey: ['accounts', 'members'] });
+    queryClient.invalidateQueries({ queryKey: ['account-invitations', id] });
     queryClient.invalidateQueries({ queryKey: ['accounts', 'detail', id] });
   }, [queryClient, id]);
 
@@ -137,24 +154,20 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const inviteMutation = useMutation({
     mutationKey: ['accounts', 'members', 'invite', id],
     mutationFn: (input: { usernameOrEmail: string; role: AssignableRole }) =>
-      oxyServices.accounts.members.invite(id, input),
+      oxyServices.accounts.invitations.create(id, {
+        email: input.usernameOrEmail,
+        role: input.role,
+      }),
     onSuccess: () => {
       setInviteIdentifier('');
       setInviteRole('editor');
       setInviteError(null);
       invalidateMembers();
-      toast.success(t('accounts.members.toasts.added') || 'Member added');
+      toast.success('Invitation sent');
     },
     onError: (error) => {
-      if (isUserNotFound(error)) {
-        const message = t('accounts.members.errors.userNotFound') || 'User not found';
-        setInviteError(message);
-        toast.error(message);
-        return;
-      }
-      toast.error(
-        errorMessage(error, t('accounts.members.toasts.addFailed') || 'Failed to add member'),
-      );
+      invalidateMembers();
+      toast.error(errorMessage(error, 'Could not send invitation'));
     },
   });
 
@@ -207,14 +220,12 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const handleInvite = useCallback(() => {
     const usernameOrEmail = inviteIdentifier.trim();
     if (!usernameOrEmail) {
-      setInviteError(
-        t('accounts.members.errors.identifierRequired') || 'Enter a username or email to invite',
-      );
+      setInviteError('Enter an email to invite');
       return;
     }
     setInviteError(null);
     inviteMutation.mutate({ usernameOrEmail, role: inviteRole });
-  }, [inviteIdentifier, inviteRole, inviteMutation, t]);
+  }, [inviteIdentifier, inviteRole, inviteMutation]);
 
   const handleChangeRole = useCallback(
     (member: AccountMember, role: AccountRole) => {
@@ -282,13 +293,11 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
       {/* Invite form */}
       {canInvite ? (
         <View className="gap-space-12 p-space-16 rounded-radius-20 bg-fill">
-          <Text className="text-body font-semibold text-text">
-            {t('accounts.members.invite.title') || 'Add a member'}
-          </Text>
+          <Text className="text-body font-semibold text-text">{'Invite a member'}</Text>
           <TextField isInvalid={!!inviteError}>
             <TextFieldInput
               floatingLabel
-              label={t('accounts.members.invite.identifierLabel') || 'Username or email'}
+              label={'Email'}
               value={inviteIdentifier}
               onChangeText={(value) => {
                 setInviteIdentifier(value);
@@ -332,11 +341,46 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
             onPress={handleInvite}
             disabled={inviteMutation.isPending || !inviteIdentifier.trim()}
             loading={inviteMutation.isPending}
-            accessibilityLabel={t('accounts.members.invite.submit') || 'Add member'}
+            accessibilityLabel={'Send invitation'}
             className="w-full"
           >
-            {t('accounts.members.invite.submit') || 'Add member'}
+            {'Send invitation'}
           </Button>
+        </View>
+      ) : null}
+
+      {canRead ? (
+        <View className="gap-space-12">
+          <Text className="text-body font-semibold text-text">Pending invitations</Text>
+          {invitationsQuery.isError ? <Text>Could not load invitations.</Text> : null}
+          {(invitationsQuery.data ?? []).map((invitation) => (
+            <View key={invitation.id} className="gap-space-8 p-space-16 rounded-radius-20 bg-fill">
+              <Text>
+                {invitation.email} · {roleLabel(invitation.role)} · {invitation.status}
+              </Text>
+              <Text>Expires {new Date(invitation.expiresAt).toLocaleDateString()}</Text>
+              {canInvite ? (
+                <Button
+                  disabled={invitationAction.isPending}
+                  onPress={() =>
+                    invitationAction.mutate({ invitationId: invitation.id, action: 'resend' })
+                  }
+                >
+                  Resend
+                </Button>
+              ) : null}
+              {canRemove ? (
+                <Button
+                  disabled={invitationAction.isPending}
+                  onPress={() =>
+                    invitationAction.mutate({ invitationId: invitation.id, action: 'cancel' })
+                  }
+                >
+                  Cancel invitation
+                </Button>
+              ) : null}
+            </View>
+          ))}
         </View>
       ) : null}
 

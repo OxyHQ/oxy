@@ -453,3 +453,4 @@ export {
   usePersonalPlans,
   usePersonalPlanSubscriptions,
 } from './ui/hooks/queries/usePersonalPlans';
+export { AccountInvitationAcceptance } from './ui/components/AccountInvitationAcceptance';

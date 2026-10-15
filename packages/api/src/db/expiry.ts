@@ -1,3 +1,4 @@
+import { accountInvitations } from './schema/accountInvitations';
 /**
  * Expiry Sweep Registry — row expiry for this schema
  *
@@ -378,5 +379,11 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'removed, keyed on COMPLETION: an unfinished row has a NULL ' +
       '`completed_at`, which no range predicate matches, so a deletion still ' +
       'retrying is never swept away with its keys.',
+  },
+  {
+    table: accountInvitations,
+    column: accountInvitations.expiresAt,
+    retentionSeconds: 30 * 86400,
+    reason: 'Thirty days to manage expired invitations; acceptance always checks expiry itself.',
   },
 ];

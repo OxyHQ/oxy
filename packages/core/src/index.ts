@@ -616,3 +616,4 @@ export type {
 } from '@oxy.so/contracts';
 
 export type { ProfileAccessInput, ProfileAccessDecision } from '@oxy.so/contracts';
+export type { AccountInvitation, AccountInvitationPreview } from './api/accounts';

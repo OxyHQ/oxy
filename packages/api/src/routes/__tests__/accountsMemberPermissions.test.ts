@@ -162,7 +162,7 @@ function inviteMember(accountId: string, payload: Record<string, unknown>): Prom
       {
         host: '127.0.0.1',
         port: address.port,
-        path: `/accounts/${accountId}/members`,
+        path: `/accounts/${accountId}/invitations`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,10 +331,10 @@ describe('per-member permission editing', () => {
       .where(eq(accountMembers.id, adminMemberId));
     actingUserId = adminUserId;
 
-    const res = await inviteMember(org, { usernameOrEmail: invitee, role: 'editor' });
+    const res = await inviteMember(org, { email: `${invitee}@example.com`, role: 'editor' });
 
     expect(res.status).toBe(403);
-    expect(res.body.message).toContain('account:act_as');
+    expect(res.body.message).toContain('cannot grant');
   });
 
   test('a grant BEYOND the actor is refused even when bundled with a legal one', async () => {
