@@ -86,6 +86,7 @@ import authRouter, { matchesRegisteredOrigin, originFromRedirectUri } from '../a
 interface JsonResponse {
   status: number;
   body: Record<string, unknown>;
+  headers: http.IncomingHttpHeaders;
 }
 
 let server: http.Server;
@@ -120,7 +121,11 @@ function request(
           raw += chunk;
         });
         res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+          resolve({
+            status: res.statusCode ?? 0,
+            body: raw.length ? JSON.parse(raw) : {},
+            headers: res.headers,
+          }),
         );
       },
     );
@@ -671,6 +676,22 @@ describe('GET /auth/oauth/client/:clientId — public metadata lookup', () => {
     expect(JSON.stringify(publicApp)).not.toContain('never-leaks');
     expect(publicApp).not.toHaveProperty('redirectUris');
     expect(publicApp).not.toHaveProperty('webhookSecret');
+  });
+
+  it('lets a browser reuse the public record briefly, and never caches a 404', async () => {
+    // Every Oxy app reads this record on each cold boot; without a freshness
+    // header every reload paid an uncached round trip.
+    const app = await application({ name: 'Cacheable' });
+    const clientId = await credential(app.id);
+
+    const found = await request('GET', `/auth/oauth/client/${clientId}`);
+    expect(found.status).toBe(200);
+    expect(found.headers['cache-control']).toBe('public, max-age=60');
+    expect(found.headers.etag).toEqual(expect.any(String));
+
+    const missing = await request('GET', '/auth/oauth/client/oxy_dk_missing');
+    expect(missing.status).toBe(404);
+    expect(missing.headers['cache-control'] ?? '').not.toMatch(/max-age=[1-9]/);
   });
 
   it('removes legacy credential query parameters from the public icon projection', async () => {

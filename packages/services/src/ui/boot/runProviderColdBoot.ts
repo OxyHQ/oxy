@@ -14,6 +14,28 @@ import { isWebBrowser } from '../utils/isWebBrowser';
 import { isNetConnectivityExplicitlyOffline } from '../utils/netConnectivity';
 import type { CommitInput } from '../context/oxyContextTypes';
 
+/**
+ * Whether the URL carries an OAuth return (`?code=` or `?error=`) for
+ * `tryCompleteOAuthReturn` to consume. Reads the address bar only.
+ */
+function hasOAuthReturnOnUrl(): boolean {
+  const search = (globalThis as { location?: { search?: string } }).location?.search;
+  if (!search) return false;
+  const params = new URLSearchParams(search);
+  return params.has('code') || params.has('error');
+}
+
+/**
+ * Whether this origin's own store holds anything a web boot could restore from:
+ * a warm access token to plant or a device secret to mint with. A presence
+ * check only — nothing read here is used, sent or synced before the
+ * classification allows it.
+ */
+async function hasRestorableState(store: AuthStateStore): Promise<boolean> {
+  const persisted = await store.load();
+  return Boolean(persisted?.accessToken || persisted?.deviceSecret);
+}
+
 /** How long the cold boot waits for the post-boot SessionClient handoff (ms). */
 export const SESSION_HANDOFF_DEADLINE_MS = 6000;
 
@@ -139,10 +161,33 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
   setTokenReady(false);
 
   try {
-    // Classification precedes every local-secret, shared-credential and identity
-    // probe. Unavailable registry metadata fails closed, including offline boot.
-    const lane = await (opts.resolveSessionLane?.() ??
-      resolveApplicationSessionLane(oxyServices, clientId));
+    // Classification precedes every USE of a local secret, the shared credential
+    // and the identity key. Unavailable registry metadata fails closed, including
+    // offline boot. It starts now, before anything else, so its round trip
+    // overlaps the local work below.
+    const classification = (async () =>
+      opts.resolveSessionLane?.() ?? resolveApplicationSessionLane(oxyServices, clientId))();
+    // Observed so a rejection that lands before it is awaited is not reported as
+    // unhandled; every path below still awaits it and sees the rejection.
+    classification.catch(() => undefined);
+
+    // The verdict decides HOW a session is restored, never WHETHER there is one.
+    // A web origin with nothing to restore and no OAuth return on the URL ends
+    // signed out on either lane, so routing need not wait a network round trip
+    // for an answer that cannot change the outcome. The classification still
+    // completes below and still gates every later sign-in
+    // (`ensureDeviceSessionLane` shares this same in-flight lookup).
+    if (!identityBound && isWebBrowser() && !hasOAuthReturnOnUrl()) {
+      if (!(await hasRestorableState(authStore))) {
+        markAuthResolved();
+        const lane = await classification;
+        await opts.onClassified?.(lane);
+        if (lane === 'oauth') setTokenReady(true);
+        return;
+      }
+    }
+
+    const lane = await classification;
     await opts.onClassified?.(lane);
     if (identityBound && lane !== 'device') return;
     // The redirect transport's RETURN leg. An app reaches it whenever the browser

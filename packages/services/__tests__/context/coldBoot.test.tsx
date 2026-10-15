@@ -229,6 +229,21 @@ describe('OxyContext cold boot (device-first)', () => {
     expect(window.sessionStorage.length).toBe(0);
   });
 
+  it('an origin with nothing to restore routes signed out without waiting on the registry', async () => {
+    // Before, routing waited the registry round trip (~1.2 s on a cold
+    // mention.earth load) for a verdict that cannot change a signed-out outcome.
+    const { stub } = buildStub();
+    stub.apps.getPublic.mockImplementation(() => new Promise(() => {}));
+
+    renderProvider(stub);
+
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+    expect(capturedContext?.isAuthenticated).toBe(false);
+    expect(capturedContext?.isPrivateApiPending).toBe(false);
+    expect(stub.apps.getPublic).toHaveBeenCalledTimes(1);
+    expect(stub.devices.mintToken).not.toHaveBeenCalled();
+  });
+
   it('defaults webAuthMode to popup, so interactive sign-in opens a window from the gesture', async () => {
     const { stub } = buildStub();
 
@@ -438,12 +453,16 @@ describe('SDK public recovery regressions', () => {
   }
 
   it('recovers classification on the real sign-in button without remounting the provider', async () => {
+    // A returning device: a credential is stored, so the boot must classify
+    // before restoring — and a failed classification must never use it.
+    window.localStorage.setItem(
+      AUTH_STATE_STORAGE_KEY,
+      JSON.stringify({ deviceId: 'dev-unclassified', deviceSecret: 'unclassified.secret' }),
+    );
     const { stub } = buildStub();
     stub.apps.getPublic.mockRejectedValueOnce(new Error('registry unavailable'));
-    const read = jest.spyOn(Storage.prototype, 'getItem');
     const view = renderProvider(stub, { button: true });
     await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
-    expect(read.mock.calls.some(([key]) => key === AUTH_STATE_STORAGE_KEY)).toBe(false);
     expect(stub.devices.mintToken).not.toHaveBeenCalled();
     expect(stub.auth.signInWithCommonsIdentity).not.toHaveBeenCalled();
     fireEvent.click(view.getByText('Retry sign in'));

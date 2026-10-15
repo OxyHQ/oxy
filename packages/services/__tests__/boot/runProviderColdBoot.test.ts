@@ -81,7 +81,9 @@ function makeOpts() {
         })),
       },
     } as never,
-    authStore: {} as never,
+    // A stored device credential: these cases exercise the device boot, which
+    // a web origin with nothing to restore never reaches.
+    authStore: { load: jest.fn(async () => ({ deviceId: 'd1', deviceSecret: 's1' })) } as never,
     sessionClient: { start: jest.fn(async () => undefined) } as never,
     syncDeviceCredentialToHost: jest.fn(async () => undefined),
     commitSession: jest.fn(async () => undefined),

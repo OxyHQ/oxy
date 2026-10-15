@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed (the public app record is cacheable)
+
+- `GET /auth/oauth/client/:clientId` answers `Cache-Control: public, max-age=60`
+  on a 200, the dynamic origin registry's own refresh interval. Every Oxy app reads
+  it on each cold boot; a reload now reuses it. A 404 stays uncached.
+
 ### Added (a bot account carries a 3D avatar character)
 
 - `users.character` (nullable `jsonb`, migration `0159`, deploy phase `pre`) and

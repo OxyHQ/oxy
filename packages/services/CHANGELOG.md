@@ -1,5 +1,19 @@
 # Changelog
 
+## [11.3.1] - 2026-10-15
+
+Needs `@oxy.so/core` 4.9.1.
+
+### Fixed
+
+- A web origin with nothing to restore (no warm token, no device secret, no OAuth
+  return on the URL) resolves auth signed out at once instead of waiting for the
+  application classification round trip, which cannot change that outcome. The
+  classification still runs, and every boot with something to restore, every
+  native and identity-mode boot, and every later sign-in still waits for it.
+  Measured on a cold load against `api.oxy.so`: auth resolved 2.08 s to 0.75 s after
+  navigation, and the first request after it starts 1.36 s sooner.
+
 ## [11.2.0] - 2026-10-14
 
 Promoted from `11.2.0-oxy-one.7` to the stable release; no code change. It is the first

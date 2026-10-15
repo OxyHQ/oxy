@@ -1,5 +1,17 @@
 # Changelog — `@oxy.so/core`
 
+## 4.9.1
+
+### Fixed
+
+- A GET no longer sends `Content-Type: application/json`. It has no body, and the
+  header alone made every cross-origin GET a non-simple request the browser
+  preflights.
+- `X-Oxy-Activity-Id` and `X-Oxy-Edge-Region` ride only on requests the browser
+  preflights anyway (a bearer, a JSON body, a custom header, a non-simple method).
+  An anonymous GET is a simple request again, so it no longer waits an `OPTIONS`
+  round trip per URL. Measured on a cold load against `api.oxy.so`: two
+  preflights to zero, and the public app lookup 1.31 s to 0.66 s.
 ## 4.9.0
 
 ### Added
