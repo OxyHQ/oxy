@@ -1,4 +1,4 @@
-import { Router, type Response } from 'express';
+import { Router, type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { profileAccessInputSchema, profileAccessDecisionSchema } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
@@ -12,6 +12,13 @@ router.use((_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
+const optionalAuthMiddleware: RequestHandler = (req, res, next) =>
+  req.headers.authorization ? authMiddleware(req, res, next) : next();
+/**
+ * Decide whether the original optional bearer may read sensitive profile details.
+ * @requestQuery profileAccessInputSchema
+ * @response 200 profileAccessDecisionSchema Authoritative profile access decision.
+ */
 router.get(
   '/profile-access',
   rateLimit({
@@ -21,7 +28,7 @@ router.get(
     errorFormat: 'nested',
     keyGenerator: hashedIpKey,
   }),
-  (req, res, next) => (req.headers.authorization ? authMiddleware(req, res, next) : next()),
+  optionalAuthMiddleware,
   (req: AuthRequest, res: Response) => {
     void (async () => {
       const input = profileAccessInputSchema.parse(req.query);

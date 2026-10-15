@@ -304,3 +304,58 @@ describe('published original-key receipt contract', () => {
     }
   });
 });
+
+describe('canonical organization and profile-policy published contracts', () => {
+  const spec = JSON.parse(readFileSync(path.resolve(__dirname, '../../openapi.json'), 'utf8'));
+  it('publishes every directory operation with concrete response schemas and correct credentials', () => {
+    const operations: Array<[string, string, string]> = [
+      ['/organizations', 'get', 'public'],
+      ['/organizations', 'post', 'bearerAuth'],
+      ['/organizations/batch', 'post', 'public'],
+      ['/organizations/external/batch', 'post', 'serviceTokenAuth'],
+      ['/organizations/external', 'post', 'bearerAuth'],
+      ['/organizations/external/{namespace}/{externalId}', 'get', 'bearerAuth'],
+      ['/organizations/claims/mine', 'get', 'bearerAuth'],
+      ['/organizations/claims/mine/{claimId}', 'get', 'bearerAuth'],
+      ['/organizations/claims/review', 'get', 'bearerAuth'],
+      ['/organizations/claims/review/{claimId}', 'get', 'bearerAuth'],
+      ['/organizations/claims/{claimId}/review', 'post', 'bearerAuth'],
+      ['/organizations/{accountId}/curation', 'post', 'bearerAuth'],
+      ['/organizations/{accountId}/merge', 'post', 'bearerAuth'],
+      ['/organizations/{accountId}', 'get', 'public'],
+      ['/organizations/{accountId}', 'patch', 'bearerAuth'],
+      ['/organizations/{accountId}/claims', 'post', 'bearerAuth'],
+    ];
+    for (const [path, method, auth] of operations) {
+      const operation = spec.paths[path]?.[method];
+      expect(operation).toBeDefined();
+      expect(operation.security).toEqual(auth === 'public' ? [{}] : [{ [auth]: [] }]);
+      const response = operation.responses['200'] ?? operation.responses['201'];
+      expect(response.content['application/json'].schema.type).toBe('object');
+      if (method === 'post' || method === 'patch')
+        expect(operation.requestBody.content['application/json'].schema.type).toBe('object');
+      expect(
+        operation.responses['403'].content['application/json'].schema.properties.error.properties
+          .code.enum,
+      ).toContain('forbidden');
+    }
+  });
+  it('documents inline query schemas and optional bearer without changing validation behavior', () => {
+    expect(spec.paths['/organizations'].get.parameters).toContainEqual(
+      expect.objectContaining({ name: 'query', in: 'query' }),
+    );
+    const policy = spec.paths['/safety/profile-access'].get;
+    expect(policy.security).toEqual([{ bearerAuth: [] }, {}]);
+    expect(policy.parameters).toContainEqual(
+      expect.objectContaining({ name: 'subjectAccountId', in: 'query', required: true }),
+    );
+    expect(policy.responses['200'].content['application/json'].schema.properties.allowed.type).toBe(
+      'boolean',
+    );
+    const routes =
+      parseRoutesFromFile(`import { profileAccessInputSchema } from '@oxy.so/contracts';
+      /** @requestQuery profileAccessInputSchema */
+      router.get('/profile-access', optionalAuthMiddleware, handler);`);
+    expect(routes[0]?.requestQueryTag).toBe('profileAccessInputSchema');
+  });
+});

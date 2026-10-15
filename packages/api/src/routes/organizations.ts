@@ -3,6 +3,17 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import {
+  organizationSchema,
+  organizationListSchema,
+  organizationBatchSchema,
+  organizationImportBatchResultSchema,
+  organizationExternalSchema,
+  organizationExternalResolutionSchema,
+  organizationClaimSchema,
+  organizationClaimDetailSchema,
+  organizationClaimListSchema,
+  organizationCurationResultSchema,
+  organizationErrorSchema,
   createOrganizationSchema,
   organizationBatchInputSchema,
   organizationClaimInputSchema,
@@ -86,6 +97,19 @@ const writeLimit = rateLimit({
   message: 'Too many organization changes',
   keyGenerator: (req: Request) => (req as AuthRequest).user?._id?.toString() ?? hashedIpKey(req),
 });
+/**
+ * Search the public canonical organization directory.
+ * @response 200 organizationListSchema Success.
+ * @requestQuery organizationSearchSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/',
   readLimit,
@@ -93,6 +117,19 @@ router.get(
     res.json(await directory.searchOrganizations(organizationSearchSchema.parse(req.query))),
   ),
 );
+/**
+ * Resolve up to 100 public organization account IDs.
+ * @response 200 organizationBatchSchema Success.
+ * @requestBody organizationBatchInputSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/batch',
   readLimit,
@@ -139,6 +176,19 @@ const ingestionLimit = rateLimit({
   message: 'Too many organization import batches',
   keyGenerator: (req) => (req as ServiceAuthRequest).serviceApp?.appId ?? hashedIpKey(req),
 });
+/**
+ * Import neutral entries using a scoped consumer service grant.
+ * @response 200 organizationImportBatchResultSchema Success.
+ * @requestBody organizationImportBatchSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/external/batch',
   serviceAuthMiddleware,
@@ -159,6 +209,19 @@ router.post(
     res.json(await directory.importOrganizationBatch(input, principal));
   }),
 );
+/**
+ * Staff-reviewed idempotent external identity mapping.
+ * @response 200 organizationExternalSchema Success.
+ * @requestBody organizationExternalInputSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/external',
   authMiddleware,
@@ -173,6 +236,18 @@ router.post(
     );
   }),
 );
+/**
+ * Resolve a reviewed external mapping with platform staff authority.
+ * @response 200 organizationExternalResolutionSchema Success.
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/external/:namespace/:externalId',
   authMiddleware,
@@ -185,6 +260,19 @@ router.get(
     res.json(await directory.resolveOrganizationExternal(namespace, externalId));
   }),
 );
+/**
+ * List the caller’s private claim requests.
+ * @response 200 organizationClaimListSchema Success.
+ * @requestQuery organizationClaimListQuerySchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/claims/mine',
   authMiddleware,
@@ -198,6 +286,18 @@ router.get(
     ),
   ),
 );
+/**
+ * Read one claim owned by the caller.
+ * @response 200 organizationClaimDetailSchema Success.
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/claims/mine/:claimId',
   authMiddleware,
@@ -208,6 +308,19 @@ router.get(
     ),
   ),
 );
+/**
+ * Read the private staff claim review queue.
+ * @response 200 organizationClaimListSchema Success.
+ * @requestQuery organizationClaimListQuerySchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/claims/review',
   authMiddleware,
@@ -222,6 +335,18 @@ router.get(
     ),
   ),
 );
+/**
+ * Read claim evidence with current staff authority.
+ * @response 200 organizationClaimDetailSchema Success.
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/claims/review/:claimId',
   authMiddleware,
@@ -231,6 +356,19 @@ router.get(
     res.json(await directory.getOrganizationClaim(String(req.params.claimId), null)),
   ),
 );
+/**
+ * Independently review a claim with current staff authority.
+ * @response 200 organizationClaimSchema Success.
+ * @requestBody organizationClaimReviewSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/claims/:claimId/review',
   authMiddleware,
@@ -248,6 +386,19 @@ router.post(
     );
   }),
 );
+/**
+ * Staff-curate neutral facts or moderate directory visibility.
+ * @response 200 organizationCurationResultSchema Success.
+ * @requestBody organizationCurationSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/:accountId/curation',
   authMiddleware,
@@ -263,6 +414,19 @@ router.post(
     );
   }),
 );
+/**
+ * Staff-merge an unclaimed identity without merging account authority.
+ * @response 200 organizationSchema Success.
+ * @requestBody organizationMergeSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/:accountId/merge',
   authMiddleware,
@@ -280,6 +444,19 @@ router.post(
     );
   }),
 );
+/**
+ * Create a neutral unclaimed organization without management authority.
+ * @response 201 organizationSchema Success.
+ * @requestBody createOrganizationSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/',
   authMiddleware,
@@ -291,6 +468,18 @@ router.post(
       .json(await directory.createNeutralOrganization(createOrganizationSchema.parse(req.body)));
   }),
 );
+/**
+ * Read a public organization, resolving canonical redirects.
+ * @response 200 organizationSchema Success.
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.get(
   '/:accountId',
   readLimit,
@@ -298,6 +487,19 @@ router.get(
     res.json(await directory.getOrganization(String(req.params.accountId))),
   ),
 );
+/**
+ * Update facts using organization management authority.
+ * @response 200 organizationSchema Success.
+ * @requestBody updateOrganizationSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.patch(
   '/:accountId',
   authMiddleware,
@@ -317,6 +519,19 @@ router.patch(
     );
   }),
 );
+/**
+ * Submit private ownership evidence without changing permissions.
+ * @response 201 organizationClaimSchema Success.
+ * @requestBody organizationClaimInputSchema
+ * @response 400 organizationErrorSchema Request refused.
+ * @response 401 organizationErrorSchema Request refused.
+ * @response 403 organizationErrorSchema Request refused.
+ * @response 404 organizationErrorSchema Request refused.
+ * @response 409 organizationErrorSchema Request refused.
+ * @response 422 organizationErrorSchema Request refused.
+ * @response 429 organizationErrorSchema Request refused.
+ * @response 503 organizationErrorSchema Request refused.
+ */
 router.post(
   '/:accountId/claims',
   authMiddleware,
