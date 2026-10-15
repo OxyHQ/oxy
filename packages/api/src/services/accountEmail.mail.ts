@@ -187,3 +187,12 @@ export async function sendSecurityNotice(
     html: htmlPage(paragraphs),
   });
 }
+
+export async function sendAccountInvitation(to: string, token: string, role: string): Promise<void> {
+  const paragraphs = [
+    `You have been invited to an Oxy account as ${role}.`,
+    `Review and accept: https://accounts.oxy.so/invitation#${token}`,
+    'This single-use link expires in seven days. Choose the Oxy account that should receive access; its email may differ from this address. No access is granted until you confirm.',
+  ];
+  await sendSystem({ to, subject: 'Oxy account invitation', text: paragraphs.join('\n\n'), html: htmlPage(paragraphs) });
+}
