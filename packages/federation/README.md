@@ -18,3 +18,13 @@ Do not catch an authority failure and retry through an unguarded transport.
 
 Without the optional hook, delivery behavior is unchanged. `sendUndoFollow`'s
 boolean reports local relationship removal; it does not confirm remote delivery.
+
+## Discovery response caching
+
+`createWebfingerRouter({ httpCacheTtlSeconds })` controls HTTP caching of fresh,
+cached and instance WebFinger responses. The default remains 3600 seconds.
+Use `0` for `Cache-Control: no-store` when live privacy decisions must govern
+each request. Only whole seconds from 0 through 86400 are accepted. This does
+not change the injected JRD cache: applications must also authorize its reads
+and their user resolver against current policy. It cannot retract documents
+already cached by remote consumers before this setting changes.

@@ -17,7 +17,7 @@ import { isSameFederationHost } from '../apUri';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
 
-/** 1 hour, in seconds — the WebFinger JRD cache TTL + response `max-age`. */
+/** Default HTTP response max-age. The injected JRD cache has its own policy. */
 const WEBFINGER_CACHE_TTL = 3600;
 /** 24h — host-meta is effectively static. */
 const HOST_META_CACHE_CONTROL = `max-age=${60 * 60 * 24}`;
@@ -64,6 +64,8 @@ export interface WebfingerRouterConfig {
     get(username: string): Promise<WebfingerJrd | null>;
     set(username: string, jrd: WebfingerJrd): void;
   };
+  /** HTTP response TTL in whole seconds, 0..86400. Defaults to 3600; 0 sends no-store. */
+  httpCacheTtlSeconds?: number;
   /** Diagnostics sink. */
   logger: WebfingerLogger;
 }
@@ -72,6 +74,11 @@ export interface WebfingerRouterConfig {
 export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
   const router = Router();
   const { domain } = config;
+  const httpTtl = config.httpCacheTtlSeconds ?? WEBFINGER_CACHE_TTL;
+  if (!Number.isInteger(httpTtl) || httpTtl < 0 || httpTtl > 86400) {
+    throw new RangeError('httpCacheTtlSeconds must be an integer from 0 to 86400');
+  }
+  const httpCacheControl = httpTtl === 0 ? 'no-store' : `max-age=${httpTtl}`;
   const webfingerTemplate = `https://${domain}/.well-known/webfinger?resource={uri}`;
 
   router.get('/webfinger', async (req: Request, res: Response) => {
@@ -130,7 +137,7 @@ export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
           ],
         };
         res.set('Content-Type', 'application/jrd+json; charset=utf-8');
-        res.set('Cache-Control', `max-age=${WEBFINGER_CACHE_TTL}`);
+        res.set('Cache-Control', httpCacheControl);
         return res.json(instanceJrd);
       }
 
@@ -138,7 +145,7 @@ export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
       const cached = await config.cache.get(username);
       if (cached) {
         res.set('Content-Type', 'application/jrd+json; charset=utf-8');
-        res.set('Cache-Control', `max-age=${WEBFINGER_CACHE_TTL}`);
+        res.set('Cache-Control', httpCacheControl);
         return res.json(cached);
       }
 
@@ -183,7 +190,7 @@ export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
       config.cache.set(username, response);
 
       res.set('Content-Type', 'application/jrd+json; charset=utf-8');
-      res.set('Cache-Control', `max-age=${WEBFINGER_CACHE_TTL}`);
+      res.set('Cache-Control', httpCacheControl);
       return res.json(response);
     } catch (err) {
       config.logger.error('WebFinger error:', err);
