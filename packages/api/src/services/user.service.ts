@@ -118,6 +118,7 @@ import {
  * `formatUserResponse` emits only under `includePrivateFields`.
  */
 export interface SelfUserView extends PublicUserView {
+  userPreferences?: { displayCurrency?: 'USD' | 'EUR' | 'FAIR' };
   phone?: string;
   address?: string;
   birthday?: string;
@@ -158,6 +159,7 @@ export interface UserResponseSource {
   birthday?: unknown;
   dateOfBirth?: unknown;
   themePreference?: unknown;
+  userPreferences?: unknown;
   type?: unknown;
   /** Account-graph classification (`personal` / `organization` / `channel` …). */
   kind?: unknown;
@@ -477,6 +479,7 @@ function computeIsAdult(dateOfBirth: string): boolean {
  */
 const selfUserColumns = {
   ...publicUserColumns,
+  preferenceDisplayCurrency: users.preferenceDisplayCurrency,
   phone: users.phone,
   address: users.address,
   birthday: users.birthday,
@@ -486,6 +489,7 @@ const selfUserColumns = {
 } as const;
 
 type SelfUserRow = PublicUserRow & {
+  preferenceDisplayCurrency: 'USD' | 'EUR' | 'FAIR' | null;
   phone: string | null;
   address: string | null;
   birthday: string | null;
@@ -504,6 +508,7 @@ type SelfUserRow = PublicUserRow & {
 function toSelfUserView(row: SelfUserRow): SelfUserView {
   const view: SelfUserView = {
     ...toPublicUserView(row),
+    userPreferences: { displayCurrency: row.preferenceDisplayCurrency ?? undefined },
     phone: row.phone ?? undefined,
     address: row.address ?? undefined,
     birthday: row.birthday ?? undefined,
@@ -856,6 +861,7 @@ export class UserService {
         theme: row.preferenceTheme,
         reduceMotion: row.preferenceReduceMotion,
         timezone: row.preferenceTimezone ?? undefined,
+        displayCurrency: row.preferenceDisplayCurrency ?? undefined,
       },
       themePreference:
         row.themePreferenceMode !== null && row.themePreferenceColorPreset !== null
@@ -918,6 +924,13 @@ export class UserService {
 
     const existing = await this.getUserById(userId);
     if (!existing) throw new Error('User not found');
+    if (isRecord(updates.userPreferences) && 'displayCurrency' in updates.userPreferences) {
+      const currency = updates.userPreferences.displayCurrency;
+      if (currency !== 'USD' && currency !== 'EUR' && currency !== 'FAIR')
+        throw new BadRequestError('Unsupported display currency', {
+          field: 'userPreferences.displayCurrency',
+        });
+    }
 
     // Allowed fields for updates
     const allowedFields = [
@@ -2168,6 +2181,11 @@ export class UserService {
     };
 
     if (options.includePrivateFields) {
+      if (isRecord(user.userPreferences)) {
+        const currency = user.userPreferences.displayCurrency;
+        if (currency === 'USD' || currency === 'EUR' || currency === 'FAIR')
+          response.userPreferences = { displayCurrency: currency };
+      }
       response.phone = stringOrUndefined(user.phone);
       response.address = stringOrUndefined(user.address);
       response.birthday = stringOrUndefined(user.birthday);
@@ -2311,6 +2329,12 @@ function buildUserColumnUpdates(filtered: Record<string, unknown>): Record<strin
     }
     if (typeof prefs.reduceMotion === 'boolean') set.preferenceReduceMotion = prefs.reduceMotion;
     if (typeof prefs.timezone === 'string') set.preferenceTimezone = blankToNull(prefs.timezone);
+    if (
+      prefs.displayCurrency === 'USD' ||
+      prefs.displayCurrency === 'EUR' ||
+      prefs.displayCurrency === 'FAIR'
+    )
+      set.preferenceDisplayCurrency = prefs.displayCurrency;
   }
 
   if (isRecord(filtered.themePreference)) {

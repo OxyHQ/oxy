@@ -1,8 +1,16 @@
-import React from 'react';
+import type React from 'react';
 import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 let mockActionCounter = 0;
 jest.mock('expo-crypto', () => ({ randomUUID: () => `action_${++mockActionCounter}` }));
 const mockCancel = jest.fn();
+const mockCheckout = jest.fn();
+const mockOpenURL = jest.fn();
+let mockPurchase = 'unavailable';
+const mockCheckoutKey = jest.fn(async () => 'stable-checkout-key');
+jest.mock('@/lib/personal-plan-checkout', () => ({
+  getPersonalPlanCheckoutKey: (...args: unknown[]) => mockCheckoutKey(...args),
+  clearPersonalPlanCheckoutKey: jest.fn(),
+}));
 let mockUser = { id: 'first' };
 const mockRefetch = jest.fn();
 let mockPlans: unknown[] = [];
@@ -16,6 +24,7 @@ const mockSource = {
   offers: [],
 };
 jest.mock('react-native', () => ({
+  Linking: { openURL: (...args: unknown[]) => mockOpenURL(...args) },
   View: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Pressable: ({
     children,
@@ -50,13 +59,26 @@ jest.mock('@oxy.so/core', () => ({
   authenticatedApiCall: (_svc: unknown, _sid: unknown, run: () => unknown) => run(),
 }));
 jest.mock('@oxy.so/services', () => ({
+  DisplayCurrencySelector: () => <div>Display currency</div>,
+  useDisplayPrice: () => ({
+    currency: 'USD',
+    formatUsd: (cents: number) =>
+      new Intl.NumberFormat(mockLocale, { style: 'currency', currency: 'USD' }).format(cents / 100),
+  }),
   useOxy: () => ({
     user: mockUser,
     isAuthenticated: true,
     activeSessionId: mockUser.id,
-    oxyServices: { billing: { cancelProductSubscriptionWithStatus: mockCancel } },
+    oxyServices: {
+      billing: {
+        cancelProductSubscriptionWithStatus: mockCancel,
+        startPersonalPlanCheckout: mockCheckout,
+      },
+    },
   }),
-  usePersonalPlans: () => ({ data: { state: 'unconfigured', plans: mockPlans } }),
+  usePersonalPlans: () => ({
+    data: { state: 'unconfigured', plans: mockPlans, purchase: mockPurchase },
+  }),
   usePersonalPlanSubscriptions: () => ({ data: [mockSource], refetch: mockRefetch }),
 }));
 import { PersonalPlansCard } from '@/components/payments/PersonalPlansCard';
@@ -66,6 +88,9 @@ beforeEach(() => {
   mockActionCounter = 0;
   mockUser = { id: 'first' };
   mockCancel.mockReset();
+  mockCheckout.mockReset();
+  mockOpenURL.mockReset();
+  mockPurchase = 'unavailable';
   mockRefetch.mockReset();
   mockPlans = [];
   mockLocale = 'en-US';
@@ -183,4 +208,27 @@ it('keeps a confirmed cancellation when the list refresh fails, and does not min
   expect(screen.queryByText('payments.one.failed')).toBeNull();
   expect(screen.queryByText('payments.one.confirmCancel')).toBeNull();
   expect(mockCancel).toHaveBeenCalledTimes(1);
+});
+
+it('opens the actual configured checkout with display-only preference and an account fence', async () => {
+  mockPurchase = 'available';
+  mockPlans = [{ offerId: 'one', offerVersion: 1, displayName: 'Oxy One', benefits: [] }];
+  mockCheckout.mockResolvedValue({
+    state: 'pending',
+    intentId: 'ci1',
+    checkoutUrl: 'https://checkout.peable.to/c/cs1#cs=secret',
+  });
+  render(<PersonalPlansCard />);
+  fireEvent.click(screen.getByText('payments.one.checkout'));
+  await waitFor(() =>
+    expect(mockOpenURL).toHaveBeenCalledWith(
+      'https://checkout.peable.to/c/cs1?displayCurrency=USD#cs=secret',
+    ),
+  );
+  expect(mockCheckout).toHaveBeenCalledWith({
+    expectedSubjectAccountId: 'first',
+    offerId: 'one',
+    offerVersion: 1,
+    idempotencyKey: 'stable-checkout-key',
+  });
 });

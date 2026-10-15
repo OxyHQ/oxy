@@ -609,3 +609,36 @@ describe('profile writes', () => {
     expect(n).toBe(1);
   });
 });
+
+describe('portable display currency', () => {
+  it('rejects unsupported preferences without changing the account', async () => {
+    const id = await makeUser();
+    await expect(
+      userService.updateUserProfile(id, { userPreferences: { displayCurrency: 'XYZ' } }),
+    ).rejects.toThrow('Unsupported display currency');
+  });
+  it('persists privately, restores and keeps partial preferences per account', async () => {
+    const id = await makeUser({ preferenceTheme: 'dark' });
+    const other = await makeUser();
+    await userService.updateUserProfile(id, { userPreferences: { displayCurrency: 'EUR' } });
+    const [row] = await getDb()
+      .select({ currency: users.preferenceDisplayCurrency, theme: users.preferenceTheme })
+      .from(users)
+      .where(eq(users.id, id));
+    expect(row).toEqual({ currency: 'EUR', theme: 'dark' });
+    const updated = await userService.updateUserProfile(id, {
+      userPreferences: { timezone: 'Europe/Madrid' },
+    });
+    expect(updated.userPreferences?.displayCurrency).toBe('EUR');
+    expect(
+      userService.formatUserResponse(updated, undefined, { includePrivateFields: true })
+        .userPreferences,
+    ).toEqual({ displayCurrency: 'EUR' });
+    expect(userService.formatUserResponse(updated).userPreferences).toBeUndefined();
+    const [untouched] = await getDb()
+      .select({ currency: users.preferenceDisplayCurrency })
+      .from(users)
+      .where(eq(users.id, other));
+    expect(untouched.currency).toBeNull();
+  });
+});

@@ -1470,6 +1470,14 @@ const dict = {
     },
   },
   preferences: {
+    displayCurrency: {
+      label: 'Moneda mostrada',
+      saveFailed: 'No se ha podido guardar la moneda. Inténtalo de nuevo.',
+      unavailable: 'Equivalencia en {{currency}} no disponible',
+      approximate: 'Aprox. {{amount}}',
+      estimate: 'Importe orientativo. El importe final se cotiza en FAIR al pagar.',
+    },
+
     title: 'Preferencias',
     subtitle: 'Tema, movimiento y configuración regional',
     sections: {

@@ -419,7 +419,10 @@
       "pending": "Cancellation accepted. Account reconciliation is pending.",
       "scheduled": "Cancellation scheduled for the end of the current period.",
       "failed": "Cancellation could not be confirmed. Refresh before trying again.",
-      "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected."
+      "refreshFailed": "The subscription list could not be refreshed. Your cancellation is unaffected.",
+      "checkout": "Continue to payment",
+      "checkoutComplete": "Payment confirmed. Your access is refreshed.",
+      "checkoutClosed": "This checkout has closed. You can request a new quote."
     },
     "title": "Payments & subscriptions",
     "subtitle": "Manage your payment methods, subscriptions, and wallets.",
