@@ -11,6 +11,16 @@ developer-facing reading of
 [ADR 0008](../adr/0008-catalogue-concept-separation.md), which is the decision
 record.
 
+**Scope of this page: Oxy's catalogue serves the old edge only.** Since Kaana
+ADR 0002 (amendment 2026-10-15) the model catalogue — identity, licence, data
+policy, capabilities, voices and list prices — is Kaana's
+(`configs/public-catalogue.json`, relayed as `declaredCatalogue`), and the
+grants for `kaana.ai/v1` are rated from it
+([kaana-grants.md](./kaana-grants.md#where-the-price-comes-from-kaanas-catalogue-not-oxys)).
+The tables, sync and bootstrap described below keep serving `api.oxy.so/v1` and
+its `/v1/models` until phase 5 deletes them; nothing new may read them for price
+or identity, and there is no sync from Kaana's file into them or back.
+
 **Two writers, one per audience.** The `platform_internal` catalogue that
 official Oxy products (Alia, Inbox, …) read is written automatically by the
 Kaana sync — see [Automatic sync from Kaana](#automatic-sync-from-kaana) and

@@ -13,11 +13,90 @@ over a private API:
 | `POST /internal/kaana/v1/authorizations` | authenticates the caller's credential, applies the application's policy and limits, reserves, and returns a **grant** signed Ed25519 — or the public error Kaana relays |
 | `POST /internal/kaana/v1/settlements` | settles one grant, exactly once, from Kaana's measured units |
 
-Shapes are `@kaana.ai/contracts/internal` (`grant.ts`, `settlement.ts`),
-the published npm package pinned exactly in `packages/api/package.json`.
+Shapes are `@kaana.ai/contracts/internal` (`grant.ts`, `settlement.ts`,
+`catalogue.ts`), the published npm package pinned exactly in
+`packages/api/package.json` (**4.4.0**).
 Code: `packages/api/src/routes/internalKaana.ts`,
-`services/kaanaGrant.service.ts`, `kaanaGrantReads.service.ts`,
+`services/kaanaGrant.service.ts`, `kaanaGrantRoutes.service.ts`,
+`kaanaDeclaredCatalogue.service.ts`, `kaanaGrantReads.service.ts`,
 `kaanaSettlement.service.ts`, `kaanaGrantSigning.ts`.
+
+## Where the price comes from: Kaana's catalogue, not Oxy's
+
+Kaana ADR 0002, amendment 2026-10-15 («el catálogo es de Kaana»): the model
+catalogue — identity, licence, provenance, data policy, capabilities, voices,
+audience, power class and the **list price per unit** — is Kaana's
+`configs/public-catalogue.json`, and nobody else's. Kaana relays it, whole, as
+the `declaredCatalogue` member of its signed `GET /internal/v1/models`
+(`declaredCatalogueSchema`, contract set 4.3.0). Oxy does not own a catalogue
+any more; it **rates grants by reading Kaana's**.
+
+```text
+Kaana  GET /internal/v1/models  (signed, empty body)
+        └─ declaredCatalogue.models[]  { modelId, audience, capabilities, license,
+                                         dataPolicy, powerClass, pricing{priceVersionId, currency, unitPrices[]} }
+   │  kaanaDeclaredCatalogue.service   in-memory cache, 60 s, single-flight,
+   │                                   stale ≤ 5 min, then `service_unavailable`
+   ▼
+authorize  (kaanaGrant + kaanaGrantRoutes)
+   1. model          declared? audience admits the viewer? not `retired`?   else model_not_found
+   2. shape          modalities, apiFormats, realtime kind, context/output   else unsupported_modality / *_limit_exceeded
+   3. price          `pricing` present? priceVersionId not republished?      else no_route_available (typed), never 0
+   4. routes         deployments Kaana PUBLISHES for the line ∩ approved to sell by Oxy (inference_deployments by
+                     internal_route_id) ∩ the application's policy (providers, regions, ZDR, licences, price caps)
+   5. quote          the ceiling scenarios of the operation × the declared unit prices (the ledger's own SQL arithmetic)
+   6. grant          admittedModelLines[{modelLine, priceVersionId}] and COPY of the unit prices:
+                     kaana_grant_admitted_lines + kaana_grant_line_unit_prices
+   ▼
+settle     rates at the COPY on the grant (the version the grant admitted), never at a price Kaana publishes later
+```
+
+- **Versioned by `priceVersionId`.** A new price is a new id; a published id
+  never changes. If an id Oxy has seen reappears with different prices that
+  model prices nothing (`price_version_changed`) until Kaana publishes a new
+  id. A grant keeps the entries it was rated at, so a settlement minutes later
+  — on another task, after a restart, through the reconciliation feed — is
+  rated at exactly that version.
+- **No price, no grant; no price for a unit, no settlement.** A model without
+  `pricing` (the BYOK-only case) is refused when granted
+  (`no_route_available`, reason `pricing:model_not_priced`). A settlement in a
+  unit the grant's list does not carry is rejected `422 unpriced_unit`, and a
+  line served outside the grant that Kaana declares no price for is rejected
+  `422 model_not_priced`. Nothing is ever settled at zero by absence.
+- **Served outside the grant** is rated at Kaana's *current* declared list for
+  the model that served, recorded `served_outside_grant`; if Kaana's catalogue
+  cannot be read then the settlement is **deferred** (`503 catalogue_unavailable`,
+  redelivered; the reconciliation feed stops before it and does not advance its
+  cursor).
+- **Not persisted.** The declared catalogue is cached in memory
+  («lo cachea en memoria … no lo persiste»); what is stored is the grant's own
+  copy of the entries it was rated at, the same discipline as
+  `usage_receipt_unit_prices`. `price_version_id` columns of the ledger
+  (`usage_receipts`, `usage_reservations`, `inference_metered_usage`,
+  `kaana_grant_admitted_lines`) carry Kaana's label and have **no foreign key**
+  to `price_versions` any more (migration 0161). The ledger takes the list by
+  value (`PriceSnapshotInput` in `inferenceLedger.service.ts`).
+- **What is still Oxy's** (the customer's, read from Oxy as before): the
+  application's routing policy (allowed models and levels, providers, regions,
+  data controls, price caps), Console limits, budgets and spending limits,
+  holds, receipts, discounts and margins. The only legacy table the path still
+  reads is `inference_deployments`, by Kaana's `internal_route_id`, for the
+  commercial permission to sell a route (`kaanaGrantRoutes.service.ts`).
+
+### What serves the old edge only
+
+Oxy's own catalogue — `inference_models`, `inference_model_revisions`,
+`inference_publishers`, `price_versions` / `price_version_unit_prices`,
+`inference_deployment_routing_scores`, `inference_model_power_classes` — their
+service (`inferenceCatalogue.service.ts`), the Kaana catalogue sync
+(`kaanaCatalogueSync.service.ts`) and the bootstrap
+(`scripts/bootstrap-kaana-catalogue.ts`) keep serving **only the old edge**,
+`api.oxy.so/v1`, and its `/v1/models`, while they exist. Phase 5 deletes them
+(Kaana ADR 0002, «Qué se retira de Oxy en la fase 5»). There is **no reverse
+sync and no double write**: nothing writes Oxy's tables from Kaana's file or
+Kaana's file from Oxy's tables. The guard
+`services/__tests__/kaanaGrantCatalogueGuard.test.ts` fails if the grant, the
+settlement or the catalogue reader imports one of those tables or resolvers.
 
 ## Who may call it
 
@@ -68,11 +147,14 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    providers, regions, ZDR, licences, fallback.
 5. **Steps.** A model target is one step plus the policy's authorized
    cross-model fallbacks; a level is one step (`auto`: every level it may land
-   on). Per step, each model line Oxy's catalogue qualifies is admitted at the
-   price version of its **dearest** qualified route — the line's list price for
-   this grant, so the hold covers whichever route Kaana picks and the price
-   never depends on its choice. `providerAllowlist` is the providers Oxy
-   qualified; same-model failover off narrows it to the best one.
+   on), its lines being the models Kaana declares in the level's `powerClass`.
+   Per step, each model line Kaana declares and the policy qualifies is admitted
+   at the `priceVersionId` of the line's **declared list** — one price per line,
+   so the hold covers whichever route Kaana picks and the price never depends
+   on its choice. `providerAllowlist` is the providers that serve the line
+   (published by Kaana, approved to sell by Oxy, qualified by the policy);
+   same-model failover off narrows it to ONE provider, the first in provider
+   order (a deterministic choice, not a ranking — see «Not in this phase»).
 6. The ceiling: the dearest admitted line's quote.
 7. `claimMeteredAdmission`: idempotency (`Idempotency-Key` shares the edge's
    ledger key), internal capacity, Console session limits.
@@ -97,7 +179,7 @@ credential only) in the public shape: amount, never provider.
 | service token of Alia in production (`alia-kaana`) | Alia's owner; `internal_metered`, `relationshipId: alia-kaana` | **no** | `capacity.meteredUsageId`; pilot tuples and USD ceilings; realtime and transcription under their own terms |
 | Alia outside production | owner of the Alia app; `commercial` | yes | relationship lists production only |
 | Alia naming `pro`/`ultra` (ADR 0037) | `internal_metered` | no | step 1: the level, `maxFundingTier: credit`, USD 1.00; step 2: `xhigh` on the pilot's lines and providers, USD 0.05 |
-| BYOK route ranked first | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | no `maxFundingTier`; internal + BYOK is refused |
+| BYOK route | — | — | **not admitted**: its platform fee is Oxy's own price, not a model's declared list price, and a BYOK-only model declares none. Customer-key deployments are never routes of a grant; `byokPreference: require` is `policy_violation` |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
 | `product_session` (Inbox, app sessions) | — | — | **not yet**: needs the public credential and Inbox's session check |
 | scoped permit, Private Auto, Mention classifier, `decisions` | — | — | **not yet**: approvals must be re-issued under `canonicalInputSha256` |
@@ -141,11 +223,11 @@ Spend is `spending_limits` (budgets), enforced by `reserve`.
 
 `applySettlement` (delivery and reconciliation alike) checks the settlement
 names its grant (`requestId`, `reservationId`, `meteredUsageId`), prices the
-served line at the step's admitted `priceVersionId` (a line outside the grant:
-the served deployment's own price, `served_outside_grant`, logged
-`policy_violation`), logs a tier above the step's `maxFundingTier`, calls
-`settle` (charged grants), `settleMeteredUsage` and the usage telemetry, and
-closes the grant by compare-and-set. Every write is idempotent on its own key:
+served line at the list the step admitted (a line outside the grant: Kaana's
+current declared list, `served_outside_grant`, logged `policy_violation`), after
+refusing a unit that list does not price (`422 unpriced_unit`), logs a tier above the step's `maxFundingTier`, calls
+`settle` (charged grants, with the grant's copy of the list), `settleMeteredUsage`
+and the usage telemetry, and closes the grant by compare-and-set. Every write is idempotent on its own key:
 a redelivery answers `{status: "duplicate"}` and charges nothing. A settlement
 naming no grant or the wrong hold is `422` (permanent). The new unit
 `input_transcription_milliseconds` is a ledger column (migration 0159) and is
@@ -167,6 +249,12 @@ endpoint in phase 3 and must verify that signature.
 - Re-issued source approvals (scoped, Private Auto, Jev) and `decisions` grants.
 - Commercial realtime grants (the contract needs session ceiling facts).
 - `OxyServer.serviceToken({ audience: 'kaana.ai' })` in `@oxy.so/core`.
-- Kaana publishing `powerClass` in its catalogue: admitted lines still come
-  from Oxy's `inference_model_power_classes` until then.
+- A provider ranking for «same-model failover off»: Oxy no longer holds the
+  scorecards that picked the one provider, and the grant has no flag Kaana
+  could rank by, so the step is narrowed to the first provider in provider
+  order. Kaana should accept the policy and choose.
+- Customer-key (BYOK) routes: they need an Oxy-owned fee schedule outside the
+  model price lists.
+- Revisions: the declared catalogue names a model, not its revisions, so a
+  pinned `@revision` is held to the deployments Kaana publishes for it.
 - Deletion of the old edge, `@oxy.so/core/inference` and `api.oxy.so/v1` (phase 5).
