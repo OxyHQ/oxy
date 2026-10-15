@@ -2,6 +2,17 @@
  * The canonical model catalogue — reads, the serving boundary, and the
  * commercial-permission gate.
  *
+ * **Serves the old edge only (`api.oxy.so/v1` and its `/v1/models`).** Kaana ADR
+ * 0002, amendment 2026-10-15: the model catalogue — identity, licence, data
+ * policy, capabilities and list prices — is Kaana's, and the grants for
+ * `kaana.ai/v1` are rated from the `declaredCatalogue` it relays
+ * (`kaanaDeclaredCatalogue.service.ts`). Nothing on the grant or settlement
+ * path may read the tables behind this service for price or identity
+ * (`kaanaGrantCatalogueGuard.test.ts` fails if one does), there is no sync of
+ * Kaana's file into them or back, and phase 5 of the ADR deletes this service
+ * with them. Its policy helpers (`violatedConstraints`, `routingConstraintsOf`,
+ * `selectableDeploymentWhere`) are the application's, and are reused as-is.
+ *
  * Issue #972, workstreams 5 and 11. Decided in
  * `docs/adr/0008-catalogue-concept-separation.md`; the wire shapes are
  * `@oxy.so/contracts`' `inference/catalogue.ts`.
@@ -238,7 +249,7 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * request may measure one exact source-reviewed route after real legal review;
  * it does not change the public permission or assert unmeasured scorecards.
  */
-function selectableDeploymentWhere(
+export function selectableDeploymentWhere(
   viewer: CatalogueViewer,
   scopedExecution?: import('@oxy.so/contracts').ScopedExecutionAudience,
   privateAuto?: PrivateAutoCatalogueContext,

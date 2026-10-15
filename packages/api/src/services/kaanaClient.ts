@@ -58,6 +58,7 @@
  * rather than as a bare throw the caller can only answer with a full refund.
  */
 
+import type { DeploymentCommercial } from '@kaana.ai/contracts/internal';
 import type {
   DecisionAnswer,
   InferenceError,
@@ -174,6 +175,13 @@ export interface KaanaDeploymentDescriptor {
   readonly upstreamModelId?: string;
   readonly providerRateCardVersionId?: string;
   readonly providerSourceVersion?: string;
+  /**
+   * The commercial basis of this deployment, published by Kaana (Kaana ADR 0002,
+   * amendment 2026-10-15: a deployment's commercial facts are the deployment's
+   * and the provider's, not Oxy's). Absent from a Kaana that does not publish it:
+   * Oxy then does not sell the route (fail closed).
+   */
+  readonly commercial?: DeploymentCommercial;
 }
 
 /** Atomic identity evidence for every deployment the edge may authorize. */

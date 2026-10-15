@@ -86,7 +86,6 @@ import {
   usageUnitsNonNegativeCheck,
 } from './ledgerColumns';
 import { INFERENCE_ENVIRONMENTS, usageReservations } from './usageReservations';
-import { priceVersions } from './priceVersions';
 import { users } from './users';
 
 /** `completed | partial | cancelled | failed`, from the wire contract. */
@@ -179,9 +178,14 @@ export const usageReceipts = pgTable(
     }),
 
     // ---- what it cost ------------------------------------------------------
-    priceVersionId: text()
-      .notNull()
-      .references(() => priceVersions.id, { onDelete: 'restrict' }),
+    /**
+     * The label of the price list this receipt was settled at. NO foreign key:
+     * a receipt of `kaana.ai/v1` names Kaana's `priceVersionId`, and Oxy owns no
+     * table that resolves it. The receipt does not need one — the entries it was
+     * charged at are copied into `usage_receipt_unit_prices`, which is what its
+     * arithmetic is checked against.
+     */
+    priceVersionId: text().notNull(),
     billedAmount: exactAmount().notNull(),
     currency: currencyCode(),
     platformFeeOnly: boolean().notNull().default(false),

@@ -104,7 +104,7 @@ import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
 import { inferenceMeteredUsage } from './inferenceMeteredUsage';
-import { kaanaGrants } from './kaanaGrants';
+import { kaanaGrantAdmittedLines, kaanaGrants } from './kaanaGrants';
 import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
@@ -127,6 +127,19 @@ export interface IdColumnWithoutForeignKey {
  */
 
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
+
+/**
+ * Why four `price_version_id` columns carry no foreign key since migration 0161.
+ * Kaana ADR 0002, amendment 2026-10-15: the model catalogue and its list prices
+ * are Kaana's, so a grant for `kaana.ai/v1` is rated at a list identified by
+ * KAANA's `priceVersionId`, which no Oxy table resolves. The column is a label;
+ * what the charge was computed from is copied next to it
+ * (`usage_receipt_unit_prices`, `kaana_grant_line_unit_prices`).
+ */
+const PRICE_VERSION_LABEL_REASON =
+  'Kaana’s `priceVersionId` for a grant of `kaana.ai/v1` (declared catalogue, contract set ' +
+  '4.3.0), or an Oxy `price_versions.id` for the old edge. A label, not a key: Oxy owns no ' +
+  'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
@@ -1050,6 +1063,26 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       'The `kid` of the Oxy edge key that signed the grant (`KAANA_EDGE_SIGNING_KEY_ID`). ' +
       "Keys live in SSM and in Kaana's `KAANA_EDGE_PUBLIC_KEYS`, never in this database.",
+  },
+  {
+    table: kaanaGrantAdmittedLines,
+    column: kaanaGrantAdmittedLines.priceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: usageReceipts,
+    column: usageReceipts.priceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: usageReservations,
+    column: usageReservations.ceilingPriceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.settledPriceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
   },
   {
     table: kaanaGrants,

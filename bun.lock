@@ -134,7 +134,7 @@
         "@aws-sdk/client-s3": "^3.1087.0",
         "@aws-sdk/lib-storage": "3.1076.0",
         "@aws-sdk/s3-request-presigner": "^3.1087.0",
-        "@kaana.ai/contracts": "4.3.0",
+        "@kaana.ai/contracts": "4.4.0",
         "@lottiefiles/dotlottie-web": "0.80.0",
         "@opentelemetry/api": "^1.9.1",
         "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
@@ -1857,7 +1857,7 @@
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
-    "@kaana.ai/contracts": ["@kaana.ai/contracts@4.3.0", "", { "dependencies": { "zod": ">=4.4.3 <4.5.0" } }, "sha512-NZIYM2HOhblRhaESrm0B5BrMQJCjz5newfPwDLnMWMPm9ANVRmDEo9CXkmBbjOKiICEZ/ZaQjMl6WIAgSnLLdw=="],
+    "@kaana.ai/contracts": ["@kaana.ai/contracts@4.4.0", "", { "dependencies": { "zod": ">=4.4.3 <4.5.0" } }, "sha512-kJB6ZtaANdkD27raxlkEvPJejJU9EaDkmvdzpIuMfFjh/1pDCHLgQJIzNBalLRT1EXj6w0ROsxBZ6bUaibXSUQ=="],
 
     "@lottiefiles/dotlottie-react": ["@lottiefiles/dotlottie-react@0.19.16", "", { "dependencies": { "@lottiefiles/dotlottie-web": "0.80.0" }, "peerDependencies": { "react": "^17 || ^18 || ^19" } }, "sha512-kf+v6tGn726XoAw6wAZb9JgVko6j+d6ppbBfe4vHlp3fjqmXoSfJt2bvxRMc6yG75c/atg8/H1uRmsViEESEeQ=="],
 

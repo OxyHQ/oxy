@@ -74,8 +74,6 @@ import {
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
-  availabilityScopeSchema,
-  commercialPermissionSchema,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
@@ -94,6 +92,10 @@ import {
   type UsageQuantity,
   type UsageSource,
 } from '@oxy.so/contracts';
+import {
+  type DeploymentCommercial,
+  deploymentCommercialSchema,
+} from '@kaana.ai/contracts/internal';
 import { z } from 'zod';
 import {
   kaanaPublicKeyBase64,
@@ -186,19 +188,13 @@ const MAX_KAANA_CATALOGUE_BYTES = 16 * 1024 * 1024;
  * so a descriptor member can never again be accepted by one reader and refused
  * by the other (the 2026-10-15 outages were exactly that).
  */
-export const kaanaDeploymentCommercialSchema = z
-  .object({
-    availabilityScope: availabilityScopeSchema,
-    commercialPermission: commercialPermissionSchema,
-    dedicatedCapacity: z.boolean().optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      (value.availabilityScope === 'byok_only') ===
-      (value.commercialPermission === 'customer_byok'),
-    { message: 'customer_byok if and only if byok_only' },
-  );
+export const kaanaDeploymentCommercialSchema = z.custom<DeploymentCommercial>(
+  // The published schema is the contract (`@kaana.ai/contracts/internal`, set
+  // 4.4.0); it is parsed by the package's own zod, so it is applied as a check
+  // here rather than nested into this module's schema.
+  (value) => deploymentCommercialSchema.safeParse(value).success,
+  'a deployment `commercial` that @kaana.ai/contracts does not accept',
+);
 
 const kaanaDeploymentAttestationSchema = z
   .object({
@@ -666,6 +662,71 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
       return responses.length === 1
         ? responses[0]
         : mergeNegotiatedCatalogueReads(responses[0], responses[1]);
+    },
+  };
+}
+
+/**
+ * Kaana's declared catalogue: the `declaredCatalogue` member of the signed
+ * `GET /internal/v1/models` (contract set 4.3.0), unparsed. Kaana ADR 0002,
+ * amendment 2026-10-15 — the catalogue, list prices included, is Kaana's, and
+ * this is how Oxy reads it to rate a grant.
+ *
+ * Its own interface because it is not the sync's read: the sync reads the
+ * negotiated `POST /internal/v1/models/query` projections, which do not carry
+ * the declared catalogue.
+ */
+export interface KaanaDeclaredCatalogueReader {
+  /** The decoded `declaredCatalogue` member, unvalidated (the cache owns the parse). */
+  readDeclaredCatalogue(signal: AbortSignal): Promise<unknown>;
+}
+
+/**
+ * A signed `GET` with an empty body. Kaana's `handleModels` verifies the same
+ * envelope signature over the (empty) request body that every other signed
+ * route verifies, so the empty body hashes like any other.
+ */
+export function createHttpKaanaDeclaredCatalogueReader(
+  config: KaanaDataPlaneConfig,
+): KaanaDeclaredCatalogueReader {
+  return {
+    async readDeclaredCatalogue(signal: AbortSignal): Promise<unknown> {
+      const body = Buffer.alloc(0);
+      const timestamp = Date.now();
+      const response = await tracedFetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
+        method: 'GET',
+        redirect: 'error',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-store',
+          [KAANA_KEY_ID_HEADER]: config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
+        },
+        cache: 'no-store',
+        signal,
+      });
+      if (!response.ok) {
+        await readBounded(response);
+        throw new KaanaProtocolError(
+          `The inference data plane refused the declared catalogue read with HTTP ${response.status}.`,
+        );
+      }
+      const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
+      let parsed: { declaredCatalogue?: unknown };
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new KaanaProtocolError(
+          'The inference data plane returned a declared catalogue that is not JSON.',
+        );
+      }
+      if (parsed === null || typeof parsed !== 'object' || parsed.declaredCatalogue === undefined) {
+        throw new KaanaProtocolError(
+          'The inference data plane returned no declaredCatalogue (contract set 4.3.0).',
+        );
+      }
+      return parsed.declaredCatalogue;
     },
   };
 }

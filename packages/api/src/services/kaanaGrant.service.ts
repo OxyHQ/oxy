@@ -15,8 +15,10 @@
  * 3. treatment             resolveEconomicTreatment — the same versioned policy
  * 4. the operation         facts → the units its hold is sized in; unsound facts refuse
  * 5. the policy            resolveEffectiveRoutingPolicy, pinned; allowed levels; default target
- * 6. steps                 per step, the model lines Oxy's catalogue qualifies, each at the
- *                          price version a settlement of it is billed at
+ * 6. steps                 per step, the model lines KAANA's catalogue declares (identity,
+ *                          audience, capabilities, list price) with the routes it publishes
+ *                          that the application's policy qualifies, each admitted at the
+ *                          priceVersionId a settlement of it is billed at
  * 7. ceiling               the dearest admitted line's quote
  * 8. capacity              claimMeteredAdmission — idempotency, relationship capacity,
  *                          Console session limits
@@ -31,8 +33,8 @@
  *
  * The payer is the owner of the AUTHENTICATED application, never the end user
  * (`billing.md`); `internal_metered` is decided only by the versioned
- * relationship (`config/inferenceEconomicPolicy.ts`); BYOK is
- * `platform_fee_only`; ADR 0037's promotional lane is a `credit`-ceilinged step
+ * relationship (`config/inferenceEconomicPolicy.ts`); a customer-key (BYOK)
+ * route is not admitted yet (`kaanaGrantRoutes.service.ts`); ADR 0037's promotional lane is a `credit`-ceilinged step
  * followed by the pilot's `xhigh` step. `docs/inference/kaana-grants.md` holds
  * the matrix lane by lane.
  *
@@ -54,7 +56,7 @@
  * already content-free; it keeps it that way.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
   type Grant,
   type GrantOperation,
@@ -88,19 +90,21 @@ import {
   type InternalMeteredPilotDeployment,
   resolveEconomicTreatment,
 } from '../config/inferenceEconomicPolicy';
-import { kaanaGrantAdmittedLines, kaanaGrantSteps, kaanaGrants } from '../db/schema/kaanaGrants';
+import {
+  kaanaGrantAdmittedLines,
+  kaanaGrantLineUnitPrices,
+  kaanaGrantSteps,
+  kaanaGrants,
+} from '../db/schema/kaanaGrants';
 import { usageReservations } from '../db/schema/usageReservations';
 import { readApplicationInferenceLimits } from './applicationInferenceLimits.service';
 import {
   type EdgePrincipal,
   PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER,
   PLATFORM_DEFAULT_ROUTING_POLICY,
-  PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR,
   PLATFORM_INTERNAL_DEFAULT_ROUTING_POLICY,
   RESERVATION_TTL_SECONDS,
   ceilingQuoteScenarios,
-  compareQualifiedRoutes,
-  modelLineOf,
   quoteRouteCeiling,
   reservationOrRefusal,
   type RouteCeilingPlan,
@@ -109,16 +113,13 @@ import {
 import {
   type EdgeCapacityRequirement,
   type EdgeModalityRequirement,
-  type EdgeRoute,
   TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
   exceedsAmount,
-  powerLevelCandidates,
-  resolveEdgeRoute,
-  resolveRoutingProfileForEdgeById,
   routingConstraintsOf,
 } from './inferenceCatalogue.service';
 import {
+  type PriceSnapshotInput,
   publishedUnitPrice,
   reserve,
   settle,
@@ -132,13 +133,23 @@ import {
 import {
   AUTO_POWER_LEVELS,
   type ConcretePowerLevel,
+  POWER_LEVEL_CLASS,
   powerLevelProfileIds,
 } from './inferencePowerLevels.service';
 import { resolveEffectiveRoutingPolicy } from './inferenceRoutingPolicy.service';
 import {
-  currentDeploymentLiveness,
-  isDeploymentPublished,
-} from './kaanaDeploymentPublication.service';
+  type DeclaredCatalogueObservation,
+  currentDeclaredCatalogue,
+} from './kaanaDeclaredCatalogue.service';
+import { currentDeploymentLiveness } from './kaanaDeploymentPublication.service';
+import {
+  type GrantLane,
+  type GrantLine,
+  type GrantLineResolution,
+  type GrantRoute,
+  powerLevelLines,
+  resolveGrantLine,
+} from './kaanaGrantRoutes.service';
 import { sha256Hex, signGrantBody, type SignedHeaders } from './kaanaGrantSigning';
 import { logger } from '../utils/logger';
 
@@ -156,10 +167,10 @@ export type GrantDecision =
     }
   | { readonly status: 'refused'; readonly httpStatus: number; readonly error: PublicError };
 
-type UnresolvedRoute = Exclude<
-  Awaited<ReturnType<typeof resolveEdgeRoute>>,
-  { readonly status: 'resolved' }
->;
+type UnresolvedRoute = Exclude<GrantLineResolution, { readonly status: 'resolved' }>;
+
+/** The ceilings a plan sizes a line's hold from: its declared capabilities. */
+type LineCeilings = Pick<GrantLine, 'maxContextTokens' | 'maxOutputTokens'>;
 
 export interface AuthorizeInferenceInput {
   readonly request: InferenceAuthorizationRequest;
@@ -287,7 +298,7 @@ interface OperationPlan {
    * quotes is the route's ceiling (`quoteRouteCeiling`). One plan for every
    * operation but a realtime session.
    */
-  plans(route: EdgeRoute): readonly RouteCeilingPlan[];
+  plans(route: LineCeilings): readonly RouteCeilingPlan[];
 }
 
 function requireFact(value: number | undefined, param: string): number {
@@ -302,7 +313,7 @@ function requireFact(value: number | undefined, param: string): number {
 
 /** The output budget a completion route is held at: the caller's, or the most the route can write. */
 function completionOutputBudget(
-  route: Pick<EdgeRoute, 'maxOutputTokens' | 'maxContextTokens'>,
+  route: LineCeilings,
   inputTokens: number,
   requested: number | undefined,
 ): number {
@@ -543,16 +554,26 @@ interface StepPlan {
   readonly maxFundingTier: 'credit' | undefined;
   /** Exact pilot routes this step is limited to; `undefined` for none. */
   readonly pilotDeployments: readonly InternalMeteredPilotDeployment[] | undefined;
-  /** Same-model failover off: the step is served on its best provider only. */
-  readonly singleProvider: boolean;
+  /**
+   * Whether Kaana may fail over to another provider or key of the same model
+   * within the step: the application's policy, sent as `sameModelFailover` on
+   * the step limits (contract set 4.4.0).
+   */
+  readonly sameModelFailover: boolean;
 }
 
 /** An admitted line: its best route (for the usage row) and the price it settles at. */
 interface AdmittedLine {
   readonly modelLine: string;
-  readonly priceVersionId: string;
+  /** `list`: Kaana's own keys at the declared list. `byok`: the customer's key at Oxy's platform fee. */
+  readonly lane: 'list' | 'byok';
+  /**
+   * What the line settles at. `list`: the list Kaana declared (its id is the
+   * grant's `priceVersionId`). `byok`: Oxy's platform fee schedule, as a list.
+   */
+  readonly price: PriceSnapshotInput;
   readonly quote: { readonly amount: string; readonly currency: string };
-  readonly bestRoute: EdgeRoute;
+  readonly bestRoute: GrantRoute;
   readonly providers: readonly string[];
 }
 
@@ -731,6 +752,28 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     );
   }
 
+  // ---- Kaana's evidence: the catalogue it declares and the routes it publishes ----
+  // Both are read BEFORE anything is claimed or held: a grant is rated from
+  // Kaana's declared list or not at all.
+  const catalogueView = await currentDeclaredCatalogue();
+  if (catalogueView.status !== 'observed') {
+    throw new GrantRefusal(
+      'service_unavailable',
+      'The model catalogue is temporarily unavailable.',
+      { reason: `declared_catalogue:${catalogueView.status}` },
+    );
+  }
+  const catalogue: DeclaredCatalogueObservation = catalogueView;
+  const liveness = await currentDeploymentLiveness();
+  if (liveness.status !== 'observed' || liveness.routes === undefined) {
+    throw new GrantRefusal(
+      'service_unavailable',
+      'The inference routing evidence is temporarily unavailable.',
+      { reason: `routing_evidence:kaana-publication-${liveness.status}` },
+    );
+  }
+  const evidence = { catalogue, published: liveness.routes };
+
   // ---- Steps ---------------------------------------------------------------
   const policyPrice = constraints.maxPricePerRequest;
   const stepPlans: StepPlan[] = [];
@@ -745,7 +788,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
       maxFundingTier: undefined,
       pilotDeployments: pilotTerms?.deployments,
-      singleProvider: !sameModelFailover,
+      sameModelFailover,
     } as const;
     stepPlans.push({ ...step, target, candidates: [reference] });
     const crossModel =
@@ -769,7 +812,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     }
   } else {
     stepPlans.push(
-      ...(await levelStepPlans(
+      ...levelStepPlans(
         target.level,
         plan,
         pilot,
@@ -777,23 +820,8 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
         policyPrice,
         levelAllowed,
         viewer,
-      )),
-    );
-  }
-
-  const optimiseFor = await optimiseForTarget(target, policy, internalDefault, levelProfileIds);
-  const routingContext = {
-    applicationId: principal.applicationId,
-    environment: principal.environment,
-  };
-  const liveness = await currentDeploymentLiveness();
-  if (liveness.status === 'unavailable') {
-    throw new GrantRefusal(
-      'service_unavailable',
-      'The inference routing evidence is temporarily unavailable.',
-      {
-        reason: 'routing_evidence:kaana-publication-unavailable',
-      },
+        catalogue,
+      ),
     );
   }
 
@@ -804,22 +832,21 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   for (const stepPlan of stepPlans) {
     const lines: AdmittedLine[] = [];
     for (const candidate of stepPlan.candidates) {
-      const resolution = await resolveEdgeRoute(
+      const resolution = await resolveGrantLine(
+        evidence,
         viewer,
+        { applicationId: principal.applicationId, environment: principal.environment },
         candidate,
         constraints,
         plan.modality,
-        optimiseFor,
         plan.capacity,
-        routingContext,
       );
       if (resolution.status !== 'resolved') {
         if (stepPlan === stepPlans[0] && target.kind === 'model') primaryFailure ??= resolution;
         continue;
       }
-      const routes = [resolution.route, ...resolution.alternates]
-        .filter((route) => isDeploymentPublished(liveness, route.deploymentId))
-        .filter(
+      for (const lane of resolution.line.lanes) {
+        const routes = lane.routes.filter(
           (route) =>
             stepPlan.pilotDeployments === undefined ||
             stepPlan.pilotDeployments.some(
@@ -828,13 +855,11 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
                 allowed.modelReference === route.modelReference &&
                 allowed.provider === route.provider,
             ),
-        )
-        .sort((left, right) =>
-          compareQualifiedRoutes(left, right, constraints.byokPreference === 'prefer'),
         );
-      const admitted = await admitLine(routes, plan, stepPlan);
-      if (admitted === 'over-price') sawPriceExclusion = true;
-      else if (admitted !== undefined) lines.push(admitted);
+        const admitted = await admitLine(resolution.line, lane, routes, plan, stepPlan);
+        if (admitted === 'over-price') sawPriceExclusion = true;
+        else if (admitted !== undefined) lines.push(admitted);
+      }
     }
     if (lines.length > 0) {
       const providers = [...new Set(lines.flatMap((line) => line.providers))].sort();
@@ -858,30 +883,47 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     });
   }
 
-  // ---- BYOK: the customer's own key, as the edge's ranking would pick it ----
-  const primary = resolvedSteps[0]?.lines[0]?.bestRoute;
-  if (primary === undefined) {
+  // ---- Treatment: the lane the first line is served in ------------------------
+  // Lines come in lane-preference order. A grant has ONE economics, so it is
+  // served in the lane of its first line: Kaana's own keys at the declared list,
+  // or the customer's key (`platform_fee_only`, rated at Oxy's platform fee
+  // alone) with that one credential binding.
+  const primaryLine = resolvedSteps[0]?.lines[0];
+  if (primaryLine === undefined) {
     throw new GrantRefusal('no_route_available', 'No route is currently available.');
   }
+  const primary = primaryLine.bestRoute;
   const byok = primary.customerProviderCredential;
-  const treatment: Grant['economics']['treatment'] =
-    byok !== undefined ? 'platform_fee_only' : economics.treatment;
   if (byok !== undefined && economics.treatment === 'internal_metered') {
     throw new GrantRefusal(
       'policy_violation',
       'An internal relationship is not served on a customer key.',
-      {
-        reason: 'internal-byok',
-      },
+      { reason: 'internal-byok' },
     );
   }
-  const steps = byok === undefined ? resolvedSteps : byokSteps(resolvedSteps, primary);
+  const treatment: Grant['economics']['treatment'] =
+    byok !== undefined ? 'platform_fee_only' : economics.treatment;
+  const steps: ResolvedStep[] = resolvedSteps
+    .map((step) => {
+      const lines = step.lines.filter(
+        (line) =>
+          line.lane === primaryLine.lane &&
+          line.bestRoute.customerProviderCredential?.credentialHandle === byok?.credentialHandle &&
+          line.bestRoute.customerProviderCredential?.credentialRevision ===
+            byok?.credentialRevision,
+      );
+      return {
+        plan: step.plan,
+        lines,
+        providers: [...new Set(lines.flatMap((line) => line.providers))].sort(),
+      };
+    })
+    .filter((step) => step.lines.length > 0);
   if (steps.length === 0) {
     throw new GrantRefusal('no_route_available', 'No route is currently available.', {
-      reason: 'byok-no-line',
+      reason: 'no-line-in-lane',
     });
   }
-
   // ---- The ceiling: the dearest admitted line ---------------------------
   let ceilingLine: AdmittedLine | undefined;
   for (const line of steps.flatMap((step) => step.lines)) {
@@ -1005,7 +1047,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       ...(plan.maxOutputTokens === undefined || plan.maxOutputTokens <= 0
         ? {}
         : { maxOutputTokens: plan.maxOutputTokens }),
-      ceilingPriceVersionId: ceilingLine.priceVersionId,
+      ceilingPriceVersionId: ceilingLine.price.priceVersionId,
       maxAmount: ceiling.amount,
       currency: ceiling.currency,
       expiresInSeconds: RESERVATION_TTL_SECONDS,
@@ -1031,7 +1073,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
   const issuedAtMs = now();
   const grantId = uuidv7();
   // Typed by the parse below, which is the contract's own check: brands and
-  // refinements (window, treatment, BYOK) are applied there, not asserted here.
+  // refinements (window, treatment) are applied there, not asserted here.
   const grantInput = {
     schemaVersion: 1,
     grantId,
@@ -1137,6 +1179,17 @@ function refusalForResolution(
       return new GrantRefusal('model_not_found', `No model ${name} is available to you.`, {
         param: 'model',
       });
+    case 'model-not-priced':
+      // Typed, and never a zero price: Kaana declares no price per unit for
+      // this model (the BYOK-only case), or republished a price version.
+      return new GrantRefusal('no_route_available', `${name} cannot be priced per unit.`, {
+        param: 'model',
+        reason: `pricing:${resolution.error.code}`,
+      });
+    case 'platform-fee-unavailable':
+      return new GrantRefusal('no_route_available', 'No route is currently available.', {
+        reason: 'platform_fee_not_approved',
+      });
     case 'policy-excluded':
       return new GrantRefusal(
         'policy_violation',
@@ -1165,13 +1218,9 @@ function refusalForResolution(
               param: 'input',
             },
           );
-    case 'routing-evidence-unavailable':
+    case 'no-published-route':
       return new GrantRefusal('no_route_available', 'No route is currently available.', {
-        reason: `routing_evidence:${resolution.reason}`,
-      });
-    case 'customer-provider-credential-unavailable':
-      return new GrantRefusal('no_route_available', 'No route is currently available.', {
-        reason: 'customer-provider-credential-unavailable',
+        reason: 'no_published_route',
       });
   }
 }
@@ -1244,44 +1293,13 @@ async function grantTargetOf(
   );
 }
 
-/** The ranking dimension the catalogue resolver orders a target's routes by. */
-async function optimiseForTarget(
-  target: GrantTarget,
-  policy: Awaited<ReturnType<typeof resolveEffectiveRoutingPolicy>>,
-  internalDefault: boolean,
-  levelProfileIds: ReadonlyMap<PowerLevel, string>,
-): Promise<Parameters<typeof resolveEdgeRoute>[4]> {
-  if (target.kind === 'model') {
-    const optimiseFor =
-      policy.status === 'resolved'
-        ? policy.stored.policy.optimiseFor
-        : internalDefault
-          ? PLATFORM_INTERNAL_DEFAULT_OPTIMISE_FOR
-          : undefined;
-    if (optimiseFor === undefined) {
-      throw new GrantRefusal('no_route_available', 'No route is currently available.', {
-        reason: 'routing_evidence:missing-versioned-optimisation',
-      });
-    }
-    return optimiseFor;
-  }
-  const id = levelProfileIds.get(target.level);
-  const resolution = id === undefined ? undefined : await resolveRoutingProfileForEdgeById(id);
-  if (resolution?.status !== 'power-level') {
-    throw new GrantRefusal('no_route_available', 'No route is currently available.', {
-      reason: 'unknown_power_level',
-    });
-  }
-  return resolution.optimiseFor;
-}
-
 /**
  * The steps of a power-level target. `auto` is ONE step over every level it may
  * climb to (Kaana decides, by content); a promotional level named by an
  * internal relationship (ADR 0037) is two: the level on credit only, then the
  * pilot's fallback level on its exact routes.
  */
-async function levelStepPlans(
+function levelStepPlans(
   level: PowerLevel,
   plan: OperationPlan,
   pilot: InternalMeteredPilot | undefined,
@@ -1289,21 +1307,23 @@ async function levelStepPlans(
   policyPrice: { readonly amount: string; readonly currency: string } | undefined,
   levelAllowed: (level: PowerLevel) => boolean,
   viewer: ReturnType<typeof viewerForPrincipal>,
-): Promise<StepPlan[]> {
-  const linesOf = async (levels: readonly ConcretePowerLevel[]): Promise<string[]> =>
-    (await powerLevelCandidates(viewer, levels)).map((candidate) => candidate.modelReference);
+  catalogue: DeclaredCatalogueObservation,
+): StepPlan[] {
+  // A level's lines are the models Kaana declares in its power class.
+  const linesOf = (levels: readonly ConcretePowerLevel[]): string[] =>
+    powerLevelLines(catalogue, viewer, levels, (concrete) => POWER_LEVEL_CLASS[concrete]);
   const ordinary = {
     maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
     maxFundingTier: undefined,
     pilotDeployments: pilotTerms?.deployments,
-    singleProvider: false,
+    sameModelFailover: true,
   } as const;
 
   if (level === 'auto') {
     // Every level `auto` may land on (it never climbs past `AUTO_CEILING`),
     // narrowed by the application's allowed levels; Kaana picks among them.
     const levels = AUTO_POWER_LEVELS.filter(levelAllowed);
-    return [{ ...ordinary, target: { kind: 'level', level }, candidates: await linesOf(levels) }];
+    return [{ ...ordinary, target: { kind: 'level', level }, candidates: linesOf(levels) }];
   }
 
   const lane = pilot?.promotionalCredit;
@@ -1311,18 +1331,18 @@ async function levelStepPlans(
     const steps: StepPlan[] = [
       {
         target: { kind: 'level', level },
-        candidates: await linesOf([level]),
+        candidates: linesOf([level]),
         maxPrice: tighterPrice(policyPrice, lane.maxPricePerRequestUsd),
         maxFundingTier: 'credit',
         pilotDeployments: undefined,
-        singleProvider: false,
+        sameModelFailover: true,
       },
     ];
     if (lane.fallbackLevel !== level && levelAllowed(lane.fallbackLevel)) {
       steps.push({
         ...ordinary,
         target: { kind: 'level', level: lane.fallbackLevel },
-        candidates: await linesOf([lane.fallbackLevel]),
+        candidates: linesOf([lane.fallbackLevel]),
       });
     }
     return steps;
@@ -1331,81 +1351,59 @@ async function levelStepPlans(
     {
       ...ordinary,
       target: { kind: 'level', level },
-      candidates: await linesOf([level as ConcretePowerLevel]),
+      candidates: linesOf([level as ConcretePowerLevel]),
     },
   ];
 }
 
 /**
- * Admit one model line under a step: quote each qualified route, keep the ones
- * under the step's price ceiling, and settle the line at its DEAREST surviving
- * route's price version — the line's list price for this grant, so the hold
- * covers whichever of them Kaana serves and the price never depends on its
- * choice (ADR 0002 decision 4).
+ * Admit one lane of a model line under a step: quote it at the lane's price (the
+ * list Kaana declared, or Oxy's platform fee for the customer's own key) and
+ * keep it if that is under the step's price ceiling. There is one price per
+ * lane, so the hold covers whichever route Kaana serves.
+ *
+ * ALL the eligible routes are admitted: the providers are every one the
+ * application's policy qualified, and Kaana chooses among them — cheapest first,
+ * with failover and recovery (owner decision 2026-10-12). The customer's own
+ * key is the exception, by construction: the grant carries ONE credential, so a
+ * `byok` line is admitted for the provider that credential belongs to.
  */
 async function admitLine(
-  routes: readonly EdgeRoute[],
+  line: GrantLine,
+  lane: GrantLane,
+  routes: readonly GrantRoute[],
   plan: OperationPlan,
   step: StepPlan,
 ): Promise<AdmittedLine | 'over-price' | undefined> {
-  let sawOverPrice = false;
-  const survivors: { route: EdgeRoute; quote: { amount: string; currency: string } }[] = [];
-  for (const route of routes) {
-    if (
-      plan.family === 'transcription' &&
-      (await publishedUnitPrice(route.priceVersionId, 'output_tokens')) === 'positive'
-    ) {
-      // A transcript's text has no bound in the facts; a route that charges for
-      // it could settle above any hold sized from them.
-      continue;
-    }
-    const quote = await quoteRouteCeiling(route.priceVersionId, plan.plans(route));
-    if (quote.status !== 'quoted') continue;
-    const ceiling = step.maxPrice;
-    if (
-      ceiling !== undefined &&
-      (quote.currency !== ceiling.currency || exceedsAmount(quote.amount, ceiling.amount))
-    ) {
-      sawOverPrice = true;
-      continue;
-    }
-    survivors.push({ route, quote: { amount: quote.amount, currency: quote.currency } });
+  const best = routes[0];
+  if (best === undefined) return undefined;
+  if (
+    plan.family === 'transcription' &&
+    (await publishedUnitPrice(lane.price, 'output_tokens')) === 'positive'
+  ) {
+    // A transcript's text has no bound in the facts; a line that charges for it
+    // could settle above any hold sized from them.
+    return undefined;
   }
-  const best = survivors[0];
-  if (best === undefined) return sawOverPrice ? 'over-price' : undefined;
-  const served = step.singleProvider
-    ? survivors.filter((entry) => entry.route.provider === best.route.provider)
-    : survivors;
-  let dearest = best;
-  for (const entry of served) {
-    if (entry.quote.currency !== dearest.quote.currency) continue;
-    if (exceedsAmount(entry.quote.amount, dearest.quote.amount)) dearest = entry;
+  const quote = await quoteRouteCeiling(lane.price, plan.plans(line));
+  if (quote.status !== 'quoted') return undefined;
+  const ceiling = step.maxPrice;
+  if (
+    ceiling !== undefined &&
+    (quote.currency !== ceiling.currency || exceedsAmount(quote.amount, ceiling.amount))
+  ) {
+    return 'over-price';
   }
+  const served =
+    lane.kind === 'byok' ? routes.filter((route) => route.provider === best.provider) : routes;
   return {
-    modelLine: modelLineOf(best.route.modelReference),
-    priceVersionId: dearest.route.priceVersionId,
-    quote: dearest.quote,
-    bestRoute: best.route,
-    providers: [...new Set(served.map((entry) => entry.route.provider))],
+    modelLine: line.modelLine,
+    lane: lane.kind,
+    price: lane.price,
+    quote: { amount: quote.amount, currency: quote.currency },
+    bestRoute: best,
+    providers: [...new Set(served.map((route) => route.provider))],
   };
-}
-
-/** Steps restricted to the customer's own key: only lines it serves, at its fee. */
-function byokSteps(steps: readonly ResolvedStep[], primary: EdgeRoute): ResolvedStep[] {
-  const binding = primary.customerProviderCredential;
-  return steps
-    .map((step) => ({
-      ...step,
-      lines: step.lines.filter(
-        (line) =>
-          line.bestRoute.customerProviderCredential?.credentialHandle ===
-            binding?.credentialHandle &&
-          line.bestRoute.customerProviderCredential?.credentialRevision ===
-            binding?.credentialRevision,
-      ),
-      providers: [primary.provider],
-    }))
-    .filter((step) => step.lines.length > 0);
 }
 
 /** A resolved step as the grant carries it: the policy's values, Kaana filters by them. */
@@ -1423,11 +1421,14 @@ function grantStepOf(
         : { maxFundingTier: step.plan.maxFundingTier }),
       admittedModelLines: step.lines.map((line) => ({
         modelLine: line.modelLine,
-        priceVersionId: line.priceVersionId,
+        priceVersionId: line.price.priceVersionId,
       })),
-      // Only providers Oxy's catalogue qualified for this request under every
-      // policy control it enforces (data retention, training, regions, licences):
-      // Kaana may choose among them, never outside them.
+      // Every provider that serves the line, that Kaana says may be sold to this
+      // audience, and that the application's policy qualifies (data retention,
+      // training, regions, licences): Kaana chooses among them and fails over
+      // within them, never outside.
+      // Whether Kaana may fail over within the step is the policy's, sent as is.
+      sameModelFailover: step.plan.sameModelFailover,
       providerAllowlist: [...step.providers],
       providerDenylist: constraints.providerDenylist.filter(
         (provider) => !step.providers.includes(provider),
@@ -1523,13 +1524,35 @@ async function recordGrant(record: GrantRecord): Promise<void> {
         maxPriceAmount: step.limits.maxPricePerRequest?.amount ?? null,
         maxPriceCurrency: step.limits.maxPricePerRequest?.currency ?? null,
       });
+      const admitted = record.steps[stepIndex]?.lines ?? [];
       await tx.insert(kaanaGrantAdmittedLines).values(
-        step.limits.admittedModelLines.map((line) => ({
-          grantId: grant.grantId,
-          stepIndex,
-          modelLine: line.modelLine,
-          priceVersionId: line.priceVersionId,
-        })),
+        step.limits.admittedModelLines.map((line) => {
+          const priced = admitted.find((candidate) => candidate.modelLine === line.modelLine);
+          if (priced === undefined || priced.price.priceVersionId !== line.priceVersionId) {
+            throw new Error(`the grant admits ${line.modelLine} at a list it did not price`);
+          }
+          return {
+            grantId: grant.grantId,
+            stepIndex,
+            modelLine: line.modelLine,
+            priceVersionId: line.priceVersionId,
+            currency: priced.price.currency,
+          };
+        }),
+      );
+      // The list the line was rated at, copied: the settlement rates at THESE
+      // entries, whatever Kaana declares afterwards.
+      await tx.insert(kaanaGrantLineUnitPrices).values(
+        admitted.flatMap((line) =>
+          line.price.unitPrices.map((entry) => ({
+            grantId: grant.grantId,
+            stepIndex,
+            modelLine: line.modelLine,
+            unit: entry.unit,
+            amount: entry.amount,
+            per: entry.per,
+          })),
+        ),
       );
     }
   });
@@ -1558,7 +1581,8 @@ async function releaseUnsignedGrant(
     units: {},
     resolvedModelReference: ceilingLine.bestRoute.modelReference,
     servingProvider: ceilingLine.bestRoute.provider,
-    priceVersionId: ceilingLine.priceVersionId,
+    priceVersionId: ceilingLine.price.priceVersionId,
+    priceSnapshot: ceilingLine.price,
   }).catch((error: unknown) =>
     logger.error(
       'inference.grant.release_failed',
@@ -1570,15 +1594,17 @@ async function releaseUnsignedGrant(
   );
 }
 
-/** Read a stored grant's steps and admitted lines, by step. */
+/** A stored grant's step: its funding ceiling and the lists its lines were rated at. */
+export interface StoredGrantStep {
+  readonly maxFundingTier: string | null;
+  /** By model line: exactly the list the grant was signed with. */
+  readonly lines: ReadonlyMap<string, PriceSnapshotInput>;
+}
+
+/** Read a stored grant's steps and admitted lines, with their price lists, by step. */
 export async function readGrantLines(
   grantId: string,
-): Promise<
-  ReadonlyMap<
-    number,
-    { readonly maxFundingTier: string | null; readonly lines: ReadonlyMap<string, string> }
-  >
-> {
+): Promise<ReadonlyMap<number, StoredGrantStep>> {
   const db = getDb();
   const steps = await db
     .select({
@@ -1592,13 +1618,34 @@ export async function readGrantLines(
       stepIndex: kaanaGrantAdmittedLines.stepIndex,
       modelLine: kaanaGrantAdmittedLines.modelLine,
       priceVersionId: kaanaGrantAdmittedLines.priceVersionId,
+      currency: kaanaGrantAdmittedLines.currency,
     })
     .from(kaanaGrantAdmittedLines)
-    .where(and(eq(kaanaGrantAdmittedLines.grantId, grantId)));
-  const byStep = new Map<number, { maxFundingTier: string | null; lines: Map<string, string> }>();
+    .where(eq(kaanaGrantAdmittedLines.grantId, grantId));
+  const unitPrices = await db
+    .select({
+      stepIndex: kaanaGrantLineUnitPrices.stepIndex,
+      modelLine: kaanaGrantLineUnitPrices.modelLine,
+      unit: kaanaGrantLineUnitPrices.unit,
+      amount: kaanaGrantLineUnitPrices.amount,
+      per: kaanaGrantLineUnitPrices.per,
+    })
+    .from(kaanaGrantLineUnitPrices)
+    .where(eq(kaanaGrantLineUnitPrices.grantId, grantId));
+  const byStep = new Map<
+    number,
+    { maxFundingTier: string | null; lines: Map<string, PriceSnapshotInput> }
+  >();
   for (const step of steps)
     byStep.set(step.stepIndex, { maxFundingTier: step.maxFundingTier, lines: new Map() });
-  for (const line of lines)
-    byStep.get(line.stepIndex)?.lines.set(line.modelLine, line.priceVersionId);
+  for (const line of lines) {
+    byStep.get(line.stepIndex)?.lines.set(line.modelLine, {
+      priceVersionId: line.priceVersionId,
+      currency: line.currency,
+      unitPrices: unitPrices
+        .filter((entry) => entry.stepIndex === line.stepIndex && entry.modelLine === line.modelLine)
+        .map((entry) => ({ unit: entry.unit, amount: entry.amount, per: entry.per })),
+    });
+  }
   return byStep;
 }

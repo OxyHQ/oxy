@@ -1149,6 +1149,13 @@
       "when": 1792071458323,
       "tag": "0164_one_email_many_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1792086314645,
+      "tag": "0165_kaana_grants_own_their_prices",
+      "breakpoints": true
     }
   ]
 }
