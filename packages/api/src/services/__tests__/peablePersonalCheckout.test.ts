@@ -276,8 +276,11 @@ it('records the approved issuer and renewal choices without treating them as fis
     approved: false,
     issuerBrandApproved: true,
     taxIdentifier: null,
-    registrationJurisdiction: null,
-    legalNameStatus: 'user_proposed_not_independently_verified',
+    registrationJurisdiction: 'US-DE',
+    legalNameStatus: 'user_attested',
+    entityType: 'C Corporation',
+    taxIdentifierStatus: 'provided_in_private_operator_identity',
+    issuerIdentityRef: 'operator:oxy-issuer-identity',
   });
   expect(proposed.faircoinRenewal).toEqual({
     customerChoices: ['manual_monthly', 'automatic_revocable'],

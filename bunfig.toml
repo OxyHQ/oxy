@@ -27,4 +27,7 @@ minimumReleaseAgeExcludes = [
   "@alia.onl/sdk",
   "@oxy.so/bloom",
   "@oxy.so/contracts",
+  "@peable.to/contracts",
+  "@peable.to/sdk",
+  "@peable.to/shared-types",
 ]

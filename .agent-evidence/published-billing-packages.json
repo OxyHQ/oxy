@@ -1,0 +1,22 @@
+{
+  "sourceRepository": "https://github.com/OxyHQ/Peable",
+  "sourceCommit": "470db87fd0a3f1a7dc22ac28cba604f477486b30",
+  "purpose": "Published owning packages. Registry tarballs downloaded independently and compared byte-for-byte with the source build.",
+  "packages": {
+    "@peable.to/contracts": {
+      "version": "0.1.0",
+      "sha256": "1f8cb7df5410fd3ad68b90057f7bc6c7892018c6d55d1a12c58a8904244ce635",
+      "sha512": "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="
+    },
+    "@peable.to/shared-types": {
+      "version": "0.3.4-oxy-one.0",
+      "sha256": "7a7718995254b94df8753c2740d5b945749900cc044ab694f26f642ead50f4a6",
+      "sha512": "sha512-JF4+RmAYtMYkmrtOcW2Xo6FYOGMdHXvOA7Jx517zDNfttQqTtj3a1uuyC+Ko+R0CviPUgQQxqaGlEmbgVQxabw=="
+    },
+    "@peable.to/sdk": {
+      "version": "0.2.7-oxy-one.1",
+      "sha256": "381a650963d5306b4445cd6249832830850754e3f67a4106eeef80235c780eff",
+      "sha512": "sha512-0deqObvvzXQu3fMEtykG7m4Jhs3Zd7vBb1lMVMO9k44XSvuahUL4hDl3VafKgJjEEvxEsCFpoJ0ZXuMA6ve0BA=="
+    }
+  }
+}

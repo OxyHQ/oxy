@@ -461,7 +461,7 @@
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",
-        "@oxy.so/contracts": "workspace:4.14.0",
+        "@oxy.so/contracts": "workspace:4.15.0",
         "@oxy.so/protocol": "workspace:^",
         "@oxy.so/telemetry": "workspace:^",
         "@scure/bip39": "^1.6.0",
@@ -960,9 +960,6 @@
     "@expo/cli": "file:./vendor/expo-native/oxy.so-expo-cli-native-57.0.23+oxy.native.3.tgz",
     "@expo/code-signing-certificates": "file:./vendor/expo-native/oxy.so-expo-code-signing-native-0.1.2.tgz",
     "@oxy.so/bloom": "catalog:",
-    "@peable.to/contracts": "file:vendor/display/peable.to-contracts-0.1.0-4ec784e4c.tgz",
-    "@peable.to/sdk": "file:vendor/display/peable.to-sdk-0.2.7-oxy-one.1-037650339.tgz",
-    "@peable.to/shared-types": "file:vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-4ec784e4c.tgz",
     "@radix-ui/react-slot": "1.2.3",
     "@types/express": "catalog:",
     "@types/express-serve-static-core": "4.19.9",
@@ -2068,11 +2065,11 @@
 
     "@parcel/watcher-win32-x64": ["@parcel/watcher-win32-x64@2.6.0", "", { "os": "win32", "cpu": "x64" }, "sha512-cA+/pXV2YkfxlIcXOQ5fSWqAzzPyD78/x5qbK/I0vUkrlYHA8TIz+MXjAbGouguKVSI4bOmkTSJ1/poVSsgt+A=="],
 
-    "@peable.to/contracts": ["@peable.to/contracts@vendor/display/peable.to-contracts-0.1.0-4ec784e4c.tgz", { "dependencies": { "zod": "^4.3.6" } }, "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="],
+    "@peable.to/contracts": ["@peable.to/contracts@0.1.0", "", { "dependencies": { "zod": "^4.3.6" } }, "sha512-plGdQ0rLT/you4j08OK7DI0QRv20dxVam8MgVz0PMear554WYZ+fF9AD90ld6ST5RpJqt07SMbF2WBB9oEf98w=="],
 
-    "@peable.to/sdk": ["@peable.to/sdk@vendor/display/peable.to-sdk-0.2.7-oxy-one.1-037650339.tgz", { "dependencies": { "@fairco.in/core": "0.5.0", "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.3.4-oxy-one.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-0deqObvvzXQu3fMEtykG7m4Jhs3Zd7vBb1lMVMO9k44XSvuahUL4hDl3VafKgJjEEvxEsCFpoJ0ZXuMA6ve0BA=="],
+    "@peable.to/sdk": ["@peable.to/sdk@0.2.7-oxy-one.1", "", { "dependencies": { "@fairco.in/core": "0.5.0", "@peable.to/contracts": "0.1.0", "@peable.to/shared-types": "0.3.4-oxy-one.0", "qrcode-generator": "^2.0.4", "socket.io-client": "^4.8.3" } }, "sha512-0deqObvvzXQu3fMEtykG7m4Jhs3Zd7vBb1lMVMO9k44XSvuahUL4hDl3VafKgJjEEvxEsCFpoJ0ZXuMA6ve0BA=="],
 
-    "@peable.to/shared-types": ["@peable.to/shared-types@vendor/display/peable.to-shared-types-0.3.4-oxy-one.0-4ec784e4c.tgz", { "dependencies": { "@peable.to/contracts": "0.1.0" } }, "sha512-JF4+RmAYtMYkmrtOcW2Xo6FYOGMdHXvOA7Jx517zDNfttQqTtj3a1uuyC+Ko+R0CviPUgQQxqaGlEmbgVQxabw=="],
+    "@peable.to/shared-types": ["@peable.to/shared-types@0.3.4-oxy-one.0", "", { "dependencies": { "@peable.to/contracts": "0.1.0" } }, "sha512-JF4+RmAYtMYkmrtOcW2Xo6FYOGMdHXvOA7Jx517zDNfttQqTtj3a1uuyC+Ko+R0CviPUgQQxqaGlEmbgVQxabw=="],
 
     "@peculiar/asn1-csr": ["@peculiar/asn1-csr@2.10.0", "", { "dependencies": { "@peculiar/asn1-schema": "^2.10.0", "@peculiar/asn1-x509": "^2.10.0", "asn1js": "^3.0.10", "tslib": "^2.8.1" } }, "sha512-jTPTr/9rxKM+niQLMF3jiAMb0lWHUhUHIuSOhdGCIfpB4FAQYf9SoiXOgxP8bS/68IB+bj+1OHvVnDVCQfVUZw=="],
 

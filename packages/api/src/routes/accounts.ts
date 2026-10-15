@@ -1,5 +1,4 @@
 import type { OrganizationType } from '@oxy.so/contracts';
-import { z } from 'zod';
 import { accountInvitationService } from '../services/accountInvitation.service';
 import express from 'express';
 import type { Request } from 'express';
@@ -46,6 +45,9 @@ import {
   type AccountRole,
 } from '../utils/accountRoles';
 import {
+  accountInvitationInputSchema,
+  accountInvitationTokenSchema,
+  accountInvitationAcceptanceSchema,
   accountAuditQuerySchema,
   accountBillingAuditQuerySchema,
   accountIdRouteParams,
@@ -831,16 +833,10 @@ router.post('/:id/members', membersLimiter, (_req, res) => {
     .json({ message: 'Use account invitations; access requires recipient confirmation' });
 });
 
-const invitationInput = z.object({
-  email: z.string().trim().email().max(254),
-  role: z.enum(['admin', 'editor', 'developer', 'billing', 'viewer']),
-  inherit: z.boolean().optional(),
-});
-const invitationToken = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
 router.post(
   '/invitations/preview',
   readLimiter,
-  validate({ body: invitationToken }),
+  validate({ body: accountInvitationTokenSchema }),
   asyncHandler(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json(await accountInvitationService.preview(req.body.token));
@@ -850,7 +846,7 @@ router.post(
   '/invitations/accept',
   membersLimiter,
   validate({
-    body: invitationToken.extend({ confirmed: z.literal(true), selectedUserId: z.string().min(1) }),
+    body: accountInvitationAcceptanceSchema,
   }),
   asyncHandler(async (req: AuthRequest, res) => {
     const subject = resolveSubjectId(req);
@@ -872,7 +868,7 @@ router.get(
 router.post(
   '/:id/invitations',
   membersLimiter,
-  validate({ body: invitationInput }),
+  validate({ body: accountInvitationInputSchema }),
   asyncHandler(async (req: AuthRequest, res) => {
     res.status(201).json({
       invitation: await accountInvitationService.create(
