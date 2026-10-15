@@ -6,10 +6,13 @@
     "legalName": "The Oxy Collective, Inc.",
     "approved": false,
     "taxIdentifier": null,
-    "registrationJurisdiction": null,
+    "registrationJurisdiction": "US-DE",
     "intendedBrand": "Oxy",
-    "legalNameStatus": "user_proposed_not_independently_verified",
-    "issuerBrandApproved": true
+    "legalNameStatus": "user_attested",
+    "issuerBrandApproved": true,
+    "entityType": "C Corporation",
+    "taxIdentifierStatus": "provided_in_private_operator_identity",
+    "issuerIdentityRef": "operator:oxy-issuer-identity"
   },
   "commercialScope": "all_countries_requested_not_fiscal_coverage",
   "offer": {

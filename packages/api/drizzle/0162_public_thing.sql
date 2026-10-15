@@ -1,3 +1,0 @@
--- oxy:deploy-phase=pre
-ALTER TABLE "personal_plan_checkout_intents" ADD COLUMN "renewal_source_id" text;--> statement-breakpoint
-ALTER TABLE "personal_plan_checkout_intents" ADD CONSTRAINT "personal_plan_checkout_intents_renewal_source_id_access_subscription_sources_id_fk" FOREIGN KEY ("renewal_source_id") REFERENCES "public"."access_subscription_sources"("id") ON DELETE restrict ON UPDATE no action;

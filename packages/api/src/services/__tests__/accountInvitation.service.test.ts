@@ -4,6 +4,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { accountInvitations } from '../../db/schema/accountInvitations';
+import { organizationProfiles } from '../../db/schema/organizationProfiles';
 import { accountInvitationService as invitations } from '../accountInvitation.service';
 import { sendAccountInvitation } from '../accountEmail.mail';
 
@@ -18,16 +19,25 @@ beforeAll(() => connectPostgres());
 afterAll(() => closePostgres());
 beforeEach(() => send.mockReset());
 async function person(kind: 'personal' | 'organization' = 'personal') {
-  const [row] = await getDb()
-    .insert(users)
-    .values({
-      kind,
-      username: `invite-${randomBytes(8).toString('hex')}`,
-      color: 'blue',
-      email: `${randomBytes(8).toString('hex')}@example.com`,
-    })
-    .returning({ id: users.id });
-  return row.id;
+  return getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .insert(users)
+      .values({
+        kind,
+        username: `invite-${randomBytes(8).toString('hex')}`,
+        color: 'blue',
+        email: `${randomBytes(8).toString('hex')}@example.com`,
+      })
+      .returning({ id: users.id });
+    if (kind === 'organization') {
+      await tx.insert(organizationProfiles).values({
+        accountId: row.id,
+        claimStatus: 'claimed',
+        status: 'active',
+      });
+    }
+    return row.id;
+  });
 }
 async function fixture() {
   const owner = await person();
@@ -151,3 +161,29 @@ test('cancellation racing acceptance has one winner and never grants after a suc
     cancel.status === 'fulfilled' ? 0 : 1,
   );
 });
+
+test('claimed organization invitations retain explicit acceptance', async () => {
+  const f = await fixture();
+  expect(await memberRows(f.account, f.recipient)).toHaveLength(0);
+  await invitations.accept(f.token, f.recipient);
+  expect(await memberRows(f.account, f.recipient)).toEqual([
+    expect.objectContaining({ status: 'active', role: 'editor' }),
+  ]);
+});
+
+test.each(['inactive', 'suppressed'] as const)(
+  'organization status %s revokes invitation authority before consumption',
+  async (status) => {
+    const f = await fixture();
+    await getDb()
+      .update(organizationProfiles)
+      .set({ status })
+      .where(eq(organizationProfiles.accountId, f.account));
+    await expect(invitations.accept(f.token, f.recipient)).rejects.toThrow(/cannot grant/);
+    await expect(invitations.resend(f.account, f.owner, f.invitation.id)).rejects.toThrow(
+      /cannot grant/,
+    );
+    expect(await memberRows(f.account, f.recipient)).toHaveLength(0);
+    await invitations.preview(f.token);
+  },
+);
