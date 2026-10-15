@@ -371,6 +371,81 @@ describe('PUT /users/resolve — Oxy identity authority', () => {
     expect(new Set(mappings.map((mapping) => mapping.userId)).size).toBe(1);
   });
 
+  /**
+   * A Mastodon whose accounts live on the bare domain and whose actors live on
+   * a subdomain (`@alice@split.example`, actor at `social.split.example`).
+   */
+  function serveSplitDomainAccount(local: string) {
+    const uri = `https://social.split.example/users/${local}`;
+    mockSafeFetch.mockImplementation(async (url: string) =>
+      url === uri
+        ? webFingerResult(200, publishedActor(uri, { webfinger: `${local}@split.example` }))
+        : url.startsWith('https://split.example/.well-known/webfinger?')
+          ? webFingerResult(200, {
+              subject: `acct:${local}@split.example`,
+              links: [{ rel: 'self', type: 'application/activity+json', href: uri }],
+            })
+          : webFingerResult(404, {}),
+    );
+    return uri;
+  }
+
+  it('registers a split-domain account under its verified handle, keyed by its actor-host transport', async () => {
+    const local = `split${token()}`;
+    const uri = serveSplitDomainAccount(local);
+    const resolved = await resolveUser(
+      { actorUri: uri, transportAcct: `${local}@split.example`, protocol: 'activitypub' },
+      '/federation/identities/resolve',
+    );
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data?.externalIdentity).toMatchObject({
+      actorUri: uri,
+      canonicalAcct: `${local}@split.example`,
+      transportAcct: `${local}@social.split.example`,
+    });
+  });
+
+  it('converges a split-domain account registered under its actor host instead of refusing every resolve', async () => {
+    const local = `split${token()}`;
+    const uri = serveSplitDomainAccount(local);
+    // As the registry backfill (or a resolve whose WebFinger binding failed)
+    // left it: the actor-host handle as both canonical and transport.
+    const hostForm = `${local}@social.split.example`;
+    const id = await account({
+      type: 'federated',
+      username: hostForm,
+      federationActorUri: uri,
+      federationDomain: 'social.split.example',
+    });
+    await getDb()
+      .insert(externalIdentities)
+      .values({ canonicalAcct: hostForm, userId: id, network: 'social.split.example' });
+    await getDb().insert(externalIdentityActors).values({
+      actorUri: uri,
+      canonicalAcct: hostForm,
+      transportAcct: hostForm,
+      protocol: 'activitypub',
+    });
+
+    const resolved = await resolveUser(
+      { actorUri: uri, transportAcct: `${local}@split.example`, protocol: 'activitypub' },
+      '/federation/identities/resolve',
+    );
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.data?.externalIdentity).toMatchObject({
+      actorUri: uri,
+      canonicalAcct: `${local}@split.example`,
+      userId: id,
+    });
+    expect((await storedByActorUri(uri)).username).toBe(`${local}@split.example`);
+    const lookup = await resolveUser(
+      { identifiers: [`${local}@split.example`, hostForm] },
+      '/federation/identities/lookup',
+    );
+    const mappings = lookup.body.data?.identities as Array<{ userId: string }>;
+    expect(mappings.map((mapping) => mapping.userId)).toEqual([id, id]);
+  });
+
   it('refuses ambiguous resolve input before fetching', async () => {
     expect(
       (
