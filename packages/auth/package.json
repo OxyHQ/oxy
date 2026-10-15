@@ -27,7 +27,7 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "react-native-web": "^0.21.2",
-    "react-router-dom": "^7.18.2",
+    "react-router-dom": "^7.18.4",
     "tailwindcss": "^4.3.3",
     "zod": "^3.25.67"
   },
