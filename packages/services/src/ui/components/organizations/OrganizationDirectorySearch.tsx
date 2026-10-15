@@ -133,7 +133,6 @@ export function OrganizationDirectorySearch({
     );
   return (
     <View className="gap-space-16">
-      <Text>{t('organizationDirectory.searchHint')}</Text>
       <TextField>
         <TextFieldInput
           label={t('organizationDirectory.search')}

@@ -124,18 +124,18 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
   const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
   const { t, locale } = useI18n();
 
-  useSurfaceHeader({
-    title: t('accounts.create.title') || 'Create account',
-    subtitle:
-      t('accounts.create.subtitle') ||
-      'Create an account you control. It will have its own profile, members, and apps.',
-  });
-
   const parentId = typeof parentAccountId === 'string' ? parentAccountId : undefined;
 
   const [kind, setKind] = useState<CreatableAccountKind>('project');
   const [organizationType, setOrganizationType] = useState<OrganizationType>('business');
   const [newOrganization, setNewOrganization] = useState(false);
+  const findingOrganization = kind === 'organization' && !newOrganization;
+  useSurfaceHeader({
+    title: t(findingOrganization ? 'organizationDirectory.title' : 'accounts.create.title'),
+    subtitle: t(
+      findingOrganization ? 'organizationDirectory.searchHint' : 'accounts.create.subtitle',
+    ),
+  });
   /**
    * ORDER IS THE DATA: index 0 is the primary category. Selecting appends,
    * de-selecting removes, and neither sorts — so the list the user assembles is
