@@ -1,4 +1,7 @@
 import {
+  messagingSessionsInputSchema,
+  messagingSessionsResponseSchema,
+  type MessagingSessionsInput,
   safetyPeopleInputSchema,
   safetyPeopleResponseSchema,
   type SafetyPeopleInput,
@@ -120,6 +123,11 @@ export class SafetyApi {
         messageAccessBatchInputSchema.parse(input),
         options,
       ),
+    );
+  }
+  async messagingSessions(input: MessagingSessionsInput) {
+    return messagingSessionsResponseSchema.parse(
+      await this.service('messaging-sessions', messagingSessionsInputSchema.parse(input)),
     );
   }
   async deliveryAccessBatch(input: DeliveryAccessBatchInput) {

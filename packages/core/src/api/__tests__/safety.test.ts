@@ -108,4 +108,29 @@ describe('canonical profile access context', () => {
       oxy.safety.messageAccessBatch({ items }, { accessToken: 'original' }),
     ).rejects.toThrow();
   });
+  it('uses the reviewed service lane for socket proof batches without anonymous fallback', async () => {
+    const oxy = new OxyServer({
+      baseURL: 'http://test.invalid',
+      serviceAuth: { apiKey: 'key', apiSecret: 'secret' },
+    });
+    const input = { items: [{ requestId: 'socket', accessToken: 'original' }] };
+    const service = jest
+      .spyOn(oxy, 'serviceRequest')
+      .mockResolvedValue({ items: [{ requestId: 'socket', allowed: false }] });
+    expect(await oxy.safety.messagingSessions(input)).toEqual({
+      items: [{ requestId: 'socket', allowed: false }],
+    });
+    expect(service).toHaveBeenCalledWith(
+      'POST',
+      '/safety/service/messaging-sessions',
+      input,
+      expect.objectContaining({
+        serviceTokenScopes: ['safety:decide'],
+        cache: false,
+        retry: false,
+      }),
+    );
+    service.mockRejectedValueOnce(new Error('authority unavailable'));
+    await expect(oxy.safety.messagingSessions(input)).rejects.toThrow('authority unavailable');
+  });
 });

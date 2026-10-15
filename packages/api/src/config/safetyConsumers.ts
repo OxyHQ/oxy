@@ -6,7 +6,8 @@ export const SAFETY_CONSUMERS = {
     ownerAccountId: '01a0646a-078f-7f53-848d-a0f82d9f7fa6',
     type: 'internal',
     roles: ['oxy-clarity-task'],
-    candidateActions: ['profile'],
+    // Experience only: privacy plus unrated-content refusal; no inference or general Clarity content support.
+    candidateActions: ['profile', 'content'],
   },
   mention: {
     applicationId: '6a2f851751b784a86fd0e916',
