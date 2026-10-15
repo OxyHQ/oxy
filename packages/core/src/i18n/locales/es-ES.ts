@@ -1,5 +1,18 @@
 const dict = {
   organizationDirectory: {
+    review: {
+      title: 'Revisar solicitudes de acceso a organizaciones',
+      forbidden: 'Esta acción requiere autorización vigente del personal de Oxy.',
+      empty: 'No hay solicitudes pendientes de revisión.',
+      hint: 'Revisa la documentación de forma independiente. La aprobación concede acceso de administración a la cuenta existente.',
+      independent: 'Otro revisor debe decidir sobre tu propia solicitud.',
+      evidence: 'Referencia de la documentación de revisión',
+      approved: 'Aprobar acceso',
+      rejected: 'Rechazar solicitud',
+      conflict:
+        'La solicitud o la organización ha cambiado. Actualiza la lista antes de tomar otra decisión.',
+      failed: 'No se pudo guardar la revisión. Tu decisión no se ha confirmado.',
+    },
     title: 'Directorio de organizaciones',
     search: 'Busca tu organización',
     searchHint:

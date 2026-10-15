@@ -1,5 +1,18 @@
 const dict = {
   organizationDirectory: {
+    review: {
+      title: 'Review organization access requests',
+      forbidden: 'This action requires current staff authorization.',
+      empty: 'No requests are waiting for review.',
+      hint: 'Review the supporting evidence independently. Approval grants management access to the existing organization account.',
+      independent: 'Another reviewer must decide your own request.',
+      evidence: 'Review evidence reference',
+      approved: 'Approve access',
+      rejected: 'Reject request',
+      conflict:
+        'This request or organization changed. Refresh the queue before making another decision.',
+      failed: 'The review could not be saved. Your decision has not been confirmed.',
+    },
     title: 'Organization directory',
     search: 'Find your organization',
     searchHint:
