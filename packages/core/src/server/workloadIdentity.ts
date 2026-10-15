@@ -41,6 +41,11 @@ const STS_BODY = 'Action=GetCallerIdentity&Version=2011-06-15';
 export interface WorkloadServiceTokenOptions {
   /** Oxy's base URL, e.g. `https://api.oxy.so`. */
   baseUrl: string;
+  /**
+   * The resource server the token is for (e.g. `kaana.ai`). Omitted, Oxy mints
+   * for `oxy-api`, as it always has.
+   */
+  audience?: string;
   /** Injected in tests; defaults to the global. */
   fetch?: typeof fetch;
 }
@@ -233,7 +238,12 @@ export async function requestWorkloadServiceToken(
   const tokenResponse = await fetchImpl(`${base}/auth/service-token/workload`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ provider: 'aws-iam', nonce: challenge.nonce, attestation }),
+    body: JSON.stringify({
+      provider: 'aws-iam',
+      nonce: challenge.nonce,
+      attestation,
+      ...(options.audience === undefined ? {} : { audience: options.audience }),
+    }),
   });
   if (!tokenResponse.ok) {
     // The body carries a bounded `reason`; the token never travels on a failure,
