@@ -101,6 +101,45 @@ test('does not block a project whose checkout lives inside a worktrees directory
   );
 });
 
+test('blocks caches and tests inside the project, never a checkout that lives under one', () => {
+  const blocked = (projectRoot, options) => {
+    const config = createOxyMetroConfig(projectRoot, options);
+    return (candidate) => config.resolver.blockList.some((pattern) => pattern.test(candidate));
+  };
+
+  // A worktree under ~/.cache (or any `.cache`, `.expo`, `.metro`, `__tests__`
+  // ancestor): its own files bundle.
+  for (const home of [
+    '/home/me/.cache',
+    '/x/.expo',
+    '/x/.expo-shared',
+    '/x/.metro',
+    '/x/__tests__',
+  ]) {
+    const isBlocked = blocked(`${home}/app/wt/packages/frontend`);
+    assert.equal(isBlocked(`${home}/app/wt/node_modules/expo-router/entry.js`), false, home);
+    assert.equal(isBlocked(`${home}/app/wt/packages/frontend/app/_layout.tsx`), false, home);
+    // …and the caches and tests INSIDE it are still blocked.
+    assert.equal(isBlocked(`${home}/app/wt/.cache/babel/x.json`), true, home);
+    assert.equal(isBlocked(`${home}/app/wt/node_modules/.cache/metro/x.json`), true, home);
+    assert.equal(isBlocked(`${home}/app/wt/packages/frontend/.expo/types/router.d.ts`), true, home);
+    assert.equal(
+      isBlocked(`${home}/app/wt/packages/frontend/.expo-shared/assets.json`),
+      true,
+      home,
+    );
+    assert.equal(isBlocked(`${home}/app/wt/packages/frontend/.metro/x.js`), true, home);
+    assert.equal(isBlocked(`${home}/app/wt/packages/frontend/lib/__tests__/a.ts`), true, home);
+  }
+
+  // An extra watch folder outside the monorepo gets the same rule.
+  const isBlocked = blocked('/repo/packages/frontend', { extraWatchFolders: ['/shared/kit'] });
+  assert.equal(isBlocked('/shared/kit/.cache/x.json'), true);
+  assert.equal(isBlocked('/shared/kit/src/index.ts'), false);
+  // A path outside every root is not this list's business.
+  assert.equal(isBlocked('/elsewhere/.cache/x.json'), false);
+});
+
 test('keeps svg as an asset and console calls by default', () => {
   const config = createOxyMetroConfig(path.resolve('/repo/packages/frontend'));
   assert.equal(config.resolver.assetExts.includes('svg'), true);

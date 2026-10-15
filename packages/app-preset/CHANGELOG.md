@@ -1,5 +1,17 @@
 # Changelog: `@oxy.so/app-preset`
 
+## 3.3.1
+
+### Fixed
+
+- The Metro block list's cache and test directories (`.cache`, `.expo`,
+  `.expo-shared`, `.metro`, `__tests__`) are matched only BELOW the project and
+  its watch folders. The unanchored patterns also matched a checkout that lived
+  under such a directory — a worktree in `~/.cache` blocked every file of its
+  own app, and the bundle failed with "Unable to resolve module
+  ./node_modules/expo-router/entry". `node_modules/.cache` and `.expo/types`
+  stay blocked: both are inside the project.
+
 ## 3.3.0
 
 ### Added
@@ -15,7 +27,6 @@
   Android and iOS applies every plugin unchanged. SDK 58's template already
   generates `proguard-android-optimize.txt`, so `withOxyAndroidRelease` only adds
   the release signing config there.
-
 ## 3.2.1
 
 ### Changed
