@@ -199,6 +199,44 @@ export const deliveryAccessBatchInputSchema = messageBatch(deliveryAccessInputSc
 export const messageAccessBatchResponseSchema = contentAccessBatchResponseSchema;
 export type MessageAccessBatchInput = z.infer<typeof messageAccessBatchInputSchema>;
 export type DeliveryAccessBatchInput = z.infer<typeof deliveryAccessBatchInputSchema>;
+/** Live socket-recipient proof; a request ID correlates the result and never identifies an account. */
+export const messagingSessionsInputSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            requestId: resourceId,
+            accessToken: z.string().min(1).max(16384),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(100),
+  })
+  .strict()
+  .refine(
+    (value) => new Set(value.items.map((item) => item.requestId)).size === value.items.length,
+    'Request IDs must be unique',
+  )
+  .refine(
+    (value) =>
+      new TextEncoder().encode(JSON.stringify(value)).byteLength <= MESSAGE_ACCESS_MAX_INPUT_BYTES,
+    'Session proof byte budget exceeded',
+  );
+export const messagingSessionsResponseSchema = z
+  .object({
+    items: z
+      .array(
+        z.discriminatedUnion('allowed', [
+          z.object({ requestId: resourceId, allowed: z.literal(true), accountId }).strict(),
+          z.object({ requestId: resourceId, allowed: z.literal(false) }).strict(),
+        ]),
+      )
+      .max(100),
+  })
+  .strict();
+export type MessagingSessionsInput = z.infer<typeof messagingSessionsInputSchema>;
 export const safetyRequesterSchema = z.union([
   z.object({ accessToken: z.string().min(1).max(16384).nullable() }).strict(),
   z.object({ connectionToken: z.string().min(1).max(16384) }).strict(),

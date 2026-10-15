@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import express from 'express';
 import httpRequest from 'supertest';
 import { optionalAuthMiddleware } from '../../middleware/optionalAuth';
@@ -6,7 +7,7 @@ import profilesRouter from '../../routes/profiles';
 import usersRouter from '../../routes/users';
 import searchRouter from '../../routes/search';
 import type { Request } from 'express';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../server', () => ({ emitSessionUpdate: jest.fn() }));
 jest.mock('../../utils/socket', () => ({
@@ -18,7 +19,8 @@ jest.mock('../securityActivityService', () => ({
   default: { logDeviceAdded: jest.fn() },
 }));
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { users, sessions } from '../../db/schema';
+import { users, sessions, accountMembers } from '../../db/schema';
+import { accountService } from '../account.service';
 import sessionService from '../session.service';
 import { inviteGuardian, acceptInvitation } from '../supervision.service';
 import sessionCache from '../../utils/sessionCache';
@@ -205,4 +207,103 @@ it('denies full generic profile and search DTOs before route hydration for a sup
         .send({ query: 'knownhandle' })
     ).status,
   ).toBe(403);
+});
+
+it.each(['restricted', 'archived'] as const)(
+  'does not reuse a warmed active child profile when live authority becomes %s',
+  async (state) => {
+    const child = await person(),
+      guardian = await person();
+    await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+    const current = await sessionService.createSession(child, request(), {
+      deviceId: randomUUID(),
+    });
+    expect(
+      await sessionService.validateSession(current.accessToken, {
+        allowSupervisedPolicyEvaluation: true,
+      }),
+    ).not.toBeNull();
+    await getDb()
+      .update(users)
+      .set(
+        state === 'restricted' ? { reputationTier: 'restricted' } : { accountStatus: 'archived' },
+      )
+      .where(eq(users.id, child));
+    expect(
+      await sessionService.validateSession(current.accessToken, {
+        allowSupervisedPolicyEvaluation: true,
+      }),
+    ).toBeNull();
+  },
+);
+it('checks a hundred original socket proofs with bounded live queries and never carries revocation to the next request', async () => {
+  const adult = await person();
+  const current = await sessionService.createSession(adult, request(), { deviceId: randomUUID() });
+  const proofs = Array.from({ length: 100 }, () => current.accessToken);
+  const select = jest.spyOn(getDb(), 'select');
+  try {
+    const result = await sessionService.validateSessionProofs(proofs);
+    expect(result.every((item) => item?.session.userId === adult)).toBe(true);
+    expect(select.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(select.mock.calls.length).toBeGreaterThan(0);
+  } finally {
+    select.mockRestore();
+  }
+  await getDb()
+    .update(sessions)
+    .set({ isActive: false })
+    .where(eq(sessions.sessionId, current.sessionId));
+  expect((await sessionService.validateSessionProofs(proofs)).every((item) => item === null)).toBe(
+    true,
+  );
+});
+it('rejects expired, forged, disabled and pre-enrollment socket proofs without denying other valid proofs', async () => {
+  const adult = await person(),
+    child = await person(),
+    guardian = await person();
+  const a = await sessionService.createSession(adult, request(), { deviceId: randomUUID() });
+  const c = await sessionService.createSession(child, request(), { deviceId: randomUUID() });
+  const secret = process.env.ACCESS_TOKEN_SECRET;
+  if (!secret) throw new Error('Missing test signing secret');
+  const decoded = jwt.decode(a.accessToken);
+  if (!decoded || typeof decoded === 'string') throw new Error('Invalid fixture JWT');
+  const expired = jwt.sign({ ...decoded, exp: Math.floor(Date.now() / 1000) - 1 }, secret);
+  expect(
+    (await sessionService.validateSessionProofs([expired, 'malformed', a.accessToken])).map(
+      Boolean,
+    ),
+  ).toEqual([false, false, true]);
+  expect((await sessionService.validateSessionProofs([c.accessToken]))[0]?.supervised).toBe(false);
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  expect((await sessionService.validateSessionProofs([c.accessToken]))[0]).toBeNull();
+  const fresh = await sessionService.createSession(child, request(), { deviceId: randomUUID() });
+  expect((await sessionService.validateSessionProofs([fresh.accessToken]))[0]?.supervised).toBe(
+    true,
+  );
+  await getDb().update(users).set({ accountStatus: 'archived' }).where(eq(users.id, adult));
+  expect(
+    (await sessionService.validateSessionProofs([a.accessToken, fresh.accessToken])).map(Boolean),
+  ).toEqual([false, true]);
+});
+
+it('keeps live ordinary organization actors valid and rechecks revoked act-as authority for socket proofs', async () => {
+  const operator = await person();
+  const { account } = await accountService.createChildAccount(operator, operator, {
+    kind: 'organization',
+    username: `receiver${randomUUID().replaceAll('-', '').slice(0, 14)}`,
+  });
+  const current = await sessionService.createSession(account.id, request(), {
+    deviceId: randomUUID(),
+    operatedByUserId: operator,
+  });
+  expect(
+    (await sessionService.validateSessionProofs([current.accessToken]))[0]?.session.userId,
+  ).toBe(account.id);
+  await getDb()
+    .update(accountMembers)
+    .set({ permissionRevokes: ['account:act_as'] })
+    .where(
+      and(eq(accountMembers.accountId, account.id), eq(accountMembers.memberUserId, operator)),
+    );
+  expect((await sessionService.validateSessionProofs([current.accessToken]))[0]).toBeNull();
 });

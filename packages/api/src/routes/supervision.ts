@@ -13,6 +13,8 @@ import {
 import { Router, type Response, type RequestHandler } from 'express';
 import { z } from 'zod';
 import {
+  messagingSessionsInputSchema,
+  messagingSessionsResponseSchema,
   safetyErrorSchema,
   safetyPeopleInputSchema,
   safetyPeopleResponseSchema,
@@ -520,6 +522,45 @@ router.post(
       );
     res.json(
       messageAccessBatchResponseSchema.parse(await policy.decideMessagesBatch(input.items, live)),
+    );
+  }),
+);
+/**
+ * Revalidate original recipient proofs before realtime delivery. This grants no resource access.
+ * @requestBody messagingSessionsInputSchema
+ * @response 200 messagingSessionsResponseSchema Minimal correlated live identities.
+ * @response 401 safetyErrorSchema Consumer required.
+ * @response 403 safetyErrorSchema Consumer refused.
+ * @response 422 safetyErrorSchema Invalid batch.
+ * @response 503 safetyErrorSchema Authority unavailable.
+ */
+router.post(
+  '/service/messaging-sessions',
+  handler(async (req, res) => {
+    const input = messagingSessionsInputSchema.parse(req.body);
+    const live = await principal(req);
+    if (!policy.consumerSupports(live, 'messaging-delivery'))
+      throw new supervision.SafetyError(
+        403,
+        'forbidden',
+        'Reviewed delivery authority is required',
+      );
+    const proofs = await sessionService.validateSessionProofs(
+      input.items.map((item) => item.accessToken),
+    );
+    res.json(
+      messagingSessionsResponseSchema.parse({
+        items: input.items.map((item, index) => {
+          const proof = proofs[index];
+          if (
+            !proof ||
+            (proof.session.applicationId && proof.session.applicationId !== live.applicationId) ||
+            (proof.supervised && !policy.consumerSupports(live, 'messaging'))
+          )
+            return { requestId: item.requestId, allowed: false };
+          return { requestId: item.requestId, allowed: true, accountId: proof.session.userId };
+        }),
+      }),
     );
   }),
 );
