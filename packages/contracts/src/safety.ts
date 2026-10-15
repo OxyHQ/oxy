@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ORGANIZATION_TYPES } from './organizations';
 import { reauthProofSchema } from './signIn';
 import { userResponseSchema } from './userResponse';
 import { accountActorChainSchema } from './accountSubject';
@@ -501,3 +502,36 @@ export const safetyPeopleResponseSchema = z
   .strict();
 export type SafetyPerson = z.infer<typeof safetyPersonSchema>;
 export type SafetyPeopleInput = z.infer<typeof safetyPeopleInputSchema>;
+
+/** Existing public employer identity only; never directory content or management authority. */
+export const safetyOrganizationIdentitySchema = z
+  .object({
+    accountId,
+    username: z.string().nullable(),
+    name: z.string(),
+    organizationType: z.enum(ORGANIZATION_TYPES),
+  })
+  .strict();
+export const safetyOrganizationsInputSchema = z.union([
+  z
+    .object({
+      query: z.string().trim().min(1).max(100),
+      limit: z.number().int().min(1).max(20).optional(),
+    })
+    .strict(),
+  z.object({ ids: uniqueIds(100) }).strict(),
+]);
+export const safetyOrganizationsResponseSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({ requestedAccountId: accountId, organization: safetyOrganizationIdentitySchema })
+          .strict(),
+      )
+      .max(100),
+    missingIds: z.array(accountId).max(100),
+  })
+  .strict();
+export type SafetyOrganizationIdentity = z.infer<typeof safetyOrganizationIdentitySchema>;
+export type SafetyOrganizationsInput = z.infer<typeof safetyOrganizationsInputSchema>;

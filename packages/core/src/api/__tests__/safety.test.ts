@@ -15,6 +15,49 @@ describe('canonical profile access context', () => {
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
   });
+  it('uses authenticated browser transport and strict minimal employer projection', async () => {
+    const oxy = new OxyServices({ baseURL: 'http://test.invalid' });
+    const response = {
+      items: [
+        {
+          requestedAccountId: 'old',
+          organization: {
+            accountId: 'org',
+            username: 'org',
+            name: 'Acme',
+            organizationType: 'business',
+          },
+        },
+      ],
+      missingIds: [],
+    };
+    const originalBearer = `e30.${Buffer.from(JSON.stringify({ userId: 'person', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url')}.fixture`;
+    oxy.session.setAccessToken(originalBearer);
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify(response), { headers: { 'content-type': 'application/json' } }),
+    );
+    expect(await oxy.safety.organizations({ ids: ['old'] })).toEqual(response);
+    expect(fetchMock.mock.calls[0][0]).toContain('/safety/supervision/organizations');
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('authorization')).toBe(
+      `Bearer ${originalBearer}`,
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ ids: ['old'] });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ...response,
+          items: [
+            {
+              ...response.items[0],
+              organization: { ...response.items[0].organization, avatar: 'media' },
+            },
+          ],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    await expect(oxy.safety.organizations({ query: 'Acme' })).rejects.toThrow();
+  });
   it('requires explicit requester context on a server and never silently substitutes service identity', async () => {
     const oxy = new OxyServer({
       baseURL: 'http://test.invalid',

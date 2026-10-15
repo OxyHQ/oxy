@@ -1,4 +1,6 @@
 import {
+  safetyOrganizationsInputSchema,
+  safetyOrganizationsResponseSchema,
   messagingSessionsInputSchema,
   messagingSessionsResponseSchema,
   purchaseEffectsSchema,
@@ -189,4 +191,33 @@ describe('supervised safety contracts', () => {
       }).success,
     ).toBe(false);
   });
+});
+
+it('bounds minimal employer selection and rejects extra directory content or identity assignment', () => {
+  expect(
+    safetyOrganizationsInputSchema.safeParse({
+      ids: Array.from({ length: 101 }, (_, i) => String(i)),
+    }).success,
+  ).toBe(false);
+  expect(safetyOrganizationsInputSchema.safeParse({ query: 'Acme', limit: 21 }).success).toBe(
+    false,
+  );
+  expect(safetyOrganizationsInputSchema.safeParse({ query: 'Acme', actor: 'other' }).success).toBe(
+    false,
+  );
+  const organization = {
+    accountId: 'org',
+    username: 'org',
+    name: 'Acme',
+    organizationType: 'business',
+  };
+  const response = { items: [{ requestedAccountId: 'old', organization }], missingIds: [] };
+  expect(safetyOrganizationsResponseSchema.parse(response)).toEqual(response);
+  for (const key of ['avatar', 'websiteUrl', 'legalName', 'aliases', 'domains'])
+    expect(
+      safetyOrganizationsResponseSchema.safeParse({
+        ...response,
+        items: [{ requestedAccountId: 'old', organization: { ...organization, [key]: 'unrated' } }],
+      }).success,
+    ).toBe(false);
 });

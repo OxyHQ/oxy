@@ -70,3 +70,23 @@ One live database graph serves the entire batch, including guardians outside the
 `messagingSessions` is a separately reviewed delivery-service operation for up to 100 unique request IDs carrying original recipient bearers, with a 448 KiB aggregate JSON limit. It verifies signatures and exact session bindings, reads active sessions/accounts and supervision live in bulk, and rechecks special actor/key authority. It returns only request ID, allowed and the verified account ID when allowed. It neither authenticates a human operation nor grants conversation access: realtime consumers must intersect each socket result with the current persisted-resource `deliveryAccessBatch` decision. Revocation, account restriction, new enrollment, expired proof, wrong application and removed consumer capability fail closed on the next delivery. No user/profile or session cache can authorize this lane.
 
 Clarity's candidate `content` capability is limited to its audited Experience endpoint: privacy alone does not rate free-form work history. Direct reads must apply `contentAccess` with unrated classification after profile access; only verified owner management may use `manage_own`. Other supervised readers cannot consume that unrated history. No other Clarity content, inference or search route is reviewed by this grant.
+
+### Minimal existing employer identity
+
+The authenticated browser method `safety.organizations({query, limit?} | {ids})`
+uses `POST /safety/supervision/organizations` with the original personal-session
+bearer, through the same supervised admission boundary as `safety.people`.
+It returns only `accountId`, `username`, `name`, and `organizationType`, inside
+`{items: [{requestedAccountId, organization}], missingIds}`. Prefix search is
+limited to 20 results; batch input permits at most 100 unique IDs. The canonical
+indexed organization search and flattened merge references remain the sole data
+source. Private, hidden, inactive, suppressed, restricted, blocked, nonorganization,
+and unavailable identities are omitted; merged IDs resolve only to an available
+canonical target. No verified-domain, asset, legal-name, alias or website data is
+hydrated for this response. Authority outages return 503; invalid or revoked
+sessions return 401.
+
+Mention and Clarity use this method for a supervised person's own Experience
+employer display and existing-company selector. Ordinary adult directory behavior
+is unchanged. Neutral creation and claims remain unsupported for supervised
+accounts; foreign Experience remains unrated and unavailable to child readers.

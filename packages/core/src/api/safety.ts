@@ -2,6 +2,9 @@ import {
   messagingSessionsInputSchema,
   messagingSessionsResponseSchema,
   type MessagingSessionsInput,
+  safetyOrganizationsInputSchema,
+  safetyOrganizationsResponseSchema,
+  type SafetyOrganizationsInput,
   safetyPeopleInputSchema,
   safetyPeopleResponseSchema,
   type SafetyPeopleInput,
@@ -165,6 +168,16 @@ export class SafetyApi {
   async deliveryAccess(input: DeliveryAccessInput) {
     return safetyDecisionSchema.parse(
       await this.service('delivery-access', deliveryAccessInputSchema.parse(input)),
+    );
+  }
+  async organizations(input: SafetyOrganizationsInput) {
+    return safetyOrganizationsResponseSchema.parse(
+      await this.ctx.request(
+        'POST',
+        '/safety/supervision/organizations',
+        safetyOrganizationsInputSchema.parse(input),
+        { cache: false },
+      ),
     );
   }
   async people(input: SafetyPeopleInput) {

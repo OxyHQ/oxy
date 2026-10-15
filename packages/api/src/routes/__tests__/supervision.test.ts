@@ -1,3 +1,4 @@
+import * as directory from '../../services/organization-directory.service';
 import express from 'express';
 import type http from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -39,7 +40,15 @@ import { assetService } from '../../services/assetServiceSingleton';
 import { errorHandler } from '../../middleware/errorHandler';
 import { accountService } from '../../services/account.service';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { users, applications, applicationCredentials, sessions, files } from '../../db/schema';
+import {
+  users,
+  applications,
+  applicationCredentials,
+  sessions,
+  files,
+  organizationProfiles,
+  blocks,
+} from '../../db/schema';
 import sessionService from '../../services/session.service';
 import { inviteGuardian, acceptInvitation } from '../../services/supervision.service';
 let server: http.Server;
@@ -408,4 +417,129 @@ it('returns only current socket identities and refuses wrong-app proofs and revo
   });
   await getDb().update(applications).set({ capabilities: [] }).where(eq(applications.id, app));
   expect((await post('/service/messaging-sessions', input)).status).toBe(403);
+});
+
+it('returns only minimal active employer identities to children and adults, resolving redirects and failing closed', async () => {
+  const child = await person(),
+    guardian = await person();
+  await acceptInvitation((await inviteGuardian(child, guardian)).id, guardian);
+  const childSession = await session(child),
+    adultSession = await session(guardian);
+  const prefix = `Safety${randomUUID().slice(0, 8)}`;
+  const create = (suffix: string) =>
+    directory.createNeutralOrganization({
+      name: `${prefix}${suffix}`,
+      organizationType: 'business',
+      legalName: 'Private legal detail',
+      websiteUrl: 'https://example.com',
+    });
+  const active = await create('Active'),
+    old = await create('Old'),
+    inactive = await create('Inactive'),
+    hidden = await create('Hidden'),
+    privateOrg = await create('Private'),
+    blocked = await create('Blocked'),
+    restricted = await create('Restricted');
+  await directory.mergeOrganizations(old.accountId, active.accountId, guardian, 'review-evidence');
+  await getDb()
+    .update(organizationProfiles)
+    .set({ status: 'inactive' })
+    .where(eq(organizationProfiles.accountId, inactive.accountId));
+  await getDb()
+    .update(users)
+    .set({ privacyProfileVisibility: false })
+    .where(eq(users.id, hidden.accountId));
+  await getDb()
+    .update(users)
+    .set({ privacyIsPrivateAccount: true })
+    .where(eq(users.id, privateOrg.accountId));
+  await getDb()
+    .update(users)
+    .set({ reputationTier: 'restricted' })
+    .where(eq(users.id, restricted.accountId));
+  await getDb().insert(blocks).values({ userId: blocked.accountId, blockedId: child });
+  const request = async (body: unknown, bearer?: string) => {
+    const response = await fetch(
+      `http://127.0.0.1:${(server.address() as AddressInfo).port}/safety/supervision/organizations`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    return { status: response.status, body: await response.json() };
+  };
+  const identity = {
+    accountId: active.accountId,
+    username: active.username,
+    name: active.name,
+    organizationType: 'business',
+  };
+  for (const bearer of [childSession.accessToken, adultSession.accessToken]) {
+    expect(await request({ ids: [old.accountId] }, bearer)).toEqual({
+      status: 200,
+      body: {
+        items: [{ requestedAccountId: old.accountId, organization: identity }],
+        missingIds: [],
+      },
+    });
+    expect(await request({ query: `${prefix}Old` }, bearer)).toEqual({
+      status: 200,
+      body: {
+        items: [{ requestedAccountId: active.accountId, organization: identity }],
+        missingIds: [],
+      },
+    });
+  }
+  await getDb()
+    .update(users)
+    .set({ privacyProfileVisibility: false })
+    .where(eq(users.id, old.accountId));
+  expect((await request({ query: `${prefix}Old` }, childSession.accessToken)).body).toEqual({
+    items: [],
+    missingIds: [],
+  });
+  const missingIds = [
+    inactive.accountId,
+    hidden.accountId,
+    privateOrg.accountId,
+    blocked.accountId,
+    restricted.accountId,
+    child,
+    randomUUID(),
+  ];
+  expect(await request({ ids: missingIds }, childSession.accessToken)).toEqual({
+    status: 200,
+    body: { items: [], missingIds },
+  });
+  expect(
+    (await request({ query: prefix, limit: 1 }, childSession.accessToken)).body.items,
+  ).toHaveLength(1);
+  for (const input of [
+    { ids: Array.from({ length: 101 }, () => randomUUID()) },
+    { query: prefix, limit: 21 },
+    { query: prefix, viewerId: guardian },
+    { ids: [active.accountId, active.accountId] },
+  ])
+    expect((await request(input, childSession.accessToken)).status).toBe(422);
+  expect((await request({ ids: [active.accountId] })).status).toBe(401);
+  expect((await request({ ids: [active.accountId] }, 'invalid')).status).toBe(401);
+  const outage = jest
+    .spyOn(sessionService, 'validateSession')
+    .mockRejectedValueOnce(new Error('Authority unavailable'));
+  expect((await request({ ids: [active.accountId] }, childSession.accessToken)).status).toBe(503);
+  outage.mockRestore();
+  const queryOutage = jest
+    .spyOn(directory, 'safetyOrganizationIdentities')
+    .mockRejectedValueOnce(new Error('Directory unavailable'));
+  expect((await request({ ids: [active.accountId] }, childSession.accessToken)).status).toBe(503);
+  queryOutage.mockRestore();
+  await getDb()
+    .update(sessions)
+    .set({ isActive: false })
+    .where(eq(sessions.sessionId, childSession.sessionId));
+  expect((await request({ ids: [active.accountId] }, childSession.accessToken)).status).toBe(401);
 });
