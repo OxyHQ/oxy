@@ -140,6 +140,7 @@ export const usageUnitColumns = () => ({
   cachedAudioInputTokens: bigint({ mode: 'number' }).notNull().default(0),
   audioOutputTokens: bigint({ mode: 'number' }).notNull().default(0),
   sessionMilliseconds: bigint({ mode: 'number' }).notNull().default(0),
+  inputTranscriptionMilliseconds: bigint({ mode: 'number' }).notNull().default(0),
 });
 
 /** The property name each contract unit is stored under. */
@@ -170,6 +171,7 @@ export const USAGE_UNIT_COLUMN_KEYS: Readonly<Record<UsageUnit, UsageUnitColumnK
   cached_audio_input_tokens: 'cachedAudioInputTokens',
   audio_output_tokens: 'audioOutputTokens',
   session_milliseconds: 'sessionMilliseconds',
+  input_transcription_milliseconds: 'inputTranscriptionMilliseconds',
 };
 
 /**
@@ -215,6 +217,7 @@ export function zeroUsageUnits(): Record<UsageUnitColumnKey, number> {
     cachedAudioInputTokens: 0,
     audioOutputTokens: 0,
     sessionMilliseconds: 0,
+    inputTranscriptionMilliseconds: 0,
   };
 }
 

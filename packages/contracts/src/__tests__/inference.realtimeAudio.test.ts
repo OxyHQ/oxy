@@ -516,3 +516,13 @@ describe('session_milliseconds', () => {
     ).toBe(false);
   });
 });
+
+describe('input_transcription_milliseconds (set 3.9.0, @kaana.ai/contracts 4.1.0)', () => {
+  it('is a unit of its own, so a session’s ASR model is priced apart from its session model', () => {
+    expect(USAGE_UNITS).toEqual(
+      expect.arrayContaining(['input_transcription_milliseconds', 'audio_input_tokens']),
+    );
+    expect(usageUnitSchema.safeParse('input_transcription_milliseconds').success).toBe(true);
+    expect(usageUnitSchema.safeParse('input_transcription_seconds').success).toBe(false);
+  });
+});
