@@ -423,7 +423,10 @@
       "checkout": "Continue to payment",
       "renew": "Pay the next period with FairCoin",
       "checkoutComplete": "Payment confirmed. Your access is refreshed.",
-      "checkoutClosed": "This checkout has closed. You can request a new quote."
+      "checkoutClosed": "This checkout is closed. If funds were sent, check its status before requesting another payment.",
+      "checkoutFailed": "Checkout could not be confirmed. Retry to recover the same payment; if funds were sent, check its status before paying again.",
+      "paymentReview": "Payment needs review in Peable. Do not send funds again.",
+      "reviewPayment": "Review payment in Peable"
     },
     "title": "Payments & subscriptions",
     "subtitle": "Manage your payment methods, subscriptions, and wallets.",

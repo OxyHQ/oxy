@@ -423,7 +423,10 @@
       "checkout": "Continuar al pago",
       "renew": "Pagar el siguiente período con FairCoin",
       "checkoutComplete": "Pago confirmado. Se ha actualizado el acceso.",
-      "checkoutClosed": "Este pago ha caducado. Puedes solicitar otra cotización."
+      "checkoutClosed": "Este pago está cerrado. Si enviaste fondos, consulta su estado antes de solicitar otro pago.",
+      "checkoutFailed": "No se pudo confirmar el pago. Reintenta para recuperar el mismo pago; si enviaste fondos, consulta su estado antes de volver a pagar.",
+      "paymentReview": "El pago necesita revisión en Peable. No vuelvas a enviar fondos.",
+      "reviewPayment": "Revisar el pago en Peable"
     },
     "title": "Pagos y suscripciones",
     "subtitle": "Gestiona tus métodos de pago, suscripciones y monederos.",

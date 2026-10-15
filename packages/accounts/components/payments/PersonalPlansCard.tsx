@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useLayoutEffect } from 'react';
 import { randomUUID } from 'expo-crypto';
 import { View, Pressable, Linking } from 'react-native';
 import { authenticatedApiCall } from '@oxy.so/core';
@@ -34,28 +34,49 @@ function PersonalPlansContent() {
   const [busy, setBusy] = useState(false);
   const actions = useRef(new Map<string, string>());
   const [message, setMessage] = useState('');
+  const [paymentReview, setPaymentReview] = useState(false);
   const [refreshWarning, setRefreshWarning] = useState(false);
+  const scope = useRef({ active: false });
+  useLayoutEffect(() => {
+    const current = { active: isAuthenticated };
+    scope.current = current;
+    return () => {
+      current.active = false;
+    };
+  }, [user?.id, activeSessionId, isAuthenticated]);
+  const captureScope = () => {
+    const current = scope.current;
+    return () => current.active && scope.current === current;
+  };
   async function purchase(offerId: string, offerVersion: number) {
     if (!user?.id || !isAuthenticated || busy) return;
+    const isCurrent = captureScope();
+    if (!isCurrent()) return;
     setBusy(true);
     setMessage('');
+    setPaymentReview(false);
     try {
       const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
-      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
-        oxyServices.billing.startPersonalPlanCheckout({
+      if (!isCurrent()) return;
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        if (!isCurrent()) throw new Error('Account changed');
+        return oxyServices.billing.startPersonalPlanCheckout({
           expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
           offerId,
           offerVersion,
           idempotencyKey,
-        }),
-      );
+        });
+      });
+      if (!isCurrent()) return;
       if (result.state === 'pending' && result.checkoutUrl) {
         const url = new URL(result.checkoutUrl);
         url.searchParams.set('displayCurrency', display.currency);
         await Linking.openURL(url.toString());
       } else if (result.state === 'closed' || result.state === 'fulfilled') {
         await clearPersonalPlanCheckoutKey(user.id, offerId, offerVersion);
+        if (!isCurrent()) return;
         await sources.refetch();
+        if (!isCurrent()) return;
         setMessage(
           t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
         );
@@ -63,33 +84,48 @@ function PersonalPlansContent() {
         setMessage(
           t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
         );
-    } catch {
-      setMessage(t('payments.one.failed'));
+    } catch (error) {
+      if (isCurrent()) {
+        const needsReview =
+          error instanceof Error &&
+          (error.message === 'PAYMENT_REVIEW_REQUIRED' ||
+            ('code' in error && error.code === 'PAYMENT_REVIEW_REQUIRED'));
+        setPaymentReview(needsReview);
+        setMessage(t(needsReview ? 'payments.one.paymentReview' : 'payments.one.checkoutFailed'));
+      }
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
   async function renew(sourceId: string, periodEnd: string) {
     if (!user?.id || !isAuthenticated || busy) return;
+    const isCurrent = captureScope();
+    if (!isCurrent()) return;
     setBusy(true);
     setMessage('');
+    setPaymentReview(false);
     const operation = `renew:${sourceId}:${periodEnd}`;
     try {
       const idempotencyKey = await getPersonalPlanCheckoutKey(user.id, operation, 1);
-      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
-        oxyServices.billing.renewProductSubscription({
+      if (!isCurrent()) return;
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        if (!isCurrent()) throw new Error('Account changed');
+        return oxyServices.billing.renewProductSubscription({
           expectedSubjectAccountId: oxyAccountIdSchema.parse(user.id),
           sourceId,
           idempotencyKey,
-        }),
-      );
+        });
+      });
+      if (!isCurrent()) return;
       if (result.state === 'pending' && result.checkoutUrl) {
         const url = new URL(result.checkoutUrl);
         url.searchParams.set('displayCurrency', display.currency);
         await Linking.openURL(url.toString());
       } else if (result.state === 'fulfilled' || result.state === 'closed') {
         await clearPersonalPlanCheckoutKey(user.id, operation, 1);
+        if (!isCurrent()) return;
         await sources.refetch();
+        if (!isCurrent()) return;
         setMessage(
           t(`payments.one.${result.state === 'fulfilled' ? 'checkoutComplete' : 'checkoutClosed'}`),
         );
@@ -97,39 +133,50 @@ function PersonalPlansContent() {
         setMessage(
           t(`payments.one.${result.state === 'unconfigured' ? 'unconfigured' : 'pending'}`),
         );
-    } catch {
-      setMessage(t('payments.one.failed'));
+    } catch (error) {
+      if (isCurrent()) {
+        const needsReview =
+          error instanceof Error &&
+          (error.message === 'PAYMENT_REVIEW_REQUIRED' ||
+            ('code' in error && error.code === 'PAYMENT_REVIEW_REQUIRED'));
+        setPaymentReview(needsReview);
+        setMessage(t(needsReview ? 'payments.one.paymentReview' : 'payments.one.checkoutFailed'));
+      }
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }
   async function cancel(sourceId: string) {
     if (!user?.id || !isAuthenticated || busy) return;
+    const isCurrent = captureScope();
+    if (!isCurrent()) return;
     const actionId = actions.current.get(sourceId) ?? randomUUID();
     actions.current.set(sourceId, actionId);
     setBusy(true);
     setRefreshWarning(false);
     let confirmed = false;
     try {
-      const result = await authenticatedApiCall(oxyServices, activeSessionId, () =>
-        oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id, actionId),
-      );
+      const result = await authenticatedApiCall(oxyServices, activeSessionId, () => {
+        if (!isCurrent()) throw new Error('Account changed');
+        return oxyServices.billing.cancelProductSubscriptionWithStatus(sourceId, user.id, actionId);
+      });
+      if (!isCurrent()) return;
       setMessage(t(`payments.one.${'reconciliationPending' in result ? 'pending' : 'scheduled'}`));
       actions.current.delete(sourceId);
       setConfirm(null);
       confirmed = true;
     } catch {
-      setMessage(t('payments.one.failed'));
+      if (isCurrent()) setMessage(t('payments.one.failed'));
     }
     // A failed list refresh never turns a confirmed cancellation into a failure.
-    if (confirmed) {
+    if (confirmed && isCurrent()) {
       try {
         await sources.refetch();
       } catch {
-        setRefreshWarning(true);
+        if (isCurrent()) setRefreshWarning(true);
       }
     }
-    setBusy(false);
+    if (isCurrent()) setBusy(false);
   }
   return (
     <Section title="Oxy One">
@@ -253,6 +300,11 @@ function PersonalPlansContent() {
             <ThemedText>{t('payments.one.noSources')}</ThemedText>
           ))}
         {!!message && <ThemedText accessibilityLiveRegion="polite">{message}</ThemedText>}
+        {paymentReview && (
+          <Pressable accessibilityRole="link" onPress={() => Linking.openURL('https://peable.to')}>
+            <ThemedText>{t('payments.one.reviewPayment')}</ThemedText>
+          </Pressable>
+        )}
         {refreshWarning && <ThemedText>{t('payments.one.refreshFailed')}</ThemedText>}
       </View>
     </Section>
