@@ -88,6 +88,7 @@ import {
   type EconomicTreatmentDecision,
   type InternalMeteredPilot,
   type InternalMeteredPilotDeployment,
+  pilotTextTerms,
   resolveEconomicTreatment,
 } from '../config/inferenceEconomicPolicy';
 import {
@@ -497,15 +498,17 @@ function grantPilotTerms(
   request: InferenceAuthorizationRequest,
 ): GrantPilotTerms | undefined {
   switch (plan.family) {
-    case 'completion':
-      return pilot.maxPricePerRequestUsd === undefined
+    case 'completion': {
+      const text = pilotTextTerms(pilot);
+      return text?.maxPricePerRequestUsd === undefined
         ? undefined
         : {
-            maxInput: pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget,
-            maxOutputTokens: pilot.maxOutputTokens,
-            maxPriceUsd: pilot.maxPricePerRequestUsd,
-            deployments: pilot.deployments,
+            maxInput: text.maxControlledCompletionInputBudget ?? text.maxControlledInputBudget,
+            maxOutputTokens: text.maxOutputTokens,
+            maxPriceUsd: text.maxPricePerRequestUsd,
+            deployments: text.deployments,
           };
+    }
     case 'speech':
       return pilot.speech === undefined
         ? undefined
@@ -538,6 +541,14 @@ function grantPilotTerms(
           };
     }
     case 'embeddings':
+      return pilot.embeddings === undefined
+        ? undefined
+        : {
+            maxInput: pilot.embeddings.maxInputTokens,
+            maxOutputTokens: undefined,
+            maxPriceUsd: pilot.embeddings.maxPricePerRequestUsd,
+            deployments: pilot.embeddings.deployments,
+          };
     case 'images':
       return undefined;
   }

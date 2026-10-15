@@ -7,7 +7,10 @@ import {
   pilotTermsFor,
   promotionalLaneLevels,
 } from '../inferenceInternalPilot';
-import { INTERNAL_METERED_RELATIONSHIPS } from '../../config/inferenceEconomicPolicy';
+import {
+  CLARITY_EMBEDDINGS_DEPLOYMENT,
+  INTERNAL_METERED_RELATIONSHIPS,
+} from '../../config/inferenceEconomicPolicy';
 import {
   KAANA_SPEECH_CATALOGUE,
   KAANA_SPEECH_DEPLOYMENT_ID,
@@ -358,5 +361,25 @@ describe('speech terms (approved 2026-10-15)', () => {
       controlledInputBudget({ ...request, operation: { kind: 'speech', characters: 2 } }),
     ).toBeUndefined();
     expect(controlledInputBudget({ ...request, stream: true })).toBeUndefined();
+  });
+});
+
+describe('an embeddings-only pilot on the old edge (clarity-kaana)', () => {
+  const pilot = INTERNAL_METERED_RELATIONSHIPS.find(
+    (relationship) => relationship.relationshipId === 'clarity-kaana',
+  )?.pilot;
+  if (pilot === undefined) throw new Error('clarity-kaana pilot missing');
+
+  it('binds no operation: its embeddings terms are read by the grant API only', () => {
+    const operations: EdgeOperation[] = [
+      COMPLETION,
+      { kind: 'decisions' },
+      { kind: 'speech', characters: 1 },
+      { kind: 'embeddings', embeddings: 1 },
+    ];
+    for (const operation of operations) {
+      expect(pilotTermsFor(pilot, operation)).toBeUndefined();
+      expect(pilotAllowsDeployment(pilot, operation, CLARITY_EMBEDDINGS_DEPLOYMENT)).toBe(false);
+    }
   });
 });

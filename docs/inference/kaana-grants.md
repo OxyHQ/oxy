@@ -228,6 +228,7 @@ credential only) in the public shape: amount, never provider.
 | service token `aud: kaana.ai` (ADR 0026) | owner of the token's app (row, not claim); `commercial` | yes | |
 | service token of Alia in production (`alia-kaana`) | Alia's owner; `internal_metered`, `relationshipId: alia-kaana` | **no** | `capacity.meteredUsageId`; pilot tuples and USD ceilings; realtime and transcription under their own terms |
 | Alia outside production | owner of the Alia app; `commercial` | yes | relationship lists production only |
+| service token of Clarity's backend in production (`clarity-kaana`) | Clarity's owner; `internal_metered`, `relationshipId: clarity-kaana` | **no** | `embeddings` only, on the one pilot route; every other operation is outside the pilot |
 | Alia naming `pro`/`ultra` (ADR 0037) | `internal_metered` | no | step 1: the level, `maxFundingTier: credit`, USD 1.00; step 2: `xhigh` on the pilot's lines and providers, USD 0.05 |
 | BYOK route | `platform_fee_only` + `customerProviderCredential` | yes (the fee) | rated at Oxy's platform fee (`config/inferencePlatformFee.ts`), never a model price; no `maxFundingTier`; internal + BYOK is refused; no approved fee schedule yet, so refused |
 | product agent in Alia (token exchange) | — | — | **not yet**: needs the RFC 8693 exchange (phase 2.2) |
@@ -240,7 +241,7 @@ carry its hold, so a shadow-metering deployment answers 503 instead.
 ## Realtime and transcription for `alia-kaana` (Alia ADR 0017)
 
 Terms in `config/inferenceEconomicPolicy.ts` (policy version
-`oxy-inference-economics/2026-10-15.2`), read only by the grant API:
+`oxy-inference-economics/2026-10-15.2`, unchanged in `.3`), read only by the grant API:
 
 - **`realtime_session`** (`conversation`): a line is admitted when ONE MINUTE of
   it quotes at most **USD 0.25**, over audio in, audio out, session time and,
@@ -259,6 +260,21 @@ Terms in `config/inferenceEconomicPolicy.ts` (policy version
 
 A commercial realtime session is refused: the facts carry no session duration,
 so no hold sized from them would be a bound.
+
+## Embeddings for `clarity-kaana` (Clarity search)
+
+Terms in `config/inferenceEconomicPolicy.ts` (policy version
+`oxy-inference-economics/2026-10-15.3`), read only by the grant API; the old
+edge refuses every operation for this relationship:
+
+- **`embeddings`** only, on the one route `dep_openrouter_qwen_qwen3_embedding_8b_observed_2026_10_15`
+  (`qwen/qwen3-embedding-8b@observed-2026-10-15`, `openrouter`): at most
+  **65 536** estimated input tokens (Clarity's largest request, 128 chunks of
+  2 000 characters, estimates at 64 128) and **USD 0.001** per request. No hold.
+- **Capacity:** 16 in flight, 60 000 requests a UTC day.
+- No text, speech, realtime or transcription terms: each is refused as outside
+  the pilot. A pilot carries its text terms whole or not at all
+  (`pilotTextTerms`).
 
 ## Limits are Console configuration
 

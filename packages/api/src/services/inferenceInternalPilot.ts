@@ -1,7 +1,8 @@
 /** Controlled payload budget, not a certified provider token or billing ceiling. */
-import type {
-  InternalMeteredPilot,
-  InternalMeteredPilotDeployment,
+import {
+  type InternalMeteredPilot,
+  type InternalMeteredPilotDeployment,
+  pilotTextTerms,
 } from '../config/inferenceEconomicPolicy';
 import {
   type InferenceFundingPriority,
@@ -48,15 +49,20 @@ export function pilotTermsFor(
           deployments: speech.deployments,
         };
   }
-  return {
-    maxInput:
-      operation.kind === 'completion'
-        ? (pilot.maxControlledCompletionInputBudget ?? pilot.maxControlledInputBudget)
-        : pilot.maxControlledInputBudget,
-    maxOutputTokens: pilot.maxOutputTokens,
-    maxPricePerRequestUsd: pilot.maxPricePerRequestUsd,
-    deployments: pilot.deployments,
-  };
+  // Every other operation answers to the text terms; a pilot without them
+  // (one that only embeds, for instance) leaves it outside the pilot.
+  const text = pilotTextTerms(pilot);
+  return text === undefined
+    ? undefined
+    : {
+        maxInput:
+          operation.kind === 'completion'
+            ? (text.maxControlledCompletionInputBudget ?? text.maxControlledInputBudget)
+            : text.maxControlledInputBudget,
+        maxOutputTokens: text.maxOutputTokens,
+        maxPricePerRequestUsd: text.maxPricePerRequestUsd,
+        deployments: text.deployments,
+      };
 }
 
 export function controlledInputBudget(
