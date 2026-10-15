@@ -1998,20 +1998,33 @@ describe('the grant admits every eligible route and Kaana chooses among them', (
     expect(grant.steps[0].limits.providerAllowlist).toEqual([customer.providers[0]]);
   });
 
-  it('does not pick a provider when same-model failover is off: it grants only where none can happen', async () => {
-    const off = { disabled: false, sameModelDeployment: false, authorizedCrossModel: [] };
-    const many = await twoProviders();
-    await withFallback(many, off);
-    const refused = await authorize(request(many));
-    expect(refused.status).toBe(403);
-    expect(refused.body.code).toBe('policy_violation');
-    expect(await reservationsForRequest(String(refused.body.requestId))).toEqual([]);
+  it('sends the policy’s same-model failover to Kaana: on by default, off when the policy turns it off', async () => {
+    const byDefault = await twoProviders();
+    const defaulted = verifiedGrant(await authorize(request(byDefault)));
+    expect(defaulted.steps[0].limits.sameModelFailover).toBe(true);
 
-    // One eligible provider: failover cannot happen, so the policy is kept.
-    const one = await textCustomer();
-    await withFallback(one, off);
-    const grant = verifiedGrant(await authorize(request(one)));
-    expect(grant.steps[0].limits.providerAllowlist).toEqual([one.providers[0]]);
+    // Off: every provider is still admitted, and Kaana is told not to fail over
+    // among them. Oxy does not pick the one provider.
+    const many = await twoProviders();
+    await withFallback(many, {
+      disabled: false,
+      sameModelDeployment: false,
+      authorizedCrossModel: [],
+    });
+    const off = verifiedGrant(await authorize(request(many)));
+    expect([...off.steps[0].limits.providerAllowlist].sort()).toEqual([...many.providers].sort());
+    expect(off.steps[0].limits.sameModelFailover).toBe(false);
+
+    // A disabled fallback is the same instruction.
+    const disabled = await twoProviders();
+    await withFallback(disabled, {
+      disabled: true,
+      sameModelDeployment: false,
+      authorizedCrossModel: [],
+    });
+    expect(
+      verifiedGrant(await authorize(request(disabled))).steps[0].limits.sameModelFailover,
+    ).toBe(false);
   });
 });
 

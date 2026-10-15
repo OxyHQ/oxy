@@ -555,11 +555,11 @@ interface StepPlan {
   /** Exact pilot routes this step is limited to; `undefined` for none. */
   readonly pilotDeployments: readonly InternalMeteredPilotDeployment[] | undefined;
   /**
-   * The policy turns same-model failover OFF. The grant cannot yet tell Kaana so
-   * (no field in `grantStepLimitsSchema`), so such a step is granted only where
-   * failover cannot happen: a line with a single eligible provider.
+   * Whether Kaana may fail over to another provider or key of the same model
+   * within the step: the application's policy, sent as `sameModelFailover` on
+   * the step limits (contract set 4.4.0).
    */
-  readonly failoverOff: boolean;
+  readonly sameModelFailover: boolean;
 }
 
 /** An admitted line: its best route (for the usage row) and the price it settles at. */
@@ -788,7 +788,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
       maxFundingTier: undefined,
       pilotDeployments: pilotTerms?.deployments,
-      failoverOff: !sameModelFailover,
+      sameModelFailover,
     } as const;
     stepPlans.push({ ...step, target, candidates: [reference] });
     const crossModel =
@@ -924,22 +924,6 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
       reason: 'no-line-in-lane',
     });
   }
-  // Kaana chooses the provider and key (cheapest first, failover, recovery) among
-  // the routes admitted. A policy that turns same-model failover off needs the
-  // grant to say so; it cannot yet, so it is granted only where the line has one
-  // eligible provider and failover cannot happen.
-  if (
-    steps.some(
-      (step) => step.plan.failoverOff && step.lines.some((line) => line.providers.length > 1),
-    )
-  ) {
-    throw new GrantRefusal(
-      'policy_violation',
-      'This application’s routing policy turns off same-model failover, which this grant cannot express yet.',
-      { reason: 'same_model_failover_off_unsupported' },
-    );
-  }
-
   // ---- The ceiling: the dearest admitted line ---------------------------
   let ceilingLine: AdmittedLine | undefined;
   for (const line of steps.flatMap((step) => step.lines)) {
@@ -1332,7 +1316,7 @@ function levelStepPlans(
     maxPrice: tighterPrice(policyPrice, pilotTerms?.maxPriceUsd),
     maxFundingTier: undefined,
     pilotDeployments: pilotTerms?.deployments,
-    failoverOff: false,
+    sameModelFailover: true,
   } as const;
 
   if (level === 'auto') {
@@ -1351,7 +1335,7 @@ function levelStepPlans(
         maxPrice: tighterPrice(policyPrice, lane.maxPricePerRequestUsd),
         maxFundingTier: 'credit',
         pilotDeployments: undefined,
-        failoverOff: false,
+        sameModelFailover: true,
       },
     ];
     if (lane.fallbackLevel !== level && levelAllowed(lane.fallbackLevel)) {
@@ -1443,6 +1427,8 @@ function grantStepOf(
       // audience, and that the application's policy qualifies (data retention,
       // training, regions, licences): Kaana chooses among them and fails over
       // within them, never outside.
+      // Whether Kaana may fail over within the step is the policy's, sent as is.
+      sameModelFailover: step.plan.sameModelFailover,
       providerAllowlist: [...step.providers],
       providerDenylist: constraints.providerDenylist.filter(
         (provider) => !step.providers.includes(provider),

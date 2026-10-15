@@ -93,19 +93,18 @@ and ranks nothing. `providerAllowlist` is every provider with an eligible route
 under the application's policy (and the declared `denylist`, regions, ZDR,
 licences are passed as values for Kaana to filter by).
 
-One policy cannot be expressed yet: **same-model failover off**
-(`fallback.sameModelDeployment = false`, or `fallback.disabled`). The step
-limits have no field to tell Kaana not to fail over, so such a grant is made
-only where failover cannot happen (the line has a single eligible provider) and
-is otherwise refused `policy_violation` with reason
-`same_model_failover_off_unsupported`. It is never granted with failover on. It
-needs the additive Kaana contract field listed under «What Kaana must publish».
+The policy's **same-model failover** (`fallback.sameModelDeployment`, or
+`fallback.disabled`) is sent as is on every step, as `sameModelFailover` in the
+step limits (contract set 4.4.0, default `true`): when the policy turns it off
+Kaana serves each admitted line on one provider and key and does not fail over
+within the step. Every eligible provider is still admitted; Kaana, not Oxy,
+chooses which.
 
 ### Kaana publishes how a route may be sold
 
 The commercial basis of a deployment is a fact of the deployment and the
 provider, so Kaana publishes it, per deployment, as `commercial` on the
-deployment descriptor (the descriptors Oxy already reads for
+deployment descriptor (`deploymentCommercialSchema`, the descriptors Oxy already reads for
 `kaanaDeploymentPublication.service.ts`). Oxy sells a route only if the
 descriptor carries it, its `availabilityScope` is one the viewer holds
 (`byok_only` is decided apart, below), and its `commercialPermission` agrees
@@ -203,9 +202,9 @@ it exactly as the old edge does (`authenticateInferenceBearer`):
    at the `priceVersionId` of the line's **declared list** — one price per line,
    so the hold covers whichever route Kaana picks and the price never depends
    on its choice. `providerAllowlist` is the providers that serve the line
-   (published by Kaana, approved to sell by Oxy, qualified by the policy);
-   same-model failover off narrows it to ONE provider, the first in provider
-   order (a deterministic choice, not a ranking — see «Not in this phase»).
+   (published by Kaana with a `commercial` basis the audience may be sold,
+   qualified by the policy), all of them; Kaana chooses and fails over, and the
+   policy's `sameModelFailover` travels in the step limits.
 6. The ceiling: the dearest admitted line's quote.
 7. `claimMeteredAdmission`: idempotency (`Idempotency-Key` shares the edge's
    ledger key), internal capacity, Console session limits.
@@ -305,27 +304,13 @@ endpoint in phase 3 and must verify that signature.
   pinned `@revision` is held to the deployments Kaana publishes for it.
 - Deletion of the old edge, `@oxy.so/core/inference` and `api.oxy.so/v1` (phase 5).
 
-## What Kaana must publish
+## What Kaana publishes (`@kaana.ai/contracts` 4.4.0)
 
-For Oxy to stop reading any Oxy catalogue table on this path, Kaana publishes:
-
-1. **`commercial` on each deployment descriptor** (the descriptor of
-   `POST /internal/v1/deployments/query` and `/internal/v1/models/query`, i.e.
-   `inventory.DeploymentDescriptor`), optional on the wire, strict object:
-
-   | Field | Type | Meaning |
-   |---|---|---|
-   | `availabilityScope` | `"platform_internal" \| "public_payg" \| "enterprise" \| "byok_only" \| "oxy_hosted"` (`availabilityScopeSchema`) | the audience that may be served from it; `byok_only` = the customer's own key |
-   | `commercialPermission` | `"standard_application_use" \| "public_resale_approved" \| "wholesale_contract" \| "customer_byok" \| "open_weight_hosting"` (`commercialPermissionSchema`) | the basis on which Oxy may serve it; `customer_byok` iff `byok_only` |
-   | `dedicatedCapacity` | `boolean`, optional (absent = false) | capacity reserved for one customer, for the `dedicatedCapacity` policy |
-
-   Oxy parses it (`kaanaDeploymentCommercialSchema`) and carries it on
-   `PublishedRoute.commercial`. Until Kaana publishes it, Oxy sells no route.
-   (`GET /internal/v1/models` itself carries no `deployments` today; Oxy reads
-   the descriptors from the deployment query, so no change there is needed.)
-2. **`sameModelFailover` on the grant step limits** (`grantStepLimitsSchema`,
-   `@kaana.ai/contracts/internal`), additive, `z.boolean().default(true)`:
-   `false` means Kaana must serve each admitted line on one provider and key and
-   must not fail over to another provider or key of the same model within the
-   step. Oxy then sends the application's policy value instead of refusing it.
-   Contract set 4.4.0.
+- **`commercial` on each deployment descriptor** (`deploymentCommercialSchema`,
+  from `@kaana.ai/contracts/internal`): `availabilityScope`,
+  `commercialPermission` (`customer_byok` iff `byok_only`) and optional
+  `dedicatedCapacity`. Oxy checks it against the published schema and carries it
+  on `PublishedRoute.commercial`; there is no local copy of the type. A
+  descriptor without it is not sold.
+- **`sameModelFailover` on the grant step limits** (`grantStepLimitsSchema`),
+  sent from the application's policy.

@@ -11,7 +11,7 @@ jest.mock('../../utils/logger', () => ({
 import http from 'node:http';
 import { generateKeyPairSync, verify } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
-import { availabilityScopeSchema, commercialPermissionSchema } from '@kaana.ai/contracts/internal';
+import { deploymentCommercialSchema } from '@kaana.ai/contracts/internal';
 import { declaredModel } from '../../routes/__fixtures__/kaanaDeclaredStub';
 import {
   KAANA_KEY_ID_HEADER,
@@ -283,25 +283,22 @@ describe('the signed read of GET /internal/v1/models', () => {
 });
 
 describe('the commercial basis Kaana publishes on a deployment descriptor', () => {
-  it('speaks the contract’s own vocabulary, member for member', () => {
-    const shape = kaanaDeploymentCommercialSchema.shape;
-    expect([...shape.availabilityScope.options]).toEqual([...availabilityScopeSchema.options]);
-    expect([...shape.commercialPermission.options]).toEqual([
-      ...commercialPermissionSchema.options,
-    ]);
-  });
-
-  it('accepts a published basis and refuses an unknown word or an extra field', () => {
+  it('is checked against the published contract schema, not a local copy', () => {
     const ok = { availabilityScope: 'public_payg', commercialPermission: 'public_resale_approved' };
-    expect(kaanaDeploymentCommercialSchema.safeParse(ok).success).toBe(true);
-    expect(
-      kaanaDeploymentCommercialSchema.safeParse({ ...ok, dedicatedCapacity: true }).success,
-    ).toBe(true);
-    expect(
-      kaanaDeploymentCommercialSchema.safeParse({ ...ok, availabilityScope: 'free_for_all' })
-        .success,
-    ).toBe(false);
-    expect(kaanaDeploymentCommercialSchema.safeParse({ ...ok, price: '1' }).success).toBe(false);
+    expect(deploymentCommercialSchema.safeParse(ok).success).toBe(true);
+    for (const candidate of [
+      ok,
+      { ...ok, dedicatedCapacity: true },
+      { ...ok, availabilityScope: 'free_for_all' },
+      { ...ok, price: '1' },
+      // customer_byok is the permission of byok_only and of no other scope.
+      { availabilityScope: 'public_payg', commercialPermission: 'customer_byok' },
+      { availabilityScope: 'byok_only', commercialPermission: 'public_resale_approved' },
+    ]) {
+      expect(kaanaDeploymentCommercialSchema.safeParse(candidate).success).toBe(
+        deploymentCommercialSchema.safeParse(candidate).success,
+      );
+    }
   });
 
   it('is carried from Kaana’s published descriptor onto the route Oxy reads', async () => {

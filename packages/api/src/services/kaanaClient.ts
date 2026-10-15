@@ -58,6 +58,7 @@
  * rather than as a bare throw the caller can only answer with a full refund.
  */
 
+import type { DeploymentCommercial } from '@kaana.ai/contracts/internal';
 import type {
   DecisionAnswer,
   InferenceError,
@@ -180,27 +181,7 @@ export interface KaanaDeploymentDescriptor {
    * and the provider's, not Oxy's). Absent from a Kaana that does not publish it:
    * Oxy then does not sell the route (fail closed).
    */
-  readonly commercial?: KaanaDeploymentCommercial;
-}
-
-/** What Kaana publishes about how a deployment may be sold. */
-export interface KaanaDeploymentCommercial {
-  /** Which audience may be served from it; `byok_only` is the customer's own key. */
-  readonly availabilityScope:
-    | 'platform_internal'
-    | 'public_payg'
-    | 'enterprise'
-    | 'byok_only'
-    | 'oxy_hosted';
-  /** The basis on which Oxy may serve it. */
-  readonly commercialPermission:
-    | 'standard_application_use'
-    | 'public_resale_approved'
-    | 'wholesale_contract'
-    | 'customer_byok'
-    | 'open_weight_hosting';
-  /** Capacity reserved for a customer; defaults to false when omitted. */
-  readonly dedicatedCapacity?: boolean;
+  readonly commercial?: DeploymentCommercial;
 }
 
 /** Atomic identity evidence for every deployment the edge may authorize. */

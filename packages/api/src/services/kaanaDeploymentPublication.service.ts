@@ -36,7 +36,8 @@
  * production cannot have one without the other.
  */
 
-import type { KaanaDeploymentAttestation, KaanaDeploymentCommercial } from './kaanaClient';
+import type { DeploymentCommercial } from '@kaana.ai/contracts/internal';
+import type { KaanaDeploymentAttestation } from './kaanaClient';
 import { createHttpKaanaCatalogueReader } from './httpKaanaClient';
 import { logger } from '../utils/logger';
 
@@ -55,7 +56,7 @@ export interface PublishedRoute {
    * How Kaana says the deployment may be sold (`commercial` on its descriptor).
    * Absent: Kaana does not publish it, and Oxy does not sell the route.
    */
-  readonly commercial?: KaanaDeploymentCommercial;
+  readonly commercial?: DeploymentCommercial;
 }
 
 /** One observation of Kaana's serving snapshot, or the honest lack of one. */

@@ -74,8 +74,6 @@ import {
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
-  availabilityScopeSchema,
-  commercialPermissionSchema,
   deploymentIdSchema,
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
@@ -94,6 +92,10 @@ import {
   type UsageQuantity,
   type UsageSource,
 } from '@oxy.so/contracts';
+import {
+  type DeploymentCommercial,
+  deploymentCommercialSchema,
+} from '@kaana.ai/contracts/internal';
 import { z } from 'zod';
 import {
   kaanaPublicKeyBase64,
@@ -186,19 +188,13 @@ const MAX_KAANA_CATALOGUE_BYTES = 16 * 1024 * 1024;
  * so a descriptor member can never again be accepted by one reader and refused
  * by the other (the 2026-10-15 outages were exactly that).
  */
-export const kaanaDeploymentCommercialSchema = z
-  .object({
-    availabilityScope: availabilityScopeSchema,
-    commercialPermission: commercialPermissionSchema,
-    dedicatedCapacity: z.boolean().optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      (value.availabilityScope === 'byok_only') ===
-      (value.commercialPermission === 'customer_byok'),
-    { message: 'customer_byok if and only if byok_only' },
-  );
+export const kaanaDeploymentCommercialSchema = z.custom<DeploymentCommercial>(
+  // The published schema is the contract (`@kaana.ai/contracts/internal`, set
+  // 4.4.0); it is parsed by the package's own zod, so it is applied as a check
+  // here rather than nested into this module's schema.
+  (value) => deploymentCommercialSchema.safeParse(value).success,
+  'a deployment `commercial` that @kaana.ai/contracts does not accept',
+);
 
 const kaanaDeploymentAttestationSchema = z
   .object({
