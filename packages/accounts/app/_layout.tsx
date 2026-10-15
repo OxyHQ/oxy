@@ -19,6 +19,7 @@ import { productAnalytics } from '@/lib/product-analytics';
 import { BloomThemeProvider, useNavigationTheme } from '@oxy.so/bloom/theme';
 import { ImageResolverProvider } from '@oxy.so/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxy.so/bloom/connection-status';
+import { OverlayInertBoundary, PortalOutlet, PortalProvider } from '@oxy.so/bloom/portal';
 
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
@@ -157,21 +158,29 @@ function RootLayoutInner() {
           >
             <AppImageResolver>
               <LocaleProvider>
-                <AppHead />
-                {!appIsReady ? (
-                  // WEB: the custom splash covers init and fades out; its
-                  // `onFadeComplete` gates `appIsReady`. NATIVE renders null
-                  // here — the held OS splash is on top, so nothing underneath
-                  // needs to paint.
-                  Platform.OS === 'web' ? (
-                    <AppSplashScreen
-                      startFade={startFade}
-                      onFadeComplete={handleSplashFadeComplete}
-                    />
-                  ) : null
-                ) : (
-                  <AppStackContent />
-                )}
+                {/* Native Bloom surfaces (AliaChatSheet's BottomSheet) render only
+                    through this provider/outlet pair; the outlet sits AFTER the
+                    content it paints over and the boundary wraps everything else. */}
+                <PortalProvider>
+                  <OverlayInertBoundary>
+                    <AppHead />
+                    {!appIsReady ? (
+                      // WEB: the custom splash covers init and fades out; its
+                      // `onFadeComplete` gates `appIsReady`. NATIVE renders null
+                      // here — the held OS splash is on top, so nothing underneath
+                      // needs to paint.
+                      Platform.OS === 'web' ? (
+                        <AppSplashScreen
+                          startFade={startFade}
+                          onFadeComplete={handleSplashFadeComplete}
+                        />
+                      ) : null
+                    ) : (
+                      <AppStackContent />
+                    )}
+                  </OverlayInertBoundary>
+                  <PortalOutlet />
+                </PortalProvider>
               </LocaleProvider>
             </AppImageResolver>
           </OxyProvider>

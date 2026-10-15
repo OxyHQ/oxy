@@ -95,6 +95,16 @@ module.exports = {
           },
         },
       ],
+      // Dictation and voice calls with Alia (`@alia.onl/sdk`) recognise speech on
+      // the device; the plugin writes the two iOS purpose strings and the
+      // Android RECORD_AUDIO permission.
+      [
+        'expo-speech-recognition',
+        {
+          microphonePermission: 'Allow Oxy Accounts to hear what you dictate and say to Alia.',
+          speechRecognitionPermission: 'Allow Oxy Accounts to turn your speech into text.',
+        },
+      ],
       'expo-secure-store',
       'expo-font',
       'expo-image',
