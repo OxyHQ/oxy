@@ -30,7 +30,8 @@
       "packages/console",
       "packages/doctor",
       "packages/ship",
-      "packages/test-app-vite"
+      "packages/test-app-vite",
+      "vendor/kaana-contracts"
     ],
     "catalog": {
       "@hugeicons/core-free-icons": "^3.3.0",
