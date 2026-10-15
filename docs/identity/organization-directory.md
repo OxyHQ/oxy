@@ -20,6 +20,11 @@ CreateAccountScreen should search/select an existing organization before offerin
 
 ## Claim and staff review UI
 
+The shared Create Account screen searches the directory before offering a new managed organization account. Its separate directory-add action explicitly grants no ownership. Manage Account links organization details to the existing account settings permission check; canonical names, classification and website edits go through `organizations.update`.
+
+Personal accounts can track their access requests in Manage Account. The review entry loads the private staff queue only after an explicit action; Oxy rechecks authority on every request. Selecting a pending request reads its private evidence, and approve/reject requires a review evidence reference. Self-review is disabled and refused by the API. A conflict requires refreshing the queue. Revoked access hides cached private evidence and review actions, including after a previously successful read. `packages/services/__tests__/screens/OrganizationDirectory.test.tsx` covers these flows.
+
+
 - `claim(accountId,{evidenceReference})` creates or returns the caller's pending request. It changes no permissions.
 - `myClaims({status?,limit?,cursor?})` and `myClaim(claimId)` expose only the authenticated personal user's requests.
 - Staff use `reviewClaims(...)` and `reviewClaimDetail(claimId)` to read the private evidence queue.

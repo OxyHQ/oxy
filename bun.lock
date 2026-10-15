@@ -663,7 +663,7 @@
     },
     "packages/services": {
       "name": "@oxy.so/services",
-      "version": "11.2.0",
+      "version": "11.3.0",
       "dependencies": {
         "@expo/config-plugins": "catalog:",
         "@oxy.so/contracts": "workspace:*",

@@ -1,3 +1,5 @@
+import { OrganizationClaimReview } from '../components/organizations/OrganizationClaimReview';
+import { OrganizationClaims } from '../components/organizations/OrganizationClaims';
 import type React from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
@@ -395,6 +397,22 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, navig
             onPress={() => navigate?.('AccountVerification')}
           />
         </SettingsListGroup>
+
+        {user?.kind === 'organization' ? (
+          <SettingsListGroup title={t('organizationDirectory.title')}>
+            <SettingsListItem
+              title={t('organizationDirectory.view')}
+              onPress={() => navigate?.('AccountSettings', { accountId: user.id })}
+            />
+          </SettingsListGroup>
+        ) : null}
+
+        {user?.kind === 'personal' ? (
+          <>
+            <OrganizationClaims key={user.id} />
+            <OrganizationClaimReview key={`review:${user.id}`} />
+          </>
+        ) : null}
 
         {/* Sessions section */}
         <SettingsListGroup title={t('manageAccount.sections.sessions') || 'Sessions & devices'}>

@@ -1,4 +1,6 @@
 import type React from 'react';
+import { ORGANIZATION_NAME_MAX_LENGTH, organizationNameSchema } from '@oxy.so/contracts';
+import { OrganizationSettings } from '../components/organizations/OrganizationSettings';
 import { useCallback, useMemo, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -52,12 +54,12 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
   const id = typeof accountId === 'string' ? accountId : '';
 
   const accountQuery = useQuery({
-    queryKey: ['accounts', 'detail', id],
+    queryKey: ['accounts', 'detail', id, user?.id, canUsePrivateApi],
     queryFn: () => oxyServices.accounts.get(id),
     enabled: canUsePrivateApi && id.length > 0,
   });
 
-  const node = accountQuery.data ?? null;
+  const node = canUsePrivateApi && accountQuery.isSuccess ? accountQuery.data : null;
   const permissions = node?.callerMembership?.permissions ?? [];
   const isImplicitOwner = node ? node.relationship !== 'member' : false;
   const can = useCallback(
@@ -148,6 +150,14 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
         setDisplayNameError('');
         return;
       }
+      if (node?.account.kind === 'organization') {
+        setDisplayNameError(
+          organizationNameSchema.safeParse(trimmed).success
+            ? ''
+            : t('organizationDirectory.invalidName'),
+        );
+        return;
+      }
       const nameParts = trimmed.split(/\s+/).filter(Boolean);
       const first = nameParts[0] || '';
       const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
@@ -158,7 +168,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
           : '',
       );
     },
-    [t],
+    [node?.account.kind, t],
   );
 
   const handleSave = useCallback(() => {
@@ -219,7 +229,11 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
                       value={displayName}
                       onChangeText={handleDisplayNameChange}
                       isInvalid={Boolean(displayNameError)}
-                      maxLength={DISPLAY_NAME_MAX}
+                      maxLength={
+                        node?.account.kind === 'organization'
+                          ? ORGANIZATION_NAME_MAX_LENGTH
+                          : DISPLAY_NAME_MAX
+                      }
                     />
                   </TextField>
                   {displayNameError ? (
@@ -259,6 +273,10 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
                   {t('accounts.settings.save') || 'Save changes'}
                 </Button>
               </View>
+            ) : null}
+
+            {node?.account.kind === 'organization' ? (
+              <OrganizationSettings key={id} accountId={id} canUpdate={canUpdate} />
             ) : null}
 
             {/* Members entry */}
