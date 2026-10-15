@@ -295,7 +295,55 @@ describe('parsing Kaana’s catalogue', () => {
   });
 
   it('refuses a body that is not a catalogue at all', () => {
-    expect(() => parseKaanaCatalogue({ error: 'nope' })).toThrow('no models array');
+    expect(() => parseKaanaCatalogue({ error: 'nope' })).toThrow(
+      'Kaana returned a catalogue body Oxy cannot read (models:',
+    );
+  });
+
+  // 2026-10-15: Kaana #178 began publishing `commercial` on every deployment
+  // descriptor. The strict descriptor schema refused it, the WHOLE body failed
+  // to parse, routing evidence went stale and every inference was refused.
+  const descriptor = {
+    deploymentId: 'dep_groq_openai_gpt_oss_120b_observed_2026_09_01',
+    modelReference: 'openai/gpt-oss-120b@observed-2026-09-01',
+    provider: 'groq',
+    regions: ['us'],
+  };
+
+  it('reads the commercial facts Kaana publishes on a deployment descriptor', () => {
+    const parsed = parseKaanaCatalogue({
+      models: [],
+      deployments: [
+        {
+          ...descriptor,
+          commercial: {
+            availabilityScope: 'platform_internal',
+            commercialPermission: 'standard_application_use',
+          },
+        },
+      ],
+    });
+    expect(parsed.models).toEqual([]);
+  });
+
+  it('names the descriptor member it cannot read instead of failing opaquely', () => {
+    expect(() =>
+      parseKaanaCatalogue({
+        models: [],
+        deployments: [
+          {
+            ...descriptor,
+            commercial: {
+              availabilityScope: 'byok_only',
+              commercialPermission: 'standard_application_use',
+            },
+          },
+        ],
+      }),
+    ).toThrow('deployments.0.commercial');
+    expect(() =>
+      parseKaanaCatalogue({ models: [], deployments: [{ ...descriptor, surprise: true }] }),
+    ).toThrow('deployments.0');
   });
 
   it('keeps decimals exact and refuses anything that is not one', () => {

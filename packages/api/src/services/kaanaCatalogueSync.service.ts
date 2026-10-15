@@ -58,6 +58,8 @@ import {
   inferenceProviderSlugSchema,
   modelIdSchema,
   modelReferenceSchema,
+  availabilityScopeSchema,
+  commercialPermissionSchema,
 } from '@oxy.so/contracts';
 import { getDb, type Transaction } from '../config/postgres';
 import { sourceReviewedScopedAudience } from './scopedExecution.service';
@@ -260,6 +262,21 @@ export interface ParsedKaanaCatalogue {
 const nullish = <T extends z.ZodTypeAny>(schema: T) =>
   schema.nullish().transform((value) => value ?? undefined);
 
+/** `deploymentCommercialSchema` of @kaana.ai/contracts 4.4.0, on Oxy's enums. */
+const kaanaDeploymentCommercialSchema = z
+  .object({
+    availabilityScope: availabilityScopeSchema,
+    commercialPermission: commercialPermissionSchema,
+    dedicatedCapacity: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.availabilityScope === 'byok_only') ===
+      (value.commercialPermission === 'customer_byok'),
+    { message: 'customer_byok if and only if byok_only' },
+  );
+
 const kaanaCatalogueResponseSchema = z
   .object({
     checkedAt: nullish(z.string().max(64)),
@@ -284,6 +301,11 @@ const kaanaCatalogueResponseSchema = z
             providerRateCardVersionId: z.string().optional(),
             providerSourceVersion: z.string().optional(),
             acceptedParameters: z.array(z.string()).optional(),
+            // How the route may be sold (@kaana.ai/contracts 4.4.0
+            // `deploymentCommercialSchema`; Kaana publishes it on every
+            // descriptor since #178). Strict like the descriptor itself, so a
+            // new member is a reviewed change here rather than a silent pass.
+            commercial: kaanaDeploymentCommercialSchema.optional(),
           })
           .strict(),
       )
@@ -360,7 +382,12 @@ function parsePricedRoute(raw: unknown): KaanaPricedRoute | undefined {
 export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
   const response = kaanaCatalogueResponseSchema.safeParse(payload);
   if (!response.success) {
-    throw new Error('Kaana returned a catalogue body Oxy cannot read (no models array)');
+    // Name what failed: the old fixed "no models array" hid that a single
+    // unknown descriptor member rejects the whole body (2026-10-15 outage).
+    const issue = response.error.issues[0];
+    throw new Error(
+      `Kaana returned a catalogue body Oxy cannot read (${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'})`,
+    );
   }
   if (
     (response.data.scopedExecutionContractVersion !== undefined ||
