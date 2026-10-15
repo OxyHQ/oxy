@@ -23,9 +23,18 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request supersedes its older smoke; the nightly and
+# manual runs are never cancelled.
+concurrency:
+  group: scaffold-smoke-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   scaffold:
     runs-on: ubuntu-24.04-arm
+    # p95 ~3m over the last 18 runs; generous because it installs a freshly
+    # generated app from the registry.
+    timeout-minutes: 20
 
     services:
       # The database the generated backend migrates against. Pinned to the SAME

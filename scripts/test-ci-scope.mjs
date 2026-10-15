@@ -42,6 +42,8 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   EXTRA_INPUTS,
+  OUTPUTS,
+  PATH_SUITES,
   REPO_WIDE_TESTS,
   SUITES,
   WORKFLOW_PATH,
@@ -136,7 +138,7 @@ function parseReport(output) {
   for (const suite of SUITES) {
     verdicts[suite] = output.match(new RegExp(`^${suite}=(true|false)$`, 'm'))?.[1];
     const start = output.indexOf(`\n[${suite}] `);
-    const next = SUITES.map((other) => output.indexOf(`\n[${other}] `, start + 1)).filter(
+    const next = OUTPUTS.map((other) => output.indexOf(`\n[${other}] `, start + 1)).filter(
       (at) => at > start,
     );
     sections[suite] =
@@ -712,6 +714,121 @@ expectScope(
       );
     }
   }
+}
+
+// ── Path-decided suites (PATH_SUITES): android-kotlin ──────────────────────
+// The rule `android-kotlin` used to apply in its own first step, now decided in
+// `scope`. Each must-run path must say `true`; the skip cases are the positive
+// controls that the output can say `false` at all; a scope that cannot be
+// computed must say `true`.
+{
+  const androidVerdict = (output) => output.match(/^android=(true|false)$/m)?.[1];
+  for (const [name, mutate, expected] of [
+    [
+      'android-services-kotlin-runs',
+      (root) => write(root, 'packages/services/android/src/main/A.kt', '// k\n'),
+      'true',
+    ],
+    [
+      'android-services-plugin-runs',
+      (root) => write(root, 'packages/services/plugins/withX.js', '// p\n'),
+      'true',
+    ],
+    [
+      'android-services-expo-module-runs',
+      (root) => write(root, 'packages/services/expo-module.config.json', '{}\n'),
+      'true',
+    ],
+    [
+      'android-services-manifest-runs',
+      (root) =>
+        write(
+          root,
+          'packages/services/package.json',
+          `${read(root, 'packages/services/package.json')}\n`,
+        ),
+      'true',
+    ],
+    [
+      'android-commons-module-runs',
+      (root) => write(root, 'packages/commons/modules/oxy-identity-host/A.kt', '// k\n'),
+      'true',
+    ],
+    [
+      'android-commons-plugin-runs',
+      (root) => write(root, 'packages/commons/plugins/withY.js', '// p\n'),
+      'true',
+    ],
+    [
+      'android-commons-app-config-runs',
+      (root) => write(root, 'packages/commons/app.config.js', '// c\n'),
+      'true',
+    ],
+    [
+      'android-commons-manifest-runs',
+      (root) =>
+        write(
+          root,
+          'packages/commons/package.json',
+          `${read(root, 'packages/commons/package.json')}\n`,
+        ),
+      'true',
+    ],
+    [
+      'android-app-preset-plugin-runs',
+      (root) => write(root, 'packages/app-preset/plugin/index.js', '// p\n'),
+      'true',
+    ],
+    [
+      'android-expo-splash-runs',
+      (root) => write(root, 'packages/expo-splash/src/index.ts', '// s\n'),
+      'true',
+    ],
+    [
+      'android-lockfile-runs',
+      (root) => write(root, 'bun.lock', `${read(root, 'bun.lock')}\n`),
+      'true',
+    ],
+    [
+      'android-ci-workflow-runs',
+      (root) => write(root, WORKFLOW_PATH, `${read(root, WORKFLOW_PATH)}\n# edit\n`),
+      'true',
+    ],
+    [
+      'android-services-typescript-skips',
+      (root) => write(root, 'packages/services/src/index.ts', 'export const services = 2;\n'),
+      'false',
+    ],
+    ['android-api-skips', (root) => write(root, 'packages/api/src/server.ts', '// api\n'), 'false'],
+    ['android-docs-skip', (root) => write(root, 'docs/README.md', '# edited\n'), 'false'],
+    ['android-unparseable-lockfile-runs', (root) => write(root, 'bun.lock', '{ not json'), 'true'],
+  ]) {
+    cases += 1;
+    const root = createFixture();
+    mutate(root);
+    commit(root);
+    const output = runScope(root, ['--base', 'HEAD~1', '--head', 'HEAD']);
+    if (androidVerdict(output) !== expected)
+      failures.push(
+        `${name}: expected android=${expected}, got ${androidVerdict(output) ?? 'no verdict'}.\n${output}`,
+      );
+  }
+  {
+    // A file MOVED out of the Kotlin still names its old path (--no-renames).
+    cases += 1;
+    const root = createFixture();
+    write(root, 'packages/services/android/src/main/Moved.kt', 'class Moved\n');
+    commit(root, 'base kotlin');
+    git(root, 'mv', 'packages/services/android/src/main/Moved.kt', 'docs/Moved.kt');
+    commit(root);
+    const output = runScope(root, ['--base', 'HEAD~1', '--head', 'HEAD']);
+    if (androidVerdict(output) !== 'true')
+      failures.push(`android-a-move-out-of-the-kotlin-runs: expected android=true.\n${output}`);
+  }
+  if (JSON.stringify(Object.keys(PATH_SUITES)) !== JSON.stringify(['android']))
+    failures.push(
+      `path-suites: expected exactly the android path suite, got ${Object.keys(PATH_SUITES)}.`,
+    );
 }
 
 for (const root of fixtures) rmSync(root, { recursive: true, force: true });
