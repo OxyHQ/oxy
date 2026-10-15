@@ -177,6 +177,15 @@ It is not an audio unit and belongs to no token partition: it is charged beside
 them. Every realtime route prices it — at zero where the provider bills no
 session time — because every session's hold includes it.
 
+**`input_transcription_milliseconds` is a second model's reading** (contract
+set 3.9.0, `@kaana.ai/contracts` 4.1.0, migration 0159): the milliseconds of a
+realtime session's input audio transcribed by the deployment's own ASR model
+when the provider bills it apart from the session model (OpenAI). Reported
+beside the session model's units, never instead of them; a provider whose
+session price includes it (xAI) never reports it. It settles on grants for
+`kaana.ai/v1` ([kaana-grants.md](./kaana-grants.md)); the old edge refuses input
+transcription.
+
 **Duration-priced realtime routes** (xAI's Voice Agent: audio per minute each
 way, a flat fee per text item) are priced in `audio_input_milliseconds`,
 `audio_output_milliseconds` and `requests` and no token unit. Their hold is

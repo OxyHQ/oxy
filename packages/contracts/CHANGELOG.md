@@ -1,5 +1,15 @@
 # Changelog: `@oxy.so/contracts`
 
+## Unreleased (MINOR — inference contract set **3.9.0**: a closed enum gains a member)
+
+### Added
+
+- `USAGE_UNITS` gains `input_transcription_milliseconds`: milliseconds of a
+  realtime session's input audio transcribed by the deployment's own
+  transcription model, billed apart from the session model. Mirrors
+  `@kaana.ai/contracts` 4.1.0 (Alia ADR 0017), so Oxy's ledger can price and
+  settle the unit Kaana now reports.
+
 ## 4.13.0
 
 Additive only: no export removed.

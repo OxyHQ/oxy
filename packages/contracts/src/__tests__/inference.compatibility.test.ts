@@ -1813,7 +1813,9 @@ describe('inference contract versioning', () => {
     // route's optional `maxFundingTier` and the usage report's optional
     // `fundingTier` (ADR 0038) — a 3.5 consumer strips the ceiling, so the
     // data plane must be on 3.8 before Oxy relies on it.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('3.8.0');
+    // MINOR 6 (3.9.0): the `input_transcription_milliseconds` usage unit,
+    // mirroring `@kaana.ai/contracts` 4.1.0 (a closed enum gained a member).
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('3.9.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

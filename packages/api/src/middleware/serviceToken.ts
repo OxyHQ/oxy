@@ -4,6 +4,7 @@ import {
   OXY_SERVICE_ENVIRONMENTS,
   type OxyServiceEnvironment,
 } from '@oxy.so/core/server';
+import { OXY_API_AUDIENCE, type ServiceTokenAudience } from '../config/serviceTokenAudiences';
 import { serviceTokenPublicJwks } from '../config/serviceTokenSigning';
 
 /**
@@ -160,8 +161,15 @@ function verifyEd25519ServiceToken(token: string): UnverifiedServiceClaims | nul
  * cannot drift. Verifies the EdDSA signature against the published key named by `kid`,
  * then expiry, issuer, audience and the
  * required-claim checks; never throws.
+ *
+ * `audience` defaults to Oxy's own API: every existing caller keeps refusing a
+ * token minted for `kaana.ai` or Kaana's control plane, and the grant API asks
+ * for exactly the audience it serves (`config/serviceTokenAudiences.ts`).
  */
-export function verifyServiceToken(token: string): ServiceTokenVerification {
+export function verifyServiceToken(
+  token: string,
+  audience: ServiceTokenAudience = OXY_API_AUDIENCE,
+): ServiceTokenVerification {
   let header: { alg?: unknown } | null = null;
   try {
     const candidate = decodeSegment(token.split('.')[0] ?? '');
@@ -196,10 +204,7 @@ export function verifyServiceToken(token: string): ServiceTokenVerification {
   }
   if (
     decoded.iss !== 'oxy-auth' ||
-    !(
-      decoded.aud === 'oxy-api' ||
-      (Array.isArray(decoded.aud) && decoded.aud.includes('oxy-api'))
-    ) ||
+    !(decoded.aud === audience || (Array.isArray(decoded.aud) && decoded.aud.includes(audience))) ||
     (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) ||
     !hasBoundedServiceTokenLifetime(decoded, now)
   ) {

@@ -122,7 +122,25 @@ module.exports = {
         tsconfig: { isolatedModules: true, module: 'commonjs', moduleResolution: 'node10' },
       },
     ],
+    // `@kaana.ai/contracts` (Kaana ADR 0002) is published ESM-only. Jest's CJS
+    // runtime cannot load its `dist/*.js`, so they are lowered to CommonJS by
+    // the same per-file transpile as the API's own sources.
+    '^.+/@kaana\\.ai/contracts/dist/.+\\.js$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: {
+          isolatedModules: true,
+          module: 'commonjs',
+          moduleResolution: 'node10',
+          allowJs: true,
+        },
+      },
+    ],
   },
+  // node_modules stays untransformed except @kaana.ai, whose ESM build needs
+  // the transform above (bun's isolated linker nests it under node_modules/.bun).
+  transformIgnorePatterns: ['/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/)'],
   // Balances `--shard=i/N` by measured duration; changes which runner runs a
   // file, never whether it runs. See jest.shardSequencer.cjs.
   testSequencer: '<rootDir>/jest.shardSequencer.cjs',
