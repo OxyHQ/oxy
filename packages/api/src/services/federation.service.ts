@@ -47,6 +47,7 @@ import {
   type ExternalActorProfile,
 } from './federation/externalIdentityPolicy';
 import { fetchMetaFirstPartyProfilePair } from './federation/metaFirstPartyProof.service';
+import { unresolvableHandles } from './federation/unresolvableHandles';
 import {
   fetchInstagramGraphProfile,
   INSTAGRAM_GRAPH_PROTOCOL,
@@ -300,6 +301,22 @@ const _refreshInFlight = new Set<string>();
  * {@link REFRESH_MIN_INTERVAL_MS} to throttle repeated attempts.
  */
 const _lastRefreshAttemptAt = new Map<string, number>();
+
+/**
+ * Take the background-work slot for `key`: false while a job for it is in
+ * flight or one was attempted within {@link REFRESH_MIN_INTERVAL_MS}. The
+ * caller deletes `key` from {@link _refreshInFlight} when its job settles.
+ */
+function claimRefreshSlot(key: string): boolean {
+  if (_refreshInFlight.has(key)) return false;
+  const lastAttempt = _lastRefreshAttemptAt.get(key);
+  if (lastAttempt !== undefined && Date.now() - lastAttempt < REFRESH_MIN_INTERVAL_MS) {
+    return false;
+  }
+  _refreshInFlight.add(key);
+  _lastRefreshAttemptAt.set(key, Date.now());
+  return true;
+}
 
 /**
  * User ids whose avatar is currently mid-download via
@@ -2106,18 +2123,57 @@ class FederationService {
       if (known) {
         if (
           known.federation.actorUri &&
-          (await this.needsBridgeCanonicalization(known.federation.actorUri))
+          (await this.deferUnverifiedBridgeActor(known.federation.actorUri))
         ) {
-          const verified = await this.resolveExternalActorIdentity(known.federation.actorUri);
-          return verified
-            ? userService.readAccountDocument(verified.externalIdentity.userId)
-            : null;
+          return null;
         }
         return this.returnCachedFederatedRow(known, cleaned);
       }
     }
+    // Discovering an unknown handle is the one remote round trip a lookup has to
+    // wait for: there is nothing stored to serve instead. A handle that just
+    // failed it is not retried by every lookup that follows.
+    if (await unresolvableHandles.has(cleaned)) return null;
     const resolved = await this.resolveExternalIdentity({ handle: cleaned });
-    return resolved ? userService.readAccountDocument(resolved.externalIdentity.userId) : null;
+    if (!resolved) {
+      await unresolvableHandles.remember(cleaned);
+      return null;
+    }
+    return userService.readAccountDocument(resolved.externalIdentity.userId);
+  }
+
+  /**
+   * Whether a stored row is a bridge migration row that has not yet been
+   * through first discovery ({@link needsBridgeCanonicalization}). Such a row is
+   * never served before that discovery, and a READ never performs it: discovery
+   * is a remote fetch plus a registry write, which can take seconds (bird.makeup
+   * answers 404 transiently and is retried for two) and can refuse with a
+   * conflict. So this schedules it in the background and the caller answers
+   * "not found" until it has landed.
+   */
+  async deferUnverifiedBridgeActor(actorUri: string): Promise<boolean> {
+    if (!(await this.needsBridgeCanonicalization(actorUri))) return false;
+    this.scheduleBridgeCanonicalization(actorUri);
+    return true;
+  }
+
+  /**
+   * Fire-and-forget first discovery of a legacy bridge actor, under the same
+   * per-actor storm guard as {@link scheduleBackgroundRefresh} (the two share
+   * it, so a refresh and a canonicalization of one actor never overlap). NEVER
+   * awaits and NEVER throws.
+   */
+  private scheduleBridgeCanonicalization(actorUri: string): void {
+    if (!claimRefreshSlot(actorUri)) return;
+    void this.resolveExternalActorIdentity(actorUri)
+      .catch((err) => {
+        logger.warn(
+          `Background bridge canonicalization failed for ${actorUri}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      })
+      .finally(() => {
+        _refreshInFlight.delete(actorUri);
+      });
   }
 
   /**
@@ -2137,15 +2193,7 @@ class FederationService {
 
     const key = existing.federation.actorUri || handle.toLowerCase();
 
-    if (_refreshInFlight.has(key)) return;
-
-    const lastAttempt = _lastRefreshAttemptAt.get(key);
-    if (lastAttempt !== undefined && Date.now() - lastAttempt < REFRESH_MIN_INTERVAL_MS) {
-      return;
-    }
-
-    _refreshInFlight.add(key);
-    _lastRefreshAttemptAt.set(key, Date.now());
+    if (!claimRefreshSlot(key)) return;
 
     void this.refreshFederatedUser(existing, handle)
       .catch((err) => {

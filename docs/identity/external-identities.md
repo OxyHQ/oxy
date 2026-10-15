@@ -181,8 +181,11 @@ report failures by `reason[:http status]` and by host.
 
 Deploy migrations 0083 and 0084 before switching application consumers. The
 registry migration preserves existing actor references and marks their source
-verification timestamp as epoch. A public request for an unverified legacy
-bridge actor awaits Oxy source verification before returning its profile.
+verification timestamp as epoch. An unverified legacy bridge actor is never
+returned before Oxy has verified its source, and a public read never performs
+that verification: it schedules it in the background and answers "not found"
+until it lands. A handle whose discovery just failed is not rediscovered by
+profile lookups for five minutes.
 
 Run the Oxy reconciliation from the API package using the deployment's ordinary
 database and signing configuration:

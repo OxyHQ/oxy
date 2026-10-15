@@ -1,4 +1,5 @@
 import { logger } from '../../utils/logger';
+import { UNRESOLVABLE_HANDLE_TTL_SECONDS } from '../federation/unresolvableHandles';
 /**
  * Federation Service — resolveAndUpsert fast + eventually-fresh, against a REAL
  * Postgres.
@@ -776,6 +777,34 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     // duplicate actor beside it.
     expect(result?._id).toBe(userId);
     expect(webfingerSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not repeat a failed discovery of an unknown handle within the window', async () => {
+    const fx = nextFixture();
+    webfingerSpy.mockResolvedValue(null);
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      expect(await federationService.resolveAndUpsert(fx.handle)).toBeNull();
+      expect(await federationService.resolveAndUpsert(fx.handle)).toBeNull();
+      expect(webfingerSpy).toHaveBeenCalledTimes(1);
+
+      clock.mockReturnValue(now + UNRESOLVABLE_HANDLE_TTL_SECONDS * 1000 + 1);
+      webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+      actorSpy.mockResolvedValue(null);
+      expect(await federationService.resolveAndUpsert(fx.handle)).toBeNull();
+      expect(webfingerSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('never consults the failed-discovery cache for a handle it already stores', async () => {
+    const fx = nextFixture();
+    webfingerSpy.mockResolvedValue(null);
+    expect(await federationService.resolveAndUpsert(fx.handle)).toBeNull();
+    const userId = await seedFederatedUser(fx, FRESH_AGE_MS);
+    expect((await federationService.resolveAndUpsert(fx.handle))?._id).toBe(userId);
   });
 
   it('never throws out of resolveAndUpsert when the background refresh rejects', async () => {
