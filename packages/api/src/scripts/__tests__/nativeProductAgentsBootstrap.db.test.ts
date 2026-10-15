@@ -190,7 +190,7 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
       }),
     });
     const safeReport = spawnSync(
-      'node',
+      'bun',
       ['scripts/validate-native-product-bootstrap-report.mjs', '--check'],
       {
         cwd: `${__dirname}/../../..`,

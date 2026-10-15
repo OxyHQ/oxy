@@ -957,7 +957,7 @@ jobs:
           bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
-          bun packages/api/scripts/validate-native-product-bootstrap-report.test.mjs
+          node --test packages/api/scripts/validate-native-product-bootstrap-report.test.mjs
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
