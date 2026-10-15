@@ -670,6 +670,71 @@ export function createHttpKaanaCatalogueReader(): KaanaCatalogueReader | undefin
   };
 }
 
+/**
+ * Kaana's declared catalogue: the `declaredCatalogue` member of the signed
+ * `GET /internal/v1/models` (contract set 4.3.0), unparsed. Kaana ADR 0002,
+ * amendment 2026-10-15 — the catalogue, list prices included, is Kaana's, and
+ * this is how Oxy reads it to rate a grant.
+ *
+ * Its own interface because it is not the sync's read: the sync reads the
+ * negotiated `POST /internal/v1/models/query` projections, which do not carry
+ * the declared catalogue.
+ */
+export interface KaanaDeclaredCatalogueReader {
+  /** The decoded `declaredCatalogue` member, unvalidated (the cache owns the parse). */
+  readDeclaredCatalogue(signal: AbortSignal): Promise<unknown>;
+}
+
+/**
+ * A signed `GET` with an empty body. Kaana's `handleModels` verifies the same
+ * envelope signature over the (empty) request body that every other signed
+ * route verifies, so the empty body hashes like any other.
+ */
+export function createHttpKaanaDeclaredCatalogueReader(
+  config: KaanaDataPlaneConfig,
+): KaanaDeclaredCatalogueReader {
+  return {
+    async readDeclaredCatalogue(signal: AbortSignal): Promise<unknown> {
+      const body = Buffer.alloc(0);
+      const timestamp = Date.now();
+      const response = await tracedFetch(`${config.baseUrl}${KAANA_MODELS_PATH}`, {
+        method: 'GET',
+        redirect: 'error',
+        headers: {
+          Accept: 'application/json',
+          'Cache-Control': 'no-store',
+          [KAANA_KEY_ID_HEADER]: config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(config.privateKey, config.keyId, timestamp, body),
+        },
+        cache: 'no-store',
+        signal,
+      });
+      if (!response.ok) {
+        await readBounded(response);
+        throw new KaanaProtocolError(
+          `The inference data plane refused the declared catalogue read with HTTP ${response.status}.`,
+        );
+      }
+      const raw = await readBoundedStrict(response, MAX_KAANA_CATALOGUE_BYTES);
+      let parsed: { declaredCatalogue?: unknown };
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new KaanaProtocolError(
+          'The inference data plane returned a declared catalogue that is not JSON.',
+        );
+      }
+      if (parsed === null || typeof parsed !== 'object' || parsed.declaredCatalogue === undefined) {
+        throw new KaanaProtocolError(
+          'The inference data plane returned no declaredCatalogue (contract set 4.3.0).',
+        );
+      }
+      return parsed.declaredCatalogue;
+    },
+  };
+}
+
 class HttpKaanaClient implements KaanaClient {
   private readonly config: KaanaDataPlaneConfig;
 

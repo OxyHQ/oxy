@@ -321,6 +321,11 @@ async function respondToSettlement(req: Request, res: Response): Promise<void> {
     res.status(422).json({ error: result.reason });
     return;
   }
+  if (result.status === 'deferred') {
+    // Transient: Kaana's outbox redelivers it.
+    res.status(503).json({ error: result.reason });
+    return;
+  }
   res.status(200).json(result.acknowledgement);
 }
 

@@ -1,5 +1,11 @@
 #!/usr/bin/env bun
 /**
+ * SERVES THE OLD EDGE ONLY (`api.oxy.so/v1` and its `/v1/models`). The model
+ * catalogue is Kaana's since Kaana ADR 0002, amendment 2026-10-15; the grants
+ * for `kaana.ai/v1` are rated from Kaana's `declaredCatalogue`, not from what
+ * this script writes. Phase 5 deletes this script with the tables it fills; do
+ * not extend it, and do not copy what it writes into Kaana's file or back.
+ *
  * Bootstrap the reviewed Oxy catalogue backed by exact Kaana deployments: the
  * gpt-oss text routes, Alia's xAI text-to-speech route and — once Kaana's
  * production observation of it is recorded in `KAANA_VOICE_OBSERVATION` — the

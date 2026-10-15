@@ -57,10 +57,12 @@ import {
   inferenceRoutingPolicies,
   inferenceUsageEvents,
   kaanaGrantAdmittedLines,
+  kaanaGrantLineUnitPrices,
   kaanaGrants,
   priceVersions,
   priceVersionUnitPrices,
   spendingLimits,
+  usageReceiptUnitPrices,
   usageReceipts,
   usageReservations,
   users,
@@ -81,6 +83,7 @@ import {
   type AudioFixture,
   type FixturePrice,
 } from '../__fixtures__/kaanaAudioFixtures';
+import { KaanaStub, declaredModel } from '../__fixtures__/kaanaDeclaredStub';
 import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
@@ -120,6 +123,14 @@ const TEXT_PRICES: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = {
 
 let server: http.Server;
 let kaanaToken: string;
+/**
+ * Kaana, as the grant API reads it: the catalogue it declares (identity,
+ * audience, capabilities, list prices) and the deployments it publishes. It
+ * starts as the one-time export of the fixture rows Oxy's old catalogue holds,
+ * and a case overrides what it says to prove the grant follows Kaana.
+ */
+const kaanaStub = new KaanaStub();
+let restoreKaana: () => void;
 
 const tag = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
 const sha256 = (bytes: Buffer | string): string => createHash('sha256').update(bytes).digest('hex');
@@ -543,6 +554,10 @@ async function receiptsOf(accountId: string) {
   return getDb().select().from(usageReceipts).where(eq(usageReceipts.accountId, accountId));
 }
 
+async function reservationsForRequest(requestId: string) {
+  return getDb().select().from(usageReservations).where(eq(usageReservations.requestId, requestId));
+}
+
 async function reservationOf(reservationId: string) {
   const [row] = await getDb()
     .select()
@@ -558,6 +573,8 @@ async function reservationOf(reservationId: string) {
 beforeAll(async () => {
   Object.assign(process.env, ENVIRONMENT);
   await connectPostgres();
+  kaanaStub.followFixtures();
+  restoreKaana = kaanaStub.install();
   const kaana = await pinnedApplication(KAANA_CONTROL_APPLICATION_ID, 'Kaana', []);
   kaanaToken = serviceToken({
     applicationId: KAANA_CONTROL_APPLICATION_ID,
@@ -579,6 +596,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  restoreKaana();
   for (const [key, value] of Object.entries(ORIGINAL)) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -589,6 +607,8 @@ afterAll(async () => {
 
 afterEach(() => {
   jest.restoreAllMocks();
+  kaanaStub.clearOverrides();
+  kaanaStub.failing = false;
 });
 
 /* -------------------------------------------------------------------------- */
@@ -1558,6 +1578,358 @@ describe('an internal pilot naming a promotional level (ADR 0037)', () => {
       status: 'settled',
       tariffStatus: 'quoted',
     });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Kaana owns the catalogue: price, audience, capabilities (ADR 0002, 2026-10-15) */
+/* -------------------------------------------------------------------------- */
+
+describe('a grant is rated from KAANA’s declared catalogue, not from Oxy’s tables', () => {
+  /** A list Kaana declares: `input` $/M tokens (the fixtures' text price is 3), the rest as the fixtures. */
+  const list = (priceVersionId: string, input: string) => ({
+    priceVersionId,
+    unitPrices: [
+      { unit: 'requests' as const, amount: '0.000000000000', per: 1 },
+      { unit: 'input_tokens' as const, amount: input, per: 1_000_000 },
+      { unit: 'cached_input_tokens' as const, amount: '1.000000000000', per: 1_000_000 },
+      { unit: 'output_tokens' as const, amount: '15.000000000000', per: 1_000_000 },
+      { unit: 'reasoning_tokens' as const, amount: '15.000000000000', per: 1_000_000 },
+    ],
+  });
+
+  async function grantFor(customer: AudioFixture) {
+    return verifiedGrant(
+      await authorize(
+        inferenceRequest({
+          credential: customer.token,
+          target: { kind: 'model', modelLine: customer.modelReference },
+        }),
+      ),
+    );
+  }
+
+  const declared = (customer: AudioFixture, pricing?: ReturnType<typeof list>) =>
+    declaredModel({
+      modelId: customer.modelReference,
+      ...(pricing === undefined ? {} : { pricing }),
+    });
+
+  it('holds and charges at the price Kaana declares, though Oxy’s tables say otherwise, and copies the list', async () => {
+    const customer = await textCustomer();
+    // Oxy's own price table (what the old edge would use) says $3/M input;
+    // Kaana declares $6/M under its own version id.
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-6', '6.000000000000')),
+    );
+    const grant = await grantFor(customer);
+
+    // 1000 in × $6/M + 500 out × $15/M — not the 0.0105 of the Oxy table.
+    expect(grant.reservation?.ceiling).toEqual({ amount: '0.013500000000', currency: 'USD' });
+    expect(grant.steps[0].limits.admittedModelLines).toEqual([
+      { modelLine: customer.modelReference, priceVersionId: 'kaana-pv-6' },
+    ]);
+    const [line] = await getDb()
+      .select()
+      .from(kaanaGrantAdmittedLines)
+      .where(eq(kaanaGrantAdmittedLines.grantId, grant.grantId));
+    expect(line).toMatchObject({ priceVersionId: 'kaana-pv-6', currency: 'USD' });
+    const copied = await getDb()
+      .select()
+      .from(kaanaGrantLineUnitPrices)
+      .where(eq(kaanaGrantLineUnitPrices.grantId, grant.grantId));
+    expect(copied.map((entry) => entry.unit).sort()).toEqual([
+      'cached_input_tokens',
+      'input_tokens',
+      'output_tokens',
+      'reasoning_tokens',
+      'requests',
+    ]);
+
+    const settlement = settlementOf({
+      grant,
+      modelReference: customer.pinnedModelReference,
+      provider: customer.providers[0],
+      deploymentId: customer.deploymentIds[0],
+    });
+    expect((await settle(settlement)).body).toMatchObject({ status: 'settled' });
+    // 800 in × $6/M + 400 out × $15/M.
+    const [receipt] = await receiptsOf(customer.accountId);
+    expect(receipt).toMatchObject({ billedAmount: '0.010800000000', priceVersionId: 'kaana-pv-6' });
+    // The receipt carries its own copy of the entries it was charged at.
+    const snapshot = await getDb()
+      .select()
+      .from(usageReceiptUnitPrices)
+      .where(eq(usageReceiptUnitPrices.receiptId, receipt.id));
+    expect(snapshot.find((entry) => entry.unit === 'input_tokens')?.amount).toBe('6.000000000000');
+  });
+
+  it('settles at the version the grant admitted even after Kaana publishes a new one', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-a', '6.000000000000')),
+    );
+    const first = await grantFor(customer);
+    // Kaana moves on: a new price is a new priceVersionId.
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-b', '9.000000000000')),
+    );
+    const second = await grantFor(customer);
+    expect(second.steps[0].limits.admittedModelLines[0].priceVersionId).toBe('kaana-pv-b');
+
+    for (const grant of [first, second]) {
+      await settle(settlementOf({ grant, modelReference: customer.pinnedModelReference }));
+    }
+    const charged = Object.fromEntries(
+      (await receiptsOf(customer.accountId)).map((receipt) => [
+        receipt.priceVersionId,
+        receipt.billedAmount,
+      ]),
+    );
+    // 800 × $6/M + 400 × $15/M, and 800 × $9/M + 400 × $15/M: each at ITS version.
+    expect(charged).toEqual({ 'kaana-pv-a': '0.010800000000', 'kaana-pv-b': '0.013200000000' });
+  });
+
+  it('refuses a model Kaana declares no price for, typed, taking no hold and charging nothing', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(customer.modelReference, declared(customer));
+    const request = inferenceRequest({
+      credential: customer.token,
+      target: { kind: 'model', modelLine: customer.modelReference },
+    });
+    const result = await authorize(request);
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+    expect(String(result.body.message)).toContain('cannot be priced per unit');
+    expect(await reservationsForRequest(request.requestId as string)).toEqual([]);
+    expect(await meteredRow(request.requestId as string)).toBeUndefined();
+  });
+
+  it('refuses a model whose published price version was republished with different prices', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-once', '6.000000000000')),
+    );
+    await grantFor(customer);
+    // The same id, other prices: a published version never changes.
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-once', '7.000000000000')),
+    );
+    const result = await authorize(
+      inferenceRequest({
+        credential: customer.token,
+        target: { kind: 'model', modelLine: customer.modelReference },
+      }),
+    );
+    expect(result.status).toBe(503);
+    expect(result.body.code).toBe('no_route_available');
+    // A new id is a new price, and it is rated again.
+    kaanaStub.override(
+      customer.modelReference,
+      declared(customer, list('kaana-pv-twice', '7.000000000000')),
+    );
+    expect((await grantFor(customer)).steps[0].limits.admittedModelLines[0].priceVersionId).toBe(
+      'kaana-pv-twice',
+    );
+  });
+
+  it('rejects, permanently, a settlement in a unit the grant’s list does not price', async () => {
+    const customer = await textCustomer();
+    const grant = await grantFor(customer);
+    const result = await settle(
+      settlementOf({
+        grant,
+        modelReference: customer.pinnedModelReference,
+        units: { input_tokens: 800, audio_input_tokens: 50 },
+      }),
+    );
+    expect(result.status).toBe(422);
+    expect(result.body).toEqual({ error: 'unpriced_unit' });
+    // Never settled at zero, never partly charged: the grant stands open.
+    expect(await receiptsOf(customer.accountId)).toEqual([]);
+    expect((await grantRow(grant.grantId))?.status).toBe('issued');
+    expect(logger.error).toHaveBeenCalledWith(
+      'inference.settlement.unpriced_unit',
+      expect.any(Error),
+      expect.objectContaining({ grantId: grant.grantId, units: ['audio_input_tokens'] }),
+    );
+  });
+
+  it('rejects, permanently, a served line outside the grant that Kaana declares no price for', async () => {
+    const customer = await textCustomer();
+    const outside = await addModelLine(customer.accountId, { prices: TEXT_PRICES });
+    const grant = await grantFor(customer);
+    kaanaStub.override(outside.modelLine, 'drop');
+    const result = await settle(
+      settlementOf({
+        grant,
+        modelReference: `${outside.modelLine}@${AUDIO_REVISION}`,
+        provider: outside.provider,
+        deploymentId: outside.deploymentId,
+      }),
+    );
+    expect(result.status).toBe(422);
+    expect(result.body).toEqual({ error: 'model_not_priced' });
+    expect(await receiptsOf(customer.accountId)).toEqual([]);
+  });
+
+  it('defers, without rejecting, a settlement outside the grant while Kaana’s catalogue cannot be read', async () => {
+    const customer = await textCustomer();
+    const outside = await addModelLine(customer.accountId, { prices: TEXT_PRICES });
+    const grant = await grantFor(customer);
+    const settlement = settlementOf({
+      grant,
+      modelReference: `${outside.modelLine}@${AUDIO_REVISION}`,
+      provider: outside.provider,
+      deploymentId: outside.deploymentId,
+    });
+    // A fresh cache that has never read Kaana, and Kaana unreachable.
+    const unreachable = new KaanaStub();
+    unreachable.failing = true;
+    const restore = unreachable.install();
+    try {
+      const deferred = await settle(settlement);
+      expect(deferred.status).toBe(503);
+      expect(deferred.body).toEqual({ error: 'catalogue_unavailable' });
+      expect((await grantRow(grant.grantId))?.status).toBe('issued');
+    } finally {
+      restore();
+    }
+    expect((await settle(settlement)).body).toMatchObject({ status: 'settled' });
+  });
+
+  it('refuses every grant while Kaana’s catalogue cannot be read, claiming and holding nothing', async () => {
+    const customer = await textCustomer();
+    const unreachable = new KaanaStub();
+    unreachable.failing = true;
+    const restore = unreachable.install();
+    try {
+      const request = inferenceRequest({
+        credential: customer.token,
+        target: { kind: 'model', modelLine: customer.modelReference },
+      });
+      const result = await authorize(request);
+      expect(result.status).toBe(503);
+      expect(result.body.code).toBe('service_unavailable');
+      expect(await reservationsForRequest(request.requestId as string)).toEqual([]);
+      expect(await meteredRow(request.requestId as string)).toBeUndefined();
+    } finally {
+      restore();
+    }
+  });
+
+  it('offers a platform_internal model to official products only, and never a retired one', async () => {
+    const customer = await textCustomer();
+    kaanaStub.override(
+      customer.modelReference,
+      declaredModel({
+        modelId: customer.modelReference,
+        audience: 'platform_internal',
+        pricing: list('kaana-pv-internal', '3.000000000000'),
+      }),
+    );
+    const third = await authorize(
+      inferenceRequest({
+        credential: customer.token,
+        target: { kind: 'model', modelLine: customer.modelReference },
+      }),
+    );
+    expect(third.status).toBe(404);
+    expect(third.body.code).toBe('model_not_found');
+
+    kaanaStub.override(
+      customer.modelReference,
+      declaredModel({
+        modelId: customer.modelReference,
+        deprecation: 'retired',
+        pricing: list('kaana-pv-retired', '3.000000000000'),
+      }),
+    );
+    expect(
+      (
+        await authorize(
+          inferenceRequest({
+            credential: customer.token,
+            target: { kind: 'model', modelLine: customer.modelReference },
+          }),
+        )
+      ).body.code,
+    ).toBe('model_not_found');
+  });
+
+  it('takes a model’s capabilities from what Kaana declares, not from Oxy’s rows', async () => {
+    const customer = await textCustomer();
+    // Oxy's row says text in/out and 32k context; Kaana declares an audio-only model.
+    kaanaStub.override(
+      customer.modelReference,
+      declaredModel({
+        modelId: customer.modelReference,
+        inputModalities: ['audio'],
+        pricing: list('kaana-pv-audio', '3.000000000000'),
+      }),
+    );
+    const modality = await authorize(
+      inferenceRequest({
+        credential: customer.token,
+        target: { kind: 'model', modelLine: customer.modelReference },
+      }),
+    );
+    expect(modality.status).toBe(400);
+    expect(modality.body.code).toBe('unsupported_modality');
+
+    kaanaStub.override(
+      customer.modelReference,
+      declaredModel({
+        modelId: customer.modelReference,
+        maxContextTokens: 1_200,
+        maxOutputTokens: 400,
+        pricing: list('kaana-pv-small', '3.000000000000'),
+      }),
+    );
+    const capacity = await authorize(
+      inferenceRequest({
+        credential: customer.token,
+        target: { kind: 'model', modelLine: customer.modelReference },
+      }),
+    );
+    expect(capacity.status).toBe(400);
+    expect(capacity.body.code).toBe('output_limit_exceeded');
+  });
+
+  it('serves no route Kaana does not publish, and none Oxy has not approved', async () => {
+    const customer = await textCustomer();
+    kaanaStub.publish({
+      deploymentId: 'only-kaana-knows',
+      modelReference: `${customer.modelReference}@${AUDIO_REVISION}`,
+      provider: 'ghost-provider',
+      regions: [],
+    });
+    const grant = await grantFor(customer);
+    // The unapproved deployment never reaches the allowlist.
+    expect(grant.steps[0].limits.providerAllowlist).toEqual([customer.providers[0]]);
+    kaanaStub.routes.delete('only-kaana-knows');
+
+    // Nothing published: nothing to grant.
+    const empty = new KaanaStub();
+    empty.declare(declared(customer, list('kaana-pv-x', '3.000000000000')));
+    const restore = empty.install();
+    try {
+      const none = await authorize(
+        inferenceRequest({
+          credential: customer.token,
+          target: { kind: 'model', modelLine: customer.modelReference },
+        }),
+      );
+      expect(none.status).toBe(503);
+      expect(none.body.code).toBe('no_route_available');
+    } finally {
+      restore();
+    }
   });
 });
 

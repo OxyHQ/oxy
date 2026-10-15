@@ -18,15 +18,26 @@
  *  - the grant moves `issued|expired → settled` by compare-and-set, so exactly
  *    one caller is told `settled` and every other `duplicate`.
  *
- * ## Priced from the grant, never from Kaana
+ * ## Priced from the grant, with Kaana's list of that version
  *
  * Kaana reports units and the line that served; it never names a price. The
- * price is the `priceVersionId` the grant admitted for that line at that step
- * (`kaana_grant_admitted_lines`). A line the grant did NOT admit is settled as
- * the edge always settled — at the price of the deployment that served — and
- * recorded as `served_outside_grant`, the evidence of a `policy_violation`.
- * The served funding tier is compared with the step's ceiling and a breach is
- * logged (`fundingCeilingBreach`'s rule); the tier never changes the price.
+ * price is the list Kaana DECLARED for that line when the grant was signed: its
+ * `priceVersionId` and its unit prices are on the grant
+ * (`kaana_grant_admitted_lines`, `kaana_grant_line_unit_prices`), so the charge
+ * is computed from exactly that version — a price Kaana publishes later is a
+ * new version and never reaches a grant already signed. Oxy's own price tables
+ * are not read (Kaana ADR 0002, amendment 2026-10-15; the guard test
+ * `kaanaGrantCatalogueGuard.test.ts` holds that).
+ *
+ * Two things are refused, typed and permanently (`422`), never settled at zero:
+ * a unit the list does not price (`unpriced_unit`) and a served line that has
+ * no price to rate it at (`model_not_priced`). A line the grant did NOT admit
+ * is rated at Kaana's CURRENT declared list for the model that served and
+ * recorded as `served_outside_grant`, the evidence of a `policy_violation`; if
+ * Kaana's catalogue cannot be read at that moment the settlement is deferred
+ * (`503`, redelivered) rather than guessed. The served funding tier is compared
+ * with the step's ceiling and a breach is logged (`fundingCeilingBreach`'s
+ * rule); the tier never changes the price.
  *
  * ## What reconciliation adds
  *
@@ -48,14 +59,19 @@ import type { UsageUnit } from '@oxy.so/contracts';
 import { getDb } from '../config/postgres';
 import { type KaanaDataPlaneConfig, resolveKaanaDataPlane } from '../config/kaanaDataPlane';
 import { resolveKaanaSettlementKeys } from '../config/kaanaSettlementKeys';
-import { inferenceDeployments } from '../db/schema/inferenceDeployments';
 import { inferenceMeteredUsage } from '../db/schema/inferenceMeteredUsage';
 import { inferenceProviderCostFeedCursors } from '../db/schema/inferenceProviderCostAttempts';
 import { type KaanaGrantRow, kaanaGrants } from '../db/schema/kaanaGrants';
 import { modelLineOf } from './inferenceEdge.service';
-import { type LedgerAttribution, settle } from './inferenceLedger.service';
+import { type LedgerAttribution, type PriceSnapshotInput, settle } from './inferenceLedger.service';
 import { settleMeteredUsage } from './inferenceMeteredUsage.service';
 import { recordInferenceUsage } from './inferenceTelemetry.service';
+import {
+  DeclaredPriceError,
+  currentDeclaredCatalogue,
+  requirePriceSnapshot,
+  unpricedUnits,
+} from './kaanaDeclaredCatalogue.service';
 import { readGrantLines } from './kaanaGrant.service';
 import { logger } from '../utils/logger';
 import { tracedFetch } from '../utils/tracedFetch';
@@ -63,10 +79,26 @@ import { tracedFetch } from '../utils/tracedFetch';
 export type SettlementResult =
   | { readonly status: 'acknowledged'; readonly acknowledgement: SettlementAcknowledgement }
   /**
-   * A settlement Oxy can never apply: it names no grant Oxy issued, or a grant
-   * it does not match. Permanent, so Kaana's outbox stops redelivering it.
+   * A settlement Oxy can never apply: it names no grant Oxy issued, a grant it
+   * does not match, or something it cannot price (a unit the grant's list does
+   * not carry, a model with no list). Permanent, so Kaana's outbox stops
+   * redelivering it.
    */
-  | { readonly status: 'rejected'; readonly reason: 'unknown-grant' | 'grant-mismatch' };
+  | {
+      readonly status: 'rejected';
+      readonly reason:
+        | 'unknown-grant'
+        | 'grant-mismatch'
+        | 'unpriced_unit'
+        | 'model_not_priced'
+        | 'price_version_changed';
+    }
+  /**
+   * A settlement Oxy cannot apply YET: the price of a line outside the grant is
+   * Kaana's current declared list and the catalogue cannot be read right now.
+   * Transient: answered `503`, redelivered, never advanced past by the feed.
+   */
+  | { readonly status: 'deferred'; readonly reason: 'catalogue_unavailable' };
 
 const FUNDING_TIER_ORDER: Readonly<Record<string, number>> = { free: 0, credit: 1, paid: 2 };
 
@@ -102,20 +134,22 @@ function matchesGrant(settlement: Settlement, grant: KaanaGrantRow): boolean {
 }
 
 interface Pricing {
-  readonly priceVersionId: string;
+  /** The list the charge is computed from, by value. */
+  readonly price: PriceSnapshotInput;
   readonly servedOutsideGrant: boolean;
   readonly stepCeiling: string | null;
 }
 
+type PricingResult =
+  | { readonly status: 'priced'; readonly pricing: Pricing }
+  | Extract<SettlementResult, { status: 'rejected' | 'deferred' }>;
+
 /**
- * The price version this settlement is billed at, and whether Kaana served
- * inside the grant. `undefined` only when the grant admitted nothing priceable
- * and the served deployment is unknown — which no stored grant can be.
+ * The list this settlement is billed at, and whether Kaana served inside the
+ * grant. The grant's own copy of the list when the served line was admitted;
+ * otherwise Kaana's current declared list for the line that served.
  */
-async function pricingFor(
-  settlement: Settlement,
-  grant: KaanaGrantRow,
-): Promise<Pricing | undefined> {
+async function pricingFor(settlement: Settlement, grant: KaanaGrantRow): Promise<PricingResult> {
   const steps = await readGrantLines(grant.id);
   const servedLine = modelLineOf(settlement.report.resolvedModelReference);
   const servedStep = settlement.servedStep;
@@ -123,33 +157,51 @@ async function pricingFor(
     const step = steps.get(servedStep);
     const price = step?.lines.get(servedLine);
     if (step !== undefined && price !== undefined) {
-      return { priceVersionId: price, servedOutsideGrant: false, stepCeiling: step.maxFundingTier };
+      return {
+        status: 'priced',
+        pricing: { price, servedOutsideGrant: false, stepCeiling: step.maxFundingTier },
+      };
     }
   }
   const nothingServed = servedStep === undefined && settlement.report.units.length === 0;
   if (nothingServed) {
-    // Nothing to price: any admitted line's version prices zero units at zero.
+    // Nothing to price: any admitted line's list prices zero units at zero.
     for (const step of steps.values()) {
       for (const price of step.lines.values()) {
-        return { priceVersionId: price, servedOutsideGrant: false, stepCeiling: null };
+        return {
+          status: 'priced',
+          pricing: { price, servedOutsideGrant: false, stepCeiling: null },
+        };
       }
     }
   }
-  // Served outside the grant (or a step that does not admit the line): settle
-  // as the edge always did, at the served deployment's own price.
-  const [deployment] = await getDb()
-    .select({ priceVersionId: inferenceDeployments.priceVersionId })
-    .from(inferenceDeployments)
-    .where(eq(inferenceDeployments.internalRouteId, settlement.report.deploymentId))
-    .limit(1);
-  if (deployment?.priceVersionId != null) {
-    return {
-      priceVersionId: deployment.priceVersionId,
-      servedOutsideGrant: true,
-      stepCeiling: null,
-    };
+  // Served outside the grant (or a step that does not admit the line): rated at
+  // the list Kaana declares NOW for the model that served, and recorded.
+  const catalogue = await currentDeclaredCatalogue();
+  if (catalogue.status !== 'observed') {
+    return { status: 'deferred', reason: 'catalogue_unavailable' };
   }
-  return undefined;
+  const model = catalogue.models.get(servedLine);
+  if (model === undefined) return { status: 'rejected', reason: 'model_not_priced' };
+  try {
+    return {
+      status: 'priced',
+      pricing: {
+        price: requirePriceSnapshot(catalogue, model),
+        servedOutsideGrant: true,
+        stepCeiling: null,
+      },
+    };
+  } catch (error) {
+    if (error instanceof DeclaredPriceError) {
+      return {
+        status: 'rejected',
+        reason:
+          error.code === 'price_version_changed' ? 'price_version_changed' : 'model_not_priced',
+      };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -202,17 +254,37 @@ export async function applySettlement(
     return duplicate();
   }
 
-  const pricing = await pricingFor(settlement, grant);
-  if (pricing === undefined) {
-    logger.error(
-      'inference.settlement.unpriceable',
-      new Error('no price version for the served route'),
-      {
-        grantId: grant.id,
-        deploymentId: settlement.report.deploymentId,
-      },
-    );
-    return { status: 'rejected', reason: 'grant-mismatch' };
+  const priced = await pricingFor(settlement, grant);
+  if (priced.status === 'deferred') {
+    logger.warn('inference.settlement.deferred', {
+      grantId: grant.id,
+      settlementId: settlement.settlementId,
+      reason: priced.reason,
+      source,
+    });
+    return priced;
+  }
+  if (priced.status === 'rejected') {
+    logger.error('inference.settlement.unpriceable', new Error(`not priceable: ${priced.reason}`), {
+      grantId: grant.id,
+      settlementId: settlement.settlementId,
+      deploymentId: settlement.report.deploymentId,
+      reason: priced.reason,
+    });
+    return priced;
+  }
+  const { pricing } = priced;
+  // A unit the list does not price is a settlement Oxy refuses, typed: it is
+  // never a free unit, and nothing is written for it.
+  const unpriced = unpricedUnits(pricing.price, unitsOf(settlement));
+  if (unpriced.length > 0) {
+    logger.error('inference.settlement.unpriced_unit', new Error('a settled unit has no price'), {
+      grantId: grant.id,
+      settlementId: settlement.settlementId,
+      priceVersionId: pricing.price.priceVersionId,
+      units: unpriced,
+    });
+    return { status: 'rejected', reason: 'unpriced_unit' };
   }
   const report = settlement.report;
   if (pricing.servedOutsideGrant) {
@@ -272,7 +344,8 @@ export async function applySettlement(
       units,
       resolvedModelReference: report.resolvedModelReference,
       servingProvider: report.servingProvider,
-      priceVersionId: pricing.priceVersionId,
+      priceVersionId: pricing.price.priceVersionId,
+      priceSnapshot: pricing.price,
       platformFeeOnly: grant.economicTreatment === 'platform_fee_only',
       ...(grant.routingPolicyVersionId === null
         ? {}
@@ -305,7 +378,7 @@ export async function applySettlement(
     resolvedModelReference: report.resolvedModelReference,
     servingProvider: report.servingProvider,
     generationId: report.generationId,
-    priceVersionId: pricing.priceVersionId,
+    priceVersionId: pricing.price.priceVersionId,
     ...(usageReceiptId === undefined ? {} : { usageReceiptId }),
   });
 
@@ -515,6 +588,9 @@ export async function syncKaanaSettlementFeed(
     pages += 1;
     for (const settlement of page.data) {
       const result = await applySettlement(settlement, 'reconciliation');
+      // Not yet appliable: stop BEFORE the cursor moves past it, so the next
+      // read finds it again.
+      if (result.status === 'deferred') return { pages, settled, duplicates, rejected };
       if (result.status === 'rejected') rejected += 1;
       else if (result.acknowledgement.status === 'settled') settled += 1;
       else duplicates += 1;

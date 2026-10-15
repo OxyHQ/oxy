@@ -1,6 +1,13 @@
 /**
  * The automatic Kaana → Oxy model catalogue sync.
  *
+ * **Feeds the old edge only (`api.oxy.so/v1` and its `/v1/models`) and ends with
+ * it.** The model catalogue is Kaana's (Kaana ADR 0002, amendment 2026-10-15);
+ * grants for `kaana.ai/v1` are rated from the `declaredCatalogue` Kaana relays
+ * (`kaanaDeclaredCatalogue.service.ts`) and never from the tables this job
+ * fills. Phase 5 deletes this job; until then it is not extended, it gains no
+ * reverse direction, and nothing new reads its output for price or identity.
+ *
  * Owner direction (2026-09-25): Kaana discovers hundreds of real models, and
  * official Oxy products (Alia first) must be able to list and call ALL of them
  * by model id. Nothing hand-curated sits in between. So this job reads Kaana's
