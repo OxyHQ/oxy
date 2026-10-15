@@ -1,4 +1,4 @@
-import type { BillingTaxQuote, Peable } from '@peable.to/sdk';
+import { PeableInvalidRequestError, type BillingTaxQuote, type Peable } from '@peable.to/sdk';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
@@ -83,12 +83,22 @@ function fixture() {
     url: 'https://checkout.example.invalid/fixture',
     expiresAt: '2026-10-07T01:00:00.000Z',
   }));
+  const retrieveCheckout = jest.fn(async () => ({
+    id: 'cs_fixture',
+    storeId: input.subjectAccountId,
+    planId: 'one_monthly',
+    providerCustomerId: 'cus_fixture',
+    providerPriceId: input.priceId,
+    status: 'open',
+    subscription: null,
+    initialInvoiceId: null,
+  }));
   const resolveCustomerLocationEvidence = jest.fn(async () => ({
     customerLocationEvidenceId: 'location_fixture',
   }));
   const client = {
     merchants: { retrieve },
-    billing: { ensureCustomer, createTaxQuote, createCheckoutSession },
+    billing: { ensureCustomer, createTaxQuote, createCheckoutSession, retrieveCheckout },
   } as unknown as Pick<Peable, 'merchants' | 'billing'>;
   const provider = createPeablePersonalCheckoutProvider(client, configuration, () => now, {
     resolveCustomerLocationEvidence,
@@ -98,6 +108,7 @@ function fixture() {
     ensureCustomer,
     createTaxQuote,
     createCheckoutSession,
+    retrieveCheckout,
     resolveCustomerLocationEvidence,
     provider,
   };
@@ -311,4 +322,35 @@ it('replays the frozen return URL after provider restart with changed configurat
     { idempotencyKey: input.idempotencyKey },
   );
   expect(test.createTaxQuote).toHaveBeenCalledTimes(1);
+});
+
+it('maps authoritative review failures for creation and saved URLs without granting or repricing', async () => {
+  const f = fixture();
+  const snapshot = await f.provider.prepare?.(input);
+  if (!snapshot) throw new Error('Missing snapshot');
+  const error = new PeableInvalidRequestError('reconciliation_required', {
+    statusCode: 409,
+    code: 'invalid_request_error',
+  });
+  f.createCheckoutSession.mockRejectedValueOnce(error);
+  await expect(f.provider.create({ ...input, snapshot })).rejects.toMatchObject({
+    statusCode: 409,
+    code: 'PAYMENT_REVIEW_REQUIRED',
+  });
+  f.retrieveCheckout.mockRejectedValueOnce(error);
+  await expect(f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture')).rejects.toMatchObject(
+    {
+      statusCode: 409,
+      code: 'PAYMENT_REVIEW_REQUIRED',
+    },
+  );
+  await f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture');
+  f.retrieveCheckout.mockResolvedValueOnce({
+    ...(await f.retrieveCheckout()),
+    storeId: 'foreign',
+  });
+  await expect(f.provider.validateExistingCheckout?.(snapshot, 'cs_fixture')).rejects.toThrow(
+    'binding differs',
+  );
+  expect(f.createTaxQuote).toHaveBeenCalledTimes(1);
 });

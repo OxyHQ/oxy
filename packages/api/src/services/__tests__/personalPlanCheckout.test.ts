@@ -18,7 +18,7 @@ import {
 } from '../personalPlanCheckout.service';
 import { recordProductProviderPeriod } from '../productProviderEvidence.service';
 import { createPeablePersonalCheckoutProvider } from '../peablePersonalCheckout.service';
-import { Peable } from '@peable.to/sdk';
+import { Peable, PeableInvalidRequestError } from '@peable.to/sdk';
 beforeAll(connectPostgres);
 afterAll(closePostgres);
 async function fixture() {
@@ -97,9 +97,20 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
     url: 'https://checkout.example.invalid/fixture',
     expiresAt: '2099-01-01T00:00:00.000Z',
   }));
+  const retrieveCheckout = jest.fn(async () => ({
+    id: 'cs_fixture',
+    storeId: test.payer,
+    planId: 'one_monthly',
+    providerCustomerId: 'cus_fixture',
+    providerPriceId: 'price_synthetic',
+    status: 'open',
+    subscription: null,
+    initialInvoiceId: null,
+  }));
   const client = {
     merchants: { retrieve: async () => merchant },
     billing: {
+      retrieveCheckout,
       ensureCustomer,
       createCheckoutSession,
       createTaxQuote: async () => {
@@ -164,6 +175,32 @@ it('reserves and replays the SDK transport without granting from a hosted sessio
   const first = await startPersonalPlanCheckout(test.payer, test.request, dependencies);
   expect(first.state).toBe('pending');
   expect(await startPersonalPlanCheckout(test.payer, test.request, dependencies)).toEqual(first);
+  expect(createCheckoutSession).toHaveBeenCalledTimes(1);
+  retrieveCheckout.mockRejectedValueOnce(
+    new PeableInvalidRequestError('reconciliation_required', {
+      statusCode: 409,
+      code: 'invalid_request_error',
+    }),
+  );
+  await expect(
+    startPersonalPlanCheckout(test.payer, test.request, dependencies),
+  ).rejects.toMatchObject({
+    statusCode: 409,
+    code: 'PAYMENT_REVIEW_REQUIRED',
+  });
+  const held = await getDb()
+    .select()
+    .from(personalPlanCheckoutIntents)
+    .where(eq(personalPlanCheckoutIntents.subjectAccountId, test.payer));
+  expect(held).toHaveLength(1);
+  expect(held[0].state).toBe('pending');
+  await expect(
+    startPersonalPlanCheckout(
+      test.payer,
+      { ...test.request, idempotencyKey: randomUUID() },
+      dependencies,
+    ),
+  ).rejects.toThrow('already pending');
   expect(createCheckoutSession).toHaveBeenCalledTimes(1);
   expect(
     await getDb()

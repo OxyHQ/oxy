@@ -63,6 +63,8 @@ export interface PersonalCheckoutInput {
 export interface PersonalCheckoutProvider {
   kind: 'synthetic' | 'peable';
   prepare?(input: PersonalCheckoutInput): Promise<PersonalCheckoutSnapshot>;
+  /** Re-read the owning provider before exposing a saved payment URL. */
+  validateExistingCheckout?(snapshot: PersonalCheckoutSnapshot, sessionId: string): Promise<void>;
   create(input: PersonalCheckoutInput): Promise<{
     sessionId: string;
     checkoutUrl: string;
@@ -473,6 +475,19 @@ export async function resumePersonalPlanCheckout(
     return intent;
   };
   let intent = await load();
+  if (
+    intent.state !== 'closed' &&
+    intent.state !== 'fulfilled' &&
+    intent.providerSessionId &&
+    dependencies.provider.validateExistingCheckout
+  ) {
+    const snapshot = personalCheckoutSnapshotFromIntent(intent);
+    if (!snapshot) throw new ConflictError('Checkout authority is unavailable');
+    // The pending intent keeps its reservation on review or provider failure.
+    // Never expose a cached URL or open a new payment from such an observation.
+    await dependencies.provider.validateExistingCheckout(snapshot, intent.providerSessionId);
+    intent = await load();
+  }
   const terminal = (row: typeof intent): PersonalPlanCheckoutResult | undefined => {
     if (row.state === 'closed') return { state: 'closed', intentId: row.id };
     if (row.state === 'fulfilled') return { state: 'fulfilled', intentId: row.id };
