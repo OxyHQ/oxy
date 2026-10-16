@@ -59,21 +59,34 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 ## Publishing
 
-**Releases go through `.github/workflows/release-packages.yml`, never a laptop.** Dispatch it from
-protected `main` with the package's name (`@oxy.so/core`, `create-oxy-app`, … — any workspace
-package that is not `private`), the exact `main` commit to release, and `dry_run` (default `true`).
-The `build` job holds no credential: it installs frozen, builds the package's workspace
-dependencies, runs the package's own `prepublishOnly`, packs with `bun pm pack`, and
+**Releases go through `.github/workflows/release-packages.yml`, never a laptop — in every OxyHQ
+repository.** Each repository that publishes to npm (oxy, Kaana, Bloom, Alia, the product apps) has
+the same small `release-packages.yml`, which calls THE release workflow,
+`.github/workflows/npm-release.yml` here (other repositories call
+`OxyHQ/oxy/.github/workflows/npm-release.yml@main`). Dispatch it from protected `main` (or a
+protected `release/*` line) with the package's name (`@oxy.so/core`, `create-oxy-app`, … — any
+package.json that is not `private`, the root included), the exact commit to release, `dry_run`
+(default `true`) and `dist_tag` (default `latest`; `latest` never moves backwards and never names a
+prerelease, so an older major ships under its own tag). The `build` job holds no credential: it
+installs frozen, builds the package's workspace dependencies, runs the package's own
+`prepublishOnly` — every public package MUST declare one with its typecheck, tests and build, and
+the release refuses a package without it — packs with `bun pm pack`, and
 `.github/scripts/release-package.mjs inspect` refuses a tarball that is not that version, still
-carries a `workspace:`/`catalog:` range, lacks a declared entry point, or depends on an
-`@oxy.so/*` range nothing on the registry satisfies yet. The `publish` job (environment `npm`,
-`id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
-`npm publish ./<tgz> --provenance --access public` with npm trusted publishing (OIDC): there is
-no `NPM_TOKEN`. A release that spans packages goes dependency first (contracts → protocol /
-telemetry → core → services); `inspect` refuses a dependent whose dependency is not out yet.
-Each package needs its trusted publisher configured once on npmjs.com (repository `OxyHQ/oxy`,
-workflow `release-packages.yml`, environment `npm`). The publish path is a tarball on purpose;
-the rest of this section is why.
+carries a `workspace:`/`catalog:` range, lacks a declared entry point, ships a `.tsbuildinfo`, or
+depends on a range nothing on the registry satisfies yet. The checks always run from the release
+workflow's own commit of OxyHQ/oxy, never from the caller's tree. The `publish` job (environment
+`npm`, `id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
+`npm publish <tgz> --provenance --access public --tag <dist_tag>` with npm trusted publishing
+(OIDC): there is no `NPM_TOKEN` in any repository. A release that spans packages goes dependency
+first (contracts → protocol / telemetry → core → services); `inspect` refuses a dependent whose
+dependency is not out yet.
+
+Each package needs its trusted publisher configured once on npmjs.com
+(`https://www.npmjs.com/package/<name>/access` → Trusted Publisher → GitHub Actions): organization
+`OxyHQ`, the repository that holds the package, workflow `release-packages.yml` (npm checks the
+CALLING workflow, not `npm-release.yml`), environment `npm`, allowed action `publish`. Each
+repository has an environment `npm` limited to `main` and `release/*`. The publish path is a tarball
+on purpose; the rest of this section is why.
 
 `prepublishOnly` is where `@oxy.so/services` keeps its pre-flight (`assert-bun-publish` → `typescript` → `test` → `build`). It exists, and for `@oxy.so/services@30.0.0` it did not run. Measured 2026-08-17 on npm 10.9.8 / bun 1.3.14 with a probe package whose every lifecycle script appends its own name to a log file:
 

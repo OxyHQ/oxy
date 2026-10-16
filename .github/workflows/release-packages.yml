@@ -1,31 +1,14 @@
 name: Release packages
 
-# Publishes ONE public workspace package (`@oxy.so/core`, `@oxy.so/services`,
-# `create-oxy-app`, … — any package.json in the workspace that is not
-# `private`) to npm from one exact protected `main` commit, with npm trusted
-# publishing (OIDC) and provenance. There is no NPM_TOKEN.
+# Publishes one public package of this repository (`@oxy.so/core`,
+# `create-oxy-app`, … — any package.json that is not `private`) to npm through
+# the shared `npm-release.yml`, with npm trusted publishing (OIDC) and
+# provenance. Every OxyHQ repository that publishes to npm has this same caller;
 # docs/engineering/package-rules.md#publishing.
 #
-#   build    frozen-lockfile install, the builds of the workspace packages it
-#            links (`release-package.mjs dependencies`), the
-#            package's own pre-flight (`prepublishOnly`: build, typecheck,
-#            tests), then `bun pm pack`, which rewrites `workspace:`/`catalog:`
-#            ranges. `release-package.mjs inspect` checks the tarball (name,
-#            version, rewritten ranges, every declared entry point present, every
-#            `@oxy.so/*` range already on the registry), and the version must be
-#            absent from the registry. Uploads the tarball and its SHA-512 as the
-#            trusted bytes. No credential of any kind, and no `id-token`.
-#   publish  protected environment `npm`, `id-token: write`. A fresh checkout
-#            rebuilds and repacks; the result must equal the trusted bytes, the
-#            version must still be absent, and only then
-#            `npm publish <tgz> --provenance --access public`. npm exchanges this
-#            job's OIDC token for a one-use publish credential.
-#
-# Dry run is the default: it builds, verifies and preflights, and never reaches
-# the publish job. Order matters when a release spans packages: publish a
-# dependency (contracts, then protocol/telemetry, then core, then services)
-# before its dependents; `inspect` refuses a dependent whose range does not
-# resolve yet.
+# Order matters when a release spans packages: publish a dependency (contracts,
+# then protocol/telemetry, then core, then services) before its dependents;
+# `inspect` refuses a dependent whose range does not resolve yet.
 
 on:
   workflow_dispatch:
@@ -35,7 +18,7 @@ on:
         required: true
         type: string
       expected_source_sha:
-        description: Exact protected main commit to build and publish
+        description: Exact protected commit to build and publish
         required: true
         type: string
       dry_run:
@@ -43,148 +26,26 @@ on:
         required: true
         type: boolean
         default: true
+      dist_tag:
+        description: npm dist-tag (latest only moves forward)
+        required: true
+        type: string
+        default: latest
 
+# The shared workflow's publish job is the only one that keeps id-token.
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: release-packages
   cancel-in-progress: false
 
-env:
-  PACKAGE_NAME: ${{ inputs.package }}
-  EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
-
 jobs:
-  build:
-    name: build the trusted bytes
-    if: github.ref == 'refs/heads/main' && github.ref_protected
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: the run is the exact commit that was reviewed
-        run: |
-          if [ "$GITHUB_SHA" != "$EXPECTED_SOURCE_SHA" ]; then
-            echo "main is at $GITHUB_SHA, not the expected $EXPECTED_SOURCE_SHA"
-            exit 1
-          fi
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-
-      - name: install the exact reviewed dependencies
-        run: bun install --frozen-lockfile --minimum-release-age=0
-
-      - name: the package is a public workspace package
-        run: echo "PACKAGE_DIR=$(node .github/scripts/release-package.mjs resolve "$PACKAGE_NAME")" >> "$GITHUB_ENV"
-
-      - name: the package's own pre-flight
-        run: |
-          for dependency in $(node .github/scripts/release-package.mjs dependencies "$PACKAGE_NAME"); do
-            bun run --filter "$dependency" build
-          done
-          (cd "$PACKAGE_DIR" && bun run prepublishOnly)
-
-      - name: pack
-        run: |
-          rm -rf release && mkdir release
-          (cd "$PACKAGE_DIR" && bun run --if-present build && bun pm pack --destination "$GITHUB_WORKSPACE/release")
-          tarballs=(release/*.tgz)
-          if [ "${#tarballs[@]}" -ne 1 ]; then
-            echo "expected exactly one tarball, found ${#tarballs[@]}"
-            exit 1
-          fi
-          node .github/scripts/release-package.mjs inspect "${tarballs[0]}" "$PACKAGE_DIR"
-          # Summed from inside release/, so the file names the tarball by its bare
-          # name: the artifact is downloaded flat into trusted/.
-          (cd release && sha512sum "$(basename "${tarballs[0]}")" | tee SHA512SUMS)
-
-      - name: the version is not on the registry yet (anonymous preflight)
-        run: |
-          version="$(node -p "require('./$PACKAGE_DIR/package.json').version")"
-          if npm view "$PACKAGE_NAME@$version" version --userconfig /dev/null >/dev/null 2>&1; then
-            echo "$PACKAGE_NAME@$version is already published; bump the version"
-            exit 1
-          fi
-          echo "$PACKAGE_NAME@$version is not on the registry"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ github.run_id }}
-          path: release/
-          if-no-files-found: error
-          retention-days: 30
-
-  publish:
-    name: publish with provenance
-    needs: build
-    if: inputs.dry_run == false
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: npm
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24.x'
-          registry-url: https://registry.npmjs.org
-
-      - name: rebuild from the exact source
-        run: |
-          bun install --frozen-lockfile --minimum-release-age=0
-          PACKAGE_DIR="$(node .github/scripts/release-package.mjs resolve "$PACKAGE_NAME")"
-          echo "PACKAGE_DIR=$PACKAGE_DIR" >> "$GITHUB_ENV"
-          for dependency in $(node .github/scripts/release-package.mjs dependencies "$PACKAGE_NAME"); do
-            bun run --filter "$dependency" build
-          done
-          mkdir rebuilt
-          (cd "$PACKAGE_DIR" && bun run --if-present build && bun pm pack --destination "$GITHUB_WORKSPACE/rebuilt")
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: release-${{ github.run_id }}
-          path: trusted
-
-      - name: the rebuilt bytes are the trusted bytes
-        run: |
-          (cd trusted && sha512sum --check SHA512SUMS)
-          trusted=(trusted/*.tgz)
-          rebuilt=(rebuilt/*.tgz)
-          cmp "${trusted[0]}" "${rebuilt[0]}"
-
-      - name: the version is not on the registry yet (anonymous preflight)
-        run: |
-          version="$(node -p "require('./$PACKAGE_DIR/package.json').version")"
-          if npm view "$PACKAGE_NAME@$version" version --userconfig /dev/null >/dev/null 2>&1; then
-            echo "$PACKAGE_NAME@$version is already published; bump the version"
-            exit 1
-          fi
-
-      - name: publish the trusted tarball
-        run: |
-          trusted=(trusted/*.tgz)
-          # "./": npm reads a bare `trusted/<file>.tgz` as the GitHub shorthand
-          # `user/repo` and tries to clone it (Kaana's 5.0.0 release failed
-          # exactly so); a path that starts with ./ is a local tarball.
-          npm publish "./${trusted[0]}" --provenance --access public
+  release:
+    uses: ./.github/workflows/npm-release.yml
+    with:
+      package: ${{ inputs.package }}
+      expected_source_sha: ${{ inputs.expected_source_sha }}
+      dry_run: ${{ inputs.dry_run }}
+      dist_tag: ${{ inputs.dist_tag }}

@@ -87,6 +87,7 @@
   "files": [
     "NOTICE",
     "dist",
+    "!dist/**/*.tsbuildinfo",
     "src",
     "!src/__tests__",
     "!src/**/*.typetest.ts"

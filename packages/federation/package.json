@@ -45,6 +45,7 @@
   "files": [
     "NOTICE",
     "dist",
+    "!dist/**/*.tsbuildinfo",
     "src"
   ],
   "keywords": [

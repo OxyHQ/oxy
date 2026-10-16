@@ -46,7 +46,8 @@
   },
   "files": [
     "NOTICE",
-    "dist"
+    "dist",
+    "!dist/**/*.tsbuildinfo"
   ],
   "keywords": [
     "oxyhq",
