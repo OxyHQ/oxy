@@ -1,5 +1,5 @@
 /**
- * The storage observation of ADR 0042 D2 against a REAL Postgres: what each
+ * The storage observation of ADR 0043 D2 against a REAL Postgres: what each
  * application stores and added, the growth anomaly, and the metrics it
  * publishes (CloudWatch embedded metric format, read back from the log lines).
  *

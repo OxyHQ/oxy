@@ -1,5 +1,5 @@
 /**
- * Large, any-type uploads by an application's service token (ADR 0042 stage 4b).
+ * Large, any-type uploads by an application's service token (ADR 0043 stage 4b).
  *
  *   open      POST /assets/service/{app,user-media}/uploads
  *   parts     POST …/:uploadId/parts      presigned UploadPart URLs (≤ 100 a call)
@@ -245,7 +245,7 @@ export class FileUploadSessionService {
     const finalKey = this.assets.largeUploadFinalKey(stagingKey, request.visibility);
 
     // A metered owner with storage admission on: the whole file is reserved
-    // against the plan before a byte is sent (ADR 0042 D3), at the key the row
+    // against the plan before a byte is sent (ADR 0043 D3), at the key the row
     // will name, so the reservation and the row are counted once.
     const catalogue = await loadProductBillingCatalogue();
     const accountId = catalogue.storageAdapter

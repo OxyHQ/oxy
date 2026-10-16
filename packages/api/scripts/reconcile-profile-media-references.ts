@@ -1,5 +1,5 @@
 /**
- * Back-fill and repair the Oxy Accounts `avatar` references (ADR 0042 D4,
+ * Back-fill and repair the Oxy Accounts `avatar` references (ADR 0043 D4,
  * stage 4b). Mechanism: `src/services/profileMediaReferences.service.ts`.
  *
  *   bun run packages/api/scripts/reconcile-profile-media-references.ts           # report (dry run)

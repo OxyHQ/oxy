@@ -4,7 +4,7 @@
  *
  * Every case scopes the scan to an application it owns (`applicationId`, the
  * script's `--app`), so rows other suites leave in the shared database are
- * never counted or changed. Shares live in `file_references` (ADR 0042 D4); a
+ * never counted or changed. Shares live in `file_references` (ADR 0043 D4); a
  * reference an application made with its own token has no creator and is
  * never a share.
  */

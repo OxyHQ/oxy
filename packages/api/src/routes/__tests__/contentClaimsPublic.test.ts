@@ -1,6 +1,6 @@
 /**
  * `POST /content-claims` — the public "Report content / rights claim" intake
- * (ADR 0042 D10) — over real `node:http`, the REAL CORS middleware, the REAL
+ * (ADR 0043 D10) — over real `node:http`, the REAL CORS middleware, the REAL
  * rate limiters (in memory: no Redis in the test environment) and a REAL
  * Postgres. Stubbed: the optional session (a bearer of `good` is a signed-in
  * account), the logger.

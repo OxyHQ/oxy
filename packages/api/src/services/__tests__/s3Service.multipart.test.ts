@@ -1,5 +1,5 @@
 /**
- * The multipart surface of `S3Service` (ADR 0042 stage 4b), against the REAL
+ * The multipart surface of `S3Service` (ADR 0043 stage 4b), against the REAL
  * SDK command classes with only `S3Client.send` stubbed:
  *
  *  - a multipart upload is opened with the SERVER's Content-Type, disposition

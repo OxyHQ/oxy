@@ -494,7 +494,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   });
 
   // Asks before deleting for good a file an application still uses (the API
-  // refuses it until the person says so — ADR 0042 D5).
+  // refuses it until the person says so — ADR 0043 D5).
   const confirmStillUsed = useCallback(
     (filename: string) => (uses: number) =>
       surfaces.confirm({
@@ -509,7 +509,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 
   /**
    * Remove one file from the library. It goes to TRASH — no longer served,
-   * restorable from Trash (ADR 0042 D5). A `blocked` file cannot be trashed
+   * restorable from Trash (ADR 0043 D5). A `blocked` file cannot be trashed
    * (it is served to nobody already), so removing it is the permanent delete.
    */
   const confirmFileDelete = useCallback(
@@ -975,7 +975,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           ) : undefined),
         title: file.filename,
         // "Not in use": no application references it. Informational only —
-        // the file is never removed for that (ADR 0042 D5). A file taken down
+        // the file is never removed for that (ADR 0043 D5). A file taken down
         // after a content claim says so: it is served to nobody (D10).
         description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}${
           file.status === 'blocked'

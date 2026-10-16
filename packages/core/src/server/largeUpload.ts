@@ -1,5 +1,5 @@
 /**
- * The client half of the Oxy API's large uploads (ADR 0042 stage 4b), for
+ * The client half of the Oxy API's large uploads (ADR 0043 stage 4b), for
  * `OxyServer.assets.uploadAppFileLarge` / `uploadUserMediaLarge`.
  *
  *   hash      SHA-256 of the source, read 8 MiB at a time (never whole in memory)

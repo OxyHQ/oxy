@@ -1,6 +1,6 @@
 /**
  * `file_lifecycle_sweeps` — one run of the file lifecycle sweep
- * (`services/fileLifecycle.worker.ts`, ADR 0042 D5), which is at once its
+ * (`services/fileLifecycle.worker.ts`, ADR 0043 D5), which is at once its
  * LEASE and its REPORT.
  *
  * - **Lease.** A run is claimed by inserting a `running` row under a

@@ -73,7 +73,7 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   );
   const [aliaMachineAccess, setAliaMachineAccess] = useState<boolean | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  // Deleting an application deletes every file it owns at once (ADR 0042 D8),
+  // Deleting an application deletes every file it owns at once (ADR 0043 D8),
   // so the person types its name; the API compares it the same way.
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const deleteConfirmed = isDeleteConfirmed(deleteConfirmName, application.name);

@@ -558,7 +558,7 @@ export class S3Service {
     options: { sizeHint?: number } = {},
   ): Promise<void> {
     // `CopyObject` copies at most 5 GiB in one request; a larger object (a large
-    // upload, ADR 0042 stage 4b) is copied part by part. The size is known to
+    // upload, ADR 0043 stage 4b) is copied part by part. The size is known to
     // most callers (the file row); one that does not know it learns it from
     // S3's refusal and retries the multipart way.
     if (options.sizeHint !== undefined && options.sizeHint > SINGLE_COPY_MAX_BYTES) {
@@ -653,7 +653,7 @@ export class S3Service {
 
   /**
    * Open a multipart upload the client fills through presigned part URLs
-   * (ADR 0042 stage 4b). Content-Type, Content-Disposition and Cache-Control
+   * (ADR 0043 stage 4b). Content-Type, Content-Disposition and Cache-Control
    * are set HERE, by the server, so they are not the client's to choose.
    */
   async createMultipartUpload(

@@ -55,7 +55,7 @@ retired credential carried, before the run that revokes that credential:
 `--scopes` replaces a binding's scope list, so a re-bind names everything the
 service already relies on, not only these.
 
-The Clarity backend also holds the ADR 0042 file grant (`files:read`,
+The Clarity backend also holds the ADR 0043 file grant (`files:read`,
 `files:app:write`, `files:app:delete`, `files:references:write`, declared as
 `clarity.backendApplication.fileScopes`). The bootstrap adds it — and only it —
 to an existing backend application and to its LIVE binding (`grant

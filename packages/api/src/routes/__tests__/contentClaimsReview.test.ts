@@ -1,5 +1,5 @@
 /**
- * The content-claim review and the takedown it decides (ADR 0042 D10) — the
+ * The content-claim review and the takedown it decides (ADR 0043 D10) — the
  * staff routes of `/content-claims`, `/assets` and `/cdn` over real
  * `node:http`, the REAL AssetService, file events, lifecycle, storage purge
  * and a REAL Postgres. Stubbed: the session (a switchable user; the staff

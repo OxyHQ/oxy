@@ -1,6 +1,6 @@
 /**
  * Migrations 0168 (pre) and `*_drop_file_links` (post): `file_links` → `file_references`
- * (ADR 0042 D4), run VERBATIM against a seeded legacy table.
+ * (ADR 0043 D4), run VERBATIM against a seeded legacy table.
  *
  * Both files are read from `drizzle/` and executed statement by statement in
  * one transaction, as the migrator does. Copying their SQL here would test a

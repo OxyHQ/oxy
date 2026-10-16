@@ -175,7 +175,7 @@ function uniqueIds(ids: string[]): string[] {
 
 export class ServerAssetsApi extends AssetsApi {
   /**
-   * The calling application's own uses of files (`file_references`, ADR 0042
+   * The calling application's own uses of files (`file_references`, ADR 0043
    * D4; scope `files:references:write`). The application is always the service
    * token's — never sent. Batches above 100 go as several requests, in order;
    * the results come back in the order given.
@@ -194,7 +194,7 @@ export class ServerAssetsApi extends AssetsApi {
       this.sendReferences('DELETE', references),
     /**
      * Reconcile this application's references of ONE entity type with its
-     * real inventory (ADR 0042 D6) — the safety net for a reference a crash or
+     * real inventory (ADR 0043 D6) — the safety net for a reference a crash or
      * an old bug never registered, and how existing data first enters the
      * model. `items` is every `{ fileId, entityId }` the application uses for
      * `entityType` (an array or any (async) iterable — stream a large table);
@@ -443,12 +443,12 @@ export class ServerAssetsApi extends AssetsApi {
 
   /**
    * Store a file THIS application owns (`POST /assets/service/app`, scope
-   * `files:app:write`, ADR 0042) — content no person owns. The owner is
+   * `files:app:write`, ADR 0043) — content no person owns. The owner is
    * always the calling application. A third-party application's bytes count
    * toward its developer account's storage plan (over it: 413
    * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image
    * or video only, at most 40 MiB. Bytes taken down after a content claim are
-   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0042 D10) — here, by
+   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0043 D10) — here, by
    * the imports and by every other upload.
    *
    * `visibility` is required: `public` and `unlisted` are readable by anyone
@@ -473,7 +473,7 @@ export class ServerAssetsApi extends AssetsApi {
 
   /**
    * Store a file of ANY type, up to 8 GiB, that THIS application owns, by a
-   * resumable multipart upload (`/assets/service/app/uploads`, ADR 0042 stage
+   * resumable multipart upload (`/assets/service/app/uploads`, ADR 0043 stage
    * 4b; `files:app:write`, plus `files:references:write` for `reference`).
    * The source is hashed first (8 MiB at a time; pass `sha256` to skip it),
    * then its parts go straight to storage on presigned URLs,
@@ -597,7 +597,7 @@ export class ServerAssetsApi extends AssetsApi {
 
   /**
    * Take ownership of a file this application can read, without uploading it
-   * again (`POST /assets/service/app/adopt`, `files:app:write`, ADR 0042 stage
+   * again (`POST /assets/service/app/adopt`, `files:app:write`, ADR 0043 stage
    * 4b): this application gets its OWN file of the same bytes — it outlives the
    * source, whose owner may delete theirs — sharing the stored object. Readable
    * means what a reference may name: any owner's active `public` or `unlisted`
@@ -630,7 +630,7 @@ export class ServerAssetsApi extends AssetsApi {
 
   /**
    * Import a file by URL that THIS application owns
-   * (`POST /assets/service/app/import`, `files:app:write`, ADR 0042 D7). Oxy
+   * (`POST /assets/service/app/import`, `files:app:write`, ADR 0043 D7). Oxy
    * fetches `sourceUrl` itself — `https` only, public addresses only, bounded
    * redirects, size and time — and stores it like {@link uploadAppFile}.
    * Importing the same URL again answers the existing file without fetching
@@ -691,7 +691,7 @@ export class ServerAssetsApi extends AssetsApi {
   /**
    * Import a file by URL into an existing local user's files
    * (`POST /assets/service/user-media/import`, the staff-granted scope
-   * `files:user-media:write`, ADR 0042 D7) — the account-owned twin of
+   * `files:user-media:write`, ADR 0043 D7) — the account-owned twin of
    * {@link importAppFile}, public unless `visibility` says otherwise. The same
    * URL imported again for the same user answers the existing file.
    */

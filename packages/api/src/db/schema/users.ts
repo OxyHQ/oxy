@@ -230,7 +230,7 @@ export const DEFAULT_USER_LANGUAGES = ['en-US'] as const;
  *   (which books a rounding entry).
  * - `billing:cost_centers` — registering and retiring the internal cost centres
  *   Oxy books its own first-party spend against.
- * - `content:claims` — the content-claim queue (ADR 0042 D10): reading claims
+ * - `content:claims` — the content-claim queue (ADR 0043 D10): reading claims
  *   and acting on them — blocking a file's bytes for every owner, rejecting,
  *   recording a counter-notice, reinstating. Reading is graded too, the one
  *   exception below: a claim carries the claimant's name, email and

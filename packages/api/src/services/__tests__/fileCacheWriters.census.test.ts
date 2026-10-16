@@ -1,5 +1,5 @@
 /**
- * Every write to `files` reaches the cross-task cache invalidation (ADR 0042
+ * Every write to `files` reaches the cross-task cache invalidation (ADR 0043
  * stage 4b) — a census over the source, so a NEW writer fails the build until
  * somebody decides how it invalidates.
  *

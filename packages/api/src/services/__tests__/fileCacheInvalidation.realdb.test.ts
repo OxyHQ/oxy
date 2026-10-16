@@ -1,5 +1,5 @@
 /**
- * A takedown reaches every API task's file cache at once (ADR 0042 stage 4b),
+ * A takedown reaches every API task's file cache at once (ADR 0043 stage 4b),
  * against a REAL Postgres and the real claim, asset and repository code.
  *
  * Before, the per-process cache (five minutes) let a task that had cached a

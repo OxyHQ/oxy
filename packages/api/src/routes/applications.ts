@@ -369,7 +369,7 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
  *
  * `type` is the application's type as it will be stored: whether a scope is
  * privileged can depend on it ({@link isPrivilegedScopeForApplicationType} —
- * the application file scopes of ADR 0042 are self-service on a `third_party`
+ * the application file scopes of ADR 0043 are self-service on a `third_party`
  * application and staff-granted on Oxy's own). A non-staff caller can never
  * change the type, so for them it is the stored one.
  */
@@ -460,7 +460,7 @@ interface SerializedApplication {
   scopes: string[];
   webhookUrl?: string;
   devWebhookUrl?: string;
-  /** The verified file-events endpoint (ADR 0042 D9); its secret is never serialized. */
+  /** The verified file-events endpoint (ADR 0043 D9); its secret is never serialized. */
   filesWebhookUrl?: string;
   filesWebhookVerifiedAt?: Date;
   ownerAccountId: string;
@@ -846,7 +846,7 @@ router.post(
 
     // Privileged scopes (e.g. federation:write) are NOT self-grantable.
     // A new application is `third_party` (the column default; create takes no
-    // type), so the application file scopes are self-service here (ADR 0042).
+    // type), so the application file scopes are self-service here (ADR 0043).
     const scopes = authorizeRequestedScopes(req, body.scopes ?? [], [], 'third_party');
 
     const [application] = await getDb()
@@ -1017,7 +1017,7 @@ router.patch(
 
 /**
  * Delete an application (`app:delete`) — and, in the same transaction, every
- * file it owns and every reference it registered (ADR 0042 D8).
+ * file it owns and every reference it registered (ADR 0043 D8).
  *
  * Body `{ confirmName }`: the application's CURRENT name, typed by the person
  * (compared trimmed, case-sensitively); anything else is 400 and nothing
@@ -1189,7 +1189,7 @@ router.post(
     // MAY create a service credential when every requested scope is
     // self-service ({@link isSelfServiceServiceCredentialScope}): a payments
     // scope (`payments:read`/`payments:write`), or one of its own application
-    // file scopes (`files:app:*`, `files:references:write`, ADR 0042 D3).
+    // file scopes (`files:app:*`, `files:references:write`, ADR 0043 D3).
     // Those two scopes are already non-privileged/self-grantable and bounded
     // to the app's own Peable Gateway tenant (see `applicationScopes.ts`),
     // and the resulting service token's downstream authority is bounded by
@@ -1613,7 +1613,7 @@ router.get(
 );
 
 /**
- * What the application stores in Oxy Files (ADR 0042 D2/D3): its live files,
+ * What the application stores in Oxy Files (ADR 0043 D2/D3): its live files,
  * their bytes (originals plus renditions) and the account they count against
  * — the developer's for a third-party application, `null` for Oxy's own, which
  * are observed rather than metered.
@@ -1628,7 +1628,7 @@ router.get(
 );
 
 // ============================================================================
-// File events (ADR 0042 D9)
+// File events (ADR 0043 D9)
 //
 // One endpoint per application, told about the files the application uses or
 // owns. Stored only once it echoed a signed challenge; its HMAC secret is

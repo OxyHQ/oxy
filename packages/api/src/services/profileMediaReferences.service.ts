@@ -1,5 +1,5 @@
 /**
- * A profile's avatar is a use of a file (ADR 0042 D4, stage 4b).
+ * A profile's avatar is a use of a file (ADR 0043 D4, stage 4b).
  *
  * The Oxy Accounts application uses the file a profile shows as its avatar, so
  * that file is never "not in use" for its person. The reference is the one the

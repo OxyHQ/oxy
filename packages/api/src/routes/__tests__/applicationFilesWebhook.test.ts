@@ -1,5 +1,5 @@
 /**
- * An application's file-events endpoint (ADR 0042 D9):
+ * An application's file-events endpoint (ADR 0043 D9):
  * `GET`/`PUT`/`DELETE /applications/:appId/files-webhook`, and the challenge
  * that verifies it — against a REAL Postgres; the network is a stubbed
  * `safeFetch` (the challenge's receiver) that falls through to the real guard

@@ -1,5 +1,5 @@
 /**
- * Content claims (ADR 0042 D10) — the constants of the public "Report content
+ * Content claims (ADR 0043 D10) — the constants of the public "Report content
  * / rights claim" intake and of a claim's review, without Zod. Schemas:
  * `../contentClaims.ts`.
  *

@@ -246,7 +246,7 @@ const POSTER_MAX_OUTPUT_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 /**
  * The largest image whose renditions are made. Sharp reads the original into
- * memory, so a large upload of a huge image (ADR 0042 stage 4b allows 8 GiB)
+ * memory, so a large upload of a huge image (ADR 0043 stage 4b allows 8 GiB)
  * would take the task down; such an image is stored and served as it is, with
  * no renditions (and a size request for it falls back like any missing one).
  */
@@ -288,7 +288,7 @@ export interface VideoVariantConfig {
  * The spelling a file's renditions are written in: under `public/` only while
  * the file is SERVED publicly (public AND `active`, `config/cdn.isServedPublicly`),
  * exactly as its original's key is. A public file in trash or blocked (ADR
- * 0042 D5, D10) is not on the CDN, and a rendition generated for it must not
+ * 0043 D5, D10) is not on the CDN, and a rendition generated for it must not
  * put it back there.
  */
 function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {

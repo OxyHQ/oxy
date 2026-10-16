@@ -135,7 +135,7 @@ export type {
   SsrfCheckResult,
 } from './safeFetch';
 
-// Receiving Oxy's file events (ADR 0042 D9): signature + replay window.
+// Receiving Oxy's file events (ADR 0043 D9): signature + replay window.
 export {
   FILE_EVENT_DEFAULT_TOLERANCE_SECONDS,
   FILE_EVENT_SIGNATURE_HEADER,

@@ -1,5 +1,5 @@
 /**
- * Receiving Oxy's file events (ADR 0042 D9).
+ * Receiving Oxy's file events (ADR 0043 D9).
  *
  * Oxy tells an application about the files it uses or owns — a file was
  * deleted, moved to trash, restored, or changed visibility — by POSTing JSON

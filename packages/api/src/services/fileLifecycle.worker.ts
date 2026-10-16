@@ -1,10 +1,10 @@
 /**
- * The file lifecycle sweep (ADR 0042 D5): what Oxy collects, and what it never
+ * The file lifecycle sweep (ADR 0043 D5): what Oxy collects, and what it never
  * touches.
  *
  * | Step | Condition | Action (`enforce`) |
  * |---|---|---|
- * | `deletedApplications` | a `deleted` APPLICATION that still owns live files or holds references (deleted before D8 shipped) | ADR 0042 D8, as the console's delete runs it |
+ * | `deletedApplications` | a `deleted` APPLICATION that still owns live files or holds references (deleted before D8 shipped) | ADR 0043 D8, as the console's delete runs it |
  * | `purge` | an APPLICATION's file in trash for 30 days | tombstone + purge through `storage_object_deletions` |
  * | `purgeBlocked` | an APPLICATION's blocked file (D10) unused for 30 days, no open claim holding it | tombstone + purge |
  * | `trash` | an APPLICATION's active file unreferenced for 24 hours | trash, off the CDN |
@@ -26,7 +26,7 @@
  *   `unreferenced_since` on every existing file, so the first runs report the
  *   whole backlog; that is what an operator reviews before switching.
  * - `enforce`: also acts, at most {@link DEFAULT_BATCH_SIZE} files per step per
- *   run. ADR 0042, "Switching the sweep to enforce", says when and how.
+ *   run. ADR 0043, "Switching the sweep to enforce", says when and how.
  *
  * ## Safety
  *
@@ -49,7 +49,7 @@
  *
  * Time is injected (`now`), so a test sweeps "25 hours later" without waiting.
  *
- * ## The storage observation (ADR 0042 D2)
+ * ## The storage observation (ADR 0043 D2)
  *
  * After its steps, every run (either mode — it acts on nothing) measures what
  * each application stores and added in the last 24 hours, publishes it as
@@ -161,7 +161,7 @@ export interface FileLifecycleActions {
   storedObjectExists(fileId: string): Promise<boolean>;
   unpublishTrashedFile(fileId: string): Promise<boolean>;
   /**
-   * ADR 0042 D8 on an application already `deleted`, committed and then
+   * ADR 0043 D8 on an application already `deleted`, committed and then
    * finished (CDN, cache, the purge started); `null` when it is not deleted.
    */
   purgeDeletedApplication(applicationId: string): Promise<DeletedApplicationContent | null>;
@@ -177,7 +177,7 @@ export interface FileLifecycleSweepOptions {
   /** Skip the schedule (not the lease): an operator's run, and tests. */
   force?: boolean;
   actions?: FileLifecycleActions;
-  /** The storage observation (ADR 0042 D2); a seam for tests. */
+  /** The storage observation (ADR 0043 D2); a seam for tests. */
   observeStorage?: (now: Date) => Promise<ApplicationStorageSummary>;
 }
 
@@ -333,7 +333,7 @@ async function runDeletedApplicationsStep(
         counts.acted += 1;
         counts.filesDeleted += content.files.length;
         counts.referencesRemoved += content.referencesRemoved;
-        logger.info('[FileLifecycle] Deleted application content removed (ADR 0042 D8)', {
+        logger.info('[FileLifecycle] Deleted application content removed (ADR 0043 D8)', {
           applicationId: residue.applicationId,
           filesDeleted: content.files.length,
           referencesRemoved: content.referencesRemoved,
@@ -511,7 +511,7 @@ export async function runFileLifecycleSweep(
     throw error;
   }
 
-  // Observability rides the run (ADR 0042 D2): never a reason for it to fail.
+  // Observability rides the run (ADR 0043 D2): never a reason for it to fail.
   let storage: ApplicationStorageSummary | null = null;
   try {
     storage = await (options.observeStorage ?? observeAndPublishApplicationStorage)(now);
@@ -565,7 +565,7 @@ async function tick(mode: FileLifecycleSweepMode): Promise<void> {
 }
 
 /**
- * Start polling. `report` by default (ADR 0042: the sweep acts only after a
+ * Start polling. `report` by default (ADR 0043: the sweep acts only after a
  * week of reviewed reports); `FILE_LIFECYCLE_MODE=off` does not start it.
  */
 export function startFileLifecycleWorker(): boolean {

@@ -1,5 +1,5 @@
 /**
- * The large-upload worker (ADR 0042 stage 4b), on every API task.
+ * The large-upload worker (ADR 0043 stage 4b), on every API task.
  *
  * Each tick verifies the `verifying` uploads whose lease is free — the ones a
  * `complete` request handed off after its wait, and any whose verifier died —

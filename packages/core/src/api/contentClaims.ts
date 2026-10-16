@@ -1,6 +1,6 @@
 /**
  * `oxy.contentClaims` — what a signed-in person does about a content claim
- * (ADR 0042 D10).
+ * (ADR 0043 D10).
  *
  * The owner of content a claim took down disputes it with a counter-notice
  * (17 U.S.C. § 512(g)(3)). The form shows `COUNTER_NOTICE_STATEMENTS` from

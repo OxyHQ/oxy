@@ -1,5 +1,5 @@
 /**
- * Who may reference a file, and which application a request names (ADR 0042 D4).
+ * Who may reference a file, and which application a request names (ADR 0043 D4).
  *
  * The persistence is `fileRepository.ts` (`insertFileReference`,
  * `deleteFileReference`) and the lifecycle is `assetService.linkFile` /
@@ -80,7 +80,7 @@ export function isOwnerReferencedToApp(file: FileRecord, appId: string): boolean
 
 /**
  * Whether application `appId` may reference `file` with its service token
- * (ADR 0042 D4):
+ * (ADR 0043 D4):
  *
  * - its OWN file, live (a trashed one comes back to `active`);
  * - any owner's `public` or `unlisted` file that is `active` — whoever has the

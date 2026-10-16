@@ -1,6 +1,6 @@
 /**
  * `file_upload_sessions` — a resumable, multipart, presigned upload of a large
- * file of any type by an application's service token (ADR 0042 stage 4b).
+ * file of any type by an application's service token (ADR 0043 stage 4b).
  *
  * `POST /assets/service/app/uploads` (an application's own file) and
  * `POST /assets/service/user-media/uploads` (an account's, with the act-as
@@ -12,7 +12,7 @@
  * ## Why the API re-reads the object
  *
  * The declared SHA-256 is the content's identity: per-owner dedupe, the shared
- * storage key and the takedown blocklist (ADR 0042 D10) all trust it. A single
+ * storage key and the takedown blocklist (ADR 0043 D10) all trust it. A single
  * presigned PUT carries it as a checksum S3 enforces (stage 4a). A multipart
  * upload cannot: S3's full-object checksums are CRC-only, and a SHA-256
  * multipart checksum is a hash of the PARTS' hashes, which proves nothing about
@@ -125,7 +125,7 @@ export const fileUploadSessions = pgTable(
     status: text({ enum: FILE_UPLOAD_SESSION_STATUSES }).notNull().default('uploading'),
     /**
      * The storage reservation of a metered owner (a person, or a third-party
-     * application's developer, ADR 0042 D3) when storage admission is on.
+     * application's developer, ADR 0043 D3) when storage admission is on.
      * Released when the session ends without becoming a file.
      */
     reservationId: text().references(() => storageByteReservations.id, { onDelete: 'set null' }),

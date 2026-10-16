@@ -1,5 +1,5 @@
 /**
- * The credential a reviewer previews a claimed file with (ADR 0042 D10).
+ * The credential a reviewer previews a claimed file with (ADR 0043 D10).
  *
  * A claimed file is usually not servable — blocked, trashed, private, deleted
  * with its bytes held as evidence — and an `<img>` / `<video>` in the console

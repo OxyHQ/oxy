@@ -1,5 +1,5 @@
 /**
- * `/assets/service/app` — files an APPLICATION owns (ADR 0042) — end to end
+ * `/assets/service/app` — files an APPLICATION owns (ADR 0043) — end to end
  * over real `node:http`, the REAL AssetService and a REAL Postgres.
  *
  * Stubbed: the two auth middlewares (so a case sets the verified `serviceApp`
@@ -7,7 +7,7 @@
  *
  * Invariants:
  *  1. The owner is the TOKEN's `appId` — never a header — and only an ACTIVE
- *     application holding the scope may write, of any type (ADR 0042 D11).
+ *     application holding the scope may write, of any type (ADR 0043 D11).
  *  2. `x-visibility` is required; image/video only.
  *  3. Idempotent per (application, bytes).
  *  4. Another application's file is 404 on every route, and left untouched.
@@ -276,7 +276,7 @@ describe('POST /assets/service/app — who may write, and as whom', () => {
     expect(mockS3.uploadStream.mock.calls.length).toBe(before);
   });
 
-  it('lets a third_party application holding the scope own a file (ADR 0042 D3)', async () => {
+  it('lets a third_party application holding the scope own a file (ADR 0043 D3)', async () => {
     const appId = await application({ type: 'third_party' });
     actAs(appId);
 

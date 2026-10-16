@@ -1,5 +1,5 @@
 /**
- * `file_sources` — where an imported file came from (ADR 0042 D7).
+ * `file_sources` — where an imported file came from (ADR 0043 D7).
  *
  * `POST /assets/service/app/import` (and the account-owned
  * `/service/user-media/import`) fetches a source URL with Oxy's own SSRF-safe
@@ -29,7 +29,7 @@
  *
  * A changed source makes a NEW file (deduplicated by content hash per owner)
  * and repoints this row; the previous file loses nothing automatically — its
- * references decide its life (ADR 0042 D5).
+ * references decide its life (ADR 0043 D5).
  */
 
 import { sql } from 'drizzle-orm';

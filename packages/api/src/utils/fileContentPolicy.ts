@@ -1,5 +1,5 @@
 /**
- * What an Oxy file may be, and how it is served (ADR 0042 stage 4b).
+ * What an Oxy file may be, and how it is served (ADR 0043 stage 4b).
  *
  * The large upload (`/assets/service/app/uploads`, `/service/user-media/uploads`)
  * stores files of ANY type, and Oxy serves files from two origins of its own:

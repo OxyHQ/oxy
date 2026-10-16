@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- Application-owned files (ADR 0042): an Oxy APPLICATION becomes the third
+-- Application-owned files (ADR 0043): an Oxy APPLICATION becomes the third
 -- principal that can own a `files` row, beside an account and a system
 -- namespace, so platform artwork no person owns (Mercaria's category tiles)
 -- is not hung off an arbitrary user account.

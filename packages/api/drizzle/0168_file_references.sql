@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- `file_references` (ADR 0042 D4): the successor of `file_links`, naming the
+-- `file_references` (ADR 0043 D4): the successor of `file_links`, naming the
 -- application that uses a file by its real id instead of the free-text `app`.
 --
 --  * file_references: (file_id, application_id → applications, entity_type,

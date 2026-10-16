@@ -1,5 +1,5 @@
 /**
- * Reference reconciliation (ADR 0042 D6) — `POST /assets/service/references/
+ * Reference reconciliation (ADR 0043 D6) — `POST /assets/service/references/
  * reconcile`, `PUT …/:sessionId`, `POST …/:sessionId/commit`, `DELETE
  * …/:sessionId` — over real `node:http`, the REAL services and a REAL Postgres.
  * Stubbed: service auth (a case sets the verified `serviceApp`), the rate

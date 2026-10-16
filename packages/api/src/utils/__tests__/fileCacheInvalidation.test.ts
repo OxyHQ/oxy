@@ -1,5 +1,5 @@
 /**
- * The file-record cache is invalidated across API tasks (ADR 0042 stage 4b):
+ * The file-record cache is invalidated across API tasks (ADR 0043 stage 4b):
  * `fileCache.invalidate` drops the local copy AND publishes on Redis; every
  * task's subscriber drops its own copy, locally only. Transport: an in-memory
  * Redis that delivers PUBLISH to every subscribed duplicate, as Redis does.

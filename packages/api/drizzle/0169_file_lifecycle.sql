@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- The file lifecycle (ADR 0042 D5) and reference reconciliation (D6).
+-- The file lifecycle (ADR 0043 D5) and reference reconciliation (D6).
 --
 --  * files.unreferenced_since (new, nullable): since when no `file_references`
 --    row names the file; NULL while one does. Maintained by the image in the
@@ -25,7 +25,7 @@
 -- file due for trash on the first sweep. It is not acted on: the sweep's mode
 -- defaults to `report` (`FILE_LIFECYCLE_MODE`), which only counts and names
 -- what it WOULD do, until an operator has reviewed those reports and switched
--- it to `enforce` (ADR 0042, "Switching the sweep to enforce"). Account files
+-- it to `enforce` (ADR 0043, "Switching the sweep to enforce"). Account files
 -- are never trashed or deleted by the sweep in any mode.
 --
 -- PRE. Every statement is correct against BOTH images: the columns are new

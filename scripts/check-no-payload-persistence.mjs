@@ -325,7 +325,7 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'metadata',
     holds: 'uploaded-file metadata: dimensions, duration, checksum',
   },
-  // ---- ADR 0042: the file lifecycle, reconciliation and file events -----------
+  // ---- ADR 0043: the file lifecycle, reconciliation and file events -----------
   {
     table: 'file_lifecycle_sweeps',
     column: 'counts',
@@ -348,13 +348,13 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     table: 'content_claim_events',
     column: 'details',
     holds:
-      "the shape of one action on a content claim (ADR 0042 D10), composed by Oxy: target ids, counts of hashes, files and accounts a block reached, whether a claim is an erasure request — never the claimant's identity or statement (sealed in content_claim_claimants), no file content, no prompt, completion or credential",
+      "the shape of one action on a content claim (ADR 0043 D10), composed by Oxy: target ids, counts of hashes, files and accounts a block reached, whether a claim is an erasure request — never the claimant's identity or statement (sealed in content_claim_claimants), no file content, no prompt, completion or credential",
   },
   {
     table: 'file_event_deliveries',
     column: 'payload',
     holds:
-      "the file event Oxy itself composes for an application (ADR 0042 D9): event id, closed type, timestamp, file id, owner KIND, visibility and status, and that application's own (entityType, entityId) references — nothing a caller sent, no file content, no prompt, completion or credential",
+      "the file event Oxy itself composes for an application (ADR 0043 D9): event id, closed type, timestamp, file id, owner KIND, visibility and status, and that application's own (entityType, entityId) references — nothing a caller sent, no file content, no prompt, completion or credential",
   },
   {
     table: 'file_variants',

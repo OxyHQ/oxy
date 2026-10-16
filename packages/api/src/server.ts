@@ -410,7 +410,7 @@ if (redis) {
   io.adapter(createAdapter(pubClient, subClient));
   logger.info('Socket.IO Redis adapter enabled');
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
-  // A file's status or visibility changed on another task: drop our copy (ADR 0042).
+  // A file's status or visibility changed on another task: drop our copy (ADR 0043).
   fileCacheInvalidationSubscriber = startFileCacheInvalidationSubscriber(redis);
 }
 
@@ -883,7 +883,7 @@ app.use('/families', familyRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/safety', supervisionRoutes);
 app.use('/safety', safetyRoutes);
-// Content claims (ADR 0042 D10): the public "Report content / rights claim"
+// Content claims (ADR 0043 D10): the public "Report content / rights claim"
 // intake (`POST /`, no session needed, limited per IP and per claimant email
 // inside the router) and the staff review behind `content:claims`.
 app.use('/content-claims', contentClaimRoutes);
@@ -1497,18 +1497,18 @@ export async function bootstrap(
   // Delete a deleted account's stored uploads (OxyHQ/Mention#1178). ON by
   // default: see `startStorageDeletionWorker`.
   startStorageDeletionWorker();
-  // Collect applications' unused files and never-completed uploads (ADR 0042
+  // Collect applications' unused files and never-completed uploads (ADR 0043
   // D5). REPORT-ONLY by default: it acts once FILE_LIFECYCLE_MODE=enforce,
   // after an operator has reviewed a week of its reports.
   startFileLifecycleWorker();
-  // Tell applications about the files they use (ADR 0042 D9). ON by default:
+  // Tell applications about the files they use (ADR 0043 D9). ON by default:
   // only applications that verified an endpoint have anything queued.
   startFileEventDeliveryWorker();
-  // Verify completed large uploads and abort abandoned ones (ADR 0042 stage
+  // Verify completed large uploads and abort abandoned ones (ADR 0043 stage
   // 4b). ON by default: nothing to do until an application opens an upload.
   startFileUploadSessionWorker();
   // Send content-claim emails: the claimant's confirmation, and word to the
-  // owners of what a takedown blocked (ADR 0042 D10). ON by default.
+  // owners of what a takedown blocked (ADR 0043 D10). ON by default.
   startContentClaimNotificationWorker();
   // Repair partially applied moderation consequences — by the system, on a
   // schedule, never by a person choosing whose standing to touch.

@@ -372,7 +372,7 @@ router.get(
  *                 description: >-
  *                   Asset ID or absolute URL; an empty string clears it. When it
  *                   is the account's own file, Oxy Accounts references it (ADR
- *                   0042) — the file is in use — and the reference of the avatar
+ *                   0043) — the file is in use — and the reference of the avatar
  *                   it replaces or clears is removed (that file is then not in
  *                   use, never trashed).
  *                 example: 64f7c2a1b8e9d3f4a1c2b3d4

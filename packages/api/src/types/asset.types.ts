@@ -24,7 +24,7 @@ export interface AssetCompleteRequest {
 }
 
 /**
- * One application's use of a file (`file_references`, ADR 0042 D4). It says
+ * One application's use of a file (`file_references`, ADR 0043 D4). It says
  * nothing about visibility: only the file's owner changes that.
  */
 export interface AssetLinkRequest {

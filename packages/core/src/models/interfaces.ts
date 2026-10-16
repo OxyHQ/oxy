@@ -469,12 +469,12 @@ export interface FileMetadata {
   uploadDate: string;
   /**
    * Whether any application uses the file. `false` is shown as "not in use";
-   * such a file is never removed for its owner (ADR 0042 D5). Absent when the
+   * such a file is never removed for its owner (ADR 0043 D5). Absent when the
    * server did not say.
    */
   inUse?: boolean;
   /**
-   * `blocked`: taken down after a content claim (ADR 0042 D10) — shown to its
+   * `blocked`: taken down after a content claim (ADR 0043 D10) — shown to its
    * owner as such, served to nobody. Absent when the server did not say.
    */
   status?: AssetLiveStatus;
@@ -568,7 +568,7 @@ export type AssetUploadInput = File | Blob | RNFileDescriptor;
 export type FileVisibility = 'private' | 'public' | 'unlisted';
 
 /**
- * One application's use of an asset (`file_references`, ADR 0042 D4).
+ * One application's use of an asset (`file_references`, ADR 0043 D4).
  *
  * `app` keeps its key but, since the Oxy API's `0168_file_references`, holds
  * the using application's ID — the same value as `applicationId`, never a free
@@ -582,7 +582,7 @@ export interface AssetLink {
   entityId: string;
   createdBy?: string;
   createdAt: string;
-  /** @deprecated Per-reference webhooks move to the application (ADR 0042 D9). */
+  /** @deprecated Per-reference webhooks move to the application (ADR 0043 D9). */
   webhookUrl?: string;
 }
 
@@ -612,11 +612,11 @@ export interface Asset {
   ownerUserId?: string | null;
   /**
    * The Oxy application that owns the file — platform artwork no person owns
-   * (ADR 0042). Present only on an application-owned file.
+   * (ADR 0043). Present only on an application-owned file.
    */
   ownerApplicationId?: string;
   /**
-   * `blocked`: taken down after a content claim (ADR 0042 D10) — not served
+   * `blocked`: taken down after a content claim (ADR 0043 D10) — not served
    * anywhere and its bytes cannot be uploaded again (451 `CONTENT_BLOCKED`);
    * only Oxy staff lift it. Like `trash`, never served.
    */
@@ -625,7 +625,7 @@ export interface Asset {
   usageCount: number;
   /**
    * Whether any application uses the file (has a reference to it). A file not
-   * in use is never removed for its owner (ADR 0042 D5). Present on the
+   * in use is never removed for its owner (ADR 0043 D5). Present on the
    * owner's own view (`assets.list`, `assets.get`) from the Oxy API with
    * migration `0169_file_lifecycle`.
    */
@@ -765,7 +765,7 @@ export interface ServiceLinkedDownloadUrl {
 
 /**
  * A file's status while it still holds its bytes: `active`, `trash`, or
- * `blocked` (taken down after a content claim, ADR 0042 D10 — never served).
+ * `blocked` (taken down after a content claim, ADR 0043 D10 — never served).
  */
 export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
 
@@ -805,14 +805,14 @@ export interface ServiceAssetMetadata {
    */
   ownerUserId?: string | null;
   /**
-   * The application that owns the file (ADR 0042), on the same terms as
+   * The application that owns the file (ADR 0043), on the same terms as
    * `ownerUserId`, and only for an application-owned file.
    */
   ownerApplicationId?: string;
 }
 
 /**
- * A file an Oxy APPLICATION owns (ADR 0042), as the `/assets/service/app`
+ * A file an Oxy APPLICATION owns (ADR 0043), as the `/assets/service/app`
  * routes return it.
  */
 export interface ApplicationFile {
@@ -848,7 +848,7 @@ export interface ApplicationFilePage {
 
 /**
  * One use of a file by the CALLING application, as `OxyServer.assets.references`
- * adds or removes it (ADR 0042 D4). There is no application field: the
+ * adds or removes it (ADR 0043 D4). There is no application field: the
  * application is always the service token's.
  */
 export interface ServiceFileReference {
@@ -881,7 +881,7 @@ export interface ServiceReferenceInventoryItem {
 
 /**
  * What a reconciliation did (or, with `dryRun`, would do) to the calling
- * application's references of one entity type (ADR 0042 D6):
+ * application's references of one entity type (ADR 0043 D6):
  * - `added`: references the inventory lists and Oxy did not hold;
  * - `removed`: references Oxy held, created before the reconciliation began,
  *   that the inventory does not list (a file is never trashed for it);
@@ -900,7 +900,7 @@ export interface ServiceReferenceReconcileResult {
 }
 
 /**
- * How an import by URL was answered (ADR 0042 D7):
+ * How an import by URL was answered (ADR 0043 D7):
  * - `downloaded`: the bytes were fetched (first import, changed source, or a
  *   source whose file was no longer active); `deduplicated` says whether the
  *   owner already held them.
@@ -940,7 +940,7 @@ export interface ApplicationFileImport {
 }
 
 /**
- * `POST /assets/service/app/adopt` (ADR 0042 stage 4b): this application's own
+ * `POST /assets/service/app/adopt` (ADR 0043 stage 4b): this application's own
  * file of the bytes another file holds, sharing the stored object.
  */
 export interface ApplicationFileAdoption {

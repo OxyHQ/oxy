@@ -113,7 +113,7 @@ export const queryKeys = {
   files: {
     all: ['files'] as const,
     list: (ownerId?: string) => [...queryKeys.files.all, 'list', ownerId || 'anonymous'] as const,
-    /** The owner's trash (ADR 0042 D5) — under `files.all`, so one invalidation covers both. */
+    /** The owner's trash (ADR 0043 D5) — under `files.all`, so one invalidation covers both. */
     trash: (ownerId?: string) => [...queryKeys.files.all, 'trash', ownerId || 'anonymous'] as const,
   },
 

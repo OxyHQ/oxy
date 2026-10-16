@@ -1,4 +1,4 @@
-# ADR 0042 — Who owns a file, who uses it, and when it goes away
+# ADR 0043 — Who owns a file, who uses it, and when it goes away
 
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
   1, 2, 3, 4a and 4b of the rollout are implemented on this branch; the
@@ -954,7 +954,7 @@ worked before the next.
 ```hcl
 resource "aws_cloudwatch_metric_alarm" "oxy_file_storage_growth_anomaly" {
   alarm_name          = "${var.prefix}-file-storage-growth-anomaly"
-  alarm_description   = "An application's file storage grew anomalously in the last 24 hours (ADR 0042 D2). The API's ERROR log '[FileStorage] Application storage growth anomaly' names it; per-application detail is Oxy/FileStorage by ApplicationId."
+  alarm_description   = "An application's file storage grew anomalously in the last 24 hours (ADR 0043 D2). The API's ERROR log '[FileStorage] Application storage growth anomaly' names it; per-application detail is Oxy/FileStorage by ApplicationId."
   namespace           = "Oxy/FileStorage"
   metric_name         = "ApplicationGrowthAnomalies"
   statistic           = "Maximum"

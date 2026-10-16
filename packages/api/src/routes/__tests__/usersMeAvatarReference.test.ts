@@ -1,6 +1,6 @@
 /**
  * `PUT /users/me` keeps the profile's avatar referenced by Oxy Accounts (ADR
- * 0042 D4, stage 4b), through the real router, the real `userService` and a
+ * 0043 D4, stage 4b), through the real router, the real `userService` and a
  * REAL Postgres.
  *
  * Stubbed: the session middleware, the rate limiter, and the asset singleton's

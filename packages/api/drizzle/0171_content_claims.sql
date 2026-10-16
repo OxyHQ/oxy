@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- ADR 0042 stage 4a: content claims and the takedown (D10).
+-- ADR 0043 stage 4a: content claims and the takedown (D10).
 --
 --  * content_claims, content_claim_claimants (the claimant's identity and
 --    statement, sealed, erased three years after the claim closes),
@@ -19,7 +19,7 @@
 -- the image still serving never touches them; the two CHECKs only widen; no
 -- row is `blocked` until this image blocks one, so the rebuilt uniques admit
 -- exactly the rows the old ones did while the previous image serves; and that
--- image serves nothing but `active` (ADR 0042 stage 2), so a row this one
+-- image serves nothing but `active` (ADR 0043 stage 2), so a row this one
 -- blocks is refused by both.
 --
 -- ## LOCKS

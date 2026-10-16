@@ -16,7 +16,7 @@
  * 3. **A reference write maintains `unreferenced_since` in its own
  *    transaction**, under a lock on the file row (`addFileReferences`,
  *    `deleteFileReference`): it is what the lifecycle sweep collects an
- *    application's unused file by (ADR 0042 D5).
+ *    application's unused file by (ADR 0043 D5).
  * 2. **A child-set write is one transaction.** `commitVariants` swaps a batch of
  *    variants; done as a bare delete-then-insert a crash or a concurrent read
  *    lands on a file with NO variants, which the callers read as "not generated
@@ -377,7 +377,7 @@ export async function findLiveFilesBySha256(
  * One page of an account's own files, newest first, plus the total.
  *
  * `inUse` narrows it to the files some application references (`true`) or to
- * those none does — *not in use* (`false`, ADR 0042 D5). Read from the
+ * those none does — *not in use* (`false`, ADR 0043 D5). Read from the
  * reference set itself, not from `unreferenced_since`, so the filter and the
  * `inUse` each file reports can never disagree. A file blocked under a claim
  * that is still open is not offered as *not in use* — it is not the owner's
@@ -391,7 +391,7 @@ export type OwnerFileListing = 'library' | 'trash';
  * One page of an ACCOUNT's files. `library` (the default) is what the person
  * keeps: `active` files and `blocked` ones (shown as removed after a claim),
  * newest first. `trash` is what they moved to trash and can restore or delete
- * for good (ADR 0042 D5), most recently trashed first. A trashed file is never
+ * for good (ADR 0043 D5), most recently trashed first. A trashed file is never
  * in the library: it is not served, and listing it among the person's files
  * would offer actions on something they put away.
  */
@@ -444,7 +444,7 @@ export interface ApplicationFileCursor {
 }
 
 /**
- * One page of an APPLICATION's own live files (ADR 0042), newest first, with
+ * One page of an APPLICATION's own live files (ADR 0043), newest first, with
  * `(created_at, id)` as the total order so a cursor never skips or repeats a
  * row that shares a timestamp. Served by `files_owner_application_id_created_at_idx`.
  */
@@ -559,7 +559,7 @@ export async function findSameSpellingTwins(
  * Insert a file row.
  *
  * Every new row comes through here, so this is where blocked bytes are
- * refused for every owner (ADR 0042 D10): `ContentBlockedError` (451) when the
+ * refused for every owner (ADR 0043 D10): `ContentBlockedError` (451) when the
  * hash is on `blocked_content_hashes`. Callers hold the content-hash lock,
  * which the block takes too, so the check and the insert cannot straddle one.
  *
@@ -576,7 +576,7 @@ export async function insertFile(
     await assertApplicationNotDeleted(db, [values.ownerApplicationId]);
   }
   return withStorageQuota(db, [await storageAccountForOwner(db, values)], async () => {
-    // A new row is used by nothing yet (ADR 0042 D5): the clock that collects
+    // A new row is used by nothing yet (ADR 0043 D5): the clock that collects
     // an unused application file — and marks an account's "not in use" —
     // starts now, and the first reference stops it.
     const [row] = await db
@@ -589,7 +589,7 @@ export async function insertFile(
 
 /**
  * The applications among `applicationIds` that are not deleted, read under
- * `FOR KEY SHARE` — the lock an application's deletion (`FOR UPDATE`, ADR 0042
+ * `FOR KEY SHARE` — the lock an application's deletion (`FOR UPDATE`, ADR 0043
  * D8) conflicts with. A write racing that deletion therefore waits for it and
  * then sees `deleted`, so no file or reference can be added for an
  * application after its content was removed.
@@ -622,7 +622,7 @@ async function assertApplicationNotDeleted(
  * Apply a column patch and return the file as it now stands, or `null` if it is gone.
  *
  * `afterUpdate` runs in the same transaction with the updated row — how a
- * visibility change queues its `file.visibility_changed` events (ADR 0042 D9)
+ * visibility change queues its `file.visibility_changed` events (ADR 0043 D9)
  * so the change and its events commit together.
  */
 export async function updateFile(
@@ -640,7 +640,7 @@ export async function updateFile(
       return record ?? null;
     });
   });
-  // Committed: every API task drops its copy (ADR 0042 stage 4b).
+  // Committed: every API task drops its copy (ADR 0043 stage 4b).
   fileCache.invalidate(fileId);
   return updated;
 }
@@ -685,7 +685,7 @@ function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
  *
  * A reference is the owner's OWN use when the owner made it: for an account's
  * file, a reference its person created (from any application); for an
- * APPLICATION's file (ADR 0042), a reference that application holds. Anything
+ * APPLICATION's file (ADR 0043), a reference that application holds. Anything
  * else — another person's reference, an application's service-made reference
  * to a person's file, another application's reference to an application's
  * file, any reference to a system namespace's file — is held by others.
@@ -791,7 +791,7 @@ export async function classifyFederatedDeleteRefusal(
 }
 
 /**
- * Tombstone one of THIS application's own files (ADR 0042) — the whole
+ * Tombstone one of THIS application's own files (ADR 0043) — the whole
  * authorization decision in the one statement that writes, exactly as
  * {@link tombstoneFederatedFileForApp} does: the row must be live, owned by
  * `appId`, and not {@link heldByOthers}. `null` when nothing qualified;
@@ -920,7 +920,7 @@ export interface AddedFileReferences {
 }
 
 /**
- * Record that applications use these assets (ADR 0042 D4), in ONE
+ * Record that applications use these assets (ADR 0043 D4), in ONE
  * transaction, maintaining `unreferenced_since` with them.
  *
  * `(file_id, application_id, entity_type, entity_id)` is UNIQUE, so a duplicate
@@ -937,7 +937,7 @@ export interface AddedFileReferences {
  * depend on who wrote first: owner-then-service leaves an owner-made reference
  * (ADR 0021's grant, `isOwnerReferencedToApp`), service-then-owner left a
  * creator-less one, and the application could not read the file its owner had
- * just attached to it (Nilo, ADR 0042 stage 4b). The condition is part of the
+ * just attached to it (Nilo, ADR 0043 stage 4b). The condition is part of the
  * `UPDATE … WHERE`: only a NULL creator is ever filled, never a person's
  * replaced, and only with `files.owner_user_id` itself — a non-owner named as
  * creator changes nothing, whatever the caller checked.
@@ -1080,7 +1080,7 @@ export async function insertFileReference(
  * those people created — how a session that does not own the file removes
  * only what it made itself.
  *
- * NEVER changes the file's status, on any path (ADR 0042 D5): the last
+ * NEVER changes the file's status, on any path (ADR 0043 D5): the last
  * reference going only stamps `unreferenced_since`. An account's file is then
  * shown "not in use" to its person; an application's is collected later by
  * `fileLifecycle.worker.ts`.
@@ -1117,7 +1117,7 @@ export async function deleteFileReference(
 /**
  * Drop references by id, in ONE transaction, stamping `unreferenced_since` on
  * every file left with none — reconciliation's removal of stale references
- * (ADR 0042 D6). Never changes a file's status. Returns the ids removed.
+ * (ADR 0043 D6). Never changes a file's status. Returns the ids removed.
  */
 export async function deleteFileReferencesByIds(
   referenceIds: readonly string[],
@@ -1176,14 +1176,14 @@ export async function reactivateTrashedFile(
     if (record) await recordFileEvents(tx, 'file.restored', [record.id]);
     return record ?? null;
   });
-  // Committed: every API task drops its copy (ADR 0042 stage 4b).
+  // Committed: every API task drops its copy (ADR 0043 stage 4b).
   if (changed) fileCache.invalidate(fileId);
   return changed;
 }
 
 /**
  * The owner moves an account's ACTIVE file to trash (`POST /assets/:id/trash`,
- * ADR 0042 D5): no longer served, kept until the owner restores or deletes it —
+ * ADR 0043 D5): no longer served, kept until the owner restores or deletes it —
  * an account's trash never expires. One conditional write on the owner and the
  * status, with `file.trashed` queued for every application using the file in
  * the same transaction (D9). `null` when it is not that account's active file.
@@ -1205,13 +1205,13 @@ export async function trashAccountFile(
     if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
     return record ?? null;
   });
-  // Committed: every API task drops its copy (ADR 0042 stage 4b).
+  // Committed: every API task drops its copy (ADR 0043 stage 4b).
   if (changed) fileCache.invalidate(fileId);
   return changed;
 }
 
 // ---------------------------------------------------------------------------
-// An application's deletion (ADR 0042 D8)
+// An application's deletion (ADR 0043 D8)
 // ---------------------------------------------------------------------------
 
 /** Rows per statement when an application's whole footprint goes. */
@@ -1291,7 +1291,7 @@ export async function refreshUnreferencedSinceAfterMove(
 }
 
 // ---------------------------------------------------------------------------
-// The lifecycle sweep (ADR 0042 D5, `fileLifecycle.worker.ts`)
+// The lifecycle sweep (ADR 0043 D5, `fileLifecycle.worker.ts`)
 // ---------------------------------------------------------------------------
 
 /**
@@ -1328,7 +1328,7 @@ export type FileLifecycleStep =
   | 'staleUploads'
   | 'unpublishTrashed';
 
-/** Collection windows (ADR 0042 D5). */
+/** Collection windows (ADR 0043 D5). */
 export const APPLICATION_FILE_UNREFERENCED_GRACE_MS = 24 * 60 * 60 * 1000;
 export const APPLICATION_FILE_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 export const STALE_UPLOAD_AGE_MS = 24 * 60 * 60 * 1000;
@@ -1339,7 +1339,7 @@ export const STALE_UPLOAD_AGE_MS = 24 * 60 * 60 * 1000;
  *
  *  - `trash`: an APPLICATION's active file unreferenced for 24 hours.
  *  - `purge`: an APPLICATION's file in trash for 30 days.
- *  - `purgeBlocked`: an APPLICATION's file BLOCKED by a takedown (ADR 0042
+ *  - `purgeBlocked`: an APPLICATION's file BLOCKED by a takedown (ADR 0043
  *    D10) that nothing has used for 30 days and that no open claim holds as
  *    evidence any more (the claim was upheld). It is never trashed — a
  *    restore from trash would serve it — but tombstoned and purged directly.
@@ -1497,7 +1497,7 @@ export async function trashUnreferencedApplicationFile(
     if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
     return record ?? null;
   });
-  // Committed: every API task drops its copy (ADR 0042 stage 4b).
+  // Committed: every API task drops its copy (ADR 0043 stage 4b).
   if (changed) fileCache.invalidate(fileId);
   return changed;
 }

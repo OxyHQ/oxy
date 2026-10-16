@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-### Added (ADR 0042 — who owns a file, who uses it, and when it goes away)
+### Added (ADR 0043 — who owns a file, who uses it, and when it goes away)
 
-The whole of `docs/adr/0042-application-owned-files.md` (stages 1–4b; its
+The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4b; its
 "Release runbook" gives the deploy order). Migrations `0167`–`0173` (pre) and
 `0174_drop_file_links` (post).
 

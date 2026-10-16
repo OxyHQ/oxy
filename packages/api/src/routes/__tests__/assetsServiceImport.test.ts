@@ -1,5 +1,5 @@
 /**
- * Import by URL (ADR 0042 D7) — `POST /assets/service/app/import`, its batch,
+ * Import by URL (ADR 0043 D7) — `POST /assets/service/app/import`, its batch,
  * and `POST /assets/service/user-media/import` — end to end over real
  * `node:http`, the REAL AssetService and a REAL Postgres.
  *

@@ -120,7 +120,7 @@ export const NATIVE_PRODUCT_AGENTS = {
         type: 'internal',
         scopes: ['user:read', 'inference:invoke'],
         /**
-         * ADR 0042: Clarity's crawler image cache leaves its own sweep for
+         * ADR 0043: Clarity's crawler image cache leaves its own sweep for
          * files the CLARITY BACKEND application owns, collected by Oxy's file
          * lifecycle when no indexed page references them any more (D5). Oxy's
          * own (`internal`), so not metered (D2). Granted by the bootstrap as a

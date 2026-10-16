@@ -734,7 +734,7 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
 });
 
 // ---------------------------------------------------------------------------
-// Application file scopes (ADR 0042 D11) — who may grant them depends on the
+// Application file scopes (ADR 0043 D11) — who may grant them depends on the
 // application's TYPE: staff for Oxy's own applications (their files are the
 // platform's, metered against no one), self-service for a third-party one
 // (its files count against its developer's plan).
@@ -839,7 +839,7 @@ describe('application file scopes — staff-granted on Oxy apps, self-service on
   });
 });
 
-describe('GET /applications/:appId/storage — what an application stores (ADR 0042 D2/D3)', () => {
+describe('GET /applications/:appId/storage — what an application stores (ADR 0043 D2/D3)', () => {
   async function seedAppFile(applicationId: string, size: number, status = 'active') {
     await getDb()
       .insert(files)

@@ -146,7 +146,7 @@ export async function deleteAccount(
     await archiveAccountForRetention(userId, {
       withinTransaction: async (tx) => {
         archivedEvent = await recordAccountDeletedEvent(tx, { userId, username, retained: true });
-        // Its applications go first, the way a developer's delete does (ADR 0042 D8).
+        // Its applications go first, the way a developer's delete does (ADR 0043 D8).
         archivedApplications = await deleteAccountApplications(tx, userId);
         archivedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: true });
       },
@@ -179,7 +179,7 @@ export async function deleteAccount(
   // deletes the objects.
   const { deletedEvent, storage, deletedApplications } = await getDb().transaction(async (tx) => {
     const recorded = await recordAccountDeletedEvent(tx, { userId, username, retained: false });
-    // Its applications go first, the way a developer's delete does (ADR 0042
+    // Its applications go first, the way a developer's delete does (ADR 0043
     // D8): their references are removed and their files tombstoned and owed,
     // so the rows below can go and the `users` cascade never meets
     // `files.owner_application_id`'s RESTRICT.

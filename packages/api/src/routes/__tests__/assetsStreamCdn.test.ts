@@ -236,7 +236,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
   });
 
-  // ADR 0042 D5, OxyHQ/oxy#1284: the fast path redirected a TRASHED public
+  // ADR 0043 D5, OxyHQ/oxy#1284: the fast path redirected a TRASHED public
   // file to the CDN because it never looked at the status.
   it.each(['trash', 'deleted'] as const)(
     'never serves a %s public file — no CDN redirect, no origin stream, a 404',

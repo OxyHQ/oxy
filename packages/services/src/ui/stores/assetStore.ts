@@ -3,7 +3,7 @@ import type { Asset, AssetUploadProgress, AssetLink } from '@oxy.so/core';
 
 /**
  * Whether a link is the given application's use. The Oxy API names the using
- * application by ID (`applicationId`, mirrored in `app` since ADR 0042 D4);
+ * application by ID (`applicationId`, mirrored in `app` since ADR 0043 D4);
  * a link added locally before the server answered may still carry the name
  * the caller passed in `app`. Either matches.
  */
@@ -194,7 +194,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
         ...asset,
         links: filteredLinks,
         usageCount: filteredLinks.length,
-        // The last link going never trashes the file (ADR 0042 D5): it stays
+        // The last link going never trashes the file (ADR 0043 D5): it stays
         // where it is and is only no longer in use.
         inUse: filteredLinks.length > 0,
       };

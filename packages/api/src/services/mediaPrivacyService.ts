@@ -50,7 +50,7 @@ export class MediaPrivacyService {
     supervisionPolicy?: SupervisedAssetPolicy,
   ): Promise<MediaAccessResult> {
     try {
-      // An APPLICATION owns this asset (ADR 0042). No person owns it, so no
+      // An APPLICATION owns this asset (ADR 0043). No person owns it, so no
       // person is its owner, can have blocked anyone over it, or can follow
       // its way in: `public` and `unlisted` are readable by anyone who has the
       // link, exactly as for an account's file, and `private` by NO viewer on

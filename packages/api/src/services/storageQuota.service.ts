@@ -41,7 +41,7 @@ export async function storageCapacity(
  * metered against no one.
  *
  * - An account-owned file is metered against its owner.
- * - An APPLICATION-owned file (ADR 0042) depends on the application's type.
+ * - An APPLICATION-owned file (ADR 0043) depends on the application's type.
  *   A `third_party` application's files count toward its developer's storage
  *   plan — `applications.owner_account_id`, the billing principal of ADR 0007
  *   (D3); a transfer of the application moves them with it, because this is
@@ -67,7 +67,7 @@ export async function storageAccountForOwner(
 }
 
 /**
- * The one application type whose files are metered (ADR 0042 D3). Spelled as a
+ * The one application type whose files are metered (ADR 0043 D3). Spelled as a
  * predicate so the SQL below and the lookup above cannot disagree.
  */
 export const METERED_APPLICATION_TYPE = 'third_party';
@@ -94,7 +94,7 @@ export async function meteredOwnerId(file: {
 
 /**
  * The rows an account's quota counts: the ones it owns, and the ones each
- * `third_party` application it owns owns (ADR 0042 D3).
+ * `third_party` application it owns owns (ADR 0043 D3).
  */
 function meteredBy(db: DatabaseOrTransaction, accountId: string) {
   return or(
@@ -155,13 +155,13 @@ export interface ApplicationStorageUsage {
   bytes: number;
   /**
    * The account these bytes count against, or `null` when they count against
-   * no one — Oxy's own applications (ADR 0042 D2).
+   * no one — Oxy's own applications (ADR 0043 D2).
    */
   meteredAccountId: string | null;
 }
 
 /**
- * Per-application stored bytes (ADR 0042 D2/D3): the observability half of the
+ * Per-application stored bytes (ADR 0043 D2/D3): the observability half of the
  * decision not to meter Oxy's own applications, and the "shown per application
  * in the console" half of metering a third-party one. Counts exactly what
  * {@link reservedStorageBytes} counts for a metered owner — live rows and their

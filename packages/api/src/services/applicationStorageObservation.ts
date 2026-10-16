@@ -1,5 +1,5 @@
 /**
- * Oxy's own applications are observed, not metered (ADR 0042 D2) — and a
+ * Oxy's own applications are observed, not metered (ADR 0043 D2) — and a
  * third-party application's footprint is worth watching too.
  *
  * Every lifecycle sweep run (`fileLifecycle.worker.ts`: hourly, leased, one
@@ -45,7 +45,7 @@
  *    largest;
  *  - one platform line, no dimension: `ApplicationsWithFiles`,
  *    `TotalStoredBytes`, `TotalBytesAdded24h` and `ApplicationGrowthAnomalies`
- *    — the one metric the alarm watches (oxy-infra; the spec is in ADR 0042,
+ *    — the one metric the alarm watches (oxy-infra; the spec is in ADR 0043,
  *    stage 4b), so no alarm has to be created per application.
  *
  * Each anomalous application is also an ERROR log line naming it, its type and

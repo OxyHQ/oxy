@@ -483,7 +483,7 @@ describe('follow scopes: the user grants them, the platform never assumes them',
   });
 });
 
-describe('application file scopes (ADR 0042 D11)', () => {
+describe('application file scopes (ADR 0043 D11)', () => {
   it('are exactly the three, real and listed as privileged for type-blind readers', () => {
     expect([...APPLICATION_FILE_SCOPES].sort()).toEqual([
       'files:app:delete',

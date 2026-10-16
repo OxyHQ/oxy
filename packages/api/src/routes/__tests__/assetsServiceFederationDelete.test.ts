@@ -204,7 +204,7 @@ async function insertFile(options: FixtureOptions) {
 
 /**
  * A `file_references` row on `fileId`, created by `createdByUserId` from inside
- * a real application (ADR 0042 D4: the using application is a row, never text).
+ * a real application (ADR 0043 D4: the using application is a row, never text).
  */
 async function insertReference(fileId: string, createdByUserId: string): Promise<void> {
   const [app] = await getDb()

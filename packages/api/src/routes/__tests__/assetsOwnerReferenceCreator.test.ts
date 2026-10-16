@@ -1,5 +1,5 @@
 /**
- * The owner's reference wins over an application's service-made twin (ADR 0042
+ * The owner's reference wins over an application's service-made twin (ADR 0043
  * stage 4b) — over real `node:http`, the REAL AssetService and a REAL Postgres.
  *
  * Nilo's scenario. Nilo registers its use of a person's file with its service
@@ -224,7 +224,7 @@ describe("the owner's reference wins over the service-made twin (Nilo)", () => {
   it('service first, then the owner from inside Nilo: the owner becomes the creator and Nilo may read', async () => {
     const nilo = await application();
     const owner = await account();
-    // Unlisted, so Nilo may reference it with its token (ADR 0042 D4).
+    // Unlisted, so Nilo may reference it with its token (ADR 0043 D4).
     const fileId = await personalFile(owner, 'unlisted');
     const reference = {
       fileId,

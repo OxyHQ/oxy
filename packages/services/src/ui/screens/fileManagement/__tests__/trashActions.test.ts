@@ -1,5 +1,5 @@
 /**
- * The file manager's trash decisions (ADR 0042 D5), without the UI: "delete"
+ * The file manager's trash decisions (ADR 0043 D5), without the UI: "delete"
  * in the library moves to trash (a blocked file, which cannot be trashed, is
  * deleted); permanent deletion forces past remaining uses only after the
  * person says yes; restore reports a stale trash list instead of failing.

@@ -25,12 +25,12 @@ reads the storage keys of every asset the account owns and writes them to
 If it commits, the keys have been captured before the cascade drops them.
 
 The same transaction also covers the files owned by every **application** the
-account owns (`files.owner_application_id`, ADR 0042). Their rows are removed on
+account owns (`files.owner_application_id`, ADR 0043). Their rows are removed on
 every path, the hard delete included: no cascade reaches them
 (`ON DELETE RESTRICT`), and the `users` cascade that deletes the applications
 would otherwise be refused. Their ledger rows are keyed `app:<applicationId>`.
 Before that, in the same transaction, each of the account's applications is
-deleted the way a developer's console delete does it (ADR 0042 D8,
+deleted the way a developer's console delete does it (ADR 0043 D8,
 `deleteAccountApplications`): marked `deleted`, its references removed, its
 files tombstoned and owed, and the applications still using them told
 `file.deleted`.

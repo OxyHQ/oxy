@@ -166,7 +166,7 @@ export function useDeleteApplication() {
       confirmName,
     }: {
       appId: string;
-      /** The application's name as the person typed it (ADR 0042 D8). */
+      /** The application's name as the person typed it (ADR 0043 D8). */
       confirmName: string;
     }): Promise<string> => {
       await oxyServices.apps.delete(appId, { confirmName });

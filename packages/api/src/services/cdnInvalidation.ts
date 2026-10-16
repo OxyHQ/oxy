@@ -243,7 +243,7 @@ export class CdnInvalidationQueue {
   /**
    * Invalidate a CDN PATH that is not an object key — the `/<id>` redirect
    * `GET /cdn/:id` answers, cached at the edge for an hour, when a file leaves
-   * `active` (ADR 0042 D5). Synchronous; never throws.
+   * `active` (ADR 0043 D5). Synchronous; never throws.
    */
   enqueuePath(path: string): void {
     try {

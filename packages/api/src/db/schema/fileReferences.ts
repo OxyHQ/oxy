@@ -1,5 +1,5 @@
 /**
- * `file_references` — one place an APPLICATION uses an asset (ADR 0042 D4).
+ * `file_references` — one place an APPLICATION uses an asset (ADR 0043 D4).
  *
  * The successor of `file_links`, whose `app` column was free text any
  * signed-in person could fill with anything. A reference names a real
@@ -42,11 +42,11 @@ export const fileReferences = pgTable(
       .notNull()
       .references(() => files.id, { onDelete: 'cascade' }),
     /**
-     * The application that uses the file. Never free text (ADR 0042 D4).
+     * The application that uses the file. Never free text (ADR 0043 D4).
      *
      * `CASCADE`: a reference is the application's record of its own usage;
      * with the application row gone (an account's hard delete is the only
-     * thing that removes one) so is its usage. ADR 0042 D8 removes them
+     * thing that removes one) so is its usage. ADR 0043 D8 removes them
      * explicitly when an application is deleted.
      */
     applicationId: text()
@@ -66,7 +66,7 @@ export const fileReferences = pgTable(
      */
     createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     /**
-     * DEPRECATED (ADR 0042 D9): a per-reference webhook, carried over from
+     * DEPRECATED (ADR 0043 D9): a per-reference webhook, carried over from
      * `file_links`. Since stage 3 nothing reads or writes it — file events go
      * to the application's own verified endpoint
      * (`applications.files_webhook_url`). Dropped by a later post migration,

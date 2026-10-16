@@ -21,7 +21,7 @@ import { getErrorMessage } from './fileManagement/shared';
 import { deletePermanently, restoreFromTrash } from './fileManagement/trashActions';
 
 /**
- * The person's Trash (ADR 0042 D5): the files they moved to trash, most
+ * The person's Trash (ADR 0043 D5): the files they moved to trash, most
  * recently trashed first. Each can be restored — served again, back in the
  * library — or deleted permanently, after a confirmation (and a second one when
  * an app still uses it). An account's trash never expires, so nothing here

@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- ADR 0042 stage 4b: the owner's own counter-notice (D10; 17 U.S.C. § 512(g)).
+-- ADR 0043 stage 4b: the owner's own counter-notice (D10; 17 U.S.C. § 512(g)).
 --
 --  * content_claim_counter_notices — new: an owner's counter-notice, its
 --    identity, contact details and statement SEALED, erased three years after

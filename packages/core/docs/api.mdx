@@ -56,7 +56,7 @@ A namespace is created the first time you touch it and kept for the client's lif
 | `oxy.nodes` | The user's personal data node. |
 | `oxy.devices` | This user's devices and their sessions, security activity, and device sign-in (`mintToken`, `registerBrowser`, join codes). |
 | `oxy.topics`, `oxy.appData`, `oxy.contacts` | Topics, per-app key/value data on the account, privacy-preserving contact discovery. |
-| `oxy.contentClaims` | An owner's counter-notice to a content takedown (ADR 0042 D10). |
+| `oxy.contentClaims` | An owner's counter-notice to a content takedown (ADR 0043 D10). |
 
 ## Conventions
 
@@ -125,7 +125,7 @@ const authors = await oxy.users.getMany(ids);    // uses the service token
 await oxy.serviceRequest('POST', '/some/route', body, { actAs: userId });
 ```
 
-On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `appPermissionsFor()` / `invalidateAppPermissions()` and `middleware.requireAppPermission()` ([application roles](./application-roles.mdx)), `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge`, and the application's own file references `assets.references.add` / `remove` / `reconcile` (ADR 0042; verify the file events Oxy sends with `verifyFileEventSignature`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `agency.mintRequesterAssertion` / `introspectRequesterAssertion`, `reputation.award`. See [service tokens](./service-tokens.mdx).
+On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `appPermissionsFor()` / `invalidateAppPermissions()` and `middleware.requireAppPermission()` ([application roles](./application-roles.mdx)), `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls` / `uploadUserMedia`, the application-owned files `assets.uploadAppFile` / `uploadAppFileLarge` / `adoptAppFile` / `importAppFile` / `importAppFiles` / `setAppFileVisibility` / `deleteAppFile` / `listAppFiles`, `assets.importUserMedia` / `uploadUserMediaLarge`, and the application's own file references `assets.references.add` / `remove` / `reconcile` (ADR 0043; verify the file events Oxy sends with `verifyFileEventSignature`), `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `agency.mintRequesterAssertion` / `introspectRequesterAssertion`, `reputation.award`. See [service tokens](./service-tokens.mdx).
 
 ## Migrating from 2.x
 

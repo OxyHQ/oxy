@@ -39,7 +39,7 @@ export interface SurfaceRegistry {
    * keep their callback behaviour and this result goes unread.
    */
   FileManagement: SurfaceRoute<Record<string, unknown>, FileMetadata>;
-  /** The person's trash (ADR 0042 D5), opened from the file manager. */
+  /** The person's trash (ADR 0043 D5), opened from the file manager. */
   FileTrash: SurfaceRoute;
   HelpSupport: SurfaceRoute;
   LegalDocuments: SurfaceRoute;

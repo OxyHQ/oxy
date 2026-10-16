@@ -1,5 +1,5 @@
 /**
- * Deleting an application deletes its files, now (ADR 0042 D8).
+ * Deleting an application deletes its files, now (ADR 0043 D8).
  *
  * {@link deleteApplicationContent} runs INSIDE the transaction that marks the
  * application `deleted` — the console's delete (`DELETE /applications/:appId`)

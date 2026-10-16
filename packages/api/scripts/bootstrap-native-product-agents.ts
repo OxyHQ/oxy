@@ -876,7 +876,7 @@ async function observeBootstrap(
       `Clarity backend application ${clarity.backendApplication.id}`,
       {
         ...clarityBackendApplication,
-        // The reviewed file grant (ADR 0042) is the one addition the bootstrap
+        // The reviewed file grant (ADR 0043) is the one addition the bootstrap
         // makes to an existing row; any OTHER scope is drift, as before.
         scopes: clarityBackendApplication.scopes.filter(
           (scope) => !clarityFileScopes.includes(scope),

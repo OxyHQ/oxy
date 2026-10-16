@@ -3816,7 +3816,7 @@
           "Developer"
         ],
         "summary": "Delete an application (`app:delete`) — and, in the same transaction, every",
-        "description": "file it owns and every reference it registered (ADR 0042 D8).\n\nBody `{ confirmName }`: the application's CURRENT name, typed by the person\n(compared trimmed, case-sensitively); anything else is 400 and nothing\nchanges. The row is soft-deleted (`status = 'deleted'`, the audit record);\nits files are tombstoned and owed their purge at once — no 30-day trash —\nevery application still using one of them is told `file.deleted`, and an\naccount's file it used only becomes *not in use* for its owner.",
+        "description": "file it owns and every reference it registered (ADR 0043 D8).\n\nBody `{ confirmName }`: the application's CURRENT name, typed by the person\n(compared trimmed, case-sensitively); anything else is 400 and nothing\nchanges. The row is soft-deleted (`status = 'deleted'`, the audit record);\nits files are tombstoned and owed their purge at once — no 30-day trash —\nevery application still using one of them is told `file.deleted`, and an\naccount's file it used only becomes *not in use* for its owner.",
         "parameters": [
           {
             "name": "appId",
@@ -5443,7 +5443,7 @@
         "tags": [
           "Developer"
         ],
-        "summary": "What the application stores in Oxy Files (ADR 0042 D2/D3): its live files,",
+        "summary": "What the application stores in Oxy Files (ADR 0043 D2/D3): its live files,",
         "description": "their bytes (originals plus renditions) and the account they count against\n— the developer's for a third-party application, `null` for Oxy's own, which\nare observed rather than metered.",
         "parameters": [
           {
@@ -5600,7 +5600,7 @@
           "Files"
         ],
         "summary": "List the user's files",
-        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links. Each file says whether an application uses it (`inUse`) and, when none does, since when (`unreferencedSince`) — a file not in use is never removed for you (ADR 0042 D5). `inUse=false` lists only those. The list is your library — `active` files, and `blocked` ones removed after a legal claim — newest first; `status=trash` lists instead the files you moved to trash (`trashedAt`, most recently trashed first), which you can restore (`POST /assets/{id}/restore`) or delete for good.\n",
+        "description": "Paginated list of files owned by the authenticated user, including upload status, deduplication info (`sha256`), variants (thumbnails, resized renditions), and any entity links. Each file says whether an application uses it (`inUse`) and, when none does, since when (`unreferencedSince`) — a file not in use is never removed for you (ADR 0043 D5). `inUse=false` lists only those. The list is your library — `active` files, and `blocked` ones removed after a legal claim — newest first; `status=trash` lists instead the files you moved to trash (`trashedAt`, most recently trashed first), which you can restore (`POST /assets/{id}/restore`) or delete for good.\n",
         "parameters": [
           {
             "name": "status",
@@ -5684,7 +5684,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "The file lifecycle sweep's newest runs (ADR 0042 D5): per step",
+        "summary": "The file lifecycle sweep's newest runs (ADR 0043 D5): per step",
         "description": "(`purge`, `purgeBlocked`, `trash`, `staleUploads`,\n      `unpublishTrashed`) how many files were DUE at the run's instant and\n      how many were acted on, with up to 100 named per step; the\n      `deletedApplications` step (D8 for an application deleted before D8\n      shipped) counts and names applications, with the files and\n      references each still has. In `report` mode nothing is acted on: this is what\n      an operator reviews before switching the sweep to `enforce`. `limit`\n      1–50, default 10.",
         "parameters": [
           {
@@ -5995,8 +5995,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0042). Raw bytes",
-        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0042 D2/D3).",
+        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes",
+        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0043 D2/D3).",
         "parameters": [],
         "responses": {
           "200": {
@@ -6146,7 +6146,7 @@
           "Files"
         ],
         "summary": "The CALLING APPLICATION takes ownership of a file it can read,",
-        "description": "without uploading it again (ADR 0042 stage 4b): `{ fileId,\n      visibility, reference? }` → its own row of the same bytes (the stored\n      object is shared; a server-side copy only when the spelling the\n      visibility needs does not exist yet). Readable means what a reference\n      may name: any owner's active `public` or `unlisted` file, an account's\n      private file its owner attached to this application (ADR 0021), or the\n      application's own file (answered as it is). The copy may not be MORE\n      visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`): a\n      person's private file shared with the application stays private.\n      Anything else is 404, like no file; blocked bytes are 451. The\n      application's existing file of the same bytes answers\n      `deduplicated: true`, visibility unchanged. Answer `{ file, outcome:\n      'adopted' | 'existing', deduplicated, reference? }`. The adopted file\n      is the application's: it outlives the source (whose owner may delete\n      it), is collected when unused (D5) and counts toward a third-party\n      application's plan (D3).\n        for `reference`), on an active application",
+        "description": "without uploading it again (ADR 0043 stage 4b): `{ fileId,\n      visibility, reference? }` → its own row of the same bytes (the stored\n      object is shared; a server-side copy only when the spelling the\n      visibility needs does not exist yet). Readable means what a reference\n      may name: any owner's active `public` or `unlisted` file, an account's\n      private file its owner attached to this application (ADR 0021), or the\n      application's own file (answered as it is). The copy may not be MORE\n      visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`): a\n      person's private file shared with the application stays private.\n      Anything else is 404, like no file; blocked bytes are 451. The\n      application's existing file of the same bytes answers\n      `deduplicated: true`, visibility unchanged. Answer `{ file, outcome:\n      'adopted' | 'existing', deduplicated, reference? }`. The adopted file\n      is the application's: it outlives the source (whose owner may delete\n      it), is collected when unused (D5) and counts toward a third-party\n      application's plan (D3).\n        for `reference`), on an active application",
         "parameters": [],
         "responses": {
           "200": {
@@ -6264,7 +6264,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "Import a file by URL; the CALLING APPLICATION owns it (ADR 0042 D7).",
+        "summary": "Import a file by URL; the CALLING APPLICATION owns it (ADR 0043 D7).",
         "description": "Body `{ sourceUrl, visibility, reference?: { entityType, entityId },\n      revalidate? }`. Oxy fetches `sourceUrl` itself — `https` only on every\n      hop, public addresses only, at most 5 redirects, no credentials, 40 MiB\n      and 60 s at most — and stores it through the ordinary upload pipeline\n      (image or video; deduplicated by content per application; variants).\n      The same URL imported again by the same application answers the\n      existing file without any request (`outcome: 'existing'`);\n      `revalidate: true` asks the source conditionally (ETag /\n      Last-Modified): `not_modified`, or `downloaded` with the new bytes as\n      a file of their own. `reference` registers this application's use of\n      the file in the same request (needs `files:references:write`), so an\n      import is never left unreferenced. Errors: 400 `INVALID_SOURCE_URL`,\n      422 `SOURCE_URL_REFUSED`, 502 `SOURCE_FETCH_FAILED`, 504\n      `SOURCE_FETCH_TIMEOUT`, 415 `UNSUPPORTED_MEDIA_TYPE`, 413\n      `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`.",
         "parameters": [],
         "responses": {
@@ -6522,7 +6522,7 @@
           "Files"
         ],
         "summary": "Open (or resume) a large upload of a file the CALLING APPLICATION will",
-        "description": "own (ADR 0042 stage 4b). Body `{ sha256, size, mime, visibility,\n      filename?, metadata?, reference? }`: any type but executables,\n      installers and active documents (HTML, SVG, XML, scripts — 415), at\n      most 8 GiB (413), never blocked bytes (451), within a third-party\n      application's developer plan (413 `STORAGE_QUOTA_EXCEEDED`, D3).\n      201 `{ uploadId, status: 'uploading', partSize, partCount, expiresAt,\n      parts: [{ partNumber, url, size }] }` — the first 100 part URLs; PUT\n      exactly `size` bytes to each. The same bytes already open answer that\n      session, with the parts storage holds (`uploadedParts`) and URLs for\n      the missing ones. Bytes the application already owns answer 200\n      `{ uploadId: null, status: 'completed', file, deduplicated: true }`.\n      An upload not completed within a day of its last part-URL request (a\n      week at most) is aborted. Non-media types are stored and served with\n      `Content-Disposition: attachment`.\n        for `reference`), on an active application",
+        "description": "own (ADR 0043 stage 4b). Body `{ sha256, size, mime, visibility,\n      filename?, metadata?, reference? }`: any type but executables,\n      installers and active documents (HTML, SVG, XML, scripts — 415), at\n      most 8 GiB (413), never blocked bytes (451), within a third-party\n      application's developer plan (413 `STORAGE_QUOTA_EXCEEDED`, D3).\n      201 `{ uploadId, status: 'uploading', partSize, partCount, expiresAt,\n      parts: [{ partNumber, url, size }] }` — the first 100 part URLs; PUT\n      exactly `size` bytes to each. The same bytes already open answer that\n      session, with the parts storage holds (`uploadedParts`) and URLs for\n      the missing ones. Bytes the application already owns answer 200\n      `{ uploadId: null, status: 'completed', file, deduplicated: true }`.\n      An upload not completed within a day of its last part-URL request (a\n      week at most) is aborted. Non-media types are stored and served with\n      `Content-Disposition: attachment`.\n        for `reference`), on an active application",
         "parameters": [],
         "responses": {
           "200": {
@@ -7326,7 +7326,7 @@
                           },
                           "ownerApplicationId": {
                             "type": "string",
-                            "description": "The owning application, for an application-owned file only (ADR 0042). Revealed on the same terms as `ownerUserId`.\n"
+                            "description": "The owning application, for an application-owned file only (ADR 0043). Revealed on the same terms as `ownerUserId`.\n"
                           }
                         }
                       }
@@ -7989,7 +7989,7 @@
           "Files"
         ],
         "summary": "Mint short-lived download URLs for files linked to the calling app",
-        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id` — and for each of the caller's OWN files (ADR 0042). Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not referenced for this app, or referenced by somebody other than the owner (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
+        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id` — and for each of the caller's OWN files (ADR 0043). Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not referenced for this app, or referenced by somebody other than the owner (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -8071,7 +8071,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "The calling application records that it uses files (ADR 0042 D4):",
+        "summary": "The calling application records that it uses files (ADR 0043 D4):",
         "description": "`{ references: [{ fileId, entityType, entityId }] }`, 1–100. The\n      application is the token's `appId`; a body naming one is refused.\n      Allowed: the application's OWN file (a trashed one comes back to\n      `active`); any owner's `active` `public` or `unlisted` file; an\n      account's `active` private file its owner attached to this\n      application (ADR 0021). Never another application's private file.\n      A reference never changes the file's visibility.\n\n      Per item: `created`, `exists` (already referenced, nothing changed) or\n      `not_found` — a file that does not exist and one the application may\n      not reference answer alike. The batch itself is 200.",
         "parameters": [],
         "responses": {
@@ -8185,7 +8185,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "The calling application stops using files (ADR 0042 D4): the same",
+        "summary": "The calling application stops using files (ADR 0043 D4): the same",
         "description": "body as POST. Removes only references THIS application holds — never\n      another application's, never a person's from another application.\n      Removing a reference never trashes, deletes or re-publishes the file.\n\n      Per item: `removed` or `not_found` (no such reference for this\n      application). The batch itself is 200.",
         "parameters": [],
         "responses": {
@@ -8302,7 +8302,7 @@
           "Files"
         ],
         "summary": "Begin reconciling the calling application's references of ONE entity",
-        "description": "type (ADR 0042 D6): `{ entityType }` → `{ sessionId, entityType,\n      expiresAt }`. Then send the full inventory with `PUT\n      …/reconcile/:sessionId` and apply it with `POST …/commit`. One session\n      per (application, entity type) at a time: 409\n      `RECONCILIATION_IN_PROGRESS` while another is open. A session expires\n      an hour after its last page.",
+        "description": "type (ADR 0043 D6): `{ entityType }` → `{ sessionId, entityType,\n      expiresAt }`. Then send the full inventory with `PUT\n      …/reconcile/:sessionId` and apply it with `POST …/commit`. One session\n      per (application, entity type) at a time: 409\n      `RECONCILIATION_IN_PROGRESS` while another is open. A session expires\n      an hour after its last page.",
         "parameters": [],
         "responses": {
           "200": {
@@ -8781,7 +8781,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "Import a file by URL into an ACCOUNT's files (ADR 0042 D7): the",
+        "summary": "Import a file by URL into an ACCOUNT's files (ADR 0043 D7): the",
         "description": "account-owned equivalent of `/service/app/import`, with the authority\n      and owner of `/service/user-media` — `x-owner-user-id` names an\n      existing local user. Body `{ sourceUrl, visibility? (default public),\n      reference?, revalidate? }`; the same fetch, policies, once-per-URL\n      memory (per account) and answers. `reference` registers the CALLING\n      application's use of the file (needs `files:references:write`).\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
@@ -9704,7 +9704,7 @@
           "Files"
         ],
         "summary": "Record that an application uses the caller's file (`file_references`,",
-        "description": "ADR 0042 D4). Compatibility surface: an application should use\n      `POST /assets/service/references` with its own token. `visibility`,\n      when sent, is an explicit change by the owner — a reference itself\n      never changes visibility.",
+        "description": "ADR 0043 D4). Compatibility surface: an application should use\n      `POST /assets/service/references` with its own token. `visibility`,\n      when sent, is an explicit change by the owner — a reference itself\n      never changes visibility.",
         "parameters": [
           {
             "name": "id",
@@ -9814,7 +9814,7 @@
           "Files"
         ],
         "summary": "Remove one application's use of a file. The file's OWNER may remove",
-        "description": "any reference to it; anybody else only a reference they created\n      themselves (404 otherwise). Removing a reference never trashes or\n      deletes the file — not even the owner's last one (ADR 0042 D5): the\n      file stays `active` and is reported `inUse: false`.\n      An application removes the references it holds with its own token\n      (`DELETE /assets/service/references`) — how GoWay must withdraw a\n      contributor's photo from a place (ADR 0042 D12).",
+        "description": "any reference to it; anybody else only a reference they created\n      themselves (404 otherwise). Removing a reference never trashes or\n      deletes the file — not even the owner's last one (ADR 0043 D5): the\n      file stays `active` and is reported `inUse: false`.\n      An application removes the references it holds with its own token\n      (`DELETE /assets/service/references`) — how GoWay must withdraw a\n      contributor's photo from a place (ADR 0043 D12).",
         "parameters": [
           {
             "name": "id",
@@ -9914,7 +9914,7 @@
           "Files"
         ],
         "summary": "Restore the owner's file from trash: `active` again, served again,",
-        "description": "`file.restored` to every application using it. 409\n      `FILE_NOT_IN_TRASH` (with the file's `status`) for a file that is not\n      in trash — restored or deleted meanwhile, or `blocked` after a content\n      claim, which only a reinstated claim brings back (ADR 0042 D10).",
+        "description": "`file.restored` to every application using it. 409\n      `FILE_NOT_IN_TRASH` (with the file's `status`) for a file that is not\n      in trash — restored or deleted meanwhile, or `blocked` after a content\n      claim, which only a reinstated claim brings back (ADR 0043 D10).",
         "parameters": [
           {
             "name": "id",
@@ -10039,7 +10039,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "The owner moves their own file to trash (ADR 0042 D5): it stops being",
+        "summary": "The owner moves their own file to trash (ADR 0043 D5): it stops being",
         "description": "served at once (and leaves the CDN), stays in the owner's files with\n      `status: 'trash'` and `trashedAt`, and is kept until the owner\n      restores (`POST /:id/restore`) or deletes it — an account's trash\n      never expires. Every application using the file is told\n      `file.trashed` (D9). Already in trash: answered as it is. Any other\n      caller, and a deleted file, get 404.",
         "parameters": [
           {
@@ -66336,7 +66336,7 @@
                   },
                   "avatar": {
                     "type": "string",
-                    "description": "Asset ID or absolute URL; an empty string clears it. When it is the account's own file, Oxy Accounts references it (ADR 0042) — the file is in use — and the reference of the avatar it replaces or clears is removed (that file is then not in use, never trashed).",
+                    "description": "Asset ID or absolute URL; an empty string clears it. When it is the account's own file, Oxy Accounts references it (ADR 0043) — the file is in use — and the reference of the avatar it replaces or clears is removed (that file is then not in use, never trashed).",
                     "example": "64f7c2a1b8e9d3f4a1c2b3d4"
                   }
                 }

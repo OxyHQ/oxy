@@ -335,7 +335,7 @@ async function fileDeletedDeliveries(photoId: string) {
     .where(eq(fileEventDeliveries.fileId, photoId));
 }
 
-describe('DELETE /users/me tells the applications using its files (ADR 0042 D9, stage 4b)', () => {
+describe('DELETE /users/me tells the applications using its files (ADR 0043 D9, stage 4b)', () => {
   beforeEach(() => {
     signatureValid = true;
     forceArchive = false;

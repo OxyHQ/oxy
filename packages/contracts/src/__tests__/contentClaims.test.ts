@@ -1,5 +1,5 @@
 /**
- * The content-claim submission (ADR 0042 D10): what the API accepts is what
+ * The content-claim submission (ADR 0043 D10): what the API accepts is what
  * the Oxy website's form validates, and every refusal is a stable KEY under
  * `contentClaim.errors.*`, never English.
  */

@@ -47,7 +47,7 @@ describe('oxy.assets lifecycle', () => {
     expect(init.body).toBeUndefined();
   });
 
-  it('trash POSTs to the trash route and evicts the cached record (ADR 0042 D5)', async () => {
+  it('trash POSTs to the trash route and evicts the cached record (ADR 0043 D5)', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ assetId: 'f1', file: { id: 'f1', status: 'active' } }))
       .mockResolvedValueOnce(
@@ -65,7 +65,7 @@ describe('oxy.assets lifecycle', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('list asks for the trash with status=trash, and the library without it (ADR 0042 D5)', async () => {
+  it('list asks for the trash with status=trash, and the library without it (ADR 0043 D5)', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ files: [], total: 0, hasMore: false }))
       .mockResolvedValueOnce(jsonResponse({ files: [], total: 0, hasMore: false }));

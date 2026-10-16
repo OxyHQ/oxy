@@ -289,7 +289,7 @@ describe('POST /assets/:id/links — only the owner links a file', () => {
   });
 });
 
-describe('POST /assets/:id/links — a reference never changes visibility (ADR 0042 D4)', () => {
+describe('POST /assets/:id/links — a reference never changes visibility (ADR 0043 D4)', () => {
   it('keeps a PUBLIC file public when referenced for a non-avatar entity', async () => {
     const owner = await account();
     const id = await fileOf(owner, { visibility: 'public' });
@@ -445,7 +445,7 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
     expect((await row(id)).status).toBe('active');
   });
 
-  it('never trashes the owner’s file when its last reference goes: it is only not in use (ADR 0042 D5)', async () => {
+  it('never trashes the owner’s file when its last reference goes: it is only not in use (ADR 0043 D5)', async () => {
     const owner = await account();
     const id = await fileOf(owner);
     const target = { app: 'goway', entityType: 'place', entityId: 'place-2' };
@@ -462,7 +462,7 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
   });
 });
 
-describe('DELETE /assets/:id/links — a non-owner removes only what it made (ADR 0042 D12)', () => {
+describe('DELETE /assets/:id/links — a non-owner removes only what it made (ADR 0043 D12)', () => {
   it('refuses to remove the owner’s reference: 404, the row kept, the file not trashed', async () => {
     const owner = await account();
     const id = await fileOf(owner);
@@ -601,7 +601,7 @@ describe('GET /assets/:id — a file’s links are its owner’s; a private file
   });
 });
 
-describe('GET /assets — the owner sees which files are in use (ADR 0042 D5)', () => {
+describe('GET /assets — the owner sees which files are in use (ADR 0043 D5)', () => {
   type Listed = {
     id: string;
     inUse: boolean;
