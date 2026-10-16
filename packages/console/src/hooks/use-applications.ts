@@ -410,7 +410,11 @@ export type ApplicationPermission =
   | 'inference:routing:read'
   | 'inference:routing:write'
   | 'inference:byok:read'
-  | 'inference:byok:write';
+  | 'inference:byok:write'
+  // Application roles: who holds this application's OWN permissions
+  // (`docs/auth/application-roles.md`).
+  | 'roles:read'
+  | 'roles:manage';
 
 export interface CallerAccess {
   /** The caller's membership in the application's owning account, if any. */

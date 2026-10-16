@@ -53,6 +53,19 @@ export type {
   ServiceCapabilityCatalog,
 } from './namespaces';
 export { OxyAccountEventError, OXY_ACCOUNT_DELETED_EVENT_URI } from './middleware';
+// Application roles: the app's own permissions, held by people, decided in Oxy.
+export {
+  APP_PERMISSIONS_CACHE_TTL_MS,
+  OxyAppPermissionError,
+  appPermissionErrorStatus,
+} from './appPermissions';
+export type {
+  AppPermissionsOptions,
+  OxyAppPermissionDenyStatus,
+  OxyAppPermissionErrorCode,
+  OxyAppPermissions,
+  RequireAppPermissionOptions,
+} from './appPermissions';
 export type {
   AuthMiddlewareOptions,
   OxyAccountEvent,

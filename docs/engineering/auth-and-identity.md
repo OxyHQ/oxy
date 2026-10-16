@@ -62,6 +62,8 @@ Backend APIs use `@oxy.so/core/server` for request identity and security:
 
 **Commits:** api `881f81dc`, core+console `0a341882`, peer bumps `45e49063`.
 
+**Application roles (2026-10):** an application declares its OWN permission keys (`payments.operate`, dot-spelled so they can never collide with Oxy's colon-spelled permissions and scopes), its owners grant them to people (`roles:read`/`roles:manage`, answering to `members:read`/`members:update`), and its backend reads what the human operator holds with `oxy.middleware.requireAppPermission(key)` / `oxy.appPermissionsFor(req)` from `@oxy.so/core/server`. Apps keep no `*_OPERATOR_OXY_USER_IDS` allow-lists. Mechanism, data model, self-grant rule and caching: [docs/auth/application-roles.md](../auth/application-roles.md).
+
 ## #214 — Auth App: Authorize Screen Application Identity (2026-06-16)
 
 `packages/auth` authorize screen now resolves and displays the REAL registered `Application` identity (name, logo, redirectUri) via `sessionStatusSchema` in `packages/auth/lib/schemas.ts`. The free-form `appId` string field was replaced with a typed `application` contract wired from the API through `authorize.tsx` via `safeParse`. 10 new auth-web tests cover the authorize contract parsing.

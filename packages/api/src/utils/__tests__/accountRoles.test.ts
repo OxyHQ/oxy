@@ -9,9 +9,13 @@
  * keep granting.
  */
 
+import { isApplicationPermissionKey } from '@oxy.so/contracts';
+import { APPLICATION_SCOPES } from '../applicationScopes';
 import {
+  ACCOUNT_GOVERNANCE_PERMISSIONS,
   ACCOUNT_PERMISSIONS,
   APPLICATION_PERMISSIONS,
+  autonomousOperationalPermissions,
   ROLE_PERMISSIONS,
   appPermissionsForAccountAccess,
   isAccountPermission,
@@ -149,6 +153,9 @@ describe('appPermissionsForAccountAccess', () => {
         'inference:routing:write',
         'inference:byok:read',
         'inference:byok:write',
+        // Who operates the application: read and decide (application roles).
+        'roles:read',
+        'roles:manage',
       ],
       editor: [
         'app:read',
@@ -164,6 +171,8 @@ describe('appPermissionsForAccountAccess', () => {
         'inference:invoke',
         'inference:routing:read',
         'inference:byok:read',
+        // Sees who operates the application; cannot change it.
+        'roles:read',
       ],
       developer: [
         'app:read',
@@ -180,7 +189,7 @@ describe('appPermissionsForAccountAccess', () => {
         'inference:byok:read',
       ],
       billing: ['app:read', 'usage:read', 'billing:read', 'billing:manage'],
-      viewer: ['app:read', 'members:read', 'usage:read', 'inference:routing:read'],
+      viewer: ['app:read', 'members:read', 'usage:read', 'inference:routing:read', 'roles:read'],
     };
 
     for (const role of ACCOUNT_ROLE_NAMES) {
@@ -412,5 +421,46 @@ describe('isAccountPermission', () => {
     // Neither a prefix nor a superstring of a real permission passes.
     expect(isAccountPermission('account')).toBe(false);
     expect(isAccountPermission('account:read:all')).toBe(false);
+  });
+});
+
+describe('the application-roles permissions', () => {
+  test('roles:manage is owner and admin; roles:read reaches every role that reads members', () => {
+    const holders = (permission: string) =>
+      ACCOUNT_ROLE_NAMES.filter((role) =>
+        (appPermissionsForAccountAccess(accessWith(role)) as string[]).includes(permission),
+      ).sort();
+    expect(holders('roles:manage')).toEqual(['admin', 'owner']);
+    expect(holders('roles:read')).toEqual(['admin', 'editor', 'owner', 'viewer']);
+  });
+
+  test('revoking members:update withdraws roles:manage; granting it confers it', () => {
+    expect(
+      appPermissionsForAccountAccess(accessWith('admin', { revokes: ['members:update'] })),
+    ).not.toContain('roles:manage');
+    expect(
+      appPermissionsForAccountAccess(accessWith('editor', { grants: ['members:update'] })),
+    ).toContain('roles:manage');
+    expect(
+      appPermissionsForAccountAccess(accessWith('viewer', { revokes: ['members:read'] })),
+    ).not.toContain('roles:read');
+  });
+
+  test('an autonomous bot key never holds roles:manage, because members:update is governance', () => {
+    expect(ACCOUNT_GOVERNANCE_PERMISSIONS.has('members:update')).toBe(true);
+    const permissions = autonomousOperationalPermissions();
+    expect(appPermissionsForAccountAccess({ role: 'viewer', permissions })).not.toContain(
+      'roles:manage',
+    );
+  });
+
+  test('no Oxy permission or scope is a well-formed application key, so the vocabularies cannot collide', () => {
+    for (const permission of [
+      ...APPLICATION_PERMISSIONS,
+      ...ACCOUNT_PERMISSIONS,
+      ...APPLICATION_SCOPES,
+    ]) {
+      expect(isApplicationPermissionKey(permission)).toBe(false);
+    }
   });
 });

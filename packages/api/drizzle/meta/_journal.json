@@ -1163,6 +1163,13 @@
       "when": 1792142711939,
       "tag": "0166_account_membership_read_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1792154502922,
+      "tag": "0167_application_roles",
+      "breakpoints": true
     }
   ]
 }

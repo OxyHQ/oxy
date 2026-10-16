@@ -1,5 +1,27 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.19.0
+
+Additive only: no export removed or changed in the root entry.
+
+### Added
+
+- **Application roles** (`applicationRoles.ts`): the wire contract for the
+  permissions an application declares about its own users and the grants of
+  them to Oxy users. `APPLICATION_PERMISSION_KEY_PATTERN_SOURCE` /
+  `APPLICATION_PERMISSION_KEY_PATTERN` / `isApplicationPermissionKey` (2-4
+  dot-separated lowercase segments, at most 64 characters, never a colon, so a
+  key cannot collide with an Oxy permission or scope), the request schemas
+  (`declareApplicationPermissionsRequestSchema`,
+  `createApplicationRoleGrantRequestSchema`,
+  `revokeApplicationRoleGrantRequestSchema`,
+  `listApplicationRoleGrantsQuerySchema`), the response schemas
+  (`applicationPermissionSchema`, `applicationPermissionListSchema`,
+  `declareApplicationPermissionsResponseSchema`, `applicationRoleGrantSchema`,
+  `applicationRoleGrantListSchema`, `applicationRolesMeSchema`), their types,
+  the limits, and `APPLICATION_ROLE_ERROR_CODES`. Root entry only; nothing is
+  added to `@oxy.so/contracts/client`.
+
 ## 4.18.0
 
 Additive only: no export removed.

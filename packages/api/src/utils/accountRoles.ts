@@ -80,6 +80,16 @@
  * `updates:manage`, a routing repoint is not a stronger FORM of updating the
  * application's configuration, so a granter of `apps:update` would not expect to
  * be conferring it.
+ *
+ * `roles:read` / `roles:manage` govern the application's OWN permission
+ * vocabulary and who holds it (`services/applicationRoles.service.ts`,
+ * `docs/auth/application-roles.md`): reading the declared keys and their
+ * grants, and declaring keys / granting / revoking them. They are about
+ * PEOPLE holding powers, so they answer to `members:read` / `members:update`
+ * in {@link ACCOUNT_COUNTERPART} — whoever may change what a member of the
+ * owning account may do is who may decide who operates its applications, and
+ * withdrawing that from a member withdraws this with it. `members:update` is
+ * account GOVERNANCE, so an autonomous bot key never holds `roles:manage`.
  */
 export const APPLICATION_PERMISSIONS = [
   'app:read',
@@ -105,6 +115,8 @@ export const APPLICATION_PERMISSIONS = [
   'inference:routing:write',
   'inference:byok:read',
   'inference:byok:write',
+  'roles:read',
+  'roles:manage',
 ] as const;
 
 export type ApplicationPermission = (typeof APPLICATION_PERMISSIONS)[number];
@@ -409,6 +421,8 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'inference:routing:write',
     'inference:byok:read',
     'inference:byok:write',
+    'roles:read',
+    'roles:manage',
   ],
   editor: [
     'app:read',
@@ -421,6 +435,7 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'inference:invoke',
     'inference:routing:read',
     'inference:byok:read',
+    'roles:read',
   ],
   developer: [
     'app:read',
@@ -437,7 +452,7 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'inference:byok:read',
   ],
   billing: ['app:read', 'billing:read', 'billing:manage', 'usage:read'],
-  viewer: ['app:read', 'members:read', 'usage:read', 'inference:routing:read'],
+  viewer: ['app:read', 'members:read', 'usage:read', 'inference:routing:read', 'roles:read'],
 };
 
 /**
@@ -498,6 +513,10 @@ const ACCOUNT_COUNTERPART: Readonly<Record<ApplicationPermission, AccountPermiss
   'inference:routing:write': 'inference:routing:write',
   'inference:byok:read': 'inference:providers:read',
   'inference:byok:write': 'inference:providers:write',
+  // Who holds the application's own permissions is a question about people,
+  // the same class of power as editing a member's permissions on the account.
+  'roles:read': 'members:read',
+  'roles:manage': 'members:update',
 };
 
 /**

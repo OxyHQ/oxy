@@ -1619,3 +1619,5 @@ export {
   serviceTokenOptionsSchema,
   type ServiceTokenOptions,
 } from './serviceToken';
+
+export * from './applicationRoles';
