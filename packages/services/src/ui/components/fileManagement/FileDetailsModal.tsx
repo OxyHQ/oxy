@@ -9,6 +9,7 @@ import { surfaces, type SurfaceControls } from '@oxy.so/bloom/surfaces';
 import type { FileMetadata } from '@oxy.so/core';
 import { useI18n } from '../../hooks/useI18n';
 import { formatFileSize, getFileIcon } from '../../utils/fileManagement';
+import { FileAppAccessSection } from './FileAppAccessSection';
 
 interface FileDetailsModalProps {
   /** The presenting surface's controls (from `surfaces.present`). */
@@ -21,7 +22,8 @@ interface FileDetailsModalProps {
 
 /**
  * File-detail panel — a rich presented surface (NOT a yes/no confirm): a file's
- * icon + metadata plus download / delete / cancel actions. Each action first
+ * icon + metadata, for the owner the applications that can open it ("Apps with
+ * access", ADR 0042 stage 4c), plus download / delete / cancel actions. Each action first
  * dismisses this surface, then runs its handler, so a follow-up delete confirm
  * stacks cleanly above whatever remains. Presented via {@link presentFileDetails}.
  */
@@ -83,6 +85,8 @@ export const FileDetailsModal: React.FC<FileDetailsModalProps> = ({
             </View>
           )}
         </View>
+
+        {isOwner ? <FileAppAccessSection fileId={file.id} /> : null}
       </Card>
 
       <View style={{ gap: 8 }}>

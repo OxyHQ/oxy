@@ -1,5 +1,27 @@
 # Changelog
 
+## [11.10.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.19.0 (and so `@oxy.so/contracts` 4.22.0) and the Oxy
+API with ADR 0043 stage 4c.
+
+### Changed
+
+- The `@oxy.so/core` peer is `^4.19.0` (it was `^4.18.0`): "Apps with access"
+  calls `oxy.assets.listAppAccess` / `revokeAppAccess`, which 4.19.0 adds.
+
+### Added
+
+- **Apps with access** in a file's details (ADR 0043 stage 4c), for the
+  owner: the applications that can open the file on their own — one that
+  stored it for the person ("Stored this file for you") or one the person
+  shared it with ("You shared it") — with their icon, each revocable behind a
+  confirmation that names the app and says playback it started stops
+  (`oxy.assets.listAppAccess` / `revokeAppAccess`; the row leaves at once and
+  comes back if the revoke fails; the list is cached under `files.all`, so a
+  library invalidation refreshes it). Every string in all eleven locales
+  (`fileManagement.appAccess.*`).
+
 ## [11.11.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.20.0 (and so `@oxy.so/contracts` 4.24.0), and a native
