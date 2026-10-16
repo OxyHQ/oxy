@@ -59,7 +59,13 @@ import {
   updateApplicationSchema,
   createCredentialSchema,
   rotateCredentialSchema,
+  deleteApplicationBodySchema,
+  filesWebhookBodySchema,
 } from '../schemas/application.schemas';
+import { deleteApplicationContent } from '../services/applicationDeletion.service';
+import { assetService } from '../services/assetServiceSingleton';
+import { newFileWebhookSecret, sealFileWebhookSecret } from '../services/fileEvents.service';
+import { verifyFilesWebhookEndpoint } from '../services/filesWebhookVerification';
 import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
@@ -454,6 +460,9 @@ interface SerializedApplication {
   scopes: string[];
   webhookUrl?: string;
   devWebhookUrl?: string;
+  /** The verified file-events endpoint (ADR 0041 D9); its secret is never serialized. */
+  filesWebhookUrl?: string;
+  filesWebhookVerifiedAt?: Date;
   ownerAccountId: string;
   createdByUserId?: string;
   createdAt: Date;
@@ -503,6 +512,8 @@ function serializeApplication(
     scopes: app.scopes,
     webhookUrl: app.webhookUrl ?? undefined,
     devWebhookUrl: app.devWebhookUrl ?? undefined,
+    filesWebhookUrl: app.filesWebhookUrl ?? undefined,
+    filesWebhookVerifiedAt: app.filesWebhookVerifiedAt ?? undefined,
     ownerAccountId: app.ownerAccountId,
     createdByUserId: app.createdByUserId ?? undefined,
     createdAt: app.createdAt,
@@ -1005,31 +1016,57 @@ router.patch(
 );
 
 /**
- * Soft-delete an application (`app:delete`).
+ * Delete an application (`app:delete`) — and, in the same transaction, every
+ * file it owns and every reference it registered (ADR 0041 D8).
+ *
+ * Body `{ confirmName }`: the application's CURRENT name, typed by the person
+ * (compared trimmed, case-sensitively); anything else is 400 and nothing
+ * changes. The row is soft-deleted (`status = 'deleted'`, the audit record);
+ * its files are tombstoned and owed their purge at once — no 30-day trash —
+ * every application still using one of them is told `file.deleted`, and an
+ * account's file it used only becomes *not in use* for its owner.
  */
 router.delete(
   '/:appId',
   validate({ params: appIdRouteParams }),
   requireAppPermission('app:delete'),
+  // After the permission: a caller who may not delete learns nothing from the body.
+  validate({ body: deleteApplicationBodySchema }),
   asyncHandler(async (req: AppContextRequest, res) => {
     const application = req.application;
     if (!application) {
       throw new NotFoundError('Application not found');
     }
+    const { confirmName } = req.body as { confirmName: string };
+    if (confirmName.trim() !== application.name.trim()) {
+      throw new ApiError(
+        400,
+        "Type the application's name exactly to confirm: its files are deleted with it",
+        'CONFIRM_NAME_MISMATCH',
+      );
+    }
 
-    await getDb().transaction(async (tx) => {
+    const content = await getDb().transaction(async (tx) => {
       // This is the serialization point shared with application-scoped BYOK
       // creation. It closes both race directions: a connection committed first
       // makes deletion refuse, while a deletion committed first makes creation
       // re-read the deleted status and refuse before sending a secret to Kaana.
       const [locked] = await tx
-        .select({ id: applications.id, status: applications.status })
+        .select({ id: applications.id, status: applications.status, name: applications.name })
         .from(applications)
         .where(eq(applications.id, application.id))
         .limit(1)
         .for('update');
       if (!locked || locked.status === 'deleted') {
         throw new NotFoundError('Application not found');
+      }
+      // Renamed since it was read: the person confirmed a name it no longer has.
+      if (confirmName.trim() !== locked.name.trim()) {
+        throw new ApiError(
+          400,
+          "Type the application's name exactly to confirm: its files are deleted with it",
+          'CONFIRM_NAME_MISMATCH',
+        );
       }
 
       const [outstandingCustody] = await tx
@@ -1056,18 +1093,26 @@ router.delete(
       if (!deleted) {
         throw new NotFoundError('Application not found');
       }
+      return deleteApplicationContent(tx, locked.id);
     });
 
     // A deleted app must immediately stop authorising federation signing.
     credentialDomainCache.invalidate(application.id);
     refreshDynamicCorsOrigins();
+    assetService.finishApplicationDeletion(content);
 
     logger.info('Application deleted', {
       userId: requireUserId(req),
       applicationId: application.id,
+      filesDeleted: content.files.length,
+      referencesRemoved: content.referencesRemoved,
     });
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      filesDeleted: content.files.length,
+      referencesRemoved: content.referencesRemoved,
+    });
   }),
 );
 
@@ -1579,6 +1624,92 @@ router.get(
   requireAppPermission('usage:read'),
   asyncHandler(async (req: AppContextRequest, res) => {
     res.json(await applicationStoredBytes(getDb(), requireApplication(req).id));
+  }),
+);
+
+// ============================================================================
+// File events (ADR 0041 D9)
+//
+// One endpoint per application, told about the files the application uses or
+// owns. Stored only once it echoed a signed challenge; its HMAC secret is
+// sealed at rest and shown once, on the PUT that sets it.
+// ============================================================================
+
+/** The application's file-events endpoint: `{ url, verifiedAt }`, both null when none. */
+router.get(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('webhooks:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    res.json({
+      url: application.filesWebhookUrl ?? null,
+      verifiedAt: application.filesWebhookVerifiedAt ?? null,
+    });
+  }),
+);
+
+/**
+ * Set (or re-verify) the file-events endpoint: `{ url }`, `https` and a public
+ * address. Oxy sends `{ type: 'webhook.challenge', challenge }` to it and
+ * stores it only when the answer is 2xx `{ challenge }` with the same value
+ * (422 `WEBHOOK_VERIFICATION_FAILED` otherwise, nothing changed). Every
+ * successful PUT issues a NEW signing secret, returned here once and never
+ * again: `{ url, verifiedAt, secret }`. Queued events are signed with it.
+ */
+router.put(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams, body: filesWebhookBodySchema }),
+  requireAppPermission('webhooks:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const { url } = req.body as { url: string };
+    const secret = newFileWebhookSecret();
+    await verifyFilesWebhookEndpoint(url, secret);
+
+    const verifiedAt = new Date();
+    const [updated] = await getDb()
+      .update(applications)
+      .set({
+        filesWebhookUrl: url,
+        filesWebhookSecretCiphertext: sealFileWebhookSecret(application.id, secret),
+        filesWebhookVerifiedAt: verifiedAt,
+      })
+      .where(and(eq(applications.id, application.id), ne(applications.status, 'deleted')))
+      .returning({ id: applications.id });
+    if (!updated) {
+      throw new NotFoundError('Application not found');
+    }
+
+    logger.info('Application file-events endpoint verified', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+      host: new URL(url).host,
+    });
+    res.json({ url, verifiedAt, secret });
+  }),
+);
+
+/** Stop file events: the endpoint and its secret are cleared; queued events are dead-lettered. */
+router.delete(
+  '/:appId/files-webhook',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('webhooks:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    await getDb()
+      .update(applications)
+      .set({
+        filesWebhookUrl: null,
+        filesWebhookSecretCiphertext: null,
+        filesWebhookVerifiedAt: null,
+      })
+      .where(eq(applications.id, application.id));
+    logger.info('Application file-events endpoint removed', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+    });
+    res.json({ success: true });
   }),
 );
 

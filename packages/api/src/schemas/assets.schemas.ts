@@ -203,7 +203,8 @@ export const assetsBySha256BodySchema = z.object({
 // id, or one of the legacy strings in `utils/legacyFileLinkApplications.ts`; a
 // session bound to one application is recorded as that application.
 // `visibility`, when given, is an explicit change by the OWNER, never inferred.
-// `webhookUrl` is deprecated (D9).
+// `webhookUrl` is deprecated (D9): accepted for old clients, ignored — file
+// events go to the application's own endpoint now.
 export const linkFileSchema = z.object({
   app: z.string().min(1, 'App name is required'),
   entityType: z.string().min(1, 'Entity type is required'),
@@ -288,3 +289,49 @@ export const commitReconcileBodySchema = z.object({ dryRun: z.boolean().optional
 export const reconcileSessionParams = z.object({
   sessionId: z.string().trim().min(1).max(64),
 });
+
+/** Imports per `POST /assets/service/app/import/batch` call (ADR 0041 D7). */
+export const MAX_IMPORT_BATCH_ITEMS = 50;
+
+/** The reference an import registers for the calling application in the same request. */
+const importReferenceSchema = z
+  .object({
+    entityType: z.string().trim().min(1).max(128),
+    entityId: z.string().trim().min(1).max(256),
+  })
+  .strict();
+
+const importItemShape = {
+  sourceUrl: z.string().trim().min(1).max(2048),
+  reference: importReferenceSchema.optional(),
+  revalidate: z.boolean().optional(),
+};
+
+// POST /assets/service/app/import — the calling application imports a file by
+// URL and owns it. `visibility` is required, as on `POST /assets/service/app`.
+export const appImportBodySchema = z
+  .object({
+    ...importItemShape,
+    visibility: z.enum(['private', 'public', 'unlisted']),
+  })
+  .strict();
+
+// POST /assets/service/app/import/batch — up to 50 of the above, each answered on its own.
+export const appImportBatchBodySchema = z
+  .object({
+    items: z
+      .array(appImportBodySchema)
+      .min(1, 'items must not be empty')
+      .max(MAX_IMPORT_BATCH_ITEMS, `Cannot import more than ${MAX_IMPORT_BATCH_ITEMS} at once`),
+  })
+  .strict();
+
+// POST /assets/service/user-media/import — import into an ACCOUNT's files (the
+// owner is `x-owner-user-id`, as on `/service/user-media`). Public by default,
+// like the user-media upload.
+export const userMediaImportBodySchema = z
+  .object({
+    ...importItemShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();

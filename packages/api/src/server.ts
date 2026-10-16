@@ -164,6 +164,10 @@ import {
 import { flushCdnInvalidations } from './services/cdnInvalidation';
 import { startFileLifecycleWorker, stopFileLifecycleWorker } from './services/fileLifecycle.worker';
 import {
+  startFileEventDeliveryWorker,
+  stopFileEventDeliveryWorker,
+} from './services/fileEventDelivery.worker';
+import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
 } from './services/normalizedAppEventOutbox.worker';
@@ -576,6 +580,7 @@ async function gracefulShutdown(signal: string) {
   stopAccountEventWebhookWorker();
   stopStorageDeletionWorker();
   stopFileLifecycleWorker();
+  stopFileEventDeliveryWorker();
   await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -1473,6 +1478,9 @@ export async function bootstrap(
   // D5). REPORT-ONLY by default: it acts once FILE_LIFECYCLE_MODE=enforce,
   // after an operator has reviewed a week of its reports.
   startFileLifecycleWorker();
+  // Tell applications about the files they use (ADR 0041 D9). ON by default:
+  // only applications that verified an endpoint have anything queued.
+  startFileEventDeliveryWorker();
   // Repair partially applied moderation consequences — by the system, on a
   // schedule, never by a person choosing whose standing to touch.
 

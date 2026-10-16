@@ -61,7 +61,11 @@ import {
   type federatedMediaUploadResponse,
   listApplicationFilesQuerySchema,
   serviceReferencesBodySchema,
+  appImportBodySchema,
+  appImportBatchBodySchema,
+  userMediaImportBodySchema,
 } from '../schemas/assets.schemas';
+import { FileImportService, type ImportResult } from '../services/fileImport.service';
 import {
   isOwnerReferencedToApp,
   mayApplicationReference,
@@ -111,6 +115,8 @@ const ownAssetAuth: express.RequestHandler = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
+/** Import by URL (ADR 0041 D7), over the shared AssetService. */
+const fileImportService = new FileImportService(assetService);
 
 /**
  * Project a link/variant row onto the wire shape clients already receive.
@@ -133,8 +139,7 @@ function serializeLink(link: FileReferenceRecord) {
     // Absent for a reference an application made with its service token.
     ...(link.createdByUserId === null ? {} : { createdBy: link.createdByUserId }),
     createdAt: link.createdAt,
-    // Deprecated (ADR 0041 D9).
-    ...(link.webhookUrl === null ? {} : { webhookUrl: link.webhookUrl }),
+    // The per-reference `webhook_url` is no longer read or shown (ADR 0041 D9).
   };
 }
 
@@ -1069,6 +1074,45 @@ router.post(
 );
 
 /**
+ * The account a `/service/user-media*` call writes into, after the act-as
+ * authority check — shared by the upload and the import (ADR 0041 D7), so the
+ * two can never disagree on who may attribute a file to a person.
+ *
+ * Attributing a file to a user is cross-tenant act-as authority, not ordinary
+ * application-owned file access, so it always needs a staff-granted scope. Two
+ * grants carry it:
+ *  - `files:user-media:write` — exactly this authority and nothing else (Oxy
+ *    Move imports a user's media with it);
+ *  - `files:write` + `federation:write` — the original pair, kept unchanged for
+ *    Mention's MCP intent-media.
+ * `files:write` alone is self-grantable and never enough. The owner is the
+ * `x-owner-user-id` header, an existing LOCAL user.
+ */
+async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
+  if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+    requireServiceScope(req, 'files:write');
+    requireServiceScope(req, 'federation:write');
+  }
+
+  const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
+  if (!ownerUserId) {
+    throw new BadRequestError('x-owner-user-id must be a valid user id');
+  }
+
+  // Same reasoning as `/service/federation` above: a malformed id matches no
+  // row and gets the endpoint's existing "not an existing local user" 403.
+  const [owner] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, ownerUserId), eq(users.type, 'local')))
+    .limit(1);
+  if (!owner) {
+    throw new ForbiddenError('User media owner must be an existing local user');
+  }
+  return ownerUserId;
+}
+
+/**
  * @route POST /api/assets/service/user-media
  * @desc Stream-upload durable media into a normal public file owned by an
  *       existing local Oxy user. Used by Mention MCP intent-media when the
@@ -1081,34 +1125,7 @@ router.post(
   serviceAuthMiddleware,
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
-    // Attributing a public file to a user is cross-tenant act-as authority, not
-    // ordinary application-owned file access, so it always needs a
-    // staff-granted scope. Two grants carry it:
-    //  - `files:user-media:write` — exactly this authority and nothing else
-    //    (Oxy Move imports a user's media with it);
-    //  - `files:write` + `federation:write` — the original pair, kept unchanged
-    //    for Mention's MCP intent-media.
-    // `files:write` alone is self-grantable and never enough.
-    if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
-      requireServiceScope(req, 'files:write');
-      requireServiceScope(req, 'federation:write');
-    }
-
-    const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
-    if (!ownerUserId) {
-      throw new BadRequestError('x-owner-user-id must be a valid user id');
-    }
-
-    // Same reasoning as `/service/federation` above: a malformed id matches no
-    // row and gets the endpoint's existing "not an existing local user" 403.
-    const [owner] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, ownerUserId), eq(users.type, 'local')))
-      .limit(1);
-    if (!owner) {
-      throw new ForbiddenError('User media owner must be an existing local user');
-    }
+    const ownerUserId = await requireUserMediaOwner(req);
 
     const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     if (!mime) {
@@ -1511,6 +1528,202 @@ router.delete(
       throw new ApiError(409, 'File is still in use', 'FILE_IN_USE');
     }
     sendSuccess(res, { id: fileId, result });
+  }),
+);
+
+/** Concurrent fetches one import batch runs at a time. */
+const IMPORT_BATCH_CONCURRENCY = 4;
+
+/** The source part of an import's answer: never the URL itself, which the caller sent. */
+function serializeImportSource(result: ImportResult) {
+  return {
+    host: result.source.host,
+    fetchedAt: result.source.fetchedAt,
+    ...(result.source.etag === null ? {} : { etag: result.source.etag }),
+    ...(result.source.lastModified === null ? {} : { lastModified: result.source.lastModified }),
+  };
+}
+
+function serializeAppImport(result: ImportResult) {
+  return {
+    file: serializeApplicationFile(result.file),
+    outcome: result.outcome,
+    deduplicated: result.deduplicated,
+    source: serializeImportSource(result),
+    ...(result.reference ? { reference: { result: result.reference } } : {}),
+  };
+}
+
+function serializeUserMediaImport(result: ImportResult) {
+  return {
+    file: {
+      id: result.file.id,
+      sha256: result.file.sha256,
+      size: result.file.size,
+      mime: result.file.mime,
+      visibility: result.file.visibility,
+      status: result.file.status,
+    },
+    outcome: result.outcome,
+    deduplicated: result.deduplicated,
+    source: serializeImportSource(result),
+    ...(result.reference ? { reference: { result: result.reference } } : {}),
+  };
+}
+
+type AppImportItem = z.infer<typeof appImportBodySchema>;
+
+/**
+ * Admit an application import: `files:app:write` on an active application,
+ * and `files:references:write` too when it asks for a reference — the same
+ * rule as `POST /assets/service/references` (ADR 0041 D7).
+ */
+async function admitAppImport(req: ServiceAuthRequest, wantsReference: boolean): Promise<string> {
+  const appId = await requireActiveApplication(req, ['files:app:write']);
+  if (wantsReference) await requireActiveApplication(req, ['files:references:write']);
+  return appId;
+}
+
+/**
+ * @route POST /api/assets/service/app/import
+ * @desc Import a file by URL; the CALLING APPLICATION owns it (ADR 0041 D7).
+ *       Body `{ sourceUrl, visibility, reference?: { entityType, entityId },
+ *       revalidate? }`. Oxy fetches `sourceUrl` itself — `https` only on every
+ *       hop, public addresses only, at most 5 redirects, no credentials, 40 MiB
+ *       and 60 s at most — and stores it through the ordinary upload pipeline
+ *       (image or video; deduplicated by content per application; variants).
+ *       The same URL imported again by the same application answers the
+ *       existing file without any request (`outcome: 'existing'`);
+ *       `revalidate: true` asks the source conditionally (ETag /
+ *       Last-Modified): `not_modified`, or `downloaded` with the new bytes as
+ *       a file of their own. `reference` registers this application's use of
+ *       the file in the same request (needs `files:references:write`), so an
+ *       import is never left unreferenced. Errors: 400 `INVALID_SOURCE_URL`,
+ *       422 `SOURCE_URL_REFUSED`, 502 `SOURCE_FETCH_FAILED`, 504
+ *       `SOURCE_FETCH_TIMEOUT`, 415 `UNSUPPORTED_MEDIA_TYPE`, 413
+ *       `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/import',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appImportBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const body = req.body as AppImportItem;
+    const appId = await admitAppImport(req, body.reference !== undefined);
+    const result = await fileImportService.importFromUrl(
+      { kind: 'application', applicationId: appId },
+      body,
+      appId,
+    );
+    sendSuccess(res, serializeAppImport(result));
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/app/import/batch
+ * @desc Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The
+ *       batch is 200; each item answers on its own, in order: `{ index, ok:
+ *       true, file, outcome, deduplicated, source, reference? }` or `{ index,
+ *       ok: false, error: { status, code, message } }`.
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         when an item asks for a reference), on an active application
+ */
+router.post(
+  '/service/app/import/batch',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appImportBatchBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const { items } = req.body as { items: AppImportItem[] };
+    const appId = await admitAppImport(
+      req,
+      items.some((item) => item.reference !== undefined),
+    );
+
+    const results: Array<Record<string, unknown>> = new Array(items.length);
+    let next = 0;
+    const work = async () => {
+      while (next < items.length) {
+        const index = next++;
+        try {
+          const result = await fileImportService.importFromUrl(
+            { kind: 'application', applicationId: appId },
+            items[index],
+            appId,
+          );
+          results[index] = { index, ok: true, ...serializeAppImport(result) };
+        } catch (error) {
+          if (!(error instanceof ApiError)) {
+            logger.error('Application import batch item failed', {
+              appId,
+              index,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          results[index] = {
+            index,
+            ok: false,
+            error:
+              error instanceof ApiError
+                ? { status: error.statusCode, code: error.code, message: error.message }
+                : { status: 500, code: 'INTERNAL_ERROR', message: 'The import failed' },
+          };
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(IMPORT_BATCH_CONCURRENCY, items.length) }, work),
+    );
+
+    logger.info('Application import batch', {
+      appId,
+      requested: items.length,
+      failed: results.filter((item) => item.ok === false).length,
+    });
+    sendSuccess(res, { results });
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/user-media/import
+ * @desc Import a file by URL into an ACCOUNT's files (ADR 0041 D7): the
+ *       account-owned equivalent of `/service/app/import`, with the authority
+ *       and owner of `/service/user-media` — `x-owner-user-id` names an
+ *       existing local user. Body `{ sourceUrl, visibility? (default public),
+ *       reference?, revalidate? }`; the same fetch, policies, once-per-URL
+ *       memory (per account) and answers. `reference` registers the CALLING
+ *       application's use of the file (needs `files:references:write`).
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/import',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ body: userMediaImportBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const ownerUserId = await requireUserMediaOwner(req);
+    const body = req.body as z.infer<typeof userMediaImportBodySchema>;
+    const appId = req.serviceApp?.appId;
+    if (typeof appId !== 'string' || appId.length === 0) {
+      throw new ForbiddenError('Service token carries no application id');
+    }
+    if (body.reference) await requireActiveApplication(req, ['files:references:write']);
+
+    const result = await fileImportService.importFromUrl(
+      { kind: 'account', userId: ownerUserId },
+      { ...body, visibility: body.visibility ?? 'public' },
+      appId,
+    );
+    logger.info('User media imported by URL', {
+      appId,
+      ownerUserId,
+      fileId: result.file.id,
+      outcome: result.outcome,
+    });
+    sendSuccess(res, serializeUserMediaImport(result));
   }),
 );
 
@@ -2482,7 +2695,8 @@ router.post(
       entityType: validatedData.entityType,
       entityId: validatedData.entityId,
       createdByUserId: user._id.toString(),
-      webhookUrl: validatedData.webhookUrl,
+      // `webhookUrl` in the body is ignored (ADR 0041 D9): file events go to
+      // the application's own verified endpoint.
     });
 
     logger.info('File linked successfully', {
@@ -3167,6 +3381,56 @@ router.get(
     const url = cdnUrl ?? buildOriginStreamUrl(req, fileId, variantType, mediaToken);
     res.setHeader('Cache-Control', 'private, max-age=60');
     return sendAssetRedirect(res, url);
+  }),
+);
+
+/**
+ * @route POST /api/assets/:id/trash
+ * @desc The owner moves their own file to trash (ADR 0041 D5): it stops being
+ *       served at once (and leaves the CDN), stays in the owner's files with
+ *       `status: 'trash'` and `trashedAt`, and is kept until the owner
+ *       restores (`POST /:id/restore`) or deletes it — an account's trash
+ *       never expires. Every application using the file is told
+ *       `file.trashed` (D9). Already in trash: answered as it is. Any other
+ *       caller, and a deleted file, get 404.
+ * @access Private — the file's owner only
+ */
+router.post(
+  '/:id/trash',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    const { id: fileId } = req.params;
+    const existing = await assetService.getFile(fileId);
+    if (!existing || existing.status === 'deleted' || !(await sessionOwnsFile(req, existing))) {
+      throw new NotFoundError('File not found');
+    }
+    // `existing.ownerUserId` is set: `sessionOwnsFile` admits only an account's file.
+    const ownerUserId = existing.ownerUserId as string;
+    const file =
+      existing.status === 'trash'
+        ? existing
+        : ((await assetService.trashFile(fileId, ownerUserId)) ??
+          (await assetService.getFile(fileId)));
+    if (!file || file.status !== 'trash') {
+      throw new NotFoundError('File not found');
+    }
+
+    logger.info('File moved to trash', { userId: user._id, fileId });
+
+    sendSuccess(res, {
+      file: {
+        id: file.id,
+        status: file.status,
+        trashedAt: file.trashedAt ?? null,
+        usageCount: file.links.length,
+      },
+    });
   }),
 );
 

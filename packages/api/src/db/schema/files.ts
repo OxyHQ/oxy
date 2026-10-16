@@ -168,9 +168,11 @@ export const files = pgTable(
      * `RESTRICT`, never `CASCADE`. A cascade would drop the rows and with them
      * the only record of which storage keys the bytes live at, so nothing would
      * ever purge them. Whoever removes an application removes its files FIRST,
-     * through the tombstone + `storage_object_deletions` path
-     * (`recordAccountStorageDeletion` does this for the account cascade that is
-     * the only hard delete of an application today).
+     * through the tombstone + `storage_object_deletions` path: an
+     * application's deletion tombstones them all (ADR 0041 D8,
+     * `applicationDeletion.service.ts`), and `recordAccountStorageDeletion`
+     * removes the rows before the account cascade, the only hard delete of an
+     * application.
      */
     ownerApplicationId: text().references(() => applications.id, { onDelete: 'restrict' }),
     status: text({ enum: FILE_STATUSES }).notNull().default('active'),

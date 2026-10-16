@@ -34,8 +34,6 @@ export interface AssetLinkRequest {
   entityId: string;
   /** The person who made the reference, or `null` for an application's service token. */
   createdByUserId: string | null;
-  /** Deprecated (ADR 0041 D9); kept for the session compatibility surface. */
-  webhookUrl?: string;
 }
 
 export interface AssetDeleteSummary {

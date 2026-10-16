@@ -325,6 +325,31 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'metadata',
     holds: 'uploaded-file metadata: dimensions, duration, checksum',
   },
+  // ---- ADR 0041: the file lifecycle, reconciliation and file events -----------
+  {
+    table: 'file_lifecycle_sweeps',
+    column: 'counts',
+    holds:
+      'per sweep step, integer counters (due, acted, failed, withObject) of files the lifecycle sweep matched; no file content, no request',
+  },
+  {
+    table: 'file_lifecycle_sweeps',
+    column: 'samples',
+    holds:
+      'per sweep step, at most 100 file ids with their owner id, size and clock timestamp — the report an operator reviews; no file content, no request',
+  },
+  {
+    table: 'file_reference_reconciliations',
+    column: 'result',
+    holds:
+      "a committed reconciliation's integer counts (added, removed, unchanged, refused) and dryRun flag; no inventory item, no request",
+  },
+  {
+    table: 'file_event_deliveries',
+    column: 'payload',
+    holds:
+      "the file event Oxy itself composes for an application (ADR 0041 D9): event id, closed type, timestamp, file id, owner KIND, visibility and status, and that application's own (entityType, entityId) references — nothing a caller sent, no file content, no prompt, completion or credential",
+  },
   {
     table: 'file_variants',
     column: 'metadata',

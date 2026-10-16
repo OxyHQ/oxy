@@ -67,9 +67,10 @@ export const fileReferences = pgTable(
     createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
     /**
      * DEPRECATED (ADR 0041 D9): a per-reference webhook, carried over from
-     * `file_links`. Still read by the existing `visibility_changed`/`deleted`
-     * notifications; stage 3 moves webhooks to the application and drops this.
-     * No new surface writes it.
+     * `file_links`. Since stage 3 nothing reads or writes it — file events go
+     * to the application's own verified endpoint
+     * (`applications.files_webhook_url`). Dropped by a later post migration,
+     * once no serving image reads it.
      */
     webhookUrl: text(),
     /** The ABSENCE of `updated_at` is the append-only contract. */

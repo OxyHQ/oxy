@@ -31,8 +31,9 @@
  */
 
 import { isServedPublicly } from '../config/cdn';
-import { ConflictError } from '../utils/error';
+import { ConflictError, ForbiddenError } from '../utils/error';
 import { storageAccountForOwner, withStorageQuota } from './storageQuota.service';
+import { recordFileEvents } from './fileEvents.service';
 import {
   and,
   asc,
@@ -52,7 +53,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
-import { fileReferences, fileVariants, files, users } from '../db/schema';
+import { applications, fileReferences, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type {
@@ -530,6 +531,9 @@ export async function insertFile(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FileRecord> {
   if (db === getDb()) return getDb().transaction((tx) => insertFile(values, tx));
+  if (values.ownerApplicationId) {
+    await assertApplicationNotDeleted(db, [values.ownerApplicationId]);
+  }
   return withStorageQuota(db, [await storageAccountForOwner(db, values)], async () => {
     // A new row is used by nothing yet (ADR 0041 D5): the clock that collects
     // an unused application file — and marks an account's "not in use" —
@@ -542,14 +546,56 @@ export async function insertFile(
   });
 }
 
-/** Apply a column patch and return the file as it now stands, or `null` if it is gone. */
-export async function updateFile(fileId: string, patch: FilePatch): Promise<FileRecord | null> {
+/**
+ * The applications among `applicationIds` that are not deleted, read under
+ * `FOR KEY SHARE` — the lock an application's deletion (`FOR UPDATE`, ADR 0041
+ * D8) conflicts with. A write racing that deletion therefore waits for it and
+ * then sees `deleted`, so no file or reference can be added for an
+ * application after its content was removed.
+ */
+async function liveApplicationIds(
+  db: DatabaseOrTransaction,
+  applicationIds: readonly string[],
+): Promise<Set<string>> {
+  if (applicationIds.length === 0) return new Set();
+  const rows = await db
+    .select({ id: applications.id, status: applications.status })
+    .from(applications)
+    .where(inArray(applications.id, [...new Set(applicationIds)].sort()))
+    .orderBy(asc(applications.id))
+    .for('key share');
+  return new Set(rows.filter((row) => row.status !== 'deleted').map((row) => row.id));
+}
+
+async function assertApplicationNotDeleted(
+  db: DatabaseOrTransaction,
+  applicationIds: readonly string[],
+): Promise<void> {
+  const live = await liveApplicationIds(db, applicationIds);
+  if (applicationIds.some((id) => !live.has(id))) {
+    throw new ForbiddenError('This application was deleted');
+  }
+}
+
+/**
+ * Apply a column patch and return the file as it now stands, or `null` if it is gone.
+ *
+ * `afterUpdate` runs in the same transaction with the updated row — how a
+ * visibility change queues its `file.visibility_changed` events (ADR 0041 D9)
+ * so the change and its events commit together.
+ */
+export async function updateFile(
+  fileId: string,
+  patch: FilePatch,
+  options: { afterUpdate?: (tx: Transaction, record: FileRecord) => Promise<void> } = {},
+): Promise<FileRecord | null> {
   return getDb().transaction(async (tx) => {
     const old = await readMeteredOwner(tx, fileId);
     return withStorageQuota(tx, await quotaAccountsFor(tx, old, patch), async () => {
       await assertStableFileOwner(tx, fileId, old);
       const rows = await tx.update(files).set(patch).where(eq(files.id, fileId)).returning();
       const [record] = await withChildren(rows, tx);
+      if (record && options.afterUpdate) await options.afterUpdate(tx, record);
       return record ?? null;
     });
   });
@@ -842,13 +888,21 @@ export async function addFileReferences(
   if (db === getDb()) return getDb().transaction((tx) => addFileReferences(references, tx));
   const tx = db as Transaction;
 
+  // Applications first, then files: the order an application's deletion
+  // locks them in (D8), so the two can never deadlock.
+  const liveApplications = await liveApplicationIds(
+    tx,
+    references.map((reference) => reference.applicationId),
+  );
   const locked = await lockFilesForReferences(
     tx,
     references.map((reference) => reference.fileId),
   );
   const writable = references.filter((reference) => {
     const status = locked.get(reference.fileId)?.status;
-    return status !== undefined && status !== 'deleted';
+    return (
+      status !== undefined && status !== 'deleted' && liveApplications.has(reference.applicationId)
+    );
   });
   if (writable.length === 0) return { created: 0, createdFileIds: [], restoredFileIds: [] };
 
@@ -873,6 +927,11 @@ export async function addFileReferences(
     .where(and(inArray(files.id, createdFileIds), eq(files.status, 'trash')))
     .returning({ id: files.id });
   await refreshUnreferencedSince(tx, createdFileIds);
+  await recordFileEvents(
+    tx,
+    'file.restored',
+    restored.map((row) => row.id),
+  );
   return {
     created: inserted.length,
     createdFileIds,
@@ -982,22 +1041,117 @@ export async function reactivateTrashedFile(
   fileId: string,
   options: { restartUnreferencedClock?: boolean } = {},
 ): Promise<FileRecord | null> {
-  const db = getDb();
-  const rows = await db
-    .update(files)
-    .set({
-      status: 'active',
-      trashedAt: null,
-      ...(options.restartUnreferencedClock
-        ? {
-            unreferencedSince: sql`case when ${files.unreferencedSince} is null then null else now() end`,
-          }
-        : {}),
-    })
-    .where(and(eq(files.id, fileId), eq(files.status, 'trash')))
-    .returning();
-  const [record] = await withChildren(rows);
-  return record ?? null;
+  return getDb().transaction(async (tx) => {
+    const rows = await tx
+      .update(files)
+      .set({
+        status: 'active',
+        trashedAt: null,
+        ...(options.restartUnreferencedClock
+          ? {
+              unreferencedSince: sql`case when ${files.unreferencedSince} is null then null else now() end`,
+            }
+          : {}),
+      })
+      .where(and(eq(files.id, fileId), eq(files.status, 'trash')))
+      .returning();
+    const [record] = await withChildren(rows, tx);
+    if (record) await recordFileEvents(tx, 'file.restored', [record.id]);
+    return record ?? null;
+  });
+}
+
+/**
+ * The owner moves an account's ACTIVE file to trash (`POST /assets/:id/trash`,
+ * ADR 0041 D5): no longer served, kept until the owner restores or deletes it —
+ * an account's trash never expires. One conditional write on the owner and the
+ * status, with `file.trashed` queued for every application using the file in
+ * the same transaction (D9). `null` when it is not that account's active file.
+ */
+export async function trashAccountFile(
+  fileId: string,
+  ownerUserId: string,
+  now: Date = new Date(),
+): Promise<FileRecord | null> {
+  return getDb().transaction(async (tx) => {
+    const rows = await tx
+      .update(files)
+      .set({ status: 'trash', trashedAt: now })
+      .where(
+        and(eq(files.id, fileId), eq(files.ownerUserId, ownerUserId), eq(files.status, 'active')),
+      )
+      .returning();
+    const [record] = await withChildren(rows, tx);
+    if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
+    return record ?? null;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// An application's deletion (ADR 0041 D8)
+// ---------------------------------------------------------------------------
+
+/** Rows per statement when an application's whole footprint goes. */
+const APPLICATION_DELETION_CHUNK = 500;
+
+/**
+ * Remove EVERY reference `applicationId` holds, inside the deletion's
+ * transaction, stamping `unreferenced_since` on each file left with none (an
+ * account's file becomes *not in use* for its owner; nothing is trashed).
+ * Returns how many references went.
+ */
+export async function deleteApplicationReferences(
+  tx: Transaction,
+  applicationId: string,
+): Promise<number> {
+  const used = await tx
+    .selectDistinct({ fileId: fileReferences.fileId })
+    .from(fileReferences)
+    .where(eq(fileReferences.applicationId, applicationId));
+  let removed = 0;
+  const fileIds = used.map((row) => row.fileId);
+  for (let start = 0; start < fileIds.length; start += APPLICATION_DELETION_CHUNK) {
+    const part = fileIds.slice(start, start + APPLICATION_DELETION_CHUNK);
+    await lockFilesForReferences(tx, part);
+    const rows = await tx
+      .delete(fileReferences)
+      .where(
+        and(eq(fileReferences.applicationId, applicationId), inArray(fileReferences.fileId, part)),
+      )
+      .returning({ id: fileReferences.id });
+    removed += rows.length;
+    await refreshUnreferencedSince(tx, part);
+  }
+  return removed;
+}
+
+/**
+ * Tombstone EVERY live file `applicationId` owns, inside the deletion's
+ * transaction — no trash, no 30 days: the developer asked for deletion. Unlike
+ * a single delete, a file somebody else still holds is tombstoned too; the
+ * holders are told (`file.deleted`, D9). Returns the tombstoned rows with their
+ * children, for the storage they are owed.
+ */
+export async function tombstoneApplicationFiles(
+  tx: Transaction,
+  applicationId: string,
+): Promise<FileRecord[]> {
+  const live = await tx
+    .select({ id: files.id })
+    .from(files)
+    .where(and(eq(files.ownerApplicationId, applicationId), ne(files.status, 'deleted')))
+    .orderBy(asc(files.id));
+  const tombstoned: FileRecord[] = [];
+  for (let start = 0; start < live.length; start += APPLICATION_DELETION_CHUNK) {
+    const part = live.slice(start, start + APPLICATION_DELETION_CHUNK).map((row) => row.id);
+    const rows = await tx
+      .update(files)
+      .set({ status: 'deleted' })
+      .where(and(inArray(files.id, part), ne(files.status, 'deleted')))
+      .returning();
+    tombstoned.push(...(await withChildren(rows, tx)));
+  }
+  return tombstoned;
 }
 
 /**
@@ -1187,14 +1341,17 @@ export async function trashUnreferencedApplicationFile(
   fileId: string,
   now: Date,
 ): Promise<FileRecord | null> {
-  const db = getDb();
-  const rows = await db
-    .update(files)
-    .set({ status: 'trash', trashedAt: now })
-    .where(and(eq(files.id, fileId), fileLifecyclePredicate('trash', now, db)))
-    .returning();
-  const [record] = await withChildren(rows);
-  return record ?? null;
+  return getDb().transaction(async (tx) => {
+    const rows = await tx
+      .update(files)
+      .set({ status: 'trash', trashedAt: now })
+      .where(and(eq(files.id, fileId), fileLifecyclePredicate('trash', now, tx)))
+      .returning();
+    const [record] = await withChildren(rows, tx);
+    // Unreferenced by definition: only the owning application is told (D9).
+    if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
+    return record ?? null;
+  });
 }
 
 /**

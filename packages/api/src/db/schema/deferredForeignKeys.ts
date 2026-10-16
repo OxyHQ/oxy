@@ -80,6 +80,7 @@ import { emailOutbox } from './emailOutbox';
 import { federationKeyPairs } from './federationKeyPairs';
 import { fileReferenceReconciliationItems } from './fileReferenceReconciliations';
 import { fileReferences } from './fileReferences';
+import { fileEventDeliveries } from './fileEventDeliveries';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
 import {
@@ -838,6 +839,21 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "The entity's id in the reconciling application's database, exactly as " +
       '`file_references.entity_id`: never resolvable here.',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.eventId,
+    reason:
+      'The id of a file event (ADR 0041 D9), shared by every application told of ' +
+      "the same change: the receiver's dedupe key. There is no events table — " +
+      'each delivery row carries its own payload.',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.fileId,
+    reason:
+      "The file an event is about. An account's deletion removes file rows, and " +
+      'a queued event must still be delivered then: its payload stands alone.',
   },
   {
     table: fileReferences,

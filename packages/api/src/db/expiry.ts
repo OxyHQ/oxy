@@ -66,6 +66,10 @@ import {
   storageObjectDeletions,
 } from './schema/storageObjectDeletions';
 import {
+  FILE_EVENT_DELIVERY_RETENTION_SECONDS,
+  fileEventDeliveries,
+} from './schema/fileEventDeliveries';
+import {
   FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
   fileLifecycleSweeps,
 } from './schema/fileLifecycleSweeps';
@@ -395,6 +399,15 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Housekeeping only — every read of a reconciliation session filters ' +
       '`expires_at > now()` itself. The day of grace answers a late page ' +
       '"expired" rather than "unknown"; its items go with it (CASCADE).',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.createdAt,
+    retentionSeconds: FILE_EVENT_DELIVERY_RETENTION_SECONDS,
+    reason:
+      'Thirty days of file events to applications (ADR 0041 D9), far past the ' +
+      'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
+      'stays inspectable for support, then goes. Nothing reads an old row.',
   },
   {
     table: fileLifecycleSweeps,

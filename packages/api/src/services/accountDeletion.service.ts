@@ -43,6 +43,11 @@ import {
   type RecordedAccountStorageDeletion,
 } from './accountStorageDeletion.service';
 import fileCache from '../utils/fileCache';
+import {
+  deleteAccountApplications,
+  invalidateDeletedApplicationFiles,
+  type DeletedApplicationContent,
+} from './applicationDeletion.service';
 import { emailService } from './email.service';
 import sessionService from './session.service';
 import deviceSessionService from './deviceSession.service';
@@ -137,15 +142,19 @@ export async function deleteAccount(
     // for deletion, in the same commit.
     let archivedEvent: RecordedAccountEvent | undefined;
     let archivedStorage: RecordedAccountStorageDeletion | undefined;
+    let archivedApplications: DeletedApplicationContent[] = [];
     await archiveAccountForRetention(userId, {
       withinTransaction: async (tx) => {
         archivedEvent = await recordAccountDeletedEvent(tx, { userId, username, retained: true });
+        // Its applications go first, the way a developer's delete does (ADR 0041 D8).
+        archivedApplications = await deleteAccountApplications(tx, userId);
         archivedStorage = await recordAccountStorageDeletion(tx, userId, { removeAssetRows: true });
       },
     });
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
     for (const fileId of archivedStorage?.fileIds ?? []) fileCache.invalidate(fileId);
+    for (const content of archivedApplications) invalidateDeletedApplicationFiles(content);
     logger.info('Account archived with retained financial records', {
       userId,
       username,
@@ -168,19 +177,25 @@ export async function deleteAccount(
   // uploads' asset rows cascade too, so their storage keys are recorded for
   // deletion first, in the same transaction; `accountStorageDeletion.worker.ts`
   // deletes the objects.
-  const { deletedEvent, storage } = await getDb().transaction(async (tx) => {
+  const { deletedEvent, storage, deletedApplications } = await getDb().transaction(async (tx) => {
     const recorded = await recordAccountDeletedEvent(tx, { userId, username, retained: false });
+    // Its applications go first, the way a developer's delete does (ADR 0041
+    // D8): their references are removed and their files tombstoned and owed,
+    // so the rows below can go and the `users` cascade never meets
+    // `files.owner_application_id`'s RESTRICT.
+    const deletedApplications = await deleteAccountApplications(tx, userId);
     const recordedStorage = await recordAccountStorageDeletion(tx, userId, {
       removeAssetRows: false,
     });
     // An empty, never-used wallet is not a hold; it goes with the account.
     await deleteDisposableWallets(tx, userId, holds.disposableWalletIds);
     await tx.delete(users).where(eq(users.id, userId));
-    return { deletedEvent: recorded, storage: recordedStorage };
+    return { deletedEvent: recorded, storage: recordedStorage, deletedApplications };
   });
   userCache.invalidate(userId);
   await graphCache.invalidate(userId);
   for (const fileId of storage.fileIds) fileCache.invalidate(fileId);
+  for (const content of deletedApplications) invalidateDeletedApplicationFiles(content);
   logger.info('Account deleted', {
     userId,
     username,

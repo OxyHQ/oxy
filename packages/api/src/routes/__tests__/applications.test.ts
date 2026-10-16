@@ -578,7 +578,9 @@ describe('GET/PATCH/DELETE /applications/:appId — account-derived RBAC', () =>
     expect(patch.status).toBe(200);
     expect((await readApp(app.id))?.name).toBe('Renamed');
 
-    const del = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    const del = await requestJson(server, 'DELETE', `/applications/${app.id}`, {
+      confirmName: 'Renamed',
+    });
     expect(del.status).toBe(403);
   });
 
@@ -586,7 +588,9 @@ describe('GET/PATCH/DELETE /applications/:appId — account-derived RBAC', () =>
     const app = await seedApp({ ownerAccountId: ORG_ID });
     actAs(OTHER_ID);
     grantAccess(OTHER_ID, ORG_ID, 'admin');
-    const res = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    const res = await requestJson(server, 'DELETE', `/applications/${app.id}`, {
+      confirmName: app.name,
+    });
     expect(res.status).toBe(200);
     expect((await readApp(app.id))?.status).toBe('deleted');
   });
@@ -597,7 +601,9 @@ describe('GET/PATCH/DELETE /applications/:appId — account-derived RBAC', () =>
     actAs(OTHER_ID);
     grantAccess(OTHER_ID, ORG_ID, 'admin');
 
-    const refused = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    const refused = await requestJson(server, 'DELETE', `/applications/${app.id}`, {
+      confirmName: app.name,
+    });
     expect(refused.status).toBe(409);
     expect((await readApp(app.id))?.status).toBe('active');
 
@@ -606,7 +612,9 @@ describe('GET/PATCH/DELETE /applications/:appId — account-derived RBAC', () =>
       .set({ status: 'revoked', custodyState: 'revoked' })
       .where(eq(inferenceProviderConnections.id, connection.id));
 
-    const deleted = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    const deleted = await requestJson(server, 'DELETE', `/applications/${app.id}`, {
+      confirmName: app.name,
+    });
     expect(deleted.status).toBe(200);
     expect((await readApp(app.id))?.status).toBe('deleted');
   });

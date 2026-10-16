@@ -133,6 +133,41 @@ export async function recordFileStorageDeletion(
 }
 
 /**
+ * Record the storage MANY tombstoned assets are owed, inside their tombstone's
+ * transaction — {@link recordFileStorageDeletion} for a batch (an
+ * application's deletion tombstones every file it owns, ADR 0041 D8). Same
+ * reason, same ledger owner per asset, same re-arming. Returns the ledger ids.
+ */
+export async function recordFilesStorageDeletion(
+  tx: Transaction,
+  assets: ReadonlyArray<{
+    sha256: string;
+    storageKey: string;
+    ownerUserId: string | null;
+    systemOwner: string | null;
+    ownerApplicationId: string | null;
+    variantKeys: readonly string[];
+  }>,
+): Promise<string[]> {
+  const byAccount = new Map<string, Map<string, StorageDeletionTarget>>();
+  for (const asset of assets) {
+    const accountId = assetAccountId(asset);
+    const targets = byAccount.get(accountId) ?? new Map<string, StorageDeletionTarget>();
+    for (const target of storageTargetsForAsset(asset, asset.variantKeys)) {
+      targets.set(`${target.kind}:${target.target}`, target);
+    }
+    byAccount.set(accountId, targets);
+  }
+  const ids: string[] = [];
+  for (const [accountId, targets] of byAccount) {
+    for (const batch of chunks([...targets.values()], CHUNK_SIZE)) {
+      ids.push(...(await armStorageTargets(tx, 'file.deleted', accountId, batch)));
+    }
+  }
+  return ids;
+}
+
+/**
  * Record the keys ONE asset stopped using when a visibility change copied its
  * objects to the other spelling (`public/` or not), inside the transaction that
  * repointed the row. Each old key is an OBJECT target — never its directory:

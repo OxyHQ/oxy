@@ -45,6 +45,11 @@ import {
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
 import { getCdnInvalidationQueue } from './cdnInvalidation';
+import { recordFileEvents } from './fileEvents.service';
+import {
+  invalidateDeletedApplicationFiles,
+  type DeletedApplicationContent,
+} from './applicationDeletion.service';
 import { logger } from '../utils/logger';
 import { ApiError, ForbiddenError } from '../utils/error';
 import type {
@@ -88,6 +93,7 @@ import {
   tombstoneFederatedFileForApp,
   tombstoneFile,
   tombstoneFileIfDue,
+  trashAccountFile,
   trashUnreferencedApplicationFile,
   type ApplicationFileCursor,
   type FileReferenceKey,
@@ -1036,14 +1042,39 @@ export class AssetService {
     ownerUserId: string,
     metadata?: Record<string, unknown>,
   ): Promise<FileRecord> {
-    return this.uploadStreamedMedia(source, mimeType, originalName, maxBytes, {
+    return (
+      await this.uploadUserMediaStreamDetailed(
+        source,
+        mimeType,
+        originalName,
+        maxBytes,
+        ownerUserId,
+        'public',
+        { source: 'mention-service', ...(metadata ?? {}) },
+      )
+    ).file;
+  }
+
+  /**
+   * {@link uploadUserMediaStream} with the visibility chosen by the caller and
+   * whether the owner already held these bytes — the account-owned import by
+   * URL (ADR 0041 D7). Rows are per owner: bytes the account already holds come
+   * back as that file, `deduplicated: true`, its visibility unchanged.
+   */
+  async uploadUserMediaStreamDetailed(
+    source: AbortableReadable,
+    mimeType: string,
+    originalName: string,
+    maxBytes: number,
+    ownerUserId: string,
+    visibility: FileVisibility,
+    metadata: Record<string, unknown>,
+  ): Promise<StreamedMediaResult> {
+    return this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, {
       owner: { ownerUserId, systemOwner: null },
       purpose: 'user',
-      visibility: 'public',
-      metadata: {
-        source: 'mention-service',
-        ...(metadata ?? {}),
-      },
+      visibility,
+      metadata,
       tempPrefix: 'user/incoming',
       logLabel: 'User media',
     });
@@ -1128,7 +1159,6 @@ export class AssetService {
       { awaitPurge: true },
     );
     if (!tombstoned) return classifyApplicationFileDeleteRefusal(fileId, applicationId);
-    await this.notifyLinks(tombstoned, 'deleted', { reason: 'application_file_deleted' });
     return 'deleted';
   }
 
@@ -1735,7 +1765,6 @@ export class AssetService {
         entityType: request.entityType,
         entityId: request.entityId,
         createdByUserId: request.createdByUserId,
-        webhookUrl: request.webhookUrl,
       });
 
       if (!created) {
@@ -1760,75 +1789,6 @@ export class AssetService {
     } catch (error) {
       logger.error('Error linking file:', error);
       throw error;
-    }
-  }
-
-  /**
-   * Send webhook notifications to links that have webhookUrl set.
-   * Non-blocking: failures are logged but do not throw.
-   */
-  private async notifyLinks(
-    file: FileRecord,
-    event: 'visibility_changed' | 'deleted',
-    details: Record<string, unknown>,
-  ): Promise<void> {
-    try {
-      const notifyPromises = file.links
-        .flatMap((link) => (link.webhookUrl ? [{ link, url: link.webhookUrl }] : []))
-        .map(async ({ link, url }) => {
-          const payload = {
-            event,
-            fileId: file.id,
-            visibility: file.visibility,
-            status: file.status,
-            // `applicationId` replaced the free-text `app` (ADR 0041 D4).
-            // These per-reference webhooks are deprecated (D9).
-            link: {
-              applicationId: link.applicationId,
-              entityType: link.entityType,
-              entityId: link.entityId,
-            },
-            details,
-            timestamp: new Date().toISOString(),
-          };
-
-          try {
-            const result = await safeFetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-              headersTimeoutMs: 5000,
-              maxRedirects: 0,
-            });
-            result.response.resume();
-            logger.info('Webhook delivered', {
-              url,
-              fileId: file.id,
-              event,
-              status: result.status,
-            });
-          } catch (err) {
-            if (err instanceof SsrfRejection) {
-              logger.warn('Blocked SSRF webhook target', {
-                url,
-                fileId: file.id,
-                event,
-                reason: err.message,
-              });
-              return;
-            }
-            logger.warn('Failed to deliver webhook', {
-              url,
-              fileId: file.id,
-              event,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        });
-
-      await Promise.allSettled(notifyPromises);
-    } catch (err) {
-      logger.error('Error in notifyLinks helper:', err);
     }
   }
 
@@ -2334,9 +2294,6 @@ export class AssetService {
         return;
       }
 
-      // Notify linked apps that file was deleted
-      await this.notifyLinks(tombstoned, 'deleted', { force });
-
       logger.info('File deleted permanently', {
         fileId,
         force,
@@ -2379,6 +2336,9 @@ export class AssetService {
         row,
         row.variants.map((variant) => variant.key),
       );
+      // Every application using the file, and its owning application, is
+      // told in the same commit (ADR 0041 D9).
+      await recordFileEvents(tx, 'file.deleted', [row.id]);
       return { row, ledgerIds };
     });
     if (!recorded) return null;
@@ -2393,6 +2353,21 @@ export class AssetService {
       void drain.finally(() => this.backgroundPurges.delete(drain));
     }
     return recorded.row;
+  }
+
+  /**
+   * After an application's deletion committed (ADR 0041 D8,
+   * `applicationDeletion.service.ts`): CDN and cache invalidation
+   * ({@link invalidateDeletedApplicationFiles}), then start working off the
+   * storage the commit owed — in the background; what this does not finish,
+   * the storage-deletion worker does. Never throws.
+   */
+  finishApplicationDeletion(content: DeletedApplicationContent): void {
+    invalidateDeletedApplicationFiles(content);
+    if (content.ledgerIds.length === 0) return;
+    const drain = this.drainStorageDeletion('application-deletion', [...content.ledgerIds]);
+    this.backgroundPurges.add(drain);
+    void drain.finally(() => this.backgroundPurges.delete(drain));
   }
 
   /** Purges started with `awaitPurge: false` and not yet finished. */
@@ -2470,9 +2445,21 @@ export class AssetService {
       return refusal;
     }
 
-    await this.notifyLinks(tombstoned, 'deleted', { reason: 'federated_source_deleted' });
-
     return 'deleted';
+  }
+
+  /**
+   * The owner moves their own ACTIVE file to trash (ADR 0041 D5): it stops
+   * being served and leaves the CDN at once, and every application using it
+   * is told `file.trashed` (D9). Kept until the owner restores or deletes it —
+   * an account's trash never expires. `null` when it is not `ownerUserId`'s
+   * active file.
+   */
+  async trashFile(fileId: string, ownerUserId: string): Promise<FileRecord | null> {
+    const trashed = await trashAccountFile(fileId, ownerUserId);
+    if (!trashed) return null;
+    logger.info('File moved to trash by its owner', { fileId, ownerUserId });
+    return this.leaveServing(trashed);
   }
 
   /**
@@ -2600,7 +2587,6 @@ export class AssetService {
     );
     if (!tombstoned) return false;
     this.invalidateServedPaths(tombstoned);
-    await this.notifyLinks(tombstoned, 'deleted', { reason: 'application_file_expired' });
     logger.info('Application file purged: 30 days in trash', {
       fileId,
       ownerApplicationId: tombstoned.ownerApplicationId,
@@ -2705,7 +2691,16 @@ export class AssetService {
           'visibility relocation copy',
         );
 
-      const updated = await updateFile(fileId, { visibility });
+      // Every application using the file is told in the same transaction
+      // (ADR 0041 D9), so the change never commits without its events.
+      const updated = await updateFile(
+        fileId,
+        { visibility },
+        {
+          afterUpdate: (tx, record) =>
+            recordFileEvents(tx, 'file.visibility_changed', [record.id]).then(() => undefined),
+        },
+      );
       if (!updated) {
         throw new Error('File not found');
       }
@@ -2714,16 +2709,7 @@ export class AssetService {
       // Relocate the object + variants so their S3 prefix matches the new
       // visibility: a now-private asset's bytes leave the CDN-reachable
       // `public/` prefix; a now-public asset's bytes move under it.
-      const relocated = await this.relocateAllForVisibility(updated);
-
-      // Notify linked apps about visibility change
-      try {
-        await this.notifyLinks(relocated, 'visibility_changed', { visibility });
-      } catch (err) {
-        logger.error('Failed to notify links after visibility change', err);
-      }
-
-      return relocated;
+      return await this.relocateAllForVisibility(updated);
     } catch (error) {
       logger.error('Error updating file visibility:', error);
       throw error;
