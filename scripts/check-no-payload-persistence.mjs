@@ -357,6 +357,18 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
       "the file event Oxy itself composes for an application (ADR 0043 D9): event id, closed type, timestamp, file id, owner KIND, visibility and status, and that application's own (entityType, entityId) references — nothing a caller sent, no file content, no prompt, completion or credential",
   },
   {
+    table: 'file_upload_sessions',
+    column: 'metadata',
+    holds:
+      "a large upload's uploaded-file metadata (ADR 0043 stage 4b), copied to files.metadata when the session becomes a file — the same shape as that column; no file content, no prompt, completion or credential",
+  },
+  {
+    table: 'file_upload_sessions',
+    column: 'reference',
+    holds:
+      "the one (entityType ≤128 chars, entityId ≤256 chars) reference a large upload registers for its application once it is a file (ADR 0043 D4); strict schema, nothing else",
+  },
+  {
     table: 'file_variants',
     column: 'metadata',
     holds: 'per-variant metadata of a derived image or video rendition',
