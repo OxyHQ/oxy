@@ -1,7 +1,7 @@
 # ADR 0041 — Who owns a file, who uses it, and when it goes away
 
-- Status: proposed (design agreed with the owner of Oxy on 2026-10-16; the
-  implementation on this branch predates the revision and is reworked to match)
+- Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
+  1 and 2 of the rollout are implemented on this branch)
 - Date: 2026-10-16
 - Decided by: the owner of Oxy
 - Changes: the `files` owner model of `0124_files_per_owner_live_key`
@@ -242,7 +242,9 @@ application, not with the business's session).
   by a test) — and FAILS naming every value that resolves to no single active
   application. `scripts/file-references-preflight.ts` lists the values a
   database holds before deploying. A trigger mirrors the previous image's
-  `file_links` writes until `0169_drop_file_links` (post) drops the table.
+  `file_links` writes until `0170_drop_file_links` (post; numbered 0168 until
+  stage 2 put its `pre` migration in front of it, so one release can carry
+  both stages) drops the table.
   For that window the previous image does not see references the new image
   writes.
 - **Who may reference.** `POST`/`DELETE /assets/service/references` (batch of
@@ -257,9 +259,84 @@ application, not with the business's session).
   owner's explicit change and nothing is inferred. A non-owner may remove only
   a reference it created, and that never trashes the owner's file.
 - **Not changed yet (D5).** An OWNER's session removing the last reference
-  still moves their file to trash, as before; references added to a trashed
-  file still restore it. An application's service-token removal never trashes.
+  still moved their file to trash; stage 2 ended that (below).
 - **Webhook URL** stays on the reference row, deprecated, until D9.
+
+### Stage 2 as built (D5, D6)
+
+- **`unreferenced_since`, `trashed_at`** (`0169_file_lifecycle`, pre). The
+  reference write maintains `unreferenced_since` in its own transaction under
+  a `FOR NO KEY UPDATE` lock on the file row (`fileRepository.addFileReferences`,
+  `deleteFileReference`, `deleteFileReferencesByIds`, the owner split's
+  repoint): stamped at insert (for EVERY owner — a new file is used by nothing)
+  and when the last reference goes, cleared by a new one. The migration
+  back-fills it on every live unreferenced file (`coalesce(updated_at,
+  created_at)`) and `trashed_at = updated_at` on trash. `inUse` (from the
+  reference set itself) and `unreferencedSince` are on the owner's `GET
+  /assets` and `GET /assets/:id`; `GET /assets?inUse=false` lists the files no
+  application uses. The file manager shows "Not in use".
+- **No reference bookkeeping trashes anything, on any path** — the owner's
+  session removing the last link included (it did until now). A new reference
+  still brings a trashed file back, now clearing `trashed_at` and republishing
+  it; an application's re-upload of bytes it holds in trash does too, with a
+  fresh 24-hour clock. There is still no "move to trash" route for an account:
+  its owner deletes, or restores what an earlier version trashed.
+- **The sweep** (`services/fileLifecycle.worker.ts`, every API task, one runs
+  at a time): `purge` (an application's file 30 days in trash → tombstone +
+  `storage_object_deletions`), `trash` (an application's active file
+  unreferenced 24 hours), `staleUploads` (an account's `/assets/init` row with
+  no name and no metadata — what `/complete` always sets — 24 hours old and
+  holding NO object; one that holds an object is counted, never deleted) and
+  `unpublishTrashed` (a public file in trash still under `public/`). Every
+  action is one conditional write re-checking the whole condition, including
+  "no reference, mail attachment or store screenshot at all", so a stale
+  stamp can never collect a used file. Platform namespaces and every
+  account's unused or trashed file match no step. Runs are leased, scheduled
+  and backed off in `file_lifecycle_sweeps`, which is also the report
+  (`GET /assets/admin/lifecycle/sweeps`, staff): per step, files `due` and
+  `acted` on, and up to 100 named. One EMF log line per run
+  (`Oxy/FileLifecycle`, dimension `Mode`).
+- **Serving.** Only `active` is served (`config/cdn.isServableStatus`): the
+  stream route (its CDN fast path redirected a trashed public file —
+  OxyHQ/oxy#1284), `/download`, `/url`, `/batch-access`, `/cdn/:id`,
+  `/service/linked-url` and `getPublicCdnUrl`. Because the CDN's origin is the
+  bucket, a public file leaving `active` also MOVES its objects off `public/`
+  (key spelling follows `isServedPublicly` = public AND active), owing the
+  `public/` spelling a delete through the ledger, and queues CloudFront
+  invalidations for its `public/` keys and for `/<id>` (the cached
+  `/cdn/:id` redirect). Restoring moves them back. The shared-content guard
+  no longer lets a trashed public row keep a `public/` copy alive. `blocked`
+  is not added yet: every gate names `active`, so stage 4's status is refused
+  the day it exists (hook marked on `FILE_STATUSES`).
+- **Reconciliation (D6).** `POST /assets/service/references/reconcile`
+  `{ entityType }` → `{ sessionId, expiresAt }`; `PUT …/:sessionId`
+  `{ items: [{ fileId, entityId }] }` (≤ 1,000; ≤ 500,000 per session; each
+  page slides the one-hour deadline); `POST …/:sessionId/commit`
+  `{ dryRun? }` → `{ added, removed, unchanged, refused }`; `DELETE
+  …/:sessionId` releases it. Scope `files:references:write`. Additions follow
+  `mayApplicationReference`; a removal removes only a reference created
+  BEFORE the session began, so a write made during the inventory is never
+  undone. One open session per (application, entity type), 409 otherwise; an
+  expired one answers 410 and is retired by the next `begin`. SDK:
+  `OxyServer.assets.references.reconcile(entityType, items, { dryRun })`,
+  `@oxy.so/core` 4.13.0 (4.12.0 was published from `main` first).
+- **GoWay** holds `files:references:write` in the seed.
+
+#### Switching the sweep to enforce
+
+`FILE_LIFECYCLE_MODE` is `off`, `report` (default) or `enforce`
+(`FILE_LIFECYCLE_INTERVAL_MS`, default an hour; `FILE_LIFECYCLE_BATCH_SIZE`,
+default 200 per step per run). After deploying, leave it in `report` for a
+week and review `GET /assets/admin/lifecycle/sweeps` daily: `trash.due` and
+`purge.due` should be applications' files nobody references (spot-check the
+samples against the owning product — Mercaria and GoWay should have run their
+first reconciliation, since an unreconciled product's files read as unused),
+`staleUploads.withObject` should be explained, and no count should jump
+without a cause. Then set `FILE_LIFECYCLE_MODE=enforce` on the API task
+definition and redeploy; the first enforced runs work the back-filled backlog
+off 200 files per step per hour. To stop at once, set `report` (or `off`)
+again: nothing is deleted until a file has spent 30 days in trash, and a
+reference or a re-upload restores it until then.
 
 ### Required changes in other repositories (stage 1)
 
@@ -276,6 +353,19 @@ application, not with the business's session).
   digital-asset link (`services/digital/storage.ts`, sent from the server
   client with no user session, which the session route does not accept) must
   move to `assets.references.add`.
+
+### Required changes in other repositories (stage 2)
+
+- **Every product that registers references** (Mercaria, GoWay first) runs
+  `OxyServer.assets.references.reconcile` once per entity type before the
+  sweep is switched to `enforce`, and then on a schedule: an application file
+  its product uses but never referenced reads as unused and would be trashed
+  24 hours after enforcement starts. The seed now grants GoWay
+  `files:references:write`; run `seed:oxy-applications` for it to take effect.
+- **A product that showed a trashed file** (a link removed, the file kept
+  being displayed) now gets a 404 / placeholder for it: trash is not served.
+- **SDK consumers** take `@oxy.so/core` 4.13.0 for `references.reconcile`,
+  `Asset.inUse` and `assets.list({ inUse })`; nothing else changes shape.
 
 ## Alternatives rejected
 
