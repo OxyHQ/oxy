@@ -82,6 +82,7 @@ it('canonical Mercaria ceiling retains billing, the separately approved media im
     'files:linked:read',
     'files:app:write',
     'files:app:delete',
+    'files:references:write',
   ]);
 });
 it('prepare is read-only; apply and exact rollback preserve every unrelated field and credential', async () => {

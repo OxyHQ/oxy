@@ -45,10 +45,10 @@ function buildFile(webhookUrl: string): FileRecord {
     id: 'file-1',
     links: [
       {
-        app: 'mention',
+        applicationId: 'app-mention',
         entityType: 'post',
         entityId: 'post-1',
-        createdBy: 'user-1',
+        createdByUserId: 'user-1',
         createdAt: new Date(),
         webhookUrl,
       },
@@ -91,6 +91,12 @@ describe('AssetService.notifyLinks webhook SSRF guard', () => {
       }),
     );
     expect(mockSafeFetch.mock.calls[0][1].body).toContain('"event":"deleted"');
+    // The using application is named by id since `file_references` (ADR 0041 D4).
+    expect(JSON.parse(mockSafeFetch.mock.calls[0][1].body).link).toEqual({
+      applicationId: 'app-mention',
+      entityType: 'post',
+      entityId: 'post-1',
+    });
   });
 
   it('logs and skips blocked SSRF webhook targets without throwing', async () => {

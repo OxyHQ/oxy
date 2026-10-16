@@ -1,9 +1,9 @@
 /**
  * The stored-asset aggregate, as the application sees it.
  *
- * `files` and its two child tables (`file_links`, `file_variants`) are ONE
- * aggregate: nothing reads a link or a variant without the file it belongs to,
- * and `files.status` is decided by whether any link remains. So the row types
+ * `files` and its two child tables (`file_references`, `file_variants`) are ONE
+ * aggregate: nothing reads a reference or a variant without the file it belongs
+ * to, and `files.status` is decided by whether any reference remains. So the row types
  * are declared together here, and every read that returns a file returns the
  * whole aggregate.
  *
@@ -22,7 +22,7 @@ import type {
   FILE_STATUSES,
   FILE_SYSTEM_OWNERS,
   FILE_VISIBILITIES,
-  fileLinks,
+  fileReferences,
   fileVariants,
   files,
 } from '../db/schema';
@@ -81,8 +81,8 @@ export type FileOwnerColumns = {
   ownerApplicationId: string | null;
 };
 
-/** One place an asset is used. */
-export type FileLinkRecord = typeof fileLinks.$inferSelect;
+/** One place an application uses an asset (`file_references`, ADR 0041 D4). */
+export type FileReferenceRecord = typeof fileReferences.$inferSelect;
 
 /** One derived rendition of an asset (thumbnail, `720p`, HLS playlist, …). */
 export type FileVariantRecord = typeof fileVariants.$inferSelect;
@@ -95,8 +95,13 @@ export type FileVariantRecord = typeof fileVariants.$inferSelect;
  */
 export type NewFileVariant = Omit<typeof fileVariants.$inferInsert, 'fileId'>;
 
-/** A stored asset together with every link and variant it owns. */
+/**
+ * A stored asset together with every reference and variant it owns.
+ *
+ * `links` keeps its name from `file_links`: it holds the file's
+ * `file_references` rows, and `links.length` is still its usage count.
+ */
 export type FileRecord = typeof files.$inferSelect & {
-  links: FileLinkRecord[];
+  links: FileReferenceRecord[];
   variants: FileVariantRecord[];
 };

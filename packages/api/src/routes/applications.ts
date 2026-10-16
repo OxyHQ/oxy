@@ -1,4 +1,5 @@
 import { revokeApplicationCredential } from '../services/applicationCredentialRevocation.service';
+import { applicationStoredBytes } from '../services/storageQuota.service';
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
@@ -15,10 +16,9 @@ import {
 import {
   type APPLICATION_SCOPES,
   type ApplicationScope,
-  isPaymentsScope,
   isPrivilegedScope,
-  isScopeGrantableToApplicationType,
-  APPLICATION_OWNED_FILE_APPLICATION_TYPES,
+  isPrivilegedScopeForApplicationType,
+  isSelfServiceServiceCredentialScope,
 } from '../utils/applicationScopes';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { isStaffUser } from '../middleware/requireStaff';
@@ -360,12 +360,20 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
  * Staff callers get an authoritative replace of exactly what they submit,
  * including intentional privileged-scope removal. Returns the validated,
  * deduplicated scope list.
+ *
+ * `type` is the application's type as it will be stored: whether a scope is
+ * privileged can depend on it ({@link isPrivilegedScopeForApplicationType} —
+ * the application file scopes of ADR 0041 are self-service on a `third_party`
+ * application and staff-granted on Oxy's own). A non-staff caller can never
+ * change the type, so for them it is the stored one.
  */
 function authorizeRequestedScopes(
   req: AuthRequest,
   requestedScopes: ApplicationScope[],
   previousScopes: readonly string[],
+  type: string,
 ): ApplicationScope[] {
+  const isPrivileged = (scope: string) => isPrivilegedScopeForApplicationType(scope, type);
   const deduped = Array.from(new Set(requestedScopes));
 
   if (isStaffUser(req)) {
@@ -376,7 +384,7 @@ function authorizeRequestedScopes(
   const requested = new Set<string>(deduped);
 
   const newlyAddedPrivileged = deduped.filter(
-    (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope),
+    (scope) => isPrivileged(scope) && !previouslyGranted.has(scope),
   );
 
   if (newlyAddedPrivileged.length > 0) {
@@ -393,7 +401,8 @@ function authorizeRequestedScopes(
   // revoking a privileged scope is a staff-only mutation, so an omission is
   // treated as "leave it untouched" rather than a silent revoke.
   const preservedPrivileged = Array.from(previouslyGranted).filter(
-    (scope): scope is ApplicationScope => isPrivilegedScope(scope) && !requested.has(scope),
+    (scope): scope is ApplicationScope =>
+      isPrivilegedScope(scope) && isPrivileged(scope) && !requested.has(scope),
   );
   if (preservedPrivileged.length > 0) {
     logger.warn(
@@ -406,23 +415,6 @@ function authorizeRequestedScopes(
   }
 
   return [...deduped, ...preservedPrivileged];
-}
-
-/**
- * Refuse a scope set the application's TYPE may not hold, whoever asks —
- * staff included. Today that is the application-owned file scopes, which only
- * Oxy's own applications may carry (ADR 0041). The privileged gate above
- * decides WHO may grant a scope; this decides whether the application can hold
- * it at all, so it runs on the RESULT of a create or update (the type and the
- * scopes as they will be stored), never on the request alone.
- */
-function assertScopesGrantableToType(scopes: readonly string[], type: string): void {
-  const refused = scopes.filter((scope) => !isScopeGrantableToApplicationType(scope, type));
-  if (refused.length > 0) {
-    throw new BadRequestError(
-      `The scope(s) [${refused.join(', ')}] can only be held by a ${APPLICATION_OWNED_FILE_APPLICATION_TYPES.join(', ')} application`,
-    );
-  }
 }
 
 /**
@@ -842,10 +834,9 @@ router.post(
     }
 
     // Privileged scopes (e.g. federation:write) are NOT self-grantable.
-    const scopes = authorizeRequestedScopes(req, body.scopes ?? [], []);
     // A new application is `third_party` (the column default; create takes no
-    // type), so it can hold no type-bound scope until staff reclassify it.
-    assertScopesGrantableToType(scopes, 'third_party');
+    // type), so the application file scopes are self-service here (ADR 0041).
+    const scopes = authorizeRequestedScopes(req, body.scopes ?? [], [], 'third_party');
 
     const [application] = await getDb()
       .insert(applications)
@@ -954,7 +945,7 @@ router.patch(
     if (body.scopes !== undefined) {
       // Privileged scopes (e.g. federation:write) are staff-only. A non-staff
       // caller may keep an already-granted privileged scope but may not add one.
-      updates.scopes = authorizeRequestedScopes(req, body.scopes, stored.scopes);
+      updates.scopes = authorizeRequestedScopes(req, body.scopes, stored.scopes, stored.type);
     }
     if (body.status !== undefined) updates.status = body.status;
     if (body.devWebhookUrl !== undefined) {
@@ -980,10 +971,6 @@ router.patch(
       if (body.isOfficial !== undefined) updates.isOfficial = body.isOfficial;
       if (body.isInternal !== undefined) updates.isInternal = body.isInternal;
       if (body.capabilities !== undefined) updates.capabilities = body.capabilities;
-    }
-
-    if (updates.scopes !== undefined || updates.type !== undefined) {
-      assertScopesGrantableToType(updates.scopes ?? stored.scopes, updates.type ?? stored.type);
     }
 
     // An empty patch writes nothing at all, so `updated_at` stays untouched.
@@ -1153,9 +1140,11 @@ router.post(
 
     // Service credentials mint bearer service tokens for Oxy-to-Oxy / internal
     // routes. Only platform-trusted applications may hold them — EXCEPT a
-    // narrow Peable carve-out: a non-trusted (`third_party`) application MAY
-    // create a service credential when every requested scope is a payments
-    // scope ({@link isPaymentsScope}, i.e. `payments:read`/`payments:write`).
+    // narrow own-tenant carve-out: a non-trusted (`third_party`) application
+    // MAY create a service credential when every requested scope is
+    // self-service ({@link isSelfServiceServiceCredentialScope}): a payments
+    // scope (`payments:read`/`payments:write`), or one of its own application
+    // file scopes (`files:app:*`, `files:references:write`, ADR 0041 D3).
     // Those two scopes are already non-privileged/self-grantable and bounded
     // to the app's own Peable Gateway tenant (see `applicationScopes.ts`),
     // and the resulting service token's downstream authority is bounded by
@@ -1166,12 +1155,12 @@ router.post(
     // federation/etc. Requesting ANY non-payments scope on a service
     // credential still requires platform trust — the check below is
     // unaffected for that case.
-    const isPaymentsOnlyServiceCredential =
-      requestedScopes.length > 0 && requestedScopes.every(isPaymentsScope);
+    const isSelfServiceServiceCredential =
+      requestedScopes.length > 0 && requestedScopes.every(isSelfServiceServiceCredentialScope);
     if (
       body.type === 'service' &&
       !isTrustedApplication(application) &&
-      !isPaymentsOnlyServiceCredential
+      !isSelfServiceServiceCredential
     ) {
       throw new ForbiddenError('Service credentials are only available to trusted applications');
     }
@@ -1222,7 +1211,9 @@ router.post(
     // thing standing between a member and a privileged credential. The surfaces
     // that matter refuse the machine lane outright (issue #972 §3).
     if (!isStaffUser(req)) {
-      const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
+      const privileged = requestedScopes.filter((scope) =>
+        isPrivilegedScopeForApplicationType(scope, application.type),
+      );
       if (privileged.length > 0) {
         throw new ForbiddenError(
           `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`,
@@ -1573,6 +1564,21 @@ router.get(
 
     const period = (req.query.period as string) || '7d';
     res.json(await getUsageStats(application.id, getStartDate(period)));
+  }),
+);
+
+/**
+ * What the application stores in Oxy Files (ADR 0041 D2/D3): its live files,
+ * their bytes (originals plus renditions) and the account they count against
+ * — the developer's for a third-party application, `null` for Oxy's own, which
+ * are observed rather than metered.
+ */
+router.get(
+  '/:appId/storage',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('usage:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await applicationStoredBytes(getDb(), requireApplication(req).id));
   }),
 );
 

@@ -78,7 +78,7 @@ import { deviceSessionAccounts } from './deviceSessionAccounts';
 import { deviceSessions } from './deviceSessions';
 import { emailOutbox } from './emailOutbox';
 import { federationKeyPairs } from './federationKeyPairs';
-import { fileLinks } from './fileLinks';
+import { fileReferences } from './fileReferences';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
 import {
@@ -824,12 +824,12 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'Scoped to one message and id-shaped by name only.',
   },
   {
-    table: fileLinks,
-    column: fileLinks.entityId,
+    table: fileReferences,
+    column: fileReferences.entityId,
     reason:
-      "The entity's id in the CONSUMING application's database (a Mention " +
-      'post, an Alia thread). Meaningful only together with `app` and ' +
-      '`entity_type`, and never resolvable here.',
+      "The entity's id in the USING application's database (a GoWay " +
+      'place, a mail message). Meaningful only together with `application_id` ' +
+      'and `entity_type`, and never resolvable here.',
   },
   {
     table: signedRecords,

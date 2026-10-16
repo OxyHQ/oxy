@@ -2,10 +2,12 @@
  * Application-owned files (ADR 0041) in the services, against a REAL Postgres
  * and the REAL `S3Service` over an in-memory bucket.
  *
- *  - Quota: an application's bytes are metered against the account that owns
+ *  - Quota (ADR 0041 D2/D3): Oxy's own applications (`first_party`,
+ *    `internal`, `system`) are the platform and are metered against no one;
+ *    a `third_party` application's bytes count against the account that owns
  *    the APPLICATION — on row admission, in `reservedStorageBytes`, and on the
- *    staged-stream reservation — and never escape metering through the
- *    NULL-owner path a system namespace uses.
+ *    staged-stream reservation — and move with the application when it is
+ *    transferred. `applicationStoredBytes` reports either.
  *  - Deletion: a per-file delete owes its storage under `app:<appId>`; an
  *    account's hard deletion records and removes its applications' files, so
  *    the `RESTRICT` foreign key never makes the cascade fail and no row is
@@ -55,6 +57,7 @@ import { AssetService } from '../assetService';
 import { insertFile } from '../fileRepository';
 import { S3Service } from '../s3Service';
 import {
+  applicationStoredBytes,
   legacyStorageLimit,
   reservedStorageBytes,
   storageAccountForOwner,
@@ -141,10 +144,13 @@ async function account(): Promise<string> {
   return row.id;
 }
 
-async function applicationOwnedBy(ownerAccountId: string): Promise<string> {
+async function applicationOwnedBy(
+  ownerAccountId: string,
+  type: 'first_party' | 'third_party' | 'internal' | 'system' = 'first_party',
+): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `app-${randomBytes(4).toString('hex')}`, ownerAccountId, type: 'first_party' })
+    .values({ name: `app-${randomBytes(4).toString('hex')}`, ownerAccountId, type })
     .returning({ id: applications.id });
   return row.id;
 }
@@ -174,20 +180,89 @@ beforeEach(() => {
   mockCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
 });
 
-describe("quota: an application's bytes count against its owning account", () => {
-  it('resolves the billing account of an application owner, and the owner itself for an account', async () => {
-    const owner = await account();
-    const appId = await applicationOwnedBy(owner);
+describe("quota: Oxy's own applications are not metered (ADR 0041 D2)", () => {
+  it.each(['first_party', 'internal', 'system'] as const)(
+    'attributes a %s application’s files to no account',
+    async (type) => {
+      const owner = await account();
+      const appId = await applicationOwnedBy(owner, type);
 
-    expect(await storageAccountForOwner(getDb(), { ownerApplicationId: appId })).toBe(owner);
-    expect(await storageAccountForOwner(getDb(), { ownerUserId: owner })).toBe(owner);
-    expect(await storageAccountForOwner(getDb(), {})).toBeNull();
-  });
+      expect(await storageAccountForOwner(getDb(), { ownerApplicationId: appId })).toBeNull();
+      expect(await storageAccountForOwner(getDb(), { ownerUserId: owner })).toBe(owner);
+      expect(await storageAccountForOwner(getDb(), {})).toBeNull();
+    },
+  );
 
-  it("counts the application's rows in the owner's reserved bytes and refuses the owner's next byte past capacity", async () => {
+  it("leaves the owning account's quota untouched and never refuses the application at capacity", async () => {
     const f = await productAccessFixture();
     configureQuota(f.products);
-    const appId = await applicationOwnedBy(f.payer);
+    const appId = await applicationOwnedBy(f.payer, 'first_party');
+    const capacity = legacyStorageLimit('basic');
+
+    await insertFile(original(capacity, { ownerUserId: f.payer }));
+    expect(await reservedStorageBytes(getDb(), f.payer)).toBe(BigInt(capacity));
+
+    // The account is full; Oxy's application is not its tenant.
+    await expect(
+      insertFile(original(capacity, { ownerApplicationId: appId })),
+    ).resolves.toBeDefined();
+    expect(await reservedStorageBytes(getDb(), f.payer)).toBe(BigInt(capacity));
+    await expect(insertFile(original(1, { ownerUserId: f.payer }))).rejects.toMatchObject({
+      code: 'STORAGE_QUOTA_EXCEEDED',
+    });
+  });
+
+  it('stages a stream without reserving against any account', async () => {
+    const f = await productAccessFixture();
+    configureQuota(f.products);
+    const appId = await applicationOwnedBy(f.payer, 'first_party');
+    const { service } = harness();
+    const content = png();
+    const sha256 = createHash('sha256').update(content).digest('hex');
+
+    const uploaded = await service.uploadApplicationFileStream(
+      Readable.from(content),
+      'image/png',
+      'tile.png',
+      1_000_000,
+      appId,
+      'public',
+    );
+    expect(uploaded.file).toMatchObject({ ownerApplicationId: appId, sha256 });
+    const reservations = await getDb()
+      .select({ accountId: storageByteReservations.accountId })
+      .from(storageByteReservations)
+      .where(eq(storageByteReservations.sha256, sha256));
+    expect(reservations).toEqual([]);
+    expect(await reservedStorageBytes(getDb(), f.payer)).toBe(BigInt(0));
+  });
+
+  it('is observed instead: applicationStoredBytes reports live rows and bytes, metered against no one', async () => {
+    const appId = await applicationOwnedBy(await account(), 'internal');
+    await insertFile(original(40, { ownerApplicationId: appId }));
+    await insertFile({ ...original(2, { ownerApplicationId: appId }), status: 'trash' });
+    await insertFile({ ...original(1000, { ownerApplicationId: appId }), status: 'deleted' });
+
+    expect(await applicationStoredBytes(getDb(), appId)).toEqual({
+      applicationId: appId,
+      files: 2,
+      bytes: 42,
+      meteredAccountId: null,
+    });
+  });
+});
+
+describe("quota: a third-party application's bytes count against its developer (ADR 0041 D3)", () => {
+  it('resolves the owning account as the billing account', async () => {
+    const owner = await account();
+    const appId = await applicationOwnedBy(owner, 'third_party');
+    expect(await storageAccountForOwner(getDb(), { ownerApplicationId: appId })).toBe(owner);
+  });
+
+  it("counts the application's rows in the owner's reserved bytes and refuses the next byte past capacity", async () => {
+    const f = await productAccessFixture();
+    configureQuota(f.products);
+    const appId = await applicationOwnedBy(f.payer, 'third_party');
     const capacity = legacyStorageLimit('basic');
 
     await insertFile(original(capacity - 10, { ownerApplicationId: appId }));
@@ -206,12 +281,19 @@ describe("quota: an application's bytes count against its owning account", () =>
     const stranger = (await productAccessFixture()).payer;
     expect(await reservedStorageBytes(getDb(), stranger)).toBe(BigInt(0));
     await expect(insertFile(original(1, { ownerUserId: stranger }))).resolves.toBeDefined();
+
+    expect(await applicationStoredBytes(getDb(), appId)).toEqual({
+      applicationId: appId,
+      files: 1,
+      bytes: capacity - 10,
+      meteredAccountId: f.payer,
+    });
   });
 
   it('reserves a staged application stream against the owning account, beside that account sharing the bytes', async () => {
     const f = await productAccessFixture();
     configureQuota(f.products);
-    const appId = await applicationOwnedBy(f.payer);
+    const appId = await applicationOwnedBy(f.payer, 'third_party');
     const { service } = harness();
     const content = png();
     const sha256 = createHash('sha256').update(content).digest('hex');
@@ -259,6 +341,37 @@ describe("quota: an application's bytes count against its owning account", () =>
     );
     expect(again).toMatchObject({ deduplicated: true });
     expect(again.file).toMatchObject({ id: uploaded.file.id, visibility: 'public' });
+  });
+
+  it("moves the application's usage with it when it is transferred to another account", async () => {
+    const from = await account();
+    const to = await account();
+    const appId = await applicationOwnedBy(from, 'third_party');
+    await insertFile(original(77, { ownerApplicationId: appId }));
+    expect(await reservedStorageBytes(getDb(), from)).toBe(BigInt(77));
+    expect(await reservedStorageBytes(getDb(), to)).toBe(BigInt(0));
+
+    await getDb()
+      .update(applications)
+      .set({ ownerAccountId: to })
+      .where(eq(applications.id, appId));
+
+    expect(await reservedStorageBytes(getDb(), from)).toBe(BigInt(0));
+    expect(await reservedStorageBytes(getDb(), to)).toBe(BigInt(77));
+    expect(await storageAccountForOwner(getDb(), { ownerApplicationId: appId })).toBe(to);
+  });
+
+  it('stops counting when staff reclassify the application as one of Oxy’s own', async () => {
+    const owner = await account();
+    const appId = await applicationOwnedBy(owner, 'third_party');
+    await insertFile(original(9, { ownerApplicationId: appId }));
+    expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(9));
+
+    await getDb()
+      .update(applications)
+      .set({ type: 'first_party' })
+      .where(eq(applications.id, appId));
+    expect(await reservedStorageBytes(getDb(), owner)).toBe(BigInt(0));
   });
 });
 
@@ -345,21 +458,40 @@ describe('deletion: storage is always owed, under app:<appId>', () => {
   });
 });
 
-describe('links never re-derive an application file’s visibility', () => {
-  it('keeps a private application file private when a link names an avatar entity', async () => {
+describe('a reference never changes an application file’s visibility (ADR 0041 D4)', () => {
+  it('keeps a private application file private when another application references it for an avatar', async () => {
     const { service } = harness();
     const appId = await applicationOwnedBy(await account());
+    const otherAppId = await applicationOwnedBy(await account());
     const file = await insertFile(original(5, { ownerApplicationId: appId }));
     await getDb().update(files).set({ visibility: 'private' }).where(eq(files.id, file.id));
 
-    const linked = await service.linkFile(file.id, {
-      app: 'profile',
+    const { file: linked, created } = await service.linkFile(file.id, {
+      applicationId: otherAppId,
       entityType: 'avatar',
       entityId: 'someone',
-      createdBy: await account(),
-      visibility: 'public',
+      createdByUserId: await account(),
     });
 
+    expect(created).toBe(true);
     expect(linked.visibility).toBe('private');
+  });
+
+  it('keeps a public application file public when its own application references it as private-sounding content', async () => {
+    const { service } = harness();
+    const appId = await applicationOwnedBy(await account());
+    const file = await insertFile(original(5, { ownerApplicationId: appId }));
+
+    const { file: linked } = await service.linkFile(file.id, {
+      applicationId: appId,
+      entityType: 'review_media',
+      entityId: 'r1',
+      createdByUserId: null,
+    });
+
+    expect(linked.visibility).toBe('public');
+    expect(linked.links).toEqual([
+      expect.objectContaining({ applicationId: appId, createdByUserId: null }),
+    ]);
   });
 });

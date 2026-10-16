@@ -191,7 +191,12 @@ export const assetsBySha256BodySchema = z.object({
   ownerUserId: z.string().trim().min(1).max(64).optional(),
 });
 
-// POST /assets/:id/link — attach a file to an app entity.
+// POST /assets/:id/links — a signed-in owner records that an application uses
+// their file (`file_references`, ADR 0041 D4). `app` names the application: its
+// id, or one of the legacy strings in `utils/legacyFileLinkApplications.ts`; a
+// session bound to one application is recorded as that application.
+// `visibility`, when given, is an explicit change by the OWNER, never inferred.
+// `webhookUrl` is deprecated (D9).
 export const linkFileSchema = z.object({
   app: z.string().min(1, 'App name is required'),
   entityType: z.string().min(1, 'Entity type is required'),
@@ -200,7 +205,7 @@ export const linkFileSchema = z.object({
   webhookUrl: z.string().url().optional(),
 });
 
-// POST /assets/:id/unlink — detach a file from an app entity.
+// DELETE /assets/:id/links — remove one application's use of a file.
 export const unlinkFileSchema = z.object({
   app: z.string().min(1, 'App name is required'),
   entityType: z.string().min(1, 'Entity type is required'),
@@ -212,3 +217,32 @@ export const listApplicationFilesQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional(),
   cursor: z.string().min(1).max(512).optional(),
 });
+
+/** References per `POST`/`DELETE /assets/service/references` call. */
+export const MAX_SERVICE_REFERENCES = 100;
+
+/**
+ * One reference an application's service token adds or removes. There is no
+ * application field: the application is the token's `appId`, so a body naming
+ * one is refused (`strict`), never read.
+ */
+const serviceReferenceSchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64),
+    entityType: z.string().trim().min(1).max(128),
+    entityId: z.string().trim().min(1).max(256),
+  })
+  .strict();
+
+// POST / DELETE /assets/service/references (ADR 0041 D4).
+export const serviceReferencesBodySchema = z
+  .object({
+    references: z
+      .array(serviceReferenceSchema)
+      .min(1, 'references must not be empty')
+      .max(
+        MAX_SERVICE_REFERENCES,
+        `Cannot send more than ${MAX_SERVICE_REFERENCES} references at once`,
+      ),
+  })
+  .strict();

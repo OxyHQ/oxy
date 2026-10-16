@@ -51,8 +51,8 @@
  *
  * ## `usageCount` is not here
  *
- * It is derived from the link count, and derived values are computed:
- * `select count(*) from file_links where file_id = $1`.
+ * It is derived from the reference count, and derived values are computed:
+ * `select count(*) from file_references where file_id = $1`.
  */
 
 import { sql } from 'drizzle-orm';
@@ -149,10 +149,10 @@ export const files = pgTable(
     systemOwner: text({ enum: FILE_SYSTEM_OWNERS }),
     /**
      * The APPLICATION that owns this asset, when neither an account nor a
-     * system namespace does (ADR 0041): platform artwork such as Mercaria's
-     * category tiles, which belongs to no person. Its bytes are metered
-     * against `applications.owner_account_id`, the application's billing
-     * principal (ADR 0007).
+     * system namespace does (ADR 0041): content such as Mercaria's category
+     * tiles, which belongs to no person. A `third_party` application's bytes
+     * are metered against `applications.owner_account_id`, its billing
+     * principal (ADR 0007); Oxy's own applications are not metered (D2).
      *
      * `RESTRICT`, never `CASCADE`. A cascade would drop the rows and with them
      * the only record of which storage keys the bytes live at, so nothing would

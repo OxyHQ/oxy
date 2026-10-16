@@ -30,10 +30,10 @@ import {
   PRIVILEGED_APPLICATION_SCOPES,
   SERVICE_ACCOUNT_SWITCH_SCOPE,
   USER_CONSENT_REQUIRED_SCOPES,
-  APPLICATION_OWNED_FILE_APPLICATION_TYPES,
-  APPLICATION_OWNED_FILE_SCOPES,
-  isScopeGrantableToApplicationType,
-  mayApplicationTypeOwnFiles,
+  APPLICATION_FILE_SCOPES,
+  isApplicationFileScope,
+  isPrivilegedScopeForApplicationType,
+  isSelfServiceServiceCredentialScope,
 } from '../applicationScopes';
 import { APPLICATION_TYPES } from '../../db/schema/applications';
 
@@ -483,34 +483,62 @@ describe('follow scopes: the user grants them, the platform never assumes them',
   });
 });
 
-describe('application-owned file scopes (ADR 0041)', () => {
-  it('names only real application types, and never third_party', () => {
-    for (const type of APPLICATION_OWNED_FILE_APPLICATION_TYPES) {
-      expect(APPLICATION_TYPES).toContain(type);
-    }
-    expect(mayApplicationTypeOwnFiles('third_party')).toBe(false);
-    expect([...APPLICATION_OWNED_FILE_APPLICATION_TYPES].sort()).toEqual([
-      'first_party',
-      'internal',
-      'system',
+describe('application file scopes (ADR 0041 D11)', () => {
+  it('are exactly the three, real and listed as privileged for type-blind readers', () => {
+    expect([...APPLICATION_FILE_SCOPES].sort()).toEqual([
+      'files:app:delete',
+      'files:app:write',
+      'files:references:write',
     ]);
-  });
-
-  it('are real, privileged scopes, and the only type-bound ones', () => {
-    for (const scope of APPLICATION_OWNED_FILE_SCOPES) {
+    for (const scope of APPLICATION_FILE_SCOPES) {
       expect(isValidApplicationScope(scope)).toBe(true);
       expect(isPrivilegedScope(scope)).toBe(true);
-      expect(isScopeGrantableToApplicationType(scope, 'third_party')).toBe(false);
-      expect(isScopeGrantableToApplicationType(scope, 'first_party')).toBe(true);
+      expect(isApplicationFileScope(scope)).toBe(true);
     }
-    expect(isScopeGrantableToApplicationType('files:write', 'third_party')).toBe(true);
-    expect(isScopeGrantableToApplicationType('federation:write', 'third_party')).toBe(true);
+  });
+
+  it('are staff-granted on Oxy’s own applications and self-service on a third-party one', () => {
+    for (const scope of APPLICATION_FILE_SCOPES) {
+      for (const type of ['first_party', 'internal', 'system']) {
+        expect(APPLICATION_TYPES).toContain(type);
+        expect({
+          scope,
+          type,
+          privileged: isPrivilegedScopeForApplicationType(scope, type),
+        }).toEqual({ scope, type, privileged: true });
+      }
+      expect(isPrivilegedScopeForApplicationType(scope, 'third_party')).toBe(false);
+    }
+  });
+
+  it('leaves every other scope’s privilege independent of the type', () => {
+    for (const type of APPLICATION_TYPES) {
+      expect(isPrivilegedScopeForApplicationType('federation:write', type)).toBe(true);
+      expect(isPrivilegedScopeForApplicationType('files:user-media:write', type)).toBe(true);
+      expect(isPrivilegedScopeForApplicationType('files:write', type)).toBe(false);
+      expect(isPrivilegedScopeForApplicationType('payments:write', type)).toBe(false);
+    }
+  });
+
+  it('may ride a self-service service credential, beside the payments pair and nothing else', () => {
+    for (const scope of [...APPLICATION_FILE_SCOPES, ...PAYMENTS_APPLICATION_SCOPES]) {
+      expect(isSelfServiceServiceCredentialScope(scope)).toBe(true);
+    }
+    for (const scope of [
+      'files:write',
+      'files:delete',
+      'files:user-media:write',
+      'federation:write',
+      'files:read',
+      'user:read',
+    ]) {
+      expect(isSelfServiceServiceCredentialScope(scope)).toBe(false);
+    }
   });
 
   it('are not a widening of files:write, files:delete or files:user-media:write', () => {
-    // Holding one of those must never be read as holding these, or the reverse.
-    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:write');
-    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:delete');
-    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:user-media:write');
+    expect(APPLICATION_FILE_SCOPES).not.toContain('files:write');
+    expect(APPLICATION_FILE_SCOPES).not.toContain('files:delete');
+    expect(APPLICATION_FILE_SCOPES).not.toContain('files:user-media:write');
   });
 });

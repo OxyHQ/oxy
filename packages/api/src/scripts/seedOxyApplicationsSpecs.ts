@@ -601,7 +601,8 @@ export const SEED_APPS: SeedAppSpec[] = [
     // persisted store owner. Ordinary files:write does not authorize that act-as.
     // Platform artwork that belongs to no store (category tiles) is Mercaria's
     // own: `files:app:*` stores, lists, re-publishes and removes files the
-    // APPLICATION owns, billed to its owning account (ADR 0041).
+    // APPLICATION owns — not metered, Mercaria is Oxy's (ADR 0041 D2) — and
+    // `files:references:write` records which listings use which files (D4).
     scopes: [
       'user:read',
       'catalogs:write',
@@ -618,6 +619,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'files:linked:read',
       'files:app:write',
       'files:app:delete',
+      'files:references:write',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },

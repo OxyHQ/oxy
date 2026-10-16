@@ -6,7 +6,7 @@
  * resolves each fileId via assetService, enforces ownerUserId ownership,
  * snapshots `{name, contentType, size}` from the File
  * record into a `MessageAttachment` (`db/schema/messageAttachments.ts`), and
- * links each file to the stored Message under `app: 'oxy-mail'`.
+ * links each file to the stored Message under the Oxy Inbox application.
  *
  * Failure modes covered:
  *   1. Happy path — valid {fileId} array sends; resolved MessageAttachment[]
@@ -92,6 +92,7 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { users } from '../../db/schema/users';
 import emailRouter from '../email';
 import { errorHandler } from '../../middleware/errorHandler';
+import { INBOX_APPLICATION_ID } from '../../config/inboxInference';
 
 interface JsonResponse {
   status: number;
@@ -247,10 +248,10 @@ describe('POST /email/messages — attachment resolution', () => {
     ]);
 
     expect(mockLinkFile).toHaveBeenCalledWith(FILE_OWN, {
-      app: 'oxy-mail',
+      applicationId: INBOX_APPLICATION_ID,
       entityType: 'message',
       entityId: 'sent-1',
-      createdBy: mockTestUserId,
+      createdByUserId: mockTestUserId,
     });
   });
 

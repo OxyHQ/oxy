@@ -6,8 +6,8 @@
  * or session user), the rate limiter, and S3 (an in-memory object map).
  *
  * Invariants:
- *  1. The owner is the TOKEN's `appId` — never a header — and only an active
- *     first_party/internal/system application holding the scope may write.
+ *  1. The owner is the TOKEN's `appId` — never a header — and only an ACTIVE
+ *     application holding the scope may write, of any type (ADR 0041 D11).
  *  2. `x-visibility` is required; image/video only.
  *  3. Idempotent per (application, bytes).
  *  4. Another application's file is 404 on every route, and left untouched.
@@ -276,14 +276,26 @@ describe('POST /assets/service/app — who may write, and as whom', () => {
     expect(mockS3.uploadStream.mock.calls.length).toBe(before);
   });
 
-  it('refuses a third_party application and a suspended one, whatever the token carries', async () => {
-    for (const values of [
-      { type: 'third_party' as const },
-      { type: 'first_party' as const, status: 'suspended' as const },
-    ]) {
-      actAs(await application(values));
+  it('lets a third_party application holding the scope own a file (ADR 0041 D3)', async () => {
+    const appId = await application({ type: 'third_party' });
+    actAs(appId);
+
+    const res = await upload(png());
+
+    expect(res.status).toBe(200);
+    expect(await row(String(res.body.data?.file?.id))).toMatchObject({
+      ownerApplicationId: appId,
+      ownerUserId: null,
+    });
+  });
+
+  it('refuses a suspended application of any type, whatever the token carries', async () => {
+    for (const type of ['first_party', 'third_party'] as const) {
+      actAs(await application({ type, status: 'suspended' }));
+      const before = mockS3.uploadStream.mock.calls.length;
       const res = await upload(png());
-      expect(res.status).toBe(403);
+      expect({ type, status: res.status }).toEqual({ type, status: 403 });
+      expect(mockS3.uploadStream.mock.calls.length).toBe(before);
     }
   });
 

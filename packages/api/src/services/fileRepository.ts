@@ -1,5 +1,5 @@
 /**
- * Persistence for the stored-asset aggregate: `files` + `file_links` +
+ * Persistence for the stored-asset aggregate: `files` + `file_references` +
  * `file_variants`.
  *
  * They are three tables, so loading a file with its links and variants takes
@@ -43,11 +43,11 @@ import {
   sql,
 } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
-import { fileLinks, fileVariants, files, users } from '../db/schema';
+import { fileReferences, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type {
-  FileLinkRecord,
+  FileReferenceRecord,
   FileOwner,
   FileOwnerColumns,
   FileRecord,
@@ -110,8 +110,18 @@ export type NewFile = typeof files.$inferInsert;
 /** Columns a caller may change on an existing file row. */
 export type FilePatch = Partial<Omit<NewFile, 'id' | 'createdAt' | 'updatedAt'>>;
 
-/** Columns a caller may set when creating a link row. */
-export type NewFileLink = Omit<typeof fileLinks.$inferInsert, 'fileId'>;
+/** Columns a caller may set when creating a reference row. */
+export type NewFileReference = Omit<
+  typeof fileReferences.$inferInsert,
+  'fileId' | 'id' | 'createdAt'
+>;
+
+/** What identifies one reference on a file: the unique key less `file_id`. */
+export interface FileReferenceKey {
+  applicationId: string;
+  entityType: string;
+  entityId: string;
+}
 
 /**
  * Postgres `unique_violation`.
@@ -159,9 +169,9 @@ async function withChildren(
   const [links, variants] = await Promise.all([
     db
       .select()
-      .from(fileLinks)
-      .where(inArray(fileLinks.fileId, ids))
-      .orderBy(asc(fileLinks.createdAt), asc(fileLinks.id)),
+      .from(fileReferences)
+      .where(inArray(fileReferences.fileId, ids))
+      .orderBy(asc(fileReferences.createdAt), asc(fileReferences.id)),
     db
       .select()
       .from(fileVariants)
@@ -169,7 +179,7 @@ async function withChildren(
       .orderBy(asc(fileVariants.type), asc(fileVariants.id)),
   ]);
 
-  const linksByFile = new Map<string, FileLinkRecord[]>();
+  const linksByFile = new Map<string, FileReferenceRecord[]>();
   for (const link of links) {
     const bucket = linksByFile.get(link.fileId);
     if (bucket) bucket.push(link);
@@ -546,36 +556,41 @@ function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
  * Somebody OTHER than the owner holds this asset. Every reference the platform
  * records:
  *
- *  - a `file_links` row created by anyone but the owner (a use in some app);
+ *  - a `file_references` row that is not the owner's own use (below);
  *  - a `message_attachments` row (an attachment in somebody's mailbox);
  *  - an `app_listing_screenshots` row (a store listing picture).
  *
+ * A reference is the owner's OWN use when the owner made it: for an account's
+ * file, a reference its person created (from any application); for an
+ * APPLICATION's file (ADR 0041), a reference that application holds. Anything
+ * else — another person's reference, an application's service-made reference
+ * to a person's file, another application's reference to an application's
+ * file, any reference to a system namespace's file — is held by others.
+ *
  * Defence in depth since uploads became per-owner: a second owner's upload of
- * the same bytes now gets its OWN row, so a foreign link is no longer how an
- * upload ends up referenced. It still happens — `POST /assets/:id/links` takes
- * any id, and rows created before per-owner rows (the one live row per hash
- * was handed to every uploader) keep their foreign links until they are split
+ * the same bytes now gets its OWN row, so a foreign reference is no longer how
+ * an upload ends up referenced. Rows created before per-owner rows keep their
+ * foreign references until they are split
  * (`scripts/split-cross-owner-file-links.ts`). A reference held OUTSIDE Oxy (a
  * Mention post that stored the id) is invisible here; the caller must
  * reference-check its own.
  *
  * The last two are the same references `recordAccountStorageDeletion` refuses to
  * purge.
- *
- * For an APPLICATION-owned row (ADR 0041) `owner_user_id` is NULL, so every
- * link counts as somebody else's — correctly: no person is that file's owner,
- * so any person's link to it is a reference held outside the application.
  */
 function heldByOthers(db: DatabaseOrTransaction) {
   return or(
     exists(
       db
         .select({ one: sql`1` })
-        .from(fileLinks)
+        .from(fileReferences)
         .where(
           and(
-            eq(fileLinks.fileId, files.id),
-            sql`${fileLinks.createdBy} is distinct from ${files.ownerUserId}`,
+            eq(fileReferences.fileId, files.id),
+            sql`not coalesce(
+              (${files.ownerUserId} is not null and ${fileReferences.createdByUserId} = ${files.ownerUserId})
+              or (${files.ownerApplicationId} is not null and ${fileReferences.applicationId} = ${files.ownerApplicationId}),
+              false)`,
           ),
         ),
     ),
@@ -719,42 +734,61 @@ export async function tombstoneFile(tx: Transaction, fileId: string): Promise<Fi
 }
 
 /**
- * Record a use of this asset.
+ * Record that an application uses this asset (ADR 0041 D4).
  *
- * `(file_id, app, entity_type, entity_id)` is UNIQUE, so a duplicate link is
- * refused by the database rather than by a read-then-write that two concurrent
- * requests can both pass. Returns whether a row was actually created.
+ * `(file_id, application_id, entity_type, entity_id)` is UNIQUE, so a duplicate
+ * is refused by the database rather than by a read-then-write that two
+ * concurrent requests can both pass. Returns whether a row was actually
+ * created.
  */
-export async function insertFileLink(fileId: string, values: NewFileLink): Promise<boolean> {
-  const inserted = await getDb()
-    .insert(fileLinks)
+export async function insertFileReference(
+  fileId: string,
+  values: NewFileReference,
+  db: DatabaseOrTransaction = getDb(),
+): Promise<boolean> {
+  const inserted = await db
+    .insert(fileReferences)
     .values({ ...values, fileId })
     .onConflictDoNothing({
-      target: [fileLinks.fileId, fileLinks.app, fileLinks.entityType, fileLinks.entityId],
+      target: [
+        fileReferences.fileId,
+        fileReferences.applicationId,
+        fileReferences.entityType,
+        fileReferences.entityId,
+      ],
     })
-    .returning({ id: fileLinks.id });
+    .returning({ id: fileReferences.id });
 
   return inserted.length > 0;
 }
 
-/** Drop one use of this asset. Returns whether a row was removed. */
-export async function deleteFileLink(
+/**
+ * Drop one use of this asset. Returns whether a row was removed.
+ *
+ * `createdByUserIds`, when given, narrows the delete to a reference one of
+ * those people created — how a session that does not own the file removes
+ * only what it made itself.
+ */
+export async function deleteFileReference(
   fileId: string,
-  app: string,
-  entityType: string,
-  entityId: string,
+  key: FileReferenceKey,
+  createdByUserIds?: readonly string[],
+  db: DatabaseOrTransaction = getDb(),
 ): Promise<boolean> {
-  const removed = await getDb()
-    .delete(fileLinks)
+  const removed = await db
+    .delete(fileReferences)
     .where(
       and(
-        eq(fileLinks.fileId, fileId),
-        eq(fileLinks.app, app),
-        eq(fileLinks.entityType, entityType),
-        eq(fileLinks.entityId, entityId),
+        eq(fileReferences.fileId, fileId),
+        eq(fileReferences.applicationId, key.applicationId),
+        eq(fileReferences.entityType, key.entityType),
+        eq(fileReferences.entityId, key.entityId),
+        createdByUserIds === undefined
+          ? undefined
+          : inArray(fileReferences.createdByUserId, [...createdByUserIds]),
       ),
     )
-    .returning({ id: fileLinks.id });
+    .returning({ id: fileReferences.id });
 
   return removed.length > 0;
 }

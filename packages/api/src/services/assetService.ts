@@ -66,7 +66,7 @@ import fileCache from '../utils/fileCache';
 import { BadRequestError } from '../utils/error';
 import { isDeclaredImageContentValid } from '../utils/imageContentSignature';
 import {
-  deleteFileLink,
+  deleteFileReference,
   deleteVariant,
   findFileById,
   findFilesByIds,
@@ -75,7 +75,7 @@ import {
   findLiveStorageSourceBySha256,
   insertFile,
   isStorageKeyUsedByOtherLiveRow,
-  insertFileLink,
+  insertFileReference,
   isUniqueViolation,
   listFilesByOwner,
   classifyApplicationFileDeleteRefusal,
@@ -85,6 +85,7 @@ import {
   tombstoneFederatedFileForApp,
   tombstoneFile,
   type ApplicationFileCursor,
+  type FileReferenceKey,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -507,7 +508,7 @@ export class AssetService {
     );
 
     await assertPhysicalStoragePathSupported(
-      meteredOwnerId(file),
+      await meteredOwnerId(file),
       'stream key-spelling repair copy',
     );
     await this.s3Service.copyFile(sourceKey, file.storageKey);
@@ -1176,8 +1177,9 @@ export class AssetService {
     let writtenKey: string | undefined;
     let unwrittenReservation: { id: string; sha256: string } | undefined;
     let committed = false;
-    // The account the bytes are metered against: the owner itself, or an
-    // application's owning account (ADR 0041).
+    // The account the bytes are metered against: the owner itself, or a
+    // third-party application's owning account (ADR 0041 D3). Only a metered
+    // owner reaches this path.
     const accountId = await storageAccountForOwner(getDb(), options.owner);
     if (!accountId) throw new Error('A metered upload resolved to no storage account');
     try {
@@ -1340,7 +1342,10 @@ export class AssetService {
     maxBytes: number,
     options: StreamedMediaOptions,
   ): Promise<StreamedMediaResult> {
-    if (meteredOwnerId(options.owner) && (await loadProductBillingCatalogue()).storageAdapter)
+    if (
+      (await loadProductBillingCatalogue()).storageAdapter &&
+      (await meteredOwnerId(options.owner))
+    )
       return this.uploadAdmittedOwnerStream(source, mimeType, originalName, maxBytes, options);
     const hash = crypto.createHash('sha256');
     let size = 0;
@@ -1636,7 +1641,7 @@ export class AssetService {
         ];
         if (keys.some((key) => this.targetKeyForVisibility(key, visibility) !== key))
           await assertPhysicalStoragePathSupported(
-            meteredOwnerId(existing),
+            await meteredOwnerId(existing),
             'visibility relocation copy',
           );
       }
@@ -1676,9 +1681,23 @@ export class AssetService {
   }
 
   /**
-   * Link file to an entity
+   * Record that an application uses a file (`file_references`, ADR 0041 D4).
+   *
+   * A reference NEVER changes the file's visibility — it used to: linking
+   * re-derived it from the entity type, so a non-avatar link silently made a
+   * public file private (Mercaria's review media) and an avatar link made a
+   * private one public. Only the owner changes visibility, explicitly
+   * (`updateFileVisibility`). A trashed file is brought back to `active`, as a
+   * link always did.
+   *
+   * Authorization is the caller's: the session route admits only the file's
+   * owner, the service route only what ADR 0041 D4 lets an application use.
+   * `created` says whether a reference was added (false: it already existed).
    */
-  async linkFile(fileId: string, linkRequest: AssetLinkRequest): Promise<FileRecord> {
+  async linkFile(
+    fileId: string,
+    request: AssetLinkRequest,
+  ): Promise<{ file: FileRecord; created: boolean }> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
@@ -1689,55 +1708,40 @@ export class AssetService {
         throw new Error('Cannot link to deleted file');
       }
 
-      // `(file_id, app, entity_type, entity_id)` is UNIQUE, so a duplicate is
-      // refused by the database rather than by a read-then-write two concurrent
-      // requests could both pass — which mattered because a duplicate would
-      // inflate the link count that decides `trash` vs `active`.
-      const created = await insertFileLink(fileId, {
-        app: linkRequest.app,
-        entityType: linkRequest.entityType,
-        entityId: linkRequest.entityId,
-        createdBy: linkRequest.createdBy,
-        webhookUrl: linkRequest.webhookUrl,
+      // `(file_id, application_id, entity_type, entity_id)` is UNIQUE, so a
+      // duplicate is refused by the database rather than by a read-then-write
+      // two concurrent requests could both pass — which matters because a
+      // duplicate would inflate the usage count that decides `trash`.
+      const created = await insertFileReference(fileId, {
+        applicationId: request.applicationId,
+        entityType: request.entityType,
+        entityId: request.entityId,
+        createdByUserId: request.createdByUserId,
+        webhookUrl: request.webhookUrl,
       });
 
       if (!created) {
-        logger.warn('Link already exists', { fileId, linkRequest });
-        return file;
+        logger.debug('Reference already exists', { fileId, applicationId: request.applicationId });
+        return { file, created: false };
       }
 
-      // Auto-set visibility based on entity type — except for an
-      // application-owned file (ADR 0041), whose visibility is a decision its
-      // owning application takes explicitly (`PATCH /assets/service/app/:id/
-      // visibility`) and that no link, by anyone, ever changes implicitly.
-      const previousVisibility = file.visibility;
-      const visibility = file.ownerApplicationId
-        ? previousVisibility
-        : (linkRequest.visibility ??
-          this.inferVisibilityFromEntityType(linkRequest.app, linkRequest.entityType));
-
-      const updated = await updateFile(fileId, {
-        visibility,
-        ...(file.status === 'trash' ? { status: 'active' } : {}),
-      });
+      const updated =
+        file.status === 'trash'
+          ? await updateFile(fileId, { status: 'active' })
+          : await findFileById(fileId);
       if (!updated) {
         throw new Error('File not found');
       }
       this.cacheFile(updated);
 
-      // Linking an asset to a public entity (e.g. an avatar) flips its
-      // visibility to `public`; relocate its bytes under the CDN-reachable
-      // `public/` prefix so the new public asset serves from the CDN.
-      const relocated =
-        visibility !== previousVisibility ? await this.relocateAllForVisibility(updated) : updated;
-
-      logger.info('File linked successfully', {
+      logger.info('File referenced', {
         fileId,
-        linkRequest,
-        totalLinks: relocated.links.length,
+        applicationId: request.applicationId,
+        entityType: request.entityType,
+        totalReferences: updated.links.length,
       });
 
-      return relocated;
+      return { file: updated, created: true };
     } catch (error) {
       logger.error('Error linking file:', error);
       throw error;
@@ -1762,8 +1766,10 @@ export class AssetService {
             fileId: file.id,
             visibility: file.visibility,
             status: file.status,
+            // `applicationId` replaced the free-text `app` (ADR 0041 D4).
+            // These per-reference webhooks are deprecated (D9).
             link: {
-              app: link.app,
+              applicationId: link.applicationId,
               entityType: link.entityType,
               entityId: link.entityId,
             },
@@ -1812,33 +1818,40 @@ export class AssetService {
   }
 
   /**
-   * Unlink file from an entity
+   * Remove one application's use of a file. `removed` says whether a
+   * reference was actually there.
+   *
+   * `createdByUserIds` narrows the removal to a reference one of those people
+   * created (a session that does not own the file). `trashWhenUnused` keeps
+   * the session surface's legacy rule — the LAST reference going moves an
+   * account's file to trash — and is off for an application's service token,
+   * which never trashes a person's file behind their back (ADR 0041 D5).
    */
   async unlinkFile(
     fileId: string,
-    app: string,
-    entityType: string,
-    entityId: string,
-  ): Promise<FileRecord> {
+    key: FileReferenceKey,
+    options: { createdByUserIds?: readonly string[]; trashWhenUnused?: boolean } = {},
+  ): Promise<{ file: FileRecord; removed: boolean }> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
         throw new Error('File not found');
       }
 
-      const removed = await deleteFileLink(fileId, app, entityType, entityId);
+      const removed = await deleteFileReference(fileId, key, options.createdByUserIds);
 
       const remaining = await findFileById(fileId);
       if (!remaining) {
         throw new Error('File not found');
       }
 
-      // The LAST link going moves the file to trash — and only a removal can
-      // be that. An unlink that matched nothing changes no usage; it used to
-      // trash any never-linked file, anybody's, for the price of naming its id.
-      // An application-owned file is never link-managed (ADR 0041).
+      // Only a removal can make a file unused: an unlink that matched nothing
+      // changes no usage (it used to trash any never-linked file, anybody's,
+      // for the price of naming its id). An application-owned file is never
+      // trashed by a reference going (ADR 0041 D5 collects those).
       const updated =
         removed &&
+        (options.trashWhenUnused ?? true) &&
         remaining.links.length === 0 &&
         remaining.status === 'active' &&
         !remaining.ownerApplicationId
@@ -1849,15 +1862,15 @@ export class AssetService {
       }
       this.cacheFile(updated);
 
-      logger.info('File unlinked successfully', {
+      logger.info('File reference removed', {
         fileId,
-        app,
-        entityType,
-        entityId,
-        remainingLinks: updated.links.length,
+        applicationId: key.applicationId,
+        entityType: key.entityType,
+        removed,
+        remainingReferences: updated.links.length,
       });
 
-      return updated;
+      return { file: updated, removed };
     } catch (error) {
       logger.error('Error unlinking file:', error);
       throw error;
@@ -2087,7 +2100,7 @@ export class AssetService {
             continue;
           }
           await assertPhysicalStoragePathSupported(
-            meteredOwnerId(file),
+            await meteredOwnerId(file),
             'visibility relocation copy',
           );
           await this.s3Service.copyFile(move.key, move.target);
@@ -2142,7 +2155,10 @@ export class AssetService {
   ): Promise<void> {
     const playlist = (await this.s3Service.downloadBuffer(toPlaylistKey)).toString('utf8');
     let missing = 0;
-    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'visibility relocation copy');
+    await assertPhysicalStoragePathSupported(
+      await meteredOwnerId(file),
+      'visibility relocation copy',
+    );
     await Promise.all(
       playlistUris(playlist).map(async (uri) => {
         const target = playlistSiblingKey(toPlaylistKey, uri);
@@ -2255,7 +2271,7 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      const affectedApps = [...new Set(file.links.map((link) => link.app))];
+      const affectedApps = [...new Set(file.links.map((link) => link.applicationId))];
       const wouldDelete = file.links.length === 0;
       const variants = file.variants.map((v) => v.type);
 
@@ -2486,29 +2502,6 @@ export class AssetService {
   }
 
   /**
-   * Infer file visibility based on entity type
-   * Automatically marks certain entity types as public (e.g., avatars, profile content)
-   */
-  private inferVisibilityFromEntityType(app: string, entityType: string): FileVisibility {
-    // Public entity types that should be accessible without authentication
-    const publicEntityTypes = [
-      'avatar',
-      'profile-avatar',
-      'user-avatar',
-      'profile-banner',
-      'profile-cover',
-      'public-profile-content',
-    ];
-
-    if (publicEntityTypes.includes(entityType.toLowerCase())) {
-      return 'public';
-    }
-
-    // Default to private for all other types
-    return 'private';
-  }
-
-  /**
    * Ensure an asset the user owns is public. Used when a file is set as a
    * public-facing profile media field (avatar/banner) — those must render
    * unauthenticated (an `<img>` can't send a bearer token, and private media is
@@ -2550,7 +2543,7 @@ export class AssetService {
 
       if ((file.visibility === 'public') !== (visibility === 'public'))
         await assertPhysicalStoragePathSupported(
-          meteredOwnerId(file),
+          await meteredOwnerId(file),
           'visibility relocation copy',
         );
 

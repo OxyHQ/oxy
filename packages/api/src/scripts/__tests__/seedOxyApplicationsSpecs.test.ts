@@ -31,7 +31,8 @@ import {
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
-  isScopeGrantableToApplicationType,
+  isApplicationFileScope,
+  isPrivilegedScopeForApplicationType,
   isValidApplicationScope,
   type ApplicationScope,
 } from '../../utils/applicationScopes';
@@ -610,19 +611,22 @@ describe('the canonical official-application registry', () => {
         'files:linked:read',
         'files:app:write',
         'files:app:delete',
+        'files:references:write',
       ]);
     });
 
-    it('holds the application-owned file scopes only as an application type that may own files', () => {
-      // ADR 0041: a seeded spec that carried `files:app:*` on a type the
-      // application routes refuse would be a grant no Console edit could make.
+    it('carries the application file scopes only where staff grant them', () => {
+      // ADR 0041 D11: on Oxy's own applications these are a platform decision
+      // — the files are metered against no one (D2) — so the canonical seed,
+      // run by staff, is where they are granted. Every seeded type is one of
+      // Oxy's own, so each grant here must read as privileged.
       for (const spec of SEED_APPS) {
-        for (const scope of spec.scopes ?? []) {
+        for (const scope of (spec.scopes ?? []).filter(isApplicationFileScope)) {
           expect({
             name: spec.name,
             scope,
-            grantable: isScopeGrantableToApplicationType(scope, spec.type),
-          }).toEqual({ name: spec.name, scope, grantable: true });
+            privileged: isPrivilegedScopeForApplicationType(scope, spec.type),
+          }).toEqual({ name: spec.name, scope, privileged: true });
         }
       }
     });

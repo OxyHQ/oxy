@@ -19,10 +19,17 @@ import { eq } from 'drizzle-orm';
 
 let mockSubjectId = 'nobody';
 let mockOperatorId: string | null = null;
+/** The application the session is bound to (`req.oxyToken.applicationId`), if any. */
+let mockBoundApplicationId: string | null = null;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: { _id: string } }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: { _id: string }; oxyToken?: { applicationId: string | null } },
+    _res: unknown,
+    next: () => void,
+  ) => {
     req.user = { _id: mockSubjectId };
+    req.oxyToken = { applicationId: mockBoundApplicationId };
     next();
   },
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -60,7 +67,7 @@ jest.mock('../../queue/assetVariants.queue', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { fileLinks, files, users } from '../../db/schema';
+import { applications, fileReferences, files, users } from '../../db/schema';
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 import fileCache from '../../utils/fileCache';
@@ -139,13 +146,52 @@ async function row(id: string) {
   return stored;
 }
 
+async function referencesOf(fileId: string) {
+  return getDb().select().from(fileReferences).where(eq(fileReferences.fileId, fileId));
+}
+
+/** An active application of `type`, owned by a fresh account. */
+async function application(
+  values: Partial<typeof applications.$inferInsert> = {},
+): Promise<string> {
+  const [created] = await getDb()
+    .insert(applications)
+    .values({
+      name: `app-${randomBytes(4).toString('hex')}`,
+      ownerAccountId: await account(),
+      type: 'first_party',
+      ...values,
+    })
+    .returning({ id: applications.id });
+  return created.id;
+}
+
+/** The seeded GoWay application, which the legacy `app: 'goway'` names. */
+const GOWAY_APPLICATION_ID = '73176d04c3654667138c23ec';
+
 function actAs(subjectId: string, operatorId: string | null = null): void {
   mockSubjectId = subjectId;
   mockOperatorId = operatorId;
+  mockBoundApplicationId = null;
 }
 
 beforeAll(async () => {
   await connectPostgres();
+  // `gowaySeedRollback.test.ts` may have left GoWay suspended in this worker's
+  // database; the legacy alias resolves only an ACTIVE application.
+  await getDb()
+    .insert(applications)
+    .values({
+      id: GOWAY_APPLICATION_ID,
+      name: 'GoWay',
+      type: 'first_party',
+      status: 'active',
+      ownerAccountId: await account(),
+    })
+    .onConflictDoUpdate({
+      target: applications.id,
+      set: { name: 'GoWay', type: 'first_party', status: 'active' },
+    });
   const app = express();
   app.use(express.json());
   app.use('/assets', assetsRouter);
@@ -231,7 +277,7 @@ describe('POST /assets/:id/links — only the owner links a file', () => {
 
     actAs(await account());
     const res = await send('POST', `/assets/${id}/links`, {
-      app: 'profile',
+      app: 'profiles',
       entityType: 'avatar',
       entityId: 'attacker',
       visibility: 'public',
@@ -239,21 +285,158 @@ describe('POST /assets/:id/links — only the owner links a file', () => {
 
     expect(res.status).toBe(403);
     expect((await row(id)).visibility).toBe('private');
-    const links = await getDb().select().from(fileLinks).where(eq(fileLinks.fileId, id));
-    expect(links).toEqual([]);
+    expect(await referencesOf(id)).toEqual([]);
+  });
+});
+
+describe('POST /assets/:id/links — a reference never changes visibility (ADR 0041 D4)', () => {
+  it('keeps a PUBLIC file public when referenced for a non-avatar entity', async () => {
+    const owner = await account();
+    const id = await fileOf(owner, { visibility: 'public' });
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'review_media',
+      entityId: 'review-1',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).visibility).toBe('public');
+  });
+
+  it('keeps a PRIVATE file private when referenced as an avatar', async () => {
+    const owner = await account();
+    const id = await fileOf(owner, { visibility: 'private' });
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'avatar',
+      entityId: owner,
+    });
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).visibility).toBe('private');
+    expect(await referencesOf(id)).toHaveLength(1);
+  });
+
+  it('applies an explicit visibility the OWNER sends', async () => {
+    const owner = await account();
+    const id = await fileOf(owner, { visibility: 'private' });
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'place',
+      entityId: 'place-explicit',
+      visibility: 'public',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).visibility).toBe('public');
+  });
+});
+
+describe('POST /assets/:id/links — which application the reference is recorded under', () => {
+  it('resolves the legacy `goway` string to the GoWay application', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
+
+    actAs(owner);
+    expect(
+      (
+        await send('POST', `/assets/${id}/links`, {
+          app: 'goway',
+          entityType: 'place',
+          entityId: 'place-goway',
+        })
+      ).status,
+    ).toBe(200);
+
+    const [reference] = await referencesOf(id);
+    expect(reference).toMatchObject({
+      applicationId: GOWAY_APPLICATION_ID,
+      entityType: 'place',
+      entityId: 'place-goway',
+      createdByUserId: owner,
+    });
+  });
+
+  it('accepts an application id as `app`', async () => {
+    const owner = await account();
+    const appId = await application({ type: 'third_party' });
+    const id = await fileOf(owner);
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: appId,
+      entityType: 'doc',
+      entityId: 'doc-1',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await referencesOf(id)).map((reference) => reference.applicationId)).toEqual([appId]);
+  });
+
+  it('refuses a string that names no application, writing nothing', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'not-an-application',
+      entityType: 'post',
+      entityId: 'p-1',
+    });
+
+    expect(res.status).toBe(400);
+    expect(await referencesOf(id)).toEqual([]);
+  });
+
+  it('refuses a session bound to one application naming another', async () => {
+    const owner = await account();
+    const bound = await application({ type: 'third_party' });
+    const id = await fileOf(owner);
+
+    actAs(owner);
+    mockBoundApplicationId = bound;
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'place',
+      entityId: 'place-bound',
+    });
+
+    expect(res.status).toBe(403);
+    expect(await referencesOf(id)).toEqual([]);
+  });
+
+  it('records a bound session under its own application, whatever free text it sends', async () => {
+    const owner = await account();
+    const bound = await application({ type: 'third_party' });
+    const id = await fileOf(owner);
+
+    actAs(owner);
+    mockBoundApplicationId = bound;
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'whatever-the-client-says',
+      entityType: 'doc',
+      entityId: 'doc-bound',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await referencesOf(id)).map((reference) => reference.applicationId)).toEqual([bound]);
   });
 });
 
 describe('DELETE /assets/:id/links — an unlink that removes nothing changes nothing', () => {
-  // The route still takes any caller (GoWay's business withdraws a
-  // contributor's link with its own session); what it must not do is trash a
-  // file by naming a link that does not exist.
-  it('leaves a never-linked file active when no link matched', async () => {
-    const id = await fileOf(await account());
+  it('leaves a never-linked file active when no reference matched', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
 
-    actAs(await account());
+    actAs(owner);
     const res = await send('DELETE', `/assets/${id}/links`, {
-      app: 'nothing',
+      app: 'goway',
       entityType: 'none',
       entityId: 'nil',
     });
@@ -262,7 +445,7 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
     expect((await row(id)).status).toBe('active');
   });
 
-  it('still trashes the file when its last link goes', async () => {
+  it('still trashes the owner’s file when its last reference goes', async () => {
     const owner = await account();
     const id = await fileOf(owner);
     const target = { app: 'goway', entityType: 'place', entityId: 'place-2' };
@@ -273,14 +456,88 @@ describe('DELETE /assets/:id/links — an unlink that removes nothing changes no
 
     expect(res.status).toBe(200);
     expect((await row(id)).status).toBe('trash');
+    expect(await referencesOf(id)).toEqual([]);
+  });
+});
+
+describe('DELETE /assets/:id/links — a non-owner removes only what it made (ADR 0041 D12)', () => {
+  it('refuses to remove the owner’s reference: 404, the row kept, the file not trashed', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
+    const target = { app: 'goway', entityType: 'place', entityId: 'place-owner' };
+    actAs(owner);
+    await send('POST', `/assets/${id}/links`, target);
+
+    // GoWay's business withdrawing a contributor's photo with its own session.
+    actAs(await account());
+    const res = await send('DELETE', `/assets/${id}/links`, target);
+
+    expect(res.status).toBe(404);
+    expect(await referencesOf(id)).toHaveLength(1);
+    expect((await row(id)).status).toBe('active');
+  });
+
+  it('removes a reference the caller created itself, without trashing the owner’s file', async () => {
+    const owner = await account();
+    const other = await account();
+    const id = await fileOf(owner, { visibility: 'public' });
+    await getDb().insert(fileReferences).values({
+      fileId: id,
+      applicationId: GOWAY_APPLICATION_ID,
+      entityType: 'place',
+      entityId: 'place-other',
+      createdByUserId: other,
+    });
+
+    actAs(other);
+    const res = await send('DELETE', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'place',
+      entityId: 'place-other',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await referencesOf(id)).toEqual([]);
+    // It was the last reference, but the file is not the caller's to trash.
+    expect((await row(id)).status).toBe('active');
+  });
+
+  it('lets the owner remove a reference somebody else created', async () => {
+    const owner = await account();
+    const other = await account();
+    const id = await fileOf(owner, { visibility: 'public' });
+    await getDb().insert(fileReferences).values({
+      fileId: id,
+      applicationId: GOWAY_APPLICATION_ID,
+      entityType: 'place',
+      entityId: 'place-by-other',
+      createdByUserId: other,
+    });
+
+    actAs(owner);
+    const res = await send('DELETE', `/assets/${id}/links`, {
+      app: 'goway',
+      entityType: 'place',
+      entityId: 'place-by-other',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await referencesOf(id)).toEqual([]);
+    expect((await row(id)).status).toBe('trash');
   });
 });
 
 describe('GET /assets/:id — a file’s links are its owner’s; a private file is the owner’s alone', () => {
-  async function linkedBy(fileId: string, createdBy: string, entityId: string) {
+  async function linkedBy(fileId: string, createdByUserId: string, entityId: string) {
     await getDb()
-      .insert(fileLinks)
-      .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy });
+      .insert(fileReferences)
+      .values({
+        fileId,
+        applicationId: await application(),
+        entityType: 'post',
+        entityId,
+        createdByUserId,
+      });
   }
 
   it('gives the owner, and the operator acting for another account, every link', async () => {

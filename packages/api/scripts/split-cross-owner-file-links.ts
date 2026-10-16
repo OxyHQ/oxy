@@ -5,11 +5,12 @@
  *
  *   bun run packages/api/scripts/split-cross-owner-file-links.ts                      # report (dry run)
  *   bun run packages/api/scripts/split-cross-owner-file-links.ts --apply=create-rows  # additive
- *   bun run packages/api/scripts/split-cross-owner-file-links.ts --apply=repoint-links --app=<name>
+ *   bun run packages/api/scripts/split-cross-owner-file-links.ts --apply=repoint-links --app=<application>
  *
- * Options: `--batch-size=<n>` (default 200, max 1000), `--after=<file_links.id>`
- * to resume, `--max-batches=<n>` for a bounded run, `--app=<name>` to limit to
- * one application. Prints one JSON line per (file, linking account) pair and a
+ * Options: `--batch-size=<n>` (default 200, max 1000), `--after=<file_references.id>`
+ * to resume, `--max-batches=<n>` for a bounded run, `--app=<application>` to
+ * limit to one application — its id, or a legacy `file_links.app` string such
+ * as `goway` (`src/utils/legacyFileLinkApplications.ts`). Prints one JSON line per (file, linking account) pair and a
  * final `{"summary": …}` line whose `lastLinkId` resumes an unfinished run.
  * Nothing is written without `--apply`.
  */
@@ -19,6 +20,7 @@ import {
   runFileOwnerSplit,
   type FileOwnerSplitMode,
 } from '../src/services/fileOwnerSplit.service';
+import { resolveReferenceApplicationId } from '../src/services/fileReference.service';
 
 function flag(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -52,11 +54,16 @@ async function main(): Promise<void> {
   const maxBatches = positiveInt('max-batches', undefined, 1_000_000);
   await connectPostgres();
   try {
+    const app = flag('app');
+    const applicationId = app === undefined ? undefined : await resolveReferenceApplicationId(app);
+    if (app !== undefined && applicationId === null) {
+      throw new Error(`--app=${app} names no single active application`);
+    }
     const summary = await runFileOwnerSplit({
       mode: selected,
       batchSize,
       after: flag('after'),
-      app: flag('app'),
+      applicationId: applicationId ?? undefined,
       maxBatches,
       emit: (record) => console.log(JSON.stringify(record)),
     });

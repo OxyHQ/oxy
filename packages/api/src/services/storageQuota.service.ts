@@ -37,12 +37,18 @@ export async function storageCapacity(
   return Math.max(legacy, quota?.included ?? 0);
 }
 /**
- * The account a file's bytes are metered against, or `null` for a system
- * namespace (never metered).
+ * The account a file's bytes are metered against, or `null` when they are
+ * metered against no one.
  *
- * An account-owned file is metered against its owner. An APPLICATION-owned
- * file (ADR 0041) is metered against the application's owning account — the
- * billing principal of ADR 0007, never a person who happened to upload it.
+ * - An account-owned file is metered against its owner.
+ * - An APPLICATION-owned file (ADR 0041) depends on the application's type.
+ *   A `third_party` application's files count toward its developer's storage
+ *   plan — `applications.owner_account_id`, the billing principal of ADR 0007
+ *   (D3); a transfer of the application moves them with it, because this is
+ *   read live. Oxy's own applications (`first_party`, `internal`, `system`) are
+ *   the platform, not a customer (D2): their files are attributed to no account
+ *   and are observed instead ({@link applicationStoredBytes}).
+ * - A system namespace is never metered.
  */
 export async function storageAccountForOwner(
   db: DatabaseOrTransaction,
@@ -51,31 +57,44 @@ export async function storageAccountForOwner(
   if (owner.ownerUserId) return owner.ownerUserId;
   if (!owner.ownerApplicationId) return null;
   const [application] = await db
-    .select({ ownerAccountId: applications.ownerAccountId })
+    .select({ ownerAccountId: applications.ownerAccountId, type: applications.type })
     .from(applications)
     .where(eq(applications.id, owner.ownerApplicationId))
     .limit(1);
   if (!application)
     throw new ApiError(404, 'Owning application not found', 'STORAGE_OWNER_NOT_FOUND');
-  return application.ownerAccountId;
+  return isMeteredApplicationType(application.type) ? application.ownerAccountId : null;
 }
 
 /**
- * The owner a physical-storage path must treat as METERED: any owner that is
- * not a system namespace. Only its presence matters to
- * {@link assertPhysicalStoragePathSupported}; the account it bills is
- * {@link storageAccountForOwner}'s question.
+ * The one application type whose files are metered (ADR 0041 D3). Spelled as a
+ * predicate so the SQL below and the lookup above cannot disagree.
  */
-export function meteredOwnerId(file: {
+export const METERED_APPLICATION_TYPE = 'third_party';
+
+function isMeteredApplicationType(type: string): boolean {
+  return type === METERED_APPLICATION_TYPE;
+}
+
+/**
+ * The account a physical-storage path must treat as METERED, or `null` when
+ * the file is metered against no one (a system namespace, or one of Oxy's own
+ * applications). Only its presence matters to
+ * {@link assertPhysicalStoragePathSupported}.
+ */
+export async function meteredOwnerId(file: {
   ownerUserId: string | null;
   ownerApplicationId?: string | null;
-}): string | null {
-  return file.ownerUserId ?? file.ownerApplicationId ?? null;
+}): Promise<string | null> {
+  if (file.ownerUserId) return file.ownerUserId;
+  if (!file.ownerApplicationId) return null;
+  const { getDb } = await import('../config/postgres.js');
+  return storageAccountForOwner(getDb(), file);
 }
 
 /**
  * The rows an account's quota counts: the ones it owns, and the ones each
- * application it owns owns (ADR 0041).
+ * `third_party` application it owns owns (ADR 0041 D3).
  */
 function meteredBy(db: DatabaseOrTransaction, accountId: string) {
   return or(
@@ -85,7 +104,12 @@ function meteredBy(db: DatabaseOrTransaction, accountId: string) {
       db
         .select({ id: applications.id })
         .from(applications)
-        .where(eq(applications.ownerAccountId, accountId)),
+        .where(
+          and(
+            eq(applications.ownerAccountId, accountId),
+            eq(applications.type, METERED_APPLICATION_TYPE),
+          ),
+        ),
     ),
   );
 }
@@ -111,7 +135,8 @@ export async function reservedStorageBytes(
         eq(storageByteReservations.accountId, userId),
         sql`${storageByteReservations.cleanedAt} is null`,
         sql`not exists (select 1 from "files" f where (f.owner_user_id = ${storageByteReservations.accountId}
-          or f.owner_application_id in (select a.id from "applications" a where a.owner_account_id = ${storageByteReservations.accountId}))
+          or f.owner_application_id in (select a.id from "applications" a where a.owner_account_id = ${storageByteReservations.accountId}
+            and a.type = ${METERED_APPLICATION_TYPE}))
         and f.status in ('active', 'trash') and (
           (f.storage_key = ${storageByteReservations.objectKey} and f.size = ${storageByteReservations.size})
           or exists (select 1 from "file_variants" v where v.file_id = f.id
@@ -121,6 +146,54 @@ export async function reservedStorageBytes(
     );
   return BigInt(row?.bytes ?? 0) + BigInt(pending?.bytes ?? 0);
 }
+/** What one application stores, as {@link applicationStoredBytes} reports it. */
+export interface ApplicationStorageUsage {
+  applicationId: string;
+  /** Live (`active` + `trash`) rows the application owns. */
+  files: number;
+  /** Their bytes: originals plus every rendition, as the quota counts them. */
+  bytes: number;
+  /**
+   * The account these bytes count against, or `null` when they count against
+   * no one — Oxy's own applications (ADR 0041 D2).
+   */
+  meteredAccountId: string | null;
+}
+
+/**
+ * Per-application stored bytes (ADR 0041 D2/D3): the observability half of the
+ * decision not to meter Oxy's own applications, and the "shown per application
+ * in the console" half of metering a third-party one. Counts exactly what
+ * {@link reservedStorageBytes} counts for a metered owner — live rows and their
+ * renditions; trash still holds its bytes.
+ */
+export async function applicationStoredBytes(
+  db: DatabaseOrTransaction,
+  applicationId: string,
+): Promise<ApplicationStorageUsage> {
+  const [row] = await db
+    .select({
+      files: sql<string>`count(*)`,
+      bytes: sql<string>`coalesce(sum(${files.size} + coalesce((
+    select sum(${fileVariants.size}) from ${fileVariants} where "file_variants"."file_id" = "files"."id"
+  ), 0)), 0)`,
+    })
+    .from(files)
+    .where(
+      and(
+        eq(files.ownerApplicationId, applicationId),
+        inArray(files.status, [...FILE_LIVE_STATUSES]),
+      ),
+    );
+  return {
+    applicationId,
+    // postgres.js decodes `count`/`sum` (int8/numeric) as strings.
+    files: Number(row?.files ?? 0),
+    bytes: Number(row?.bytes ?? 0),
+    meteredAccountId: await storageAccountForOwner(db, { ownerApplicationId: applicationId }),
+  };
+}
+
 /** Metadata admission only. Call inside the transaction that writes originals/variants. */
 export async function withStorageQuota<T>(
   db: DatabaseOrTransaction,
@@ -154,7 +227,7 @@ export async function withStorageQuota<T>(
 
 /**
  * Physical writers without complete byte admission fail closed when configured.
- * `meteredOwner` is {@link meteredOwnerId} of the file: any non-system owner.
+ * `meteredOwner` is {@link meteredOwnerId} of the file.
  */
 export async function assertPhysicalStoragePathSupported(
   meteredOwner: string | null,
@@ -174,15 +247,15 @@ export async function uploadAdmittedVariant(
   put: (key: string) => Promise<unknown>,
   remove: (key: string) => Promise<unknown>,
 ): Promise<NewFileVariant> {
-  if (!meteredOwnerId(file) || !(await loadProductBillingCatalogue()).storageAdapter) {
+  const accountId = (await loadProductBillingCatalogue()).storageAdapter
+    ? await meteredOwnerId(file)
+    : null;
+  if (!accountId) {
     await put(variant.key);
     return variant;
   }
   if (!Number.isSafeInteger(variant.size) || (variant.size ?? 0) < 0)
     throw new ApiError(400, 'Variant size is invalid', 'STORAGE_INVALID_SIZE');
-  const { getDb } = await import('../config/postgres.js');
-  const accountId = await storageAccountForOwner(getDb(), file);
-  if (!accountId) throw new Error('A metered file resolved to no storage account');
   const admitted = { ...variant, key: `${variant.key}.${randomUUID()}` };
   const {
     reserveStorageBytes,

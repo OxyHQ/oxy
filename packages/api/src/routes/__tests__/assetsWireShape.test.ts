@@ -6,7 +6,7 @@
  * weeks. Two things in this response were nested subdocuments and are now child
  * TABLE rows, and each carries its own way to break that silently:
  *
- * - **New internal columns.** `file_links` and `file_variants` have `id` and
+ * - **New internal columns.** `file_references` and `file_variants` have `id` and
  *   `file_id` primary/foreign keys that the wire shape does not carry.
  *   Returning rows verbatim would publish two internal identifiers into a
  *   public payload.
@@ -27,6 +27,7 @@ import request from 'supertest';
 
 const FILE_ID = '64c0000000000000000000a1';
 const OWNER_ID = '69b2d3df5d12f58c9800d651';
+const APPLICATION_ID = '6a2f851751b784a86fd0e916';
 
 const mockGetFile = jest.fn();
 
@@ -100,10 +101,21 @@ function fileRecord() {
       {
         id: 'link-row-id',
         fileId: FILE_ID,
-        app: 'mention',
+        applicationId: APPLICATION_ID,
         entityType: 'post',
         entityId: 'p1',
-        createdBy: OWNER_ID,
+        createdByUserId: OWNER_ID,
+        webhookUrl: null,
+        createdAt: CREATED_AT,
+      },
+      {
+        // An application's own service-made reference: no person created it.
+        id: 'link-row-id-2',
+        fileId: FILE_ID,
+        applicationId: APPLICATION_ID,
+        entityType: 'listing',
+        entityId: 'l1',
+        createdByUserId: null,
         webhookUrl: null,
         createdAt: CREATED_AT,
       },
@@ -159,13 +171,22 @@ describe('GET /assets/:id', () => {
 
     expect(res.status).toBe(200);
     // Exact equality: an added `id`/`fileId` fails here, and so would a
-    // `webhookUrl: null`.
+    // `webhookUrl: null` or a `createdBy: null`. `app` carries the
+    // application id since `file_references` (ADR 0041 D4).
     expect(res.body.data.file.links).toEqual([
       {
-        app: 'mention',
+        app: APPLICATION_ID,
+        applicationId: APPLICATION_ID,
         entityType: 'post',
         entityId: 'p1',
         createdBy: OWNER_ID,
+        createdAt: CREATED_AT.toISOString(),
+      },
+      {
+        app: APPLICATION_ID,
+        applicationId: APPLICATION_ID,
+        entityType: 'listing',
+        entityId: 'l1',
         createdAt: CREATED_AT.toISOString(),
       },
     ]);
@@ -200,7 +221,7 @@ describe('GET /assets/:id', () => {
   it('still reports usageCount, derived from the link rows', async () => {
     const res = await request(app).get(`/assets/${FILE_ID}`);
 
-    expect(res.body.data.file.usageCount).toBe(1);
+    expect(res.body.data.file.usageCount).toBe(2);
     expect(res.body.data.assetId).toBe(FILE_ID);
     expect(res.body.data.file.id).toBe(FILE_ID);
   });

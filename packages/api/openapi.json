@@ -3450,7 +3450,8 @@
                         "federation:identities:resolve",
                         "federation:instance-fetch",
                         "files:app:write",
-                        "files:app:delete"
+                        "files:app:delete",
+                        "files:references:write"
                       ]
                     }
                   }
@@ -3731,7 +3732,8 @@
                         "federation:identities:resolve",
                         "federation:instance-fetch",
                         "files:app:write",
-                        "files:app:delete"
+                        "files:app:delete",
+                        "files:references:write"
                       ]
                     }
                   },
@@ -4103,7 +4105,8 @@
                         "federation:identities:resolve",
                         "federation:instance-fetch",
                         "files:app:write",
-                        "files:app:delete"
+                        "files:app:delete",
+                        "files:references:write"
                       ]
                     }
                   },
@@ -5206,616 +5209,13 @@
         "operationId": "postApplicationsAppIdListingUnpublish"
       }
     },
-    "/applications/{appId}/roles/grants": {
+    "/applications/{appId}/storage": {
       "get": {
         "tags": [
           "Developer"
         ],
-        "summary": "Grants of the application's keys, newest first. Live only unless",
-        "description": "`?includeRevoked=true`; filter with `?permission=` and `?userId=`.",
-        "parameters": [
-          {
-            "name": "appId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "permission",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-              "maxLength": 64
-            }
-          },
-          {
-            "name": "userId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          },
-          {
-            "name": "includeRevoked",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 200
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 512
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "One page of grants.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "applicationId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "permission": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                            "maxLength": 64
-                          },
-                          "userId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "username": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "grantedByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "grantedAt": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "grantReason": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          },
-                          "revokedAt": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1
-                          },
-                          "revokedByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "revokeReason": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "applicationId",
-                          "permission",
-                          "userId",
-                          "username",
-                          "grantedByUserId",
-                          "grantedAt",
-                          "grantReason",
-                          "revokedAt",
-                          "revokedByUserId",
-                          "revokeReason"
-                        ]
-                      }
-                    },
-                    "nextCursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "items",
-                    "nextCursor"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "getApplicationsAppIdRolesGrants"
-      },
-      "post": {
-        "tags": [
-          "Developer"
-        ],
-        "summary": "Grant a declared key to a person (by `userId` or `username`). A grant to",
-        "description": "yourself is refused unless the application is owned by your own personal\naccount (`SELF_GRANT_FORBIDDEN`).",
-        "parameters": [
-          {
-            "name": "appId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "The new grant.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "applicationId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "permission": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                      "maxLength": 64
-                    },
-                    "userId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "username": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "grantedByUserId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "grantedAt": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "grantReason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "revokedAt": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1
-                    },
-                    "revokedByUserId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "revokeReason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "applicationId",
-                    "permission",
-                    "userId",
-                    "username",
-                    "grantedByUserId",
-                    "grantedAt",
-                    "grantReason",
-                    "revokedAt",
-                    "revokedByUserId",
-                    "revokeReason"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "userId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "username": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 64
-                  },
-                  "permission": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                    "maxLength": 64
-                  },
-                  "reason": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 500
-                  }
-                },
-                "required": [
-                  "permission"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "postApplicationsAppIdRolesGrants"
-      }
-    },
-    "/applications/{appId}/roles/grants/{grantId}/revoke": {
-      "post": {
-        "tags": [
-          "Developer"
-        ],
-        "summary": "Revoke a live grant. A revoked grant stays in the history; granting the key",
-        "description": "again creates a new grant.",
-        "parameters": [
-          {
-            "name": "appId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "grantId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The revoked grant.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "applicationId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "permission": {
-                      "type": "string",
-                      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                      "maxLength": 64
-                    },
-                    "userId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "username": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "grantedByUserId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "grantedAt": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "grantReason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "revokedAt": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1
-                    },
-                    "revokedByUserId": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "revokeReason": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "applicationId",
-                    "permission",
-                    "userId",
-                    "username",
-                    "grantedByUserId",
-                    "grantedAt",
-                    "grantReason",
-                    "revokedAt",
-                    "revokedByUserId",
-                    "revokeReason"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 500
-                  }
-                }
-              }
-            }
-          }
-        },
-        "operationId": "postApplicationsAppIdRolesGrantsGrantIdRevoke"
-      }
-    },
-    "/applications/{appId}/roles/me": {
-      "get": {
-        "tags": [
-          "Developer"
-        ],
-        "summary": "The application permissions the HUMAN behind this bearer holds.",
-        "description": "The one roles read open to every signed-in person, about themselves only:\nno membership of the owning account is needed, because the answer is the\ncaller's own grants. The person is the operator (`resolveOperatorId`), so\nsomeone acting as their organization is answered for themselves.\n\nA bearer whose session belongs to ONE application (a third-party OAuth\nsession) may ask only about that application; the shared first-party session\nmay ask about any. Never cached: a revocation is visible to the next read.",
+        "summary": "What the application stores in Oxy Files (ADR 0041 D2/D3): its live files,",
+        "description": "their bytes (originals plus renditions) and the account they count against\n— the developer's for a third-party application, `null` for Oxy's own, which\nare observed rather than metered.",
         "parameters": [
           {
             "name": "appId",
@@ -5829,39 +5229,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The caller's held keys.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "applicationId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "userId": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "permissions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                        "maxLength": 64
-                      }
-                    }
-                  },
-                  "required": [
-                    "applicationId",
-                    "userId",
-                    "permissions"
-                  ]
-                }
-              }
-            }
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
           },
           "400": {
             "description": "Validation failed",
@@ -5909,355 +5277,7 @@
             "bearerAuth": []
           }
         ],
-        "operationId": "getApplicationsAppIdRolesMe"
-      }
-    },
-    "/applications/{appId}/roles/permissions": {
-      "get": {
-        "tags": [
-          "Developer"
-        ],
-        "summary": "The application's declared permission keys; `?includeRetired=true` adds the",
-        "description": "retired ones (history — they confer nothing).",
-        "parameters": [
-          {
-            "name": "appId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          {
-            "name": "includeRetired",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The declared keys, by key.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "key": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                            "maxLength": 64
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "declaredAt": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "declaredByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "retiredAt": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1
-                          },
-                          "retiredByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          }
-                        },
-                        "required": [
-                          "key",
-                          "description",
-                          "declaredAt",
-                          "declaredByUserId",
-                          "retiredAt",
-                          "retiredByUserId"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "items"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "getApplicationsAppIdRolesPermissions"
-      },
-      "put": {
-        "tags": [
-          "Developer"
-        ],
-        "summary": "Declare the application's WHOLE permission vocabulary. New keys are added,",
-        "description": "kept keys take the new description, missing keys are retired and every live\ngrant of them is revoked, in one transaction. Idempotent.",
-        "parameters": [
-          {
-            "name": "appId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The live vocabulary and what changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "key": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                            "maxLength": 64
-                          },
-                          "description": {
-                            "type": "string"
-                          },
-                          "declaredAt": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "declaredByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          },
-                          "retiredAt": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1
-                          },
-                          "retiredByUserId": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "minLength": 1,
-                            "maxLength": 128
-                          }
-                        },
-                        "required": [
-                          "key",
-                          "description",
-                          "declaredAt",
-                          "declaredByUserId",
-                          "retiredAt",
-                          "retiredByUserId"
-                        ]
-                      }
-                    },
-                    "added": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                        "maxLength": 64
-                      }
-                    },
-                    "retired": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                        "maxLength": 64
-                      }
-                    },
-                    "described": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                        "maxLength": 64
-                      }
-                    },
-                    "revokedGrants": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  },
-                  "required": [
-                    "items",
-                    "added",
-                    "retired",
-                    "described",
-                    "revokedGrants"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "permissions": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$",
-                          "maxLength": 64
-                        },
-                        "description": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 280
-                        }
-                      },
-                      "required": [
-                        "key",
-                        "description"
-                      ]
-                    },
-                    "maxItems": 64
-                  }
-                },
-                "required": [
-                  "permissions"
-                ]
-              }
-            }
-          }
-        },
-        "operationId": "putApplicationsAppIdRolesPermissions"
+        "operationId": "getApplicationsAppIdStorage"
       }
     },
     "/applications/{appId}/usage": {
@@ -6653,7 +5673,7 @@
           "Files"
         ],
         "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0041). Raw bytes",
-        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. The bytes are metered against the application's\n      owning account.\n        internal or system application",
+        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0041 D2/D3).",
         "parameters": [],
         "responses": {
           "200": {
@@ -7741,7 +6761,7 @@
           "Files"
         ],
         "summary": "Mint short-lived download URLs for files linked to the calling app",
-        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_links` row whose `app` is the caller's and whose `created_by` is the file's `owner_user_id`. Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not linked to this app, or linked by somebody other than the owner. The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
+        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id` — and for each of the caller's OWN files (ADR 0041). Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not referenced for this app, or referenced by somebody other than the owner (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -7816,6 +6836,236 @@
           }
         },
         "operationId": "postAssetsServiceLinkedUrl"
+      }
+    },
+    "/assets/service/references": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The calling application records that it uses files (ADR 0041 D4):",
+        "description": "`{ references: [{ fileId, entityType, entityId }] }`, 1–100. The\n      application is the token's `appId`; a body naming one is refused.\n      Allowed: the application's OWN file (a trashed one comes back to\n      `active`); any owner's `active` `public` or `unlisted` file; an\n      account's `active` private file its owner attached to this\n      application (ADR 0021). Never another application's private file.\n      A reference never changes the file's visibility.\n\n      Per item: `created`, `exists` (already referenced, nothing changed) or\n      `not_found` — a file that does not exist and one the application may\n      not reference answer alike. The batch itself is 200.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "references": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fileId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "entityType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "entityId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "fileId",
+                        "entityType",
+                        "entityId"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "references"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceReferences"
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The calling application stops using files (ADR 0041 D4): the same",
+        "description": "body as POST. Removes only references THIS application holds — never\n      another application's, never a person's from another application.\n      Removing a reference never trashes, deletes or re-publishes the file.\n\n      Per item: `removed` or `not_found` (no such reference for this\n      application). The batch itself is 200.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "references": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fileId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "entityType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "entityId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 256
+                        }
+                      },
+                      "required": [
+                        "fileId",
+                        "entityType",
+                        "entityId"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "references"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "deleteAssetsServiceReferences"
       }
     },
     "/assets/service/user-media": {
@@ -8157,8 +7407,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Link file to an entity",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/assets.ts` to fill in summary, description, request/response examples.",
+        "summary": "Record that an application uses the caller's file (`file_references`,",
+        "description": "ADR 0041 D4). Compatibility surface: an application should use\n      `POST /assets/service/references` with its own token. `visibility`,\n      when sent, is an explicit change by the owner — a reference itself\n      never changes visibility.",
         "parameters": [
           {
             "name": "id",
@@ -8267,8 +7517,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Remove link from file",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/assets.ts` to fill in summary, description, request/response examples.",
+        "summary": "Remove one application's use of a file. The file's OWNER may remove",
+        "description": "any reference to it; anybody else only a reference they created\n      themselves (404 otherwise), and that never trashes the owner's file.\n      An application removes the references it holds with its own token\n      (`DELETE /assets/service/references`) — how GoWay must withdraw a\n      contributor's photo from a place (ADR 0041 D12).",
         "parameters": [
           {
             "name": "id",

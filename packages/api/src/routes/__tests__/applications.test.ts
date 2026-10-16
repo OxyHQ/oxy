@@ -115,6 +115,7 @@ import {
   apiKeyUsageEvents,
   applicationCredentials,
   applications,
+  files,
   inferenceProviderConnections,
   inferenceProviders,
   users,
@@ -725,60 +726,159 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
 });
 
 // ---------------------------------------------------------------------------
-// Application-owned file scopes (ADR 0041) — bound to the application TYPE,
-// for staff too. The privileged gate decides who may grant; this decides
-// whether the application can hold the scope at all.
+// Application file scopes (ADR 0041 D11) — who may grant them depends on the
+// application's TYPE: staff for Oxy's own applications (their files are the
+// platform's, metered against no one), self-service for a third-party one
+// (its files count against its developer's plan).
 // ---------------------------------------------------------------------------
 
-describe('files:app:* — only a first_party, internal or system application may hold them', () => {
-  it('refuses them on create even to staff, since a new application is third_party', async () => {
-    actAs(OWNER_ID, true);
+const APP_FILE_SCOPES = ['files:app:write', 'files:app:delete', 'files:references:write'];
+
+describe('application file scopes — staff-granted on Oxy apps, self-service on third-party ones', () => {
+  it('lets a non-staff owner self-grant all three on create (a new application is third_party)', async () => {
     const res = await requestJson(server, 'POST', '/applications', {
       name: 'Tiles',
-      scopes: ['files:app:write'],
+      scopes: ['user:read', ...APP_FILE_SCOPES],
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(201);
+    const stored = await readApp(res.body.application?._id as string);
+    expect(stored?.type).toBe('third_party');
+    expect(stored?.scopes).toEqual(expect.arrayContaining(APP_FILE_SCOPES));
   });
 
-  it('refuses a non-staff owner adding them to a first_party application (privileged)', async () => {
-    const app = await seedApp({ type: 'first_party', scopes: ['user:read'] });
+  it('lets a non-staff owner add them to a third_party application', async () => {
+    const app = await seedApp({ type: 'third_party', scopes: ['user:read'] });
     const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
-      scopes: ['user:read', 'files:app:write'],
+      scopes: ['user:read', ...APP_FILE_SCOPES],
     });
-    expect(res.status).toBe(403);
-    expect((await readApp(app.id))?.scopes).toEqual(['user:read']);
+    expect(res.status).toBe(200);
+    expect((await readApp(app.id))?.scopes).toEqual(expect.arrayContaining(APP_FILE_SCOPES));
+  });
+
+  it('refuses a non-staff owner adding them to a first_party application (privileged there)', async () => {
+    for (const scope of APP_FILE_SCOPES) {
+      const app = await seedApp({ type: 'first_party', scopes: ['user:read'] });
+      const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+        scopes: ['user:read', scope],
+      });
+      expect({ scope, status: res.status }).toEqual({ scope, status: 403 });
+      expect((await readApp(app.id))?.scopes).toEqual(['user:read']);
+    }
   });
 
   it('lets staff grant them to a first_party application', async () => {
     actAs(OWNER_ID, true);
     const app = await seedApp({ type: 'first_party', scopes: ['user:read'] });
     const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
-      scopes: ['user:read', 'files:app:write', 'files:app:delete'],
+      scopes: ['user:read', ...APP_FILE_SCOPES],
     });
     expect(res.status).toBe(200);
-    expect((await readApp(app.id))?.scopes).toEqual(
-      expect.arrayContaining(['files:app:write', 'files:app:delete']),
-    );
+    expect((await readApp(app.id))?.scopes).toEqual(expect.arrayContaining(APP_FILE_SCOPES));
   });
 
-  it('refuses them to a third_party application even from staff', async () => {
-    actAs(OWNER_ID, true);
-    const app = await seedApp({ type: 'third_party', scopes: ['user:read'] });
+  it('keeps them on a first_party application when a non-staff edit omits them', async () => {
+    const app = await seedApp({ type: 'first_party', scopes: ['user:read', ...APP_FILE_SCOPES] });
     const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
-      scopes: ['user:read', 'files:app:write'],
+      scopes: ['user:read'],
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect((await readApp(app.id))?.scopes).toEqual(expect.arrayContaining(APP_FILE_SCOPES));
+  });
+
+  it('removes them from a third_party application when its owner omits them', async () => {
+    const app = await seedApp({ type: 'third_party', scopes: ['user:read', ...APP_FILE_SCOPES] });
+    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+      scopes: ['user:read'],
+    });
+    expect(res.status).toBe(200);
     expect((await readApp(app.id))?.scopes).toEqual(['user:read']);
   });
 
-  it('refuses reclassifying a holder to third_party while it still holds them', async () => {
-    actAs(OWNER_ID, true);
-    const app = await seedApp({ type: 'first_party', scopes: ['files:app:write'] });
-    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+  it('lets a third_party application create a SERVICE credential carrying only them', async () => {
+    const app = await seedApp({
       type: 'third_party',
+      isOfficial: false,
+      isInternal: false,
+      scopes: ['user:read', 'files:write', ...APP_FILE_SCOPES],
     });
-    expect(res.status).toBe(400);
-    expect((await readApp(app.id))?.type).toBe('first_party');
+    const ok = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'files-svc',
+      type: 'service',
+      environment: 'production',
+      scopes: ['files:app:write', 'files:references:write'],
+    });
+    expect(ok.status).toBe(201);
+    expect(ok.body.credential?.scopes).toEqual(['files:app:write', 'files:references:write']);
+
+    const refused = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'files-svc-wide',
+      type: 'service',
+      environment: 'production',
+      scopes: ['files:app:write', 'files:write'],
+    });
+    expect(refused.status).toBe(403);
+  });
+
+  it('refuses a non-staff member putting them on a first_party application credential', async () => {
+    const app = await seedApp({ type: 'first_party', scopes: ['user:read', ...APP_FILE_SCOPES] });
+    const res = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'files-svc',
+      type: 'service',
+      environment: 'production',
+      scopes: ['files:app:write'],
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /applications/:appId/storage — what an application stores (ADR 0041 D2/D3)', () => {
+  async function seedAppFile(applicationId: string, size: number, status = 'active') {
+    await getDb()
+      .insert(files)
+      .values({
+        sha256: crypto.randomBytes(32).toString('hex'),
+        size,
+        mime: 'image/png',
+        ext: 'png',
+        ownerApplicationId: applicationId,
+        storageKey: `content/${crypto.randomBytes(8).toString('hex')}.png`,
+        status: status as 'active' | 'trash' | 'deleted',
+      });
+  }
+
+  it("reports a first_party application's live bytes, metered against no one", async () => {
+    const app = await seedApp({ type: 'first_party' });
+    await seedAppFile(app.id, 100);
+    await seedAppFile(app.id, 50, 'trash');
+    await seedAppFile(app.id, 999, 'deleted');
+    const res = await requestJson(server, 'GET', `/applications/${app.id}/storage`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      applicationId: app.id,
+      files: 2,
+      bytes: 150,
+      meteredAccountId: null,
+    });
+  });
+
+  it("names a third_party application's owning account as the metered one", async () => {
+    const app = await seedApp({ type: 'third_party' });
+    await seedAppFile(app.id, 7);
+    const res = await requestJson(server, 'GET', `/applications/${app.id}/storage`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      applicationId: app.id,
+      files: 1,
+      bytes: 7,
+      meteredAccountId: OWNER_ID,
+    });
+  });
+
+  it('is not readable by a caller with no access to the owning account', async () => {
+    const app = await seedApp({ type: 'third_party' });
+    actAs(OTHER_ID);
+    const res = await requestJson(server, 'GET', `/applications/${app.id}/storage`);
+    expect([403, 404]).toContain(res.status);
   });
 });
 

@@ -138,9 +138,10 @@
  *   other, and an application needing both asks for both.
  *
  *   Not privileged, and the bound that makes it self-grantable is the LINK, not
- *   the token. `file_links` records `created_by` and `files` records
- *   `owner_user_id`; the route admits a file only when some link for the calling
- *   app was created BY THE FILE'S OWNER. Linking performed no ownership check
+ *   the token. `file_references` records `created_by_user_id` and `files`
+ *   records `owner_user_id`; the route admits a file only when some reference
+ *   for the calling app was created BY THE FILE'S OWNER (an application's own
+ *   service-made reference has no creator and never qualifies). Linking performed no ownership check
  *   until 2026-10 — any authenticated user could link any file id into any app,
  *   and those links remain — so "a link for my app exists" is an
  *   attacker-supplied fact and would have made this scope "read any file whose
@@ -176,11 +177,13 @@
  *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  * - `files:app:write` / `files:app:delete` act on files the calling APPLICATION
  *   itself owns (`files.owner_application_id`, ADR 0041): upload, list and
- *   change visibility (`write`), tombstone (`delete`). The owner is always the
- *   service token's own `appId`, never a header, so neither reaches another
- *   application's files or any person's. PRIVILEGED, and grantable only to an
- *   application whose `type` is in {@link APPLICATION_OWNED_FILE_APPLICATION_TYPES}
- *   — see {@link isScopeGrantableToApplicationType}.
+ *   change visibility (`write`), tombstone (`delete`). `files:references:write`
+ *   adds and removes the calling application's own `file_references` (ADR 0041
+ *   D4). The owner of every call is the service token's own `appId`, never a
+ *   header, body or query field, so none of the three reaches another
+ *   application's files or references. Privileged for Oxy's own applications,
+ *   self-service for a `third_party` one — see
+ *   {@link isPrivilegedScopeForApplicationType}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -239,6 +242,7 @@ export const APPLICATION_SCOPES = [
   'federation:instance-fetch',
   'files:app:write',
   'files:app:delete',
+  'files:references:write',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -387,13 +391,16 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   anyway, because every signature spends Oxy's reputation as a fetcher: a
  *   remote admin who sees abusive reads from `instance@oxy.so` blocks all of
  *   Oxy, not the app that made them.
- * - `files:app:write` and `files:app:delete` are own-tenant authority — an
- *   application's own files, never anyone else's — and are privileged anyway,
- *   for the reason this set exists in reverse: they make Oxy hold bytes that NO
- *   PERSON owns, billed to the application's owning account (ADR 0041). Whether
- *   an application may keep platform storage of its own is a platform decision,
- *   not one its owner takes for themselves, and it is further bounded by
- *   application type ({@link isScopeGrantableToApplicationType}).
+ * - `files:app:write`, `files:app:delete` and `files:references:write` are
+ *   own-tenant authority — an application's own files and references, never
+ *   anyone else's. They are listed here because, on Oxy's own applications
+ *   (`first_party`, `internal`, `system`), they make Oxy hold bytes no account
+ *   pays for (ADR 0041 D2), which is a platform decision staff take. On a
+ *   `third_party` application they are self-service: its files count against
+ *   its developer's storage plan (D3). That type-dependence is
+ *   {@link isPrivilegedScopeForApplicationType}'s; every type-blind reader of
+ *   this set (the legacy scopeless-credential fallback, workload bindings)
+ *   treats them as privileged, which is the conservative reading.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
@@ -430,47 +437,42 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'federation:instance-fetch',
   'files:app:write',
   'files:app:delete',
+  'files:references:write',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
- * The application types that may own files (ADR 0041): Oxy's own products and
- * services. A third-party application never may — not even with staff behind
- * the grant — because an application-owned file belongs to no person, and Oxy
- * does not host ownerless storage for applications it does not run.
- *
- * Spelled here rather than imported from `db/schema/applications.ts`: that
- * module imports THIS one to render its scopes CHECK, so the import would be a
- * cycle. `applicationScopes.test.ts` pins every entry to `APPLICATION_TYPES`.
+ * The scopes over an application's own files and references (ADR 0041 D11).
+ * Who may grant them depends on the application's TYPE — see
+ * {@link isPrivilegedScopeForApplicationType}.
  */
-export const APPLICATION_OWNED_FILE_APPLICATION_TYPES = [
-  'first_party',
-  'internal',
-  'system',
-] as const;
-
-/** The scopes only an {@link APPLICATION_OWNED_FILE_APPLICATION_TYPES} application may hold. */
-export const APPLICATION_OWNED_FILE_SCOPES = [
+export const APPLICATION_FILE_SCOPES = [
   'files:app:write',
   'files:app:delete',
+  'files:references:write',
 ] as const satisfies readonly ApplicationScope[];
 
-const APPLICATION_OWNED_FILE_SCOPE_SET: ReadonlySet<string> = new Set<string>(
-  APPLICATION_OWNED_FILE_SCOPES,
-);
+const APPLICATION_FILE_SCOPE_SET: ReadonlySet<string> = new Set<string>(APPLICATION_FILE_SCOPES);
 
-/** True when `type` names an application that may own files. */
-export function mayApplicationTypeOwnFiles(type: string): boolean {
-  return (APPLICATION_OWNED_FILE_APPLICATION_TYPES as readonly string[]).includes(type);
+/** True when `scope` is one of {@link APPLICATION_FILE_SCOPES}. */
+export function isApplicationFileScope(scope: string): boolean {
+  return APPLICATION_FILE_SCOPE_SET.has(scope);
 }
 
 /**
- * Whether an application of `type` may hold `scope` at all — a bound on the
- * GRANT that applies to platform staff too, unlike the privileged gate, which
- * only decides WHO may grant. Every scope outside
- * {@link APPLICATION_OWNED_FILE_SCOPES} is grantable to every type.
+ * Whether granting `scope` to an application of `type` takes Oxy platform
+ * staff.
+ *
+ * Every privileged scope is, whatever the type — except the application file
+ * scopes, which are privileged only on Oxy's own applications. A `third_party`
+ * application's files belong to it and count against its developer's storage
+ * plan (ADR 0041 D3), so storing and referencing them is its own tenant's
+ * business, exactly like `files:write`. On a `first_party`, `internal` or
+ * `system` application the same bytes are the platform's and are metered
+ * against no one (D2), so staff decide.
  */
-export function isScopeGrantableToApplicationType(scope: string, type: string): boolean {
-  return !APPLICATION_OWNED_FILE_SCOPE_SET.has(scope) || mayApplicationTypeOwnFiles(type);
+export function isPrivilegedScopeForApplicationType(scope: string, type: string): boolean {
+  if (isApplicationFileScope(scope)) return type !== 'third_party';
+  return isPrivilegedScope(scope);
 }
 
 /**
@@ -686,6 +688,18 @@ const PAYMENTS_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<Ap
 /** True when `scope` is one of the Peable Gateway scopes. */
 export function isPaymentsScope(scope: string): scope is ApplicationScope {
   return PAYMENTS_APPLICATION_SCOPE_SET.has(scope as ApplicationScope);
+}
+
+/**
+ * The scopes a non-trusted (`third_party`) application may carry on a SERVICE
+ * credential, and so on the service token it mints: the payments pair, and the
+ * application file scopes (ADR 0041 D3/D11). Every one of them is bounded to
+ * the application's own tenant — its gateway resources, its own files, its own
+ * references — and the owner of every call is the token's `appId`. A service
+ * credential naming anything else still needs a trusted application.
+ */
+export function isSelfServiceServiceCredentialScope(scope: string): boolean {
+  return isPaymentsScope(scope) || isApplicationFileScope(scope);
 }
 
 /**
