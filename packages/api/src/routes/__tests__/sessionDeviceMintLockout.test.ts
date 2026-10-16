@@ -8,7 +8,7 @@
 process.env.DEVICE_ID_SALT = 'mint-lockout-test-device-id-salt-0123456789ab';
 
 import express from 'express';
-import http from 'http';
+import type http from 'http';
 import type { AddressInfo } from 'net';
 
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
@@ -23,6 +23,7 @@ jest.mock('../../middleware/auth', () => ({
   rejectQueryToken: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/rateLimiter', () => ({
+  ...jest.requireActual('../../middleware/rateLimiter'),
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../utils/socket', () => ({

@@ -47,7 +47,7 @@ import {
   MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE,
   type MachineCredentialRequest,
 } from '../middleware/machineCredential';
-import { rateLimit } from '../middleware/rateLimiter';
+import { rateLimit, rateLimitRetryAfterMs } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveServiceTokenPrincipal } from '../services/attribution.service';
 import { authenticateInferenceBearer, type EdgePrincipal } from '../services/inferenceEdge.service';
@@ -161,11 +161,14 @@ async function parseAndAuthenticate(
   next();
 }
 
+/** The machine limits' window: their budgets are per minute, as on the edge. */
+const MACHINE_LIMIT_WINDOW_MS = 60_000;
+
 /** The edge's machine limits, on the edge's own Redis buckets, answered as a public error. */
 function machineLimit(prefix: string, max: number, key: (principal: EdgePrincipal) => string) {
   return rateLimit({
     prefix,
-    windowMs: 60_000,
+    windowMs: MACHINE_LIMIT_WINDOW_MS,
     max,
     keyGenerator: (req) => {
       const principal = (req as GrantRequest).grantPrincipal;
@@ -175,10 +178,7 @@ function machineLimit(prefix: string, max: number, key: (principal: EdgePrincipa
     skip: (req) => (req as GrantRequest).machineCredential === undefined,
     handler: (req, res) => {
       const grantRequest = (req as GrantRequest).grantRequest;
-      const resetTime = (req as Request & { rateLimit?: { resetTime?: Date } }).rateLimit
-        ?.resetTime;
-      const retryAfterMs =
-        resetTime === undefined ? undefined : Math.max(0, resetTime.getTime() - Date.now());
+      const retryAfterMs = rateLimitRetryAfterMs(req, MACHINE_LIMIT_WINDOW_MS);
       res
         .status(429)
         .json(

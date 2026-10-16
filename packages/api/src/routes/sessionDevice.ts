@@ -15,8 +15,8 @@ import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
-import { rateLimit } from '../middleware/rateLimiter';
-import { clearFailures, reserveAttempt } from '../services/loginLockout.service';
+import { rateLimit, sendRateLimited } from '../middleware/rateLimiter';
+import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
 import sessionService from '../services/session.service';
@@ -51,6 +51,14 @@ function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
     scope,
     identifier: mintRequesterKey(deviceId, req),
     maxAttempts: DEVICE_TOKEN_MAX_ATTEMPTS,
+  });
+}
+
+/** A locked-out device secret is refused like every other limit (`sendRateLimited`). */
+function refuseLockedOut(res: Response, lockout: LockoutCheck): void {
+  sendRateLimited(res, {
+    message: 'Too many attempts',
+    retryAfterSeconds: lockout.retryAfterSeconds ?? 0,
   });
 }
 
@@ -117,10 +125,7 @@ router.post(
     // share one budget; a proven secret resets it.
     const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
-      if (typeof lockout.retryAfterSeconds === 'number') {
-        res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
-      }
-      res.status(429).json({ error: 'Too many attempts' });
+      refuseLockedOut(res, lockout);
       return;
     }
 
@@ -275,10 +280,7 @@ router.post(
     // share one budget; a proven secret resets it.
     const lockout = await reserveMintAttempt(DEVICE_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
-      if (typeof lockout.retryAfterSeconds === 'number') {
-        res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
-      }
-      res.status(429).json({ error: 'Too many attempts' });
+      refuseLockedOut(res, lockout);
       return;
     }
 
@@ -365,10 +367,7 @@ router.post(
     // Reserved atomically BEFORE the secret is checked (see above).
     const lockout = await reserveMintAttempt(BACKGROUND_TOKEN_LOCKOUT_SCOPE, deviceId, req);
     if (lockout.locked) {
-      if (typeof lockout.retryAfterSeconds === 'number') {
-        res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
-      }
-      res.status(429).json({ error: 'Too many attempts' });
+      refuseLockedOut(res, lockout);
       return;
     }
 

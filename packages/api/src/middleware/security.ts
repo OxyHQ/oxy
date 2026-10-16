@@ -1,37 +1,14 @@
 import jwt from 'jsonwebtoken';
-import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
-import { type Request } from 'express';
+import type { Request } from 'express';
 import helmet from 'helmet';
-import { RedisStore } from 'rate-limit-redis';
-import type { RedisReply } from 'rate-limit-redis';
-import { getRedisClient } from '../config/redis';
 import type { AuthRequest } from './auth';
 import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
+import { rateLimit } from './rateLimiter';
 
 const isProd = process.env.NODE_ENV !== 'development';
-
-/** hashedIpKey already buckets IPv6 before HMAC; silence express-rate-limit v8's false-positive scan. */
-const rateLimitValidate = { validate: { keyGeneratorIpFallback: false } } as const;
-
-// Build Redis-backed store options if available, otherwise fall back to in-memory.
-// Each limiter MUST pass a unique `prefix` so that hits land in distinct Redis
-// keys; otherwise a request that flows through both the global limiter and a
-// per-route limiter increments the same counter twice and express-rate-limit
-// emits ERR_ERL_DOUBLE_COUNT (and the user's effective budget is halved).
-function makeStore(prefix: string) {
-  const redis = getRedisClient();
-  if (!redis) return {};
-  return {
-    store: new RedisStore({
-      prefix,
-      sendCommand: (...args: string[]) =>
-        redis.call(args[0], ...args.slice(1)) as Promise<RedisReply>,
-    }),
-  };
-}
 
 /**
  * Paths hit ONLY by the first-party IdP worker (auth.oxy.so) server-to-server,
@@ -295,13 +272,10 @@ export function isFirstPartyServiceRequest(req: Request): boolean {
  * the same application a second budget.
  */
 const serviceCredentialLimiter = rateLimit({
-  ...makeStore('rl:service:credential:'),
-  ...rateLimitValidate,
+  prefix: 'rl:service:credential:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many requests for this service credential, please slow down.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req: Request) => servicePrincipal(req)?.appId ?? hashedIpKey(req),
   skip: (req: Request) => !isFirstPartyServiceRequest(req),
 });
@@ -314,13 +288,10 @@ const serviceCredentialLimiter = rateLimit({
 // per-account traffic. IdP worker server-to-server paths are skipped (see
 // isIdpServiceToServicePath) so shared-egress traffic never exhausts this budget.
 const rateLimiter = rateLimit({
-  ...makeStore('rl:general:'),
-  ...rateLimitValidate,
+  prefix: 'rl:general:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   // Per SUBJECT for an authenticated caller, per IP for everyone else — see
   // `userPrincipal`. A shared backend egress IP would otherwise pool every
   // signed-in reader of a relying app into ONE bucket.
@@ -349,13 +320,10 @@ const rateLimiter = rateLimit({
 // Unique prefix (`rl:federation:service:`) keeps this budget distinct from every
 // other limiter (no ERR_ERL_DOUBLE_COUNT).
 const federationServiceLimiter = rateLimit({
-  ...makeStore('rl:federation:service:'),
-  ...rateLimitValidate,
+  prefix: 'rl:federation:service:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many federation signing requests, please slow down.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
@@ -369,13 +337,10 @@ const federationServiceLimiter = rateLimit({
 // Unique prefix (`rl:idp:service:`) keeps the IdP worker's server-to-server
 // READ budget distinct from every other limiter (no ERR_ERL_DOUBLE_COUNT).
 const idpServiceLimiter = rateLimit({
-  ...makeStore('rl:idp:service:'),
-  ...rateLimitValidate,
+  prefix: 'rl:idp:service:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 20000 : 40000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
@@ -388,13 +353,10 @@ const idpServiceLimiter = rateLimit({
 // signing in hits ~5–8 /auth/* endpoints, and active sessions refresh on
 // /auth/refresh roughly every 15 minutes.
 const authRateLimiter = rateLimit({
-  ...makeStore('rl:auth:'),
-  ...rateLimitValidate,
+  prefix: 'rl:auth:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 300 : 2000,
   message: 'Too many authentication attempts from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   // Mounted under `/auth`, so the mount point is in `baseUrl`, not `path`.
   // The email sign-in dialog polls `collect` every few seconds for the link's
@@ -433,13 +395,10 @@ const authRateLimiter = rateLimit({
  * else's outage.
  */
 const userRateLimiter = rateLimit({
-  ...makeStore('rl:user:'),
-  ...rateLimitValidate,
+  prefix: 'rl:user:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 2000 : 4000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req: Request) => {
     return (req as AuthRequest).user?.id || hashedIpKey(req);
   },
