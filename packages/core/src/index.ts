@@ -356,6 +356,7 @@ export type {
   AssetUpdateVisibilityRequest,
   AssetUpdateVisibilityResponse,
   ServiceAssetMetadata,
+  AssetLiveStatus,
   ServiceAssetMetadataBySha,
   ApplicationFile,
   ApplicationFileUpload,

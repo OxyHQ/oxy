@@ -473,6 +473,11 @@ export interface FileMetadata {
    * server did not say.
    */
   inUse?: boolean;
+  /**
+   * `blocked`: taken down after a content claim (ADR 0041 D10) — shown to its
+   * owner as such, served to nobody. Absent when the server did not say.
+   */
+  status?: AssetLiveStatus;
   metadata?: {
     userId?: string;
     description?: string;
@@ -605,7 +610,12 @@ export interface Asset {
    * (ADR 0041). Present only on an application-owned file.
    */
   ownerApplicationId?: string;
-  status: 'active' | 'trash' | 'deleted';
+  /**
+   * `blocked`: taken down after a content claim (ADR 0041 D10) — not served
+   * anywhere and its bytes cannot be uploaded again (451 `CONTENT_BLOCKED`);
+   * only Oxy staff lift it. Like `trash`, never served.
+   */
+  status: 'active' | 'trash' | 'blocked' | 'deleted';
   visibility: FileVisibility;
   usageCount: number;
   /**
@@ -748,12 +758,18 @@ export interface ServiceLinkedDownloadUrl {
   sha256: string;
 }
 
+/**
+ * A file's status while it still holds its bytes: `active`, `trash`, or
+ * `blocked` (taken down after a content claim, ADR 0041 D10 — never served).
+ */
+export type AssetLiveStatus = 'active' | 'trash' | 'blocked';
+
 export interface ServiceAssetMetadata {
   id: string;
   sha256: string;
   mime: string;
   size: number;
-  status: 'active' | 'trash';
+  status: AssetLiveStatus;
   /** Intrinsic width in pixels when variant/metadata extraction has run. */
   width?: number;
   /** Intrinsic height in pixels when variant/metadata extraction has run. */
@@ -802,7 +818,7 @@ export interface ApplicationFile {
   ext: string;
   originalName?: string;
   ownerApplicationId: string;
-  status: 'active' | 'trash';
+  status: AssetLiveStatus;
   visibility: FileVisibility;
   createdAt: string;
   updatedAt: string;
@@ -925,7 +941,7 @@ export type ApplicationFileImportBatchResult =
 
 /** `POST /assets/service/user-media/import`: the account's file and how it was obtained. */
 export interface ServiceUserMediaImport {
-  file: ServiceUserMediaFile & { status: 'active' | 'trash' };
+  file: ServiceUserMediaFile & { status: AssetLiveStatus };
   outcome: FileImportOutcome;
   deduplicated: boolean;
   source: FileImportSource;
@@ -961,7 +977,7 @@ export interface ServiceAssetMetadataBySha {
   id: string;
   mime: string;
   size: number;
-  status: 'active' | 'trash';
+  status: AssetLiveStatus;
   url?: string;
   width?: number;
   height?: number;

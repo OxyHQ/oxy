@@ -52,11 +52,28 @@ Needs `@oxy.so/contracts` 4.20.0.
 ## 4.15.0
 
 Needs the Oxy API with application-owned files, file references, the file
-lifecycle, import by URL, application deletion and file events (ADR 0041,
-migrations `0167_application_owned_files`, `0168_file_references`,
-`0169_file_lifecycle` and `0170_application_file_events`). (The work below was
-first prepared as 4.12.0, then 4.13.0; both were published from `main` without
-it.)
+lifecycle, import by URL, application deletion, file events and content
+claims (ADR 0041, migrations `0167_application_owned_files`,
+`0168_file_references`, `0169_file_lifecycle`, `0170_application_file_events`
+and `0171_content_claims`), and `@oxy.so/contracts` 4.18.0. (The work below
+was first prepared as 4.12.0, then 4.13.0; both were published from `main`
+without it.)
+
+### Changed
+
+- A file can be `blocked`: taken down after a content claim (ADR 0041 D10).
+  `Asset.status` is `'active' | 'trash' | 'blocked' | 'deleted'`, and the
+  service views that list a live file (`ServiceAssetMetadata`,
+  `ServiceAssetMetadataBySha`, `ApplicationFile`, `ServiceUserMediaImport`)
+  carry the new `AssetLiveStatus` (`'active' | 'trash' | 'blocked'`). A
+  blocked file is never served; an exhaustive `switch` over the old unions
+  needs the new case. `FileEvent` delivers `file.blocked` and
+  `file.unblocked` (already in `FILE_EVENT_TYPES`) with `file.status:
+  'blocked'` / the restored status.
+- Every upload and import (`assets.upload`, `OxyServer.assets.uploadAppFile`,
+  `uploadUserMedia`, `importAppFile(s)`, `importUserMedia`) can answer 451
+  `CONTENT_BLOCKED`: those bytes were taken down and cannot be stored again,
+  by anyone.
 
 ### Breaking
 

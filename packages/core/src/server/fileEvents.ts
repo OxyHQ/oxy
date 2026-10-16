@@ -53,7 +53,7 @@ export interface FileEvent {
     /** Who owns the file — never which account. */
     ownerKind: 'account' | 'application' | 'platform';
     visibility: 'public' | 'unlisted' | 'private';
-    /** The file's status after the change: `deleted`, `trash`, `active` (and `blocked` later). */
+    /** The file's status after the change: `deleted`, `trash`, `active` or `blocked`. */
     status: string;
   };
   /** YOUR application's references to the file (empty when you own it and do not reference it). */

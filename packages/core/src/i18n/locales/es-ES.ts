@@ -1424,6 +1424,7 @@ const dict = {
     total: 'Total',
     loadingMore: 'Cargando más...',
     notInUse: 'Sin usar',
+    removedAfterClaim: 'Retirado tras una reclamación legal',
     loadingPhotoLayout: 'Cargando diseño de fotos...',
     uploading: 'Subiendo',
     upload: 'Subir',

@@ -439,7 +439,9 @@ export class ServerAssetsApi extends AssetsApi {
    * always the calling application. A third-party application's bytes count
    * toward its developer account's storage plan (over it: 413
    * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image
-   * or video only, at most 40 MiB.
+   * or video only, at most 40 MiB. Bytes taken down after a content claim are
+   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0041 D10) — here, by
+   * the imports and by every other upload.
    *
    * `visibility` is required: `public` and `unlisted` are readable by anyone
    * with the link; `private` by no person — only this application, through
