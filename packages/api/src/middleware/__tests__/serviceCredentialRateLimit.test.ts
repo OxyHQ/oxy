@@ -40,7 +40,7 @@ import {
 } from '../security';
 import { signServiceTokenEd25519 } from '../../config/serviceTokenSigning';
 
-function serviceToken(overrides: Record<string, unknown> = {}): string {
+function serviceToken(overrides: Record<string, unknown> = {}, aud = 'oxy-api'): string {
   const issuedAt = Math.floor(Date.now() / 1_000);
   return signServiceTokenEd25519({
     type: 'service',
@@ -55,7 +55,7 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
     scopes: ['federation:write'],
     ...overrides,
     iss: 'oxy-auth',
-    aud: 'oxy-api',
+    aud,
     iat: issuedAt,
     exp: issuedAt + 300,
   });
@@ -116,6 +116,19 @@ describe('isFirstPartyServiceRequest', () => {
     }
   });
 
+  it('recognises a service credential of any audience Oxy mints, keyed by its app', () => {
+    // Kaana's workload calls /internal/kaana/v1 with its control-audience token.
+    const kaana = serviceToken({ appId: 'kaana-app' }, 'oxy-api:kaana-control');
+    expect(
+      isFirstPartyServiceRequest(makeReq('/internal/kaana/v1/authorizations', `Bearer ${kaana}`)),
+    ).toBe(true);
+    // An audience Oxy never mints is not a service credential.
+    const foreign = serviceToken({ appId: 'kaana-app' }, 'somebody-else');
+    expect(
+      isFirstPartyServiceRequest(makeReq('/internal/kaana/v1/authorizations', `Bearer ${foreign}`)),
+    ).toBe(false);
+  });
+
   it('recognises nothing else — anonymous, user session, or garbage', () => {
     expect(isFirstPartyServiceRequest(makeReq('/users/resolve'))).toBe(false);
     expect(
@@ -166,6 +179,17 @@ describe('the two global budgets, mounted as server.ts mounts them', () => {
 
     expect(res.status).toBe(200);
     // NODE_ENV is not "development" under jest → production ceilings.
+    expect(res.headers['ratelimit-limit']).toBe('60000');
+  });
+
+  it("charges Kaana's control-plane calls to Kaana's ceiling, never the shared browser one", async () => {
+    const res = await request(server, {
+      method: 'POST',
+      path: '/internal/kaana/v1/authorizations',
+      authorization: `Bearer ${serviceToken({ appId: 'kaana-app' }, 'oxy-api:kaana-control')}`,
+    });
+
+    expect(res.status).toBe(200);
     expect(res.headers['ratelimit-limit']).toBe('60000');
   });
 

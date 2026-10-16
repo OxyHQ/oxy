@@ -7,6 +7,7 @@ import { RedisStore } from 'rate-limit-redis';
 import type { RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../config/redis';
 import type { AuthRequest } from './auth';
+import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
 
@@ -138,6 +139,28 @@ interface RequestWithServicePrincipal extends Request {
 }
 
 /**
+ * A token verified as a service credential Oxy minted for ANY of its audiences.
+ *
+ * Who is calling is what a rate limit keys on; which routes the token may use
+ * is each route's own check. Kaana's workload calls `/internal/kaana/v1` with
+ * a token for `oxy-api:kaana-control` (Kaana ADR 0002): read as `oxy-api` only,
+ * it was not a service request, so every grant for every Kaana caller fell into
+ * the shared per-IP browser budget, one application's embeddings burst spent
+ * it, and Oxy answered every other grant — voice calls included — with 429.
+ * A user or garbage token is refused at the first attempt (not EdDSA), so only
+ * service tokens ever pay for a second audience.
+ */
+function verifiedForAnyAudience(token: string): ReturnType<typeof verifyServiceToken> {
+  let first: ReturnType<typeof verifyServiceToken> | undefined;
+  for (const audience of SERVICE_TOKEN_AUDIENCES) {
+    const verification = verifyServiceToken(token, audience);
+    if (verification.ok || verification.reason !== 'invalid') return verification;
+    first ??= verification;
+  }
+  return first ?? { ok: false, reason: 'invalid' };
+}
+
+/**
  * The verified SERVICE principal behind this request, or `undefined` for a
  * browser, an anonymous caller, a user session, or an invalid/expired token.
  *
@@ -154,7 +177,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 
   const authHeader = req.headers.authorization;
   const verification = authHeader?.startsWith('Bearer ')
-    ? verifyServiceToken(authHeader.slice('Bearer '.length))
+    ? verifiedForAnyAudience(authHeader.slice('Bearer '.length))
     : ({ ok: false, reason: 'invalid' } as ReturnType<typeof verifyServiceToken>);
   (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL] = { payload: verification };
   return verification.ok ? { appId: verification.payload.appId } : undefined;
