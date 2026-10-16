@@ -22,7 +22,7 @@
  * - `report` (DEFAULT): every run counts what each step is due to act on and
  *   names up to {@link SAMPLE_SIZE} files per step, in `file_lifecycle_sweeps`
  *   (`GET /assets/admin/lifecycle/sweeps`, staff) and as a log line with
- *   CloudWatch metrics — and acts on NOTHING. Migration 0170 back-filled
+ *   CloudWatch metrics — and acts on NOTHING. Migration 0171 back-filled
  *   `unreferenced_since` on every existing file, so the first runs report the
  *   whole backlog; that is what an operator reviews before switching.
  * - `enforce`: also acts, at most {@link DEFAULT_BATCH_SIZE} files per step per

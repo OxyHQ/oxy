@@ -235,7 +235,7 @@ application, not with the business's session).
   these and the payments pair. Type-blind readers of the privileged set (the
   legacy scopeless-credential fallback, workload bindings) still treat them as
   privileged. The routes re-check live only that the application is `active`.
-- **`file_references`.** Migration `0169_file_references` (pre) creates the
+- **`file_references`.** Migration `0170_file_references` (pre) creates the
   table, copies every `file_links` row with its `app` resolved by
   `oxy_file_link_application_id` — `goway` → GoWay, `mercaria` → Mercaria,
   `nilo` → Nilo, `oxy-mail` → Oxy Inbox, `profiles` → Oxy Accounts, or an
@@ -243,10 +243,11 @@ application, not with the business's session).
   by a test) — and FAILS naming every value that resolves to no single active
   application. `scripts/file-references-preflight.ts` lists the values a
   database holds before deploying. A trigger mirrors the previous image's
-  `file_links` writes until `0175_drop_file_links` (post) drops the table:
+  `file_links` writes until `0176_drop_file_links` (post) drops the table:
   each later stage put its `pre` migrations in front of the drop (stages 2,
   3, 4a and 4b moved it from 0168 up to 0174, and main's
-  `0167_application_roles` one further, to 0175), so one release carries them
+  `0167_application_roles` and `0168_agent_requester_ceilings` two further,
+  to 0176), so one release carries them
   all and the drop runs after the rollout.
   For that window the previous image does not see references the new image
   writes.
@@ -267,7 +268,7 @@ application, not with the business's session).
 
 ### Stage 2 as built (D5, D6)
 
-- **`unreferenced_since`, `trashed_at`** (`0170_file_lifecycle`, pre). The
+- **`unreferenced_since`, `trashed_at`** (`0171_file_lifecycle`, pre). The
   reference write maintains `unreferenced_since` in its own transaction under
   a `FOR NO KEY UPDATE` lock on the file row (`fileRepository.addFileReferences`,
   `deleteFileReference`, `deleteFileReferencesByIds`, the owner split's
@@ -322,7 +323,7 @@ application, not with the business's session).
   undone. One open session per (application, entity type), 409 otherwise; an
   expired one answers 410 and is retired by the next `begin`. SDK:
   `OxyServer.assets.references.reconcile(entityType, items, { dryRun })`,
-  `@oxy.so/core` 4.16.0 (4.12.0, 4.13.0, 4.14.0 and 4.15.0 went to `main` first).
+  `@oxy.so/core` 4.17.0 (4.12.0 through 4.16.0 went to `main` first).
 - **GoWay** holds `files:references:write` in the seed.
 
 #### Switching the sweep to enforce
@@ -359,9 +360,9 @@ reference or a re-upload restores it until then.
 
 ### Stage 3 as built (D7, D8, D9; owner trash)
 
-Migration `0171_application_file_events` (pre): `file_sources`,
+Migration `0172_application_file_events` (pre): `file_sources`,
 `file_event_deliveries`, and three nullable `applications.files_webhook_*`
-columns. The drop of `file_links` moved after it (now `0175_drop_file_links`,
+columns. The drop of `file_links` moved after it (now `0176_drop_file_links`,
 post).
 
 - **Import by URL (D7).** `POST /assets/service/app/import`
@@ -478,10 +479,10 @@ post).
 
 ### Stage 4a as built (D10: claims and the takedown)
 
-Migration `0172_content_claims` (pre): six tables, `files.status` gains
+Migration `0173_content_claims` (pre): six tables, `files.status` gains
 `blocked`, `users.staff_capabilities` admits `content:claims`. The drop of
-`file_links` moved after it (now `0175_drop_file_links`, post). The two widened
-CHECKs are added `NOT VALID` (as 0168 did); the three per-owner live uniques are rebuilt
+`file_links` moved after it (now `0176_drop_file_links`, post). The two widened
+CHECKs are added `NOT VALID` (as 0169 did); the three per-owner live uniques are rebuilt
 with `blocked` in their predicate, behind a guard that skips an index already
 rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
 `files`).
@@ -490,7 +491,7 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   "Report content" page (OxyHQ/website#173, `src/lib/contentClaims.ts`)
   posts there; a valid bearer records the submitting account, none is needed
   (an unusable bearer is simply anonymous). The body is
-  `contentClaimSubmissionSchema` in `@oxy.so/contracts` 4.20.0 (strict; every
+  `contentClaimSubmissionSchema` in `@oxy.so/contracts` 4.21.0 (strict; every
   message a key under `contentClaim.errors.*`, which the website translates
   and the API answers as its own English sentence): `201 { id, reference }`
   (`OXY-XXXX-XXXX`, Crockford base32, random), or `400 { error, code:
@@ -595,10 +596,10 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   and owner kind, previews, attaching files, every action behind a
   confirmation that says what it does, the trail). The console's CSP admits
   `https://api.oxy.so` for `img-src`/`media-src`, for the previews.
-- **SDK.** `@oxy.so/core` 4.16.0: `Asset.status` gains `blocked`, the live
+- **SDK.** `@oxy.so/core` 4.17.0: `Asset.status` gains `blocked`, the live
   service views take `AssetLiveStatus`, uploads and imports document 451
   `CONTENT_BLOCKED`; the file manager shows a blocked file as "Removed after
-  a legal claim". `@oxy.so/contracts` 4.20.0 carries the claim contract.
+  a legal claim". `@oxy.so/contracts` 4.21.0 carries the claim contract.
 - **Not done here (stage 4b).** The API's file cache is per process for five
   minutes, so another task that cached a file just before it was blocked can
   still stream it for that long (the CDN is invalidated at once); the
@@ -608,10 +609,10 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
 
 ### Stage 4b as built (large uploads, adoption, the open items)
 
-Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
-(both pre); the drop of `file_links` is now `0175_drop_file_links` (post). SDKs:
-`@oxy.so/contracts` 4.20.0, `@oxy.so/core` 4.16.0, `@oxy.so/services` 11.8.0
-(main took contracts 4.18.0 and 4.19.0, core 4.14.0 and 4.15.0, and services
+Migrations `0174_file_upload_sessions` and `0175_content_claim_counter_notices`
+(both pre); the drop of `file_links` is now `0176_drop_file_links` (post). SDKs:
+`@oxy.so/contracts` 4.21.0, `@oxy.so/core` 4.17.0, `@oxy.so/services` 11.8.0
+(main took contracts 4.18.0 to 4.20.0, core 4.14.0 to 4.16.0, and services
 11.7.0 meanwhile).
 
 - **Large, any-type uploads.** `POST /assets/service/app/uploads` (`files:app:write`;
@@ -768,7 +769,7 @@ Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
   `fileCacheWriters.census.test.ts` fails on a new `files` writer until it is
   reviewed. A read in flight across an invalidation is answered but not cached
   (`setIfFresh`). Without Redis it is local, with the five-minute TTL.
-- **`@oxy.so/services` peers.** Core is peered `^4.16.0` (the root catalog; the
+- **`@oxy.so/services` peers.** Core is peered `^4.17.0` (the root catalog; the
   exact pin was a leftover of the Oxy One prerelease) and contracts is a caret
   dependency, so a later 4.x minor no longer conflicts with a published
   services or nests a second core; core 5 stays refused.
@@ -787,7 +788,7 @@ Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
   `files:*` set and tier.
 - **The owner's counter-notice (D10, 17 U.S.C. § 512(g)).** `POST
   /content-claims/counter-notices` (signed in; `contentClaimCounterNoticeSchema`
-  in contracts 4.20.0, messages under `contentClaim.counterNotice.errors.*`)
+  in contracts 4.21.0, messages under `contentClaim.counterNotice.errors.*`)
   names the claim by `reference`, `claimId` or `fileIds` and answers only for
   files the caller (or the person operating the session) owns that are
   `blocked` with bytes on that claim's blocklist — anything else is 404, like
@@ -837,7 +838,7 @@ Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
 ### Required changes in other repositories (stage 4a)
 
 - **The website** (OxyHQ/website#173): nothing to change for the contract —
-  its client already matches. When `@oxy.so/contracts` 4.20.0 is published it
+  its client already matches. When `@oxy.so/contracts` 4.21.0 is published it
   can replace its local schema with `contentClaimSubmissionSchema` (same keys)
   and import `CONTENT_CLAIM_LIMITS`, `CONTENT_CLAIM_KINDS` and
   `CLAIMANT_RELATIONSHIPS` from `@oxy.so/contracts/client`.
@@ -860,7 +861,7 @@ Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
   `oxy.apps.setFilesWebhook`), stores the secret, verifies with
   `verifyFileEventSignature`, and answers the challenge.
 - **Callers of `oxy.apps.delete`** pass `{ confirmName }` (`@oxy.so/core`
-  4.16.0); the console does.
+  4.17.0); the console does.
 
 ### Required changes in other repositories (stage 2)
 
@@ -872,7 +873,7 @@ Migrations `0173_file_upload_sessions` and `0174_content_claim_counter_notices`
   `files:references:write`; run `seed:oxy-applications` for it to take effect.
 - **A product that showed a trashed file** (a link removed, the file kept
   being displayed) now gets a 404 / placeholder for it: trash is not served.
-- **SDK consumers** take `@oxy.so/core` 4.16.0 for `references.reconcile`,
+- **SDK consumers** take `@oxy.so/core` 4.17.0 for `references.reconcile`,
   `Asset.inUse` and `assets.list({ inUse })`; nothing else changes shape.
 
 ## Release runbook
@@ -881,16 +882,16 @@ One release carries stages 1–4b. In order; each step names how to know it
 worked before the next.
 
 1. **Pre migrations** (`run-postgres-migrations.yml`, phase `pre`):
-   `0168_application_owned_files` … `0174_content_claim_counter_notices`.
+   `0169_application_owned_files` … `0175_content_claim_counter_notices`.
    First run `bun run packages/api/scripts/file-references-preflight.ts`
    against production (read-only): every legacy `file_links.app` value must
-   resolve, or `0169` fails by design. For a large `files`, build the indexes
-   `0168` and `0172` create `CONCURRENTLY` out of band first (their headers
+   resolve, or `0170` fails by design. For a large `files`, build the indexes
+   `0169` and `0173` create `CONCURRENTLY` out of band first (their headers
    give the statements; the migrations skip an index that already exists and
    is valid). *Verify:* the migrator reports the seven applied; `select
    count(*) from file_references` equals the `file_links` rows it copied.
 2. **API** (`deploy-aws.yml`). The image serves both tables during the rollout
-   (the `file_links` mirror trigger); the post migration `0175_drop_file_links`
+   (the `file_links` mirror trigger); the post migration `0176_drop_file_links`
    runs after the rollout completes. New env vars all have defaults:
    `FILE_LIFECYCLE_MODE` (`report`), `FILE_UPLOAD_WORKER_ENABLED`,
    `LARGE_UPLOAD_COMPLETE_WAIT_MS`, `FILE_STORAGE_GROWTH_*`,
@@ -913,10 +914,10 @@ worked before the next.
    them. *Verify:* the console shows "Content claims" to them and
    `GET /content-claims/access` answers `{ canReview: true }`.
 5. **Publish the SDKs** with `release-packages.yml`, in dependency order:
-   `@oxy.so/contracts` 4.20.0, `@oxy.so/core` 4.16.0, `@oxy.so/services`
+   `@oxy.so/contracts` 4.21.0, `@oxy.so/core` 4.17.0, `@oxy.so/services`
    11.8.0 (re-check npm first; if a version was taken meanwhile, bump to the
    next free one in all three changelogs and in core's contracts dependency).
-   *Verify:* `npm view @oxy.so/core@4.16.0 version` etc.
+   *Verify:* `npm view @oxy.so/core@4.17.0 version` etc.
 6. **Product PRs** (each its own repository): Mercaria (store and catalogue
    media ownership, references, `adoptAppFile` for digital deliverables,
    `importAppFile` for the importer, `file.blocked` handling); GoWay (claim

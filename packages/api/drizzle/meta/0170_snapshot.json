@@ -1,6 +1,6 @@
 {
-  "id": "55409b9d-f5f0-4615-a497-0ba27cfeb631",
-  "prevId": "85669ba6-6294-4000-8a9d-d88946238bc1",
+  "id": "85669ba6-6294-4000-8a9d-d88946238bc1",
+  "prevId": "a49f4b2d-e41a-4c10-a033-ae1b0f28fd9b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -702,6 +702,12 @@
           "notNull": true,
           "default": "'[]'::jsonb"
         },
+        "ceiling_id": {
+          "name": "ceiling_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp with time zone",
@@ -730,6 +736,22 @@
         }
       },
       "indexes": {
+        "capability_execution_ceiling_idx": {
+          "name": "capability_execution_ceiling_idx",
+          "columns": [
+            {
+              "expression": "ceiling_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"capability_execution_authorizations\".\"ceiling_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "capability_execution_requester_method_idx": {
           "name": "capability_execution_requester_method_idx",
           "columns": [
@@ -908,6 +930,19 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "capability_execution_authorizations_ceiling_id_agent_requester_ceilings_id_fk": {
+          "name": "capability_execution_authorizations_ceiling_id_agent_requester_ceilings_id_fk",
+          "tableFrom": "capability_execution_authorizations",
+          "tableTo": "agent_requester_ceilings",
+          "columnsFrom": [
+            "ceiling_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
         "capability_execution_requester_method_fk": {
           "name": "capability_execution_requester_method_fk",
           "tableFrom": "capability_execution_authorizations",
@@ -928,6 +963,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "capability_execution_ceiling_scope_check": {
+          "name": "capability_execution_ceiling_scope_check",
+          "value": "\"capability_execution_authorizations\".\"ceiling_id\" is null or (\n        \"capability_execution_authorizations\".\"actor_type\" = 'agent'\n        and \"capability_execution_authorizations\".\"owner_account_id\" = \"capability_execution_authorizations\".\"requester_account_id\"\n        and \"capability_execution_authorizations\".\"resource_key\" = \"capability_execution_authorizations\".\"effective_account_id\")"
+        },
         "capability_execution_authorizations_kind_check": {
           "name": "capability_execution_authorizations_kind_check",
           "value": "\"capability_execution_authorizations\".\"kind\" in ('direct_request', 'automation')"
@@ -10332,137 +10371,14 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.file_lifecycle_sweeps": {
-      "name": "file_lifecycle_sweeps",
+    "public.file_links": {
+      "name": "file_links",
       "schema": "",
       "columns": {
         "id": {
           "name": "id",
           "type": "text",
           "primaryKey": true,
-          "notNull": true
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'running'"
-        },
-        "claimed_by": {
-          "name": "claimed_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lease_expires_at": {
-          "name": "lease_expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "counts": {
-          "name": "counts",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "samples": {
-          "name": "samples",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "file_lifecycle_sweeps_started_at_idx": {
-          "name": "file_lifecycle_sweeps_started_at_idx",
-          "columns": [
-            {
-              "expression": "started_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "file_lifecycle_sweeps_created_at_idx": {
-          "name": "file_lifecycle_sweeps_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "file_lifecycle_sweeps_mode_check": {
-          "name": "file_lifecycle_sweeps_mode_check",
-          "value": "\"file_lifecycle_sweeps\".\"mode\" in ('report', 'enforce')"
-        },
-        "file_lifecycle_sweeps_status_check": {
-          "name": "file_lifecycle_sweeps_status_check",
-          "value": "\"file_lifecycle_sweeps\".\"status\" in ('running', 'completed', 'failed', 'abandoned')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.file_reference_reconciliation_items": {
-      "name": "file_reference_reconciliation_items",
-      "schema": "",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
         },
         "file_id": {
@@ -10471,56 +10387,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "file_reference_reconciliation_items_session_id_file_reference_reconciliations_id_fk": {
-          "name": "file_reference_reconciliation_items_session_id_file_reference_reconciliations_id_fk",
-          "tableFrom": "file_reference_reconciliation_items",
-          "tableTo": "file_reference_reconciliations",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "file_reference_reconciliation_items_session_id_file_id_entity_id_pk": {
-          "name": "file_reference_reconciliation_items_session_id_file_id_entity_id_pk",
-          "columns": [
-            "session_id",
-            "file_id",
-            "entity_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.file_reference_reconciliations": {
-      "name": "file_reference_reconciliations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "application_id": {
-          "name": "application_id",
+        "app": {
+          "name": "app",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -10531,35 +10399,21 @@
           "primaryKey": false,
           "notNull": true
         },
-        "status": {
-          "name": "status",
+        "entity_id": {
+          "name": "entity_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'open'"
-        },
-        "item_count": {
-          "name": "item_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
         },
-        "committed_at": {
-          "name": "committed_at",
-          "type": "timestamp with time zone",
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
-        "result": {
-          "name": "result",
-          "type": "jsonb",
+        "webhook_url": {
+          "name": "webhook_url",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -10569,21 +10423,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
         }
       },
       "indexes": {
-        "file_reference_reconciliations_open_key": {
-          "name": "file_reference_reconciliations_open_key",
+        "file_links_app_entity_type_entity_id_created_by_idx": {
+          "name": "file_links_app_entity_type_entity_id_created_by_idx",
           "columns": [
             {
-              "expression": "application_id",
+              "expression": "app",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -10593,19 +10440,30 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
-          "isUnique": true,
-          "where": "\"file_reference_reconciliations\".\"status\" in ('open', 'committing')",
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
         },
-        "file_reference_reconciliations_expires_at_idx": {
-          "name": "file_reference_reconciliations_expires_at_idx",
+        "file_links_created_by_idx": {
+          "name": "file_links_created_by_idx",
           "columns": [
             {
-              "expression": "expires_at",
+              "expression": "created_by",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -10618,12 +10476,25 @@
         }
       },
       "foreignKeys": {
-        "file_reference_reconciliations_application_id_applications_id_fk": {
-          "name": "file_reference_reconciliations_application_id_applications_id_fk",
-          "tableFrom": "file_reference_reconciliations",
-          "tableTo": "applications",
+        "file_links_file_id_files_id_fk": {
+          "name": "file_links_file_id_files_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "files",
           "columnsFrom": [
-            "application_id"
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_links_created_by_users_id_fk": {
+          "name": "file_links_created_by_users_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
           ],
           "columnsTo": [
             "id"
@@ -10633,18 +10504,20 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "file_reference_reconciliations_status_check": {
-          "name": "file_reference_reconciliations_status_check",
-          "value": "\"file_reference_reconciliations\".\"status\" in ('open', 'committing', 'committed', 'abandoned')"
-        },
-        "file_reference_reconciliations_item_count_check": {
-          "name": "file_reference_reconciliations_item_count_check",
-          "value": "\"file_reference_reconciliations\".\"item_count\" >= 0"
+      "uniqueConstraints": {
+        "file_links_file_id_app_entity_key": {
+          "name": "file_links_file_id_app_entity_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "file_id",
+            "app",
+            "entity_type",
+            "entity_id"
+          ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.file_references": {
@@ -11002,18 +10875,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "unreferenced_since": {
-          "name": "unreferenced_since",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "trashed_at": {
-          "name": "trashed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -11252,54 +11113,6 @@
           ],
           "isUnique": false,
           "where": "\"files\".\"owner_application_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "files_application_unreferenced_since_idx": {
-          "name": "files_application_unreferenced_since_idx",
-          "columns": [
-            {
-              "expression": "unreferenced_since",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"files\".\"owner_application_id\" is not null and \"files\".\"status\" = 'active' and \"files\".\"unreferenced_since\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "files_application_trashed_at_idx": {
-          "name": "files_application_trashed_at_idx",
-          "columns": [
-            {
-              "expression": "trashed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"files\".\"owner_application_id\" is not null and \"files\".\"status\" = 'trash'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "files_pending_upload_created_at_idx": {
-          "name": "files_pending_upload_created_at_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"files\".\"status\" = 'active' and \"files\".\"owner_user_id\" is not null and \"files\".\"original_name\" is null and \"files\".\"metadata\" is null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -39733,155 +39546,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.file_links": {
-      "name": "file_links",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "file_id": {
-          "name": "file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "app": {
-          "name": "app",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_type": {
-          "name": "entity_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "entity_id": {
-          "name": "entity_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "webhook_url": {
-          "name": "webhook_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "file_links_app_entity_type_entity_id_created_by_idx": {
-          "name": "file_links_app_entity_type_entity_id_created_by_idx",
-          "columns": [
-            {
-              "expression": "app",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "entity_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "file_links_created_by_idx": {
-          "name": "file_links_created_by_idx",
-          "columns": [
-            {
-              "expression": "created_by",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "file_links_file_id_files_id_fk": {
-          "name": "file_links_file_id_files_id_fk",
-          "tableFrom": "file_links",
-          "tableTo": "files",
-          "columnsFrom": [
-            "file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "file_links_created_by_users_id_fk": {
-          "name": "file_links_created_by_users_id_fk",
-          "tableFrom": "file_links",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "file_links_file_id_app_entity_key": {
-          "name": "file_links_file_id_app_entity_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "file_id",
-            "app",
-            "entity_type",
-            "entity_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.application_role_grants": {
       "name": "application_role_grants",
       "schema": "",
@@ -40218,6 +39882,228 @@
         "application_role_permissions_retired_by_check": {
           "name": "application_role_permissions_retired_by_check",
           "value": "\"application_role_permissions\".\"retired_by_user_id\" is null or \"application_role_permissions\".\"retired_at\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.agent_requester_ceilings": {
+      "name": "agent_requester_ceilings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agent_account_id": {
+          "name": "agent_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_slug": {
+          "name": "app_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catalog_registration_id": {
+          "name": "catalog_registration_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_packages": {
+          "name": "capability_packages",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "capabilities": {
+          "name": "capabilities",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "tool_overrides": {
+          "name": "tool_overrides",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "limits": {
+          "name": "limits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "maximum_autonomy": {
+          "name": "maximum_autonomy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "agent_requester_ceilings_live_key": {
+          "name": "agent_requester_ceilings_live_key",
+          "columns": [
+            {
+              "expression": "agent_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"agent_requester_ceilings\".\"revoked_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_requester_ceilings_catalog_registration_idx": {
+          "name": "agent_requester_ceilings_catalog_registration_idx",
+          "columns": [
+            {
+              "expression": "catalog_registration_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_requester_ceilings_agent_account_id_users_id_fk": {
+          "name": "agent_requester_ceilings_agent_account_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "agent_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk": {
+          "name": "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "app_capability_catalog_registrations",
+          "columnsFrom": [
+            "catalog_registration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_created_by_user_id_users_id_fk": {
+          "name": "agent_requester_ceilings_created_by_user_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_updated_by_user_id_users_id_fk": {
+          "name": "agent_requester_ceilings_updated_by_user_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agent_requester_ceilings_autonomy_check": {
+          "name": "agent_requester_ceilings_autonomy_check",
+          "value": "\"agent_requester_ceilings\".\"maximum_autonomy\" in ('read_only', 'autonomous')"
+        },
+        "agent_requester_ceilings_packages_check": {
+          "name": "agent_requester_ceilings_packages_check",
+          "value": "\"agent_requester_ceilings\".\"capability_packages\" <@ array['read', 'create', 'publish', 'communicate', 'administer', 'finance', 'security', 'delegate']::text[]"
+        },
+        "agent_requester_ceilings_version_check": {
+          "name": "agent_requester_ceilings_version_check",
+          "value": "\"agent_requester_ceilings\".\"version\" > 0"
+        },
+        "agent_requester_ceilings_overrides_check": {
+          "name": "agent_requester_ceilings_overrides_check",
+          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"tool_overrides\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.decision) || (@.decision != \"allow\" && @.decision != \"deny\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"decision\")')"
+        },
+        "agent_requester_ceilings_limits_check": {
+          "name": "agent_requester_ceilings_limits_check",
+          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"limits\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.key) || @.key.type() != \"string\" || !exists(@.value) || (@.value.type() != \"number\" && @.value.type() != \"boolean\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"key\" && @.key != \"value\")')"
         }
       },
       "isRLSEnabled": false

@@ -1,5 +1,5 @@
 /**
- * Migrations 0169 (pre) and `*_drop_file_links` (post): `file_links` → `file_references`
+ * Migrations 0170 (pre) and `*_drop_file_links` (post): `file_links` → `file_references`
  * (ADR 0043 D4), run VERBATIM against a seeded legacy table.
  *
  * Both files are read from `drizzle/` and executed statement by statement in
@@ -9,7 +9,7 @@
  * ## Why its own databases
  *
  * The copy is unscoped — it reads EVERY `file_links` row — and the scenario
- * needs the schema as it stood BEFORE 0169: a `file_links` table and no
+ * needs the schema as it stood BEFORE 0170: a `file_links` table and no
  * `file_references`. Each describe takes a fully migrated throwaway database,
  * drops `file_references`, recreates `file_links` from the statements that
  * created it (`0004_nebulous_warbound.sql`), seeds it, and only then runs the
@@ -75,7 +75,7 @@ async function migrate(sql: Sql, file: string): Promise<void> {
   });
 }
 
-/** A fully migrated database put back to the shape 0169 meets: `file_links`, no `file_references`. */
+/** A fully migrated database put back to the shape 0170 meets: `file_links`, no `file_references`. */
 async function legacyDatabase(): Promise<{ url: string; sql: Sql }> {
   const url = await createTestDatabase({ assignEnv: false });
   const sql = postgres(url, { max: 1, onnotice: () => {} });
@@ -135,8 +135,8 @@ async function link(
 }
 
 describe('the migration table and the runtime table are one table', () => {
-  it('0169 resolves exactly the aliases `legacyFileLinkApplications.ts` lists', () => {
-    const migration = readFileSync(join(DRIZZLE, '0169_file_references.sql'), 'utf8');
+  it('0170 resolves exactly the aliases `legacyFileLinkApplications.ts` lists', () => {
+    const migration = readFileSync(join(DRIZZLE, '0170_file_references.sql'), 'utf8');
     const values = migration.slice(
       migration.indexOf('VALUES'),
       migration.indexOf('),\n  candidates'),
@@ -159,7 +159,7 @@ describe('the migration table and the runtime table are one table', () => {
   });
 });
 
-describe('0169 + the drop on links that all map', () => {
+describe('0170 + the drop on links that all map', () => {
   let url: string;
   let sql: Sql;
   const ids: Record<string, string> = {};
@@ -199,7 +199,7 @@ describe('0169 + the drop on links that all map', () => {
     // An application id as `app` — the ADR 0021 consent shape.
     ids.idLink = await link(sql, { fileId: photo, app: ids.thirdParty, createdBy: owner });
 
-    await migrate(sql, '0169_file_references.sql');
+    await migrate(sql, '0170_file_references.sql');
   });
 
   afterAll(async () => {
@@ -267,7 +267,7 @@ describe('0169 + the drop on links that all map', () => {
   });
 });
 
-describe('0169 on links that do not all map', () => {
+describe('0170 on links that do not all map', () => {
   let url: string;
   let sql: Sql;
 
@@ -292,7 +292,7 @@ describe('0169 on links that do not all map', () => {
   it('fails, naming every unmappable value, and copies nothing', async () => {
     let failure: unknown;
     try {
-      await migrate(sql, '0169_file_references.sql');
+      await migrate(sql, '0170_file_references.sql');
     } catch (error) {
       failure = error;
     }

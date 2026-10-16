@@ -2,61 +2,6 @@
 
 ## 4.21.0
 
-Additive only: no export removed.
-
-### Added
-
-- Supervised personal policy (ADR 0041), in `safety.ts`: the supervision
-  management contracts (`supervisionStateSchema`, `supervisionInvitationSchema`,
-  `supervisionContactsResponseSchema`, the invite/accept/contact/review inputs),
-  the consumer-service decision contracts (`safetyRequesterSchema`,
-  `safetyDecisionSchema`, profile/message/delivery/contact/content access and
-  their batches, `messagingSessions*`, `publicationPolic{y,ies}*`), purchase
-  approvals (`purchaseEffectsSchema`, `purchaseApprovalSchema`,
-  `purchaseApprovalListSchema`, `reservePurchaseSchema`, `confirmPurchaseSchema`,
-  `cancelPurchaseSchema`, `purchaseReviewInputSchema`), the minimal selectors
-  (`safetyPeople*`, `safetyOrganizations*`), `safetySession*`, and the
-  vocabularies `SUPERVISED_ACTIONS`, `SAFETY_POLICY_VERSION`,
-  `SUPERVISION_CONSENT_VERSION`, `SUPERVISION_STATUSES`,
-  `SUPERVISION_INVITATION_STATUSES`, `PURCHASE_APPROVAL_STATUSES`,
-  `SAFETY_DECISION_REASONS`, `CONTENT_CLASSIFICATIONS`, `SAFETY_ERROR_CODES`.
-- `@oxy.so/contracts/client`: Zod-free checks for the browser half
-  (`supervisionStateCheck`, `supervisionInvitationCheck`,
-  `supervisionContactsResponseCheck`, `supervision{Invite,Accept,Contact,Review}InputCheck`,
-  `safetyPeople{Input,Response}Check`, `safetyOrganizations{Input,Response}Check`,
-  `purchaseApprovalCheck`, `purchaseApprovalListCheck`,
-  `purchaseReviewInputCheck`), and `transform` in `check.ts`.
-- `serviceTokenScopesSchema` / `serviceTokenOptionsSchema` /
-  `ServiceTokenOptions`: an exact, normalized subset of a service grant.
-- `REAUTH_ACTIONS` gains `supervision` and `supervision_purchase`.
-
-## 4.20.0
-
-
-## 4.20.0
-
-Additive only: no export removed. ADR 0042 (agent requester ceilings) and Alia
-ADR 0020 (every agent is the same agent).
-
-### Added
-
-- `agentRequesterCeilingWriteSchema` / `AgentRequesterCeilingWrite` and
-  `agentRequesterCeilingSchema` / `AgentRequesterCeiling`: what an agent may do
-  in one app for whoever uses it, published by an operator of its bot. Its
-  autonomy is one of `AGENT_REQUESTER_CEILING_AUTONOMY` (`read_only` |
-  `autonomous`, Alia's "Ver" / "Ver y actuar").
-- `capabilityTicketClaimsSchema.ceilingId` and `policyDecisionSchema.ceilingId`.
-  A ticket carries a grant or a ceiling, never both, and a ceiling only for an
-  `agent` actor on the requester's own authority (`ownerAccountId ===
-  requesterAccountId`) at an account root.
-- `appCapabilityCatalogSchema.features` (`catalogFeatureSchema` /
-  `CatalogFeature`): a feature an agent may gate on, answered by an
-  internal-only read `checkTool` and optionally spent by an internal-only,
-  idempotency-required `consumeTool`.
-- `appCapabilityCatalogSchema.internalTransport` (`CATALOG_INTERNAL_TRANSPORTS`:
-  `http` | `mcp`): how a coordinator reaches the catalogue's internal tools.
-## 4.19.0
-
 Additive only: no export removed or changed.
 
 ### Added
@@ -94,6 +39,28 @@ Additive only: no export removed or changed.
   (`CONTENT_CLAIM_COUNTER_NOTICE_INVALID`, `…_AMBIGUOUS`, `…_EXISTS`) — the
   constants also on `@oxy.so/contracts/client`.
 
+## 4.20.0
+
+Additive only: no export removed. ADR 0042 (agent requester ceilings) and Alia
+ADR 0020 (every agent is the same agent).
+
+### Added
+
+- `agentRequesterCeilingWriteSchema` / `AgentRequesterCeilingWrite` and
+  `agentRequesterCeilingSchema` / `AgentRequesterCeiling`: what an agent may do
+  in one app for whoever uses it, published by an operator of its bot. Its
+  autonomy is one of `AGENT_REQUESTER_CEILING_AUTONOMY` (`read_only` |
+  `autonomous`, Alia's "Ver" / "Ver y actuar").
+- `capabilityTicketClaimsSchema.ceilingId` and `policyDecisionSchema.ceilingId`.
+  A ticket carries a grant or a ceiling, never both, and a ceiling only for an
+  `agent` actor on the requester's own authority (`ownerAccountId ===
+  requesterAccountId`) at an account root.
+- `appCapabilityCatalogSchema.features` (`catalogFeatureSchema` /
+  `CatalogFeature`): a feature an agent may gate on, answered by an
+  internal-only read `checkTool` and optionally spent by an internal-only,
+  idempotency-required `consumeTool`.
+- `appCapabilityCatalogSchema.internalTransport` (`CATALOG_INTERNAL_TRANSPORTS`:
+  `http` | `mcp`): how a coordinator reaches the catalogue's internal tools.
 ## 4.19.0
 
 Additive only: no export removed or changed in the root entry.

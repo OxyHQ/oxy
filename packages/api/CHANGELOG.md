@@ -5,8 +5,8 @@
 ### Added (ADR 0043 — who owns a file, who uses it, and when it goes away)
 
 The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4b; its
-"Release runbook" gives the deploy order). Migrations `0168`–`0174` (pre) and
-`0175_drop_file_links` (post).
+"Release runbook" gives the deploy order). Migrations `0169`–`0175` (pre) and
+`0176_drop_file_links` (post).
 
 - An application can own files (`/assets/service/app`, `files:app:*`);
   third-party applications' files count toward their developer's plan.

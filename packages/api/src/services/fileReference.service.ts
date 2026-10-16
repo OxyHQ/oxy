@@ -53,7 +53,7 @@ export async function referenceApplicationCandidates(
 
 /**
  * The application an `app` string names, or `null` when it names none or more
- * than one — the runtime twin of migration 0169's `oxy_file_link_application_id`
+ * than one — the runtime twin of migration 0170's `oxy_file_link_application_id`
  * (`utils/legacyFileLinkApplications.ts` is the table both read).
  */
 export async function resolveReferenceApplicationId(app: string): Promise<string | null> {

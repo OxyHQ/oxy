@@ -5,7 +5,7 @@
  * `file_references` names a real application; `file_links` named a string. This
  * is the one mapping between them, used three ways that must agree:
  *
- * 1. migration `0169_file_references` — its `VALUES` list is this table,
+ * 1. migration `0170_file_references` — its `VALUES` list is this table,
  *    spelled out (`legacyFileLinkApplications.test.ts` asserts the two match);
  * 2. `scripts/file-references-preflight.ts` — lists every distinct `app` in a
  *    database and what it resolves to, so an operator can see BEFORE deploying

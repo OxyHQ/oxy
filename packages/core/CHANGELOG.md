@@ -2,66 +2,14 @@
 
 ## 4.17.0
 
-Needs `@oxy.so/contracts` 4.21.0.
-
-### Added
-
-- `serviceToken(apiKey?, apiSecret?, { scopes })` and
-  `serviceRequest(..., { serviceTokenScopes })`: mint a token holding exactly
-  that subset of the live grant (Oxy refuses a scope outside it, and a mint
-  that ignores the narrowing is rejected). Each audience, credential and scope
-  set has its own cache entry; invalidation clears every variant.
-- Supervised personal policy (ADR 0041). `oxy.safety` in a browser:
-  `supervisionState`, `inviteGuardian`, `acceptGuardianInvitation`,
-  `cancelGuardianInvitation`, `contacts`, `approveContact`, `revokeContact`,
-  `reviewSupervision`, `people`, `organizations`, `purchaseApproval(s)`,
-  `reviewPurchaseApproval`. On `OxyServer` (`ServerSafetyApi`), the
-  consumer-service lanes, each with a token narrowed to `safety:decide`:
-  `profileAccess(input, requester)`, `profileAccessBatch`, `messageAccess`,
-  `messageAccessBatch`, `deliveryAccess`, `deliveryAccessBatch`,
-  `messagingSessions`, `contactAccess`, `contentAccess`, `contentAccessBatch`,
-  `publicationPolicy`, `publicationPolicies`, `requestPurchaseApproval`,
-  `reservePurchase`, `confirmPurchase`, `cancelPurchase`.
-- `middleware.auth({ supervisedAction })` / `socket({ supervisedAction })`:
-  validate through the reviewed supervised lane (`ServerSessionApi`), and a
-  policy denial is a 403, never an anonymous request.
-  `strictOptionalBearer: true` keeps anonymous access on an optional route but
-  refuses a presented bad bearer (401), a denial (403) or an authority outage
-  (503) instead of downgrading it.
-
-### Changed
-
-- `OxyServer.safety.profileAccess` now asks `POST /safety/service/profile-access`
-  with the service's own `safety:decide` token plus the requester proof
-  (`{ accessToken }`, `{ accessToken: null }` or `{ connectionToken }`): the
-  consumer application needs `safety:decide` first.
-- The auth middleware validates the request's bearer through
-  `/session/validate-header/` (cross-checked against its session) instead of
-  `/session/validate/` by id. `session.validate(id, { accessToken })` does the
-  same; without `accessToken` it is unchanged.
-
-## 4.16.0
-
-
-## 4.16.0
-
-Needs `@oxy.so/contracts` 4.20.0.
-
-### Added
-
-- `CreateExecutionAuthorizationInput.ceilingId` (`OxyServer.agency.createExecutionAuthorization`):
-  name the agent owner's published ceiling that bounds the authority (ADR 0042),
-  for an agent acting for the requester on the requester's own account root.
-## 4.15.0
-
 Needs the Oxy API with application-owned files, file references, the file
 lifecycle, import by URL, application deletion, file events and content
 claims, large uploads, adoption and counter-notices (ADR 0043, migrations
-`0168_application_owned_files`, `0169_file_references`, `0170_file_lifecycle`,
-`0171_application_file_events`, `0172_content_claims`,
-`0173_file_upload_sessions` and `0174_content_claim_counter_notices`), and
-`@oxy.so/contracts` 4.20.0. (The work below was first prepared as 4.12.0,
-then 4.13.0, then 4.14.0, then 4.15.0; each of those was published or taken from `main`
+`0169_application_owned_files`, `0170_file_references`, `0171_file_lifecycle`,
+`0172_application_file_events`, `0173_content_claims`,
+`0174_file_upload_sessions` and `0175_content_claim_counter_notices`), and
+`@oxy.so/contracts` 4.21.0. (The work below was first prepared as 4.12.0,
+then 4.13.0, then 4.14.0, then 4.15.0, then 4.16.0; each of those was published or taken from `main`
 without it.)
 
 ### Changed
@@ -128,7 +76,7 @@ without it.)
 - `oxy.contentClaims.submitCounterNotice(notice)` (`ContentClaimsApi`): the
   signed-in owner of content a claim took down disputes it
   (`POST /content-claims/counter-notices`, ADR 0043 D10; body
-  `ContentClaimCounterNotice` from `@oxy.so/contracts` 4.20.0) →
+  `ContentClaimCounterNotice` from `@oxy.so/contracts` 4.21.0) →
   `ContentClaimCounterNoticeResponse`.
 - `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
   → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
@@ -234,6 +182,15 @@ without it.)
   `Asset.ownerApplicationId?` and `ServiceAssetMetadata.ownerApplicationId?`.
   Code that assumed `ownerUserId: string` must handle its absence.
 
+## 4.16.0
+
+Needs `@oxy.so/contracts` 4.20.0.
+
+### Added
+
+- `CreateExecutionAuthorizationInput.ceilingId` (`OxyServer.agency.createExecutionAuthorization`):
+  name the agent owner's published ceiling that bounds the authority (ADR 0042),
+  for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
 Needs `@oxy.so/contracts` 4.19.0. Additive: nothing existing changes behaviour.

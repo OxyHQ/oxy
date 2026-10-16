@@ -2,11 +2,11 @@
 
 ## [11.8.0] - 2026-10-16
 
-Needs `@oxy.so/core` 4.16.0 (and so `@oxy.so/contracts` 4.20.0).
+Needs `@oxy.so/core` 4.17.0 (and so `@oxy.so/contracts` 4.21.0).
 
 ### Changed
 
-- The `@oxy.so/core` peer is `^4.16.0` (it was an exact version, a leftover
+- The `@oxy.so/core` peer is `^4.17.0` (it was an exact version, a leftover
   of the Oxy One prerelease pin), and `@oxy.so/contracts` is a caret
   dependency (it was exact): a later core or contracts 4.x minor no longer
   conflicts with this release or nests a second copy in the app. Core 5 is
@@ -28,7 +28,7 @@ Needs `@oxy.so/core` 4.16.0 (and so `@oxy.so/contracts` 4.20.0).
   refuses and the person is asked again before the delete is forced. A file
   removed after a legal claim cannot be trashed, so removing it stays the
   permanent delete. The library no longer lists trashed files (needs the API
-  and `@oxy.so/core` 4.16.0 `assets.list({ status: 'trash' })`). Every string
+  and `@oxy.so/core` 4.17.0 `assets.list({ status: 'trash' })`). Every string
   is translated in all eleven locales; the viewer's "Delete" button, which
   was English-only, now is too. `queryKeys.files.trash(ownerId)` is the trash
   list's cache key, under `files.all`.
