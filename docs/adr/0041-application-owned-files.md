@@ -1,7 +1,7 @@
 # ADR 0041 — Who owns a file, who uses it, and when it goes away
 
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
-  1 and 2 of the rollout are implemented on this branch)
+  1, 2 and 3 of the rollout are implemented on this branch)
 - Date: 2026-10-16
 - Decided by: the owner of Oxy
 - Changes: the `files` owner model of `0124_files_per_owner_live_key`
@@ -242,9 +242,9 @@ application, not with the business's session).
   by a test) — and FAILS naming every value that resolves to no single active
   application. `scripts/file-references-preflight.ts` lists the values a
   database holds before deploying. A trigger mirrors the previous image's
-  `file_links` writes until `0170_drop_file_links` (post; numbered 0168 until
-  stage 2 put its `pre` migration in front of it, so one release can carry
-  both stages) drops the table.
+  `file_links` writes until `0171_drop_file_links` (post; numbered 0168, then
+  0169, until stages 2 and 3 each put their `pre` migration in front of it, so
+  one release can carry all three stages) drops the table.
   For that window the previous image does not see references the new image
   writes.
 - **Who may reference.** `POST`/`DELETE /assets/service/references` (batch of
@@ -353,6 +353,137 @@ reference or a re-upload restores it until then.
   digital-asset link (`services/digital/storage.ts`, sent from the server
   client with no user session, which the session route does not accept) must
   move to `assets.references.add`.
+
+### Stage 3 as built (D7, D8, D9; owner trash)
+
+Migration `0170_application_file_events` (pre): `file_sources`,
+`file_event_deliveries`, and three nullable `applications.files_webhook_*`
+columns. The drop of `file_links` moved to `0171_drop_file_links` (post).
+
+- **Import by URL (D7).** `POST /assets/service/app/import`
+  (`files:app:write`) `{ sourceUrl, visibility, reference?, revalidate? }`;
+  `POST /assets/service/app/import/batch` `{ items }` (≤ 50, run four at a
+  time, per item `{ index, ok, … | error: { status, code, message } }`);
+  `POST /assets/service/user-media/import` — the account-owned twin, with
+  exactly `/service/user-media`'s authority and owner: the owner is the
+  `x-owner-user-id` header (not a body field, to stay identical to the
+  upload), and the scope check is the same helper (`files:user-media:write`,
+  or the legacy `files:write` + `federation:write` pair Mention holds);
+  `visibility` defaults to `public` like the upload. `reference` registers
+  the CALLING application's use in the same request under
+  `mayApplicationReference`, and needs `files:references:write` too (403
+  before anything is fetched). The fetcher is `services/fileImport.service.ts`
+  over `safeFetch` with `redirect: 'manual'`: every hop re-resolved and pinned
+  by safeFetch AND required to be `https` (safeFetch alone would follow to
+  http), ≤ 5 redirects, no credentials (a `user:pass@` URL is 400),
+  `Accept-Encoding: identity` (an encoded body is refused), 15 s to headers,
+  60 s in all, 40 MiB through the upload pipeline's own byte meter, image or
+  video types `isAllowedCacheMime` admits. The bytes go through the normal
+  upload (`uploadApplicationFileStream` / `uploadUserMediaStreamDetailed`):
+  per-owner sha256 dedupe, variants, a third-party application's plan. Errors:
+  400 `INVALID_SOURCE_URL`, 422 `SOURCE_URL_REFUSED`, 502
+  `SOURCE_FETCH_FAILED`, 504 `SOURCE_FETCH_TIMEOUT`, 415, 413
+  `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`. `file_sources` is unique per
+  (owner, SHA-256 of the normalized URL, fragment dropped); the URL is sealed
+  with `secretBox` (context `file-source|<owner>|<hash>`) and only the host is
+  in clear. A repeat import of an ACTIVE file answers `outcome: 'existing'`
+  with no request; `revalidate` sends `If-None-Match` / `If-Modified-Since`
+  (`not_modified` on 304); new bytes become a file of their own and the
+  source row moves (`downloaded`); a source whose file was trashed or deleted
+  is downloaded again. Answers carry `{ file, outcome, deduplicated, source:
+  { host, fetchedAt, etag?, lastModified? }, reference? }`, never the URL.
+- **Application deletion (D8).** `DELETE /applications/:appId` takes
+  `{ confirmName }` (checked AFTER `app:delete`, so a caller without it still
+  gets 403), compared trimmed and case-sensitively with the current name,
+  re-checked under the row lock; otherwise 400 `CONFIRM_NAME_MISMATCH` and
+  nothing changes. In the same transaction
+  (`services/applicationDeletion.service.ts`): `status = 'deleted'`, every
+  reference the application holds removed (`unreferenced_since` stamped on
+  files left with none — an account's file becomes *not in use*, never
+  trashed), every non-deleted file it owns tombstoned (trash included; a file
+  someone else holds too — they are told) with its targets armed in
+  `storage_object_deletions` (`file.deleted`, `app:<id>`), and `file.deleted`
+  queued for every other application using one. After commit the CDN paths
+  are invalidated; the console route also starts draining the ledger in the
+  background, and the storage-deletion worker finishes anything left (it does
+  all of it on the account paths). Answer: `{ success, filesDeleted,
+  referencesRemoved }`. A write racing the deletion cannot add to it: the
+  reference insert and an application file's insert read the application
+  under `FOR KEY SHARE` (conflicting with the deletion's `FOR UPDATE`, taken
+  first in the same lock order) and refuse a deleted one. Tokens: unchanged —
+  the file routes already re-check `active` live. **Accounts:** the hard
+  delete, the personal archive and the organization archive call
+  `deleteAccountApplications` before `recordAccountStorageDeletion`, which
+  then removes the tombstoned rows, so `RESTRICT` never meets the cascade.
+  The console's delete dialog requires typing the name.
+- **File events (D9).** Not the existing `applications.webhook_url`: it
+  receives account events as Security Event Tokens at an endpoint built for
+  them, and its secret is never readable by the developer, so HMAC
+  verification against it was impossible. Instead
+  `applications.files_webhook_url` + `files_webhook_secret_ciphertext`
+  (`secretBox`, context `files-webhook|<id>`) + `files_webhook_verified_at`
+  (CHECK: no URL without both). `PUT /applications/:appId/files-webhook`
+  `{ url }` (`webhooks:update`; https; `safeFetch`, so a public address)
+  POSTs `{ type: 'webhook.challenge', challenge }` signed with a NEW secret
+  and stores the endpoint only on a 2xx `{ challenge }` echo (422
+  `WEBHOOK_VERIFICATION_FAILED` otherwise); it returns `{ url, verifiedAt,
+  secret }`, the only time the secret is shown. `GET` (`webhooks:read`)
+  answers `{ url, verifiedAt }`; `DELETE` clears all three. The console's
+  Webhooks section has a "File events" block for it. `recordFileEvents`
+  writes one `file_event_deliveries` row per (file, application) in the
+  transaction of the change — the owning application and every referencing
+  one, only with a verified endpoint, never a deleted one — with the payload
+  `{ id, type, occurredAt, file: { id, ownerKind, visibility, status },
+  references }` (that application's own references only; an account owner is
+  `ownerKind: 'account'`, never named). Emitted from: every tombstone
+  (`tombstoneAndOwePurge`: owner delete, application delete, federated delete,
+  cache eviction, the 30-day purge), application deletion, visibility changes
+  (`updateFile`'s `afterUpdate`), the sweep's trash and the owner's trash
+  (`file.trashed`), and every return from trash (restore, a re-upload, a new
+  reference: `file.restored`). `file.blocked` / `file.unblocked` are in the
+  CHECK and the SDK union for stage 4. `fileEventDelivery.worker.ts`
+  (every API task, `FILE_EVENT_WEBHOOK_WORKER_ENABLED`, default on) leases
+  rows `FOR UPDATE SKIP LOCKED`, reads the endpoint and secret at delivery
+  time, POSTs the stored JSON with `oxy-event-id`, `oxy-event-type` and
+  `oxy-signature: t=<unix>,v1=<HMAC-SHA256(secret, "<t>.<body>")>`, no
+  redirects, 10 s; 2xx acknowledges, anything else backs off 1 min doubling to
+  6 h, dead-lettered after 16 attempts; an endpoint removed (or application
+  deleted) dead-letters at once. Rows expire 30 days after creation
+  (`db/expiry.ts`). SDK: `verifyFileEventSignature(rawBody, headers, secret,
+  { toleranceSeconds = 300 })` in `@oxy.so/core/server`.
+  `file_references.webhook_url` is no longer read, written or serialized; the
+  column stays until a later post migration drops it.
+- **Owner trash.** `POST /assets/:id/trash` (the owner's session only; 404
+  for anyone else and for a deleted file; idempotent): `active` → `trash`
+  with `trashed_at`, off the CDN at once, `file.trashed` to every application
+  using it; `POST /:id/restore` brings it back. SDK `assets.trash(id)`. The
+  file manager is NOT switched to it: it has a delete flow but no trash view
+  to restore from, so trashing there would make files vanish from the
+  person's sight while still counting against them; that needs a trash view
+  first.
+- **Not done / open.** Applications deleted BEFORE this stage keep their
+  files (not retroactively purged; a one-off operator run of
+  `deleteApplicationContent` per such application would do it). An account's
+  hard delete or archive does not send `file.deleted` for the ACCOUNT's own
+  files (relying parties get `account.deleted`). An application's file held
+  by a mail attachment or a store screenshot is tombstoned and purged with
+  the application (the developer asked); on an account hard delete such a
+  row still refuses the cascade, as an account's own file always did. The D2
+  growth alert is still not built.
+
+### Required changes in other repositories (stage 3)
+
+- **Every product that imports by URL** (Mercaria's catalogue importer and
+  connectors, Moovo, Mention's upload-from-URL, Homiio, Syra, GWJ, the
+  website) can drop its own fetcher for `OxyServer.assets.importAppFile` /
+  `importAppFiles` (application-owned) or `importUserMedia` (a person's),
+  passing `reference` so the file is used from the start.
+- **A product that wants to react to takedowns or deletions** registers a
+  file-events endpoint (console → Webhooks → File events, or
+  `oxy.apps.setFilesWebhook`), stores the secret, verifies with
+  `verifyFileEventSignature`, and answers the challenge.
+- **Callers of `oxy.apps.delete`** pass `{ confirmName }` (`@oxy.so/core`
+  4.13.0); the console does.
 
 ### Required changes in other repositories (stage 2)
 
