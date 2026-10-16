@@ -47,6 +47,15 @@
  * claim retires as `abandoned`. The lease is renewed between steps.
  *
  * Time is injected (`now`), so a test sweeps "25 hours later" without waiting.
+ *
+ * ## The storage observation (ADR 0041 D2)
+ *
+ * After its steps, every run (either mode — it acts on nothing) measures what
+ * each application stores and added in the last 24 hours, publishes it as
+ * `Oxy/FileStorage` metrics and flags a growth anomaly
+ * (`applicationStorageObservation.ts`). It rides this lease and schedule, so
+ * exactly one task measures, once an interval; `FILE_LIFECYCLE_MODE=off` stops
+ * it too. A failure to observe is logged and never fails the sweep.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -61,6 +70,10 @@ import {
   fileLifecycleSweeps,
 } from '../db/schema/fileLifecycleSweeps';
 import { logger } from '../utils/logger';
+import {
+  type ApplicationStorageSummary,
+  observeAndPublishApplicationStorage,
+} from './applicationStorageObservation';
 import { assetService } from './assetServiceSingleton';
 import {
   countFileLifecycleCandidates,
@@ -137,6 +150,8 @@ export interface FileLifecycleSweepOptions {
   /** Skip the schedule (not the lease): an operator's run, and tests. */
   force?: boolean;
   actions?: FileLifecycleActions;
+  /** The storage observation (ADR 0041 D2); a seam for tests. */
+  observeStorage?: (now: Date) => Promise<ApplicationStorageSummary>;
 }
 
 export interface FileLifecycleSweepReport {
@@ -145,6 +160,8 @@ export interface FileLifecycleSweepReport {
   startedAt: Date;
   counts: Record<FileLifecycleStep, FileLifecycleStepCounts>;
   samples: Record<FileLifecycleStep, FileLifecycleSample[]>;
+  /** What the storage observation published, or `null` when it failed (logged). */
+  storage: ApplicationStorageSummary | null;
 }
 
 const WORKER_OWNER_ID = `${hostname()}:${process.pid}:${randomBytes(4).toString('hex')}`;
@@ -385,12 +402,24 @@ export async function runFileLifecycleSweep(
     throw error;
   }
 
+  // Observability rides the run (ADR 0041 D2): never a reason for it to fail.
+  let storage: ApplicationStorageSummary | null = null;
+  try {
+    storage = await (options.observeStorage ?? observeAndPublishApplicationStorage)(now);
+  } catch (error) {
+    logger.error('[FileLifecycle] Storage observation failed; the next run measures again', {
+      sweepId: claimed.id,
+      error: describeError(error),
+    });
+  }
+
   const report: FileLifecycleSweepReport = {
     id: claimed.id,
     mode: options.mode,
     startedAt: claimed.startedAt,
     counts,
     samples,
+    storage,
   };
   publishMetrics(report);
   return report;
