@@ -1,5 +1,38 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.24.0
+
+Additive only: no export removed. ADR 0044 (an application may confine its own
+agent to its own surfaces) and ADR 0045 (an Oxy app proves which app it is with
+an Oxy-signed app assertion).
+
+### Added
+
+- `APPLICATION_AGENT_AVAILABILITIES` (`anywhere` | `own_application`),
+  `applicationAgentAvailabilitySchema`, `applicationAgentWriteSchema` /
+  `ApplicationAgentWrite` and `applicationAgentSchema` / `ApplicationAgent`
+  (ADR 0044): one of an application's agents and where it opens, written only
+  by Oxy staff.
+- `agentAvailabilitySchema` / `AgentAvailability`: the answer of
+  `GET /capabilities/agent-availability/:agentAccountId`, `{ anywhere: true }`
+  or `{ anywhere: false, applicationIds }` (at least one), matched against the
+  request's verified app assertion.
+- App assertions (ADR 0045), in `appAssertions.ts`: the registry declaration
+  (`applicationRecognitionWriteSchema` / `ApplicationRecognitionWrite`,
+  `applicationRecognitionSchema`, `applicationWebOriginSchema`,
+  `isExactHttpsOrigin`, `androidPackageNameSchema`, `signingCertSha256Schema`,
+  `appleTeamIdSchema`, `appleBundleIdSchema`), the exchange
+  (`appAssertionChallengeRequestSchema` / `...ResponseSchema`,
+  `appAttestKeyRequestSchema` / `...ResponseSchema`, `appAssertionRequestSchema`
+  / `...ResponseSchema`) and the vocabulary `APP_ASSERTION_PLATFORMS`,
+  `APP_ASSERTION_CHALLENGE_PURPOSES`, `APP_ASSERTION_ERROR_CODES`,
+  `OXY_APP_ASSERTION_TYPE` (`OXY-APP+JWT`), `OXY_APP_ASSERTION_AUDIENCE`
+  (`oxy-apps`), `OXY_APP_ASSERTION_HEADER` (`X-Oxy-App-Assertion`) and
+  `OXY_APP_ASSERTION_TTL_SECONDS` (300).
+- `@oxy.so/contracts/client`: the same constants and
+  `appAssertionChallengeResponseCheck`, `appAttestKeyResponseCheck`,
+  `appAssertionResponseCheck`.
+
 ## 4.22.0
 
 Additive only: no export removed or changed.

@@ -21,7 +21,7 @@ import {
   isSelfServiceServiceCredentialScope,
 } from '../utils/applicationScopes';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { isStaffUser } from '../middleware/requireStaff';
+import { isStaffUser, requireStaff } from '../middleware/requireStaff';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -48,6 +48,7 @@ import {
   type ApplicationPermission,
 } from '../utils/accountRoles';
 import {
+  appAgentParams,
   appIdRouteParams,
   appCredentialParams,
   appRoleGrantParams,
@@ -87,6 +88,10 @@ import {
   type DeclareApplicationPermissionsRequest,
   type ListApplicationRoleGrantsQuery,
   type RevokeApplicationRoleGrantRequest,
+  applicationAgentWriteSchema,
+  type ApplicationAgentWrite,
+  applicationRecognitionWriteSchema,
+  type ApplicationRecognitionWrite,
 } from '@oxy.so/contracts';
 import {
   declarePermissions,
@@ -104,6 +109,16 @@ import {
   storeScreenshotPatch,
 } from '../schemas/store.schemas';
 import type { AppScreenshotPlatform } from '../db/schema/appListingScreenshots';
+import {
+  listApplicationAgents,
+  removeApplicationAgent,
+  writeApplicationAgent,
+} from '../services/applicationAgents.service';
+import {
+  readApplicationRecognition,
+  removeApplicationRecognition,
+  writeApplicationRecognition,
+} from '../services/applicationRecognition.service';
 import {
   addScreenshot,
   deleteScreenshot,
@@ -1710,6 +1725,134 @@ router.delete(
       applicationId: application.id,
     });
     res.json({ success: true });
+  }),
+);
+
+// ============================================================================
+// Agents (ADR 0044)
+//
+// Which agents are this application's, and whether they open anywhere or only
+// on this application's own surfaces (its verified app assertion, ADR 0045). A
+// platform decision about Oxy's own applications, so it is written only by Oxy
+// staff, on the same terms as the staff-only `capabilities` field of
+// `PATCH /:appId`: the caller may update the application AND is platform staff.
+// Unlike that field, which a non-staff patch silently drops, these routes refuse
+// a non-staff caller outright — the whole request is the staff-only change.
+// There is no other write path.
+// ============================================================================
+
+/** The application's agents and their availability. */
+router.get(
+  '/:appId/agents',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json({ agents: await listApplicationAgents(requireApplication(req).id) });
+  }),
+);
+
+/** Make a bot one of the application's agents, or change where it opens. Staff only. */
+router.put(
+  '/:appId/agents/:agentAccountId',
+  validate({ params: appAgentParams, body: applicationAgentWriteSchema }),
+  requireStaff,
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const { availability } = req.body as ApplicationAgentWrite;
+    const agent = await writeApplicationAgent({
+      application: { id: application.id, ownerAccountId: application.ownerAccountId },
+      agentAccountId: req.params.agentAccountId,
+      availability,
+      staffUserId: requireUserId(req),
+    });
+    logger.info('Application agent written', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+      agentAccountId: agent.agentAccountId,
+      availability: agent.availability,
+    });
+    res.json({ agent });
+  }),
+);
+
+/** Stop a bot being one of the application's agents: it is available anywhere again. Staff only. */
+router.delete(
+  '/:appId/agents/:agentAccountId',
+  validate({ params: appAgentParams }),
+  requireStaff,
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    await removeApplicationAgent(application.id, req.params.agentAccountId);
+    logger.info('Application agent removed', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+      agentAccountId: req.params.agentAccountId,
+    });
+    res.status(204).send();
+  }),
+);
+
+// ============================================================================
+// Recognition (ADR 0045)
+//
+// How Oxy recognises this application when it asks for an app assertion: its
+// exact web origins, its Android package and signing certificates, its iOS team
+// and bundle. Recognition is what an app assertion — and so an agent confined to
+// its application (ADR 0044) — rests on, so it is written only by Oxy staff, on
+// the same terms as the application's agents: staff AND `app:update`, refused
+// outright to anyone else. There is no other write path.
+// ============================================================================
+
+/** How the application is recognised. An application nobody declared declares nothing. */
+router.get(
+  '/:appId/recognition',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json({ recognition: await readApplicationRecognition(requireApplication(req).id) });
+  }),
+);
+
+/** Replace the application's whole declaration. Staff only. */
+router.put(
+  '/:appId/recognition',
+  validate({ params: appIdRouteParams, body: applicationRecognitionWriteSchema }),
+  requireStaff,
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const recognition = await writeApplicationRecognition({
+      applicationId: application.id,
+      recognition: req.body as ApplicationRecognitionWrite,
+      staffUserId: requireUserId(req),
+    });
+    logger.info('Application recognition written', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+      webOrigins: recognition.webOrigins.length,
+      android: recognition.android !== null,
+      ios: recognition.ios !== null,
+    });
+    res.json({ recognition });
+  }),
+);
+
+/** Remove the declaration: the application can no longer assert any platform. Staff only. */
+router.delete(
+  '/:appId/recognition',
+  validate({ params: appIdRouteParams }),
+  requireStaff,
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    await removeApplicationRecognition(application.id);
+    logger.info('Application recognition removed', {
+      userId: requireUserId(req),
+      applicationId: application.id,
+    });
+    res.status(204).send();
   }),
 );
 

@@ -224,6 +224,26 @@ export type {
   OxyRequesterContext,
 } from './requesterAssertion';
 
+// App assertions (ADR 0045): which Oxy app a request comes from.
+export {
+  OXY_APP_ASSERTION_DEFAULT_ISSUER,
+  OxyAppAssertionError,
+  oxyAppAssertionClaimsSchema,
+  readAppAssertionHeader,
+  readOxyAppAssertionKeyId,
+  signOxyAppAssertion,
+  verifyAppAssertion,
+  verifyOxyAppAssertion,
+} from './appAssertion';
+export type {
+  OxyAppAssertionClaims,
+  OxyAppAssertionErrorCode,
+  OxyAppAssertionSession,
+  OxyAppAssertionVerificationOptions,
+  VerifiedAppAssertion,
+  VerifyAppAssertionOptions,
+} from './appAssertion';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 export { createLiveCapabilityTicketVerifier } from './liveCapabilityTicket';

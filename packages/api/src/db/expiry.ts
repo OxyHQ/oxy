@@ -102,6 +102,8 @@ import {
   inferenceProviderConnectionAuditEvents,
 } from './schema/inferenceProviderConnectionAuditEvents';
 import { identityProofChallenges } from './schema/identityProofChallenges';
+import { appAssertionChallenges } from './schema/appAssertionChallenges';
+import { APP_ATTEST_KEY_RETENTION_SECONDS, appAttestKeys } from './schema/appAttestKeys';
 import { emailVerifications } from './schema/emailVerifications';
 import { emailSignInRequests } from './schema/emailSignInRequests';
 import { signInSecondFactorChallenges } from './schema/signInChallenges';
@@ -248,6 +250,24 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Housekeeping only — the proof verifier burns `used_at` with an ' +
       '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
       'unspendable at its deadline whether or not the sweep has run.',
+  },
+  {
+    table: appAssertionChallenges,
+    column: appAssertionChallenges.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      'Housekeeping only — the app assertion service burns `used_at` with an ' +
+      '`expires_at > now()` predicate in the same UPDATE, so a challenge is ' +
+      'unspendable at its deadline whether or not the sweep has run.',
+  },
+  {
+    table: appAttestKeys,
+    column: appAttestKeys.lastUsedAt,
+    retentionSeconds: APP_ATTEST_KEY_RETENTION_SECONDS,
+    reason:
+      'Retention window on a key nobody has asserted with for 180 days. A swept ' +
+      'key reads as unknown and the install attests a new one; nothing else ' +
+      'depends on the sweep.',
   },
   {
     table: identityLinkRequests,

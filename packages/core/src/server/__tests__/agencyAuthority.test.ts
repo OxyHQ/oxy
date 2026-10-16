@@ -206,3 +206,52 @@ it('revokes a direct execution through the requester lane without service mintin
   ).rejects.toThrow('authority unavailable');
   expect(request).toHaveBeenCalledTimes(1);
 });
+
+describe('agentAvailability (ADR 0044)', () => {
+  it('asks the coordinator lane live, without cache, deduplication or retries', async () => {
+    const { oxy, request } = fixture();
+    request.mockResolvedValue({ anywhere: false, applicationIds: ['clarity'] } as never);
+    await expect(oxy.agency.agentAvailability('bot/1')).resolves.toEqual({
+      anywhere: false,
+      applicationIds: ['clarity'],
+    });
+    expect(request).toHaveBeenCalledWith(
+      'GET',
+      '/capabilities/agent-availability/bot%2F1',
+      undefined,
+      {
+        cache: false,
+        deduplicate: false,
+        retry: false,
+        skipAuth: true,
+        timeout: 5000,
+        headers: { Authorization: 'Bearer fixture-service-token' },
+      },
+    );
+  });
+
+  it('returns an unconfined agent as available anywhere', async () => {
+    const { oxy, request } = fixture();
+    request.mockResolvedValue({ anywhere: true } as never);
+    await expect(oxy.agency.agentAvailability('bot-1')).resolves.toEqual({ anywhere: true });
+  });
+
+  it.each([[{}], [{ anywhere: false, applicationIds: [] }], [{ anywhere: 'yes' }], [null]])(
+    'fails closed on %p rather than reading it as anywhere',
+    async (answer) => {
+      const { oxy, request } = fixture();
+      request.mockResolvedValue(answer as never);
+      await expect(oxy.agency.agentAvailability('bot-1')).rejects.toThrow(
+        'Invalid agent availability',
+      );
+    },
+  );
+
+  it('refuses a missing agent id before calling Oxy', async () => {
+    const { oxy, request } = fixture();
+    await expect(oxy.agency.agentAvailability('')).rejects.toThrow(
+      'An agent account id is required',
+    );
+    expect(request).not.toHaveBeenCalled();
+  });
+});

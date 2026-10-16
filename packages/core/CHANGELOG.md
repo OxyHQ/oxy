@@ -1,5 +1,26 @@
 # Changelog — `@oxy.so/core`
 
+## 4.20.0
+
+Needs `@oxy.so/contracts` 4.24.0. Additive: nothing existing changes behaviour.
+
+### Added
+
+- App assertions (ADR 0045), in `@oxy.so/core/server`:
+  `verifyAppAssertion(token, { session })` returns
+  `{ applicationId, platform }` when the `OXY-APP+JWT` verifies against Oxy's
+  JWKS (`/capabilities/.well-known/jwks.json` on the issuer, fetched and cached)
+  and its `sub`/`sid` are the request's verified person and session, and `null`
+  for anything else. `readAppAssertionHeader(req)` reads
+  `X-Oxy-App-Assertion`. Oxy signs with `signOxyAppAssertion`;
+  `verifyOxyAppAssertion`, `readOxyAppAssertionKeyId`, `OxyAppAssertionError`
+  and `oxyAppAssertionClaimsSchema` are the format.
+- `oxy.apps.assertions.challenge`, `.registerAttestKey` and `.create`
+  (`AppAssertionsApi`): the app-side calls `@oxy.so/services` drives.
+- `OxyServer.agency.agentAvailability(agentAccountId)` (ADR 0044): where an
+  agent opens (`AgentAvailability`), on the coordinator lane. Fails closed:
+  anything but a valid answer throws.
+
 ## 4.18.0
 
 Needs the Oxy API with application-owned files, file references, the file

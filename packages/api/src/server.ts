@@ -51,6 +51,7 @@ import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
+import appAssertionRoutes from './routes/appAssertions';
 import internalRoutes from './routes/internal';
 import internalKaanaRoutes, { MAX_SETTLEMENT_BYTES } from './routes/internalKaana';
 import accountEventRoutes from './routes/accountEvents';
@@ -856,6 +857,9 @@ app.use('/store', storeRoutes);
 app.use('/stickers', stickerRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', applicationRoutes);
+// An Oxy app proves which app it is (ADR 0045): the person's bearer, a platform
+// proof, an Oxy-signed `OXY-APP+JWT` back.
+app.use('/apps', userRateLimiter, appAssertionRoutes);
 // Service-to-service only. The router gates ITSELF on a valid service token AND
 // a platform-trusted calling application (`routes/internal.ts`), so the mount
 // adds no middleware of its own — putting the gate in the router means an

@@ -15,6 +15,20 @@
  * credential/client id, so a grant and its revocation survive credential
  * rotation.
  */
+import type {
+  AppAssertionChallengeRequest,
+  AppAssertionChallengeResponse,
+  AppAssertionRequest,
+  AppAssertionResponse,
+  AppAttestKeyRequest,
+  AppAttestKeyResponse,
+} from '@oxy.so/contracts';
+import {
+  appAssertionChallengeResponseCheck,
+  appAssertionResponseCheck,
+  appAttestKeyResponseCheck,
+  parseContract,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import type { AccountMember, AccountSuccessResult } from './accounts';
 
@@ -510,15 +524,66 @@ export class ConnectedAppsApi {
   }
 }
 
+/**
+ * App assertions (ADR 0045): this app proves which app it is and receives a
+ * five-minute `OXY-APP+JWT` for the signed-in person's session. Every call uses
+ * the person's own bearer and is one attempt: no cache, no deduplication, no
+ * retry, because each challenge is single-use.
+ *
+ * `@oxy.so/services` drives these for the app (`useAppAssertion`); an app does
+ * not call them itself.
+ */
+export class AppAssertionsApi {
+  constructor(private readonly ctx: OxyContext) {}
+
+  /** A single-use challenge for an Android or iOS proof. `POST /apps/assertions/challenge`. */
+  async challenge(input: AppAssertionChallengeRequest): Promise<AppAssertionChallengeResponse> {
+    const response = await this.ctx.request<unknown>(
+      'POST',
+      '/apps/assertions/challenge',
+      input,
+      SINGLE_ATTEMPT,
+    );
+    return parseContract(appAssertionChallengeResponseCheck, response);
+  }
+
+  /** Register an App Attest key attested over an `attest_key` challenge. `POST /apps/attest-keys`. */
+  async registerAttestKey(input: AppAttestKeyRequest): Promise<AppAttestKeyResponse> {
+    const response = await this.ctx.request<unknown>(
+      'POST',
+      '/apps/attest-keys',
+      input,
+      SINGLE_ATTEMPT,
+    );
+    return parseContract(appAttestKeyResponseCheck, response);
+  }
+
+  /** Trade the platform proof for an app assertion. `POST /apps/assertions`. */
+  async create(input: AppAssertionRequest): Promise<AppAssertionResponse> {
+    const response = await this.ctx.request<unknown>(
+      'POST',
+      '/apps/assertions',
+      input,
+      SINGLE_ATTEMPT,
+    );
+    return parseContract(appAssertionResponseCheck, response);
+  }
+}
+
+const SINGLE_ATTEMPT = { cache: false, deduplicate: false, retry: false } as const;
+
 export class AppsApi {
   /** An application's OAuth client credentials. */
   readonly credentials: AppCredentialsApi;
   /** Third-party apps (and MCP clients) this user authorized. */
   readonly connected: ConnectedAppsApi;
+  /** This app proves which app it is (ADR 0045). */
+  readonly assertions: AppAssertionsApi;
 
   constructor(private readonly ctx: OxyContext) {
     this.credentials = new AppCredentialsApi(ctx);
     this.connected = new ConnectedAppsApi(ctx);
+    this.assertions = new AppAssertionsApi(ctx);
   }
 
   /**

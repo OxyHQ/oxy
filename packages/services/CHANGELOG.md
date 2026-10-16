@@ -1,5 +1,25 @@
 # Changelog
 
+## [11.11.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.20.0 (and so `@oxy.so/contracts` 4.24.0), and a native
+build that includes `@expo/app-integrity` for iOS and Android app assertions.
+
+### Added
+
+- App assertions (ADR 0045): `OxyProvider` obtains this app's Oxy-signed
+  `OXY-APP+JWT` for the signed-in session and refreshes it a minute before it
+  expires; a session change drops it. The web proves itself with the browser's
+  `Origin`; iOS with App Attest and Android with Play Integrity, through
+  `@expo/app-integrity`. No app code handles the proof.
+- `useAppAssertion()` → `{ status, assertion, applicationId, platform,
+  expiresAt, error, getAppAssertion(), getAppAssertionHeaders() }`, for a
+  service that needs to know the app (Alia): attach
+  `await getAppAssertionHeaders()` (`X-Oxy-App-Assertion`) to the request.
+- Peer `@expo/app-integrity` `>=56.0.0 <58.0.0`. It is loaded lazily, so a
+  binary built without it (an over-the-air update onto an older build) still
+  boots and simply has no assertion (`status: 'unsupported'`).
+
 ## [11.9.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.18.0 (and so `@oxy.so/contracts` 4.22.0).

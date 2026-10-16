@@ -4421,6 +4421,277 @@
         "operationId": "deleteApplicationsAppId"
       }
     },
+    "/applications/{appId}/agents": {
+      "get": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "The application's agents and their availability.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getApplicationsAppIdAgents"
+      }
+    },
+    "/applications/{appId}/agents/{agentAccountId}": {
+      "put": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Make a bot one of the application's agents, or change where it opens. Staff only.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "agentAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "availability": {
+                    "type": "string",
+                    "enum": [
+                      "anywhere",
+                      "own_application"
+                    ]
+                  }
+                },
+                "required": [
+                  "availability"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putApplicationsAppIdAgentsAgentAccountId"
+      },
+      "delete": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Stop a bot being one of the application's agents: it is available anywhere again. Staff only.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "agentAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteApplicationsAppIdAgentsAgentAccountId"
+      }
+    },
     "/applications/{appId}/credentials": {
       "get": {
         "tags": [
@@ -5978,6 +6249,307 @@
         "operationId": "postApplicationsAppIdListingUnpublish"
       }
     },
+    "/applications/{appId}/recognition": {
+      "get": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "How the application is recognised. An application nobody declared declares nothing.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getApplicationsAppIdRecognition"
+      },
+      "put": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Replace the application's whole declaration. Staff only.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "webOrigins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "maxItems": 20
+                  },
+                  "android": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "packageName": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)+$",
+                        "maxLength": 255
+                      },
+                      "signingCertSha256": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        },
+                        "minItems": 1,
+                        "maxItems": 10
+                      }
+                    },
+                    "required": [
+                      "packageName",
+                      "signingCertSha256"
+                    ]
+                  },
+                  "ios": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "teamId": {
+                        "type": "string",
+                        "pattern": "^[A-Z0-9]{10}$"
+                      },
+                      "bundleId": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$",
+                        "maxLength": 255
+                      }
+                    },
+                    "required": [
+                      "teamId",
+                      "bundleId"
+                    ]
+                  }
+                },
+                "required": [
+                  "webOrigins",
+                  "android",
+                  "ios"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putApplicationsAppIdRecognition"
+      },
+      "delete": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Remove the declaration: the application can no longer assert any platform. Staff only.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/applications.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/applications.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteApplicationsAppIdRecognition"
+      }
+    },
     "/applications/{appId}/roles/grants": {
       "get": {
         "tags": [
@@ -7186,6 +7758,365 @@
           }
         ],
         "operationId": "getApplicationsAppIdUsage"
+      }
+    },
+    "/apps/assertions": {
+      "post": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "An Oxy-signed assertion of which app this is",
+        "description": "ADR 0045. Returns a five-minute `OXY-APP+JWT` (EdDSA, published at `/capabilities/.well-known/jwks.json`) with `iss`, `aud: oxy-apps`, `sub` (the person), `sid` (the session), `app` (the application), `platform`, `iat`, `exp` and `jti`. Send it as `X-Oxy-App-Assertion`. web: the request's `Origin` must be one of the application's web origins. android: a Play Integrity token over the `requestHash` of an `assertion` challenge, whose verdict names the registered package, a registered signing certificate and `PLAY_RECOGNIZED`. ios: an App Attest assertion over that `requestHash` with a registered key, its counter moving forward. A challenge is spent before the proof is verified, so a proof cannot be replayed.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "applicationId",
+                      "platform"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "applicationId": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "web"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "applicationId",
+                      "platform",
+                      "proof"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "applicationId": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "android"
+                        ]
+                      },
+                      "proof": {
+                        "type": "object",
+                        "required": [
+                          "challenge",
+                          "integrityToken"
+                        ],
+                        "properties": {
+                          "challenge": {
+                            "type": "string"
+                          },
+                          "integrityToken": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "applicationId",
+                      "platform",
+                      "proof"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "applicationId": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "ios"
+                        ]
+                      },
+                      "proof": {
+                        "type": "object",
+                        "required": [
+                          "challenge",
+                          "keyId",
+                          "assertion"
+                        ],
+                        "properties": {
+                          "challenge": {
+                            "type": "string"
+                          },
+                          "keyId": {
+                            "type": "string"
+                          },
+                          "assertion": {
+                            "type": "string",
+                            "description": "The App Attest assertion",
+                            "base64.": null
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The assertion (`AppAssertionResponse` in `@oxy.so/contracts`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "assertion",
+                    "applicationId",
+                    "platform",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "assertion": {
+                      "type": "string"
+                    },
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "platform": {
+                      "type": "string",
+                      "enum": [
+                        "web",
+                        "android",
+                        "ios"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session bearer."
+          },
+          "403": {
+            "description": "`application_unavailable`, `session_other_application`, `platform_not_registered`, `origin_not_registered`, `challenge_invalid`, `integrity_refused`, `attest_key_unknown` or `assertion_invalid`."
+          },
+          "503": {
+            "description": "`integrity_unconfigured`, `integrity_unavailable` or `signing_unavailable`."
+          }
+        },
+        "operationId": "postAppsAssertions"
+      }
+    },
+    "/apps/assertions/challenge": {
+      "post": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "A single-use challenge for an Android or iOS app proof",
+        "description": "ADR 0045. Minted for this person, session, application, platform and purpose (`assertion`, or on iOS `attest_key` to register an App Attest key), valid for two minutes. The device hands `requestHash` to Play Integrity, or signs it with App Attest. `cloudProjectNumber` (Android) is the Google Cloud project to request the integrity token for. Refused when the application is not active, does not declare the platform, or the session belongs to another application.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "applicationId",
+                      "platform"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "applicationId": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "android"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "applicationId",
+                      "platform",
+                      "purpose"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "applicationId": {
+                        "type": "string"
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "ios"
+                        ]
+                      },
+                      "purpose": {
+                        "type": "string",
+                        "enum": [
+                          "assertion",
+                          "attest_key"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The challenge (`AppAssertionChallengeResponse` in `@oxy.so/contracts`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "challenge",
+                    "requestHash",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "challenge": {
+                      "type": "string"
+                    },
+                    "requestHash": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "cloudProjectNumber": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session bearer."
+          },
+          "403": {
+            "description": "`application_unavailable`, `session_other_application` or `platform_not_registered`."
+          },
+          "503": {
+            "description": "`integrity_unconfigured`: Play Integrity is not configured."
+          }
+        },
+        "operationId": "postAppsAssertionsChallenge"
+      }
+    },
+    "/apps/attest-keys": {
+      "post": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "Register an App Attest key for an iOS app",
+        "description": "ADR 0045. The attestation must chain to Apple's App Attestation Root CA, name the application's registered team and bundle (`rpIdHash`), the key id, a zero counter and an allowed environment, and carry the nonce of an `attest_key` challenge minted for this person and session. The challenge is spent before the attestation is verified.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "applicationId",
+                  "keyId",
+                  "challenge",
+                  "attestation"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "applicationId": {
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "type": "string",
+                    "description": "Standard base64 of the key's SHA-256."
+                  },
+                  "challenge": {
+                    "type": "string"
+                  },
+                  "attestation": {
+                    "type": "string",
+                    "description": "The attestation object",
+                    "base64.": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered (`AppAttestKeyResponse` in `@oxy.so/contracts`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "keyId"
+                  ],
+                  "properties": {
+                    "keyId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session bearer."
+          },
+          "403": {
+            "description": "`application_unavailable`, `session_other_application`, `platform_not_registered`, `challenge_invalid` or `attestation_invalid`."
+          },
+          "409": {
+            "description": "`attest_key_exists`."
+          }
+        },
+        "operationId": "postAppsAttestKeys"
       }
     },
     "/assets": {
@@ -16270,6 +17201,86 @@
           {}
         ],
         "operationId": "postBillingWebhook"
+      }
+    },
+    "/capabilities/agent-availability/{agentAccountId}": {
+      "get": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Where an agent is reachable from",
+        "description": "ADR 0044, coordinator service lane (capabilities:read + agency:coordinate). An agent confined to its own application answers `{ anywhere: false, applicationIds }`: it is reachable only from requests whose verified app assertion (`X-Oxy-App-Assertion`, ADR 0045) names a listed application. Every other agent, including one Oxy has no row for, answers `{ anywhere: true }`.",
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "agentAccountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent's availability (`AgentAvailability` in `@oxy.so/contracts`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "anywhere"
+                      ],
+                      "properties": {
+                        "anywhere": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "anywhere",
+                        "applicationIds"
+                      ],
+                      "properties": {
+                        "anywhere": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "applicationIds": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No live service principal."
+          },
+          "403": {
+            "description": "Missing capabilities:read or the agency:coordinate capability."
+          }
+        },
+        "operationId": "getCapabilitiesAgentAvailabilityAgentAccountId"
       }
     },
     "/capabilities/agent-ceilings/{agentAccountId}": {

@@ -198,6 +198,43 @@ export const agentRequesterCeilingSchema = agentRequesterCeilingWriteSchema
   })
   .strict();
 
+/**
+ * Where an application's own agent opens (ADR 0044): `anywhere`, or only in
+ * sessions that belong to that application (`own_application`). An agent with
+ * no application row is available anywhere.
+ */
+export const APPLICATION_AGENT_AVAILABILITIES = ['anywhere', 'own_application'] as const;
+
+export const applicationAgentAvailabilitySchema = z.enum(APPLICATION_AGENT_AVAILABILITIES);
+
+/** What Oxy staff write for one of an application's agents. */
+export const applicationAgentWriteSchema = z
+  .object({ availability: applicationAgentAvailabilitySchema })
+  .strict();
+
+/** One row of the application registry's agents: an agent is one application's. */
+export const applicationAgentSchema = applicationAgentWriteSchema
+  .extend({
+    applicationId: identifierSchema,
+    agentAccountId: identifierSchema,
+    createdByUserId: identifierSchema.nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+/**
+ * `GET /capabilities/agent-availability/:agentAccountId`: the sessions an agent
+ * is reachable from. `anywhere: false` lists the applications whose sessions
+ * (the session validation answer's `applicationId`) may reach it.
+ */
+export const agentAvailabilitySchema = z.discriminatedUnion('anywhere', [
+  z.object({ anywhere: z.literal(true) }).strict(),
+  z
+    .object({ anywhere: z.literal(false), applicationIds: z.array(identifierSchema).min(1) })
+    .strict(),
+]);
+
 export const automationTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }).strict(),
   z
@@ -841,5 +878,9 @@ export type CatalogInternalTransport = (typeof CATALOG_INTERNAL_TRANSPORTS)[numb
 export type AgentRequesterCeilingWrite = z.infer<typeof agentRequesterCeilingWriteSchema>;
 export type AgentRequesterCeiling = z.infer<typeof agentRequesterCeilingSchema>;
 export type AgentRequesterCeilingAutonomy = (typeof AGENT_REQUESTER_CEILING_AUTONOMY)[number];
+export type ApplicationAgentAvailability = (typeof APPLICATION_AGENT_AVAILABILITIES)[number];
+export type ApplicationAgentWrite = z.infer<typeof applicationAgentWriteSchema>;
+export type ApplicationAgent = z.infer<typeof applicationAgentSchema>;
+export type AgentAvailability = z.infer<typeof agentAvailabilitySchema>;
 export type CatalogRegistration = z.infer<typeof catalogRegistrationSchema>;
 export type NormalizedAppEvent = z.infer<typeof normalizedAppEventSchema>;

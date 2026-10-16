@@ -140,6 +140,7 @@ export type {
 } from './api/accounts';
 export type {
   AppsApi,
+  AppAssertionsApi,
   Application,
   ApplicationType,
   ApplicationStatus,

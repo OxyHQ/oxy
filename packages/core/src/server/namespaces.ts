@@ -5,6 +5,8 @@
  * `oxy.assets`.
  */
 import {
+  agentAvailabilitySchema,
+  type AgentAvailability,
   capabilityTicketRequestSchema,
   foregroundExecutionAuthorizationInputSchema,
   type ForegroundExecutionAuthorizationInput,
@@ -895,6 +897,32 @@ export class ServerAgencyApi extends AgencyApi {
       agencyAuthorityOptions(input.signal),
     );
     return result.registrations;
+  }
+
+  /**
+   * Where an agent is reachable from (ADR 0044): `{ anywhere: true }`, or
+   * `{ anywhere: false, applicationIds }` for an agent its application confines
+   * to its own surfaces — reachable only when the request's verified app
+   * assertion (`verifyAppAssertion`, ADR 0045) names a listed application.
+   * Coordinator lane (`capabilities:read` + `agency:coordinate`). FAIL CLOSED:
+   * anything but a 200 carrying a valid answer throws, so an outage never reads
+   * as "anywhere".
+   */
+  async agentAvailability(
+    agentAccountId: string,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<AgentAvailability> {
+    if (!agentAccountId || agentAccountId.length > 255 || /\s/.test(agentAccountId))
+      throw new Error('An agent account id is required');
+    const answer = await lane(this.ctx).request<unknown>(
+      'GET',
+      `/capabilities/agent-availability/${encodeURIComponent(agentAccountId)}`,
+      undefined,
+      agencyAuthorityOptions(options.signal),
+    );
+    const availability = agentAvailabilitySchema.safeParse(answer);
+    if (!availability.success) throw new Error('Invalid agent availability');
+    return availability.data;
   }
 
   /** Existing Oxy execution authority is required; this call creates none. */

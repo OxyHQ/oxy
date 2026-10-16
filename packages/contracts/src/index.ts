@@ -1404,6 +1404,11 @@ export {
   AGENT_REQUESTER_CEILING_AUTONOMY,
   agentRequesterCeilingWriteSchema,
   agentRequesterCeilingSchema,
+  APPLICATION_AGENT_AVAILABILITIES,
+  applicationAgentAvailabilitySchema,
+  applicationAgentWriteSchema,
+  applicationAgentSchema,
+  agentAvailabilitySchema,
   automationTriggerSchema,
   automationActorSelectionSchema,
   automationDataFlowSchema,
@@ -1451,6 +1456,10 @@ export type {
   AgentRequesterCeilingWrite,
   AgentRequesterCeiling,
   AgentRequesterCeilingAutonomy,
+  ApplicationAgentAvailability,
+  ApplicationAgentWrite,
+  ApplicationAgent,
+  AgentAvailability,
   CatalogRegistration,
   NormalizedAppEvent,
 } from './agency';
@@ -1634,3 +1643,5 @@ export {
 
 export * from './applicationRoles';
 export * from './contentClaims';
+
+export * from './appAssertions';
