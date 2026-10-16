@@ -108,6 +108,7 @@ export const CLAIM_EVENT_LABELS: Record<ContentClaimEventAction, string> = {
   targets_blocked: 'Blocked',
   rejected: 'Rejected',
   counter_notice_recorded: 'Counter-notice recorded',
+  counter_notice_submitted: 'Counter-notice from the owner',
   reinstated: 'Reinstated',
   upheld: 'Upheld',
   note_added: 'Note',

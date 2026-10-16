@@ -40,6 +40,11 @@ import crypto from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import {
   CLOSED_CONTENT_CLAIM_STATES,
+  CONTENT_CLAIM_ERROR_CODES,
+  COUNTER_NOTICE_STATEMENT_VERSION,
+  type ContentClaimCounterNotice,
+  type ContentClaimCounterNoticeResponse,
+  type ContentClaimCounterNoticeView,
   type ContentClaimDetailView,
   type ContentClaimEventAction,
   type ContentClaimEventView,
@@ -59,6 +64,7 @@ import {
   blockedContentHashes,
   CONTENT_CLAIMANT_RETENTION_SECONDS,
   contentClaimClaimants,
+  contentClaimCounterNotices,
   contentClaimEvents,
   contentClaimNotifications,
   contentClaimTargets,
@@ -236,10 +242,16 @@ async function transition(
     .returning({ id: contentClaims.id });
   if (updated.length !== 1) throw new ContentClaimStateConflictError(claim.state, action);
   if (closing) {
+    // The claimant's statement and every owner's counter-notice go on one clock.
+    const expiresAt = new Date(now.getTime() + CONTENT_CLAIMANT_RETENTION_SECONDS * 1000);
     await tx
       .update(contentClaimClaimants)
-      .set({ expiresAt: new Date(now.getTime() + CONTENT_CLAIMANT_RETENTION_SECONDS * 1000) })
+      .set({ expiresAt })
       .where(eq(contentClaimClaimants.claimId, claim.id));
+    await tx
+      .update(contentClaimCounterNotices)
+      .set({ expiresAt })
+      .where(eq(contentClaimCounterNotices.claimId, claim.id));
   }
 }
 
@@ -568,6 +580,8 @@ export async function getContentClaim(claimId: string): Promise<ContentClaimDeta
     createdAt: target.createdAt.toISOString(),
   }));
 
+  const counterNotices = await listCounterNoticeViews(claimId);
+
   const events: ContentClaimEventView[] = eventRows.map((event) => ({
     id: event.id,
     action: event.action,
@@ -603,6 +617,7 @@ export async function getContentClaim(claimId: string): Promise<ContentClaimDeta
     claimantExpiresAt: claimantRow?.expiresAt?.toISOString() ?? null,
     targets,
     events,
+    counterNotices,
   };
 }
 
@@ -1007,4 +1022,287 @@ export async function addContentClaimNote(
     await lockClaim(tx, claimId);
     await appendEvent(tx, { claimId, action: 'note_added', actorUserId: action.actorUserId, note });
   });
+}
+
+// ---------------------------------------------------------------------------
+// The owner's counter-notice (17 U.S.C. § 512(g))
+// ---------------------------------------------------------------------------
+
+type CounterNoticeField =
+  | 'name'
+  | 'address'
+  | 'phone'
+  | 'email'
+  | 'materialDescription'
+  | 'materialLocation'
+  | 'explanation'
+  | 'signature';
+
+function counterNoticeContext(noticeId: string, field: CounterNoticeField): string {
+  return `content-claim-counter-notice|${noticeId}|${field}`;
+}
+
+export function openCounterNotice(
+  noticeId: string,
+  field: CounterNoticeField,
+  sealed: string,
+): string {
+  return openSecret(sealed, counterNoticeContext(noticeId, field));
+}
+
+/** A counter-notice row past its `expires_at` is erased, swept or not. */
+export function counterNoticeNotExpired() {
+  return or(
+    isNull(contentClaimCounterNotices.expiresAt),
+    sql`${contentClaimCounterNotices.expiresAt} > now()`,
+  );
+}
+
+/** A claim's owners' counter-notices, oldest first, each statement opened (or null once erased). */
+async function listCounterNoticeViews(claimId: string): Promise<ContentClaimCounterNoticeView[]> {
+  const rows = await getDb()
+    .select({
+      notice: contentClaimCounterNotices,
+      live: sql<boolean>`${contentClaimCounterNotices.expiresAt} is null or ${contentClaimCounterNotices.expiresAt} > now()`,
+    })
+    .from(contentClaimCounterNotices)
+    .where(eq(contentClaimCounterNotices.claimId, claimId))
+    .orderBy(asc(contentClaimCounterNotices.createdAt), asc(contentClaimCounterNotices.id));
+  return rows.map(({ notice, live }) => ({
+    id: notice.id,
+    submittedByUserId: notice.submittedByUserId,
+    fileIds: notice.fileIds,
+    statementVersion: notice.statementVersion,
+    statement: live
+      ? {
+          name: openCounterNotice(notice.id, 'name', notice.nameCiphertext),
+          address: openCounterNotice(notice.id, 'address', notice.addressCiphertext),
+          phone: openCounterNotice(notice.id, 'phone', notice.phoneCiphertext),
+          email: openCounterNotice(notice.id, 'email', notice.emailCiphertext),
+          materialDescription: openCounterNotice(
+            notice.id,
+            'materialDescription',
+            notice.materialDescriptionCiphertext,
+          ),
+          materialLocation: openCounterNotice(
+            notice.id,
+            'materialLocation',
+            notice.materialLocationCiphertext,
+          ),
+          explanation: openCounterNotice(notice.id, 'explanation', notice.explanationCiphertext),
+          signature: openCounterNotice(notice.id, 'signature', notice.signatureCiphertext),
+        }
+      : null,
+    createdAt: notice.createdAt.toISOString(),
+  }));
+}
+
+/** The claim a counter-notice names is not one this caller may answer — said exactly like no claim. */
+function noSuchClaim(): NotFoundError {
+  return new NotFoundError('Content claim not found');
+}
+
+export interface SubmitCounterNoticeOptions {
+  /** The account the session speaks as. */
+  subjectUserId: string;
+  /** The person operating that session, when it is operated (`resolveOperatorId`). */
+  operatorUserId?: string | null;
+  now?: Date;
+}
+
+/** The caller's blocked files whose bytes `claimId` blocks (all, or those named). */
+async function ownersBlockedFiles(
+  db: Pick<Transaction, 'select'>,
+  claimId: string,
+  owners: readonly string[],
+  fileIds?: readonly string[],
+): Promise<{ id: string; ownerUserId: string }[]> {
+  const rows = await db
+    .select({ id: files.id, ownerUserId: files.ownerUserId })
+    .from(files)
+    .where(
+      and(
+        inArray(files.ownerUserId, [...owners]),
+        eq(files.status, 'blocked'),
+        inArray(
+          files.sha256,
+          db
+            .select({ sha256: blockedContentHashes.sha256 })
+            .from(blockedContentHashes)
+            .where(eq(blockedContentHashes.claimId, claimId)),
+        ),
+        ...(fileIds ? [inArray(files.id, [...fileIds])] : []),
+      ),
+    )
+    .orderBy(asc(files.id));
+  return rows.flatMap((row) =>
+    row.ownerUserId ? [{ id: row.id, ownerUserId: row.ownerUserId }] : [],
+  );
+}
+
+/**
+ * Which claim the notice answers: the one its `reference` or `claimId` names,
+ * else the ONE claim that blocks the bytes of every named file. Anything the
+ * caller may not answer — no such claim, a claim blocking none of their files,
+ * a file that is not theirs or not blocked — is 404, so a reference or a file
+ * id is never an oracle.
+ */
+async function resolveCounterNoticeClaim(
+  input: ContentClaimCounterNotice,
+  owners: readonly string[],
+): Promise<string> {
+  const db = getDb();
+  let claimId: string | null = null;
+  if (input.reference !== undefined || input.claimId !== undefined) {
+    const [row] = await db
+      .select({ id: contentClaims.id })
+      .from(contentClaims)
+      .where(
+        and(
+          ...(input.reference !== undefined ? [eq(contentClaims.reference, input.reference)] : []),
+          ...(input.claimId !== undefined ? [eq(contentClaims.id, input.claimId)] : []),
+        ),
+      )
+      .limit(1);
+    if (!row) throw noSuchClaim();
+    claimId = row.id;
+  }
+  if (claimId !== null || input.fileIds === undefined) {
+    if (claimId === null) throw noSuchClaim();
+    return claimId;
+  }
+
+  // Named by files alone: every one must be the caller's, and blocked.
+  const fileIds = [...new Set(input.fileIds)];
+  const owned = await db
+    .select({ id: files.id, sha256: files.sha256 })
+    .from(files)
+    .where(
+      and(
+        inArray(files.id, fileIds),
+        inArray(files.ownerUserId, [...owners]),
+        eq(files.status, 'blocked'),
+      ),
+    );
+  if (owned.length !== fileIds.length) throw noSuchClaim();
+  const hashes = [...new Set(owned.map((row) => row.sha256))];
+  const claims = await db
+    .select({ claimId: blockedContentHashes.claimId })
+    .from(blockedContentHashes)
+    .where(inArray(blockedContentHashes.sha256, hashes))
+    .groupBy(blockedContentHashes.claimId)
+    .having(sql`count(distinct ${blockedContentHashes.sha256}) = ${hashes.length}`);
+  if (claims.length === 0) throw noSuchClaim();
+  if (claims.length > 1) {
+    throw new ApiError(
+      400,
+      'These files were removed after more than one claim. Name the claim by the reference in the email you received.',
+      CONTENT_CLAIM_ERROR_CODES.counterNoticeAmbiguous,
+    );
+  }
+  return claims[0].claimId;
+}
+
+/**
+ * The owner of content a claim took down disputes it (17 U.S.C. § 512(g)(3)).
+ *
+ * Answers only for files the caller owns — the session's account, or the
+ * person operating it — that are `blocked` with bytes on THIS claim's
+ * blocklist; anything else is 404, like no claim. Under the claim's row lock:
+ * `actioned → counter_noticed` (a claim another owner already answered stays
+ * `counter_noticed` and records this notice too; any other state is 409). The
+ * notice is SEALED; the trail records `counter_notice_submitted` with the
+ * owner as actor; the outbox gets the claimant's copy (§ 512(g)(2)(B)), the
+ * owner's confirmation and the staff alert. One per (claim, account): a second
+ * is 409 `CONTENT_CLAIM_COUNTER_NOTICE_EXISTS`.
+ */
+export async function submitCounterNotice(
+  input: ContentClaimCounterNotice,
+  options: SubmitCounterNoticeOptions,
+): Promise<ContentClaimCounterNoticeResponse> {
+  const now = options.now ?? new Date();
+  const owners = [
+    ...new Set([
+      options.subjectUserId,
+      ...(options.operatorUserId ? [options.operatorUserId] : []),
+    ]),
+  ];
+  const claimId = await resolveCounterNoticeClaim(input, owners);
+  const requested = input.fileIds ? [...new Set(input.fileIds)] : undefined;
+
+  try {
+    return await getDb().transaction(async (tx) => {
+      const claim = await lockClaim(tx, claimId);
+      // Re-read under the lock: a reinstatement or an owner's delete cannot
+      // slip between the check and the record.
+      const covered = await ownersBlockedFiles(tx, claimId, owners, requested);
+      if (covered.length === 0 || (requested && covered.length !== requested.length)) {
+        throw noSuchClaim();
+      }
+      if (claim.state === 'actioned') {
+        await transition(tx, claim, ['actioned'], 'counter_noticed', 'disputed', now);
+      } else if (claim.state !== 'counter_noticed') {
+        throw new ContentClaimStateConflictError(claim.state, 'disputed');
+      }
+
+      const id = uuidv7();
+      const seal = (field: CounterNoticeField, value: string) =>
+        sealSecret(value, counterNoticeContext(id, field));
+      await tx.insert(contentClaimCounterNotices).values({
+        id,
+        claimId,
+        submittedByUserId: options.subjectUserId,
+        fileIds: covered.map((file) => file.id),
+        statementVersion: COUNTER_NOTICE_STATEMENT_VERSION,
+        nameCiphertext: seal('name', input.subscriber.name),
+        addressCiphertext: seal('address', input.subscriber.address),
+        phoneCiphertext: seal('phone', input.subscriber.phone),
+        emailCiphertext: seal('email', input.subscriber.email),
+        materialDescriptionCiphertext: seal('materialDescription', input.material.description),
+        materialLocationCiphertext: seal('materialLocation', input.material.location),
+        explanationCiphertext: seal('explanation', input.explanation),
+        signatureCiphertext: seal('signature', input.signature),
+        createdAt: now,
+      });
+      await appendEvent(tx, {
+        claimId,
+        action: 'counter_notice_submitted',
+        actorUserId: options.subjectUserId,
+        fromState: claim.state,
+        toState: 'counter_noticed',
+        details: { counterNoticeId: id, files: covered.length },
+      });
+      await tx.insert(contentClaimNotifications).values([
+        { claimId, kind: 'claim_counter_notice_copy', recipient: 'claimant', counterNoticeId: id },
+        {
+          claimId,
+          kind: 'counter_notice_received',
+          recipient: 'account',
+          recipientUserId: options.subjectUserId,
+          counterNoticeId: id,
+        },
+        { claimId, kind: 'counter_notice_staff', recipient: 'staff', counterNoticeId: id },
+      ]);
+      logger.info('[ContentClaims] Owner counter-notice received', {
+        claimId,
+        counterNoticeId: id,
+        files: covered.length,
+      });
+      return {
+        id,
+        reference: claim.reference,
+        state: 'counter_noticed' as const,
+        fileIds: covered.map((file) => file.id),
+      };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, 'content_claim_counter_notices_claim_id_submitted_by_key')) {
+      throw new ApiError(
+        409,
+        'You already sent a counter-notice for this claim.',
+        CONTENT_CLAIM_ERROR_CODES.counterNoticeExists,
+      );
+    }
+    throw error;
+  }
 }

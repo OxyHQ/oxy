@@ -19,12 +19,13 @@
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
 import { and, asc, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
-import { getEnvBoolean, getEnvNumber } from '../../config/env';
+import { getEnvBoolean, getEnvNumber, getEnvVar } from '../../config/env';
 import { getDb, type Database } from '../../config/postgres';
 import {
   blockedContentHashes,
   CONTENT_CLAIM_NOTIFICATION_MAX_ATTEMPTS,
   contentClaimClaimants,
+  contentClaimCounterNotices,
   contentClaimEvents,
   contentClaimNotifications,
   contentClaimTargets,
@@ -38,8 +39,17 @@ import {
 import { logger } from '../../utils/logger';
 import { openSecret } from '../../utils/secretBox';
 import { sendSystem } from '../accountEmail.mail';
-import { type ContentClaimMail, renderContentClaimMail } from './contentClaim.mail';
-import { claimantNotExpired } from './contentClaim.service';
+import {
+  type ContentClaimMail,
+  type ContentClaimMailContext,
+  LEGAL_CONTACT,
+  renderContentClaimMail,
+} from './contentClaim.mail';
+import {
+  claimantNotExpired,
+  counterNoticeNotExpired,
+  openCounterNotice,
+} from './contentClaim.service';
 
 export const CONTENT_CLAIM_NOTIFICATION_LEASE_MS = 2 * 60_000;
 const BASE_BACKOFF_MS = 60_000;
@@ -159,12 +169,53 @@ async function ownerFileNames(
   return rows.map((row) => row.originalName || `File ${row.id}`);
 }
 
+/** Where staff are told of an owner's counter-notice: the mailbox the claim emails name. */
+export function contentClaimStaffAddress(): string {
+  return getEnvVar('CONTENT_CLAIM_STAFF_EMAIL', LEGAL_CONTACT).trim() || LEGAL_CONTACT;
+}
+
+/** The owner's counter-notice a row is about, or Undeliverable once it is erased. */
+async function counterNoticeOf(row: ContentClaimNotificationRow) {
+  if (!row.counterNoticeId) throw new Undeliverable('A counter-notice email with no notice');
+  const [notice] = await getDb()
+    .select()
+    .from(contentClaimCounterNotices)
+    .where(and(eq(contentClaimCounterNotices.id, row.counterNoticeId), counterNoticeNotExpired()))
+    .limit(1);
+  if (!notice) throw new Undeliverable('The counter-notice was erased; nothing to send');
+  return notice;
+}
+
+/** The names of the files an owner's counter-notice covers, as it stands. */
+async function counterNoticeFileNames(notice: { fileIds: string[] }): Promise<string[]> {
+  if (notice.fileIds.length === 0) return [];
+  const rows = await getDb()
+    .select({ id: files.id, originalName: files.originalName })
+    .from(files)
+    .where(inArray(files.id, notice.fileIds))
+    .orderBy(asc(files.createdAt), asc(files.id));
+  return rows.map((row) => row.originalName || `File ${row.id}`);
+}
+
 /** Address and render one row. */
 async function compose(
   row: ContentClaimNotificationRow,
   claim: ContentClaimRow,
 ): Promise<ContentClaimMail & { to: string }> {
   const db = getDb();
+  if (row.recipient === 'staff') {
+    const notice = await counterNoticeOf(row);
+    const mail = renderContentClaimMail(row.kind, {
+      reference: claim.reference,
+      claimKind: claim.kind,
+      greetingName: null,
+      note: null,
+      fileNames: [],
+      targetCount: 0,
+      fileCount: notice.fileIds.length,
+    });
+    return { ...mail, to: contentClaimStaffAddress() };
+  }
   if (row.recipient === 'claimant') {
     const [claimant] = await db
       .select({
@@ -181,6 +232,28 @@ async function compose(
       .where(
         and(eq(contentClaimTargets.claimId, claim.id), eq(contentClaimTargets.source, 'claimant')),
       );
+    // The copy of an owner's counter-notice: the notice itself for a copyright
+    // claim (§ 512(g)(2)(B) — the owner affirmed that disclosure); for any
+    // other kind only that it is disputed, never who disputes it.
+    let counterNotice: ContentClaimMailContext['counterNotice'] = null;
+    if (row.kind === 'claim_counter_notice_copy') {
+      const notice = await counterNoticeOf(row);
+      if (claim.kind === 'copyright') {
+        const open = (field: Parameters<typeof openCounterNotice>[1], sealed: string): string =>
+          openCounterNotice(notice.id, field, sealed);
+        counterNotice = {
+          name: open('name', notice.nameCiphertext),
+          address: open('address', notice.addressCiphertext),
+          phone: open('phone', notice.phoneCiphertext),
+          email: open('email', notice.emailCiphertext),
+          materialDescription: open('materialDescription', notice.materialDescriptionCiphertext),
+          materialLocation: open('materialLocation', notice.materialLocationCiphertext),
+          explanation: open('explanation', notice.explanationCiphertext),
+          signature: open('signature', notice.signatureCiphertext),
+          sentAt: notice.createdAt.toISOString(),
+        };
+      }
+    }
     const note =
       row.kind === 'claim_rejected'
         ? await latestNote(claim.id, ['rejected'])
@@ -196,6 +269,7 @@ async function compose(
       note,
       fileNames: [],
       targetCount: targets,
+      counterNotice,
     });
     return { ...mail, to: openSecret(claimant.email, `content-claim|${claim.id}|email`) };
   }
@@ -207,7 +281,10 @@ async function compose(
     .where(eq(users.id, row.recipientUserId))
     .limit(1);
   if (!account?.email) throw new Undeliverable('The account has no email address');
-  const fileNames = await ownerFileNames(claim.id, row.recipientUserId, row.kind);
+  const fileNames =
+    row.kind === 'counter_notice_received'
+      ? await counterNoticeFileNames(await counterNoticeOf(row))
+      : await ownerFileNames(claim.id, row.recipientUserId, row.kind);
   if (fileNames.length === 0 && row.kind !== 'content_upheld') {
     throw new Undeliverable('None of the account’s files are affected any more');
   }

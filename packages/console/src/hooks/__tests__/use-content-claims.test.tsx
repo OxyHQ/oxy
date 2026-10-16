@@ -55,6 +55,7 @@ function claim(state: ContentClaimDetailView['state'] = 'reviewing'): ContentCla
     claimantExpiresAt: null,
     targets: [],
     events: [],
+    counterNotices: [],
   };
 }
 

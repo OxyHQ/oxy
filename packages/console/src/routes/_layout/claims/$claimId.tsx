@@ -1,7 +1,11 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { type ReactNode, useState } from 'react';
 import { toast } from '@oxy.so/bloom/toast';
-import type { ContentClaimDetailView, ContentClaimTargetView } from '@oxy.so/contracts';
+import type {
+  ContentClaimCounterNoticeView,
+  ContentClaimDetailView,
+  ContentClaimTargetView,
+} from '@oxy.so/contracts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -191,6 +195,16 @@ function ClaimDetail({ claim }: { claim: ContentClaimDetailView }) {
           )}
         </Section>
 
+        {claim.counterNotices.length > 0 && (
+          <Section title="Counter-notices from owners">
+            <div className="space-y-4">
+              {claim.counterNotices.map((notice) => (
+                <CounterNoticeCard key={notice.id} notice={notice} />
+              ))}
+            </div>
+          </Section>
+        )}
+
         <Section title="What the claim names">
           <TargetsTable
             claim={claim}
@@ -235,6 +249,50 @@ function ClaimDetail({ claim }: { claim: ContentClaimDetailView }) {
         </Section>
       </div>
     </ScrollArea>
+  );
+}
+
+/**
+ * One owner's counter-notice (17 U.S.C. § 512(g)(3)), as they sent it. For a
+ * copyright claim the claimant was sent this notice, contact details
+ * included; for any other kind, only that it is disputed.
+ */
+function CounterNoticeCard({ notice }: { notice: ContentClaimCounterNoticeView }) {
+  const statement = notice.statement;
+  return (
+    <div className="rounded-md border border-border p-4 space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Sent {new Date(notice.createdAt).toLocaleString()}
+        {notice.submittedByUserId ? ` by ${notice.submittedByUserId}` : ''} · covers{' '}
+        {notice.fileIds.length} {notice.fileIds.length === 1 ? 'file' : 'files'} · statements
+        affirmed as worded on {notice.statementVersion}
+      </p>
+      {statement === null ? (
+        <p className="text-sm text-muted-foreground">
+          The owner's identity and statement were erased at the end of their retention period.
+        </p>
+      ) : (
+        <dl className="grid grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Name</dt>
+          <dd>{statement.name}</dd>
+          <dt className="text-muted-foreground">Address</dt>
+          <dd className="whitespace-pre-wrap">{statement.address}</dd>
+          <dt className="text-muted-foreground">Telephone</dt>
+          <dd>{statement.phone}</dd>
+          <dt className="text-muted-foreground">Email</dt>
+          <dd>{statement.email}</dd>
+          <dt className="text-muted-foreground">Material removed</dt>
+          <dd className="whitespace-pre-wrap">{statement.materialDescription}</dd>
+          <dt className="text-muted-foreground">Where it appeared</dt>
+          <dd className="break-all">{statement.materialLocation}</dd>
+          <dt className="text-muted-foreground">Why it is a mistake</dt>
+          <dd className="whitespace-pre-wrap">{statement.explanation}</dd>
+          <dt className="text-muted-foreground">Signature</dt>
+          <dd>{statement.signature}</dd>
+        </dl>
+      )}
+      <p className="text-xs text-muted-foreground break-all">Files: {notice.fileIds.join(', ')}</p>
+    </div>
   );
 }
 
@@ -490,7 +548,7 @@ const NOTE_ACTIONS: Record<
   counter: {
     title: 'Record a counter-notice',
     description:
-      'The owner of the blocked content disputes the claim. Summarize their response in your own words: the summary is emailed to the claimant. Do not include the owner’s identity.',
+      'For a counter-notice the owner sent by email rather than from their account (one sent from the account is recorded on its own, below). Summarize their response in your own words: the summary is emailed to the claimant. Do not include the owner’s identity.',
     label: 'Summary (sent to the claimant)',
     required: true,
     confirm: 'Record',

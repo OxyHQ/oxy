@@ -1,5 +1,5 @@
 {
-  "id": "168f6f2b-eae3-49ad-bcf8-c6e6887522a9",
+  "id": "8c02886c-235d-4a4f-852d-e39449f3f3dd",
   "prevId": "f9030d36-3056-40f2-9987-8b5afa11bae3",
   "version": "7",
   "dialect": "postgresql",
@@ -8575,6 +8575,218 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.content_claim_counter_notices": {
+      "name": "content_claim_counter_notices",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "claim_id": {
+          "name": "claim_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_by_user_id": {
+          "name": "submitted_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "file_ids": {
+          "name": "file_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "statement_version": {
+          "name": "statement_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_ciphertext": {
+          "name": "name_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address_ciphertext": {
+          "name": "address_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_ciphertext": {
+          "name": "phone_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_ciphertext": {
+          "name": "email_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_description_ciphertext": {
+          "name": "material_description_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "material_location_ciphertext": {
+          "name": "material_location_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "explanation_ciphertext": {
+          "name": "explanation_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature_ciphertext": {
+          "name": "signature_ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "content_claim_counter_notices_claim_id_idx": {
+          "name": "content_claim_counter_notices_claim_id_idx",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "content_claim_counter_notices_claim_id_submitted_by_key": {
+          "name": "content_claim_counter_notices_claim_id_submitted_by_key",
+          "columns": [
+            {
+              "expression": "claim_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_by_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"content_claim_counter_notices\".\"submitted_by_user_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "content_claim_counter_notices_submitted_by_user_id_idx": {
+          "name": "content_claim_counter_notices_submitted_by_user_id_idx",
+          "columns": [
+            {
+              "expression": "submitted_by_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"content_claim_counter_notices\".\"submitted_by_user_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "content_claim_counter_notices_expires_at_idx": {
+          "name": "content_claim_counter_notices_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"content_claim_counter_notices\".\"expires_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "content_claim_counter_notices_claim_id_content_claims_id_fk": {
+          "name": "content_claim_counter_notices_claim_id_content_claims_id_fk",
+          "tableFrom": "content_claim_counter_notices",
+          "tableTo": "content_claims",
+          "columnsFrom": [
+            "claim_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "content_claim_counter_notices_submitted_by_user_id_users_id_fk": {
+          "name": "content_claim_counter_notices_submitted_by_user_id_users_id_fk",
+          "tableFrom": "content_claim_counter_notices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "submitted_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "content_claim_counter_notices_file_ids_check": {
+          "name": "content_claim_counter_notices_file_ids_check",
+          "value": "cardinality(\"content_claim_counter_notices\".\"file_ids\") between 1 and 50"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.content_claim_events": {
       "name": "content_claim_events",
       "schema": "",
@@ -8686,7 +8898,7 @@
       "checkConstraints": {
         "content_claim_events_action_check": {
           "name": "content_claim_events_action_check",
-          "value": "\"content_claim_events\".\"action\" in ('submitted', 'review_started', 'targets_attached', 'targets_blocked', 'rejected', 'counter_notice_recorded', 'reinstated', 'upheld', 'note_added')"
+          "value": "\"content_claim_events\".\"action\" in ('submitted', 'review_started', 'targets_attached', 'targets_blocked', 'rejected', 'counter_notice_recorded', 'counter_notice_submitted', 'reinstated', 'upheld', 'note_added')"
         },
         "content_claim_events_state_check": {
           "name": "content_claim_events_state_check",
@@ -8725,6 +8937,12 @@
         },
         "recipient_user_id": {
           "name": "recipient_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "counter_notice_id": {
+          "name": "counter_notice_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8813,6 +9031,22 @@
           "method": "btree",
           "with": {}
         },
+        "content_claim_notifications_counter_notice_id_idx": {
+          "name": "content_claim_notifications_counter_notice_id_idx",
+          "columns": [
+            {
+              "expression": "counter_notice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"content_claim_notifications\".\"counter_notice_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "content_claim_notifications_recipient_user_id_idx": {
           "name": "content_claim_notifications_recipient_user_id_idx",
           "columns": [
@@ -8871,6 +9105,19 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "content_claim_notifications_counter_notice_id_content_claim_counter_notices_id_fk": {
+          "name": "content_claim_notifications_counter_notice_id_content_claim_counter_notices_id_fk",
+          "tableFrom": "content_claim_notifications",
+          "tableTo": "content_claim_counter_notices",
+          "columnsFrom": [
+            "counter_notice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -8879,15 +9126,19 @@
       "checkConstraints": {
         "content_claim_notifications_kind_check": {
           "name": "content_claim_notifications_kind_check",
-          "value": "\"content_claim_notifications\".\"kind\" in ('claim_received', 'claim_actioned', 'claim_rejected', 'claim_counter_noticed', 'claim_reinstated', 'claim_upheld', 'content_blocked', 'content_reinstated', 'content_upheld')"
+          "value": "\"content_claim_notifications\".\"kind\" in ('claim_received', 'claim_actioned', 'claim_rejected', 'claim_counter_noticed', 'claim_reinstated', 'claim_upheld', 'content_blocked', 'content_reinstated', 'content_upheld', 'claim_counter_notice_copy', 'counter_notice_received', 'counter_notice_staff')"
         },
         "content_claim_notifications_recipient_check": {
           "name": "content_claim_notifications_recipient_check",
-          "value": "\"content_claim_notifications\".\"recipient\" in ('claimant', 'account')"
+          "value": "\"content_claim_notifications\".\"recipient\" in ('claimant', 'account', 'staff')"
         },
         "content_claim_notifications_recipient_user_check": {
           "name": "content_claim_notifications_recipient_user_check",
           "value": "(\"content_claim_notifications\".\"recipient\" = 'account') = (\"content_claim_notifications\".\"recipient_user_id\" is not null)"
+        },
+        "content_claim_notifications_counter_notice_check": {
+          "name": "content_claim_notifications_counter_notice_check",
+          "value": "(\"content_claim_notifications\".\"kind\" in ('claim_counter_notice_copy', 'counter_notice_received', 'counter_notice_staff')) = (\"content_claim_notifications\".\"counter_notice_id\" is not null)"
         },
         "content_claim_notifications_attempts_check": {
           "name": "content_claim_notifications_attempts_check",
@@ -41411,6 +41662,155 @@
         }
       },
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.file_links": {
+      "name": "file_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app": {
+          "name": "app",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "webhook_url": {
+          "name": "webhook_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "file_links_app_entity_type_entity_id_created_by_idx": {
+          "name": "file_links_app_entity_type_entity_id_created_by_idx",
+          "columns": [
+            {
+              "expression": "app",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_links_created_by_idx": {
+          "name": "file_links_created_by_idx",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_links_file_id_files_id_fk": {
+          "name": "file_links_file_id_files_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_links_created_by_users_id_fk": {
+          "name": "file_links_created_by_users_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "file_links_file_id_app_entity_key": {
+          "name": "file_links_file_id_app_entity_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "file_id",
+            "app",
+            "entity_type",
+            "entity_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

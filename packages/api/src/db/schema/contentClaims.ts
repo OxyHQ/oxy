@@ -8,7 +8,7 @@
  * `content:claims`), and actioning it BLOCKS the bytes: every live `files` row
  * holding them leaves serving, and nobody can store them again.
  *
- * Six tables:
+ * Seven tables:
  *
  *  - `content_claims` — the claim and its state.
  *  - `content_claim_claimants` — the claimant's identity and statement,
@@ -17,8 +17,11 @@
  *    and what it resolved to (an Oxy file, or nothing yet), plus files staff
  *    attached by id.
  *  - `content_claim_events` — the append-only audit trail: who did what, when.
- *  - `content_claim_notifications` — the outbox of emails to the claimant and
- *    to the owners of blocked files.
+ *  - `content_claim_counter_notices` — an owner's own counter-notice (17
+ *    U.S.C. § 512(g)(3)), SEALED like the claimant's statement and erased on
+ *    the same clock.
+ *  - `content_claim_notifications` — the outbox of emails to the claimant, to
+ *    the owners of blocked files and to the staff who review claims.
  *  - `blocked_content_hashes` — the blocklist: a SHA-256 an actioned claim took
  *    down, refused on every upload, import and copy for ANY owner.
  *
@@ -316,12 +319,93 @@ export const CONTENT_CLAIM_NOTIFICATION_KINDS = [
   'content_reinstated',
   /** To an owning account: after its counter-notice, they stay blocked. */
   'content_upheld',
+  /**
+   * To the claimant: the copy of an owner's counter-notice (17 U.S.C.
+   * § 512(g)(2)(B)) — for a copyright claim the notice itself, the owner's
+   * name and contact details included (the owner affirmed that disclosure);
+   * for any other kind, that the owner disputes it, without them.
+   */
+  'claim_counter_notice_copy',
+  /** To the owning account: we received your counter-notice. */
+  'counter_notice_received',
+  /** To the staff who review claims (legal@oxy.so): an owner sent a counter-notice. */
+  'counter_notice_staff',
 ] as const;
+
+/** The kinds that are about ONE owner's counter-notice, and name it. */
+export const COUNTER_NOTICE_NOTIFICATION_KINDS = [
+  'claim_counter_notice_copy',
+  'counter_notice_received',
+  'counter_notice_staff',
+] as const satisfies readonly (typeof CONTENT_CLAIM_NOTIFICATION_KINDS)[number][];
 
 export type ContentClaimNotificationKind = (typeof CONTENT_CLAIM_NOTIFICATION_KINDS)[number];
 
-/** Who an email goes to. */
-export const CONTENT_CLAIM_NOTIFICATION_RECIPIENTS = ['claimant', 'account'] as const;
+/** Who an email goes to: the claimant, an owning account, or the staff mailbox. */
+export const CONTENT_CLAIM_NOTIFICATION_RECIPIENTS = ['claimant', 'account', 'staff'] as const;
+
+/**
+ * An owner's counter-notice (17 U.S.C. § 512(g)(3)), sent by the owner
+ * themselves (`POST /content-claims/counter-notices`) rather than recorded by
+ * staff from an email.
+ *
+ * The owner's identity, contact details and statement are personal data, so
+ * SEALED like the claimant's (`utils/secretBox.ts`, context
+ * `content-claim-counter-notice|<id>|<field>`), opened only for the review and
+ * the notification worker, and erased on the claimant's clock: `expires_at`
+ * is NULL while the claim is open and set when it closes, to `closed_at` plus
+ * {@link CONTENT_CLAIMANT_RETENTION_SECONDS}; the expiry sweep deletes the
+ * row and every read treats a row past it as erased.
+ *
+ * The four statements must all be affirmed for a notice to exist, so what is
+ * stored about them is WHICH wording was affirmed (`statement_version`).
+ * `file_ids` are the caller's blocked files the notice covers, as they were
+ * when it was sent. One per (claim, account).
+ */
+export const contentClaimCounterNotices = pgTable(
+  'content_claim_counter_notices',
+  {
+    id: generatedId(),
+    /** `CASCADE`: the notice belongs to its claim. */
+    claimId: text()
+      .notNull()
+      .references(() => contentClaims.id, { onDelete: 'cascade' }),
+    /** The account that sent it. `SET NULL`: the claim keeps the notice; who sent it is in the statement. */
+    submittedByUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    fileIds: text().array().notNull(),
+    statementVersion: text().notNull(),
+    nameCiphertext: text().notNull(),
+    addressCiphertext: text().notNull(),
+    phoneCiphertext: text().notNull(),
+    emailCiphertext: text().notNull(),
+    materialDescriptionCiphertext: text().notNull(),
+    materialLocationCiphertext: text().notNull(),
+    explanationCiphertext: text().notNull(),
+    signatureCiphertext: text().notNull(),
+    /** When the expiry sweep erases this row; NULL while the claim is open. */
+    expiresAt: timestamptz(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      'content_claim_counter_notices_file_ids_check',
+      sql`cardinality(${t.fileIds}) between 1 and 50`,
+    ),
+    index('content_claim_counter_notices_claim_id_idx').on(t.claimId, t.createdAt),
+    // One notice per account per claim: a second is a 409, not a second copy to the claimant.
+    uniqueIndex('content_claim_counter_notices_claim_id_submitted_by_key')
+      .on(t.claimId, t.submittedByUserId)
+      .where(sql`${t.submittedByUserId} is not null`),
+    // The FK probe a deleted account's SET NULL runs.
+    index('content_claim_counter_notices_submitted_by_user_id_idx')
+      .on(t.submittedByUserId)
+      .where(sql`${t.submittedByUserId} is not null`),
+    // The expiry sweep's range predicate (`db/expiry.ts`).
+    index('content_claim_counter_notices_expires_at_idx')
+      .on(t.expiresAt)
+      .where(sql`${t.expiresAt} is not null`),
+  ],
+);
 
 /**
  * The outbox of claim emails, written in the transaction of the change they
@@ -346,6 +430,14 @@ export const contentClaimNotifications = pgTable(
     recipient: text({ enum: CONTENT_CLAIM_NOTIFICATION_RECIPIENTS }).notNull(),
     /** The owning account told, for `recipient = 'account'`. `CASCADE`: nobody left to tell. */
     recipientUserId: text().references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * The owner's counter-notice the email is about, for exactly the
+     * {@link COUNTER_NOTICE_NOTIFICATION_KINDS} (CHECK). `CASCADE`: an erased
+     * notice leaves nothing to send.
+     */
+    counterNoticeId: text().references(() => contentClaimCounterNotices.id, {
+      onDelete: 'cascade',
+    }),
     attempts: integer().notNull().default(0),
     nextAttemptAt: timestamptz().notNull().default(sql`now()`),
     claimedAt: timestamptz(),
@@ -368,11 +460,18 @@ export const contentClaimNotifications = pgTable(
       'content_claim_notifications_recipient_user_check',
       sql`(${t.recipient} = 'account') = (${t.recipientUserId} is not null)`,
     ),
+    check(
+      'content_claim_notifications_counter_notice_check',
+      sql`(${t.kind} in (${sql.raw(inList(COUNTER_NOTICE_NOTIFICATION_KINDS))})) = (${t.counterNoticeId} is not null)`,
+    ),
     check('content_claim_notifications_attempts_check', sql`${t.attempts} >= 0`),
     index('content_claim_notifications_due_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.sentAt} is null and ${t.failedAt} is null`),
     index('content_claim_notifications_claim_id_idx').on(t.claimId),
+    index('content_claim_notifications_counter_notice_id_idx')
+      .on(t.counterNoticeId)
+      .where(sql`${t.counterNoticeId} is not null`),
     index('content_claim_notifications_recipient_user_id_idx')
       .on(t.recipientUserId)
       .where(sql`${t.recipientUserId} is not null`),
@@ -414,3 +513,4 @@ export type ContentClaimRow = typeof contentClaims.$inferSelect;
 export type ContentClaimTargetRow = typeof contentClaimTargets.$inferSelect;
 export type ContentClaimEventRow = typeof contentClaimEvents.$inferSelect;
 export type ContentClaimNotificationRow = typeof contentClaimNotifications.$inferSelect;
+export type ContentClaimCounterNoticeRow = typeof contentClaimCounterNotices.$inferSelect;

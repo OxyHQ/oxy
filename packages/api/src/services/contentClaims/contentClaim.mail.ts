@@ -10,7 +10,7 @@
  * reference.
  */
 
-import type { ContentClaimKind } from '@oxy.so/contracts';
+import { COUNTER_NOTICE_STATEMENTS, type ContentClaimKind } from '@oxy.so/contracts';
 import type { ContentClaimNotificationKind } from '../../db/schema';
 import { htmlPage } from '../accountEmail.mail';
 
@@ -37,6 +37,23 @@ export interface ContentClaimMailContext {
   fileNames: string[];
   /** URLs the report named (the confirmation). */
   targetCount: number;
+  /**
+   * An owner's counter-notice, opened, for the claimant's copy — only for a
+   * copyright claim, where the law requires the copy (17 U.S.C. § 512(g)(2)(B)).
+   */
+  counterNotice?: {
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    materialDescription: string;
+    materialLocation: string;
+    explanation: string;
+    signature: string;
+    sentAt: string;
+  } | null;
+  /** How many files a counter-notice covers (the staff alert). */
+  fileCount?: number;
 }
 
 const CLAIM_KIND_TEXT: Record<ContentClaimKind, string> = {
@@ -133,6 +150,48 @@ export function renderContentClaimMail(
         greeting,
         `After reviewing your response to ${what} (reference ${context.reference}), the content stays removed.`,
         quote,
+      ]);
+    case 'claim_counter_notice_copy': {
+      const notice = context.counterNotice;
+      if (!notice) {
+        // Not a copyright claim: the owner's identity is not the claimant's to have.
+        return write(`A response to your report ${context.reference}`, [
+          greeting,
+          'The person who posted the content you reported disputes your report and has asked us to restore it.',
+          `We will review their response and tell you what we decide. ${quote}`,
+        ]);
+      }
+      return write(`Counter-notice to your report ${context.reference}`, [
+        greeting,
+        'The person who posted the content you reported sent us the counter-notice below. The law requires us to send you a copy (17 U.S.C. § 512(g)(2)(B)).',
+        [
+          `Name: ${notice.name}`,
+          `Address: ${notice.address}`,
+          `Telephone: ${notice.phone}`,
+          `Email: ${notice.email}`,
+          `Material removed: ${notice.materialDescription}`,
+          `Where it appeared: ${notice.materialLocation}`,
+          `Their explanation: ${notice.explanation}`,
+          `Statement: ${COUNTER_NOTICE_STATEMENTS.perjury}`,
+          `Consent: ${COUNTER_NOTICE_STATEMENTS.jurisdiction}`,
+          `Service of process: ${COUNTER_NOTICE_STATEMENTS.serviceOfProcess}`,
+          `Signed: ${notice.signature}, ${notice.sentAt}`,
+        ].join('\n'),
+        `We may restore the material no less than 10 and no more than 14 business days after we received this counter-notice, unless you first tell us at ${LEGAL_CONTACT}, quoting the reference ${context.reference}, that you have filed an action seeking a court order to restrain the person from engaging in the infringing activity.`,
+      ]);
+    }
+    case 'counter_notice_received':
+      return write(`We received your counter-notice (${context.reference})`, [
+        greeting,
+        `We received your counter-notice to ${what} (reference ${context.reference}) about:`,
+        fileList(context.fileNames).join('\n'),
+        'A person on our team will review it. For a copyright claim, we send a copy to the person who made the claim, as the law requires; if they do not tell us within 10 business days that they have gone to court, we may restore the content.',
+        quote,
+      ]);
+    case 'counter_notice_staff':
+      return write(`Counter-notice received: ${context.reference}`, [
+        `The owner of content removed after ${what} (reference ${context.reference}) sent a counter-notice covering ${context.fileCount ?? 0} ${context.fileCount === 1 ? 'file' : 'files'}.`,
+        'Review it on the claim in the console (Staff → Content claims). The claimant has been sent their copy.',
       ]);
   }
 }

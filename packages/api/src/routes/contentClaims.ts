@@ -11,6 +11,10 @@
  * - Everything else is the staff review, behind the `content:claims` staff
  *   capability (`middleware/requireStaff.ts`): the queue, a claim in full (the
  *   claimant's statement opened), and the actions on it.
+ * - `POST /counter-notices` is the OWNER's: a signed-in account disputes a
+ *   claim that took down its files (17 U.S.C. § 512(g)). Limited per network
+ *   ({@link COUNTER_NOTICE_PER_IP}) and per account
+ *   ({@link COUNTER_NOTICE_PER_ACCOUNT}).
  * - `GET /:id/targets/:targetId/content` streams a claimed file to a reviewer
  *   on a short-lived token the review minted (`claimPreviewToken.ts`) — a
  *   blocked or private file is otherwise served to nobody.
@@ -18,13 +22,18 @@
 
 import express, { type Request, type Response } from 'express';
 import {
+  CONTENT_CLAIM_COUNTER_NOTICE_LIMITS,
   CONTENT_CLAIM_ERROR_CODES,
   CONTENT_CLAIM_LIMITS,
+  type ContentClaimCounterNotice,
+  type ContentClaimCounterNoticeValidationKey,
   type ContentClaimSubmission,
   type ContentClaimValidationKey,
+  contentClaimCounterNoticeSchema,
   contentClaimSubmissionSchema,
 } from '@oxy.so/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { resolveOperatorId } from '../middleware/operator';
 import { optionalAuthMiddleware } from '../middleware/optionalAuth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hasStaffCapability, requireStaffCapability } from '../middleware/requireStaff';
@@ -59,6 +68,7 @@ import {
   rejectContentClaim,
   startContentClaimReview,
   submitContentClaim,
+  submitCounterNotice,
   upholdContentClaim,
 } from '../services/contentClaims/contentClaim.service';
 import { OXY_API_HOSTS } from '../services/contentClaims/contentClaimUrls';
@@ -104,6 +114,32 @@ const submitEmailLimiter = rateLimit({
       SERVER_KEY_LABELS.contentClaimRateLimit,
       (req.body as ContentClaimSubmission).claimant.email.trim().toLowerCase(),
     )}`,
+});
+
+/** Counter-notices one network may send per hour. */
+export const COUNTER_NOTICE_PER_IP = 10;
+/** Counter-notices one account may send per day. */
+export const COUNTER_NOTICE_PER_ACCOUNT = 5;
+
+const counterNoticeIpLimiter = rateLimit({
+  prefix: 'rl:content-claims:counter-notice:ip:',
+  windowMs: HOUR_MS,
+  max: COUNTER_NOTICE_PER_IP,
+  message: 'Too many counter-notices in a short time. Try again later.',
+  keyGenerator: (req: Request): string => `content-claims:counter-notice:ip:${hashedIpKey(req)}`,
+});
+
+const counterNoticeAccountLimiter = rateLimit({
+  prefix: 'rl:content-claims:counter-notice:account:',
+  windowMs: DAY_MS,
+  max: COUNTER_NOTICE_PER_ACCOUNT,
+  message: 'Too many counter-notices in a short time. Try again later.',
+  keyGenerator: (req: Request): string => {
+    const userId = (req as AuthRequest).user?._id;
+    return userId
+      ? `content-claims:counter-notice:account:${userId}`
+      : `content-claims:counter-notice:ip:${hashedIpKey(req)}`;
+  },
 });
 
 const staffLimiter = rateLimit({
@@ -170,6 +206,63 @@ function validateSubmission(req: Request, res: Response, next: express.NextFunct
   res.status(400).json({
     error: 'Some details of your report need attention.',
     code: CONTENT_CLAIM_ERROR_CODES.invalid,
+    fields,
+  });
+}
+
+const N = CONTENT_CLAIM_COUNTER_NOTICE_LIMITS;
+
+/** Each counter-notice validation key, as the sentence the API answers for it. */
+const COUNTER_NOTICE_MESSAGES: Record<ContentClaimCounterNoticeValidationKey, string> = {
+  'contentClaim.counterNotice.errors.claim':
+    'Give the reference from the email you received, or the files that were removed.',
+  'contentClaim.counterNotice.errors.reference':
+    'Enter the reference exactly as it appears in the email, like OXY-7K3M-9Q2D.',
+  'contentClaim.counterNotice.errors.claimId': 'This claim id is not valid.',
+  'contentClaim.counterNotice.errors.fileIds': `Name between 1 and ${N.maxFileIds} removed files.`,
+  'contentClaim.counterNotice.errors.name': 'Enter your full name.',
+  'contentClaim.counterNotice.errors.address': 'Enter your postal address.',
+  'contentClaim.counterNotice.errors.phone': 'Enter a telephone number we can reach you on.',
+  'contentClaim.counterNotice.errors.email': 'Enter an email we can reply to.',
+  'contentClaim.counterNotice.errors.materialDescription': `Describe what was removed in at least ${N.minMaterial} characters.`,
+  'contentClaim.counterNotice.errors.materialLocation':
+    'Say where the material appeared before it was removed.',
+  'contentClaim.counterNotice.errors.explanation': `Explain why the removal was a mistake in at least ${N.minExplanation} characters.`,
+  'contentClaim.counterNotice.errors.perjury':
+    'Confirm the statement made under penalty of perjury.',
+  'contentClaim.counterNotice.errors.jurisdiction': 'Confirm your consent to jurisdiction.',
+  'contentClaim.counterNotice.errors.serviceOfProcess':
+    'Confirm that you will accept service of process.',
+  'contentClaim.counterNotice.errors.disclosure':
+    'Confirm that you understand your counter-notice is sent to the person who made the claim.',
+  'contentClaim.counterNotice.errors.signature': 'Type your full name as your signature.',
+};
+
+/** As {@link validateSubmission}, for an owner's counter-notice. */
+function validateCounterNotice(req: Request, res: Response, next: express.NextFunction): void {
+  const parsed = contentClaimCounterNoticeSchema.safeParse(req.body ?? {});
+  if (parsed.success) {
+    req.body = parsed.data;
+    next();
+    return;
+  }
+  const fields: Record<string, string> = {};
+  for (const issue of parsed.error.issues) {
+    const path = issue.path.length > 0 ? issue.path.join('.') : 'body';
+    if (issue.code === 'unrecognized_keys') {
+      for (const key of issue.keys) {
+        const keyPath = path === 'body' ? key : `${path}.${key}`;
+        fields[keyPath] ??= 'This field is not part of a counter-notice.';
+      }
+      continue;
+    }
+    fields[path] ??=
+      (COUNTER_NOTICE_MESSAGES as Record<string, string>)[issue.message] ??
+      'This value is not valid.';
+  }
+  res.status(400).json({
+    error: 'Some details of your counter-notice need attention.',
+    code: CONTENT_CLAIM_ERROR_CODES.counterNoticeInvalid,
     fields,
   });
 }
@@ -259,6 +352,112 @@ router.post(
     const created = await submitContentClaim(req.body as ContentClaimSubmission, {
       submittedByUserId: req.user?._id ?? null,
       apiHosts: apiHostsFor(req),
+    });
+    res.status(201).json(created);
+  }),
+);
+
+/**
+ * @openapi
+ * /content-claims/counter-notices:
+ *   post:
+ *     tags: [Safety]
+ *     summary: Dispute a claim that removed your content (counter-notice)
+ *     security:
+ *       - bearerAuth: []
+ *     description: >
+ *       The owner of files a content claim took down disputes it (17 U.S.C.
+ *       § 512(g)(3)). Name the claim by its `reference` (from the email you
+ *       were sent), its `claimId`, or the removed `fileIds`; the notice covers
+ *       the named files, or every file of yours the claim blocked. Only files
+ *       you own answer: anything else is 404, as if there were no claim. The
+ *       claim moves to `counter_noticed` (409 from any state but `actioned` or
+ *       `counter_noticed`; 409 `CONTENT_CLAIM_COUNTER_NOTICE_EXISTS` for a
+ *       second notice from the same account; 400
+ *       `CONTENT_CLAIM_COUNTER_NOTICE_AMBIGUOUS` when the files were removed
+ *       after more than one claim and none is named). Staff are alerted, you
+ *       get a confirmation, and for a copyright claim the claimant is sent a
+ *       copy of the notice, your name and contact details included. The body
+ *       is `contentClaimCounterNoticeSchema` in `@oxy.so/contracts`. Limited
+ *       per network (10 an hour) and per account (5 a day).
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [subscriber, material, explanation, statements, signature]
+ *             additionalProperties: false
+ *             properties:
+ *               reference: { type: string, example: OXY-7K3M-9Q2D }
+ *               claimId: { type: string, format: uuid }
+ *               fileIds: { type: array, minItems: 1, maxItems: 50, items: { type: string } }
+ *               subscriber:
+ *                 type: object
+ *                 required: [name, address, phone, email]
+ *                 additionalProperties: false
+ *                 properties:
+ *                   name: { type: string, maxLength: 200 }
+ *                   address: { type: string, maxLength: 500 }
+ *                   phone: { type: string, minLength: 5, maxLength: 40 }
+ *                   email: { type: string, format: email, maxLength: 254 }
+ *               material:
+ *                 type: object
+ *                 required: [description, location]
+ *                 additionalProperties: false
+ *                 properties:
+ *                   description: { type: string, minLength: 10, maxLength: 2000 }
+ *                   location: { type: string, maxLength: 2048 }
+ *               explanation: { type: string, minLength: 20, maxLength: 5000 }
+ *               statements:
+ *                 type: object
+ *                 required: [perjury, jurisdiction, serviceOfProcess, disclosure]
+ *                 additionalProperties: false
+ *                 properties:
+ *                   perjury: { type: boolean, enum: [true] }
+ *                   jurisdiction: { type: boolean, enum: [true] }
+ *                   serviceOfProcess: { type: boolean, enum: [true] }
+ *                   disclosure: { type: boolean, enum: [true] }
+ *               signature: { type: string, maxLength: 200 }
+ *     responses:
+ *       201:
+ *         description: Received.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               required: [id, reference, state, fileIds]
+ *               properties:
+ *                 id: { type: string }
+ *                 reference: { type: string }
+ *                 state: { type: string, enum: [counter_noticed] }
+ *                 fileIds: { type: array, items: { type: string } }
+ *       400:
+ *         description: >
+ *           `{ error, code: CONTENT_CLAIM_COUNTER_NOTICE_INVALID, fields }`, or
+ *           `CONTENT_CLAIM_COUNTER_NOTICE_AMBIGUOUS`.
+ *       401:
+ *         description: Not signed in.
+ *       404:
+ *         description: No claim removed files of yours by that reference, id or file.
+ *       409:
+ *         description: The claim cannot be disputed now, or you already did.
+ *       429:
+ *         description: Too many counter-notices; see `Retry-After`.
+ */
+router.post(
+  '/counter-notices',
+  counterNoticeIpLimiter,
+  authMiddleware,
+  counterNoticeAccountLimiter,
+  validateCounterNotice,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const subjectUserId = req.user?._id;
+    if (!subjectUserId) throw new UnauthorizedError();
+    const operatorUserId = await resolveOperatorId(req);
+    const created = await submitCounterNotice(req.body as ContentClaimCounterNotice, {
+      subjectUserId,
+      operatorUserId: operatorUserId === subjectUserId ? null : operatorUserId,
     });
     res.status(201).json(created);
   }),

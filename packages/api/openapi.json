@@ -16575,6 +16575,204 @@
         "operationId": "getContentClaimsAccess"
       }
     },
+    "/content-claims/counter-notices": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Dispute a claim that removed your content (counter-notice)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "The owner of files a content claim took down disputes it (17 U.S.C. § 512(g)(3)). Name the claim by its `reference` (from the email you were sent), its `claimId`, or the removed `fileIds`; the notice covers the named files, or every file of yours the claim blocked. Only files you own answer: anything else is 404, as if there were no claim. The claim moves to `counter_noticed` (409 from any state but `actioned` or `counter_noticed`; 409 `CONTENT_CLAIM_COUNTER_NOTICE_EXISTS` for a second notice from the same account; 400 `CONTENT_CLAIM_COUNTER_NOTICE_AMBIGUOUS` when the files were removed after more than one claim and none is named). Staff are alerted, you get a confirmation, and for a copyright claim the claimant is sent a copy of the notice, your name and contact details included. The body is `contentClaimCounterNoticeSchema` in `@oxy.so/contracts`. Limited per network (10 an hour) and per account (5 a day).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "subscriber",
+                  "material",
+                  "explanation",
+                  "statements",
+                  "signature"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "reference": {
+                    "type": "string",
+                    "example": "OXY-7K3M-9Q2D"
+                  },
+                  "claimId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "fileIds": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "subscriber": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "address",
+                      "phone",
+                      "email"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "address": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "phone": {
+                        "type": "string",
+                        "minLength": 5,
+                        "maxLength": 40
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 254
+                      }
+                    }
+                  },
+                  "material": {
+                    "type": "object",
+                    "required": [
+                      "description",
+                      "location"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "description": {
+                        "type": "string",
+                        "minLength": 10,
+                        "maxLength": 2000
+                      },
+                      "location": {
+                        "type": "string",
+                        "maxLength": 2048
+                      }
+                    }
+                  },
+                  "explanation": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 5000
+                  },
+                  "statements": {
+                    "type": "object",
+                    "required": [
+                      "perjury",
+                      "jurisdiction",
+                      "serviceOfProcess",
+                      "disclosure"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "perjury": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "jurisdiction": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "serviceOfProcess": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "disclosure": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      }
+                    }
+                  },
+                  "signature": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Received.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "reference",
+                    "state",
+                    "fileIds"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "counter_noticed"
+                      ]
+                    },
+                    "fileIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`{ error, code: CONTENT_CLAIM_COUNTER_NOTICE_INVALID, fields }`, or `CONTENT_CLAIM_COUNTER_NOTICE_AMBIGUOUS`.\n"
+          },
+          "401": {
+            "description": "Not signed in."
+          },
+          "404": {
+            "description": "No claim removed files of yours by that reference, id or file."
+          },
+          "409": {
+            "description": "The claim cannot be disputed now, or you already did."
+          },
+          "429": {
+            "description": "Too many counter-notices; see `Retry-After`."
+          }
+        },
+        "operationId": "postContentClaimsCounterNotices"
+      }
+    },
     "/content-claims/{id}": {
       "get": {
         "tags": [

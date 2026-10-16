@@ -76,6 +76,7 @@ import {
 import {
   CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
   contentClaimClaimants,
+  contentClaimCounterNotices,
   contentClaimNotifications,
 } from './schema/contentClaims';
 import {
@@ -437,6 +438,17 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'three years after the claim closes (`CONTENT_CLAIMANT_RETENTION_SECONDS`); ' +
       'NULL — kept — while the claim is open. Housekeeping only: every read ' +
       'treats a row past `expires_at` as erased. The claim keeps its trail.',
+  },
+  {
+    table: contentClaimCounterNotices,
+    column: contentClaimCounterNotices.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      "An owner's counter-notice — their identity, contact details and " +
+      "statement (ADR 0041 D10) — on the claimant statement's clock: set to " +
+      'expire three years after the claim closes, NULL — kept — while it is ' +
+      'open. Housekeeping only: every read treats a row past `expires_at` as ' +
+      'erased; its emails go with it (CASCADE).',
   },
   {
     table: contentClaimNotifications,
