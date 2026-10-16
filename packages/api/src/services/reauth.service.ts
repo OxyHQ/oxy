@@ -26,7 +26,7 @@ import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
-import { ApiError, BadRequestError } from '../utils/error';
+import { ApiError, BadRequestError, ErrorCodes } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendReauthCode } from './accountEmail.mail';
 import {
@@ -104,7 +104,7 @@ export async function startReauthEmail(
   const db = getDb();
   const emailHash = hashEmail(email);
   if (!(await reserveSendBudget({ group: 'reauth', emailHash, requesterKey: `u:${userId}` }))) {
-    throw new ApiError(429, 'Too many codes. Try again in an hour.', 'RATE_LIMITED');
+    throw new ApiError(429, 'Too many codes. Try again in an hour.', ErrorCodes.RATE_LIMITED);
   }
   const { verificationId, code, expiresAt } = await recordVerification(
     db,

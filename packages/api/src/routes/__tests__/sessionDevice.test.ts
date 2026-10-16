@@ -54,6 +54,7 @@ jest.mock('../../middleware/originGuard', () => ({
   requireSameSiteOrigin: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/rateLimiter', () => ({
+  ...jest.requireActual('../../middleware/rateLimiter'),
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/authUtils', () => ({
@@ -425,6 +426,12 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     });
 
     expect(res.status).toBe(429);
+    // Refused like every limit: typed, with the lockout's own wait.
+    expect(res.body).toEqual({
+      error: 'RATE_LIMITED',
+      message: 'Too many attempts',
+      details: { retryAfterSeconds: 42 },
+    });
     expect(await storedHashes(deviceId)).toEqual([sha256(secret)]);
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });

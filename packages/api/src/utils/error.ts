@@ -25,6 +25,9 @@ export const ErrorCodes = {
   ALREADY_EXISTS: 'ALREADY_EXISTS',
   CONFLICT: 'CONFLICT',
 
+  // Rate limiting: answered 429 with `Retry-After` (`middleware/rateLimiter.ts`)
+  RATE_LIMITED: 'RATE_LIMITED',
+
   // Server errors
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
@@ -49,6 +52,7 @@ export function getErrorCodeFromStatus(statusCode: number): string {
     404: ErrorCodes.NOT_FOUND,
     409: ErrorCodes.CONFLICT,
     422: ErrorCodes.VALIDATION_ERROR,
+    429: ErrorCodes.RATE_LIMITED,
     500: ErrorCodes.INTERNAL_SERVER_ERROR,
     503: ErrorCodes.SERVICE_UNAVAILABLE,
   };
