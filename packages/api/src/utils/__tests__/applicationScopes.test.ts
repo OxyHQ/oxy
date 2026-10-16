@@ -14,7 +14,9 @@
  *     intersects credential ∩ app scopes, the credential lost it too.
  */
 
+import { ACCOUNTS_MEMBERSHIP_READ_SCOPE } from '@oxy.so/contracts';
 import {
+  ACCOUNT_MEMBERSHIP_READ_SCOPE,
   intersectScopes,
   unionValidScopes,
   isFollowScope,
@@ -314,6 +316,32 @@ describe('accounts:act-as-session — minting a session AS a managed account', (
 
   it('is not a follow scope', () => {
     expect(isFollowScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(false);
+  });
+});
+
+describe('accounts:membership:read — asking whether a person may act for an account', () => {
+  it('is one spelling, shared with the published contract', () => {
+    expect(ACCOUNT_MEMBERSHIP_READ_SCOPE).toBe('accounts:membership:read');
+    expect(ACCOUNT_MEMBERSHIP_READ_SCOPE).toBe(ACCOUNTS_MEMBERSHIP_READ_SCOPE);
+    expect(isValidApplicationScope(ACCOUNT_MEMBERSHIP_READ_SCOPE)).toBe(true);
+  });
+
+  it('is staff-only: it can unmask who is behind an anonymous channel', () => {
+    expect(isPrivilegedScope(ACCOUNT_MEMBERSHIP_READ_SCOPE)).toBe(true);
+  });
+
+  it('is not consent-required and not a follow scope', () => {
+    expect(isUserConsentRequiredScope(ACCOUNT_MEMBERSHIP_READ_SCOPE)).toBe(false);
+    expect(isFollowScope(ACCOUNT_MEMBERSHIP_READ_SCOPE)).toBe(false);
+  });
+
+  it('neither implies nor is implied by the session mint', () => {
+    expect(
+      intersectScopes([ACCOUNT_MEMBERSHIP_READ_SCOPE], [SERVICE_ACCOUNT_SWITCH_SCOPE]),
+    ).toEqual([]);
+    expect(
+      intersectScopes([SERVICE_ACCOUNT_SWITCH_SCOPE], [ACCOUNT_MEMBERSHIP_READ_SCOPE]),
+    ).toEqual([]);
   });
 });
 

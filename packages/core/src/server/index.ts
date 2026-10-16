@@ -25,6 +25,7 @@ export {
 } from './OxyServer';
 export type { OxyServerConfig, ServiceTokenAudience, ServiceTokenResponse } from './OxyServer';
 export {
+  ServerAccountsApi,
   ServerAppsApi,
   ServerAgencyApi,
   ServerAssetsApi,

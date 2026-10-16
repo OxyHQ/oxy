@@ -43,7 +43,7 @@ A namespace is created the first time you touch it and kept for the client's lif
 | `oxy.follows` | The follow graph — people (`follow`, `unfollow`, `statuses`, `followers`, `following`, `mutuals`, `viewerGraph`) and any other target kind (`followTarget`, `ensureTarget`, `claimNamespace`, `registerKind`, `list`). |
 | `oxy.privacy` | Privacy settings, blocks and restrictions. |
 | `oxy.notifications` | The in-app inbox and push tokens. |
-| `oxy.assets` | Files: `upload`, `link`, `url` (signed), `publicUrl` (CDN, sync), `urls` (batch), `text`, `blob`, `delete`, `setVisibility`, `uploadAvatar`. |
+| `oxy.assets` | Files: `upload`, `uploadLarge` (hashed, straight to storage: `initUpload` → PUT → `completeUpload`), `link`, `url` (signed), `publicUrl` (CDN, sync), `urls` (batch), `text`, `blob`, `delete`, `setVisibility`, `uploadAvatar`. |
 | `oxy.identity` | DID, auth methods, key rotation, `links.*` (Commons ↔ account), `domains.*` (verified domains), `backup.*` (encrypted key backup), `export()` (signed data export). |
 | `oxy.accounts` | The account graph and `members.*`. |
 | `oxy.apps` | Applications an account owns (`credentials.*`, `usage`), the public app identity, and `connected.*` — what this user granted. |
@@ -124,7 +124,7 @@ const authors = await oxy.users.getMany(ids);    // uses the service token
 await oxy.serviceRequest('POST', '/some/route', body, { actAs: userId });
 ```
 
-On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls`, `notifications.create`, `linkedAccounts.forUser`, `agency.mintRequesterAssertion` / `introspectRequesterAssertion`, `reputation.award`. See [service tokens](./service-tokens.mdx).
+On ECS with workload identity no key pair is needed. With `serviceIdentity: 'when-anonymous'`, every request that carries no user session is sent with the service token (oxy-api charges anonymous traffic to the source address, which a fleet shares). `OxyServer` adds `serviceToken()`, `serviceRequest()`, `verifyActingAs()`, `accountEvents.*`, `middleware.*`, and the service-only namespace methods: `assets.metadataByIds` / `metadataBySha256` / `linkedDownloadUrls`, `accounts.accessFor`, `notifications.create`, `linkedAccounts.forUser`, `agency.mintRequesterAssertion` / `introspectRequesterAssertion`, `reputation.award`. See [service tokens](./service-tokens.mdx).
 
 ## Migrating from 2.x
 

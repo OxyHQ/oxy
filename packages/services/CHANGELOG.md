@@ -1,5 +1,11 @@
 # Changelog
 
+## [11.7.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.14.0 (exact peer) and `@oxy.so/contracts` 4.18.0. No
+source change: the peer moves so an app can take core's
+`accounts.accessFor` and `assets.uploadLarge` without nesting a second core.
+
 ## [11.6.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.13.0 (and so `@oxy.so/contracts` 4.17.0).

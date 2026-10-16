@@ -71,6 +71,24 @@ const result = await oxy.serviceRequest('POST', '/some/endpoint', body, { actAs:
 
 Audit logs record both the service identity and the delegated user.
 
+## Acting for an account you cannot act as
+
+Nobody acts AS a `channel` account: no session or delegation can name one. An
+app publishes to a channel with its OWN credential, on behalf of a member, and
+asks Oxy first whether that person may:
+
+```ts
+const verdict = await oxy.accounts.accessFor(channelId, userId);
+// { accountId, kind: 'channel', access: { role, permissions, status: 'active', source } | null }
+if (verdict.kind !== 'channel' || !verdict.access) throw new Error('Not a member of that channel');
+```
+
+The application must be platform-trusted and hold the staff-granted
+`accounts:membership:read`. `access` is `null` for no active membership and for
+an archived, unknown or unclaimed directory account. The answer is never cached,
+and anything but a valid verdict throws, so a caller fails closed. When a finer
+right matters, gate on `access.permissions`, never on `access.role`.
+
 ## Protecting your own endpoints
 
 Internal services that expose their own HTTP surface should validate inbound service tokens. The `middleware.service()` middleware does this:

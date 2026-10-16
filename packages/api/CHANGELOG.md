@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added (a service asks whether a person may act for an account)
+
+- `GET /internal/accounts/:accountId/access/:userId` → always 200
+  `{ accountId, kind, access: { role, permissions, status, source } | null }`:
+  the effective access `accountService` resolves for every other membership
+  check (direct, inherited, a personal account's own owner), `null` for no
+  active membership, an archived, unknown or unclaimed directory account.
+  Behind `/internal`'s service-token and trust gates plus the new privileged
+  scope `accounts:membership:read`; 600/minute per calling application; each
+  answer logged with caller, account and outcome, never the person. It is how
+  Mention and Oxy Move publish to a channel (which nobody may act AS) on a
+  member's behalf with no session of theirs.
+- Migration `0166` (deploy phase `pre`) widens the three scope CHECKs by that
+  one value. It grants nothing.
+
 ### Fixed (an embeddings batch is held to the context per input, not in total)
 
 - `POST /internal/kaana/v1/authorizations` for `embeddings` compared the batch's

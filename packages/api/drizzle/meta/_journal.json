@@ -1156,6 +1156,13 @@
       "when": 1792086314645,
       "tag": "0165_kaana_grants_own_their_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1792142711939,
+      "tag": "0166_account_membership_read_scope",
+      "breakpoints": true
     }
   ]
 }
