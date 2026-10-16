@@ -3848,7 +3848,7 @@ router.get(
  */
 router.post(
   '/:id/trash',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -3896,7 +3896,7 @@ router.post(
  */
 router.post(
   '/:id/restore',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
