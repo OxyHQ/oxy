@@ -16,7 +16,11 @@
  *  2. owner-then-service already worked and still does;
  *  3. only a NULL creator is filled — a person's creator is never replaced;
  *  4. a non-owner named as creator changes nothing (the repository's own rule,
- *     whatever the caller checked).
+ *     whatever the caller checked);
+ *  5. Mercaria's digital goods (OxyHQ/oxy#1755): a creator links a private
+ *     file from the shared session with the legacy `app: 'mercaria'` string,
+ *     and Mercaria — holding exactly its canonical seeded scopes — mints its
+ *     download URL; a file the creator never linked stays unreadable.
  *
  * Stubbed: both auth middlewares, the rate limiter, S3.
  */
@@ -78,6 +82,7 @@ import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 import { insertFileReference } from '../../services/fileRepository';
 import fileCache from '../../utils/fileCache';
+import { SEED_APPS } from '../../scripts/seedOxyApplicationsSpecs';
 
 jest.setTimeout(60_000);
 
@@ -120,25 +125,29 @@ function json(method: string, path: string, payload: unknown): Promise<JsonRespo
   });
 }
 
-function actAsService(appId: string): void {
+function actAsService(
+  appId: string,
+  scopes: readonly string[] = ['files:references:write', 'files:linked:read'],
+  appName = 'Nilo',
+): void {
   mockServiceAuthMiddleware.mockImplementation(
     (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
       req.serviceApp = {
         type: 'service',
         appId,
-        appName: 'Nilo',
-        credentialId: 'cred-nilo',
+        appName,
+        credentialId: `cred-${appName.toLowerCase()}`,
         ownerAccountId: 'acct-1',
         environment: 'production',
         tier: 'internal',
-        scopes: ['files:references:write', 'files:linked:read'],
+        scopes: [...scopes],
       };
       next();
     },
   );
 }
 
-function signInAs(userId: string, boundApplicationId: string): void {
+function signInAs(userId: string, boundApplicationId: string | null): void {
   mockSessionUserId = userId;
   mockBoundApplicationId = boundApplicationId;
 }
@@ -318,5 +327,51 @@ describe("the owner's reference wins over the service-made twin (Nilo)", () => {
     });
     expect(result.ownerRecorded).toBe(false);
     expect(await creatorsOf(fileId, nilo)).toEqual([null]);
+  });
+});
+
+describe('Mercaria reads the digital goods their creators linked to it (OxyHQ/oxy#1755)', () => {
+  it('a creator links from the shared session as `mercaria`; Mercaria, with its seeded scopes, may read', async () => {
+    const mercariaScopes = SEED_APPS.find((spec) => spec.name === 'Mercaria')?.scopes ?? [];
+    expect(mercariaScopes).toContain('files:linked:read');
+
+    // The legacy `app: 'mercaria'` string resolves by the seed's name, which
+    // must name exactly ONE active non-third-party application. This worker's
+    // database is shared with the files after this one: suspend it at the end
+    // so no later run ever sees two.
+    const [mercaria] = await getDb()
+      .insert(applications)
+      .values({ name: 'Mercaria', ownerAccountId: await account(), type: 'first_party' })
+      .returning({ id: applications.id });
+    try {
+      const creator = await account();
+      const linkedGood = await personalFile(creator, 'private');
+      const unlinkedGood = await personalFile(creator, 'private');
+
+      // Mercaria's dashboard runs on the shared device session, which names no
+      // application: the body's legacy string is all there is.
+      signInAs(creator, null);
+      const linked = await json('POST', `/assets/${linkedGood}/links`, {
+        app: 'mercaria',
+        entityType: 'asset_file',
+        entityId: `asset-${randomBytes(4).toString('hex')}`,
+      });
+      expect(linked.status).toBe(200);
+      expect(await creatorsOf(linkedGood, mercaria.id)).toEqual([creator]);
+
+      actAsService(mercaria.id, mercariaScopes, 'Mercaria');
+      const res = await json('POST', '/assets/service/linked-url', {
+        ids: [linkedGood, unlinkedGood],
+      });
+      expect(res.status).toBe(200);
+      expect((res.body.data as Array<{ id: string }>).map((item) => item.id)).toEqual([
+        linkedGood,
+      ]);
+    } finally {
+      await getDb()
+        .update(applications)
+        .set({ status: 'suspended' })
+        .where(eq(applications.id, mercaria.id));
+    }
   });
 });
