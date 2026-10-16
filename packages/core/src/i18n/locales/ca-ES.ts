@@ -406,5 +406,62 @@ const dict = {
       row: 'Un segon pas en iniciar sessió',
     },
   },
+  fileManagement: {
+    deleteFile: 'Elimina el fitxer',
+    confirm: 'Confirma',
+    retry: 'Torna-ho a provar',
+    loadError: {
+      description: 'Alguna cosa no ha anat bé. Comprova la connexió i torna-ho a provar.',
+    },
+    moveToTrash: 'Mou a la paperera',
+    moveToTrashCount: 'Mou a la paperera ({{count}})',
+    trashView: {
+      title: 'Paperera',
+      subtitle: 'Restaura fitxers o elimina’ls definitivament',
+      notice:
+        'Els fitxers es queden a la paperera fins que els restauris o els eliminis, i continuen comptant per al teu emmagatzematge.',
+      emptyTitle: 'La paperera és buida',
+      emptyDescription:
+        'Els fitxers que moguis a la paperera apareixeran aquí. Pots restaurar-los o eliminar-los definitivament.',
+      trashedOn: 'Mogut a la paperera el {{date}}',
+      deleteForever: 'Elimina definitivament',
+      loadError: "No s'ha pogut carregar la paperera",
+      a11y: {
+        restore: 'Restaura {{name}}',
+        deleteForever: 'Elimina {{name}} definitivament',
+      },
+    },
+    a11y: {
+      moveToTrash: 'Mou {{name}} a la paperera',
+      deleteFile: 'Elimina {{name}}',
+      openTrash: 'Obre la paperera',
+    },
+    toasts: {
+      movedToTrash: "S'ha mogut a la paperera. El pots restaurar des de la paperera.",
+      bulkMovedToTrash: "S'han mogut {{count}} fitxer(s) a la paperera",
+      moveToTrashFailed: "No s'ha pogut moure el fitxer a la paperera",
+      restored: "S'ha restaurat el fitxer",
+      notInTrash: 'Aquest fitxer ja no és a la paperera.',
+      restoreFailed: "No s'ha pogut restaurar el fitxer",
+      deletedForever: "S'ha eliminat el fitxer definitivament",
+      deleteSuccess: "S'ha eliminat el fitxer",
+      deleteFailed: "No s'ha pogut eliminar el fitxer",
+      fileNotFound: "No s'ha trobat el fitxer. Potser ja s'ha eliminat.",
+      noPermission: 'No tens permís per eliminar aquest fitxer.',
+      bulkDeleteSuccess: "S'han eliminat {{count}} fitxer(s)",
+      bulkDeleteFailed: "No s'han pogut eliminar {{count}} fitxer(s)",
+      bulkDeleteError: "No s'han pogut eliminar els fitxers",
+    },
+    confirms: {
+      deleteFile: 'Segur que vols eliminar «{{filename}}»? Aquesta acció no es pot desfer.',
+      moveToTrash:
+        'Vols moure «{{filename}}» a la paperera? Deixarà de mostrar-se enlloc i el podràs restaurar des de la paperera.',
+      moveFilesToTrash:
+        'Vols moure {{count}} fitxer(s) a la paperera? Deixaran de mostrar-se enlloc i els podràs restaurar des de la paperera.',
+      deleteForever: 'Vols eliminar «{{filename}}» definitivament? Aquesta acció no es pot desfer.',
+      deleteForeverInUse:
+        '«{{filename}}» encara es fa servir en {{count}} lloc(s) de les teves aplicacions. Si l’elimines, també en desapareixerà. Vols eliminar-lo definitivament?',
+    },
+  },
 };
 export default dict;

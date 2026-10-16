@@ -1425,6 +1425,24 @@ const dict = {
     loadingMore: 'Cargando más...',
     notInUse: 'Sin usar',
     removedAfterClaim: 'Retirado tras una reclamación legal',
+    moveToTrash: 'Mover a la papelera',
+    moveToTrashCount: 'Mover a la papelera ({{count}})',
+    trashView: {
+      title: 'Papelera',
+      subtitle: 'Restaura archivos o elimínalos definitivamente',
+      notice:
+        'Los archivos permanecen en la papelera hasta que los restaures o elimines, y siguen contando para tu almacenamiento.',
+      emptyTitle: 'La papelera está vacía',
+      emptyDescription:
+        'Los archivos que muevas a la papelera aparecerán aquí. Puedes restaurarlos o eliminarlos definitivamente.',
+      trashedOn: 'Movido a la papelera el {{date}}',
+      deleteForever: 'Eliminar definitivamente',
+      loadError: 'No se pudo cargar la papelera',
+      a11y: {
+        restore: 'Restaurar {{name}}',
+        deleteForever: 'Eliminar {{name}} definitivamente',
+      },
+    },
     loadingPhotoLayout: 'Cargando diseño de fotos...',
     uploading: 'Subiendo',
     upload: 'Subir',
@@ -1466,6 +1484,9 @@ const dict = {
       selectionCount_plural: '{{count}} fotos seleccionadas',
       cancelPicker: 'Cancelar selección de foto',
       confirmSelection: 'Confirmar selección',
+      moveToTrash: 'Mover {{name}} a la papelera',
+      deleteFile: 'Eliminar {{name}}',
+      openTrash: 'Abrir la papelera',
     },
     emptyPhotos: {
       title: 'Aún no hay fotos',
@@ -1509,6 +1530,13 @@ const dict = {
       bulkDeleteSuccess: '{{count}} archivo(s) eliminado(s) correctamente',
       bulkDeleteFailed: '{{count}} archivo(s) fallaron al eliminar',
       bulkDeleteError: 'Error al eliminar archivos',
+      movedToTrash: 'Movido a la papelera. Puedes restaurarlo desde la papelera.',
+      bulkMovedToTrash: '{{count}} archivo(s) movido(s) a la papelera',
+      moveToTrashFailed: 'No se pudo mover el archivo a la papelera',
+      restored: 'Archivo restaurado',
+      notInTrash: 'Este archivo ya no está en la papelera.',
+      restoreFailed: 'No se pudo restaurar el archivo',
+      deletedForever: 'Archivo eliminado definitivamente',
       visibilitySuccess: 'Visibilidad de {{count}} archivo(s) actualizada a {{visibility}}',
       visibilityFailed: '{{count}} archivo(s) fallaron al actualizar visibilidad',
       visibilityError: 'Error al actualizar la visibilidad',
@@ -1524,6 +1552,13 @@ const dict = {
       deleteFile: '¿Seguro que quieres eliminar "{{filename}}"? Esta acción no se puede deshacer.',
       deleteFiles:
         '¿Seguro que quieres eliminar {{count}} archivo(s)? Esta acción no se puede deshacer.',
+      moveToTrash:
+        '¿Mover "{{filename}}" a la papelera? Dejará de mostrarse en todas partes y podrás restaurarlo desde la papelera.',
+      moveFilesToTrash:
+        '¿Mover {{count}} archivo(s) a la papelera? Dejarán de mostrarse en todas partes y podrás restaurarlos desde la papelera.',
+      deleteForever: '¿Eliminar "{{filename}}" definitivamente? Esta acción no se puede deshacer.',
+      deleteForeverInUse:
+        '"{{filename}}" todavía se usa en {{count}} lugar(es) de tus aplicaciones. Al eliminarlo, también desaparecerá de ellos. ¿Eliminarlo definitivamente?',
     },
     viewMode: 'Tipo de archivo',
   },

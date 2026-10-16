@@ -478,6 +478,11 @@ export interface FileMetadata {
    * owner as such, served to nobody. Absent when the server did not say.
    */
   status?: AssetLiveStatus;
+  /**
+   * When the owner moved the file to trash (ISO 8601); set on a file listed by
+   * `assets.list({ status: 'trash' })`. Absent when the server did not say.
+   */
+  trashedAt?: string | null;
   metadata?: {
     userId?: string;
     description?: string;

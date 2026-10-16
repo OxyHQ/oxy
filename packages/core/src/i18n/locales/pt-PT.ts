@@ -407,5 +407,63 @@ const dict = {
       row: 'Um segundo passo ao iniciar sessão',
     },
   },
+  fileManagement: {
+    deleteFile: 'Eliminar ficheiro',
+    confirm: 'Confirmar',
+    retry: 'Tentar novamente',
+    loadError: {
+      description: 'Algo correu mal. Verifique a sua ligação e tente novamente.',
+    },
+    moveToTrash: 'Mover para o lixo',
+    moveToTrashCount: 'Mover para o lixo ({{count}})',
+    trashView: {
+      title: 'Lixo',
+      subtitle: 'Restaure ficheiros ou elimine-os definitivamente',
+      notice:
+        'Os ficheiros ficam no lixo até os restaurar ou eliminar, e continuam a contar para o seu armazenamento.',
+      emptyTitle: 'O lixo está vazio',
+      emptyDescription:
+        'Os ficheiros que mover para o lixo aparecem aqui. Pode restaurá-los ou eliminá-los definitivamente.',
+      trashedOn: 'Movido para o lixo a {{date}}',
+      deleteForever: 'Eliminar definitivamente',
+      loadError: 'Não foi possível carregar o lixo',
+      a11y: {
+        restore: 'Restaurar {{name}}',
+        deleteForever: 'Eliminar {{name}} definitivamente',
+      },
+    },
+    a11y: {
+      moveToTrash: 'Mover {{name}} para o lixo',
+      deleteFile: 'Eliminar {{name}}',
+      openTrash: 'Abrir o lixo',
+    },
+    toasts: {
+      movedToTrash: 'Movido para o lixo. Pode restaurá-lo a partir do lixo.',
+      bulkMovedToTrash: '{{count}} ficheiro(s) movido(s) para o lixo',
+      moveToTrashFailed: 'Não foi possível mover o ficheiro para o lixo',
+      restored: 'Ficheiro restaurado',
+      notInTrash: 'Este ficheiro já não está no lixo.',
+      restoreFailed: 'Não foi possível restaurar o ficheiro',
+      deletedForever: 'Ficheiro eliminado definitivamente',
+      deleteSuccess: 'Ficheiro eliminado',
+      deleteFailed: 'Não foi possível eliminar o ficheiro',
+      fileNotFound: 'Ficheiro não encontrado. Pode já ter sido eliminado.',
+      noPermission: 'Não tem permissão para eliminar este ficheiro.',
+      bulkDeleteSuccess: '{{count}} ficheiro(s) eliminado(s)',
+      bulkDeleteFailed: 'Não foi possível eliminar {{count}} ficheiro(s)',
+      bulkDeleteError: 'Não foi possível eliminar os ficheiros',
+    },
+    confirms: {
+      deleteFile:
+        'Tem a certeza de que pretende eliminar «{{filename}}»? Esta ação não pode ser anulada.',
+      moveToTrash:
+        'Mover «{{filename}}» para o lixo? Deixa de ser mostrado em qualquer lado e pode restaurá-lo a partir do lixo.',
+      moveFilesToTrash:
+        'Mover {{count}} ficheiro(s) para o lixo? Deixam de ser mostrados em qualquer lado e pode restaurá-los a partir do lixo.',
+      deleteForever: 'Eliminar «{{filename}}» definitivamente? Esta ação não pode ser anulada.',
+      deleteForeverInUse:
+        '«{{filename}}» ainda é usado em {{count}} sítio(s) nas suas aplicações. Ao eliminá-lo, desaparece também daí. Eliminá-lo definitivamente?',
+    },
+  },
 };
 export default dict;

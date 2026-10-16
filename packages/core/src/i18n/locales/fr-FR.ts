@@ -412,5 +412,63 @@ const dict = {
       row: 'Une deuxième étape à la connexion',
     },
   },
+  fileManagement: {
+    deleteFile: 'Supprimer le fichier',
+    confirm: 'Confirmer',
+    retry: 'Réessayer',
+    loadError: {
+      description: 'Un problème est survenu. Vérifiez votre connexion et réessayez.',
+    },
+    moveToTrash: 'Mettre à la corbeille',
+    moveToTrashCount: 'Mettre à la corbeille ({{count}})',
+    trashView: {
+      title: 'Corbeille',
+      subtitle: 'Restaurez des fichiers ou supprimez-les définitivement',
+      notice:
+        'Les fichiers restent dans la corbeille jusqu’à ce que vous les restauriez ou les supprimiez, et ils comptent toujours dans votre stockage.',
+      emptyTitle: 'La corbeille est vide',
+      emptyDescription:
+        'Les fichiers que vous mettez à la corbeille apparaissent ici. Vous pouvez les restaurer ou les supprimer définitivement.',
+      trashedOn: 'Mis à la corbeille le {{date}}',
+      deleteForever: 'Supprimer définitivement',
+      loadError: 'Impossible de charger votre corbeille',
+      a11y: {
+        restore: 'Restaurer {{name}}',
+        deleteForever: 'Supprimer définitivement {{name}}',
+      },
+    },
+    a11y: {
+      moveToTrash: 'Mettre {{name}} à la corbeille',
+      deleteFile: 'Supprimer {{name}}',
+      openTrash: 'Ouvrir la corbeille',
+    },
+    toasts: {
+      movedToTrash: 'Mis à la corbeille. Vous pouvez le restaurer depuis la corbeille.',
+      bulkMovedToTrash: '{{count}} fichier(s) mis à la corbeille',
+      moveToTrashFailed: 'Impossible de mettre le fichier à la corbeille',
+      restored: 'Fichier restauré',
+      notInTrash: 'Ce fichier n’est plus dans la corbeille.',
+      restoreFailed: 'Impossible de restaurer le fichier',
+      deletedForever: 'Fichier supprimé définitivement',
+      deleteSuccess: 'Fichier supprimé',
+      deleteFailed: 'Impossible de supprimer le fichier',
+      fileNotFound: 'Fichier introuvable. Il a peut-être déjà été supprimé.',
+      noPermission: 'Vous n’avez pas l’autorisation de supprimer ce fichier.',
+      bulkDeleteSuccess: '{{count}} fichier(s) supprimé(s)',
+      bulkDeleteFailed: 'Échec de la suppression de {{count}} fichier(s)',
+      bulkDeleteError: 'Impossible de supprimer les fichiers',
+    },
+    confirms: {
+      deleteFile:
+        'Voulez-vous vraiment supprimer « {{filename}} » ? Cette action est irréversible.',
+      moveToTrash:
+        'Mettre « {{filename}} » à la corbeille ? Il ne sera plus affiché nulle part, et vous pourrez le restaurer depuis la corbeille.',
+      moveFilesToTrash:
+        'Mettre {{count}} fichier(s) à la corbeille ? Ils ne seront plus affichés nulle part, et vous pourrez les restaurer depuis la corbeille.',
+      deleteForever: 'Supprimer « {{filename}} » définitivement ? Cette action est irréversible.',
+      deleteForeverInUse:
+        '« {{filename}} » est encore utilisé à {{count}} endroit(s) dans vos applications. Le supprimer l’en retire aussi. Le supprimer définitivement ?',
+    },
+  },
 };
 export default dict;

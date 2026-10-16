@@ -399,5 +399,62 @@ const dict = {
       row: 'خطوة ثانية عند تسجيل الدخول',
     },
   },
+  fileManagement: {
+    deleteFile: 'حذف الملف',
+    confirm: 'تأكيد',
+    retry: 'أعد المحاولة',
+    loadError: {
+      description: 'حدث خطأ ما. تحقّق من اتصالك ثم أعد المحاولة.',
+    },
+    moveToTrash: 'نقل إلى سلة المهملات',
+    moveToTrashCount: 'نقل إلى سلة المهملات ({{count}})',
+    trashView: {
+      title: 'سلة المهملات',
+      subtitle: 'استعد الملفات أو احذفها نهائيًا',
+      notice:
+        'تبقى الملفات في سلة المهملات حتى تستعيدها أو تحذفها، وتظل محسوبة ضمن مساحة التخزين لديك.',
+      emptyTitle: 'سلة المهملات فارغة',
+      emptyDescription:
+        'تظهر هنا الملفات التي تنقلها إلى سلة المهملات. يمكنك استعادتها أو حذفها نهائيًا.',
+      trashedOn: 'نُقل إلى سلة المهملات في {{date}}',
+      deleteForever: 'حذف نهائيًا',
+      loadError: 'تعذّر تحميل سلة المهملات',
+      a11y: {
+        restore: 'استعادة {{name}}',
+        deleteForever: 'حذف {{name}} نهائيًا',
+      },
+    },
+    a11y: {
+      moveToTrash: 'نقل {{name}} إلى سلة المهملات',
+      deleteFile: 'حذف {{name}}',
+      openTrash: 'فتح سلة المهملات',
+    },
+    toasts: {
+      movedToTrash: 'نُقل إلى سلة المهملات. يمكنك استعادته منها.',
+      bulkMovedToTrash: 'نُقل {{count}} ملف إلى سلة المهملات',
+      moveToTrashFailed: 'تعذّر نقل الملف إلى سلة المهملات',
+      restored: 'تمت استعادة الملف',
+      notInTrash: 'لم يعد هذا الملف في سلة المهملات.',
+      restoreFailed: 'تعذّرت استعادة الملف',
+      deletedForever: 'حُذف الملف نهائيًا',
+      deleteSuccess: 'حُذف الملف',
+      deleteFailed: 'تعذّر حذف الملف',
+      fileNotFound: 'لم يُعثر على الملف. ربما حُذف بالفعل.',
+      noPermission: 'ليس لديك إذن بحذف هذا الملف.',
+      bulkDeleteSuccess: 'حُذف {{count}} ملف',
+      bulkDeleteFailed: 'تعذّر حذف {{count}} ملف',
+      bulkDeleteError: 'تعذّر حذف الملفات',
+    },
+    confirms: {
+      deleteFile: 'هل تريد حذف «{{filename}}»؟ لا يمكن التراجع عن هذا الإجراء.',
+      moveToTrash:
+        'هل تريد نقل «{{filename}}» إلى سلة المهملات؟ لن يُعرض في أي مكان بعد الآن، ويمكنك استعادته من سلة المهملات.',
+      moveFilesToTrash:
+        'هل تريد نقل {{count}} ملف إلى سلة المهملات؟ لن تُعرض في أي مكان بعد الآن، ويمكنك استعادتها من سلة المهملات.',
+      deleteForever: 'هل تريد حذف «{{filename}}» نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.',
+      deleteForeverInUse:
+        'لا يزال «{{filename}}» مستخدمًا في {{count}} موضع في تطبيقاتك. حذفه يزيله من هناك أيضًا. هل تريد حذفه نهائيًا؟',
+    },
+  },
 };
 export default dict;

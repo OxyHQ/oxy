@@ -412,5 +412,64 @@ const dict = {
       row: 'Ein zweiter Schritt bei der Anmeldung',
     },
   },
+  fileManagement: {
+    deleteFile: 'Datei löschen',
+    confirm: 'Bestätigen',
+    retry: 'Erneut versuchen',
+    loadError: {
+      description: 'Etwas ist schiefgelaufen. Prüfe deine Verbindung und versuche es erneut.',
+    },
+    moveToTrash: 'In den Papierkorb',
+    moveToTrashCount: 'In den Papierkorb ({{count}})',
+    trashView: {
+      title: 'Papierkorb',
+      subtitle: 'Dateien wiederherstellen oder endgültig löschen',
+      notice:
+        'Dateien bleiben im Papierkorb, bis du sie wiederherstellst oder löschst, und zählen weiterhin zu deinem Speicher.',
+      emptyTitle: 'Der Papierkorb ist leer',
+      emptyDescription:
+        'Dateien, die du in den Papierkorb verschiebst, erscheinen hier. Du kannst sie wiederherstellen oder endgültig löschen.',
+      trashedOn: 'Am {{date}} in den Papierkorb verschoben',
+      deleteForever: 'Endgültig löschen',
+      loadError: 'Dein Papierkorb konnte nicht geladen werden',
+      a11y: {
+        restore: '{{name}} wiederherstellen',
+        deleteForever: '{{name}} endgültig löschen',
+      },
+    },
+    a11y: {
+      moveToTrash: '{{name}} in den Papierkorb verschieben',
+      deleteFile: '{{name}} löschen',
+      openTrash: 'Papierkorb öffnen',
+    },
+    toasts: {
+      movedToTrash:
+        'In den Papierkorb verschoben. Du kannst die Datei aus dem Papierkorb wiederherstellen.',
+      bulkMovedToTrash: '{{count}} Datei(en) in den Papierkorb verschoben',
+      moveToTrashFailed: 'Die Datei konnte nicht in den Papierkorb verschoben werden',
+      restored: 'Datei wiederhergestellt',
+      notInTrash: 'Diese Datei ist nicht mehr im Papierkorb.',
+      restoreFailed: 'Die Datei konnte nicht wiederhergestellt werden',
+      deletedForever: 'Datei endgültig gelöscht',
+      deleteSuccess: 'Datei gelöscht',
+      deleteFailed: 'Die Datei konnte nicht gelöscht werden',
+      fileNotFound: 'Datei nicht gefunden. Sie wurde möglicherweise bereits gelöscht.',
+      noPermission: 'Du darfst diese Datei nicht löschen.',
+      bulkDeleteSuccess: '{{count}} Datei(en) gelöscht',
+      bulkDeleteFailed: '{{count}} Datei(en) konnten nicht gelöscht werden',
+      bulkDeleteError: 'Die Dateien konnten nicht gelöscht werden',
+    },
+    confirms: {
+      deleteFile:
+        'Möchtest du „{{filename}}“ wirklich löschen? Das kann nicht rückgängig gemacht werden.',
+      moveToTrash:
+        '„{{filename}}“ in den Papierkorb verschieben? Die Datei wird nirgends mehr angezeigt, und du kannst sie aus dem Papierkorb wiederherstellen.',
+      moveFilesToTrash:
+        '{{count}} Datei(en) in den Papierkorb verschieben? Sie werden nirgends mehr angezeigt, und du kannst sie aus dem Papierkorb wiederherstellen.',
+      deleteForever: '„{{filename}}“ endgültig löschen? Das kann nicht rückgängig gemacht werden.',
+      deleteForeverInUse:
+        '„{{filename}}“ wird noch an {{count}} Stelle(n) in deinen Apps verwendet. Beim Löschen verschwindet sie auch dort. Endgültig löschen?',
+    },
+  },
 };
 export default dict;

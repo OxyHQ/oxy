@@ -64,7 +64,8 @@ without it.)
 - `oxy.assets.list()` lists the signed-in person's LIBRARY — `active` files
   and `blocked` ones — and no longer files in trash (it used to list every
   file not deleted). `oxy.assets.list({ status: 'trash' })` lists the trash,
-  most recently trashed first, each with `trashedAt`; restore one with
+  most recently trashed first, each with `trashedAt` (also new, optional, on
+  `FileMetadata`); restore one with
   `assets.restore(id)` or delete it for good with `assets.delete(id)`.
   `assets.restore` of a file that is not in trash (restored or deleted
   meanwhile, or blocked after a claim) is a 409 `FILE_NOT_IN_TRASH` — it was

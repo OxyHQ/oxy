@@ -1419,6 +1419,24 @@ const dict = {
     loadingMore: 'Loading more...',
     notInUse: 'Not in use',
     removedAfterClaim: 'Removed after a legal claim',
+    moveToTrash: 'Move to trash',
+    moveToTrashCount: 'Move to trash ({{count}})',
+    trashView: {
+      title: 'Trash',
+      subtitle: 'Restore files or delete them permanently',
+      notice:
+        'Files stay in Trash until you restore or delete them, and they still count toward your storage.',
+      emptyTitle: 'Trash is empty',
+      emptyDescription:
+        'Files you move to trash appear here. You can restore them or delete them permanently.',
+      trashedOn: 'Moved to trash {{date}}',
+      deleteForever: 'Delete permanently',
+      loadError: "Couldn't load your trash",
+      a11y: {
+        restore: 'Restore {{name}}',
+        deleteForever: 'Delete {{name}} permanently',
+      },
+    },
     loadingPhotoLayout: 'Loading photo layout...',
     uploading: 'Uploading',
     upload: 'Upload',
@@ -1460,6 +1478,9 @@ const dict = {
       selectionCount_plural: '{{count}} photos selected',
       cancelPicker: 'Cancel photo selection',
       confirmSelection: 'Confirm selection',
+      moveToTrash: 'Move {{name}} to trash',
+      deleteFile: 'Delete {{name}}',
+      openTrash: 'Open Trash',
     },
     emptyPhotos: {
       title: 'No Photos Yet',
@@ -1503,6 +1524,13 @@ const dict = {
       bulkDeleteSuccess: '{{count}} file(s) deleted successfully',
       bulkDeleteFailed: '{{count}} file(s) failed to delete',
       bulkDeleteError: 'Failed to delete files',
+      movedToTrash: 'Moved to trash. You can restore it from Trash.',
+      bulkMovedToTrash: '{{count}} file(s) moved to trash',
+      moveToTrashFailed: 'Failed to move the file to trash',
+      restored: 'File restored',
+      notInTrash: 'This file is no longer in trash.',
+      restoreFailed: 'Failed to restore the file',
+      deletedForever: 'File deleted permanently',
       visibilitySuccess: '{{count}} file(s) visibility updated to {{visibility}}',
       visibilityFailed: '{{count}} file(s) failed to update visibility',
       visibilityError: 'Failed to update visibility',
@@ -1518,6 +1546,13 @@ const dict = {
       deleteFile: 'Are you sure you want to delete "{{filename}}"? This action cannot be undone.',
       deleteFiles:
         'Are you sure you want to delete {{count}} file(s)? This action cannot be undone.',
+      moveToTrash:
+        'Move "{{filename}}" to trash? It stops being shown anywhere, and you can restore it from Trash.',
+      moveFilesToTrash:
+        'Move {{count}} file(s) to trash? They stop being shown anywhere, and you can restore them from Trash.',
+      deleteForever: 'Delete "{{filename}}" permanently? This cannot be undone.',
+      deleteForeverInUse:
+        '"{{filename}}" is still used in {{count}} place(s) in your apps. Deleting it removes it there too. Delete it permanently?',
     },
     viewMode: 'File type',
   },
