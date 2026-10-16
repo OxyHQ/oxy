@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { getErrorMessage } from '@/lib/api-error';
 
 /**
- * Where Oxy tells this application about the files it uses (ADR 0041 D9):
+ * Where Oxy tells this application about the files it uses (ADR 0042 D9):
  * `file.deleted`, `file.trashed`, `file.restored`, `file.visibility_changed`.
  *
  * A separate endpoint from the account-events webhook above, set through

@@ -12,7 +12,7 @@ export type RouteName =
   | 'PrivacySettings'
   | 'SearchSettings'
   | 'FileManagement'
-  | 'FileTrash' // The person's trash: restore, or delete permanently (ADR 0041 D5)
+  | 'FileTrash' // The person's trash: restore, or delete permanently (ADR 0042 D5)
   | 'HelpSupport'
   | 'LegalDocuments'
   | 'AppInfo'

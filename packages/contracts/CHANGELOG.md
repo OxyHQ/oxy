@@ -58,7 +58,7 @@ Additive only: no export removed or changed.
 
 ### Added
 
-- **Content claims** (ADR 0041 D10, the Oxy API's `POST /content-claims`):
+- **Content claims** (ADR 0042 D10, the Oxy API's `POST /content-claims`):
   `contentClaimSubmissionSchema` — the public "Report content / rights
   claim" body the API parses and the Oxy website's form validates with
   (strict; every message a stable key under `contentClaim.errors.*`, listed in
@@ -74,7 +74,7 @@ Additive only: no export removed or changed.
   `ContentClaimListResponse`, `ContentClaimSubmissionResponse`,
   `ContentClaimSubmissionError`). The constants and the two predicates are
   also on `@oxy.so/contracts/client`.
-- **The owner's counter-notice** (ADR 0041 D10, the Oxy API's
+- **The owner's counter-notice** (ADR 0042 D10, the Oxy API's
   `POST /content-claims/counter-notices`; 17 U.S.C. § 512(g)(3)):
   `contentClaimCounterNoticeSchema` (strict; the claim by `reference`,
   `claimId` or `fileIds`; the subscriber's name, address, phone and email; the

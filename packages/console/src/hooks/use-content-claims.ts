@@ -5,7 +5,7 @@ import { isPermissionRefused } from '@/lib/api-error';
 import { type ContentClaimFilters, claimQueryParams } from '@/lib/content-claims';
 
 // ===========================================================================
-// The content-claim review (`/content-claims`, ADR 0041 D10), staff only.
+// The content-claim review (`/content-claims`, ADR 0042 D10), staff only.
 //
 // Every route behind it requires the `content:claims` staff capability, so the
 // page first asks `/content-claims/access` (which answers anyone signed in) and

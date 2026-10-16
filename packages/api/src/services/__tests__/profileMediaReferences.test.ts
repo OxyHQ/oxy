@@ -1,6 +1,6 @@
 /**
  * The profile-avatar back-fill (`scripts/reconcile-profile-media-references.ts`,
- * ADR 0041 stage 4b) against a REAL Postgres.
+ * ADR 0042 stage 4b) against a REAL Postgres.
  *
  *  1. The report (default) writes nothing and says what `--apply` would do.
  *  2. `--apply` references every account's own avatar (created by the account),

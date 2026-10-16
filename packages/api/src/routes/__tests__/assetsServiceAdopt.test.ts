@@ -1,5 +1,5 @@
 /**
- * `POST /assets/service/app/adopt` (ADR 0041 stage 4b) — an application takes
+ * `POST /assets/service/app/adopt` (ADR 0042 stage 4b) — an application takes
  * ownership of a file it can read, without uploading it again — end to end over
  * real `node:http`, the REAL AssetService and a REAL Postgres; S3 is an
  * in-memory bucket.

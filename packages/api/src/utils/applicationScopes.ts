@@ -176,9 +176,9 @@
  *   ActivityPub GET (`POST /federation/instance-fetch/sign`). PRIVILEGED — see
  *   {@link PRIVILEGED_APPLICATION_SCOPES}.
  * - `files:app:write` / `files:app:delete` act on files the calling APPLICATION
- *   itself owns (`files.owner_application_id`, ADR 0041): upload, list and
+ *   itself owns (`files.owner_application_id`, ADR 0042): upload, list and
  *   change visibility (`write`), tombstone (`delete`). `files:references:write`
- *   adds and removes the calling application's own `file_references` (ADR 0041
+ *   adds and removes the calling application's own `file_references` (ADR 0042
  *   D4). The owner of every call is the service token's own `appId`, never a
  *   header, body or query field, so none of the three reaches another
  *   application's files or references. Privileged for Oxy's own applications,
@@ -395,7 +395,7 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   own-tenant authority — an application's own files and references, never
  *   anyone else's. They are listed here because, on Oxy's own applications
  *   (`first_party`, `internal`, `system`), they make Oxy hold bytes no account
- *   pays for (ADR 0041 D2), which is a platform decision staff take. On a
+ *   pays for (ADR 0042 D2), which is a platform decision staff take. On a
  *   `third_party` application they are self-service: its files count against
  *   its developer's storage plan (D3). That type-dependence is
  *   {@link isPrivilegedScopeForApplicationType}'s; every type-blind reader of
@@ -441,7 +441,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
 ] as const satisfies readonly ApplicationScope[];
 
 /**
- * The scopes over an application's own files and references (ADR 0041 D11).
+ * The scopes over an application's own files and references (ADR 0042 D11).
  * Who may grant them depends on the application's TYPE — see
  * {@link isPrivilegedScopeForApplicationType}.
  */
@@ -465,7 +465,7 @@ export function isApplicationFileScope(scope: string): boolean {
  * Every privileged scope is, whatever the type — except the application file
  * scopes, which are privileged only on Oxy's own applications. A `third_party`
  * application's files belong to it and count against its developer's storage
- * plan (ADR 0041 D3), so storing and referencing them is its own tenant's
+ * plan (ADR 0042 D3), so storing and referencing them is its own tenant's
  * business, exactly like `files:write`. On a `first_party`, `internal` or
  * `system` application the same bytes are the platform's and are metered
  * against no one (D2), so staff decide.
@@ -693,7 +693,7 @@ export function isPaymentsScope(scope: string): scope is ApplicationScope {
 /**
  * The scopes a non-trusted (`third_party`) application may carry on a SERVICE
  * credential, and so on the service token it mints: the payments pair, and the
- * application file scopes (ADR 0041 D3/D11). Every one of them is bounded to
+ * application file scopes (ADR 0042 D3/D11). Every one of them is bounded to
  * the application's own tenant — its gateway resources, its own files, its own
  * references — and the owner of every call is the token's `appId`. A service
  * credential naming anything else still needs a trusted application.

@@ -73,10 +73,10 @@ import { users } from './users';
 /**
  * Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row.
  *
- * Only `active` is ever served (ADR 0041 D5): `trash`, `blocked` and `deleted`
+ * Only `active` is ever served (ADR 0042 D5): `trash`, `blocked` and `deleted`
  * are refused by every read path and leave the CDN (`config/cdn.isServableStatus`).
  *
- * `blocked` is a takedown (ADR 0041 D10, `services/contentClaims/`): the bytes
+ * `blocked` is a takedown (ADR 0042 D10, `services/contentClaims/`): the bytes
  * are on `blocked_content_hashes` after a content claim, and EVERY live row
  * holding them is blocked — whoever owns it. Only staff move a row into or out
  * of it (a reinstatement returns it to `active`, or to `trash` when it was
@@ -168,7 +168,7 @@ export const files = pgTable(
     systemOwner: text({ enum: FILE_SYSTEM_OWNERS }),
     /**
      * The APPLICATION that owns this asset, when neither an account nor a
-     * system namespace does (ADR 0041): content such as Mercaria's category
+     * system namespace does (ADR 0042): content such as Mercaria's category
      * tiles, which belongs to no person. A `third_party` application's bytes
      * are metered against `applications.owner_account_id`, its billing
      * principal (ADR 0007); Oxy's own applications are not metered (D2).
@@ -177,7 +177,7 @@ export const files = pgTable(
      * the only record of which storage keys the bytes live at, so nothing would
      * ever purge them. Whoever removes an application removes its files FIRST,
      * through the tombstone + `storage_object_deletions` path: an
-     * application's deletion tombstones them all (ADR 0041 D8,
+     * application's deletion tombstones them all (ADR 0042 D8,
      * `applicationDeletion.service.ts`), and `recordAccountStorageDeletion`
      * removes the rows before the account cascade, the only hard delete of an
      * application.
@@ -218,7 +218,7 @@ export const files = pgTable(
     metadata: jsonb().$type<Record<string, unknown>>(),
     /**
      * Since when NO `file_references` row names this file, or NULL while one
-     * does (ADR 0041 D5). Maintained in the transaction that changes the
+     * does (ADR 0042 D5). Maintained in the transaction that changes the
      * reference set (`fileRepository.ts`): set when the last reference goes
      * and at insert (a new file is used by nothing yet), cleared by any new
      * reference. Under a row lock on the file, so two concurrent removals of
@@ -233,7 +233,7 @@ export const files = pgTable(
     unreferencedSince: timestamptz(),
     /**
      * When the file entered `trash`, or NULL outside it. An application's file
-     * is purged 30 days after this (ADR 0041 D5); an account's trash never
+     * is purged 30 days after this (ADR 0042 D5); an account's trash never
      * expires, and this is only shown.
      */
     trashedAt: timestamptz(),
@@ -273,7 +273,7 @@ export const files = pgTable(
     index('files_owner_application_id_created_at_idx')
       .on(t.ownerApplicationId, t.createdAt.desc(), t.id.desc())
       .where(sql`${t.ownerApplicationId} is not null`),
-    // The lifecycle sweep (`fileLifecycle.worker.ts`, ADR 0041 D5). Each is
+    // The lifecycle sweep (`fileLifecycle.worker.ts`, ADR 0042 D5). Each is
     // partial to exactly the rows one step reads, so the account-owned 99% of
     // the table costs them nothing:
     //  - an application's active file nobody uses, oldest first (→ trash);
@@ -289,7 +289,7 @@ export const files = pgTable(
       .on(t.trashedAt)
       .where(sql`${t.ownerApplicationId} is not null and ${t.status} = 'trash'`),
     //  - an application's BLOCKED file nobody uses, once no open claim holds
-    //    its bytes (→ tombstone + purge, `purgeBlocked`, ADR 0041 D10).
+    //    its bytes (→ tombstone + purge, `purgeBlocked`, ADR 0042 D10).
     index('files_application_blocked_unreferenced_since_idx')
       .on(t.unreferencedSince)
       .where(sql`${t.ownerApplicationId} is not null and ${t.status} = 'blocked'`),

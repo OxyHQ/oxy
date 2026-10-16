@@ -152,7 +152,7 @@ const settingsNavItems = [
 ];
 
 /*
- * The content-claim queue (ADR 0041 D10) is for the staff who hold the
+ * The content-claim queue (ADR 0042 D10) is for the staff who hold the
  * `content:claims` capability. The entry appears only once
  * `/content-claims/access` says the signed-in account may review: everyone
  * else never sees it, and the API refuses the routes regardless.

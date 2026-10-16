@@ -1,5 +1,5 @@
 /**
- * What a URL in a content claim names (ADR 0041 D10).
+ * What a URL in a content claim names (ADR 0042 D10).
  *
  * A claimant pastes whatever address they have. Some name an Oxy FILE, and
  * those resolve here to the `files` row and its bytes:

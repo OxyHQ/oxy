@@ -1,5 +1,5 @@
 /**
- * Deleting an application deletes its files, now (ADR 0041 D8) — through
+ * Deleting an application deletes its files, now (ADR 0042 D8) — through
  * `DELETE /applications/:appId` and through an account's archive, against a
  * REAL Postgres. The object store is an in-memory map; the CDN invalidation
  * queue is a recorder.
@@ -270,7 +270,7 @@ beforeEach(() => {
   mockInvalidatedKeys.length = 0;
 });
 
-describe('DELETE /applications/:appId (ADR 0041 D8)', () => {
+describe('DELETE /applications/:appId (ADR 0042 D8)', () => {
   it('refuses a name that is not exactly the current one, and changes nothing', async () => {
     const s = await scenario();
     mockCurrentUserId = s.developer;
@@ -428,7 +428,7 @@ describe('DELETE /applications/:appId (ADR 0041 D8)', () => {
   });
 });
 
-describe("an account's archive deletes its applications first (ADR 0041 D8)", () => {
+describe("an account's archive deletes its applications first (ADR 0042 D8)", () => {
   it('tombstones the application, its files and references, and removes the rows', async () => {
     const { accountService: realAccountService } = jest.requireActual(
       '../../services/account.service',
@@ -469,7 +469,7 @@ describe("an account's archive deletes its applications first (ADR 0041 D8)", ()
   });
 });
 
-describe("an account's archive tells the applications using its files (ADR 0041 D9, stage 4b)", () => {
+describe("an account's archive tells the applications using its files (ADR 0042 D9, stage 4b)", () => {
   it('queues exactly one file.deleted per (file, subscribed application), never to its own deleted application', async () => {
     const { accountService: realAccountService } = jest.requireActual(
       '../../services/account.service',

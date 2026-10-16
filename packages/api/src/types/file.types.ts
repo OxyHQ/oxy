@@ -58,7 +58,7 @@ export type FileSystemOwner = (typeof FILE_SYSTEM_OWNERS)[number];
 
 /**
  * Who owns an asset: an account, a system namespace, or an application (ADR
- * 0041) — exactly one, never two, never none.
+ * 0042) — exactly one, never two, never none.
  *
  * `files_owner_exclusive_check` says exactly this in SQL. Saying it in the type
  * too means a write path cannot even construct the ambiguous case, so the CHECK
@@ -81,7 +81,7 @@ export type FileOwnerColumns = {
   ownerApplicationId: string | null;
 };
 
-/** One place an application uses an asset (`file_references`, ADR 0041 D4). */
+/** One place an application uses an asset (`file_references`, ADR 0042 D4). */
 export type FileReferenceRecord = typeof fileReferences.$inferSelect;
 
 /** One derived rendition of an asset (thumbnail, `720p`, HLS playlist, …). */

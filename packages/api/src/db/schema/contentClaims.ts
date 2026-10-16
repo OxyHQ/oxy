@@ -1,5 +1,5 @@
 /**
- * Content claims — the takedown of ADR 0041 D10.
+ * Content claims — the takedown of ADR 0042 D10.
  *
  * Anyone can tell Oxy that content on an Oxy service infringes a copyright or
  * a trademark, exposes their personal data, or is illegal (`POST

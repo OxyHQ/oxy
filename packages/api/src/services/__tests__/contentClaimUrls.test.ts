@@ -1,5 +1,5 @@
 /**
- * What a claim's URL names (ADR 0041 D10), by its shape alone: an Oxy file by
+ * What a claim's URL names (ADR 0042 D10), by its shape alone: an Oxy file by
  * id on the CDN or the API, a stored object by its key, or nothing Oxy can
  * resolve without a person (a page of an app). And the preview token that
  * lets a reviewer see a claimed file: bound to its claim, target, file and

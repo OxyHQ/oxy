@@ -61,7 +61,7 @@ import {
 } from '@/lib/content-claims';
 
 /**
- * One content claim (ADR 0041 D10): the claimant's statement, what it names,
+ * One content claim (ADR 0042 D10): the claimant's statement, what it names,
  * the actions its state allows, and the audit trail.
  *
  * The API decides every transition (a conditional write answering 409 when

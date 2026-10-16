@@ -1,5 +1,5 @@
 /**
- * Large, any-type uploads by a service token (ADR 0041 stage 4b) — end to end
+ * Large, any-type uploads by a service token (ADR 0042 stage 4b) — end to end
  * over real `node:http`, the REAL AssetService, the REAL upload-session service
  * and a REAL Postgres.
  *
@@ -829,7 +829,7 @@ describe('POST /assets/service/user-media/uploads — an account owns it', () =>
   });
 });
 
-describe("a third-party application's upload and its developer's plan (ADR 0041 D3)", () => {
+describe("a third-party application's upload and its developer's plan (ADR 0042 D3)", () => {
   function configureQuota(products: { id: string }[]): void {
     mockCatalogue = {
       ...EMPTY_PRODUCT_BILLING_CATALOGUE,

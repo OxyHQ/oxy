@@ -163,7 +163,7 @@ describe('native product agent identities', () => {
       'user:read',
       'inference:invoke',
     ]);
-    // ADR 0041: Clarity's crawler image cache as files the backend owns.
+    // ADR 0042: Clarity's crawler image cache as files the backend owns.
     expect(NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.fileScopes).toEqual([
       'files:read',
       'files:app:write',

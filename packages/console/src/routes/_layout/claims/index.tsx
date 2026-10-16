@@ -21,7 +21,7 @@ import {
 } from '@/lib/content-claims';
 
 /**
- * The content-claim queue (ADR 0041 D10): what people reported through
+ * The content-claim queue (ADR 0042 D10): what people reported through
  * oxy.so's "Report content" page, for the staff who hold `content:claims`.
  *
  * Newest first; the deadline filters list only OPEN erasure requests, soonest

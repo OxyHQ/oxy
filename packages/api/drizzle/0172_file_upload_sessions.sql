@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- ADR 0041 stage 4b: large, any-type uploads by an application's service token
+-- ADR 0042 stage 4b: large, any-type uploads by an application's service token
 -- (`POST /assets/service/app/uploads`, `/service/user-media/uploads`).
 --
 -- One new table, `file_upload_sessions`: a resumable S3 multipart upload the

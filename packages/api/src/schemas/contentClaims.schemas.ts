@@ -1,5 +1,5 @@
 /**
- * The staff half of `/content-claims` (ADR 0041 D10). The public submission's
+ * The staff half of `/content-claims` (ADR 0042 D10). The public submission's
  * body is `contentClaimSubmissionSchema` in `@oxy.so/contracts`, shared with
  * the Oxy website's form.
  */

@@ -1,5 +1,5 @@
 /**
- * Import by URL (ADR 0041 D7): Oxy fetches a source once, stores it through
+ * Import by URL (ADR 0042 D7): Oxy fetches a source once, stores it through
  * the ordinary upload pipeline, and remembers where it came from.
  *
  * ## The fetch

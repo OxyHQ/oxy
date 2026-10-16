@@ -27,11 +27,11 @@ export interface RawUserFile {
   createdAt?: string;
   metadata?: Record<string, unknown>;
   variants?: unknown[];
-  /** Whether any application uses the file (ADR 0041 D5). */
+  /** Whether any application uses the file (ADR 0042 D5). */
   inUse?: boolean;
-  /** `blocked`: taken down after a content claim (ADR 0041 D10). */
+  /** `blocked`: taken down after a content claim (ADR 0042 D10). */
   status?: string;
-  /** When the owner moved it to trash (ADR 0041 D5). */
+  /** When the owner moved it to trash (ADR 0042 D5). */
   trashedAt?: string | null;
 }
 
@@ -64,7 +64,7 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
   };
 }
 
-/** Which of the owner's files a page lists: the library, or the trash (ADR 0041 D5). */
+/** Which of the owner's files a page lists: the library, or the trash (ADR 0042 D5). */
 export type UserFilesListing = 'library' | 'trash';
 
 /** Map one `oxyServices.assets.list` response onto a page. */

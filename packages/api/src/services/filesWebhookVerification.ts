@@ -1,6 +1,6 @@
 /**
  * Verifying an application's file-events endpoint before it is stored
- * (ADR 0041 D9, `PUT /applications/:appId/files-webhook`).
+ * (ADR 0042 D9, `PUT /applications/:appId/files-webhook`).
  *
  * Oxy POSTs `{ "type": "webhook.challenge", "challenge": "<random>" }`, signed
  * like every file event with the NEW secret (`oxy-signature`), and stores the

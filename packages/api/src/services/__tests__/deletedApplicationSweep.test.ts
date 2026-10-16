@@ -1,5 +1,5 @@
 /**
- * Applications deleted BEFORE ADR 0041 D8 shipped kept their files and their
+ * Applications deleted BEFORE ADR 0042 D8 shipped kept their files and their
  * references. The lifecycle sweep's `deletedApplications` step finds them and,
  * in `enforce`, runs D8 on them — the same path the console's delete runs —
  * against a REAL Postgres, with the default actions (the real `assetService`
@@ -251,7 +251,7 @@ beforeEach(() => {
   mockInvalidatedPaths.length = 0;
 });
 
-describe('the deletedApplications step (ADR 0041 D8 for applications deleted before it)', () => {
+describe('the deletedApplications step (ADR 0042 D8 for applications deleted before it)', () => {
   it('report names what is left and changes nothing; enforce runs D8; again is a no-op', async () => {
     const s = await scenario();
 

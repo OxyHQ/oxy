@@ -371,7 +371,7 @@ describe('files — usage count is derived, never stored', () => {
   });
 });
 
-describe('file_references (ADR 0041 D4)', () => {
+describe('file_references (ADR 0042 D4)', () => {
   it('refuses a duplicate reference — the check `linkFile` does in application code', async () => {
     const userId = await owner();
     const applicationId = await application();

@@ -137,7 +137,7 @@ export function stripPublicPrefix(storageKey: string): string {
 
 /**
  * Whether a file may be served AT ALL — its bytes streamed, a URL minted, the
- * CDN redirected to (ADR 0041 D5). Only `active`: `trash` and `deleted` never
+ * CDN redirected to (ADR 0042 D5). Only `active`: `trash` and `deleted` never
  * are, and neither is any status added later (stage 4's `blocked`), because
  * this names the one that is rather than the ones that are not.
  */
@@ -146,7 +146,7 @@ export function isServableStatus(file: { status: (typeof FILE_STATUSES)[number] 
 }
 
 /**
- * Whether a file is SERVED publicly: `public`, AND `active` (ADR 0041 D5).
+ * Whether a file is SERVED publicly: `public`, AND `active` (ADR 0042 D5).
  *
  * The key spelling follows THIS, not visibility alone. A public file that
  * leaves `active` (trash; stage 4's `blocked`) keeps its visibility — restoring

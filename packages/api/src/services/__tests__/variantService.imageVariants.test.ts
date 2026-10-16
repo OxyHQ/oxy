@@ -265,7 +265,7 @@ describe('VariantService imageVariants — w128 variant', () => {
 
       const variant = await service.ensureImageVariant(file, 'w128');
 
-      // Written in the spelling the file is SERVED in (ADR 0041 D5, D10): a
+      // Written in the spelling the file is SERVED in (ADR 0042 D5, D10): a
       // public file out of `active` is not on the CDN, and neither is its rendition.
       expect(variant.key.startsWith('public/')).toBe(false);
       expect(fakeS3.uploads.map((upload) => upload.key)).toEqual([variant.key]);

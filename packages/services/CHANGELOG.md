@@ -14,12 +14,12 @@ Needs `@oxy.so/core` 4.15.0 (and so `@oxy.so/contracts` 4.19.0).
 
 ### Added
 
-- The file manager marks a file no application uses "Not in use" (ADR 0041
+- The file manager marks a file no application uses "Not in use" (ADR 0042
   D5; informational, nothing is removed for it) and one taken down after a
   content claim "Removed after a legal claim" (D10; served to nobody).
 - Removing an asset's last link no longer marks it trashed in `assetStore`,
   which matches a link by `applicationId` (falling back to `app`).
-- **Trash** in the file manager (ADR 0041 D5). "Delete" on a file, in the
+- **Trash** in the file manager (ADR 0042 D5). "Delete" on a file, in the
   viewer and for a selection, now MOVES IT TO TRASH (`oxy.assets.trash`): it
   stops being shown anywhere and can be restored. A new `FileTrash` route —
   opened from the trash button beside upload — lists the trash (most recently

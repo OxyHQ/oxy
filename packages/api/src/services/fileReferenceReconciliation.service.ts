@@ -1,5 +1,5 @@
 /**
- * Reconciliation of an application's references (ADR 0041 D6): the safety net
+ * Reconciliation of an application's references (ADR 0042 D6): the safety net
  * under per-write bookkeeping.
  *
  * An application sends its full inventory of ONE `entity_type` — `begin` →

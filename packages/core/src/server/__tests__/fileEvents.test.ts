@@ -1,5 +1,5 @@
 /**
- * `verifyFileEventSignature` (ADR 0041 D9): what a receiver of Oxy's file
+ * `verifyFileEventSignature` (ADR 0042 D9): what a receiver of Oxy's file
  * events accepts. The signature is HMAC-SHA256 over `<t>.<raw body>`; a wrong
  * secret, a changed byte, a stale or future timestamp, a missing or malformed
  * header and a body that is not a file event are all refused. The endpoint

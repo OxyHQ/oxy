@@ -1,6 +1,6 @@
 /**
  * The file library's page mapping and cache helpers for the Trash view (ADR
- * 0041 D5): a trashed file keeps its `trashedAt`, and the library and the
+ * 0042 D5): a trashed file keeps its `trashedAt`, and the library and the
  * trash are separate cache entries under one `files` root.
  */
 import { QueryClient } from '@tanstack/react-query';

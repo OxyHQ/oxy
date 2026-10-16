@@ -1,5 +1,5 @@
 /**
- * Pre-flight for migration `0168_file_references` (ADR 0041 D4). READ-ONLY.
+ * Pre-flight for migration `0168_file_references` (ADR 0042 D4). READ-ONLY.
  *
  *   DATABASE_URL=… bun run packages/api/scripts/file-references-preflight.ts
  *

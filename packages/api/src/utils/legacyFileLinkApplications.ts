@@ -1,6 +1,6 @@
 /**
  * The free-text `file_links.app` values in use, and the application each one
- * names (ADR 0041 D4).
+ * names (ADR 0042 D4).
  *
  * `file_references` names a real application; `file_links` named a string. This
  * is the one mapping between them, used three ways that must agree:

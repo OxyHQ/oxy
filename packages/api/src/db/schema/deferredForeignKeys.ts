@@ -831,7 +831,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: fileReferenceReconciliationItems,
     column: fileReferenceReconciliationItems.fileId,
     reason:
-      'A file id an application CLAIMS it uses (ADR 0041 D6). A file that does ' +
+      'A file id an application CLAIMS it uses (ADR 0042 D6). A file that does ' +
       'not exist is an answer the commit reports (`refused`), so a page must ' +
       'never fail on one stale id; the diff joins `files` itself.',
   },
@@ -846,7 +846,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: contentClaimEvents,
     column: contentClaimEvents.actorUserId,
     reason:
-      'Who acted on a content claim (ADR 0041 D10): the staff member, or the signed-in ' +
+      'Who acted on a content claim (ADR 0042 D10): the staff member, or the signed-in ' +
       'claimant. An audit trail that lost its actor when their account was deleted would ' +
       'not be one, and the trail is append-only (a trigger refuses an UPDATE). Staff-only.',
   },
@@ -854,7 +854,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: fileEventDeliveries,
     column: fileEventDeliveries.eventId,
     reason:
-      'The id of a file event (ADR 0041 D9), shared by every application told of ' +
+      'The id of a file event (ADR 0042 D9), shared by every application told of ' +
       "the same change: the receiver's dedupe key. There is no events table — " +
       'each delivery row carries its own payload.',
   },
@@ -869,7 +869,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: fileUploadSessions,
     column: fileUploadSessions[key],
     reason:
-      'A large upload in progress (ADR 0041 stage 4b): this row is what aborts its S3 ' +
+      'A large upload in progress (ADR 0042 stage 4b): this row is what aborts its S3 ' +
       'multipart upload and releases its storage reservation when nobody finishes it. A ' +
       "foreign key would let the owner's (or uploader's) deletion take that cleanup away, " +
       'as `storage_byte_reservations.account_id` has none for the same reason; a session ' +

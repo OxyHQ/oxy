@@ -1,5 +1,5 @@
 /**
- * Content claims (ADR 0041 D10): the public "Report content / rights claim"
+ * Content claims (ADR 0042 D10): the public "Report content / rights claim"
  * intake, `POST /content-claims`, and the staff review of a claim.
  *
  * {@link contentClaimSubmissionSchema} is the request body the API parses and

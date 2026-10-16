@@ -1,5 +1,5 @@
 /**
- * File events to applications (ADR 0041 D9): what is written, and how it is
+ * File events to applications (ADR 0042 D9): what is written, and how it is
  * signed.
  *
  * {@link recordFileEvents} is called INSIDE the transaction that changed the

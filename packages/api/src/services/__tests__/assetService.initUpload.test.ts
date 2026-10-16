@@ -259,7 +259,7 @@ describe('AssetService.initUpload dedupe signing', () => {
       'image/png',
     );
 
-    // The declared hash is enforced on the PUT as its checksum (ADR 0041 D10):
+    // The declared hash is enforced on the PUT as its checksum (ADR 0042 D10):
     // bytes that do not hash to it cannot land under it.
     expect(fakeS3.getPresignedUploadUrl).toHaveBeenCalledWith(VICTIM_KEY, {
       contentType: 'image/png',

@@ -1,5 +1,5 @@
 /**
- * Pushes file events (`file_event_deliveries`, ADR 0041 D9) to each
+ * Pushes file events (`file_event_deliveries`, ADR 0042 D9) to each
  * application's verified file-events endpoint.
  *
  * At least once, the way `accountEventWebhook.worker.ts` delivers account

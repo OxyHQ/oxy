@@ -46,7 +46,7 @@ export const SERVER_KEY_LABELS = {
   totpBackupCode: 'oxy/totp-backup-code/v1',
   lockoutIdentifier: 'oxy/lockout-identifier/v1',
   mailBudget: 'oxy/mail-budget/v1',
-  /** The per-claimant-email budget of `POST /content-claims` (ADR 0041 D10). */
+  /** The per-claimant-email budget of `POST /content-claims` (ADR 0042 D10). */
   contentClaimRateLimit: 'oxy/content-claim-rate-limit/v1',
   /** The short-lived token a reviewer previews a claimed file with. */
   contentClaimPreview: 'oxy/content-claim-preview/v1',

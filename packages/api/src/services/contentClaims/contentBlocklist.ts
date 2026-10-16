@@ -1,5 +1,5 @@
 /**
- * The takedown's two database-wide rules (ADR 0041 D10), in one place:
+ * The takedown's two database-wide rules (ADR 0042 D10), in one place:
  *
  * 1. **Blocked bytes are never stored again, by anyone.** A SHA-256 on
  *    `blocked_content_hashes` is refused by every path that creates a `files`

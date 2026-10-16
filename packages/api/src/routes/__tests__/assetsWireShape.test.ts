@@ -172,7 +172,7 @@ describe('GET /assets/:id', () => {
     expect(res.status).toBe(200);
     // Exact equality: an added `id`/`fileId` fails here, and so would a
     // `webhookUrl: null` or a `createdBy: null`. `app` carries the
-    // application id since `file_references` (ADR 0041 D4).
+    // application id since `file_references` (ADR 0042 D4).
     expect(res.body.data.file.links).toEqual([
       {
         app: APPLICATION_ID,

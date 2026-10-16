@@ -1,5 +1,5 @@
 /**
- * The file manager's trash strings (ADR 0041 D5) exist in EVERY locale, with
+ * The file manager's trash strings (ADR 0042 D5) exist in EVERY locale, with
  * the same `{{placeholders}}` as English — a missing one would fall back to
  * English mid-screen, a wrong placeholder would print `{{name}}` to a person.
  */

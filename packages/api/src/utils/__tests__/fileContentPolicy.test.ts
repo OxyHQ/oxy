@@ -1,5 +1,5 @@
 /**
- * What a large upload may store and how a file is served (ADR 0041 stage 4b,
+ * What a large upload may store and how a file is served (ADR 0042 stage 4b,
  * `utils/fileContentPolicy.ts`).
  */
 

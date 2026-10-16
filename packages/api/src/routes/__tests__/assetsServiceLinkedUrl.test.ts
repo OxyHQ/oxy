@@ -278,7 +278,7 @@ describe('POST /assets/service/linked-url — what it refuses, and how', () => {
       name: 'referencedByTheAppItself',
       why:
         "an application's own service-made reference has no creator, so it is " +
-        'never the owner granting the application anything (ADR 0041 D4)',
+        'never the owner granting the application anything (ADR 0042 D4)',
       row: fileRow('f_selfref', {
         ownerUserId: OWNER_ID,
         links: [

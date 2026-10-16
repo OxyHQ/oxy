@@ -544,7 +544,7 @@ export class AssetService {
    * route would refuse it).
    */
   private assertStreamedDedupeAllowed(file: FileRecord, options: StreamedMediaOptions): void {
-    // The owner's existing row of taken-down bytes is blocked (ADR 0041 D10):
+    // The owner's existing row of taken-down bytes is blocked (ADR 0042 D10):
     // handing it back would answer an upload of blocked content with success.
     refuseBlockedFile(file);
     if (options.dedupeScope === 'federated' && !isSameFederatedUpload(file, options)) {
@@ -560,7 +560,7 @@ export class AssetService {
    * A reused row that had fallen to `trash` is in use again when its uploader
    * sends the same bytes back: a federated row from the same application (it
    * was unlinked), and an APPLICATION's own file (the lifecycle sweep trashed
-   * it, ADR 0041 D5) — which also restarts its 24-hour clock, as a new upload
+   * it, ADR 0042 D5) — which also restarts its 24-hour clock, as a new upload
    * would. It is published again if it is public.
    */
   private async prepareExistingStreamedMediaFile(
@@ -680,7 +680,7 @@ export class AssetService {
     try {
       // The declared hash IS the content: the presigned PUT carries it as a
       // checksum S3 enforces (`presignAdmittedUpload`), so refusing it here
-      // refuses the bytes (ADR 0041 D10).
+      // refuses the bytes (ADR 0042 D10).
       await assertContentNotBlocked(expectedSha256);
       const own = await findLiveFileBySha256ForOwner(expectedSha256, owner);
       if (own) {
@@ -793,7 +793,7 @@ export class AssetService {
       contentType,
       expiresIn: configured ? 60 : 3600,
       // The declared SHA-256 is enforced on EVERY presigned PUT, not only an
-      // admitted one: the row, its dedupe and the takedown blocklist (ADR 0041
+      // admitted one: the row, its dedupe and the takedown blocklist (ADR 0042
       // D10) all trust it, so bytes that do not hash to it must not land.
       checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
       ...(configured
@@ -1089,7 +1089,7 @@ export class AssetService {
   /**
    * {@link uploadUserMediaStream} with the visibility chosen by the caller and
    * whether the owner already held these bytes — the account-owned import by
-   * URL (ADR 0041 D7). Rows are per owner: bytes the account already holds come
+   * URL (ADR 0042 D7). Rows are per owner: bytes the account already holds come
    * back as that file, `deduplicated: true`, its visibility unchanged.
    */
   async uploadUserMediaStreamDetailed(
@@ -1112,7 +1112,7 @@ export class AssetService {
   }
 
   /**
-   * Stream-upload a file the calling APPLICATION owns (ADR 0041) — platform
+   * Stream-upload a file the calling APPLICATION owns (ADR 0042) — platform
    * artwork no person owns. The owner is the verified service token's `appId`
    * and nothing else; its bytes are metered against the application's owning
    * account.
@@ -1194,7 +1194,7 @@ export class AssetService {
   }
 
   /**
-   * Where a large upload's parts are assembled (ADR 0041 stage 4b): a key of the
+   * Where a large upload's parts are assembled (ADR 0042 stage 4b): a key of the
    * upload's own (`…/<sha>-<random><ext>`), ALWAYS in the private spelling —
    * bytes not yet verified are never under `public/`, which the CDN serves.
    */
@@ -1211,7 +1211,7 @@ export class AssetService {
 
   /**
    * An owner's existing live row for bytes it uploads or adopts again: refused
-   * when blocked (ADR 0041 D10), and an application's own file in trash comes
+   * when blocked (ADR 0042 D10), and an application's own file in trash comes
    * back to `active` with a fresh 24-hour clock, as a re-upload does.
    */
   async reuseOwnLiveFile(file: FileRecord, owner: FileOwner): Promise<FileRecord> {
@@ -1227,7 +1227,7 @@ export class AssetService {
   }
 
   /**
-   * Turn a VERIFIED large upload into its owner's file (ADR 0041 stage 4b): the
+   * Turn a VERIFIED large upload into its owner's file (ADR 0042 stage 4b): the
    * assembled object at `stagingKey` hashed to `sha256` (the caller checked).
    *
    * Under the content-hash lock, with the blocklist re-checked there: the
@@ -1344,7 +1344,7 @@ export class AssetService {
   }
 
   /**
-   * Give `applicationId` its own row of the bytes `source` holds (ADR 0041
+   * Give `applicationId` its own row of the bytes `source` holds (ADR 0042
    * stage 4b), without moving a byte through the API: the row shares the
    * stored object (content-addressed), in the spelling `visibility` needs —
    * copied server-side when no object of that spelling exists yet. The CALLER
@@ -1506,7 +1506,7 @@ export class AssetService {
     let unwrittenReservation: { id: string; sha256: string } | undefined;
     let committed = false;
     // The account the bytes are metered against: the owner itself, or a
-    // third-party application's owning account (ADR 0041 D3). Only a metered
+    // third-party application's owning account (ADR 0042 D3). Only a metered
     // owner reaches this path.
     const accountId = await storageAccountForOwner(getDb(), options.owner);
     if (!accountId) throw new Error('A metered upload resolved to no storage account');
@@ -1757,7 +1757,7 @@ export class AssetService {
 
     const sha256 = hash.digest('hex');
 
-    // Taken-down bytes (ADR 0041 D10): refused for every owner, and the temp
+    // Taken-down bytes (ADR 0042 D10): refused for every owner, and the temp
     // object they were streamed into goes.
     if (await isContentBlocked(sha256)) {
       await deleteTempKey('Failed to delete temp key of blocked content');
@@ -1795,7 +1795,7 @@ export class AssetService {
     let file: FileRecord;
     try {
       file = await withContentHashLock(sha256, async (tx) => {
-        // Before the promotion writes a content-addressed object (ADR 0041 D10).
+        // Before the promotion writes a content-addressed object (ADR 0042 D10).
         await assertContentNotBlocked(sha256, tx);
         const storageKey = await this.sharedStorageKeyFor(tx, sha256, mimeType, options.visibility);
         if (!(await this.s3Service.fileExists(storageKey))) {
@@ -2019,7 +2019,7 @@ export class AssetService {
   }
 
   /**
-   * Record that an application uses a file (`file_references`, ADR 0041 D4).
+   * Record that an application uses a file (`file_references`, ADR 0042 D4).
    *
    * A reference NEVER changes the file's visibility — it used to: linking
    * re-derived it from the entity type, so a non-avatar link silently made a
@@ -2030,7 +2030,7 @@ export class AssetService {
    * its `unreferenced_since` in the same transaction (D5).
    *
    * Authorization is the caller's: the session route admits only the file's
-   * owner, the service route only what ADR 0041 D4 lets an application use.
+   * owner, the service route only what ADR 0042 D4 lets an application use.
    * `created` says whether a reference was added (false: it already existed).
    */
   async linkFile(
@@ -2098,7 +2098,7 @@ export class AssetService {
    * `createdByUserIds` narrows the removal to a reference one of those people
    * created (a session that does not own the file).
    *
-   * NEVER trashes or deletes the file, on any path (ADR 0041 D5). The last
+   * NEVER trashes or deletes the file, on any path (ADR 0042 D5). The last
    * reference going stamps `unreferenced_since` in the same transaction: an
    * account's file is then *not in use* for its person, who alone moves it to
    * trash or deletes it; an application's file is collected 24 hours later by
@@ -2328,7 +2328,7 @@ export class AssetService {
    */
   private async relocateAllForVisibility(file: FileRecord): Promise<FileRecord> {
     // The SERVED spelling: a public file outside `active` is off the CDN too
-    // (ADR 0041 D5, OxyHQ/oxy#1284) — its visibility is kept for its restore.
+    // (ADR 0042 D5, OxyHQ/oxy#1284) — its visibility is kept for its restore.
     const wantPublic = isServedPublicly(file);
     const keys = [
       { variantId: null as string | null, key: file.storageKey, hlsRendition: false },
@@ -2643,7 +2643,7 @@ export class AssetService {
         row.variants.map((variant) => variant.key),
       );
       // Every application using the file, and its owning application, is
-      // told in the same commit (ADR 0041 D9).
+      // told in the same commit (ADR 0042 D9).
       await recordFileEvents(tx, 'file.deleted', [row.id]);
       return { row, ledgerIds };
     });
@@ -2662,7 +2662,7 @@ export class AssetService {
   }
 
   /**
-   * After an application's deletion committed (ADR 0041 D8,
+   * After an application's deletion committed (ADR 0042 D8,
    * `applicationDeletion.service.ts`): CDN and cache invalidation
    * ({@link invalidateDeletedApplicationFiles}), then start working off the
    * storage the commit owed — in the background; what this does not finish,
@@ -2755,7 +2755,7 @@ export class AssetService {
   }
 
   /**
-   * The owner moves their own ACTIVE file to trash (ADR 0041 D5): it stops
+   * The owner moves their own ACTIVE file to trash (ADR 0042 D5): it stops
    * being served and leaves the CDN at once, and every application using it
    * is told `file.trashed` (D9). Kept until the owner restores or deletes it —
    * an account's trash never expires. `null` when it is not `ownerUserId`'s
@@ -2771,7 +2771,7 @@ export class AssetService {
   /**
    * Restore a file from trash. A file that is not in trash — restored or
    * deleted meanwhile, or `blocked` after a content claim, which only a
-   * reinstated claim brings back (ADR 0041 D10) — is a 409
+   * reinstated claim brings back (ADR 0042 D10) — is a 409
    * `FILE_NOT_IN_TRASH`, never a server error.
    */
   async restoreFile(fileId: string): Promise<FileRecord> {
@@ -2821,7 +2821,7 @@ export class AssetService {
   }
 
   /**
-   * The file just left `active` (ADR 0041 D5): take its objects off the
+   * The file just left `active` (ADR 0042 D5): take its objects off the
    * CDN-reachable `public/` prefix — the CDN's origin is the bucket, so an
    * object left there is served whatever the row says — and invalidate every
    * path the CDN may have cached for it: each `public/` spelling of its
@@ -2865,7 +2865,7 @@ export class AssetService {
   }
 
   // -------------------------------------------------------------------------
-  // The lifecycle sweep's actions (ADR 0041 D5, `fileLifecycle.worker.ts`).
+  // The lifecycle sweep's actions (ADR 0042 D5, `fileLifecycle.worker.ts`).
   // Each is ONE conditional write that re-checks the step's whole condition
   // at the moment it acts, so a reference, restore or upload that landed
   // after the candidate was listed wins.
@@ -2903,7 +2903,7 @@ export class AssetService {
 
   /**
    * An application's BLOCKED file nothing has used for 30 days, once no open
-   * claim holds its bytes (ADR 0041 D10) → tombstoned and purged directly,
+   * claim holds its bytes (ADR 0042 D10) → tombstoned and purged directly,
    * never through trash (a restore from trash would serve it). `false`: no
    * longer due.
    */
@@ -2922,7 +2922,7 @@ export class AssetService {
 
   /**
    * An upload `POST /assets/init` created and nobody completed, 24 hours old:
-   * tombstoned when the store holds NO object at its key (ADR 0041 D5, "uploads
+   * tombstoned when the store holds NO object at its key (ADR 0042 D5, "uploads
    * that never completed"). One that does hold an object is the account's bytes
    * and is left alone (`has_object`) — counted in the report, never deleted.
    */
@@ -3024,7 +3024,7 @@ export class AssetService {
         );
 
       // Every application using the file is told in the same transaction
-      // (ADR 0041 D9), so the change never commits without its events.
+      // (ADR 0042 D9), so the change never commits without its events.
       const updated = await updateFile(
         fileId,
         { visibility },

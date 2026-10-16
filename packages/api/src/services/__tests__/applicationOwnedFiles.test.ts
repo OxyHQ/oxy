@@ -1,8 +1,8 @@
 /**
- * Application-owned files (ADR 0041) in the services, against a REAL Postgres
+ * Application-owned files (ADR 0042) in the services, against a REAL Postgres
  * and the REAL `S3Service` over an in-memory bucket.
  *
- *  - Quota (ADR 0041 D2/D3): Oxy's own applications (`first_party`,
+ *  - Quota (ADR 0042 D2/D3): Oxy's own applications (`first_party`,
  *    `internal`, `system`) are the platform and are metered against no one;
  *    a `third_party` application's bytes count against the account that owns
  *    the APPLICATION — on row admission, in `reservedStorageBytes`, and on the
@@ -180,7 +180,7 @@ beforeEach(() => {
   mockCatalogue = EMPTY_PRODUCT_BILLING_CATALOGUE;
 });
 
-describe("quota: Oxy's own applications are not metered (ADR 0041 D2)", () => {
+describe("quota: Oxy's own applications are not metered (ADR 0042 D2)", () => {
   it.each(['first_party', 'internal', 'system'] as const)(
     'attributes a %s application’s files to no account',
     async (type) => {
@@ -252,7 +252,7 @@ describe("quota: Oxy's own applications are not metered (ADR 0041 D2)", () => {
   });
 });
 
-describe("quota: a third-party application's bytes count against its developer (ADR 0041 D3)", () => {
+describe("quota: a third-party application's bytes count against its developer (ADR 0042 D3)", () => {
   it('resolves the owning account as the billing account', async () => {
     const owner = await account();
     const appId = await applicationOwnedBy(owner, 'third_party');
@@ -458,7 +458,7 @@ describe('deletion: storage is always owed, under app:<appId>', () => {
   });
 });
 
-describe('a reference never changes an application file’s visibility (ADR 0041 D4)', () => {
+describe('a reference never changes an application file’s visibility (ADR 0042 D4)', () => {
   it('keeps a private application file private when another application references it for an avatar', async () => {
     const { service } = harness();
     const appId = await applicationOwnedBy(await account());

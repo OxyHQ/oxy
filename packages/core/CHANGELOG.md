@@ -53,7 +53,7 @@ Needs `@oxy.so/contracts` 4.20.0.
 
 Needs the Oxy API with application-owned files, file references, the file
 lifecycle, import by URL, application deletion, file events and content
-claims, large uploads, adoption and counter-notices (ADR 0041, migrations
+claims, large uploads, adoption and counter-notices (ADR 0042, migrations
 `0167_application_owned_files`, `0168_file_references`, `0169_file_lifecycle`,
 `0170_application_file_events`, `0171_content_claims`,
 `0172_file_upload_sessions` and `0173_content_claim_counter_notices`), and
@@ -72,7 +72,7 @@ without it.)
   `assets.restore` of a file that is not in trash (restored or deleted
   meanwhile, or blocked after a claim) is a 409 `FILE_NOT_IN_TRASH` — it was
   a 500 — and evicts the cached record and URLs like `trash` does.
-- A file can be `blocked`: taken down after a content claim (ADR 0041 D10).
+- A file can be `blocked`: taken down after a content claim (ADR 0042 D10).
   `Asset.status` is `'active' | 'trash' | 'blocked' | 'deleted'`, and the
   service views that list a live file (`ServiceAssetMetadata`,
   `ServiceAssetMetadataBySha`, `ApplicationFile`, `ServiceUserMediaImport`)
@@ -90,7 +90,7 @@ without it.)
 
 - `oxy.apps.delete(applicationId, { confirmName })`: the second argument is
   required. Deleting an application now deletes every file it owns and every
-  reference it registered at once (ADR 0041 D8), so the API refuses the delete
+  reference it registered at once (ADR 0042 D8), so the API refuses the delete
   (400 `CONFIRM_NAME_MISMATCH`) unless `confirmName` is the application's
   current name (trimmed, case-sensitive). Resolves to
   `ApplicationDeleteResult` (`{ success, filesDeleted, referencesRemoved }`).
@@ -102,7 +102,7 @@ without it.)
   `LargeServiceUploadResult` (`{ file, deduplicated, uploadId, reference? }`):
   a file of ANY type up to 8 GiB by a resumable multipart upload
   (`/assets/service/app/uploads`, `/assets/service/user-media/uploads`, ADR
-  0041 stage 4b). `source` is a `Blob`, bytes, or a file path (Node 20+
+  0042 stage 4b). `source` is a `Blob`, bytes, or a file path (Node 20+
   `fs.openAsBlob`); it is hashed 8 MiB at a time, its parts PUT straight to
   storage on presigned URLs (`partConcurrency`, default 4, each retried, an
   expired URL refreshed), and Oxy verifies the assembled file against the
@@ -119,19 +119,19 @@ without it.)
   `ApplicationFileAdoption` (`{ file, outcome: 'adopted' | 'existing',
   deduplicated, reference? }`): the calling application takes its own file of
   the bytes a file it can read holds (`POST /assets/service/app/adopt`, ADR
-  0041 stage 4b), sharing the stored object — no re-upload. Never more visible
+  0042 stage 4b), sharing the stored object — no re-upload. Never more visible
   than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`); 404 for anything it
   cannot read; 451 for taken-down bytes.
 - `oxy.contentClaims.submitCounterNotice(notice)` (`ContentClaimsApi`): the
   signed-in owner of content a claim took down disputes it
-  (`POST /content-claims/counter-notices`, ADR 0041 D10; body
+  (`POST /content-claims/counter-notices`, ADR 0042 D10; body
   `ContentClaimCounterNotice` from `@oxy.so/contracts` 4.19.0) →
   `ContentClaimCounterNoticeResponse`.
 - `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
   → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
   Oxy fetches the URL itself (https only on every hop, public addresses only,
   at most 5 redirects, 40 MiB, 60 s) and the calling application owns the file
-  (`POST /assets/service/app/import`, `files:app:write`, ADR 0041 D7). The same
+  (`POST /assets/service/app/import`, `files:app:write`, ADR 0042 D7). The same
   URL imported again answers the existing file without fetching
   (`outcome: 'existing'`); `revalidate` asks the source conditionally
   (`not_modified`, or `downloaded` with the new bytes as a new file).
@@ -152,19 +152,19 @@ without it.)
   replay window, and hands back the endpoint challenge to echo. Also
   `FILE_EVENT_TYPES`, `FILE_EVENT_SIGNATURE_HEADER`,
   `FILE_EVENT_DEFAULT_TOLERANCE_SECONDS`, `FileEventVerificationError`, types
-  `FileEvent`, `FileEventType`, `FileWebhookChallenge` (ADR 0041 D9).
+  `FileEvent`, `FileEventType`, `FileWebhookChallenge` (ADR 0042 D9).
 - `oxy.apps.getFilesWebhook(appId)`, `setFilesWebhook(appId, url)` (verifies
   the endpoint with a challenge; returns the new signing secret ONCE) and
   `removeFilesWebhook(appId)`; `Application.filesWebhookUrl?`,
   `Application.filesWebhookVerifiedAt?`; types `ApplicationFilesWebhook`,
   `ApplicationDeleteResult`.
 - `oxy.assets.trash(fileId)`: the owner moves their own file to trash (not
-  served, kept until restored or deleted; ADR 0041 D5).
+  served, kept until restored or deleted; ADR 0042 D5).
 
 - `OxyServer.assets.references.reconcile(entityType, items, { dryRun? })` →
   `ServiceReferenceReconcileResult` (`{ sessionId, entityType, dryRun, added,
   removed, unchanged, refused }`): reconciles the calling application's
-  references of one entity type with its real inventory (ADR 0041 D6, scope
+  references of one entity type with its real inventory (ADR 0042 D6, scope
   `files:references:write`). `items` is an array or any (async) iterable of
   `{ fileId, entityId }`, sent in pages of 1,000 over
   `POST /assets/service/references/reconcile`, `PUT …/:sessionId`,
@@ -177,7 +177,7 @@ without it.)
 - `Asset.inUse?`, `Asset.unreferencedSince?`, `Asset.trashedAt?` on the
   owner's own view (`assets.list`, `assets.get`), and `assets.list({ inUse })`
   to list only the files an application uses (`true`) or none does
-  (`false`). A file not in use is never removed for its owner (ADR 0041 D5).
+  (`false`). A file not in use is never removed for its owner (ADR 0042 D5).
 
 - `OxyServer.assets.references.add(references)` / `.remove(references)` →
   `ServiceFileReferenceResult[]`: the calling application records and removes
@@ -213,7 +213,7 @@ without it.)
 
 - Removing the last reference to an account's file no longer moves it to
   trash, on any path (`assets.unlink` included): it stays `active` and reads
-  `inUse: false`. Only its owner trashes or deletes it (ADR 0041 D5).
+  `inUse: false`. Only its owner trashes or deletes it (ADR 0042 D5).
 - A file in trash is no longer served: `assets.url` / `assets.urls`, the
   stream and download routes and `linkedDownloadUrls` answer it like a missing
   file, and a public one leaves the CDN until it is restored.

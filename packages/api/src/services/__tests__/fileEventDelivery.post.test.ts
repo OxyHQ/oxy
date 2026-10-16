@@ -1,5 +1,5 @@
 /**
- * The file-event POST (ADR 0041 D9) is SSRF-safe: it goes through `safeFetch`
+ * The file-event POST (ADR 0042 D9) is SSRF-safe: it goes through `safeFetch`
  * (DNS-pinned, public addresses only) with NO redirects and a bounded wait, as
  * the per-reference webhook it replaced did. Successor of
  * `assetService.notifyLinks.test.ts`, whose per-reference webhooks are gone.

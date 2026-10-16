@@ -141,7 +141,7 @@ describe('the canonical official-application registry', () => {
       type: 'first_party',
       isOfficial: true,
       isInternal: false,
-      // ADR 0041 D12: claim withdrawal is GoWay's own reference removal.
+      // ADR 0042 D12: claim withdrawal is GoWay's own reference removal.
       scopes: ['user:read', 'files:references:write'],
       capabilities: [],
     });
@@ -324,7 +324,7 @@ describe('the canonical official-application registry', () => {
       'accounts:act-as-session',
       'capability-tickets:issue',
     ];
-    /** ADR 0041: Alia's own files and a person's uploads (see `ALIA_APPLICATION_SCOPES`). */
+    /** ADR 0042: Alia's own files and a person's uploads (see `ALIA_APPLICATION_SCOPES`). */
     const FILE_SCOPES: readonly string[] = [
       'files:read',
       'files:app:write',
@@ -439,7 +439,7 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).not.toContain('clarity:sites:manage');
     });
 
-    it('carries the ADR 0041 file scopes, each a REAL scope', () => {
+    it('carries the ADR 0042 file scopes, each a REAL scope', () => {
       expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...FILE_SCOPES]));
       for (const scope of FILE_SCOPES) expect(isValidApplicationScope(scope)).toBe(true);
     });
@@ -649,7 +649,7 @@ describe('the canonical official-application registry', () => {
     });
 
     it('carries the application file scopes only where staff grant them', () => {
-      // ADR 0041 D11: on Oxy's own applications these are a platform decision
+      // ADR 0042 D11: on Oxy's own applications these are a platform decision
       // — the files are metered against no one (D2) — so the canonical seed,
       // run by staff, is where they are granted. Every seeded type is one of
       // Oxy's own, so each grant here must read as privileged.
@@ -672,7 +672,7 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('ADR 0041: every product adopting Oxy Files holds exactly its file scopes', () => {
+  describe('ADR 0042: every product adopting Oxy Files holds exactly its file scopes', () => {
     /**
      * The census: each adopting application's `files:*` scopes, EXACTLY. A file
      * scope added "while we're here" — or one an adoption needs going missing —
@@ -758,7 +758,7 @@ describe('the canonical official-application registry', () => {
       const writers = SEED_APPS.filter((spec) =>
         (spec.scopes ?? []).some((scope) => scope.startsWith('files:') && scope !== 'files:read'),
       ).map((spec) => spec.name);
-      // Oxy Move's `files:write` + `files:user-media:write` predate ADR 0041.
+      // Oxy Move's `files:write` + `files:user-media:write` predate ADR 0042.
       expect(writers.filter((name) => !census.has(name))).toEqual(['Oxy Move']);
       for (const name of census) expect(() => specNamed(name)).not.toThrow();
     });

@@ -1,7 +1,7 @@
 /**
  * `file_reference_reconciliations` + `file_reference_reconciliation_items` —
  * an application's inventory of its own references for ONE `entity_type`,
- * received in pages and then diffed against `file_references` (ADR 0041 D6).
+ * received in pages and then diffed against `file_references` (ADR 0042 D6).
  *
  * The safety net under per-write bookkeeping: an application that missed a
  * reference (a crash between two writes, an old bug) sends what it really

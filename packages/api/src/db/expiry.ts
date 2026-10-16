@@ -415,7 +415,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: fileEventDeliveries.createdAt,
     retentionSeconds: FILE_EVENT_DELIVERY_RETENTION_SECONDS,
     reason:
-      'Thirty days of file events to applications (ADR 0041 D9), far past the ' +
+      'Thirty days of file events to applications (ADR 0042 D9), far past the ' +
       'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
       'stays inspectable for support, then goes. Nothing reads an old row.',
   },
@@ -424,7 +424,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: fileUploadSessions.finishedAt,
     retentionSeconds: FILE_UPLOAD_SESSION_RETENTION_SECONDS,
     reason:
-      'A large upload that finished — a file, a failure or an abort (ADR 0041 ' +
+      'A large upload that finished — a file, a failure or an abort (ADR 0042 ' +
       'stage 4b) — stays readable by its uploader for a week, so a client that ' +
       'lost the answer still learns the outcome, then goes. An open session has ' +
       'no `finished_at` and is never swept here: the upload worker aborts it.',
@@ -434,7 +434,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: contentClaimClaimants.expiresAt,
     retentionSeconds: 0,
     reason:
-      "A content claimant's identity and statement (ADR 0041 D10), set to expire " +
+      "A content claimant's identity and statement (ADR 0042 D10), set to expire " +
       'three years after the claim closes (`CONTENT_CLAIMANT_RETENTION_SECONDS`); ' +
       'NULL — kept — while the claim is open. Housekeeping only: every read ' +
       'treats a row past `expires_at` as erased. The claim keeps its trail.',
@@ -445,7 +445,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 0,
     reason:
       "An owner's counter-notice — their identity, contact details and " +
-      "statement (ADR 0041 D10) — on the claimant statement's clock: set to " +
+      "statement (ADR 0042 D10) — on the claimant statement's clock: set to " +
       'expire three years after the claim closes, NULL — kept — while it is ' +
       'open. Housekeeping only: every read treats a row past `expires_at` as ' +
       'erased; its emails go with it (CASCADE).',

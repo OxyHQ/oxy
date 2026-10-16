@@ -1,5 +1,5 @@
 /**
- * The owner's counter-notice (ADR 0041 D10, 17 U.S.C. § 512(g)) —
+ * The owner's counter-notice (ADR 0042 D10, 17 U.S.C. § 512(g)) —
  * `POST /content-claims/counter-notices` over real `node:http` and a REAL
  * Postgres, after a real block (`blockClaimTargets`). Stubbed: the session (a
  * switchable account), the rate limiters, S3 (an in-memory map).

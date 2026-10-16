@@ -1,6 +1,6 @@
 /**
  * What the file manager does when the person removes, restores or deletes a
- * file (ADR 0041 D5). Pure of React and of the UI: every call takes the asset
+ * file (ADR 0042 D5). Pure of React and of the UI: every call takes the asset
  * API and the confirmation it may need, so the decisions are testable on their
  * own and the screens only render.
  *

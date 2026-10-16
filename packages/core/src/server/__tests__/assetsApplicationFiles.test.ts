@@ -1,5 +1,5 @@
 /**
- * `OxyServer.assets` — application-owned files (ADR 0041) and the user-media
+ * `OxyServer.assets` — application-owned files (ADR 0042) and the user-media
  * upload helper.
  *
  * Stubs `serviceRequest`, the service-token transport, so these pin exactly
@@ -219,7 +219,7 @@ describe('OxyServer.assets.references — the calling application’s uses of fi
   });
 });
 
-describe('OxyServer.assets.references.reconcile — an inventory of one entity type (ADR 0041 D6)', () => {
+describe('OxyServer.assets.references.reconcile — an inventory of one entity type (ADR 0042 D6)', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -310,7 +310,7 @@ describe('OxyServer.assets.references.reconcile — an inventory of one entity t
   });
 });
 
-describe('OxyServer.assets — import by URL (ADR 0041 D7)', () => {
+describe('OxyServer.assets — import by URL (ADR 0042 D7)', () => {
   let oxy: OxyServer;
   let serviceRequestSpy: jest.SpyInstance;
 

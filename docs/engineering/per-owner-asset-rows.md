@@ -18,7 +18,7 @@ review of #1441 found this.
   `(sha256, system_owner)`. Both are partial indexes on
   `status in ('active', 'trash')`. System namespaces are owners too: the
   federation media cache still keeps one row per hash.
-  Since ADR 0041 an application is the third owner
+  Since ADR 0042 an application is the third owner
   (`files.owner_application_id`), with its own partial unique
   `files_owner_application_id_sha256_live_key` on
   `(owner_application_id, sha256)`. Only a `third_party` application's

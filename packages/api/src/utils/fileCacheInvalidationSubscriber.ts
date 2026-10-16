@@ -37,7 +37,7 @@ export function handleFileCacheInvalidationMessage(channel: string, raw: string)
 }
 
 /**
- * Subscribe to cross-task file-record invalidations (ADR 0041 stage 4b), so a
+ * Subscribe to cross-task file-record invalidations (ADR 0042 stage 4b), so a
  * block, trash, deletion or visibility change made by ONE API task stops every
  * other task serving its cached record at once instead of after the cache's
  * five-minute TTL.

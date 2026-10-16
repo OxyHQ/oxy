@@ -232,7 +232,7 @@ async function repointLinks(linkIds: readonly string[], targetFileId: string): P
       moved += 1;
     }
     // Both ends' usage changed: the source may now be unused, the target is
-    // used (ADR 0041 D5).
+    // used (ADR 0042 D5).
     await refreshUnreferencedSinceAfterMove(tx, [...touched]);
     return moved;
   });

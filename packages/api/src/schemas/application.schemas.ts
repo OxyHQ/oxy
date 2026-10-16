@@ -189,7 +189,7 @@ export const credentialAuditQuerySchema = z
   .strict();
 
 /**
- * `DELETE /applications/:appId` (ADR 0041 D8): deleting an application deletes
+ * `DELETE /applications/:appId` (ADR 0042 D8): deleting an application deletes
  * every file it owns at once, so the caller types the application's current
  * name. Compared trimmed and case-sensitively in the route.
  */
@@ -200,7 +200,7 @@ export const deleteApplicationBodySchema = z
   .strict();
 
 /**
- * `PUT /applications/:appId/files-webhook` (ADR 0041 D9): the one endpoint
+ * `PUT /applications/:appId/files-webhook` (ADR 0042 D9): the one endpoint
  * the application is told about its files at. `https` only; the route also
  * requires a public address and a challenge answered before it stores it.
  */

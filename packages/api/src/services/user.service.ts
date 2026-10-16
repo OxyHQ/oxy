@@ -1120,7 +1120,7 @@ export class UserService {
       ? filteredUpdates.linksMetadata
       : undefined;
 
-    // The avatar is a use of a file by Oxy Accounts (ADR 0041 D4): resolved
+    // The avatar is a use of a file by Oxy Accounts (ADR 0042 D4): resolved
     // before the transaction, its reference moves inside it.
     const avatarChanged = 'avatar' in columnUpdates;
     const profileMediaApplicationId = avatarChanged

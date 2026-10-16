@@ -123,7 +123,7 @@ describe('oxy.apps', () => {
       const deleted = { success: true, filesDeleted: 2, referencesRemoved: 1 };
       fetchMock.mockResolvedValueOnce(jsonResponse(deleted));
       await expect(oxy.apps.delete('app1', { confirmName: 'My App' })).resolves.toEqual(deleted);
-      // ADR 0041 D8: the typed name travels in the DELETE body.
+      // ADR 0042 D8: the typed name travels in the DELETE body.
       expect(call(4)).toMatchObject({
         url: 'http://test.invalid/applications/app1',
         method: 'DELETE',

@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=post
 --
--- ADR 0041 D4, second half: `file_references` (0168) replaced `file_links`, and
+-- ADR 0042 D4, second half: `file_references` (0168) replaced `file_links`, and
 -- the image now serving reads and writes only the new table.
 --
 --  * the rollout-window mirror trigger and its function go first, so nothing

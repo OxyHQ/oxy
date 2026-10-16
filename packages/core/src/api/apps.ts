@@ -56,7 +56,7 @@ export type ApplicationEnvironment = 'development' | 'staging' | 'production';
 /** Application credential lifecycle status. */
 export type ApplicationCredentialStatus = 'active' | 'deprecated' | 'revoked';
 
-/** `DELETE /applications/:appId`: what went with the application (ADR 0041 D8). */
+/** `DELETE /applications/:appId`: what went with the application (ADR 0042 D8). */
 export interface ApplicationDeleteResult {
   success: true;
   /** Files the application owned, deleted with it. */
@@ -96,7 +96,7 @@ export interface Application {
   scopes: string[];
   webhookUrl?: string;
   devWebhookUrl?: string;
-  /** The verified file-events endpoint (ADR 0041 D9); see `apps.setFilesWebhook`. */
+  /** The verified file-events endpoint (ADR 0042 D9); see `apps.setFilesWebhook`. */
   filesWebhookUrl?: string;
   filesWebhookVerifiedAt?: string;
   createdByUserId: string;
@@ -588,7 +588,7 @@ export class AppsApi {
 
   /**
    * Delete an application — and with it, at once, every file it owns and
-   * every reference it registered (ADR 0041 D8). `confirmName` must be the
+   * every reference it registered (ADR 0042 D8). `confirmName` must be the
    * application's current name, as the person typed it (compared trimmed and
    * case-sensitively); anything else is refused with 400
    * `CONFIRM_NAME_MISMATCH` and nothing changes.
@@ -614,7 +614,7 @@ export class AppsApi {
   }
 
   /**
-   * The application's file-events endpoint (ADR 0041 D9), or nulls when none.
+   * The application's file-events endpoint (ADR 0042 D9), or nulls when none.
    * Its signing secret is never readable: it is shown once, by
    * {@link setFilesWebhook}.
    */

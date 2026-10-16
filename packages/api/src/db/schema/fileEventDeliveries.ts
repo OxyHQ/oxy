@@ -1,6 +1,6 @@
 /**
  * `file_event_deliveries` — the outbox of file events to applications
- * (ADR 0041 D9).
+ * (ADR 0042 D9).
  *
  * When a file is deleted, trashed, restored or changes visibility, every
  * application that uses it (a `file_references` row) and the application that
@@ -37,7 +37,7 @@ import { applications } from './applications';
 
 /**
  * Every file event type. `file.blocked` / `file.unblocked` are emitted by the
- * takedown flow of stage 4 (ADR 0041 D10); they are in the set now so a
+ * takedown flow of stage 4 (ADR 0042 D10); they are in the set now so a
  * receiver can be written against the whole vocabulary.
  */
 export const FILE_EVENT_TYPES = [

@@ -1,6 +1,6 @@
 /**
  * `POST`/`DELETE /assets/service/references` — an application records and
- * removes its own use of files (ADR 0041 D4) — over real `node:http`, the REAL
+ * removes its own use of files (ADR 0042 D4) — over real `node:http`, the REAL
  * AssetService and a REAL Postgres.
  *
  * Stubbed: the service-auth middleware (a case sets the verified

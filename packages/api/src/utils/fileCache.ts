@@ -116,7 +116,7 @@ class FileCache {
 
   /**
    * The file's record changed (its status, visibility, keys, references…):
-   * drop it here AND tell every other API task to drop theirs (ADR 0041 stage
+   * drop it here AND tell every other API task to drop theirs (ADR 0042 stage
    * 4b). Call it AFTER the write committed.
    *
    * This is the one entry point every transition already goes through

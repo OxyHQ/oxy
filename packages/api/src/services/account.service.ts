@@ -842,7 +842,7 @@ export class AccountService {
           username: account.username ?? null,
           retained: true,
         });
-        // Its applications go first, the way a developer's delete does (ADR 0041 D8).
+        // Its applications go first, the way a developer's delete does (ADR 0042 D8).
         deletedApplications = await deleteAccountApplications(tx, accountId);
         storage = await recordAccountStorageDeletion(tx, accountId, { removeAssetRows: true });
       },

@@ -21,7 +21,7 @@
  * are then that other owner's upload, not the deleted one's
  * ({@link storageSpellingsInUse}).
  *
- * ## The evidence hold (ADR 0041 D10)
+ * ## The evidence hold (ADR 0042 D10)
  *
  * Bytes an OPEN content claim names — a target it resolved, or a hash it
  * blocked — are evidence: the reviewer must be able to see them, and a
@@ -176,7 +176,7 @@ export interface StorageSpellingsInUse {
  * publicly has it — and either spelling while a live row's recorded rendition
  * sits under it.
  *
- * "Served", not merely public (ADR 0041 D5): a public row in `trash` has moved
+ * "Served", not merely public (ADR 0042 D5): a public row in `trash` has moved
  * its own objects to the bare spelling (`isServedPublicly`), and must not keep
  * a CDN copy alive on the strength of a visibility it is no longer served
  * with. A trashed row still holding a literal `public/` key keeps it — the row

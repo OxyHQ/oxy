@@ -1,5 +1,5 @@
 /**
- * Confirming an application's deletion (ADR 0041 D8).
+ * Confirming an application's deletion (ADR 0042 D8).
  *
  * Deleting an application deletes every file it owns at once, so the person
  * types the application's name. `DELETE /applications/:appId` refuses anything

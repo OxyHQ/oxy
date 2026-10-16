@@ -1,5 +1,5 @@
 /**
- * Content claims (ADR 0041 D10): the intake, the staff review, and the
+ * Content claims (ADR 0042 D10): the intake, the staff review, and the
  * takedown it decides.
  *
  * ## The intake

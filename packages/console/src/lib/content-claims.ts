@@ -11,7 +11,7 @@ import {
 } from '@oxy.so/contracts';
 
 /**
- * The staff review of content claims (ADR 0041 D10), as pure rules.
+ * The staff review of content claims (ADR 0042 D10), as pure rules.
  *
  * The API is the authority on every transition — each is a conditional write
  * that answers 409 `CONTENT_CLAIM_STATE_CONFLICT` when the claim moved on — so

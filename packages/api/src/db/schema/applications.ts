@@ -133,7 +133,7 @@ export const applications = pgTable(
     webhookSecret: text(),
     devWebhookUrl: text(),
     /**
-     * Where this application is told about the files it uses (ADR 0041 D9):
+     * Where this application is told about the files it uses (ADR 0042 D9):
      * `file.deleted`, `file.trashed`, `file.restored`,
      * `file.visibility_changed` (and `file.blocked`/`file.unblocked` from stage
      * 4). Separate from `webhook_url`, which receives account events as signed

@@ -1,5 +1,5 @@
 /**
- * File events to applications (ADR 0041 D9), against a REAL Postgres:
+ * File events to applications (ADR 0042 D9), against a REAL Postgres:
  * what is queued, for whom, in which transaction — and how the worker sends it.
  *
  *  1. Recipients: the owning application and every application holding a

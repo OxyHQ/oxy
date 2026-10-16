@@ -1,6 +1,6 @@
 /**
  * `files.owner_application_id` — an APPLICATION as the third owner principal
- * (ADR 0041), against a REAL Postgres.
+ * (ADR 0042), against a REAL Postgres.
  *
  * What is pinned here is behaviour, not DDL text:
  *  - the owner CHECK admits exactly one of account, system namespace and

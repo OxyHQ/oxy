@@ -3728,7 +3728,7 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     throw new UnauthorizedError('Invalid credentials');
   }
 
-  // ADR 0041 D3 widens the same carve-out to a third-party application's own
+  // ADR 0042 D3 widens the same carve-out to a third-party application's own
   // file scopes ({@link isSelfServiceServiceCredentialScope}): its own files
   // and references, metered against its developer's plan.
   const isSelfServiceServiceCredential =

@@ -244,7 +244,7 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
       .from(applications)
       .where(eq(applications.id, clarity.backendApplication.id));
     expect(backend.webhookUrl).toBe(clarity.backendApplication.webhookUrl);
-    // A fresh backend is created holding the reviewed file grant (ADR 0041).
+    // A fresh backend is created holding the reviewed file grant (ADR 0042).
     expect(backend.scopes).toEqual([
       ...clarity.backendApplication.scopes,
       ...clarity.backendApplication.fileScopes,
@@ -361,7 +361,7 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
         );
     }
   });
-  it('widens an existing Clarity backend and its live binding by exactly the file grant (ADR 0041)', async () => {
+  it('widens an existing Clarity backend and its live binding by exactly the file grant (ADR 0042)', async () => {
     const BASE = [...clarity.backendApplication.scopes];
     await getDb()
       .update(applications)

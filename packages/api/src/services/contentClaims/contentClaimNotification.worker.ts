@@ -1,6 +1,6 @@
 /**
  * Sends the emails a content claim queued (`content_claim_notifications`,
- * ADR 0041 D10).
+ * ADR 0042 D10).
  *
  * At least once, the way `fileEventDelivery.worker.ts` delivers file events:
  * due rows are claimed under a lease (`FOR UPDATE SKIP LOCKED`, so several API

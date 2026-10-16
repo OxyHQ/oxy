@@ -10,7 +10,7 @@
  *
  * Every asset the account OWNS (`files.owner_user_id`), whatever its status,
  * and every asset owned by an APPLICATION the account owns
- * (`files.owner_application_id`, ADR 0041). The second set is removed even on
+ * (`files.owner_application_id`, ADR 0042). The second set is removed even on
  * a hard delete, where the account's own rows cascade: the `users` cascade
  * deletes the applications, and `files.owner_application_id` is `RESTRICT`
  * precisely so those rows can never vanish without their storage being
@@ -136,7 +136,7 @@ export async function recordFileStorageDeletion(
 /**
  * Record the storage MANY tombstoned assets are owed, inside their tombstone's
  * transaction — {@link recordFileStorageDeletion} for a batch (an
- * application's deletion tombstones every file it owns, ADR 0041 D8). Same
+ * application's deletion tombstones every file it owns, ADR 0042 D8). Same
  * reason, same ledger owner per asset, same re-arming. Returns the ledger ids.
  */
 export async function recordFilesStorageDeletion(
@@ -197,7 +197,7 @@ export async function recordFileStorageRelocation(
 
 /**
  * The ledger's `account_id` for one asset: its owning account, `app:<id>` for
- * an application-owned asset (ADR 0041), or `system:<namespace>`. Never a
+ * an application-owned asset (ADR 0042), or `system:<namespace>`. Never a
  * foreign key (`storageObjectDeletions.ts`), so each owner kind gets its own
  * prefix and two kinds can never collide on one target.
  */
@@ -327,7 +327,7 @@ export async function recordAccountStorageDeletion(
   const fileIds = owned.map((asset) => asset.id);
 
   // Every application using one of the ACCOUNT's own files is told it is gone
-  // (ADR 0041 D9), in this transaction and while the rows and their references
+  // (ADR 0042 D9), in this transaction and while the rows and their references
   // still stand: the archive removes them below, the hard delete's `users`
   // cascade after. The account's applications' files were tombstoned — and
   // their users told — by `deleteAccountApplications` just before; a file

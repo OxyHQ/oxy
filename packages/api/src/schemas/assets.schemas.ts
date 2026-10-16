@@ -9,10 +9,10 @@ export const assetIdParams = z.object({
 export const listAssetsQuerySchema = z.object({
   limit: z.string().regex(/^\d+$/).optional(),
   offset: z.string().regex(/^\d+$/).optional(),
-  /** `false`: only files no application uses — *not in use* (ADR 0041 D5). */
+  /** `false`: only files no application uses — *not in use* (ADR 0042 D5). */
   inUse: z.enum(['true', 'false']).optional(),
   /**
-   * `trash`: only the files the owner moved to trash (ADR 0041 D5). Absent:
+   * `trash`: only the files the owner moved to trash (ADR 0042 D5). Absent:
    * the library — `active` and `blocked` files, never trashed ones.
    */
   status: z.enum(['trash']).optional(),
@@ -204,7 +204,7 @@ export const assetsBySha256BodySchema = z.object({
 });
 
 // POST /assets/:id/links — a signed-in owner records that an application uses
-// their file (`file_references`, ADR 0041 D4). `app` names the application: its
+// their file (`file_references`, ADR 0042 D4). `app` names the application: its
 // id, or one of the legacy strings in `utils/legacyFileLinkApplications.ts`; a
 // session bound to one application is recorded as that application.
 // `visibility`, when given, is an explicit change by the OWNER, never inferred.
@@ -247,7 +247,7 @@ const serviceReferenceSchema = z
   })
   .strict();
 
-// POST / DELETE /assets/service/references (ADR 0041 D4).
+// POST / DELETE /assets/service/references (ADR 0042 D4).
 export const serviceReferencesBodySchema = z
   .object({
     references: z
@@ -260,7 +260,7 @@ export const serviceReferencesBodySchema = z
   })
   .strict();
 
-/** Pairs per `PUT /assets/service/references/reconcile/:sessionId` page (ADR 0041 D6). */
+/** Pairs per `PUT /assets/service/references/reconcile/:sessionId` page (ADR 0042 D6). */
 export const MAX_RECONCILE_PAGE_ITEMS = 1000;
 
 // POST /assets/service/references/reconcile — begin an inventory of one entity type.
@@ -295,7 +295,7 @@ export const reconcileSessionParams = z.object({
   sessionId: z.string().trim().min(1).max(64),
 });
 
-/** Imports per `POST /assets/service/app/import/batch` call (ADR 0041 D7). */
+/** Imports per `POST /assets/service/app/import/batch` call (ADR 0042 D7). */
 export const MAX_IMPORT_BATCH_ITEMS = 50;
 
 /** The reference an import registers for the calling application in the same request. */
@@ -342,7 +342,7 @@ export const userMediaImportBodySchema = z
   .strict();
 
 // ---------------------------------------------------------------------------
-// Large uploads (ADR 0041 stage 4b): a resumable S3 multipart upload of any
+// Large uploads (ADR 0042 stage 4b): a resumable S3 multipart upload of any
 // type, up to 8 GiB, opened by an application's service token.
 // ---------------------------------------------------------------------------
 

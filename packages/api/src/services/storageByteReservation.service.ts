@@ -128,7 +128,7 @@ export async function releaseUnwrittenStorageReservation(
 }
 
 /**
- * Release a large upload's reservation (ADR 0041 stage 4b) once its upload is
+ * Release a large upload's reservation (ADR 0042 stage 4b) once its upload is
  * TERMINAL and the reserved key will never be written by it: the S3 multipart
  * upload was aborted (S3 refuses every further part), or it was assembled and
  * then deleted or stored under another key (a deduplicated or shared row).

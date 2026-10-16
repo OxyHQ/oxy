@@ -1,6 +1,6 @@
 /**
  * `POST /assets/:id/trash` — the owner moves their own file to trash (ADR
- * 0041 D5) — over real `node:http`, the REAL AssetService and a REAL Postgres.
+ * 0042 D5) — over real `node:http`, the REAL AssetService and a REAL Postgres.
  * Stubbed: the session middleware, the rate limiter, S3 (an in-memory map).
  *
  *  1. Only the file's owner; anyone else (and a deleted file) gets 404.

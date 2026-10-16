@@ -230,7 +230,7 @@ export function seedApplicationLookupIdentity(
  *    Alia can carry out, one bounded step at a time, what a person authorised
  *    it to coordinate, and nothing else.
  *
- * GRANTED — files (ADR 0041). Alia's skill bundles and show covers move out of
+ * GRANTED — files (ADR 0042). Alia's skill bundles and show covers move out of
  * its own bucket into Oxy Files (rollout stage 4), and a person's uploads to a
  * chat are that PERSON's files. All four write scopes are staff-gated on Oxy's
  * own applications (D11), which is why this canonical seed carries them:
@@ -304,7 +304,7 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
 ];
 
 /**
- * The scopes over files an Oxy product owns or uses (ADR 0041 D11), for an
+ * The scopes over files an Oxy product owns or uses (ADR 0042 D11), for an
  * application whose own content moves into Oxy Files: read a file's metadata
  * back (`files:read`), store and remove the APPLICATION's own files
  * (`files:app:write`, `files:app:delete` — Oxy's own application, not metered,
@@ -484,7 +484,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'clarity:sites:manage',
       // I05 foreground only: requester session and read-only tools remain independently checked.
       'capability-tickets:issue',
-      // ADR 0041: the GIF library moves out of the evictable federation cache
+      // ADR 0042: the GIF library moves out of the evictable federation cache
       // into files the MENTION APPLICATION owns (`files:app:write`; Oxy's own,
       // so not metered — D2), and every post records the media it shows
       // (`files:references:write`, D4) so a takedown or a deletion reaches
@@ -514,7 +514,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     //   and serves its internal MCP to Alia, re-authorising and auditing each
     //   ticket (`capabilities:read`, `capability-audit:write`); its public OAuth
     //   MCP is mcp.homiio.oxy.so.
-    // ADR 0041: Homiio's own bucket (and its ~950 orphans) ends — listing
+    // ADR 0042: Homiio's own bucket (and its ~950 orphans) ends — listing
     // photos a person uploads are THAT person's (`files:user-media:write`),
     // platform artwork is the Homiio application's own (PRODUCT_FILE_SCOPES),
     // and every listing records the files it shows (references).
@@ -573,7 +573,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://syra.fm',
     type: 'first_party',
     redirectUris: ['https://syra.fm'],
-    // ADR 0041 rollout stage 4: Syra's catalogue artwork moves out of its own
+    // ADR 0042 rollout stage 4: Syra's catalogue artwork moves out of its own
     // bucket into files the SYRA APPLICATION owns, and what a person uploads
     // (a playlist cover) is that person's (`files:user-media:write`).
     scopes: ['user:read', ...PRODUCT_FILE_SCOPES, 'files:user-media:write'],
@@ -598,7 +598,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // they are authored in Mention and indexed by Clarity, and the website
     // stores none of them. The mint intersects credential scopes with these, so
     // without it Clarity answers `scope_missing` for every job search.
-    // ADR 0041 rollout stage 4: the website's media (post covers, team photos)
+    // ADR 0042 rollout stage 4: the website's media (post covers, team photos)
     // leaves its own bucket and `storage_cleanups` for files the WEBSITE
     // application owns, referenced by the post or page that shows them.
     scopes: ['user:read', 'catalogs:write', 'clarity:search', ...PRODUCT_FILE_SCOPES],
@@ -610,7 +610,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://peable.to',
     type: 'first_party',
     redirectUris: ['https://peable.to'],
-    // ADR 0041 D4: Peable records which of its records (a receipt, a
+    // ADR 0042 D4: Peable records which of its records (a receipt, a
     // merchant logo) use a person's file and reads its metadata back; it owns
     // no files of its own.
     scopes: [
@@ -669,7 +669,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // persisted store owner. Ordinary files:write does not authorize that act-as.
     // Platform artwork that belongs to no store (category tiles) is Mercaria's
     // own: `files:app:*` stores, lists, re-publishes and removes files the
-    // APPLICATION owns — not metered, Mercaria is Oxy's (ADR 0041 D2) — and
+    // APPLICATION owns — not metered, Mercaria is Oxy's (ADR 0042 D2) — and
     // `files:references:write` records which listings use which files (D4).
     scopes: [
       'user:read',
@@ -697,7 +697,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://moovo.now',
     type: 'first_party',
     redirectUris: ['https://moovo.now', 'https://go.moovo.now', 'https://hub.moovo.now'],
-    // ADR 0041: category art is the MOOVO APPLICATION's own file
+    // ADR 0042: category art is the MOOVO APPLICATION's own file
     // (`files:app:write`; no hotlinked supplier URLs), and every record that
     // shows a file — Moovo's own or a person's — references it (D4).
     scopes: ['user:read', 'files:read', 'files:references:write', 'files:app:write'],
@@ -761,7 +761,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://goway.to'],
     // `files:references:write`: GoWay records and withdraws its own uses of
     // files (a contributor's photo on a place) with its service token — the
-    // claim withdrawal a business's session can no longer perform (ADR 0041
+    // claim withdrawal a business's session can no longer perform (ADR 0042
     // D12) — and reconciles them (D6). Staff-granted: GoWay is Oxy's (D11).
     scopes: ['user:read', 'files:references:write'],
   },
@@ -796,7 +796,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'capabilities:read',
       'capability-audit:write',
       'capability-events:publish',
-      // ADR 0041 D4: Nilo registers and removes the page→attachment
+      // ADR 0042 D4: Nilo registers and removes the page→attachment
       // references with its OWN token (it did through the person's session),
       // and reconciles them (D6).
       'files:references:write',
@@ -861,7 +861,7 @@ export const SEED_APPS: SeedAppSpec[] = [
     // checks them on the verified service token), so a session carrying them
     // gains nothing: CrowdSource reads the metadata of the evidence a case
     // shows (`files:read`) and records that a case uses it
-    // (`files:references:write`, ADR 0041 D4), so evidence is not collected
+    // (`files:references:write`, ADR 0042 D4), so evidence is not collected
     // under a case and a takedown of it reaches CrowdSource (D9).
     scopes: ['user:read', 'files:read', 'files:references:write'],
   },

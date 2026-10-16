@@ -196,7 +196,7 @@ export interface AssetLinkTarget {
   /**
    * The application that uses the file: its id, or a legacy name the Oxy API
    * maps (`goway`, `mercaria`, `nilo`, `oxy-mail`, `profiles`). Any other
-   * string is refused (ADR 0041 D4). A session that belongs to one application
+   * string is refused (ADR 0042 D4). A session that belongs to one application
    * is always recorded as that application.
    */
   app: string;
@@ -491,7 +491,7 @@ export class AssetsApi {
   /**
    * The signed-in user's files. Each says whether an application uses it
    * (`inUse`); `inUse: false` lists only the files no application uses — never
-   * removed for you, shown so you can decide (ADR 0041 D5).
+   * removed for you, shown so you can decide (ADR 0042 D5).
    *
    * By default the LIBRARY: `active` files and `blocked` ones (removed after a
    * legal claim), newest first — never a file in trash. `status: 'trash'`
@@ -635,7 +635,7 @@ export class AssetsApi {
   }
 
   /**
-   * Move your own asset to the trash (ADR 0041 D5): it stops being served at
+   * Move your own asset to the trash (ADR 0042 D5): it stops being served at
    * once and is kept — an account's trash never expires — until you
    * {@link restore} or {@link delete} it. Applications using it are told
    * (`file.trashed`). Already in trash: answered as it is.

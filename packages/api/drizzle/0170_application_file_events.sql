@@ -1,6 +1,6 @@
 -- oxy:deploy-phase=pre
 --
--- ADR 0041 stage 3: import by URL (D7), application deletion (D8) and file
+-- ADR 0042 stage 3: import by URL (D7), application deletion (D8) and file
 -- events to applications (D9).
 --
 --  * file_sources (new): per owner (an account or an application, exactly one)

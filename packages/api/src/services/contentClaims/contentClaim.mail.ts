@@ -1,5 +1,5 @@
 /**
- * The emails a content claim sends (ADR 0041 D10): to the claimant, about
+ * The emails a content claim sends (ADR 0042 D10): to the claimant, about
  * their report, and to the accounts whose files a block reached.
  *
  * Plain text and the minimal HTML part every Oxy system email has
