@@ -113,6 +113,8 @@ export const queryKeys = {
   files: {
     all: ['files'] as const,
     list: (ownerId?: string) => [...queryKeys.files.all, 'list', ownerId || 'anonymous'] as const,
+    /** The owner's trash (ADR 0041 D5) — under `files.all`, so one invalidation covers both. */
+    trash: (ownerId?: string) => [...queryKeys.files.all, 'trash', ownerId || 'anonymous'] as const,
   },
 
   // Connected apps (OAuth grants the user has authorized)

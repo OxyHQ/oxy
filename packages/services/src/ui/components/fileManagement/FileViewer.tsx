@@ -18,7 +18,10 @@ interface FileViewerProps {
   onToggleDetails: () => void;
   onClose: () => void;
   onDownload: (fileId: string, filename: string) => void;
+  /** Removes the file from the library: to trash, or for good if it is blocked. */
   onDelete: (fileId: string, filename: string) => void;
+  /** The remove button's label — "Move to trash", or "Delete" for a blocked file. */
+  deleteLabel: string;
   isOwner: boolean;
 }
 
@@ -55,6 +58,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
   onClose,
   onDownload,
   onDelete,
+  deleteLabel,
   isOwner,
 }) => {
   const { colors } = useTheme();
@@ -395,7 +399,7 @@ export const FileViewer: React.FC<FileViewerProps> = ({
                     onDelete(file.id, file.filename);
                   }}
                 >
-                  Delete
+                  {deleteLabel}
                 </Button>
               </View>
             )}

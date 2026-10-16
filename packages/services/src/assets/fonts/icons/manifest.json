@@ -5,8 +5,8 @@
     "ionicons": {
       "fontFamily": "OxyServicesIonicons",
       "file": "src/assets/fonts/icons/OxyServicesIonicons.ttf",
-      "bytes": 43004,
-      "sha256": "f6617b302f84bfad9625e5b7cfebe3bc1c2b29d5dfea4f727c5fdd7393069a73",
+      "bytes": 43160,
+      "sha256": "9dfc104b6306ff4047ce42cd950b324c804d28b02be49c91cfa3e39ddbfebd3d",
       "names": [
         "add",
         "add-circle-outline",
@@ -18,6 +18,7 @@
         "arrow-back",
         "arrow-down",
         "arrow-forward",
+        "arrow-undo",
         "arrow-up",
         "at",
         "briefcase-outline",
@@ -151,8 +152,8 @@
     "materialCommunityIcons": {
       "fontFamily": "OxyServicesMaterialCommunityIcons",
       "file": "src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf",
-      "bytes": 29224,
-      "sha256": "b490224be59f3195d1907810f33dee438cfde45fc24d5d7f80a93b9d8af93eb7",
+      "bytes": 28852,
+      "sha256": "844252d83e5510b012333218db9e16cc997164360d1ab4f24148c3ca384ab740",
       "names": [
         "account",
         "account-circle",
@@ -213,7 +214,6 @@
         "code-tags",
         "cog",
         "cog-outline",
-        "contacts",
         "contain",
         "content-copy",
         "controller",
@@ -221,7 +221,6 @@
         "credit-card",
         "cube-outline",
         "database-outline",
-        "decimal",
         "delete",
         "delete-outline",
         "devices",
@@ -351,5 +350,5 @@
     }
   },
   "glyphMapsFile": "src/ui/icons/subsetGlyphMaps.ts",
-  "glyphMapsSha256": "96b7c9a8bfa5332ba2c27bf26a42ffd308d141861b4bc4b78744bc566afdf519"
+  "glyphMapsSha256": "e5d8b1ec7f596ef9c0f2ff5ad5a48c8a651ba4fd087d2743da08bd70e7066640"
 }

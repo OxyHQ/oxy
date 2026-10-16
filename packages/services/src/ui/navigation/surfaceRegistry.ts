@@ -39,6 +39,8 @@ export interface SurfaceRegistry {
    * keep their callback behaviour and this result goes unread.
    */
   FileManagement: SurfaceRoute<Record<string, unknown>, FileMetadata>;
+  /** The person's trash (ADR 0041 D5), opened from the file manager. */
+  FileTrash: SurfaceRoute;
   HelpSupport: SurfaceRoute;
   LegalDocuments: SurfaceRoute;
   AppInfo: SurfaceRoute;
@@ -233,7 +235,7 @@ const isFileManagementImageOnlyPicker = (props: Record<string, unknown>): boolea
  * Routes whose screen owns its OWN scroll container — a FlatList /
  * VirtualizedList (`ConnectedApps`, `TrustLeaderboard`, `FollowersList` /
  * `FollowingList` via `UserListScreen`) or its own vertical `ScrollView`
- * (`FileManagement`). These MUST opt out of the Dialog's internal ScrollView
+ * (`FileManagement`, `FileTrash`). These MUST opt out of the Dialog's internal ScrollView
  * (`scrollable: false`) so there is exactly ONE scroll container — otherwise a
  * VirtualizedList nests inside a plain ScrollView (RN warning) or a nested
  * vertical scroll-in-scroll breaks windowing. Screens with only a HORIZONTAL
@@ -242,6 +244,7 @@ const isFileManagementImageOnlyPicker = (props: Record<string, unknown>): boolea
  */
 const OWN_SCROLL_CONTAINER_ROUTES: ReadonlySet<RouteName> = new Set<RouteName>([
   'FileManagement',
+  'FileTrash',
   'ConnectedApps',
   'TrustLeaderboard',
   'FollowersList',

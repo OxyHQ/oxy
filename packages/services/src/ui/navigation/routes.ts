@@ -12,6 +12,7 @@ export type RouteName =
   | 'PrivacySettings'
   | 'SearchSettings'
   | 'FileManagement'
+  | 'FileTrash' // The person's trash: restore, or delete permanently (ADR 0041 D5)
   | 'HelpSupport'
   | 'LegalDocuments'
   | 'AppInfo'
@@ -81,6 +82,7 @@ const screenComponents: Record<RouteName, ComponentType<never>> = {
   PrivacySettings: lazy(() => import('../screens/PrivacySettingsScreen')),
   SearchSettings: lazy(() => import('../screens/SearchSettingsScreen')),
   FileManagement: lazy(() => import('../screens/FileManagementScreen')),
+  FileTrash: lazy(() => import('../screens/FileTrashScreen')),
   HelpSupport: lazy(() => import('../screens/HelpSupportScreen')),
   LegalDocuments: lazy(() => import('../screens/LegalDocumentsScreen')),
   AppInfo: lazy(() => import('../screens/AppInfoScreen')),
