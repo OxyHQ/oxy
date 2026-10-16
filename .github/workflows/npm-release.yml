@@ -13,8 +13,10 @@ name: npm release
 #
 #   build    the caller's tree at the exact reviewed commit: frozen install, the
 #            builds of the workspace packages it links, the package's own
-#            `prepublishOnly` (its typecheck, tests and build), then
-#            `bun pm pack`, which rewrites `workspace:`/`catalog:` ranges.
+#            `prepublishOnly` (its typecheck, tests and build), then its one
+#            tarball: `bun pm pack`, which rewrites `workspace:`/`catalog:`
+#            ranges, or the package's own `release:pack` when it publishes a
+#            staged manifest it packs and tests itself.
 #            `release-package.mjs inspect` checks the tarball; the version must
 #            be absent from the registry and the dist-tag sane. Uploads the
 #            tarball and its SHA-512 as the trusted bytes. No credential of any
@@ -121,16 +123,11 @@ jobs:
       - name: pack
         run: |
           rm -rf "$RUNNER_TEMP/release" && mkdir "$RUNNER_TEMP/release"
-          (cd "$PACKAGE_DIR" && bun run --if-present build && bun pm pack --destination "$RUNNER_TEMP/release")
-          tarballs=("$RUNNER_TEMP"/release/*.tgz)
-          if [ "${#tarballs[@]}" -ne 1 ]; then
-            echo "expected exactly one tarball, found ${#tarballs[@]}"
-            exit 1
-          fi
-          node "$RELEASE_PACKAGE" inspect "${tarballs[0]}" "$PACKAGE_DIR"
+          tarball="$(node "$RELEASE_PACKAGE" pack "$PACKAGE_DIR" "$RUNNER_TEMP/release")"
+          node "$RELEASE_PACKAGE" inspect "$tarball" "$PACKAGE_DIR"
           # Summed from inside the directory, so the file names the tarball by its
           # bare name: the artifact is downloaded flat into trusted/.
-          (cd "$RUNNER_TEMP/release" && sha512sum "$(basename "${tarballs[0]}")" | tee SHA512SUMS)
+          (cd "$RUNNER_TEMP/release" && sha512sum "$(basename "$tarball")" | tee SHA512SUMS)
 
       - name: the version is not on the registry yet, and the dist-tag is sane
         run: |
@@ -204,7 +201,7 @@ jobs:
             (cd "$dependency" && bun run --if-present build)
           done
           mkdir "$RUNNER_TEMP/rebuilt"
-          (cd "$PACKAGE_DIR" && bun run --if-present build && bun pm pack --destination "$RUNNER_TEMP/rebuilt")
+          node "$RELEASE_PACKAGE" pack "$PACKAGE_DIR" "$RUNNER_TEMP/rebuilt"
 
       - uses: actions/download-artifact@v8
         with:

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -161,4 +162,34 @@ test('a workspace cycle is refused', () => {
     workspace('b', {}, { a: 'workspace:*' }),
   ];
   assert.throws(() => workspaceDependencies('a', workspaces), /workspace cycle: a -> b -> a/);
+});
+
+const tool = new URL('./release-package.mjs', import.meta.url).pathname;
+
+function packFixture(scripts) {
+  const directory = mkdtempSync(join(tmpdir(), 'release-pack-'));
+  const destination = join(directory, 'out');
+  mkdirSync(destination);
+  writeFileSync(
+    join(directory, 'package.json'),
+    JSON.stringify({ name: '@example/pack', version: '1.0.0', files: ['index.js'], scripts }),
+  );
+  writeFileSync(join(directory, 'index.js'), 'export {};\n');
+  const printed = execFileSync('node', [tool, 'pack', directory, destination], {
+    encoding: 'utf8',
+  });
+  return { destination, printed: printed.trim() };
+}
+
+test('pack writes the package one bun-packed tarball and prints only its path', () => {
+  const { destination, printed } = packFixture({});
+  assert.equal(printed, join(destination, 'example-pack-1.0.0.tgz'));
+});
+
+test("pack uses the package's own release:pack, given the destination", () => {
+  const { destination, printed } = packFixture({
+    'release:pack':
+      "node -e \"require('node:fs').writeFileSync(process.argv[1] + '/staged-1.0.0.tgz', '')\"",
+  });
+  assert.equal(printed, join(destination, 'staged-1.0.0.tgz'));
 });

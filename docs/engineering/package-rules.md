@@ -70,7 +70,9 @@ package.json that is not `private`, the root included), the exact commit to rele
 prerelease, so an older major ships under its own tag). The `build` job holds no credential: it
 installs frozen, builds the package's workspace dependencies, runs the package's own
 `prepublishOnly` — every public package MUST declare one with its typecheck, tests and build, and
-the release refuses a package without it — packs with `bun pm pack`, and
+the release refuses a package without it — packs with `bun pm pack` (or, for a package that publishes a
+staged manifest it packs and tests itself, with its own `release:pack <dir>`, whose one tarball is
+exactly what ships), and
 `.github/scripts/release-package.mjs inspect` refuses a tarball that is not that version, still
 carries a `workspace:`/`catalog:` range, lacks a declared entry point, ships a `.tsbuildinfo`, or
 depends on a range nothing on the registry satisfies yet. The checks always run from the release

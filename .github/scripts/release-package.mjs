@@ -12,6 +12,13 @@
 //                         workspace packages it links with `workspace:` (any
 //                         dependency field): what a fresh checkout must build
 //                         before the package builds
+//   pack <dir> <dest>     builds the package and writes its ONE release tarball
+//                         into <dest>: `bun pm pack` (which rewrites
+//                         `workspace:`/`catalog:` ranges), or, when the package
+//                         declares `release:pack`, that script with <dest> as
+//                         its argument: a package that publishes a staged
+//                         manifest packs and tests it itself, and the release
+//                         publishes exactly that tarball
 //   inspect <tgz> <dir>   checks the packed tarball: it is that package at that
 //                         version, bun rewrote every `workspace:`/`catalog:`
 //                         range, every entry point it declares is inside it, it
@@ -218,6 +225,21 @@ function inspect(tarball, directory) {
   console.log(`${packed.name}@${packed.version}: ${entries.length} files, every check passed`);
 }
 
+/** Build, then the package's own release tarball into `destination`. */
+function pack(directory, destination) {
+  // The builds log to stderr: stdout is the tarball's path, for the caller.
+  const run = (command, args) =>
+    execFileSync(command, args, { cwd: directory, stdio: ['ignore', 2, 2] });
+  run('bun', ['run', '--if-present', 'build']);
+  if (readManifest(directory).scripts?.['release:pack'])
+    run('bun', ['run', 'release:pack', destination]);
+  else run('bun', ['pm', 'pack', '--destination', destination]);
+  const tarballs = readdirSync(destination).filter((file) => file.endsWith('.tgz'));
+  if (tarballs.length !== 1)
+    fail(`expected exactly one tarball in ${destination}, found ${tarballs.length}`);
+  console.log(join(destination, tarballs[0]));
+}
+
 function fail(message) {
   console.error(message);
   process.exit(1);
@@ -235,6 +257,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     } catch (error) {
       fail(error.message);
     }
+  } else if (command === 'pack') {
+    pack(resolve(args[0]), resolve(args[1]));
   } else if (command === 'inspect') {
     inspect(resolve(args[0]), resolve(args[1]));
   } else if (command === 'dist-tag') {
@@ -245,7 +269,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     console.log(`${name}@${version} publishes as "${tag}"`);
   } else {
     fail(
-      'usage: release-package.mjs resolve <name> | dependencies <name> | inspect <tgz> <directory> | dist-tag <name> <version> <tag>',
+      'usage: release-package.mjs resolve <name> | dependencies <name> | pack <directory> <destination> | inspect <tgz> <directory> | dist-tag <name> <version> <tag>',
     );
   }
 }
