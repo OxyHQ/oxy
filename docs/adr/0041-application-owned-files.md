@@ -1,7 +1,8 @@
 # ADR 0041 — Who owns a file, who uses it, and when it goes away
 
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
-  1, 2, 3 and 4a of the rollout are implemented on this branch)
+  1, 2, 3, 4a and 4b of the rollout are implemented on this branch; the
+  release runbook is at the end)
 - Date: 2026-10-16
 - Decided by: the owner of Oxy
 - Changes: the `files` owner model of `0124_files_per_owner_live_key`
@@ -20,7 +21,7 @@ missing, and every product has worked around them separately.
    library, music artwork, imported place photos — has nowhere to live. Today:
    Mercaria imports catalogue photos under the personal account of whichever
    operator made the request; Mention keeps its GIF library in the evictable
-   federation cache, exempted from eviction by convention; Syra, Homiio, GWJ, the
+   federation cache, exempted from eviction by convention; Syra, Homiio, the
    Oxy website and Alia run their own buckets; Moovo hotlinks supplier URLs;
    GoWay cannot import a place photo without a contributor account.
 2. **Oxy does not know who uses a file.** `file_links` exists, but `app` is free
@@ -136,7 +137,7 @@ SSRF-safe fetcher, stores it, and records `file_sources(owner, source_url_hash,
 file_id, etag, last_modified, fetched_at)`. Importing the same URL for the same
 owner again returns the existing file without downloading (and revalidates with
 the stored ETag / Last-Modified when asked). One fetcher replaces the copies in
-Mercaria, Move, Mention, Homiio, Syra, GWJ and the website, and ends re-uploads on
+Mercaria, Move, Mention, Homiio, Syra and the website, and ends re-uploads on
 every sync. The source URL is provenance, kept hashed plus in clear only for the
 owner.
 
@@ -213,7 +214,7 @@ application, not with the business's session).
    the application), and references from Noted, Nilo, Peable, CrowdSource, Move.
 4. **Own-bucket products move into Oxy Files**, one at a time with a verified
    copy and a read-only soak before the bucket is retired: Syra (catalogue
-   artwork, and Alia's show covers move to Alia), Homiio, GWJ, the website, Alia
+   artwork, and Alia's show covers move to Alia), Homiio, the website, Alia
    (skill bundles), Clarity (crawler image cache as Clarity-owned files under D5's
    collection). Allo's end-to-end-encrypted chat blobs stay where they are: they
    are ciphertext with a 7-day contract, not media.
@@ -225,7 +226,7 @@ application, not with the business's session).
   read live (a transfer or reclassification moves the bytes at once); Oxy's
   own applications attribute to no one. Per-application stored bytes are
   `applicationStoredBytes` and `GET /applications/:appId/storage`
-  (`usage:read`); the growth alert of D2 is not built yet.
+  (`usage:read`); the growth alert of D2 came in stage 4b.
 - **Scopes.** `files:references:write` joins `files:app:write` and
   `files:app:delete`. `isPrivilegedScopeForApplicationType` makes the three
   staff-only on `first_party`/`internal`/`system` and self-service on
@@ -242,9 +243,10 @@ application, not with the business's session).
   by a test) — and FAILS naming every value that resolves to no single active
   application. `scripts/file-references-preflight.ts` lists the values a
   database holds before deploying. A trigger mirrors the previous image's
-  `file_links` writes until `0172_drop_file_links` (post; numbered 0168, then
-  0169, then 0170, as stages 2, 3 and 4a each put their `pre` migration in
-  front of it, so one release can carry all four) drops the table.
+  `file_links` writes until `0174_drop_file_links` (post) drops the table:
+  each later stage put its `pre` migrations in front of the drop (stages 2,
+  3, 4a and 4b moved it from 0168 up to 0174), so one release carries them
+  all and the drop runs after the rollout.
   For that window the previous image does not see references the new image
   writes.
 - **Who may reference.** `POST`/`DELETE /assets/service/references` (batch of
@@ -319,7 +321,7 @@ application, not with the business's session).
   undone. One open session per (application, entity type), 409 otherwise; an
   expired one answers 410 and is retired by the next `begin`. SDK:
   `OxyServer.assets.references.reconcile(entityType, items, { dryRun })`,
-  `@oxy.so/core` 4.14.0 (4.12.0 and 4.13.0 were published from `main` first).
+  `@oxy.so/core` 4.15.0 (4.12.0, 4.13.0 and 4.14.0 went to `main` first).
 - **GoWay** holds `files:references:write` in the seed.
 
 #### Switching the sweep to enforce
@@ -358,8 +360,8 @@ reference or a re-upload restores it until then.
 
 Migration `0170_application_file_events` (pre): `file_sources`,
 `file_event_deliveries`, and three nullable `applications.files_webhook_*`
-columns. The drop of `file_links` moved to `0171_drop_file_links` (post), and
-then to `0171` (stage 4a).
+columns. The drop of `file_links` moved after it (now `0174_drop_file_links`,
+post).
 
 - **Import by URL (D7).** `POST /assets/service/app/import`
   (`files:app:write`) `{ sourceUrl, visibility, reference?, revalidate? }`;
@@ -460,8 +462,8 @@ then to `0171` (stage 4a).
   using it; `POST /:id/restore` brings it back. SDK `assets.trash(id)`. The
   file manager is NOT switched to it: it has a delete flow but no trash view
   to restore from, so trashing there would make files vanish from the
-  person's sight while still counting against them; that needs a trash view
-  first.
+  person's sight while still counting against them; that needed a trash view
+  first (stage 4b added it and switched the file manager).
 - **Not done / open.** Applications deleted BEFORE this stage keep their
   files (not retroactively purged; a one-off operator run of
   `deleteApplicationContent` per such application would do it). An account's
@@ -470,14 +472,15 @@ then to `0171` (stage 4a).
   by a mail attachment or a store screenshot is tombstoned and purged with
   the application (the developer asked); on an account hard delete such a
   row still refuses the cascade, as an account's own file always did. The D2
-  growth alert is still not built.
+  growth alert is still not built. (Stage 4b closed the first two and the
+  growth alert.)
 
 ### Stage 4a as built (D10: claims and the takedown)
 
 Migration `0171_content_claims` (pre): six tables, `files.status` gains
 `blocked`, `users.staff_capabilities` admits `content:claims`. The drop of
-`file_links` is now `0172_drop_file_links` (post). The two widened CHECKs are
-added `NOT VALID` (as 0166 did); the three per-owner live uniques are rebuilt
+`file_links` moved after it (now `0174_drop_file_links`, post). The two widened
+CHECKs are added `NOT VALID` (as 0167 did); the three per-owner live uniques are rebuilt
 with `blocked` in their predicate, behind a guard that skips an index already
 rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
 `files`).
@@ -486,7 +489,7 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   "Report content" page (OxyHQ/website#173, `src/lib/contentClaims.ts`)
   posts there; a valid bearer records the submitting account, none is needed
   (an unusable bearer is simply anonymous). The body is
-  `contentClaimSubmissionSchema` in `@oxy.so/contracts` 4.18.0 (strict; every
+  `contentClaimSubmissionSchema` in `@oxy.so/contracts` 4.19.0 (strict; every
   message a key under `contentClaim.errors.*`, which the website translates
   and the API answers as its own English sentence): `201 { id, reference }`
   (`OXY-XXXX-XXXX`, Crockford base32, random), or `400 { error, code:
@@ -591,21 +594,248 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   and owner kind, previews, attaching files, every action behind a
   confirmation that says what it does, the trail). The console's CSP admits
   `https://api.oxy.so` for `img-src`/`media-src`, for the previews.
-- **SDK.** `@oxy.so/core` 4.14.0: `Asset.status` gains `blocked`, the live
+- **SDK.** `@oxy.so/core` 4.15.0: `Asset.status` gains `blocked`, the live
   service views take `AssetLiveStatus`, uploads and imports document 451
   `CONTENT_BLOCKED`; the file manager shows a blocked file as "Removed after
-  a legal claim". `@oxy.so/contracts` 4.18.0 carries the claim contract.
+  a legal claim". `@oxy.so/contracts` 4.19.0 carries the claim contract.
 - **Not done here (stage 4b).** The API's file cache is per process for five
   minutes, so another task that cached a file just before it was blocked can
   still stream it for that long (the CDN is invalidated at once); the
   cross-task invalidation is stage 4b, with the other 4b items. An owner's
   counter-notice arrives by email and staff record it; there is no form for
-  it.
+  it. (Stage 4b built both.)
+
+### Stage 4b as built (large uploads, adoption, the open items)
+
+Migrations `0172_file_upload_sessions` and `0173_content_claim_counter_notices`
+(both pre); the drop of `file_links` is now `0174_drop_file_links` (post). SDKs:
+`@oxy.so/contracts` 4.19.0, `@oxy.so/core` 4.15.0, `@oxy.so/services` 11.8.0
+(main took 4.18.0, 4.14.0 and 11.7.0 meanwhile).
+
+- **Large, any-type uploads.** `POST /assets/service/app/uploads` (`files:app:write`;
+  `files:references:write` for `reference`) `{ sha256, size, mime, visibility,
+  filename?, metadata?, reference? }` opens a resumable S3 multipart upload and
+  answers `201 { uploadId, status: 'uploading', partSize, partCount, expiresAt,
+  parts }` — presigned `UploadPart` URLs (an hour; each SIGNS its part's exact
+  Content-Length) for the first 100 parts; `POST …/:uploadId/parts
+  { partNumbers }` (≤ 100) for more, `GET …/:uploadId` for the state and the
+  parts storage holds, `DELETE …/:uploadId` to abort, `POST
+  …/:uploadId/complete` to assemble. Parts are at least 8 MiB (whole MiB, ≤
+  10,000 parts); a file is at most 8 GiB (413). The account-owned twin is
+  `/assets/service/user-media/uploads` with `/service/user-media`'s authority:
+  `x-owner-user-id` on EVERY call, `visibility` defaulting to `public`. An
+  upload is its uploader's, for its owner: any other caller gets 404.
+  - *Verified, not trusted.* S3 cannot enforce a whole-object SHA-256 on a
+    multipart upload (full-object checksums are CRCs; a SHA-256 multipart
+    checksum hashes the parts' hashes), and dedupe, shared storage and the
+    blocklist all trust the hash — so `complete` moves the session to
+    `verifying` and the API streams the assembled object back and hashes it.
+    Only a match becomes a file (`AssetService.finalizeLargeUpload`, under the
+    content-hash lock with the blocklist re-checked): the owner's existing row
+    of those bytes (deduplicated), else a row sharing another owner's object in
+    the spelling its visibility needs, else the upload's own object. Anything
+    else fails the session and deletes its object: 422 `CHECKSUM_MISMATCH` /
+    `SIZE_MISMATCH`, 451 `CONTENT_BLOCKED` (blocked while uploading), 410
+    `OWNER_GONE` / `EXPIRED` / `ABORTED`. `complete` waits up to
+    `LARGE_UPLOAD_COMPLETE_WAIT_MS` (20 s) and otherwise answers `202
+    verifying`; `fileUploadSession.worker.ts` (every task,
+    `FILE_UPLOAD_WORKER_ENABLED` default on, `FILE_UPLOAD_WORKER_INTERVAL_MS`
+    30 s) takes over under a lease sized to read the file at 16 MiB/s (a dead
+    verifier's lease expires; five attempts), and aborts `uploading` sessions a
+    day after their last part-URL request (a week at most).
+  - *Never on the CDN unverified.* Parts assemble at a key of the session's own
+    (`content/…/<sha>-<random><ext>`), always in the PRIVATE spelling; a public
+    file is copied to `public/` only once verified. `copyFile` now copies an
+    object over 5 GiB by `UploadPartCopy` ranges (size-hinted, or after S3
+    refuses the single copy), so a large file's visibility can change.
+  - *Refused at open, before any byte:* executables, installers and active
+    documents — HTML, XHTML, SVG, XML/XSL, scripts, Windows/Unix programs,
+    APK/DMG/DEB/RPM/JAR… — by type AND by the name's extension
+    (`utils/fileContentPolicy.ts`, 415); blocked bytes (451); a third-party
+    application's full plan (413 `STORAGE_QUOTA_EXCEEDED`, D3): with storage
+    admission on, the whole file is reserved against its developer's plan at
+    the key the row will name, and released when the upload does not become
+    that row (`releaseTerminalMultipartReservation` — the multipart upload's
+    own terminal state is the proof a single presigned PUT cannot give). Bytes
+    the owner already holds answer at once (`uploadId: null`, `completed`,
+    `deduplicated`); the same bytes reopened answer the open session (resume).
+  - *How a file is served.* Only media a browser renders without running
+    anything — raster images, audio, video, PDF, plain text — is inline. The
+    large upload stores `Content-Disposition: attachment` on every other
+    object (S3 and so CloudFront replay it), and `/assets/:id/stream` sends
+    `attachment` plus `Content-Security-Policy: sandbox` for every file that is
+    not inline-safe, whichever path stored it (a mail attachment included).
+  - *Renditions* as before for images and videos (PDFs keep the placeholder
+    thumbnail); an image over 100 MiB gets none (Sharp reads the original into
+    memory) and is served as stored.
+  - SDK: `OxyServer.assets.uploadAppFileLarge(source, { mime, visibility, … })`
+    and `uploadUserMediaLarge(ownerUserId, source, …)` — a `Blob`, bytes or a
+    file path; hashed 8 MiB at a time; parts sent `partConcurrency` (4) at a
+    time, each retried, an expired URL refreshed; polls `verifying`; calling
+    again for the same bytes resumes. `abortAppFileUpload` /
+    `abortUserMediaUpload`; `LargeUploadFailedError`.
+- **Adopting a file.** `POST /assets/service/app/adopt { fileId, visibility,
+  reference? }` (`files:app:write`) gives the calling application its OWN row of
+  the bytes a file it can read holds, sharing the stored object (a server-side
+  copy only when the key spelling its visibility needs does not exist; with
+  admission on and a third-party application, reserved first). Readable is
+  `mayApplicationReference`: any owner's active `public`/`unlisted` file, a
+  person's private file its OWNER attached to this application (ADR 0021 — a
+  creator-less service reference is not that grant), the application's own
+  (answered as it is). The copy may not be more visible than the source (400
+  `VISIBILITY_WIDER_THAN_SOURCE`); anything else is 404, blocked bytes 451;
+  idempotent per (application, bytes). Answer `{ file, outcome: 'adopted' |
+  'existing', deduplicated, reference? }`; metadata `adoptedFromFileId`. SDK
+  `OxyServer.assets.adoptAppFile`.
+- **The owner's reference over an application's twin.**
+  `fileRepository.addFileReferences` fills the creator of an EXISTING
+  creator-less reference (one an application made with its service token) when
+  the call names the file's owning account as creator — one conditional
+  `UPDATE … WHERE created_by_user_id IS NULL AND <creator owns the file>`
+  under the file-row lock. Only the owner's session (`POST /assets/:id/links`)
+  sends a creator; a person's creator is never replaced, and a non-owner named
+  as creator changes nothing. Before, Nilo registering its use and then the
+  person attaching the same file from inside Nilo left the reference
+  creator-less, so `/service/linked-url` never admitted Nilo; both orders now
+  end in the same owner-made reference.
+- **Profile media references.** `PUT /users/me` keeps the avatar referenced by
+  Oxy Accounts — the shape `assets.uploadAvatar` always wrote (application Oxy
+  Accounts, entity type `avatar`, entity id the account), created BY the
+  account — in the profile write's transaction under the account row lock
+  (`profileMediaReferences.service.ts`): exactly the new avatar, only when it
+  is the account's own non-deleted file; every other `avatar` reference of the
+  account goes (the replaced or cleared one becomes *not in use*, never
+  trashed). `users` has no banner or cover column, so the avatar is the only
+  profile media. `scripts/reconcile-profile-media-references.ts` (preview by
+  default, `--apply`; `--batch-size`, `--after`, `--max-batches`; idempotent)
+  backfills profiles set before this stage and the other avatar writers (the
+  organization directory, account creation), and removes references naming
+  accounts that no longer exist.
+- **D2 growth observation.** Every lifecycle sweep run, in either mode, measures
+  each application owning files (`applicationStorageObservation.ts`, from
+  `files` alone): stored files and bytes (live rows plus renditions, as the
+  quota counts) and the files and bytes created in the last 24 hours against
+  the per-day average of the 7 days before. Anomalous: at least
+  `FILE_STORAGE_GROWTH_DAILY_CAP_BYTES` (50 GiB) in a day, or more than
+  `FILE_STORAGE_GROWTH_MULTIPLE` (5) times the trailing average and at least
+  `FILE_STORAGE_GROWTH_MIN_BYTES` (1 GiB) or `FILE_STORAGE_GROWTH_MIN_FILES`
+  (10,000) files. EMF namespace `Oxy/FileStorage`: per application (dimension
+  `ApplicationId`, at most `FILE_STORAGE_METRICS_MAX_APPLICATIONS` = 100,
+  anomalies first) `StoredBytes`, `StoredFiles`, `BytesAdded24h`,
+  `FilesAdded24h`, `TrailingDailyBytes`, `GrowthAnomaly`; one platform line
+  (no dimension) `ApplicationsWithFiles`, `TotalStoredBytes`,
+  `TotalBytesAdded24h`, `ApplicationGrowthAnomalies`; each anomaly is also an
+  ERROR log line `[FileStorage] Application storage growth anomaly` naming the
+  application. The alarm lives in oxy-infra (runbook below). The measurement
+  rides the sweep's lease and schedule (`FILE_LIFECYCLE_MODE=off` stops it).
+- **Applications deleted before D8.** The sweep's first step,
+  `deletedApplications`, finds every `deleted` application that still owns a
+  live file or holds a reference and, in `enforce`, runs D8's own
+  `deleteApplicationContent` on it under its row lock (re-checking `deleted`),
+  at most 10 per run, oldest first: every owned file tombstoned without trash
+  (blocked and trashed included; evidence still deferred), purge owed, every
+  reference removed (an account's file becomes *not in use*), `file.deleted`
+  to the other applications using its files. `report` counts and names them
+  and changes nothing; idempotent. Metrics `deletedApplicationsDue`,
+  `deletedApplicationsActed`, `deletedApplicationsFailed` on
+  `Oxy/FileLifecycle`.
+- **Account deletion events.** The hard delete, the personal archive and the
+  organization archive queue `file.deleted` for every live file the ACCOUNT
+  owns (beside `account.deleted`), in `recordAccountStorageDeletion` inside
+  their transaction, with stage 3's payload rules (`ownerKind: 'account'`,
+  each application's own references only, verified endpoints only, never a
+  deleted application — the account's own applications, deleted first in the
+  same transaction, get nothing). A refused deletion tells nobody.
+- **The file manager's trash.** `GET /assets` is the owner's library (`active`
+  and `blocked`) and no longer lists trash; `GET /assets?status=trash` lists
+  it, most recently trashed first. `POST /assets/:id/restore` of a file not in
+  trash is 409 `FILE_NOT_IN_TRASH` (it was a 500). `@oxy.so/services`: "delete"
+  moves to trash (`oxy.assets.trash`), saying it can be restored; a `FileTrash`
+  route lists the trash, restores, and deletes permanently behind a
+  confirmation (asking again when applications still use the file); a blocked
+  file, which cannot be trashed, is still deleted for good. Every string in
+  all eleven locales. Core: `assets.list({ status: 'trash' })`,
+  `FileMetadata.trashedAt`.
+- **Cross-task file cache.** `fileCache.invalidate` / `invalidateMany` drop
+  the local copy and publish the ids on Redis (`oxy:file-cache:invalidate`,
+  `{ v: 1, origin, fileIds }`), the `userCache` pattern; every task's
+  subscriber drops a peer's ids locally only. Every status and visibility
+  transition ends there after its commit (`cacheFile`, `enterServing`,
+  `leaveServing`, `tombstoneAndOwePurge`, application and account deletion,
+  and the repository writers that own their transaction);
+  `fileCacheWriters.census.test.ts` fails on a new `files` writer until it is
+  reviewed. A read in flight across an invalidation is answered but not cached
+  (`setIfFresh`). Without Redis it is local, with the five-minute TTL.
+- **`@oxy.so/services` peers.** Core is peered `^4.15.0` (the root catalog; the
+  exact pin was a leftover of the Oxy One prerelease) and contracts is a caret
+  dependency, so a later 4.x minor no longer conflicts with a published
+  services or nests a second core; core 5 stays refused.
+- **Seed scopes (D11).** The seed grants Nilo `files:references:write`; Mention
+  `files:app:write` and `files:references:write`; Moovo `files:read`,
+  `files:references:write`, `files:app:write`; Peable and CrowdSource
+  `files:read`, `files:references:write`; Syra, Alia and Homiio `files:read`,
+  `files:app:write`, `files:app:delete`, `files:references:write`,
+  `files:user-media:write`; the Oxy website the first four. Mercaria's and
+  GoWay's were already there. Clarity is not a seed application — the native
+  product-agent bootstrap reconciles its two applications byte for byte — so
+  its backend declares `fileScopes`, which the bootstrap grants as a reviewed
+  addition to the row and its live workload binding. Every seeded application
+  is `first_party` or `internal`, which `isTrustedApplication` turns into
+  internal-tier service tokens; a census pins each adopting application's exact
+  `files:*` set and tier.
+- **The owner's counter-notice (D10, 17 U.S.C. § 512(g)).** `POST
+  /content-claims/counter-notices` (signed in; `contentClaimCounterNoticeSchema`
+  in contracts 4.19.0, messages under `contentClaim.counterNotice.errors.*`)
+  names the claim by `reference`, `claimId` or `fileIds` and answers only for
+  files the caller (or the person operating the session) owns that are
+  `blocked` with bytes on that claim's blocklist — anything else is 404, like
+  no claim; two claims with none named is 400 `…_AMBIGUOUS`. The statements —
+  good-faith belief of mistake or misidentification under penalty of perjury,
+  consent to the jurisdiction of the federal district court (or, outside the
+  US, any district where Oxy may be found), accepting service of process from
+  the claimant, the disclosure to the claimant — must each be `true`, with a
+  signature. Under the claim's row lock the claim moves `actioned →
+  counter_noticed` (another owner's notice on a counter-noticed claim is
+  recorded without a state change; any other state 409; a second notice by the
+  same account 409 `…_EXISTS`). `content_claim_counter_notices` seals the
+  personal data (`secretBox`, context `content-claim-counter-notice|<id>|<field>`),
+  keeps the statement version and the files, and is erased on the claimant's
+  clock (three years after the claim closes). The trail records
+  `counter_notice_submitted` with the owner as actor; staff read the notices on
+  the claim (`counterNotices`) and on the console's claim page. Emails (the
+  outbox, recipient `staff` new): the claimant's copy — the notice itself for a
+  copyright claim, as § 512(g)(2)(B) requires (with the 10–14 business-day
+  window), otherwise only that it is disputed; the owner's confirmation; an
+  alert with no personal data to `CONTENT_CLAIM_STAFF_EMAIL` (default
+  legal@oxy.so). Ten an hour per network, five a day per account. SDK
+  `oxy.contentClaims.submitCounterNotice`.
+
+### Required changes in other repositories (stage 4b)
+
+- **Mercaria** (digital deliverables) and **Mention / CrowdSource** (evidence)
+  switch to `OxyServer.assets.adoptAppFile` where they keep a durable copy of a
+  person's file; products storing non-media or files over 40 MiB use
+  `uploadAppFileLarge` / `uploadUserMediaLarge`.
+- **Apps calling `oxy.assets.list()`** that relied on seeing trashed files pass
+  `status: 'trash'`.
+- **Products with a file-events endpoint** expect `file.deleted` with
+  `ownerKind: 'account'` when an account is deleted or archived.
+- **The website** adds the counter-notice page: it posts through
+  `oxy.contentClaims.submitCounterNotice`, validates with
+  `contentClaimCounterNoticeSchema`, shows `COUNTER_NOTICE_STATEMENTS` word for
+  word and translates `contentClaim.counterNotice.errors.*`; the
+  `content_blocked` email then links to it.
+- **oxy-infra**: the growth alarm, and a viewer-response CloudFront Function on
+  `cloud.oxy.so` that sends `Content-Disposition: attachment` and
+  `Content-Security-Policy: sandbox` for any response whose Content-Type is not
+  inline-safe media (image/* except SVG, audio/*, video/*, application/pdf,
+  text/plain) — the CDN half of the serving rule above, for objects stored
+  before stage 4b or by paths that do not set the disposition (runbook below).
 
 ### Required changes in other repositories (stage 4a)
 
 - **The website** (OxyHQ/website#173): nothing to change for the contract —
-  its client already matches. When `@oxy.so/contracts` 4.18.0 is published it
+  its client already matches. When `@oxy.so/contracts` 4.19.0 is published it
   can replace its local schema with `contentClaimSubmissionSchema` (same keys)
   and import `CONTENT_CLAIM_LIMITS`, `CONTENT_CLAIM_KINDS` and
   `CLAIMANT_RELATIONSHIPS` from `@oxy.so/contracts/client`.
@@ -619,7 +849,7 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
 ### Required changes in other repositories (stage 3)
 
 - **Every product that imports by URL** (Mercaria's catalogue importer and
-  connectors, Moovo, Mention's upload-from-URL, Homiio, Syra, GWJ, the
+  connectors, Moovo, Mention's upload-from-URL, Homiio, Syra, the
   website) can drop its own fetcher for `OxyServer.assets.importAppFile` /
   `importAppFiles` (application-owned) or `importUserMedia` (a person's),
   passing `reference` so the file is used from the start.
@@ -628,7 +858,7 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   `oxy.apps.setFilesWebhook`), stores the secret, verifies with
   `verifyFileEventSignature`, and answers the challenge.
 - **Callers of `oxy.apps.delete`** pass `{ confirmName }` (`@oxy.so/core`
-  4.14.0); the console does.
+  4.15.0); the console does.
 
 ### Required changes in other repositories (stage 2)
 
@@ -640,8 +870,145 @@ rebuilt out of band (the header gives the `CONCURRENTLY` route for a large
   `files:references:write`; run `seed:oxy-applications` for it to take effect.
 - **A product that showed a trashed file** (a link removed, the file kept
   being displayed) now gets a 404 / placeholder for it: trash is not served.
-- **SDK consumers** take `@oxy.so/core` 4.14.0 for `references.reconcile`,
+- **SDK consumers** take `@oxy.so/core` 4.15.0 for `references.reconcile`,
   `Asset.inUse` and `assets.list({ inUse })`; nothing else changes shape.
+
+## Release runbook
+
+One release carries stages 1–4b. In order; each step names how to know it
+worked before the next.
+
+1. **Pre migrations** (`run-postgres-migrations.yml`, phase `pre`):
+   `0167_application_owned_files` … `0173_content_claim_counter_notices`.
+   First run `bun run packages/api/scripts/file-references-preflight.ts`
+   against production (read-only): every legacy `file_links.app` value must
+   resolve, or `0168` fails by design. For a large `files`, build the indexes
+   `0167` and `0171` create `CONCURRENTLY` out of band first (their headers
+   give the statements; the migrations skip an index that already exists and
+   is valid). *Verify:* the migrator reports the seven applied; `select
+   count(*) from file_references` equals the `file_links` rows it copied.
+2. **API** (`deploy-aws.yml`). The image serves both tables during the rollout
+   (the `file_links` mirror trigger); the post migration `0174_drop_file_links`
+   runs after the rollout completes. New env vars all have defaults:
+   `FILE_LIFECYCLE_MODE` (`report`), `FILE_UPLOAD_WORKER_ENABLED`,
+   `LARGE_UPLOAD_COMPLETE_WAIT_MS`, `FILE_STORAGE_GROWTH_*`,
+   `FILE_STORAGE_METRICS_MAX_APPLICATIONS`, `CONTENT_CLAIM_STAFF_EMAIL`
+   (`legal@oxy.so`). Every task needs `REDIS_URL` for the cross-task file-cache
+   channel (it already needs it for the user cache). *Verify:* `GET
+   /assets/admin/lifecycle/sweeps` (staff) shows a `report` run within the
+   hour with a `deletedApplications` step; the log shows `[FileUploads] Worker
+   started`; CloudWatch has `Oxy/FileStorage` datapoints.
+3. **Seed**: `DRY_RUN=1 bun run --cwd packages/api seed:oxy-applications`, read
+   the plan, then without `DRY_RUN` —
+   the file scopes of D11 for every adopting product. Then the native
+   product-agent bootstrap for Clarity (dry-run, review `planSha256`, apply),
+   which grants its backend the file scopes. Re-bind the workload identities
+   that must reach new scopes (Homiio's `oxy-homiio-task`; Alia's if it
+   authenticates by workload). *Verify:* `GET /applications/:id` of each lists
+   the scopes; a service token minted for each carries them.
+4. **Grants**: give `content:claims` (with `is_staff`) to the people who review
+   claims; make sure `legal@oxy.so` (or `CONTENT_CLAIM_STAFF_EMAIL`) reaches
+   them. *Verify:* the console shows "Content claims" to them and
+   `GET /content-claims/access` answers `{ canReview: true }`.
+5. **Publish the SDKs** with `release-packages.yml`, in dependency order:
+   `@oxy.so/contracts` 4.19.0, `@oxy.so/core` 4.15.0, `@oxy.so/services`
+   11.8.0 (re-check npm first; if a version was taken meanwhile, bump to the
+   next free one in all three changelogs and in core's contracts dependency).
+   *Verify:* `npm view @oxy.so/core@4.15.0 version` etc.
+6. **Product PRs** (each its own repository): Mercaria (store and catalogue
+   media ownership, references, `adoptAppFile` for digital deliverables,
+   `importAppFile` for the importer, `file.blocked` handling); GoWay (claim
+   withdrawal through `assets.references.remove`); Mention (GIF library as
+   Mention files, post-media references, `adoptAppFile` for evidence); Moovo,
+   Nilo, Peable, CrowdSource (references); the own-bucket products (Syra,
+   Homiio, the website, Alia, Clarity) move into Oxy Files one at a time with
+   a verified copy and a read-only soak; the website's counter-notice page.
+7. **Webhooks and secrets**: each product that wants file events registers its
+   endpoint (console → Webhooks → File events, or `oxy.apps.setFilesWebhook`),
+   answers the challenge, and stores the secret in its own secret store (SSM);
+   it verifies with `verifyFileEventSignature`. *Verify:* `GET
+   /applications/:id/files-webhook` shows `verifiedAt`.
+8. **Backfills — dry run, then apply**:
+   - `bun run packages/api/scripts/reconcile-profile-media-references.ts`
+     (preview), then `--apply`; a second `--apply` reports 0 added, 0 removed,
+     0 orphans.
+   - Every product runs `OxyServer.assets.references.reconcile(entityType,
+     items, { dryRun: true })` per entity type, reviews `{ added, removed,
+     refused }`, then runs it for real, and schedules it (nightly).
+9. **The lifecycle's report week**: leave `FILE_LIFECYCLE_MODE=report` for a
+   week and review `GET /assets/admin/lifecycle/sweeps` daily: `trash.due` and
+   `purge.due` are applications' files nobody references (spot-check samples
+   with the owning product); `deletedApplications` names only applications
+   that really are deleted (expect mostly references; if a live product still
+   needs one of their files, move it before enforcing); `staleUploads.withObject`
+   is explained; nothing jumps without a cause.
+10. **Enforce**: set `FILE_LIFECYCLE_MODE=enforce` on the API task definition
+    and redeploy. `deletedApplications.due` falls to 0 within ceil(due / 10)
+    hourly runs; the back-filled backlog is worked off 200 files per step per
+    hour. To stop at once, set `report` (or `off`) again: nothing is purged
+    before 30 days in trash, and a reference or a re-upload restores it.
+
+**oxy-infra** (`terraform-uswest2/alerts.tf`, beside
+`oxy_asset_variant_permanent_failures`):
+
+```hcl
+resource "aws_cloudwatch_metric_alarm" "oxy_file_storage_growth_anomaly" {
+  alarm_name          = "${var.prefix}-file-storage-growth-anomaly"
+  alarm_description   = "An application's file storage grew anomalously in the last 24 hours (ADR 0041 D2). The API's ERROR log '[FileStorage] Application storage growth anomaly' names it; per-application detail is Oxy/FileStorage by ApplicationId."
+  namespace           = "Oxy/FileStorage"
+  metric_name         = "ApplicationGrowthAnomalies"
+  statistic           = "Maximum"
+  period              = 3600
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching" # the sweep can be off; absence is not growth
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+}
+```
+
+and a CloudFront Function on the `cloud.oxy.so` distribution's default
+behaviour, event `viewer-response`:
+
+```js
+function handler(event) {
+  var response = event.response;
+  var type = ((response.headers['content-type'] || {}).value || '').split(';')[0].trim().toLowerCase();
+  var inline = type.indexOf('image/svg') !== 0 && (
+    type.indexOf('image/') === 0 || type.indexOf('video/') === 0 ||
+    type.indexOf('audio/') === 0 || type === 'application/pdf' || type === 'text/plain');
+  if (!inline) {
+    response.headers['content-disposition'] = { value: 'attachment' };
+    response.headers['content-security-policy'] = { value: "sandbox; default-src 'none'" };
+  }
+  response.headers['x-content-type-options'] = { value: 'nosniff' };
+  return response;
+}
+```
+
+*Verify:* an image on `cloud.oxy.so` has no `content-disposition`; a public
+zip uploaded with `uploadAppFileLarge` answers `content-disposition:
+attachment`; the alarm is `OK`.
+
+**Verification after release** (production, with a staff session and a test
+application holding the new scopes):
+
+- `uploadAppFileLarge` of a 50 MiB zip: `completed`; its `/assets/:id/stream`
+  is an attachment; a second call answers `deduplicated` without uploading;
+  declaring a wrong `sha256` ends in 422 `CHECKSUM_MISMATCH` and leaves no file.
+- `adoptAppFile` of a public file: a new application-owned file with the same
+  `sha256`, no new object in the bucket.
+- A person's `PUT /users/me` with a new avatar: the old avatar shows *not in
+  use* in their file manager, the new one does not.
+- The file manager: delete → the file is in Trash → restore → it is back.
+- A test claim (staff) actioned against a test file: the owner submits a
+  counter-notice; the claim is `counter_noticed`; the trail shows
+  `counter_notice_submitted`; the staff alert and the owner's confirmation
+  arrive.
+- After blocking a file, `/assets/:id/stream` answers 404 from every task at
+  once (the cache channel), not after five minutes.
 
 ## Alternatives rejected
 
