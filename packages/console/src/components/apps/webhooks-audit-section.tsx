@@ -16,6 +16,7 @@ import {
   webhookPatch,
 } from '@/lib/app-webhooks';
 import { useUpdateApplication } from '@/hooks/use-applications';
+import { FilesWebhookSection } from '@/components/apps/files-webhook-section';
 
 /**
  * This application's webhook endpoints, its signing secret and its audit events
@@ -187,6 +188,8 @@ export function WebhooksAuditSection({
           </div>
         )}
       </section>
+
+      <FilesWebhookSection application={application} canEdit={canEdit} />
 
       <section className="space-y-3 border-t border-border pt-6">
         <div>

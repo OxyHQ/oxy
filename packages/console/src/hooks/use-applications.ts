@@ -161,8 +161,15 @@ export function useDeleteApplication() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (appId: string): Promise<string> => {
-      await oxyServices.apps.delete(appId);
+    mutationFn: async ({
+      appId,
+      confirmName,
+    }: {
+      appId: string;
+      /** The application's name as the person typed it (ADR 0041 D8). */
+      confirmName: string;
+    }): Promise<string> => {
+      await oxyServices.apps.delete(appId, { confirmName });
       return appId;
     },
     onSuccess: (appId) => {
