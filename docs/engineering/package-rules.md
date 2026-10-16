@@ -59,21 +59,36 @@ Why this is especially dangerous for `@oxy.so/core`: core builds with `tsc` (no 
 
 ## Publishing
 
-**Releases go through `.github/workflows/release-packages.yml`, never a laptop.** Dispatch it from
-protected `main` with the package's name (`@oxy.so/core`, `create-oxy-app`, … — any workspace
-package that is not `private`), the exact `main` commit to release, and `dry_run` (default `true`).
-The `build` job holds no credential: it installs frozen, builds the package's workspace
-dependencies, runs the package's own `prepublishOnly`, packs with `bun pm pack`, and
+**Releases go through `.github/workflows/release-packages.yml`, never a laptop — in every OxyHQ
+repository.** Each repository that publishes to npm (oxy, Kaana, Bloom, Alia, the product apps) has
+the same small `release-packages.yml`, which calls THE release workflow,
+`.github/workflows/npm-release.yml` here (other repositories call
+`OxyHQ/oxy/.github/workflows/npm-release.yml@main`). Dispatch it from protected `main` (or a
+protected `release/*` line) with the package's name (`@oxy.so/core`, `create-oxy-app`, … — any
+package.json that is not `private`, the root included), the exact commit to release, `dry_run`
+(default `true`) and `dist_tag` (default `latest`; `latest` never moves backwards and never names a
+prerelease, so an older major ships under its own tag). The `build` job holds no credential: it
+installs frozen, builds the package's workspace dependencies, runs the package's own
+`prepublishOnly` — every public package MUST declare one with its typecheck, tests and build, and
+the release refuses a package without it — packs with `bun pm pack` (or, for a package that publishes a
+staged manifest it packs and tests itself, with its own `release:pack <dir>`, whose one tarball is
+exactly what ships), and
 `.github/scripts/release-package.mjs inspect` refuses a tarball that is not that version, still
-carries a `workspace:`/`catalog:` range, lacks a declared entry point, or depends on an
-`@oxy.so/*` range nothing on the registry satisfies yet. The `publish` job (environment `npm`,
-`id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
-`npm publish ./<tgz> --provenance --access public` with npm trusted publishing (OIDC): there is
-no `NPM_TOKEN`. A release that spans packages goes dependency first (contracts → protocol /
-telemetry → core → services); `inspect` refuses a dependent whose dependency is not out yet.
-Each package needs its trusted publisher configured once on npmjs.com (repository `OxyHQ/oxy`,
-workflow `release-packages.yml`, environment `npm`). The publish path is a tarball on purpose;
-the rest of this section is why.
+carries a `workspace:`/`catalog:` range, lacks a declared entry point, ships a `.tsbuildinfo`, or
+depends on a range nothing on the registry satisfies yet. The checks always run from the release
+workflow's own commit of OxyHQ/oxy, never from the caller's tree. The `publish` job (environment
+`npm`, `id-token: write`) rebuilds from a fresh checkout, must reproduce the same bytes, and runs
+`npm publish <tgz> --provenance --access public --tag <dist_tag>` with npm trusted publishing
+(OIDC): there is no `NPM_TOKEN` in any repository. A release that spans packages goes dependency
+first (contracts → protocol / telemetry → core → services); `inspect` refuses a dependent whose
+dependency is not out yet.
+
+Each package needs its trusted publisher configured once on npmjs.com
+(`https://www.npmjs.com/package/<name>/access` → Trusted Publisher → GitHub Actions): organization
+`OxyHQ`, the repository that holds the package, workflow `release-packages.yml` (npm checks the
+CALLING workflow, not `npm-release.yml`), environment `npm`, allowed action `publish`. Each
+repository has an environment `npm` limited to `main` and `release/*`. The publish path is a tarball
+on purpose; the rest of this section is why.
 
 `prepublishOnly` is where `@oxy.so/services` keeps its pre-flight (`assert-bun-publish` → `typescript` → `test` → `build`). It exists, and for `@oxy.so/services@30.0.0` it did not run. Measured 2026-08-17 on npm 10.9.8 / bun 1.3.14 with a probe package whose every lifecycle script appends its own name to a log file:
 
@@ -95,15 +110,7 @@ Two consequences, both counter-intuitive:
 - **Publishing a tarball runs no checks at all — that is the property the tarball path is chosen for.** What you inspect is exactly what ships, with nothing regenerating it underneath you. It also means `prepublishOnly` never fires, so nothing on that path typechecks, tests, builds, or even asserts that bun did the packing. `@oxy.so/services@30.0.0` went out that way from a tree whose `lib/` had never been built: 276 entries against 30.0.1's 2017, `lib/` at zero while `files` still listed it, and 26 of 33 `exports` targets resolving to nothing. Only the `react-native` conditions worked, because those point at `src/` — so Metro was fine and every check anyone ran was green, true, and about a different artefact.
 - **`--dry-run` is not a rehearsal.** It runs `publish` and `postpublish` as well, so any side effect in those (a git tag, a notification, a deploy trigger) happens for real.
 
-**Never publish a services tarball you did not build in the same command.** The pack has to be cut from a tree the build just produced, because `postbuild` is the only thing that runs `packages/services/scripts/verify-package.mjs`:
-
-```bash
-cd packages/services
-bun run build && bun pm pack --destination /tmp/rel   # postbuild verifies the tree the pack is cut from
-bun publish /tmp/rel/oxy-services-<version>.tgz     # runs NO scripts, by design
-```
-
-`bun run release` (`rm -rf lib && bun run build && release-it`) already satisfies this — it builds, so the verifier runs, and release-it publishes from the directory, so `prepublishOnly` runs too.
+**A tarball is published only if it was built in the same job that packed it**, because `postbuild` is the only thing that runs `packages/services/scripts/verify-package.mjs`. `npm-release.yml` runs `prepublishOnly`, then `build`, then `bun pm pack` in one job, and the publish job rebuilds and repacks before comparing bytes. There is no laptop path any more: the `release` scripts and `release-it` are gone from every package, and nobody publishes with an npm account token.
 
 On the tarball path `assert-bun-publish.mjs` is inert, so nothing checks the packer at publish time. What makes it safe is that **bun** cut the tarball, and `verify-package.mjs` re-asserts that from the artefact itself: a surviving `workspace:` or `catalog:` literal in the packed manifest means it was not `bun pm pack`.
 

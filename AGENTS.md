@@ -15,7 +15,7 @@ bun install --frozen-lockfile --minimum-release-age=0
 bun run build:all                   # turbo, dependency order
 cd packages/<pkg> && bun run test   # per package; never a bare `bun test`
 bun run validate:agents-md
-bun run build && bun pm pack        # release, in the package; never npm pack
+bun run build && bun pm pack        # local package check, in the package; never npm pack
 ```
 
 ## Rules
@@ -27,7 +27,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Shared versions live in `workspaces.catalog` as `"catalog:"`.
 - Pack with `bun pm pack`, never `npm pack`.
 - Anything that re-resolves passes `--minimum-release-age=0`.
-- Never publish a tarball you did not build in the same command — #publishing
+- Publish only through Actions → Release packages (shared `npm-release.yml`, OIDC); never from a laptop — #publishing
 - TS strict; Biome formats and lints (`bun run lint`; SDK `src/` `--error-on-warnings`); commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
 **Package boundaries** — #package-boundaries

@@ -97,6 +97,7 @@
   "files": [
     "NOTICE",
     "dist",
+    "!dist/**/*.tsbuildinfo",
     "src"
   ],
   "keywords": [
@@ -127,22 +128,7 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
-    "release": "rm -rf dist && bun run build && release-it"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/protocol@${version}",
-      "tagAnnotation": "Release @oxy.so/protocol@${version}",
-      "commitMessage": "chore(protocol): release @oxy.so/protocol@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/protocol@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
     "@noble/curves": "catalog:",
@@ -180,7 +166,6 @@
     "expo-secure-store": "~57.0.4",
     "express": "catalog:",
     "jest": "^30.5.1",
-    "release-it": "catalog:",
     "supertest": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"

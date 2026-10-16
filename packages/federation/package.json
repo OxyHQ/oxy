@@ -45,6 +45,7 @@
   "files": [
     "NOTICE",
     "dist",
+    "!dist/**/*.tsbuildinfo",
     "src"
   ],
   "keywords": [
@@ -75,22 +76,7 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
-    "release": "rm -rf dist && bun run build && release-it"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/federation@${version}",
-      "tagAnnotation": "Release @oxy.so/federation@${version}",
-      "commitMessage": "chore(federation): release @oxy.so/federation@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/federation@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
     "@oxy.so/contracts": "^1.0.0 || ^2.0.0 || ^3.0.0 || ^4.0.0 || 4.11.0-oxy-one.0",
@@ -110,7 +96,6 @@
     "@types/node": "^22.20.1",
     "express": "catalog:",
     "jest": "^30.5.1",
-    "release-it": "catalog:",
     "supertest": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
