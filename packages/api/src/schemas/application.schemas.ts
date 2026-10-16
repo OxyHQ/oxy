@@ -16,6 +16,22 @@ export const appCredentialParams = z.object({
   credId: z.string().trim().min(1),
 });
 
+/** Route params with :appId and :grantId (application roles). */
+export const appRoleGrantParams = z.object({
+  appId: z.string().trim().min(1),
+  grantId: z.string().trim().min(1),
+});
+
+/** `GET /applications/:appId/roles/permissions` query. */
+export const listApplicationRolePermissionsQuerySchema = z
+  .object({
+    includeRetired: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
+  })
+  .strict();
+
 /** Usage window query. */
 export const periodQuerySchema = z.object({
   period: z.enum(['24h', '7d', '30d', '90d']).optional(),
