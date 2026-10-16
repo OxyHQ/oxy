@@ -78,6 +78,7 @@ import {
 } from './kaanaDeclaredCatalogue.service';
 import { readGrantLines } from './kaanaGrant.service';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { tracedFetch } from '../utils/tracedFetch';
 
 export type SettlementResult =
@@ -612,17 +613,16 @@ export async function syncKaanaSettlementFeed(
  * read registers only when this deployment both reaches Kaana and trusts its
  * settlement keys — i.e. once Kaana delivers settlements at all (phase 3).
  */
-export function startKaanaSettlementSchedule(): { stop(): void } {
+export function startKaanaSettlementSchedule(): PeriodicJob {
   const plane = resolveKaanaDataPlane();
   const reader =
     plane.status === 'configured' && resolveKaanaSettlementKeys().status === 'configured'
       ? new HttpKaanaSettlementFeedReader(plane.config)
       : undefined;
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    (async () => {
+  return schedulePeriodicJob({
+    failureMessage: 'inference.settlement.reconciliation_failed',
+    intervalMs: SETTLEMENT_FEED_INTERVAL_MS,
+    run: async () => {
       const expired = await expireLapsedGrants();
       if (expired > 0) logger.info('inference.settlement.grants_expired', { count: expired });
       if (reader !== undefined) {
@@ -630,22 +630,6 @@ export function startKaanaSettlementSchedule(): { stop(): void } {
         if (result.settled > 0 || result.rejected > 0)
           logger.info('inference.settlement.reconciled', { ...result });
       }
-    })()
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.settlement.reconciliation_failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const interval = setInterval(tick, SETTLEMENT_FEED_INTERVAL_MS);
-  interval.unref();
-  return {
-    stop(): void {
-      clearInterval(interval);
     },
-  };
+  });
 }

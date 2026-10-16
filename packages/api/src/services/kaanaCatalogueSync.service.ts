@@ -99,6 +99,7 @@ import {
   type InferenceOutputModalityValue,
 } from '../db/schema';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import {
   indexReviewedProviderRoutes,
   reviewedRouteKey,
@@ -2111,36 +2112,19 @@ export async function unblockCatalogueModel(modelId: string): Promise<boolean> {
  * lock lets exactly one run at a time and the rest return `locked`. A task with
  * no Kaana binding registers nothing.
  */
-export function startKaanaCatalogueSyncSchedule(): { stop(): void } | undefined {
+export function startKaanaCatalogueSyncSchedule(): PeriodicJob | undefined {
   if (createHttpKaanaCatalogueReader() === undefined) {
     logger.info('inference.catalogue_sync.not_configured', {
       component: 'inference-catalogue-sync',
     });
     return undefined;
   }
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    runKaanaCatalogueSync()
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.catalogue_sync.failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const first = setTimeout(tick, KAANA_CATALOGUE_SYNC_FIRST_RUN_DELAY_MS);
-  const interval = setInterval(tick, KAANA_CATALOGUE_SYNC_INTERVAL_MS);
-  first.unref();
-  interval.unref();
-  return {
-    stop(): void {
-      clearTimeout(first);
-      clearInterval(interval);
+  return schedulePeriodicJob({
+    failureMessage: 'inference.catalogue_sync.failed',
+    intervalMs: KAANA_CATALOGUE_SYNC_INTERVAL_MS,
+    firstRunDelayMs: KAANA_CATALOGUE_SYNC_FIRST_RUN_DELAY_MS,
+    run: async () => {
+      await runKaanaCatalogueSync();
     },
-  };
+  });
 }

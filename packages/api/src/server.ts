@@ -191,6 +191,7 @@ import {
   getEnvNumber,
 } from './config/env';
 import { logger } from './utils/logger';
+import { schedulePeriodicJob, stopPeriodicJobs } from './utils/periodicJobs';
 import type { Response } from 'express';
 import { authMiddleware, type AuthRequest } from './middleware/auth';
 import { requireStaff } from './middleware/requireStaff';
@@ -528,7 +529,31 @@ export function emitSessionUpdate(userId: string, payload: any) {
 // declared in the schema and created by a migration, which is what index
 // reconciliation is for; there is nothing left for a boot hook to do.
 
-// Graceful shutdown
+/**
+ * How long requests in flight at SIGTERM may finish before their connections
+ * are closed. ECS has already deregistered the task — the load balancer sends
+ * it nothing new — so what is left is in flight; it stays under the 30 s force
+ * timer below and ECS's default stopTimeout.
+ */
+const HTTP_DRAIN_MS = 20_000;
+
+/** Stop accepting, let requests in flight finish, then close what is left. */
+function drainHttpServer(): Promise<void> {
+  return new Promise((resolve) => {
+    const deadline = setTimeout(() => server.closeAllConnections(), HTTP_DRAIN_MS);
+    deadline.unref();
+    server.close(() => {
+      clearTimeout(deadline);
+      logger.info('HTTP server closed');
+      resolve();
+    });
+    server.closeIdleConnections();
+  });
+}
+
+// Graceful shutdown. Order matters: nothing closes Postgres or Redis while a
+// request or a periodic job may still use them — that is what made the task
+// oxy-api:826 replaced log "PostgreSQL is not connected" from eight sweeps.
 async function gracefulShutdown(signal: string) {
   logger.info(`${signal} received, starting graceful shutdown`);
 
@@ -538,9 +563,8 @@ async function gracefulShutdown(signal: string) {
   }, 30_000);
   forceTimer.unref();
 
-  server.close(() => {
-    logger.info('HTTP server closed');
-  });
+  await drainHttpServer();
+  await stopPeriodicJobs();
 
   stopPlatformActivity();
   await stopPlatformInfrastructure();
@@ -1209,56 +1233,48 @@ export async function bootstrap(
 
   // Periodically re-tally / expire stale civic validation requests. Unref'd
   // so it never keeps the process alive; failures are logged, never thrown.
-  const validationSweep = setInterval(() => {
-    sweepValidations().catch((err) =>
-      logger.error(
-        'Civic validation sweep failed',
-        err instanceof Error ? err : new Error(String(err)),
-      ),
-    );
-  }, VALIDATION_SWEEP_INTERVAL_MS);
-  validationSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Civic validation sweep failed',
+    intervalMs: VALIDATION_SWEEP_INTERVAL_MS,
+    run: async () => {
+      await sweepValidations();
+    },
+  });
 
   // Periodically open random personhood audits (Fase 3) for a sample of
   // confirmed real persons — REUSES the validator jury; a failed audit
   // triggers the staking slash cascade. Unref'd + failures logged, like the
   // validation sweep above.
-  const personhoodAuditSweep = setInterval(() => {
-    sweepPersonhoodAudits().catch((err) =>
-      logger.error(
-        'Civic personhood audit sweep failed',
-        err instanceof Error ? err : new Error(String(err)),
-      ),
-    );
-  }, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS);
-  personhoodAuditSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Civic personhood audit sweep failed',
+    intervalMs: PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS,
+    run: async () => {
+      await sweepPersonhoodAudits();
+    },
+  });
 
   // Periodically re-probe registered user nodes (F5a) so the cached liveness
   // badge stays current WITHOUT any request ever touching a node. All probes
   // are SSRF-safe `safeFetch`es. Unref'd + failures logged, like the sweeps
   // above.
-  const nodeLivenessSweep = setInterval(() => {
-    sweepNodeLiveness().catch((err) =>
-      logger.error(
-        'User-node liveness sweep failed',
-        err instanceof Error ? err : new Error(String(err)),
-      ),
-    );
-  }, NODE_LIVENESS_SWEEP_INTERVAL_MS);
-  nodeLivenessSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'User-node liveness sweep failed',
+    intervalMs: NODE_LIVENESS_SWEEP_INTERVAL_MS,
+    run: async () => {
+      await sweepNodeLiveness();
+    },
+  });
 
   // Expire timed follow relationships whose `expiresAt` has passed. Routed
   // through `expireDueFollows` so removals emit events and update the account
   // graph exactly like a manual unfollow.
-  const followExpirySweep = setInterval(() => {
-    expireDueFollows().catch((err) =>
-      logger.error(
-        'Follow expiry sweep failed',
-        err instanceof Error ? err : new Error(String(err)),
-      ),
-    );
-  }, FOLLOW_EXPIRY_SWEEP_INTERVAL_MS);
-  followExpirySweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Follow expiry sweep failed',
+    intervalMs: FOLLOW_EXPIRY_SWEEP_INTERVAL_MS,
+    run: async () => {
+      await expireDueFollows();
+    },
+  });
 
   // Top up accounts that have fallen below their configured auto-recharge
   // threshold (issue #972 section 7.1). THIS registration is what stops
@@ -1270,15 +1286,13 @@ export async function bootstrap(
   // returns `processor-unconfigured` without touching an account, so a
   // development deployment logs one line per interval rather than an error per
   // candidate. Unref'd + failures logged, like the sweeps above.
-  const autoRechargeSweep = setInterval(() => {
-    runAutoRechargeSweep().catch((err) =>
-      logger.error(
-        'Auto-recharge sweep failed',
-        err instanceof Error ? err : new Error(String(err)),
-      ),
-    );
-  }, AUTO_RECHARGE_SWEEP_INTERVAL_MS);
-  autoRechargeSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Auto-recharge sweep failed',
+    intervalMs: AUTO_RECHARGE_SWEEP_INTERVAL_MS,
+    run: async () => {
+      await runAutoRechargeSweep();
+    },
+  });
 
   // Release holds whose deadline has passed (issue #1015, #972 section 7.1).
   // A reservation is customer money withheld from the available balance before
@@ -1297,21 +1311,16 @@ export async function bootstrap(
   // One run releases at most `expireReservations`' default limit, so a large
   // backlog drains over several ticks rather than in one long transaction.
   // Unref'd + failures logged, like the sweeps above.
-  const reservationExpirySweep = setInterval(() => {
-    expireReservations()
-      .then((released) => {
-        if (released.length > 0) {
-          logger.info('Released expired inference reservations', { count: released.length });
-        }
-      })
-      .catch((err) =>
-        logger.error(
-          'Reservation expiry sweep failed',
-          err instanceof Error ? err : new Error(String(err)),
-        ),
-      );
-  }, RESERVATION_EXPIRY_SWEEP_INTERVAL_MS);
-  reservationExpirySweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Reservation expiry sweep failed',
+    intervalMs: RESERVATION_EXPIRY_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const released = await expireReservations();
+      if (released.length > 0) {
+        logger.info('Released expired inference reservations', { count: released.length });
+      }
+    },
+  });
 
   // Enforce the declared row retentions (issue #1015). `db/expiry.ts` names every
   // table and its window, including the ninety days `api_key_usage_events` and
@@ -1323,21 +1332,19 @@ export async function bootstrap(
   // the remainder for the next one. That is logged rather than swallowed: one
   // truncated table is a large backlog draining, the same table truncating
   // every hour is the sweep losing ground. Unref'd + failures logged.
-  const retentionSweep = setInterval(() => {
-    sweepAllExpiredRows(getDb(), EXPIRY_SWEEP_TARGETS)
-      .then((results) => {
-        const remaining = results.filter((result) => result.truncated);
-        if (remaining.length > 0) {
-          logger.warn('Retention sweep hit its batch ceiling; rows remain', {
-            tables: remaining.map((result) => result.table),
-          });
-        }
-      })
-      .catch((err) =>
-        logger.error('Retention sweep failed', err instanceof Error ? err : new Error(String(err))),
-      );
-  }, EXPIRY_SWEEP_INTERVAL_MS);
-  retentionSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Retention sweep failed',
+    intervalMs: EXPIRY_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const results = await sweepAllExpiredRows(getDb(), EXPIRY_SWEEP_TARGETS);
+      const remaining = results.filter((result) => result.truncated);
+      if (remaining.length > 0) {
+        logger.warn('Retention sweep hit its batch ceiling; rows remain', {
+          tables: remaining.map((result) => result.table),
+        });
+      }
+    },
+  });
 
   // Notice an account whose inference spend in one hour jumped past a multiple of
   // its own trailing daily median (issue #972 sections 8 and 12). It RECORDS and
@@ -1345,25 +1352,20 @@ export async function bootstrap(
   // for why an automated hard stop on a spend multiple is the wrong trade, and
   // `spending_limits` for the mechanism a customer uses to say what they do want
   // refused. Unref'd + failures logged, like the two sweeps above.
-  const spendAnomalySweep = setInterval(() => {
-    sweepSpendAnomalies()
-      .then((result) => {
-        if (result.recorded > 0) {
-          logger.info('Spend anomaly sweep recorded new signals', {
-            recorded: result.recorded,
-            observed: result.detected.length,
-            thresholdMultiple: result.thresholdMultiple,
-          });
-        }
-      })
-      .catch((err) =>
-        logger.error(
-          'Spend anomaly sweep failed',
-          err instanceof Error ? err : new Error(String(err)),
-        ),
-      );
-  }, SPEND_ANOMALY_SWEEP_INTERVAL_MS);
-  spendAnomalySweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Spend anomaly sweep failed',
+    intervalMs: SPEND_ANOMALY_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const result = await sweepSpendAnomalies();
+      if (result.recorded > 0) {
+        logger.info('Spend anomaly sweep recorded new signals', {
+          recorded: result.recorded,
+          observed: result.detected.length,
+          thresholdMultiple: result.thresholdMultiple,
+        });
+      }
+    },
+  });
 
   // The TOKEN half of the same signal (issue #972 section 8). Separate from the
   // spend sweep above because they are separate claims over separate tables: a
@@ -1371,25 +1373,20 @@ export async function bootstrap(
   // switch to an expensive model. It RECORDS and LOGS and blocks nothing, for the
   // reason its own header gives at length. Unref'd + failures logged, like the
   // sweeps above.
-  const tokenAnomalySweep = setInterval(() => {
-    sweepTokenAnomalies()
-      .then((result) => {
-        if (result.recorded > 0) {
-          logger.info('Token anomaly sweep recorded new signals', {
-            recorded: result.recorded,
-            observed: result.detected.length,
-            thresholdMultiple: result.thresholdMultiple,
-          });
-        }
-      })
-      .catch((err) =>
-        logger.error(
-          'Token anomaly sweep failed',
-          err instanceof Error ? err : new Error(String(err)),
-        ),
-      );
-  }, TOKEN_ANOMALY_SWEEP_INTERVAL_MS);
-  tokenAnomalySweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Token anomaly sweep failed',
+    intervalMs: TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const result = await sweepTokenAnomalies();
+      if (result.recorded > 0) {
+        logger.info('Token anomaly sweep recorded new signals', {
+          recorded: result.recorded,
+          observed: result.detected.length,
+          thresholdMultiple: result.thresholdMultiple,
+        });
+      }
+    },
+  });
   // Reconcile Oxy's record of processor payments against the processor's, one
   // window at a time (issue #972 workstream 16). Without THIS registration
   // "reconciliation drift" is a metric with no series behind it: every pass
@@ -1402,21 +1399,16 @@ export async function bootstrap(
   // argument, including why this differs from the auto-recharge claim, is on the
   // function. With no `STRIPE_SECRET_KEY` it claims nothing and returns
   // `processor-unconfigured`. Unref'd + failures logged, like the sweeps above.
-  const reconciliationSweep = setInterval(() => {
-    runScheduledReconciliation()
-      .then((result) => {
-        if (result.status === 'ran' && result.outcome.reconciled > 0) {
-          logger.info('Reconciled a payment window', { ...result.outcome });
-        }
-      })
-      .catch((err) =>
-        logger.error(
-          'Reconciliation sweep failed',
-          err instanceof Error ? err : new Error(String(err)),
-        ),
-      );
-  }, RECONCILIATION_SWEEP_INTERVAL_MS);
-  reconciliationSweep.unref();
+  schedulePeriodicJob({
+    failureMessage: 'Reconciliation sweep failed',
+    intervalMs: RECONCILIATION_SWEEP_INTERVAL_MS,
+    run: async () => {
+      const result = await runScheduledReconciliation();
+      if (result.status === 'ran' && result.outcome.reconciled > 0) {
+        logger.info('Reconciled a payment window', { ...result.outcome });
+      }
+    },
+  });
 
   // Keep the model catalogue in step with what Kaana actually serves (owner
   // direction 2026-09-25: no hand-curated list). Every task registers; a
