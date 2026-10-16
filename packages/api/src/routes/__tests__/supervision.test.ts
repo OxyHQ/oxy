@@ -294,6 +294,8 @@ it('lets supervised people list and upload only their own private files without 
       'draft.txt',
       'private',
       undefined,
+      // The session upload sanitizes an SVG (ADR 0043 stage 4c).
+      { svg: 'sanitize' },
     );
     upload.mockClear();
     data.append('visibility', 'public');
