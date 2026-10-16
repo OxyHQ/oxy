@@ -12452,6 +12452,80 @@
         "operationId": "postBillingWebhook"
       }
     },
+    "/capabilities/agent-ceilings/{agentAccountId}": {
+      "get": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "The agent's live ceilings, one per app",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live ceilings."
+          },
+          "403": {
+            "description": "The caller does not operate the bot."
+          }
+        },
+        "operationId": "getCapabilitiesAgentCeilingsAgentAccountId"
+      }
+    },
+    "/capabilities/agent-ceilings/{agentAccountId}/{appId}": {
+      "put": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Publish what an agent may do in one app for whoever uses it",
+        "description": "ADR 0042. The caller must hold account:act_as over the agent's bot. The ceiling is validated against the app's active catalogue at its account root, like a grant, and reaches only the account of the person present when that person's own execution authorization names it. Writing again replaces the live ceiling and increments its version.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The live ceiling was replaced."
+          },
+          "201": {
+            "description": "A ceiling was published."
+          },
+          "400": {
+            "description": "Invalid ceiling for the catalogue."
+          },
+          "403": {
+            "description": "The caller does not operate an active bot with this id."
+          }
+        },
+        "operationId": "putCapabilitiesAgentCeilingsAgentAccountIdAppId"
+      },
+      "delete": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "Revoke the agent's ceiling for one app",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          },
+          "403": {
+            "description": "The caller does not operate the bot."
+          },
+          "404": {
+            "description": "No live ceiling."
+          }
+        },
+        "operationId": "deleteCapabilitiesAgentCeilingsAgentAccountIdAppId"
+      }
+    },
     "/capabilities/agent-run-authorizations": {
       "post": {
         "tags": [
@@ -12770,6 +12844,32 @@
           }
         },
         "operationId": "postCapabilitiesForegroundExecutionAuthorizations"
+      }
+    },
+    "/capabilities/requester-capability-map": {
+      "post": {
+        "tags": [
+          "Capabilities"
+        ],
+        "summary": "What an agent may do for the person present, under its owner's ceilings",
+        "description": "ADR 0042, coordinator service lane (capabilities:read + agency:coordinate). For each live ceiling of the agent, the tools it allows on the effective account's root in that app, narrowed by that account's policy. Returns no app content. The requester must operate the effective account (their own, or one they act for).",
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One assignment per app with a live ceiling and an active catalogue."
+          },
+          "400": {
+            "description": "Invalid request or the actor is not an active bot."
+          },
+          "403": {
+            "description": "The requester does not operate the effective account."
+          }
+        },
+        "operationId": "postCapabilitiesRequesterCapabilityMap"
       }
     },
     "/cdn/{id}": {

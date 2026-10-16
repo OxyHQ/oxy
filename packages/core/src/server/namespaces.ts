@@ -376,6 +376,12 @@ interface ExecutionAuthorizationTerms {
   resource: ResourceRef;
   tool: string;
   limits?: GrantLimit[];
+  /**
+   * The agent owner's published ceiling that bounds this authority (ADR 0042):
+   * an agent acting for the requester on the requester's own account root,
+   * with `ownerAccountId` the requester.
+   */
+  ceilingId?: string;
   expiresAt: string;
 }
 

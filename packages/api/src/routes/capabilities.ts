@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   actorRefSchema,
+  agentRequesterCeilingWriteSchema,
   foregroundExecutionAuthorizationInputSchema,
   auditResultSchema,
   autonomyLevelSchema,
@@ -56,6 +57,13 @@ import {
   registerCapabilityCatalog,
 } from '../services/capabilityCatalog.service';
 import { persistCapabilityAuditEvent } from '../services/capabilityRuntimeStore.service';
+import {
+  ceilingContract,
+  listLiveAgentRequesterCeilings,
+  loadLiveCeiling,
+  revokeAgentRequesterCeiling,
+  writeAgentRequesterCeiling,
+} from '../services/agentRequesterCeiling.service';
 import { capabilityAuditIdempotencyKeyHash } from '../services/capabilityAuditCorrelation';
 import {
   autonomousSensitiveToolLimitError,
@@ -101,10 +109,23 @@ const executionAuthorizationSchema = z
     automationId: z.string().min(1).optional(),
     maximumAutonomy: autonomyLevelSchema,
     limits: z.array(grantLimitSchema).default([]),
+    /** The owner's published ceiling that bounds an agent acting for the requester (ADR 0042). */
+    ceilingId: z.string().min(1).optional(),
     expiresAt: z.string().datetime(),
   })
   .strict()
   .superRefine((value, context) => {
+    if (
+      value.ceilingId !== undefined &&
+      (value.actor.type !== 'agent' ||
+        value.resource.resourceId !== value.resource.effectiveAccountId)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ceilingId'],
+        message: 'a ceiling bounds an agent at an account root',
+      });
+    }
     if ((value.kind === 'automation') !== (value.automationId !== undefined)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -555,6 +576,124 @@ router.delete(
   },
 );
 
+const agentCeilingParamsSchema = z
+  .object({ agentAccountId: z.string().min(1), appId: z.string().min(1) })
+  .strict();
+
+/** Only a person who operates the bot publishes what it may do for others (ADR 0042). */
+async function operatesActiveBot(request: AuthRequest, agentAccountId: string): Promise<boolean> {
+  return (
+    (await activeBot(agentAccountId)) &&
+    (await canOperate(operatorOf(request), agentAccountId, request.sessionId))
+  );
+}
+
+/**
+ * @openapi
+ * /capabilities/agent-ceilings/{agentAccountId}/{appId}:
+ *   put:
+ *     tags: [Capabilities]
+ *     summary: Publish what an agent may do in one app for whoever uses it
+ *     description: >-
+ *       ADR 0042. The caller must hold account:act_as over the agent's bot. The ceiling is validated
+ *       against the app's active catalogue at its account root, like a grant, and reaches only the
+ *       account of the person present when that person's own execution authorization names it.
+ *       Writing again replaces the live ceiling and increments its version.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: The live ceiling was replaced. }
+ *       201: { description: A ceiling was published. }
+ *       400: { description: Invalid ceiling for the catalogue. }
+ *       403: { description: The caller does not operate an active bot with this id. }
+ *   delete:
+ *     tags: [Capabilities]
+ *     summary: Revoke the agent's ceiling for one app
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       204: { description: Revoked. }
+ *       403: { description: The caller does not operate the bot. }
+ *       404: { description: No live ceiling. }
+ */
+router.put(
+  '/agent-ceilings/:agentAccountId/:appId',
+  authMiddleware,
+  asyncHandler(async (request: AuthRequest, response: Response) => {
+    const params = agentCeilingParamsSchema.safeParse(request.params);
+    const body = agentRequesterCeilingWriteSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      response.status(400).json({
+        error: 'invalid_agent_ceiling',
+        ...(body.success ? {} : { details: body.error.flatten() }),
+      });
+      return;
+    }
+    if (!(await operatesActiveBot(request, params.data.agentAccountId))) {
+      response.status(403).json({ error: 'agent_operator_required' });
+      return;
+    }
+    const result = await writeAgentRequesterCeiling({
+      agentAccountId: params.data.agentAccountId,
+      appId: params.data.appId,
+      ceiling: body.data,
+      operatorAccountId: operatorOf(request),
+    });
+    if (!result.ok) {
+      response.status(400).json({ error: result.error });
+      return;
+    }
+    response.status(result.created ? 201 : 200).json({ ceiling: result.ceiling });
+  }),
+);
+
+router.delete(
+  '/agent-ceilings/:agentAccountId/:appId',
+  authMiddleware,
+  asyncHandler(async (request: AuthRequest, response: Response) => {
+    const params = agentCeilingParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      response.status(400).json({ error: 'invalid_agent_ceiling' });
+      return;
+    }
+    if (!(await canOperate(operatorOf(request), params.data.agentAccountId, request.sessionId))) {
+      response.status(403).json({ error: 'agent_operator_required' });
+      return;
+    }
+    if (!(await revokeAgentRequesterCeiling(params.data.agentAccountId, params.data.appId))) {
+      response.status(404).json({ error: 'agent_ceiling_not_found' });
+      return;
+    }
+    response.status(204).send();
+  }),
+);
+
+/**
+ * @openapi
+ * /capabilities/agent-ceilings/{agentAccountId}:
+ *   get:
+ *     tags: [Capabilities]
+ *     summary: The agent's live ceilings, one per app
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Live ceilings. }
+ *       403: { description: The caller does not operate the bot. }
+ */
+router.get(
+  '/agent-ceilings/:agentAccountId',
+  authMiddleware,
+  asyncHandler(async (request: AuthRequest, response: Response) => {
+    const agentAccountId = request.params.agentAccountId;
+    if (
+      !agentAccountId ||
+      !(await canOperate(operatorOf(request), agentAccountId, request.sessionId))
+    ) {
+      response.status(403).json({ error: 'agent_operator_required' });
+      return;
+    }
+    const rows = await listLiveAgentRequesterCeilings(agentAccountId);
+    response.json({ ceilings: await Promise.all(rows.map((row) => ceilingContract(row))) });
+  }),
+);
+
 router.get(
   '/account-policies',
   authMiddleware,
@@ -892,6 +1031,22 @@ router.post(
       response.status(400).json({ error: 'tool_not_available_for_resource' });
       return;
     }
+    if (input.ceilingId !== undefined) {
+      // A ceiling reaches the PERSON PRESENT's own authority at the app's account
+      // root, never another owner's data (ADR 0042).
+      const ceiling = await loadLiveCeiling(input.ceilingId);
+      if (
+        !ceiling ||
+        input.actor.type !== 'agent' ||
+        ceiling.row.agentAccountId !== input.actor.accountId ||
+        ceiling.row.appSlug !== input.resource.appId ||
+        input.ownerAccountId !== requesterAccountId ||
+        input.resource.resourceType !== catalog?.catalog.accountResourceType
+      ) {
+        response.status(400).json({ error: 'ceiling_not_applicable' });
+        return;
+      }
+    }
     const limitError = capabilityLimitError(input.limits, [tool], input.resource.resourceType);
     if (limitError) {
       response.status(400).json({ error: limitError });
@@ -946,6 +1101,7 @@ router.post(
         automationId: input.automationId ?? null,
         maximumAutonomy: input.maximumAutonomy,
         limits: input.limits,
+        ceilingId: input.ceilingId ?? null,
         expiresAt,
       })
       .returning();
@@ -1350,6 +1506,114 @@ router.post(
     );
     response.json({ assignments: assignments.filter((assignment) => assignment !== null) });
   },
+);
+
+/**
+ * @openapi
+ * /capabilities/requester-capability-map:
+ *   post:
+ *     tags: [Capabilities]
+ *     summary: What an agent may do for the person present, under its owner's ceilings
+ *     description: >-
+ *       ADR 0042, coordinator service lane (capabilities:read + agency:coordinate). For each live
+ *       ceiling of the agent, the tools it allows on the effective account's root in that app,
+ *       narrowed by that account's policy. Returns no app content. The requester must operate the
+ *       effective account (their own, or one they act for).
+ *     security: [{ serviceTokenAuth: [] }]
+ *     responses:
+ *       200: { description: One assignment per app with a live ceiling and an active catalogue. }
+ *       400: { description: Invalid request or the actor is not an active bot. }
+ *       403: { description: The requester does not operate the effective account. }
+ */
+router.post(
+  '/requester-capability-map',
+  serviceAuthMiddleware,
+  asyncHandler(async (request: ServiceAuthRequest, response: Response) => {
+    if (
+      !(await livePrincipal(request, response, 'capabilities:read', AGENCY_COORDINATE_CAPABILITY))
+    )
+      return;
+    const parsed = z
+      .object({
+        requesterAccountId: z.string().min(1),
+        effectiveAccountId: z.string().min(1),
+        actorAccountId: z.string().min(1),
+      })
+      .strict()
+      .safeParse(request.body);
+    if (!parsed.success) {
+      response.status(400).json({ error: 'invalid_requester_capability_map_request' });
+      return;
+    }
+    const { requesterAccountId, effectiveAccountId, actorAccountId } = parsed.data;
+    if (!(await canOperate(requesterAccountId, effectiveAccountId))) {
+      response.status(403).json({ error: 'requester_lacks_current_account_authority' });
+      return;
+    }
+    if (!(await activeBot(actorAccountId))) {
+      response.status(400).json({ error: 'actor_must_be_active_bot_account' });
+      return;
+    }
+    const ceilings = await listLiveAgentRequesterCeilings(actorAccountId);
+    const assignments = await Promise.all(
+      ceilings.map(async (ceiling) => {
+        const [catalog, live, policyRows] = await Promise.all([
+          activeCapabilityCatalog(ceiling.appSlug),
+          loadLiveCeiling(ceiling.id),
+          getDb()
+            .select()
+            .from(accountCapabilityPolicies)
+            .where(
+              and(
+                eq(accountCapabilityPolicies.accountId, effectiveAccountId),
+                eq(accountCapabilityPolicies.appSlug, ceiling.appSlug),
+              ),
+            )
+            .limit(1),
+        ]);
+        if (!catalog || !live) return null;
+        const policy = policyRows[0];
+        const resourceType = catalog.catalog.accountResourceType;
+        const toolNames = catalog.catalog.tools
+          .filter((tool) => tool.exposure.includes('internal'))
+          .filter((tool) => tool.resourceTypes.includes(resourceType))
+          .filter(
+            (tool) =>
+              !policy?.deniedCapabilities.some((capability) =>
+                tool.requiredCapabilities.includes(capability),
+              ),
+          )
+          .filter((tool) =>
+            grantAllowsTool(
+              tool,
+              {
+                capabilities: ceiling.capabilities,
+                overrides: ceiling.toolOverrides,
+                capabilityPackages: ceiling.capabilityPackages,
+              },
+              live.boundCatalog.tools.find((entry) => entry.name === tool.name),
+            ),
+          )
+          .map((tool) => tool.name);
+        return {
+          ceilingId: ceiling.id,
+          resource: {
+            appId: ceiling.appSlug,
+            effectiveAccountId,
+            resourceType,
+            resourceId: effectiveAccountId,
+          },
+          maximumAutonomy: mostRestrictiveAutonomy([
+            ceiling.maximumAutonomy,
+            policy?.maximumAutonomy ?? 'autonomous',
+          ]),
+          limits: ceiling.limits,
+          toolNames,
+        };
+      }),
+    );
+    response.json({ assignments: assignments.filter((assignment) => assignment !== null) });
+  }),
 );
 
 router.post(

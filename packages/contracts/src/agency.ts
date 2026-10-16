@@ -166,6 +166,38 @@ export const delegationGrantSchema = z
   })
   .strict();
 
+/**
+ * The two levels an owner publishes for whoever uses their agent (ADR 0042):
+ * "Ver" and "Ver y actuar". A ceiling never says `draft` or `execute_on_request`:
+ * an agent is either allowed to act on its own or not at all, and nothing ever
+ * asks the person for approval.
+ */
+export const AGENT_REQUESTER_CEILING_AUTONOMY = ['read_only', 'autonomous'] as const;
+
+/** What an agent may do in one app for whoever uses it; written by an operator of the bot. */
+export const agentRequesterCeilingWriteSchema = z
+  .object({
+    capabilityPackages: z.array(capabilityPackageSchema),
+    capabilities: z.array(identifierSchema).default([]),
+    toolOverrides: z.array(toolGrantOverrideSchema).default([]),
+    limits: z.array(grantLimitSchema).default([]),
+    maximumAutonomy: z.enum(AGENT_REQUESTER_CEILING_AUTONOMY),
+  })
+  .strict();
+
+export const agentRequesterCeilingSchema = agentRequesterCeilingWriteSchema
+  .extend({
+    id: identifierSchema,
+    agentAccountId: identifierSchema,
+    appId: identifierSchema,
+    catalog: capabilityCatalogBindingSchema,
+    version: z.number().int().positive(),
+    revokedAt: z.string().datetime().nullable(),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
 export const automationTriggerSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('manual') }).strict(),
   z
@@ -231,6 +263,8 @@ export const capabilityTicketClaimsSchema = z
     /** Signed only for callers that explicitly requested a pinned catalogue. */
     catalog: capabilityCatalogBindingSchema.optional(),
     grantId: identifierSchema.optional(),
+    /** The owner's published ceiling that bounds an agent acting for a non-owner (ADR 0042). */
+    ceilingId: identifierSchema.optional(),
     requesterAccountId: identifierSchema,
     ownerAccountId: identifierSchema,
     actor: executionActorRefSchema,
@@ -272,6 +306,27 @@ export const capabilityTicketClaimsSchema = z
         message:
           'requester actors require their exact principal and direct read-only authority without standing grants',
       });
+    }
+    if (claims.ceilingId !== undefined) {
+      if (claims.grantId !== undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ceilingId'],
+          message: 'a ticket is bounded by either a grant or a ceiling, never both',
+        });
+      }
+      if (
+        claims.actor.type !== 'agent' ||
+        claims.ownerAccountId !== claims.requesterAccountId ||
+        claims.resource.resourceId !== claims.resource.effectiveAccountId
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['ceilingId'],
+          message:
+            "a ceiling bounds an agent acting on the requester's own authority at an account root",
+        });
+      }
     }
     if (claims.exp <= claims.iat) {
       context.addIssue({
@@ -337,6 +392,7 @@ export const policyDecisionSchema = z
     reason: identifierSchema,
     effectiveAutonomy: autonomyLevelSchema.optional(),
     grantId: identifierSchema.optional(),
+    ceilingId: identifierSchema.optional(),
   })
   .strict();
 
@@ -566,6 +622,26 @@ export const catalogEventSchema = z
   })
   .strict();
 
+/**
+ * A feature an agent may gate on (Alia ADR 0020 §6): the app answers whether the
+ * person may use it (`checkTool`) and, when using it costs something, spends it
+ * (`consumeTool`). Both are internal tools of the same catalogue.
+ */
+export const catalogFeatureSchema = z
+  .object({
+    key: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*$/, 'feature keys are dot-separated slugs')
+      .max(128),
+    description: nonEmptyStringSchema,
+    checkTool: identifierSchema,
+    consumeTool: identifierSchema.optional(),
+  })
+  .strict();
+
+/** How a coordinator reaches the catalogue's internal tools. */
+export const CATALOG_INTERNAL_TRANSPORTS = ['http', 'mcp'] as const;
+
 export const appCapabilityCatalogSchema = z
   .object({
     schemaVersion: z.literal('1'),
@@ -622,11 +698,60 @@ export const appCapabilityCatalogSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * `mcp`: internal tools are served at `<internalBaseUrl>/_oxy/mcp`. Absent or
+     * `http`: each tool's `invocation` path on `internalBaseUrl`.
+     */
+    internalTransport: z.enum(CATALOG_INTERNAL_TRANSPORTS).optional(),
+    features: z.array(catalogFeatureSchema).optional(),
     tools: z.array(catalogToolSchema),
     events: z.array(catalogEventSchema),
   })
   .strict()
   .superRefine((catalog, context) => {
+    const toolsByName = new Map(catalog.tools.map((tool) => [tool.name, tool]));
+    const featureKeys = new Set<string>();
+    for (const [index, feature] of (catalog.features ?? []).entries()) {
+      if (featureKeys.has(feature.key)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate feature key: ${feature.key}`,
+          path: ['features', index, 'key'],
+        });
+      }
+      featureKeys.add(feature.key);
+      const check = toolsByName.get(feature.checkTool);
+      if (
+        !check ||
+        check.effect !== 'read' ||
+        check.exposure.length !== 1 ||
+        check.exposure[0] !== 'internal'
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'checkTool must name an internal-only read tool of this catalogue',
+          path: ['features', index, 'checkTool'],
+        });
+      }
+      if (feature.consumeTool !== undefined) {
+        const consume = toolsByName.get(feature.consumeTool);
+        if (
+          !consume ||
+          consume.effect === 'read' ||
+          consume.idempotency !== 'required' ||
+          consume.exposure.length !== 1 ||
+          consume.exposure[0] !== 'internal'
+        ) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              'consumeTool must name an internal-only effectful tool that requires idempotency keys',
+            path: ['features', index, 'consumeTool'],
+          });
+        }
+      }
+    }
+
     const names = new Set<string>();
     for (const [index, tool] of catalog.tools.entries()) {
       if (names.has(tool.name)) {
@@ -711,5 +836,10 @@ export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type CatalogTool = z.infer<typeof catalogToolSchema>;
 export type CatalogEvent = z.infer<typeof catalogEventSchema>;
 export type AppCapabilityCatalog = z.infer<typeof appCapabilityCatalogSchema>;
+export type CatalogFeature = z.infer<typeof catalogFeatureSchema>;
+export type CatalogInternalTransport = (typeof CATALOG_INTERNAL_TRANSPORTS)[number];
+export type AgentRequesterCeilingWrite = z.infer<typeof agentRequesterCeilingWriteSchema>;
+export type AgentRequesterCeiling = z.infer<typeof agentRequesterCeilingSchema>;
+export type AgentRequesterCeilingAutonomy = (typeof AGENT_REQUESTER_CEILING_AUTONOMY)[number];
 export type CatalogRegistration = z.infer<typeof catalogRegistrationSchema>;
 export type NormalizedAppEvent = z.infer<typeof normalizedAppEventSchema>;

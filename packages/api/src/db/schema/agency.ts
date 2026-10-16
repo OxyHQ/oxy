@@ -12,13 +12,16 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import {
+  AGENT_REQUESTER_CEILING_AUTONOMY,
   AUTONOMY_LEVELS,
   CAPABILITY_PACKAGES,
   type AppCapabilityCatalog,
   type AuditEvent,
+  type AgentRequesterCeilingAutonomy,
   type AutonomyLevel,
   type CapabilityPackage,
   type GrantLimit,
+  type ToolGrantOverride,
 } from '@oxy.so/contracts';
 import { createdAt, generatedId, inList, timestamptz, updatedAt } from '@oxy.so/db';
 import { applicationCredentials } from './applicationCredentials';
@@ -131,6 +134,72 @@ export const delegationLimits = pgTable(
   ],
 );
 
+/**
+ * What an agent may do in one app for WHOEVER uses it (ADR 0042): its owner's
+ * published ceiling. It grants nothing by itself — only a present requester's
+ * execution authorization activates it, and only on that requester's own
+ * account root. One live row per (agent, app); a revoked row is kept so a
+ * ticket that named it can be refused by id.
+ */
+export const agentRequesterCeilings = pgTable(
+  'agent_requester_ceilings',
+  {
+    id: generatedId(),
+    agentAccountId: text()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    appSlug: text().notNull(),
+    catalogRegistrationId: text()
+      .notNull()
+      .references(() => appCapabilityCatalogRegistrations.id, { onDelete: 'restrict' }),
+    capabilityPackages: text({ enum: CAPABILITY_PACKAGES })
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    capabilities: text().array().notNull().default(sql`'{}'::text[]`),
+    toolOverrides: jsonb().$type<ToolGrantOverride[]>().notNull().default(sql`'[]'::jsonb`),
+    limits: jsonb().$type<GrantLimit[]>().notNull().default(sql`'[]'::jsonb`),
+    maximumAutonomy: text({ enum: AGENT_REQUESTER_CEILING_AUTONOMY })
+      .$type<AgentRequesterCeilingAutonomy>()
+      .notNull(),
+    version: integer().notNull().default(1),
+    createdByUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    updatedByUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    revokedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      'agent_requester_ceilings_autonomy_check',
+      sql`${t.maximumAutonomy} in (${sql.raw(inList(AGENT_REQUESTER_CEILING_AUTONOMY))})`,
+    ),
+    check(
+      'agent_requester_ceilings_packages_check',
+      sql`${t.capabilityPackages} <@ array[${sql.raw(inList(CAPABILITY_PACKAGES))}]::text[]`,
+    ),
+    check('agent_requester_ceilings_version_check', sql`${t.version} > 0`),
+    check(
+      'agent_requester_ceilings_overrides_check',
+      sql`jsonb_typeof(${t.toolOverrides}) = 'array'
+        and not jsonb_path_exists(${t.toolOverrides}, '$[*] ? (@.type() != "object" || !exists(@.tool) || @.tool.type() != "string" || !exists(@.decision) || (@.decision != "allow" && @.decision != "deny"))')
+        and not jsonb_path_exists(${t.toolOverrides}, '$[*] ? (@.type() == "object").keyvalue() ? (@.key != "tool" && @.key != "decision")')`,
+    ),
+    check(
+      'agent_requester_ceilings_limits_check',
+      sql`jsonb_typeof(${t.limits}) = 'array'
+        and not jsonb_path_exists(${t.limits}, '$[*] ? (@.type() != "object" || !exists(@.tool) || @.tool.type() != "string" || !exists(@.key) || @.key.type() != "string" || !exists(@.value) || (@.value.type() != "number" && @.value.type() != "boolean"))')
+        and not jsonb_path_exists(${t.limits}, '$[*] ? (@.type() == "object").keyvalue() ? (@.key != "tool" && @.key != "key" && @.key != "value")')`,
+    ),
+    uniqueIndex('agent_requester_ceilings_live_key')
+      .on(t.agentAccountId, t.appSlug)
+      .where(sql`${t.revokedAt} is null`),
+    index('agent_requester_ceilings_catalog_registration_idx').on(t.catalogRegistrationId),
+  ],
+);
+
+export type AgentRequesterCeilingRow = typeof agentRequesterCeilings.$inferSelect;
+
 export const capabilityExecutionAuthorizations = pgTable(
   'capability_execution_authorizations',
   {
@@ -174,12 +243,24 @@ export const capabilityExecutionAuthorizations = pgTable(
     automationId: text(),
     maximumAutonomy: text({ enum: AUTONOMY_LEVELS }).$type<AutonomyLevel>().notNull(),
     limits: jsonb().$type<GrantLimit[]>().notNull().default(sql`'[]'::jsonb`),
+    /** Set when an agent acts for a non-owner under its owner's ceiling (ADR 0042). */
+    ceilingId: text().references(() => agentRequesterCeilings.id, { onDelete: 'cascade' }),
     expiresAt: timestamptz().notNull(),
     revokedAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    check(
+      'capability_execution_ceiling_scope_check',
+      sql`${t.ceilingId} is null or (
+        ${t.actorType} = 'agent'
+        and ${t.ownerAccountId} = ${t.requesterAccountId}
+        and ${t.resourceKey} = ${t.effectiveAccountId})`,
+    ),
+    index('capability_execution_ceiling_idx')
+      .on(t.ceilingId)
+      .where(sql`${t.ceilingId} is not null`),
     foreignKey({
       name: 'capability_execution_requester_method_fk',
       columns: [t.requesterAuthMethodId, t.requesterAccountId],
