@@ -243,3 +243,35 @@ describe('POST /assets/:id/links — only the owner links a file', () => {
     expect(links).toEqual([]);
   });
 });
+
+describe('DELETE /assets/:id/links — an unlink that removes nothing changes nothing', () => {
+  // The route still takes any caller (GoWay's business withdraws a
+  // contributor's link with its own session); what it must not do is trash a
+  // file by naming a link that does not exist.
+  it('leaves a never-linked file active when no link matched', async () => {
+    const id = await fileOf(await account());
+
+    actAs(await account());
+    const res = await send('DELETE', `/assets/${id}/links`, {
+      app: 'nothing',
+      entityType: 'none',
+      entityId: 'nil',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).status).toBe('active');
+  });
+
+  it('still trashes the file when its last link goes', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
+    const target = { app: 'goway', entityType: 'place', entityId: 'place-2' };
+    actAs(owner);
+    await send('POST', `/assets/${id}/links`, target);
+
+    const res = await send('DELETE', `/assets/${id}/links`, target);
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).status).toBe('trash');
+  });
+});

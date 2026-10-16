@@ -1826,16 +1826,19 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      await deleteFileLink(fileId, app, entityType, entityId);
+      const removed = await deleteFileLink(fileId, app, entityType, entityId);
 
       const remaining = await findFileById(fileId);
       if (!remaining) {
         throw new Error('File not found');
       }
 
-      // If no links remain, move to trash. An application-owned file is never
-      // link-managed (ADR 0041): its lifecycle is its application's.
+      // The LAST link going moves the file to trash — and only a removal can
+      // be that. An unlink that matched nothing changes no usage; it used to
+      // trash any never-linked file, anybody's, for the price of naming its id.
+      // An application-owned file is never link-managed (ADR 0041).
       const updated =
+        removed &&
         remaining.links.length === 0 &&
         remaining.status === 'active' &&
         !remaining.ownerApplicationId
