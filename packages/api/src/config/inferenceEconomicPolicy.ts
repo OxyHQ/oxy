@@ -371,7 +371,7 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
     providerProduct: 'kaana',
     environments: ['production'],
     lane: 'service_token',
-    // Approved by Nate on <PENDING>.
+    // Approved by Nate on 2026-10-16.
     //
     // Clarity's search embeddings (`src/lib/kaana-embeddings.ts`): the crawl
     // worker embeds each indexed document's chunks (2,000 characters at a
