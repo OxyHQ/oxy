@@ -599,6 +599,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     // their execution audit; it receives no coordinator or ticket-mint scope.
     // Staff-approved media import stores durable public product photos for the
     // persisted store owner. Ordinary files:write does not authorize that act-as.
+    // Platform artwork that belongs to no store (category tiles) is Mercaria's
+    // own: `files:app:*` stores, lists, re-publishes and removes files the
+    // APPLICATION owns, billed to its owning account (ADR 0041).
     scopes: [
       'user:read',
       'catalogs:write',
@@ -613,6 +616,8 @@ export const SEED_APPS: SeedAppSpec[] = [
       // bought what, then mints short-lived download URLs for them through
       // `/assets/service/linked-url`. Only files their own owners linked here.
       'files:linked:read',
+      'files:app:write',
+      'files:app:delete',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },

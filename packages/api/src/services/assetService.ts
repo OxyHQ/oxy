@@ -1,4 +1,8 @@
-import { assertPhysicalStoragePathSupported } from './storageQuota.service';
+import {
+  assertPhysicalStoragePathSupported,
+  meteredOwnerId,
+  storageAccountForOwner,
+} from './storageQuota.service';
 import {
   reserveStorageBytes,
   reserveStorageBytesWithinTransaction,
@@ -74,9 +78,13 @@ import {
   insertFileLink,
   isUniqueViolation,
   listFilesByOwner,
+  classifyApplicationFileDeleteRefusal,
   classifyFederatedDeleteRefusal,
+  listFilesByApplication,
+  tombstoneApplicationFile,
   tombstoneFederatedFileForApp,
   tombstoneFile,
+  type ApplicationFileCursor,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -141,6 +149,9 @@ function isSameFederatedUpload(file: FileRecord, options: StreamedMediaOptions):
     file.metadata?.serviceAppId === appId
   );
 }
+
+/** Outcome of {@link AssetService.deleteApplicationFile}. */
+export type ApplicationFileDeleteOutcome = 'deleted' | 'not_found' | 'in_use';
 
 /** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
 export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
@@ -495,7 +506,10 @@ export class AssetService {
       },
     );
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'stream key-spelling repair copy');
+    await assertPhysicalStoragePathSupported(
+      meteredOwnerId(file),
+      'stream key-spelling repair copy',
+    );
     await this.s3Service.copyFile(sourceKey, file.storageKey);
     this.cacheFile(file);
     return true;
@@ -1018,6 +1032,89 @@ export class AssetService {
   }
 
   /**
+   * Stream-upload a file the calling APPLICATION owns (ADR 0041) — platform
+   * artwork no person owns. The owner is the verified service token's `appId`
+   * and nothing else; its bytes are metered against the application's owning
+   * account.
+   *
+   * Idempotent per (application, bytes): the application's own live row for
+   * these bytes comes back with `deduplicated: true`, AS IT IS — its
+   * visibility is not rewritten by a re-upload asking for another one, because
+   * a visibility change is a relocation with its own route and its own
+   * consequences (`setApplicationFileVisibility`).
+   */
+  async uploadApplicationFileStream(
+    source: AbortableReadable,
+    mimeType: string,
+    originalName: string,
+    maxBytes: number,
+    applicationId: string,
+    visibility: FileVisibility,
+    metadata?: Record<string, unknown>,
+  ): Promise<StreamedMediaResult> {
+    return this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, {
+      owner: { ownerUserId: null, systemOwner: null, ownerApplicationId: applicationId },
+      purpose: 'user',
+      visibility,
+      metadata: {
+        ...(metadata ?? {}),
+        serviceAppId: applicationId,
+      },
+      tempPrefix: 'application/incoming',
+      logLabel: 'Application file',
+    });
+  }
+
+  /** One page of an application's own live files, newest first. */
+  async listApplicationFiles(
+    applicationId: string,
+    limit: number,
+    after?: ApplicationFileCursor,
+  ): Promise<FileRecord[]> {
+    return listFilesByApplication(applicationId, limit, after);
+  }
+
+  /**
+   * Change the visibility of one of `applicationId`'s own files. `null` when
+   * the file is not that application's live file — another application's file
+   * and no file answer the same, so an id is never an ownership oracle.
+   */
+  async setApplicationFileVisibility(
+    fileId: string,
+    applicationId: string,
+    visibility: FileVisibility,
+  ): Promise<FileRecord | null> {
+    const file = await findFileById(fileId);
+    if (!file || file.status === 'deleted' || file.ownerApplicationId !== applicationId) {
+      return null;
+    }
+    return this.updateFileVisibility(fileId, visibility);
+  }
+
+  /**
+   * Tombstone one of `applicationId`'s own files and owe its storage, through
+   * the same durable, shared-content-guarded purge as every other delete
+   * ({@link tombstoneAndOwePurge}). The authorization is the conditional write
+   * itself ({@link tombstoneApplicationFile}).
+   *
+   * `not_found`: no such live file of THIS application (another application's
+   * file included). `in_use`: somebody else holds it (a link, a mail
+   * attachment, a listing screenshot) — kept, nothing owed.
+   */
+  async deleteApplicationFile(
+    fileId: string,
+    applicationId: string,
+  ): Promise<ApplicationFileDeleteOutcome> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneApplicationFile(tx, fileId, applicationId),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return classifyApplicationFileDeleteRefusal(fileId, applicationId);
+    await this.notifyLinks(tombstoned, 'deleted', { reason: 'application_file_deleted' });
+    return 'deleted';
+  }
+
+  /**
    * Store one of a sticker's files — its Lottie animation or its static
    * fallback — in the `__stickers__` namespace. Public and content-addressed,
    * so the CDN serves it forever; the caller has already validated the bytes
@@ -1079,6 +1176,10 @@ export class AssetService {
     let writtenKey: string | undefined;
     let unwrittenReservation: { id: string; sha256: string } | undefined;
     let committed = false;
+    // The account the bytes are metered against: the owner itself, or an
+    // application's owning account (ADR 0041).
+    const accountId = await storageAccountForOwner(getDb(), options.owner);
+    if (!accountId) throw new Error('A metered upload resolved to no storage account');
     try {
       await pipeline(source, meter, createWriteStream(staged, { flags: 'wx' }));
       if (!size) throw new BadRequestError('Cannot store an empty file');
@@ -1110,18 +1211,25 @@ export class AssetService {
             .from(storageByteReservations)
             .where(
               and(
-                eq(storageByteReservations.accountId, options.owner.ownerUserId!),
+                eq(storageByteReservations.accountId, accountId),
                 eq(storageByteReservations.sha256, sha256),
                 eq(storageByteReservations.size, size),
                 eq(storageByteReservations.kind, 'server'),
                 isNull(storageByteReservations.cleanedAt),
                 sql`(${storageByteReservations.objectKey} like 'content/%' or ${storageByteReservations.objectKey} like 'public/content/%')`,
+                // In flight means no live row stores it yet. A written hold
+                // stays uncleaned after its row commits, and one account now
+                // meters several owners (itself and its applications), so
+                // without this another owner's finished upload of the same
+                // bytes would read as in progress until recovery swept it.
+                sql`not exists (select 1 from "files" f where f.storage_key = ${storageByteReservations.objectKey}
+                  and f.status in ('active', 'trash'))`,
               ),
             )
             .limit(1);
           if (pending) return { kind: 'pending' as const };
           const reservation = await reserveStorageBytesWithinTransaction(tx, {
-            accountId: options.owner.ownerUserId!,
+            accountId,
             sha256,
             objectKey: key,
             size,
@@ -1232,7 +1340,7 @@ export class AssetService {
     maxBytes: number,
     options: StreamedMediaOptions,
   ): Promise<StreamedMediaResult> {
-    if (options.owner.ownerUserId && (await loadProductBillingCatalogue()).storageAdapter)
+    if (meteredOwnerId(options.owner) && (await loadProductBillingCatalogue()).storageAdapter)
       return this.uploadAdmittedOwnerStream(source, mimeType, originalName, maxBytes, options);
     const hash = crypto.createHash('sha256');
     let size = 0;
@@ -1528,7 +1636,7 @@ export class AssetService {
         ];
         if (keys.some((key) => this.targetKeyForVisibility(key, visibility) !== key))
           await assertPhysicalStoragePathSupported(
-            existing.ownerUserId,
+            meteredOwnerId(existing),
             'visibility relocation copy',
           );
       }
@@ -1598,11 +1706,15 @@ export class AssetService {
         return file;
       }
 
-      // Auto-set visibility based on entity type
+      // Auto-set visibility based on entity type — except for an
+      // application-owned file (ADR 0041), whose visibility is a decision its
+      // owning application takes explicitly (`PATCH /assets/service/app/:id/
+      // visibility`) and that no link, by anyone, ever changes implicitly.
       const previousVisibility = file.visibility;
-      const visibility =
-        linkRequest.visibility ??
-        this.inferVisibilityFromEntityType(linkRequest.app, linkRequest.entityType);
+      const visibility = file.ownerApplicationId
+        ? previousVisibility
+        : (linkRequest.visibility ??
+          this.inferVisibilityFromEntityType(linkRequest.app, linkRequest.entityType));
 
       const updated = await updateFile(fileId, {
         visibility,
@@ -1721,9 +1833,12 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      // If no links remain, move to trash
+      // If no links remain, move to trash. An application-owned file is never
+      // link-managed (ADR 0041): its lifecycle is its application's.
       const updated =
-        remaining.links.length === 0 && remaining.status === 'active'
+        remaining.links.length === 0 &&
+        remaining.status === 'active' &&
+        !remaining.ownerApplicationId
           ? await updateFile(fileId, { status: 'trash' })
           : remaining;
       if (!updated) {
@@ -1968,7 +2083,10 @@ export class AssetService {
             });
             continue;
           }
-          await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+          await assertPhysicalStoragePathSupported(
+            meteredOwnerId(file),
+            'visibility relocation copy',
+          );
           await this.s3Service.copyFile(move.key, move.target);
         }
         if (move.hlsRendition) await this.copyHlsSegments(file, move.key, move.target);
@@ -2021,7 +2139,7 @@ export class AssetService {
   ): Promise<void> {
     const playlist = (await this.s3Service.downloadBuffer(toPlaylistKey)).toString('utf8');
     let missing = 0;
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'visibility relocation copy');
     await Promise.all(
       playlistUris(playlist).map(async (uri) => {
         const target = playlistSiblingKey(toPlaylistKey, uri);
@@ -2428,7 +2546,10 @@ export class AssetService {
       }
 
       if ((file.visibility === 'public') !== (visibility === 'public'))
-        await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+        await assertPhysicalStoragePathSupported(
+          meteredOwnerId(file),
+          'visibility relocation copy',
+        );
 
       const updated = await updateFile(fileId, { visibility });
       if (!updated) {

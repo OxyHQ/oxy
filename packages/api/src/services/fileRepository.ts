@@ -27,8 +27,21 @@
  */
 
 import { ConflictError } from '../utils/error';
-import { withStorageQuota } from './storageQuota.service';
-import { and, asc, count, desc, eq, exists, inArray, ne, notExists, or, sql } from 'drizzle-orm';
+import { storageAccountForOwner, withStorageQuota } from './storageQuota.service';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  lt,
+  ne,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { fileLinks, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
@@ -36,23 +49,58 @@ import { messageAttachments } from '../db/schema/messageAttachments';
 import type {
   FileLinkRecord,
   FileOwner,
+  FileOwnerColumns,
   FileRecord,
   FileVariantRecord,
   NewFileVariant,
 } from '../types/file.types';
 
+/** The metered owner columns of a row: the two that decide whose quota it counts against. */
+type MeteredOwner = Pick<FileOwnerColumns, 'ownerUserId' | 'ownerApplicationId'>;
+
+/** The metered owner of one row, read without a lock, or `undefined` when it is gone. */
+async function readMeteredOwner(
+  tx: DatabaseOrTransaction,
+  fileId: string,
+): Promise<MeteredOwner | undefined> {
+  const [row] = await tx
+    .select({ ownerUserId: files.ownerUserId, ownerApplicationId: files.ownerApplicationId })
+    .from(files)
+    .where(eq(files.id, fileId));
+  return row;
+}
+
+/**
+ * The accounts a quota-checked write to this row must lock and re-measure: the
+ * account the row's bytes count against now, and the one a patch moves them to.
+ */
+async function quotaAccountsFor(
+  tx: DatabaseOrTransaction,
+  current: MeteredOwner | undefined,
+  patch?: FilePatch,
+): Promise<(string | null)[]> {
+  const accounts = [current ? await storageAccountForOwner(tx, current) : null];
+  if (patch && (patch.ownerUserId || patch.ownerApplicationId)) {
+    accounts.push(await storageAccountForOwner(tx, patch));
+  }
+  return accounts;
+}
+
 /** Account locks precede this row lock on every quota-checked update. */
 async function assertStableFileOwner(
   tx: DatabaseOrTransaction,
   fileId: string,
-  expected: string | null | undefined,
+  expected: MeteredOwner | undefined,
 ): Promise<void> {
   const [current] = await tx
-    .select({ owner: files.ownerUserId })
+    .select({ ownerUserId: files.ownerUserId, ownerApplicationId: files.ownerApplicationId })
     .from(files)
     .where(eq(files.id, fileId))
     .for('update');
-  if (current?.owner !== expected)
+  if (
+    current?.ownerUserId !== expected?.ownerUserId ||
+    current?.ownerApplicationId !== expected?.ownerApplicationId
+  )
     throw new ConflictError('File ownership changed during admission; retry');
 }
 
@@ -188,11 +236,14 @@ export async function findLiveFileBySha256ForOwner(
   return record ?? null;
 }
 
-/** `owner_user_id = $1` or `system_owner = $1` — exactly one is set (`files_owner_exclusive_check`). */
+/**
+ * `owner_user_id = $1`, `system_owner = $1` or `owner_application_id = $1` —
+ * exactly one is set (`files_owner_exclusive_check`).
+ */
 function ownerPredicate(owner: FileOwner) {
-  return owner.ownerUserId !== null
-    ? eq(files.ownerUserId, owner.ownerUserId)
-    : eq(files.systemOwner, owner.systemOwner);
+  if (owner.ownerUserId !== null) return eq(files.ownerUserId, owner.ownerUserId);
+  if (owner.systemOwner !== null) return eq(files.systemOwner, owner.systemOwner);
+  return eq(files.ownerApplicationId, owner.ownerApplicationId);
 }
 
 /** Whether a storage key is the CDN-reachable `public/` spelling. */
@@ -316,6 +367,42 @@ export async function listFilesByOwner(
   return { files: await withChildren(rows), total: totals?.total ?? 0 };
 }
 
+/** Where one page of an application's files resumes: the last row of the page before. */
+export interface ApplicationFileCursor {
+  createdAt: Date;
+  id: string;
+}
+
+/**
+ * One page of an APPLICATION's own live files (ADR 0041), newest first, with
+ * `(created_at, id)` as the total order so a cursor never skips or repeats a
+ * row that shares a timestamp. Served by `files_owner_application_id_created_at_idx`.
+ */
+export async function listFilesByApplication(
+  applicationId: string,
+  limit: number,
+  after?: ApplicationFileCursor,
+): Promise<FileRecord[]> {
+  const rows = await getDb()
+    .select()
+    .from(files)
+    .where(
+      and(
+        eq(files.ownerApplicationId, applicationId),
+        ne(files.status, 'deleted'),
+        after === undefined
+          ? undefined
+          : or(
+              lt(files.createdAt, after.createdAt),
+              and(eq(files.createdAt, after.createdAt), lt(files.id, after.id)),
+            ),
+      ),
+    )
+    .orderBy(desc(files.createdAt), desc(files.id))
+    .limit(limit);
+  return withChildren(rows);
+}
+
 /**
  * Another LIVE row holding the same content and already carrying variants whose
  * keys are the spelling `visibility` needs — the source `generateVariants`
@@ -406,7 +493,7 @@ export async function insertFile(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FileRecord> {
   if (db === getDb()) return getDb().transaction((tx) => insertFile(values, tx));
-  return withStorageQuota(db, [values.ownerUserId], async () => {
+  return withStorageQuota(db, [await storageAccountForOwner(db, values)], async () => {
     const [row] = await db.insert(files).values(values).returning();
     return { ...row, links: [], variants: [] };
   });
@@ -415,12 +502,9 @@ export async function insertFile(
 /** Apply a column patch and return the file as it now stands, or `null` if it is gone. */
 export async function updateFile(fileId: string, patch: FilePatch): Promise<FileRecord | null> {
   return getDb().transaction(async (tx) => {
-    const [old] = await tx
-      .select({ owner: files.ownerUserId })
-      .from(files)
-      .where(eq(files.id, fileId));
-    return withStorageQuota(tx, [old?.owner, patch.ownerUserId], async () => {
-      await assertStableFileOwner(tx, fileId, old?.owner);
+    const old = await readMeteredOwner(tx, fileId);
+    return withStorageQuota(tx, await quotaAccountsFor(tx, old, patch), async () => {
+      await assertStableFileOwner(tx, fileId, old);
       const rows = await tx.update(files).set(patch).where(eq(files.id, fileId)).returning();
       const [record] = await withChildren(rows, tx);
       return record ?? null;
@@ -477,6 +561,10 @@ function federatedScopeFor(db: DatabaseOrTransaction, appId: string) {
  *
  * The last two are the same references `recordAccountStorageDeletion` refuses to
  * purge.
+ *
+ * For an APPLICATION-owned row (ADR 0041) `owner_user_id` is NULL, so every
+ * link counts as somebody else's — correctly: no person is that file's owner,
+ * so any person's link to it is a reference held outside the application.
  */
 function heldByOthers(db: DatabaseOrTransaction) {
   return or(
@@ -565,6 +653,56 @@ export async function classifyFederatedDeleteRefusal(
 }
 
 /**
+ * Tombstone one of THIS application's own files (ADR 0041) — the whole
+ * authorization decision in the one statement that writes, exactly as
+ * {@link tombstoneFederatedFileForApp} does: the row must be live, owned by
+ * `appId`, and not {@link heldByOthers}. `null` when nothing qualified;
+ * {@link classifyApplicationFileDeleteRefusal} says why.
+ */
+export async function tombstoneApplicationFile(
+  tx: Transaction,
+  fileId: string,
+  appId: string,
+): Promise<FileRecord | null> {
+  const rows = await tx
+    .update(files)
+    .set({ status: 'deleted' })
+    .where(
+      and(
+        eq(files.id, fileId),
+        eq(files.ownerApplicationId, appId),
+        ne(files.status, 'deleted'),
+        sql`not (${heldByOthers(tx)})`,
+      ),
+    )
+    .returning();
+  const [record] = await withChildren(rows, tx);
+  return record ?? null;
+}
+
+/**
+ * Why {@link tombstoneApplicationFile} tombstoned nothing. Another
+ * application's file, or no file, is `not_found` — the caller cannot tell the
+ * two apart, so no file id becomes an oracle for whose it is.
+ */
+export async function classifyApplicationFileDeleteRefusal(
+  fileId: string,
+  appId: string,
+): Promise<'not_found' | 'in_use'> {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      held: sql<boolean>`coalesce(${heldByOthers(db)}, false)`,
+    })
+    .from(files)
+    .where(
+      and(eq(files.id, fileId), eq(files.ownerApplicationId, appId), ne(files.status, 'deleted')),
+    )
+    .limit(1);
+  return row?.held ? 'in_use' : 'not_found';
+}
+
+/**
  * Tombstone any live row — `deleteFile` and cache eviction. Conditional on the
  * row still being live, so a second delete (or a delete racing another) finds
  * nothing and owes nothing: purging a tombstone's keys again could remove the
@@ -646,12 +784,9 @@ export async function upsertVariantSet(
   patch?: FilePatch,
 ): Promise<FileVariantRecord[]> {
   return getDb().transaction(async (tx) => {
-    const [old] = await tx
-      .select({ owner: files.ownerUserId })
-      .from(files)
-      .where(eq(files.id, fileId));
-    return withStorageQuota(tx, [old?.owner, patch?.ownerUserId], async () => {
-      await assertStableFileOwner(tx, fileId, old?.owner);
+    const old = await readMeteredOwner(tx, fileId);
+    return withStorageQuota(tx, await quotaAccountsFor(tx, old, patch), async () => {
+      await assertStableFileOwner(tx, fileId, old);
       const types = variants.map((variant) => variant.type);
       if (types.length > 0) {
         await tx
@@ -689,12 +824,9 @@ export async function upsertVariant(
   variant: NewFileVariant,
 ): Promise<FileVariantRecord> {
   return getDb().transaction(async (tx) => {
-    const [old] = await tx
-      .select({ owner: files.ownerUserId })
-      .from(files)
-      .where(eq(files.id, fileId));
-    return withStorageQuota(tx, [old?.owner, null], async () => {
-      await assertStableFileOwner(tx, fileId, old?.owner);
+    const old = await readMeteredOwner(tx, fileId);
+    return withStorageQuota(tx, await quotaAccountsFor(tx, old), async () => {
+      await assertStableFileOwner(tx, fileId, old);
       await tx
         .delete(fileVariants)
         .where(and(eq(fileVariants.fileId, fileId), eq(fileVariants.type, variant.type)));

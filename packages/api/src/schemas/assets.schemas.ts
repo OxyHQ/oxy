@@ -206,3 +206,9 @@ export const unlinkFileSchema = z.object({
   entityType: z.string().min(1, 'Entity type is required'),
   entityId: z.string().min(1, 'Entity ID is required'),
 });
+
+// GET /assets/service/app — one page of the calling application's own files.
+export const listApplicationFilesQuerySchema = z.object({
+  limit: z.string().regex(/^\d+$/).optional(),
+  cursor: z.string().min(1).max(512).optional(),
+});

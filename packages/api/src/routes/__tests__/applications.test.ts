@@ -725,6 +725,64 @@ describe('PATCH /applications/:appId — privileged scope reconciliation', () =>
 });
 
 // ---------------------------------------------------------------------------
+// Application-owned file scopes (ADR 0041) — bound to the application TYPE,
+// for staff too. The privileged gate decides who may grant; this decides
+// whether the application can hold the scope at all.
+// ---------------------------------------------------------------------------
+
+describe('files:app:* — only a first_party, internal or system application may hold them', () => {
+  it('refuses them on create even to staff, since a new application is third_party', async () => {
+    actAs(OWNER_ID, true);
+    const res = await requestJson(server, 'POST', '/applications', {
+      name: 'Tiles',
+      scopes: ['files:app:write'],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a non-staff owner adding them to a first_party application (privileged)', async () => {
+    const app = await seedApp({ type: 'first_party', scopes: ['user:read'] });
+    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+      scopes: ['user:read', 'files:app:write'],
+    });
+    expect(res.status).toBe(403);
+    expect((await readApp(app.id))?.scopes).toEqual(['user:read']);
+  });
+
+  it('lets staff grant them to a first_party application', async () => {
+    actAs(OWNER_ID, true);
+    const app = await seedApp({ type: 'first_party', scopes: ['user:read'] });
+    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+      scopes: ['user:read', 'files:app:write', 'files:app:delete'],
+    });
+    expect(res.status).toBe(200);
+    expect((await readApp(app.id))?.scopes).toEqual(
+      expect.arrayContaining(['files:app:write', 'files:app:delete']),
+    );
+  });
+
+  it('refuses them to a third_party application even from staff', async () => {
+    actAs(OWNER_ID, true);
+    const app = await seedApp({ type: 'third_party', scopes: ['user:read'] });
+    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+      scopes: ['user:read', 'files:app:write'],
+    });
+    expect(res.status).toBe(400);
+    expect((await readApp(app.id))?.scopes).toEqual(['user:read']);
+  });
+
+  it('refuses reclassifying a holder to third_party while it still holds them', async () => {
+    actAs(OWNER_ID, true);
+    const app = await seedApp({ type: 'first_party', scopes: ['files:app:write'] });
+    const res = await requestJson(server, 'PATCH', `/applications/${app.id}`, {
+      type: 'third_party',
+    });
+    expect(res.status).toBe(400);
+    expect((await readApp(app.id))?.type).toBe('first_party');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------
 

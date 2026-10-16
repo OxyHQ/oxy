@@ -12,11 +12,13 @@
  * ```ts
  * uniqueIndex('files_sha256_owner_user_live_key').on(t.sha256, t.ownerUserId).where(live and owner_user_id is not null)
  * uniqueIndex('files_sha256_system_owner_live_key').on(t.sha256, t.systemOwner).where(live and system_owner is not null)
+ * uniqueIndex('files_owner_application_id_sha256_live_key').on(t.ownerApplicationId, t.sha256).where(live and owner_application_id is not null)
  * ```
  *
- * Two indexes rather than one over `coalesce(owner_user_id, system_owner)`:
- * `files_owner_exclusive_check` already makes exactly one of the two columns
- * non-null, so each index covers one half of the table with a plain column
+ * One index per owner column rather than one over
+ * `coalesce(owner_user_id, system_owner, owner_application_id)`:
+ * `files_owner_exclusive_check` already makes exactly one of the three columns
+ * non-null, so each index covers its part of the table with a plain column
  * list — no expression for a query to match, and the owner lookup
  * (`sha256 = $1 and owner_user_id = $2`) is served by the index directly.
  *
@@ -65,6 +67,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, updatedAt } from '@oxy.so/db';
+import { applications } from './applications';
 import { users } from './users';
 
 /** Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row. */
@@ -144,6 +147,21 @@ export const files = pgTable(
     ownerUserId: text().references(() => users.id, { onDelete: 'cascade' }),
     /** The system namespace that owns this asset, when no user does. */
     systemOwner: text({ enum: FILE_SYSTEM_OWNERS }),
+    /**
+     * The APPLICATION that owns this asset, when neither an account nor a
+     * system namespace does (ADR 0041): platform artwork such as Mercaria's
+     * category tiles, which belongs to no person. Its bytes are metered
+     * against `applications.owner_account_id`, the application's billing
+     * principal (ADR 0007).
+     *
+     * `RESTRICT`, never `CASCADE`. A cascade would drop the rows and with them
+     * the only record of which storage keys the bytes live at, so nothing would
+     * ever purge them. Whoever removes an application removes its files FIRST,
+     * through the tombstone + `storage_object_deletions` path
+     * (`recordAccountStorageDeletion` does this for the account cascade that is
+     * the only hard delete of an application today).
+     */
+    ownerApplicationId: text().references(() => applications.id, { onDelete: 'restrict' }),
     status: text({ enum: FILE_STATUSES }).notNull().default('active'),
     visibility: text({ enum: FILE_VISIBILITIES }).notNull().default('private'),
     purpose: text({ enum: FILE_PURPOSES }).notNull().default('user'),
@@ -188,6 +206,11 @@ export const files = pgTable(
     uniqueIndex('files_sha256_system_owner_live_key')
       .on(t.sha256, t.systemOwner)
       .where(sql`${liveStatusPredicate(t.status)} and ${t.systemOwner} is not null`),
+    // Owner first: the same index also answers "this application's live row
+    // for these bytes" and leads every application-scoped lookup.
+    uniqueIndex('files_owner_application_id_sha256_live_key')
+      .on(t.ownerApplicationId, t.sha256)
+      .where(sql`${liveStatusPredicate(t.status)} and ${t.ownerApplicationId} is not null`),
 
     // ---- compound indexes --------------------------------------------------
     index('files_owner_user_id_status_idx').on(t.ownerUserId, t.status),
@@ -200,6 +223,14 @@ export const files = pgTable(
     index('files_sha256_status_idx').on(t.sha256, t.status),
     index('files_purpose_owner_user_id_status_idx').on(t.purpose, t.ownerUserId, t.status),
     index('files_created_at_idx').on(t.createdAt.desc()),
+    // An application's files, newest first (`GET /assets/service/app`'s
+    // cursor), and the referencing-row probe the `RESTRICT` foreign key runs
+    // when an application row is deleted — `owner_application_id = $1`
+    // implies the partial predicate, so tombstones are covered too. Partial,
+    // so the user-owned 99.99% of the table costs it nothing.
+    index('files_owner_application_id_created_at_idx')
+      .on(t.ownerApplicationId, t.createdAt.desc(), t.id.desc())
+      .where(sql`${t.ownerApplicationId} is not null`),
     // No single-column indexes: `sha256`, `owner_user_id`, `visibility` and
     // `purpose` are each covered by a compound that leads with them. `status`
     // and `mime` are not, and get none: no query filters on either alone (every
@@ -228,10 +259,12 @@ export const files = pgTable(
         FILE_SYSTEM_OWNERS.map((value) => `'${value}'`).join(', '),
       )})`,
     ),
-    // Every asset has exactly one owner: an account, or a system namespace.
+    // Every asset has exactly one owner: an account, a system namespace, or an
+    // application. `num_nonnulls` counts NULLs as false, so the CHECK holds
+    // exactly when one column is set — never zero, never two.
     check(
       'files_owner_exclusive_check',
-      sql`(${t.ownerUserId} is null) <> (${t.systemOwner} is null)`,
+      sql`num_nonnulls(${t.ownerUserId}, ${t.systemOwner}, ${t.ownerApplicationId}) = 1`,
     ),
     check('files_size_check', sql`${t.size} >= 0`),
   ],

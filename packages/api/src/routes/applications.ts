@@ -17,6 +17,8 @@ import {
   type ApplicationScope,
   isPaymentsScope,
   isPrivilegedScope,
+  isScopeGrantableToApplicationType,
+  APPLICATION_OWNED_FILE_APPLICATION_TYPES,
 } from '../utils/applicationScopes';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { isStaffUser } from '../middleware/requireStaff';
@@ -404,6 +406,23 @@ function authorizeRequestedScopes(
   }
 
   return [...deduped, ...preservedPrivileged];
+}
+
+/**
+ * Refuse a scope set the application's TYPE may not hold, whoever asks —
+ * staff included. Today that is the application-owned file scopes, which only
+ * Oxy's own applications may carry (ADR 0041). The privileged gate above
+ * decides WHO may grant a scope; this decides whether the application can hold
+ * it at all, so it runs on the RESULT of a create or update (the type and the
+ * scopes as they will be stored), never on the request alone.
+ */
+function assertScopesGrantableToType(scopes: readonly string[], type: string): void {
+  const refused = scopes.filter((scope) => !isScopeGrantableToApplicationType(scope, type));
+  if (refused.length > 0) {
+    throw new BadRequestError(
+      `The scope(s) [${refused.join(', ')}] can only be held by a ${APPLICATION_OWNED_FILE_APPLICATION_TYPES.join(', ')} application`,
+    );
+  }
 }
 
 /**
@@ -824,6 +843,9 @@ router.post(
 
     // Privileged scopes (e.g. federation:write) are NOT self-grantable.
     const scopes = authorizeRequestedScopes(req, body.scopes ?? [], []);
+    // A new application is `third_party` (the column default; create takes no
+    // type), so it can hold no type-bound scope until staff reclassify it.
+    assertScopesGrantableToType(scopes, 'third_party');
 
     const [application] = await getDb()
       .insert(applications)
@@ -958,6 +980,10 @@ router.patch(
       if (body.isOfficial !== undefined) updates.isOfficial = body.isOfficial;
       if (body.isInternal !== undefined) updates.isInternal = body.isInternal;
       if (body.capabilities !== undefined) updates.capabilities = body.capabilities;
+    }
+
+    if (updates.scopes !== undefined || updates.type !== undefined) {
+      assertScopesGrantableToType(updates.scopes ?? stored.scopes, updates.type ?? stored.type);
     }
 
     // An empty patch writes nothing at all, so `updated_at` stays untouched.

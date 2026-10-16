@@ -173,6 +173,13 @@
  *   INSTANCE actor (`https://<federation domain>/ap/users/instance`) sign one
  *   ActivityPub GET (`POST /federation/instance-fetch/sign`). PRIVILEGED — see
  *   {@link PRIVILEGED_APPLICATION_SCOPES}.
+ * - `files:app:write` / `files:app:delete` act on files the calling APPLICATION
+ *   itself owns (`files.owner_application_id`, ADR 0041): upload, list and
+ *   change visibility (`write`), tombstone (`delete`). The owner is always the
+ *   service token's own `appId`, never a header, so neither reaches another
+ *   application's files or any person's. PRIVILEGED, and grantable only to an
+ *   application whose `type` is in {@link APPLICATION_OWNED_FILE_APPLICATION_TYPES}
+ *   — see {@link isScopeGrantableToApplicationType}.
  */
 export const APPLICATION_SCOPES = [
   'files:read',
@@ -229,6 +236,8 @@ export const APPLICATION_SCOPES = [
   'files:user-media:write',
   'federation:identities:resolve',
   'federation:instance-fetch',
+  'files:app:write',
+  'files:app:delete',
 ] as const;
 
 export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
@@ -377,6 +386,13 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   anyway, because every signature spends Oxy's reputation as a fetcher: a
  *   remote admin who sees abusive reads from `instance@oxy.so` blocks all of
  *   Oxy, not the app that made them.
+ * - `files:app:write` and `files:app:delete` are own-tenant authority — an
+ *   application's own files, never anyone else's — and are privileged anyway,
+ *   for the reason this set exists in reverse: they make Oxy hold bytes that NO
+ *   PERSON owns, billed to the application's owning account (ADR 0041). Whether
+ *   an application may keep platform storage of its own is a platform decision,
+ *   not one its owner takes for themselves, and it is further bounded by
+ *   application type ({@link isScopeGrantableToApplicationType}).
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
@@ -411,7 +427,50 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'files:user-media:write',
   'federation:identities:resolve',
   'federation:instance-fetch',
+  'files:app:write',
+  'files:app:delete',
 ] as const satisfies readonly ApplicationScope[];
+
+/**
+ * The application types that may own files (ADR 0041): Oxy's own products and
+ * services. A third-party application never may — not even with staff behind
+ * the grant — because an application-owned file belongs to no person, and Oxy
+ * does not host ownerless storage for applications it does not run.
+ *
+ * Spelled here rather than imported from `db/schema/applications.ts`: that
+ * module imports THIS one to render its scopes CHECK, so the import would be a
+ * cycle. `applicationScopes.test.ts` pins every entry to `APPLICATION_TYPES`.
+ */
+export const APPLICATION_OWNED_FILE_APPLICATION_TYPES = [
+  'first_party',
+  'internal',
+  'system',
+] as const;
+
+/** The scopes only an {@link APPLICATION_OWNED_FILE_APPLICATION_TYPES} application may hold. */
+export const APPLICATION_OWNED_FILE_SCOPES = [
+  'files:app:write',
+  'files:app:delete',
+] as const satisfies readonly ApplicationScope[];
+
+const APPLICATION_OWNED_FILE_SCOPE_SET: ReadonlySet<string> = new Set<string>(
+  APPLICATION_OWNED_FILE_SCOPES,
+);
+
+/** True when `type` names an application that may own files. */
+export function mayApplicationTypeOwnFiles(type: string): boolean {
+  return (APPLICATION_OWNED_FILE_APPLICATION_TYPES as readonly string[]).includes(type);
+}
+
+/**
+ * Whether an application of `type` may hold `scope` at all — a bound on the
+ * GRANT that applies to platform staff too, unlike the privileged gate, which
+ * only decides WHO may grant. Every scope outside
+ * {@link APPLICATION_OWNED_FILE_SCOPES} is grantable to every type.
+ */
+export function isScopeGrantableToApplicationType(scope: string, type: string): boolean {
+  return !APPLICATION_OWNED_FILE_SCOPE_SET.has(scope) || mayApplicationTypeOwnFiles(type);
+}
 
 /**
  * The follow family: authority over the USER's own follow graph.

@@ -30,7 +30,12 @@ import {
   PRIVILEGED_APPLICATION_SCOPES,
   SERVICE_ACCOUNT_SWITCH_SCOPE,
   USER_CONSENT_REQUIRED_SCOPES,
+  APPLICATION_OWNED_FILE_APPLICATION_TYPES,
+  APPLICATION_OWNED_FILE_SCOPES,
+  isScopeGrantableToApplicationType,
+  mayApplicationTypeOwnFiles,
 } from '../applicationScopes';
+import { APPLICATION_TYPES } from '../../db/schema/applications';
 
 describe('intersectScopes (credential ∩ app grant)', () => {
   it('keeps only scopes present on both sides, preserving credential order', () => {
@@ -475,5 +480,37 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     // and a third-party one. The function takes no application at all, which is
     // how that is guaranteed rather than remembered.
     expect(userConsentRequiredScopes.length).toBe(1);
+  });
+});
+
+describe('application-owned file scopes (ADR 0041)', () => {
+  it('names only real application types, and never third_party', () => {
+    for (const type of APPLICATION_OWNED_FILE_APPLICATION_TYPES) {
+      expect(APPLICATION_TYPES).toContain(type);
+    }
+    expect(mayApplicationTypeOwnFiles('third_party')).toBe(false);
+    expect([...APPLICATION_OWNED_FILE_APPLICATION_TYPES].sort()).toEqual([
+      'first_party',
+      'internal',
+      'system',
+    ]);
+  });
+
+  it('are real, privileged scopes, and the only type-bound ones', () => {
+    for (const scope of APPLICATION_OWNED_FILE_SCOPES) {
+      expect(isValidApplicationScope(scope)).toBe(true);
+      expect(isPrivilegedScope(scope)).toBe(true);
+      expect(isScopeGrantableToApplicationType(scope, 'third_party')).toBe(false);
+      expect(isScopeGrantableToApplicationType(scope, 'first_party')).toBe(true);
+    }
+    expect(isScopeGrantableToApplicationType('files:write', 'third_party')).toBe(true);
+    expect(isScopeGrantableToApplicationType('federation:write', 'third_party')).toBe(true);
+  });
+
+  it('are not a widening of files:write, files:delete or files:user-media:write', () => {
+    // Holding one of those must never be read as holding these, or the reverse.
+    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:write');
+    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:delete');
+    expect(APPLICATION_OWNED_FILE_SCOPES).not.toContain('files:user-media:write');
   });
 });

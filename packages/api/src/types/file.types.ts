@@ -57,17 +57,29 @@ export type FilePurpose = (typeof FILE_PURPOSES)[number];
 export type FileSystemOwner = (typeof FILE_SYSTEM_OWNERS)[number];
 
 /**
- * Who owns an asset: an account, or a system namespace — never both, never
- * neither.
+ * Who owns an asset: an account, a system namespace, or an application (ADR
+ * 0041) — exactly one, never two, never none.
  *
  * `files_owner_exclusive_check` says exactly this in SQL. Saying it in the type
  * too means a write path cannot even construct the ambiguous case, so the CHECK
  * is a backstop for raw SQL rather than the only thing standing between a
  * sentinel string and the user-id column.
+ *
+ * `ownerApplicationId` is optional on the first two arms so the account and
+ * namespace owners every existing path spells keep their shape; absent and
+ * `null` mean the same column value.
  */
 export type FileOwner =
-  | { ownerUserId: string; systemOwner: null }
-  | { ownerUserId: null; systemOwner: FileSystemOwner };
+  | { ownerUserId: string; systemOwner: null; ownerApplicationId?: null }
+  | { ownerUserId: null; systemOwner: FileSystemOwner; ownerApplicationId?: null }
+  | { ownerUserId: null; systemOwner: null; ownerApplicationId: string };
+
+/** The three owner columns of a stored row, as every reader sees them. */
+export type FileOwnerColumns = {
+  ownerUserId: string | null;
+  systemOwner: string | null;
+  ownerApplicationId: string | null;
+};
 
 /** One place an asset is used. */
 export type FileLinkRecord = typeof fileLinks.$inferSelect;

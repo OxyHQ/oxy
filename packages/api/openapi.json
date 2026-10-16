@@ -3448,7 +3448,9 @@
                         "linked-accounts:read",
                         "files:user-media:write",
                         "federation:identities:resolve",
-                        "federation:instance-fetch"
+                        "federation:instance-fetch",
+                        "files:app:write",
+                        "files:app:delete"
                       ]
                     }
                   }
@@ -3727,7 +3729,9 @@
                         "linked-accounts:read",
                         "files:user-media:write",
                         "federation:identities:resolve",
-                        "federation:instance-fetch"
+                        "federation:instance-fetch",
+                        "files:app:write",
+                        "files:app:delete"
                       ]
                     }
                   },
@@ -4097,7 +4101,9 @@
                         "linked-accounts:read",
                         "files:user-media:write",
                         "federation:identities:resolve",
-                        "federation:instance-fetch"
+                        "federation:instance-fetch",
+                        "files:app:write",
+                        "files:app:delete"
                       ]
                     }
                   },
@@ -6641,6 +6647,361 @@
         "operationId": "postAssetsInit"
       }
     },
+    "/assets/service/app": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0041). Raw bytes",
+        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. The bytes are metered against the application's\n      owning account.\n        internal or system application",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "postAssetsServiceApp"
+      },
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "One page of the calling application's own live files, newest first.",
+        "description": "`limit` (1–100, default 50) and the opaque `cursor` a previous page\n      returned as `nextCursor` (absent on the last page).",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+$"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceApp"
+      }
+    },
+    "/assets/service/app/{id}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Delete one of the calling application's own files: the row is",
+        "description": "tombstoned and its storage owed in the same transaction, then purged\n      (`storage_object_deletions`, account `app:<appId>`). 404 for any file\n      that is not this application's live file; 409 `FILE_IN_USE` when\n      somebody else holds it (a link, a mail attachment, a listing\n      screenshot), which is kept.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceAppId"
+      }
+    },
+    "/assets/service/app/{id}/visibility": {
+      "patch": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Change the visibility of one of the calling application's own files.",
+        "description": "The objects are copied to the matching key spelling (`public/` or not)\n      and the old spelling is owed a delete, exactly as for an account's\n      file. 404 for any file that is not this application's live file.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public",
+                      "unlisted"
+                    ]
+                  }
+                },
+                "required": [
+                  "visibility"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "patchAssetsServiceAppIdVisibility"
+      }
+    },
     "/assets/service/by-ids": {
       "post": {
         "tags": [
@@ -6713,7 +7074,11 @@
                               "string",
                               "null"
                             ],
-                            "description": "The owning Oxy user (null for a system-owned file). Present ONLY for Oxy's own applications (internal-tier service tokens), so a first-party service can check an attached asset belongs to the acting user.\n"
+                            "description": "The owning Oxy user (null for a system- or application-owned file). Present ONLY for Oxy's own applications (internal-tier service tokens), so a first-party service can check an attached asset belongs to the acting user.\n"
+                          },
+                          "ownerApplicationId": {
+                            "type": "string",
+                            "description": "The owning application, for an application-owned file only (ADR 0041). Revealed on the same terms as `ownerUserId`.\n"
                           }
                         }
                       }

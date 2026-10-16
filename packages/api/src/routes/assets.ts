@@ -45,6 +45,7 @@ import {
   type federatedAssetDeleteResponse,
   type federatedAssetBatchDeleteResponse,
   type federatedMediaUploadResponse,
+  listApplicationFilesQuerySchema,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
@@ -67,10 +68,10 @@ import {
 } from '../constants/federationCache';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { users } from '../db/schema';
+import { applications, users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
 import { singleQueryValue } from '../utils/queryString';
-import type { ApplicationScope } from '../utils/applicationScopes';
+import { type ApplicationScope, mayApplicationTypeOwnFiles } from '../utils/applicationScopes';
 
 interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -1075,6 +1076,323 @@ router.post(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Application-owned files (ADR 0041)
+//
+// Files an Oxy APPLICATION owns — platform artwork no person owns. The owner
+// is ALWAYS the verified service token's `appId`: no header, body field or
+// query parameter names it, so a token can only ever reach its own
+// application's files. Another application's file answers exactly like no file
+// (404), so an id is never an ownership oracle.
+// ---------------------------------------------------------------------------
+
+/** Per-app ceiling for application-file uploads: an S3 write, like the cache's. */
+const appFileUploadLimiter = rateLimit({
+  prefix: 'rl:asset-app:upload:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_UPLOAD_MAX_PER_MINUTE,
+  message: 'Too many application file uploads. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:upload:${serviceApp.appId}`;
+    }
+    return `asset-app:upload:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/** Per-app ceiling for the cheaper application-file reads and writes. */
+const appFileManageLimiter = rateLimit({
+  prefix: 'rl:asset-app:manage:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many application file requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:manage:${serviceApp.appId}`;
+    }
+    return `asset-app:manage:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/** Rows per `GET /service/app` page. */
+const APP_FILE_LIST_DEFAULT_LIMIT = 50;
+const APP_FILE_LIST_MAX_LIMIT = 100;
+
+/**
+ * The calling application, admitted as a file owner: it holds one of `scopes`
+ * AND, read live rather than from the hour-old token, it is `active` and of a
+ * type that may own files. The scope alone is not enough — staff can reclassify
+ * an application after its credentials were minted, and a suspended application
+ * keeps a valid token until it expires.
+ */
+async function requireFileOwningApplication(
+  req: ServiceAuthRequest,
+  scopes: readonly ApplicationScope[],
+): Promise<string> {
+  const granted = req.serviceApp?.scopes ?? [];
+  if (!scopes.some((scope) => granted.includes(scope))) {
+    throw new ForbiddenError(`Missing required scope: ${scopes.join(' or ')}`);
+  }
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  const [application] = await getDb()
+    .select({ type: applications.type, status: applications.status })
+    .from(applications)
+    .where(eq(applications.id, appId))
+    .limit(1);
+  if (application?.status !== 'active' || !mayApplicationTypeOwnFiles(application.type)) {
+    throw new ForbiddenError('This application may not own files');
+  }
+  return appId;
+}
+
+/** The wire shape of one application-owned file. */
+function serializeApplicationFile(file: FileRecord) {
+  return {
+    id: file.id,
+    sha256: file.sha256,
+    size: file.size,
+    mime: file.mime,
+    ext: file.ext,
+    ...(file.originalName === null ? {} : { originalName: file.originalName }),
+    ownerApplicationId: file.ownerApplicationId,
+    status: file.status,
+    visibility: file.visibility,
+    createdAt: file.createdAt,
+    updatedAt: file.updatedAt,
+  };
+}
+
+/** `<created_at ISO>|<id>`, base64url — opaque to callers, total order with the id tiebreak. */
+function encodeApplicationFileCursor(file: FileRecord): string {
+  return Buffer.from(`${file.createdAt.toISOString()}|${file.id}`, 'utf8').toString('base64url');
+}
+
+function decodeApplicationFileCursor(cursor: string): { createdAt: Date; id: string } {
+  const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+  const separator = decoded.indexOf('|');
+  const createdAt = new Date(decoded.slice(0, separator));
+  const id = decoded.slice(separator + 1);
+  if (separator <= 0 || id.length === 0 || Number.isNaN(createdAt.getTime())) {
+    throw new BadRequestError('Invalid cursor');
+  }
+  return { createdAt, id };
+}
+
+/**
+ * @route POST /api/assets/service/app
+ * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0041). Raw bytes
+ *       as the body (not multipart); `Content-Type` must be an image or video
+ *       type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |
+ *       `private`) is REQUIRED — an application's file has no default audience.
+ *       Optional `x-original-name` and `x-media-metadata` (JSON) as on
+ *       `/service/user-media`. Idempotent per (application, bytes): a re-upload
+ *       answers 200 with the existing file, `deduplicated: true`, and its
+ *       visibility unchanged. The bytes are metered against the application's
+ *       owning account.
+ * @access Service token only: `files:app:write`, on an active first_party,
+ *         internal or system application
+ */
+router.post(
+  '/service/app',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireFileOwningApplication(req, ['files:app:write']);
+
+    const visibility = getSingleHeader(req, 'x-visibility')?.trim();
+    const parsedVisibility = updateVisibilitySchema.shape.visibility.safeParse(visibility);
+    if (!parsedVisibility.success) {
+      throw new BadRequestError('x-visibility must be one of: public, unlisted, private');
+    }
+
+    const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (!mime) {
+      throw new BadRequestError('Content-Type header is required');
+    }
+    if (!(mime.startsWith('image/') || mime.startsWith('video/')) || !isAllowedCacheMime(mime)) {
+      throw new ApiError(
+        415,
+        'Unsupported media type for an application file',
+        'UNSUPPORTED_MEDIA_TYPE',
+      );
+    }
+
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > USER_MEDIA_MAX_BYTES) {
+      throw new ApiError(
+        413,
+        'Application file exceeds the maximum allowed size',
+        'PAYLOAD_TOO_LARGE',
+      );
+    }
+
+    const originalNameHeader = getSingleHeader(req, 'x-original-name');
+    const originalName =
+      originalNameHeader && originalNameHeader.trim().length > 0
+        ? originalNameHeader.trim().slice(0, 255)
+        : 'application-file';
+
+    const metadataHeader = getSingleHeader(req, 'x-media-metadata');
+    let metadata: Record<string, unknown> | undefined;
+    if (metadataHeader) {
+      try {
+        const parsed: unknown = JSON.parse(metadataHeader);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          throw new Error('not an object');
+        }
+        metadata = parsed as Record<string, unknown>;
+      } catch {
+        throw new BadRequestError('x-media-metadata must be a JSON object');
+      }
+    }
+
+    try {
+      const { file, deduplicated } = await assetService.uploadApplicationFileStream(
+        req,
+        mime,
+        originalName,
+        USER_MEDIA_MAX_BYTES,
+        appId,
+        parsedVisibility.data,
+        metadata,
+      );
+
+      logger.info('Application file persisted', {
+        appId,
+        appName: req.serviceApp?.appName,
+        fileId: file.id,
+        deduplicated,
+        mime,
+        size: file.size,
+      });
+
+      sendSuccess(res, { file: serializeApplicationFile(file), deduplicated });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'CacheMediaTooLargeError' ||
+          (error instanceof ApiError && error.code === 'STORAGE_STREAM_TOO_LARGE'))
+      ) {
+        throw new ApiError(
+          413,
+          'Application file exceeds the maximum allowed size',
+          'PAYLOAD_TOO_LARGE',
+        );
+      }
+      throw error;
+    }
+  }),
+);
+
+/**
+ * @route GET /api/assets/service/app
+ * @desc One page of the calling application's own live files, newest first.
+ *       `limit` (1–100, default 50) and the opaque `cursor` a previous page
+ *       returned as `nextCursor` (absent on the last page).
+ * @access Service token only: `files:app:write` or `files:app:delete`
+ */
+router.get(
+  '/service/app',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ query: listApplicationFilesQuerySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireFileOwningApplication(req, ['files:app:write', 'files:app:delete']);
+    const rawLimit = singleQueryValue(req.query.limit);
+    const limit = Math.min(
+      Math.max(rawLimit ? Number.parseInt(rawLimit, 10) : APP_FILE_LIST_DEFAULT_LIMIT, 1),
+      APP_FILE_LIST_MAX_LIMIT,
+    );
+    const rawCursor = singleQueryValue(req.query.cursor);
+    const after = rawCursor ? decodeApplicationFileCursor(rawCursor) : undefined;
+
+    // One row past the page says whether another page exists.
+    const rows = await assetService.listApplicationFiles(appId, limit + 1, after);
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+
+    sendSuccess(res, {
+      files: page.map(serializeApplicationFile),
+      ...(rows.length > limit && last ? { nextCursor: encodeApplicationFileCursor(last) } : {}),
+    });
+  }),
+);
+
+/**
+ * @route PATCH /api/assets/service/app/:id/visibility
+ * @desc Change the visibility of one of the calling application's own files.
+ *       The objects are copied to the matching key spelling (`public/` or not)
+ *       and the old spelling is owed a delete, exactly as for an account's
+ *       file. 404 for any file that is not this application's live file.
+ * @access Service token only: `files:app:write`
+ */
+router.patch(
+  '/service/app/:id/visibility',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: assetIdParams, body: updateVisibilitySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireFileOwningApplication(req, ['files:app:write']);
+    const { visibility } = req.body as z.infer<typeof updateVisibilitySchema>;
+
+    const file = await assetService.setApplicationFileVisibility(req.params.id, appId, visibility);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
+
+    logger.info('Application file visibility updated', {
+      appId,
+      fileId: file.id,
+      visibility: file.visibility,
+    });
+
+    sendSuccess(res, { file: serializeApplicationFile(file) });
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/app/:id
+ * @desc Delete one of the calling application's own files: the row is
+ *       tombstoned and its storage owed in the same transaction, then purged
+ *       (`storage_object_deletions`, account `app:<appId>`). 404 for any file
+ *       that is not this application's live file; 409 `FILE_IN_USE` when
+ *       somebody else holds it (a link, a mail attachment, a listing
+ *       screenshot), which is kept.
+ * @access Service token only: `files:app:delete`
+ */
+router.delete(
+  '/service/app/:id',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireFileOwningApplication(req, ['files:app:delete']);
+    const fileId = req.params.id;
+
+    const result = await assetService.deleteApplicationFile(fileId, appId);
+    logger.info('Audit: application file delete', {
+      event: 'application_file_delete',
+      appId,
+      credentialId: req.serviceApp?.credentialId,
+      fileId,
+      result,
+    });
+
+    if (result === 'not_found') {
+      throw new NotFoundError('File not found');
+    }
+    if (result === 'in_use') {
+      throw new ApiError(409, 'File is still in use', 'FILE_IN_USE');
+    }
+    sendSuccess(res, { id: fileId, result });
+  }),
+);
+
 /**
  * @route DELETE /api/assets/service/cache/:id
  * @desc Evict a cached media asset by id. Rejects (403) anything that is not
@@ -1314,10 +1632,17 @@ router.post(
  *                       ownerUserId:
  *                         type: [string, "null"]
  *                         description: >
- *                           The owning Oxy user (null for a system-owned file).
+ *                           The owning Oxy user (null for a system- or
+ *                           application-owned file).
  *                           Present ONLY for Oxy's own applications (internal-tier
  *                           service tokens), so a first-party service can check an
  *                           attached asset belongs to the acting user.
+ *                       ownerApplicationId:
+ *                         type: string
+ *                         description: >
+ *                           The owning application, for an application-owned
+ *                           file only (ADR 0041). Revealed on the same terms as
+ *                           `ownerUserId`.
  *       400:
  *         description: Validation failed (empty array or more than 100 ids).
  *       401:
@@ -1384,6 +1709,9 @@ router.post(
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
           ...(revealOwner ? { ownerUserId: file.ownerUserId ?? null } : {}),
+          ...(revealOwner && file.ownerApplicationId
+            ? { ownerApplicationId: file.ownerApplicationId }
+            : {}),
         };
       });
 
@@ -1474,6 +1802,9 @@ const assetLinkedUrlLimiter = rateLimit({
  * and there is no owner who could.
  */
 function isOwnerLinkedToApp(file: FileRecord, appId: string): boolean {
+  // An application's OWN file (ADR 0041) needs no link: the caller is its
+  // owner. This is the one way its private bytes leave the platform.
+  if (file.ownerApplicationId) return file.ownerApplicationId === appId;
   if (!file.ownerUserId) return false;
   return file.links.some((link) => link.app === appId && link.createdBy === file.ownerUserId);
 }
@@ -1889,7 +2220,11 @@ router.get(
     const { id: fileId } = req.params;
     const file = await assetService.getFile(fileId);
 
-    if (!file) {
+    // A PRIVATE application-owned file (ADR 0041) is readable by no person:
+    // only its owning application, through its own service token. Its
+    // metadata — variant keys, links, original name — is not served to a
+    // session either; to a session it does not exist.
+    if (!file || (file.ownerApplicationId && file.visibility === 'private')) {
       throw new NotFoundError('File not found');
     }
 
@@ -1911,6 +2246,9 @@ router.get(
         ext: file.ext,
         originalName: file.originalName,
         ownerUserId: file.ownerUserId,
+        // Present only on an application-owned file (ADR 0041), so an
+        // account's file keeps exactly the wire shape it always had.
+        ...(!file.ownerApplicationId ? {} : { ownerApplicationId: file.ownerApplicationId }),
         status: file.status,
         visibility: file.visibility,
         usageCount: file.links.length,

@@ -50,6 +50,20 @@ export class MediaPrivacyService {
     supervisionPolicy?: SupervisedAssetPolicy,
   ): Promise<MediaAccessResult> {
     try {
+      // An APPLICATION owns this asset (ADR 0041). No person owns it, so no
+      // person is its owner, can have blocked anyone over it, or can follow
+      // its way in: `public` and `unlisted` are readable by anyone who has the
+      // link, exactly as for an account's file, and `private` by NO viewer on
+      // this path at all. The owning application reads its private bytes with
+      // its own service token (`POST /assets/service/linked-url`), never
+      // through a person's session or a media token minted for one.
+      if (file.ownerApplicationId) {
+        if (file.visibility === 'private') {
+          return { allowed: false, reason: 'application_private' };
+        }
+        return file.visibility === 'public' ? { allowed: true, isPublic: true } : { allowed: true };
+      }
+
       // NULL means a system namespace owns this asset (`files.system_owner`);
       // no account can be its owner and no account can have blocked it.
       const ownerId = file.ownerUserId;

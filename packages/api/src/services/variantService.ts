@@ -4,7 +4,11 @@ import {
   IMAGE_VARIANT_QUALITY,
   type ImageVariantName,
 } from '@oxy.so/utils/image';
-import { assertPhysicalStoragePathSupported, uploadAdmittedVariant } from './storageQuota.service';
+import {
+  assertPhysicalStoragePathSupported,
+  meteredOwnerId,
+  uploadAdmittedVariant,
+} from './storageQuota.service';
 import type { S3Service } from './s3Service';
 import {
   storageKeyForVisibility,
@@ -731,7 +735,7 @@ export class VariantService {
    * Generates poster frame, multiple bitrate variants, and HLS streams
    */
   private async generateVideoVariants(file: FileRecord): Promise<void> {
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generateVideoVariants');
+    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'generateVideoVariants');
     try {
       logger.info('Generating video variants with FFmpeg', { fileId: file.id });
 
@@ -1559,7 +1563,7 @@ export class VariantService {
    * Generate PDF variants (first page thumbnail)
    */
   private async generatePdfVariants(file: FileRecord): Promise<void> {
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generatePdfVariants');
+    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'generatePdfVariants');
     // This would use pdf2pic or similar to generate thumbnails
     // For now, this is a placeholder
 
@@ -1685,7 +1689,7 @@ export class VariantService {
       return existing;
     }
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
+    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'video/HLS generation');
 
     const config = this.videoVariants.find((v) => v.type === variantType);
     if (!config) {
@@ -1729,7 +1733,7 @@ export class VariantService {
       return existing;
     }
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
+    await assertPhysicalStoragePathSupported(meteredOwnerId(file), 'video/HLS generation');
 
     // Generate poster frame directly from S3 - no temp files
     try {

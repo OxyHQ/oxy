@@ -31,6 +31,7 @@ import {
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
+  isScopeGrantableToApplicationType,
   isValidApplicationScope,
   type ApplicationScope,
 } from '../../utils/applicationScopes';
@@ -607,7 +608,23 @@ describe('the canonical official-application registry', () => {
         'payments:write',
         'files:user-media:write',
         'files:linked:read',
+        'files:app:write',
+        'files:app:delete',
       ]);
+    });
+
+    it('holds the application-owned file scopes only as an application type that may own files', () => {
+      // ADR 0041: a seeded spec that carried `files:app:*` on a type the
+      // application routes refuse would be a grant no Console edit could make.
+      for (const spec of SEED_APPS) {
+        for (const scope of spec.scopes ?? []) {
+          expect({
+            name: spec.name,
+            scope,
+            grantable: isScopeGrantableToApplicationType(scope, spec.type),
+          }).toEqual({ name: spec.name, scope, grantable: true });
+        }
+      }
     });
 
     it('is bound to the Mercaria catalog namespace without coordinator authority', () => {

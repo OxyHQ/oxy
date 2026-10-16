@@ -1,9 +1,9 @@
 import { withContentHashLock } from './contentHashLock';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../config/postgres';
 import { randomUUID } from 'crypto';
-import type { FileRecord, NewFileVariant } from '../types/file.types';
-import { files, fileVariants, storageByteReservations } from '../db/schema';
+import type { FileOwnerColumns, FileRecord, NewFileVariant } from '../types/file.types';
+import { applications, files, fileVariants, storageByteReservations } from '../db/schema';
 import { FILE_LIVE_STATUSES } from '../db/schema/files';
 import { resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import { ApiError } from '../utils/error';
@@ -36,6 +36,60 @@ export async function storageCapacity(
     throw new ApiError(503, 'Storage entitlement unit differs', 'STORAGE_ENTITLEMENT_CONFLICT');
   return Math.max(legacy, quota?.included ?? 0);
 }
+/**
+ * The account a file's bytes are metered against, or `null` for a system
+ * namespace (never metered).
+ *
+ * An account-owned file is metered against its owner. An APPLICATION-owned
+ * file (ADR 0041) is metered against the application's owning account — the
+ * billing principal of ADR 0007, never a person who happened to upload it.
+ */
+export async function storageAccountForOwner(
+  db: DatabaseOrTransaction,
+  owner: Partial<Pick<FileOwnerColumns, 'ownerUserId' | 'ownerApplicationId'>>,
+): Promise<string | null> {
+  if (owner.ownerUserId) return owner.ownerUserId;
+  if (!owner.ownerApplicationId) return null;
+  const [application] = await db
+    .select({ ownerAccountId: applications.ownerAccountId })
+    .from(applications)
+    .where(eq(applications.id, owner.ownerApplicationId))
+    .limit(1);
+  if (!application)
+    throw new ApiError(404, 'Owning application not found', 'STORAGE_OWNER_NOT_FOUND');
+  return application.ownerAccountId;
+}
+
+/**
+ * The owner a physical-storage path must treat as METERED: any owner that is
+ * not a system namespace. Only its presence matters to
+ * {@link assertPhysicalStoragePathSupported}; the account it bills is
+ * {@link storageAccountForOwner}'s question.
+ */
+export function meteredOwnerId(file: {
+  ownerUserId: string | null;
+  ownerApplicationId?: string | null;
+}): string | null {
+  return file.ownerUserId ?? file.ownerApplicationId ?? null;
+}
+
+/**
+ * The rows an account's quota counts: the ones it owns, and the ones each
+ * application it owns owns (ADR 0041).
+ */
+function meteredBy(db: DatabaseOrTransaction, accountId: string) {
+  return or(
+    eq(files.ownerUserId, accountId),
+    inArray(
+      files.ownerApplicationId,
+      db
+        .select({ id: applications.id })
+        .from(applications)
+        .where(eq(applications.ownerAccountId, accountId)),
+    ),
+  );
+}
+
 /** Live original reservations and known variants; trash retains its bytes. */
 export async function reservedStorageBytes(
   db: DatabaseOrTransaction,
@@ -48,7 +102,7 @@ export async function reservedStorageBytes(
   ), 0)), 0)`,
     })
     .from(files)
-    .where(and(eq(files.ownerUserId, userId), inArray(files.status, [...FILE_LIVE_STATUSES])));
+    .where(and(meteredBy(db, userId), inArray(files.status, [...FILE_LIVE_STATUSES])));
   const [pending] = await db
     .select({ bytes: sql<string>`coalesce(sum(${storageByteReservations.size}), 0)` })
     .from(storageByteReservations)
@@ -56,7 +110,8 @@ export async function reservedStorageBytes(
       and(
         eq(storageByteReservations.accountId, userId),
         sql`${storageByteReservations.cleanedAt} is null`,
-        sql`not exists (select 1 from "files" f where f.owner_user_id = ${storageByteReservations.accountId}
+        sql`not exists (select 1 from "files" f where (f.owner_user_id = ${storageByteReservations.accountId}
+          or f.owner_application_id in (select a.id from "applications" a where a.owner_account_id = ${storageByteReservations.accountId}))
         and f.status in ('active', 'trash') and (
           (f.storage_key = ${storageByteReservations.objectKey} and f.size = ${storageByteReservations.size})
           or exists (select 1 from "file_variants" v where v.file_id = f.id
@@ -97,12 +152,15 @@ export async function withStorageQuota<T>(
   return result;
 }
 
-/** Physical writers without complete byte admission fail closed when configured. */
+/**
+ * Physical writers without complete byte admission fail closed when configured.
+ * `meteredOwner` is {@link meteredOwnerId} of the file: any non-system owner.
+ */
 export async function assertPhysicalStoragePathSupported(
-  ownerUserId: string | null,
+  meteredOwner: string | null,
   path: string,
 ): Promise<void> {
-  if (ownerUserId && (await loadProductBillingCatalogue()).storageAdapter)
+  if (meteredOwner && (await loadProductBillingCatalogue()).storageAdapter)
     throw new ApiError(
       503,
       `Storage admission is unavailable for ${path}`,
@@ -116,12 +174,15 @@ export async function uploadAdmittedVariant(
   put: (key: string) => Promise<unknown>,
   remove: (key: string) => Promise<unknown>,
 ): Promise<NewFileVariant> {
-  if (!file.ownerUserId || !(await loadProductBillingCatalogue()).storageAdapter) {
+  if (!meteredOwnerId(file) || !(await loadProductBillingCatalogue()).storageAdapter) {
     await put(variant.key);
     return variant;
   }
   if (!Number.isSafeInteger(variant.size) || (variant.size ?? 0) < 0)
     throw new ApiError(400, 'Variant size is invalid', 'STORAGE_INVALID_SIZE');
+  const { getDb } = await import('../config/postgres.js');
+  const accountId = await storageAccountForOwner(getDb(), file);
+  if (!accountId) throw new Error('A metered file resolved to no storage account');
   const admitted = { ...variant, key: `${variant.key}.${randomUUID()}` };
   const {
     reserveStorageBytes,
@@ -129,7 +190,7 @@ export async function uploadAdmittedVariant(
     releaseUnwrittenStorageReservation,
   } = await import('./storageByteReservation.service.js');
   const reservation = await reserveStorageBytes({
-    accountId: file.ownerUserId,
+    accountId,
     sha256: file.sha256,
     objectKey: admitted.key,
     size: admitted.size!,
@@ -139,11 +200,12 @@ export async function uploadAdmittedVariant(
   try {
     return await withContentHashLock(file.sha256, async (tx) => {
       await assertStorageReservationWritable(tx, reservation.id);
-      await withStorageQuota(tx, [file.ownerUserId], async () => {
+      await withStorageQuota(tx, [accountId], async () => {
         const [current] = await tx.select().from(files).where(eq(files.id, file.id)).for('update');
         if (
           !current ||
           current.ownerUserId !== file.ownerUserId ||
+          current.ownerApplicationId !== file.ownerApplicationId ||
           !FILE_LIVE_STATUSES.includes(current.status as (typeof FILE_LIVE_STATUSES)[number])
         )
           throw new ApiError(409, 'File changed during variant admission', 'STORAGE_FILE_CHANGED');
