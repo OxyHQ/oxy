@@ -233,3 +233,16 @@ export {
 } from './username';
 
 export { userNameCheck } from './userResponse';
+
+export {
+  CLAIMANT_RELATIONSHIPS,
+  CLOSED_CONTENT_CLAIM_STATES,
+  CONTENT_CLAIM_ERROR_CODES,
+  CONTENT_CLAIM_KINDS,
+  CONTENT_CLAIM_LIMITS,
+  CONTENT_CLAIM_STATES,
+  ERASURE_REQUEST_DEADLINE_DAYS,
+  OPEN_CONTENT_CLAIM_STATES,
+  isErasureRequest,
+  isRightsClaim,
+} from './contentClaims';

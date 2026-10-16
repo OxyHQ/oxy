@@ -1631,3 +1631,4 @@ export {
 } from './serviceToken';
 
 export * from './applicationRoles';
+export * from './contentClaims';

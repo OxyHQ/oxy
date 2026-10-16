@@ -54,6 +54,29 @@ ADR 0020 (every agent is the same agent).
   `http` | `mcp`): how a coordinator reaches the catalogue's internal tools.
 ## 4.19.0
 
+Additive only: no export removed or changed.
+
+### Added
+
+- **Content claims** (ADR 0041 D10, the Oxy API's `POST /content-claims`):
+  `contentClaimSubmissionSchema` — the public "Report content / rights
+  claim" body the API parses and the Oxy website's form validates with
+  (strict; every message a stable key under `contentClaim.errors.*`, listed in
+  `CONTENT_CLAIM_VALIDATION_KEYS`); `CONTENT_CLAIM_KINDS`,
+  `CLAIMANT_RELATIONSHIPS`, `CONTENT_CLAIM_LIMITS`, `CONTENT_CLAIM_STATES`,
+  `OPEN_CONTENT_CLAIM_STATES`, `CLOSED_CONTENT_CLAIM_STATES`,
+  `ERASURE_REQUEST_DEADLINE_DAYS`, `CONTENT_CLAIM_ERROR_CODES`
+  (`CONTENT_CLAIM_INVALID`, `CONTENT_BLOCKED`), `isRightsClaim`,
+  `isErasureRequest`; the staff review's vocabularies
+  (`CONTENT_CLAIM_TARGET_RESOLUTIONS`, `CONTENT_CLAIM_TARGET_SOURCES`,
+  `CONTENT_CLAIM_EVENT_ACTIONS`) and views (`ContentClaimSummaryView`,
+  `ContentClaimDetailView`, `ContentClaimTargetView`, `ContentClaimEventView`,
+  `ContentClaimListResponse`, `ContentClaimSubmissionResponse`,
+  `ContentClaimSubmissionError`). The constants and the two predicates are
+  also on `@oxy.so/contracts/client`.
+
+## 4.19.0
+
 Additive only: no export removed or changed in the root entry.
 
 ### Added
