@@ -6,6 +6,7 @@ import { AssetService } from '../services/assetService';
 import { s3Service } from '../services/s3ServiceSingleton';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
+import { resolveOperatorId } from '../middleware/operator';
 import { mediaHeadersMiddleware } from '../middleware/mediaHeaders';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -119,6 +120,22 @@ function serializeVariant(variant: FileVariantRecord) {
     ...(variant.size === null ? {} : { size: variant.size }),
     ...(variant.metadata === null ? {} : { metadata: variant.metadata }),
   };
+}
+
+/**
+ * Whether the session may act on `file` as its OWNER: the file's account is
+ * the session's subject, or the human operating that session (an operated
+ * session speaks as a managed account, but its authority is the operator's —
+ * `middleware/operator.ts`). A file no account owns (a system namespace, an
+ * application) has no owner a session can be.
+ *
+ * The operator is read only when the subject does not match, so an ordinary
+ * request costs no session lookup.
+ */
+async function sessionOwnsFile(req: AuthenticatedRequest, file: FileRecord): Promise<boolean> {
+  if (!file.ownerUserId || !req.user?._id) return false;
+  if (file.ownerUserId === req.user._id.toString()) return true;
+  return file.ownerUserId === (await resolveOperatorId(req));
 }
 
 /**
@@ -2385,7 +2402,7 @@ router.get(
 /**
  * @route GET /api/assets/:id/exists
  * @desc Debug: return storageKey and existence of the underlying object
- * @access Private
+ * @access Private — the file's owner only; any other caller gets 404
  */
 router.get(
   '/:id/exists',
@@ -2399,7 +2416,9 @@ router.get(
 
     const { id: fileId } = req.params;
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // The storage key is storage detail of somebody's file, and an answer at
+    // all says the id exists: neither is any caller's business but the owner's.
+    if (!file || !(await sessionOwnsFile(req, file))) {
       throw new NotFoundError('File not found');
     }
 
