@@ -29,6 +29,8 @@ export interface RawUserFile {
   variants?: unknown[];
   /** Whether any application uses the file (ADR 0041 D5). */
   inUse?: boolean;
+  /** `blocked`: taken down after a content claim (ADR 0041 D10). */
+  status?: string;
 }
 
 /** One page of the infinite file list. */
@@ -51,6 +53,9 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
     chunkSize: 0,
     uploadDate: raw.createdAt ?? '',
     ...(typeof raw.inUse === 'boolean' ? { inUse: raw.inUse } : {}),
+    ...(raw.status === 'active' || raw.status === 'trash' || raw.status === 'blocked'
+      ? { status: raw.status }
+      : {}),
     metadata: raw.metadata ?? {},
     variants: (raw.variants ?? []) as FileMetadata['variants'],
   };

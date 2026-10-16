@@ -913,9 +913,14 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
           ) : undefined),
         title: file.filename,
         // "Not in use": no application references it. Informational only —
-        // the file is never removed for that (ADR 0041 D5).
+        // the file is never removed for that (ADR 0041 D5). A file taken down
+        // after a content claim says so: it is served to nobody (D10).
         description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}${
-          file.inUse === false ? ` • ${t('fileManagement.notInUse')}` : ''
+          file.status === 'blocked'
+            ? ` • ${t('fileManagement.removedAfterClaim')}`
+            : file.inUse === false
+              ? ` • ${t('fileManagement.notInUse')}`
+              : ''
         }`,
         onPress: () => {
           // Support selection in regular mode with long press or if already selecting
