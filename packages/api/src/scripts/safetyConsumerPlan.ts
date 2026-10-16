@@ -37,7 +37,7 @@ export function safetyConsumerPlan(
   if (
     before.owner.id !== target.ownerAccountId ||
     before.owner.status !== 'active' ||
-    before.owner.kind !== 'personal' ||
+    before.owner.kind !== target.ownerKind ||
     before.owner.reputation === 'restricted' ||
     before.owner.supervised ||
     before.application.id !== target.applicationId ||

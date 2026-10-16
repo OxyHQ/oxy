@@ -77,6 +77,7 @@ it('refuses unavailable or supervised owners even when workload grants still exi
     { ...before.owner, status: 'archived' },
     { ...before.owner, supervised: true },
     { ...before.owner, reputation: 'restricted' },
+    { ...before.owner, kind: 'project' },
   ])
     expect(() => safetyConsumerPlan('allo', 'base', [], { ...before, owner })).toThrow('identity');
 });
@@ -85,7 +86,7 @@ it('limits Clarity candidates to reviewed Experience privacy and unrated-content
   expect(SAFETY_CONSUMERS.clarity.candidateActions).toEqual(['profile', 'content']);
   const target = SAFETY_CONSUMERS.clarity;
   const observed = fixture();
-  observed.owner.id = target.ownerAccountId;
+  observed.owner = { ...observed.owner, id: target.ownerAccountId, kind: target.ownerKind };
   observed.application = {
     ...observed.application,
     id: target.applicationId,
