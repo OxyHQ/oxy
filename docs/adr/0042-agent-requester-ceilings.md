@@ -45,8 +45,7 @@ AgentRequesterCeiling {
   capabilityPackages[],          // never finance, security or delegate
   toolOverrides[],               // optional narrowing, same shape as a grant's
   limits[],                      // same shape as a grant's
-  maximumAutonomy: 'read_only' | 'execute_on_request',
-  writes: 'review' | 'on_request',
+  maximumAutonomy: 'read_only' | 'autonomous',   // Alia's "Ver" | "Ver y actuar"
   version, createdBy, updatedAt, revokedAt
 }
 ```
@@ -72,7 +71,7 @@ ceilingId: <the ceiling for (bot, app)>
 grantId: absent
 ```
 
-It is authenticated the same way as the owner-present lane: with the requester's own bearer, so Oxy itself proves the person is present. `ceilingId` and `grantId` are mutually exclusive in the claims schema. A ceiling authorization is never `automation` and never `autonomous`.
+It is authenticated the same way as the owner-present lane: with the requester's own bearer, so Oxy itself proves the person is present. `ceilingId` and `grantId` are mutually exclusive in the claims schema.
 
 `evaluateCapabilityAuthority` evaluates it in this order:
 
@@ -83,7 +82,7 @@ It is authenticated the same way as the owner-present lane: with the requester's
 5. The tool's declared `actors` admit `agent`, where the catalogue declares `actors`.
 6. The effective account's policy does not deny the tool's capabilities. (Unchanged.)
 7. Limits are merged from the authorization and the ceiling. (The same merge as grant limits.)
-8. Autonomy is `mostRestrictiveAutonomy([authorization, ceiling, accountPolicy])`, capped at `execute_on_request`.
+8. Autonomy is `mostRestrictiveAutonomy([authorization, ceiling, accountPolicy])`. A ceiling at `autonomous` lets the agent act with no further confirmation.
 
 The effective permission is therefore:
 
@@ -91,32 +90,35 @@ The effective permission is therefore:
 requester's current authority over their own account
 ∩ effective-account policy
 ∩ the owner's published ceiling for the agent and app
-∩ autonomy of a direct request
 ∩ the app's current authorization
 ```
 
 This is ADR 0018's intersection, with the ceiling in the place a delegation takes. The ticket carries `ceilingId`. `reauthorizeCapabilityTicket` re-reads the ceiling's `revokedAt` and `version`, so narrowing or revoking a ceiling takes effect on the next call. The audit records `ceilingId` beside requester, coordinator, actor and effective account.
 
-### Writes ask unless both sides allow them
+### A run the requester starts keeps the requester
 
-The approval itself belongs to Alia (Alia ADR 0020 §3). Oxy records the facts that approval reads:
+Agents are fully autonomous within their configuration (Alia ADR 0020 §3). When the person present starts a run with a public agent (an autonomous task or a recurring instruction), Alia records it with `POST /capabilities/agent-run-authorizations` in a **requester** variant:
 
-- **`writes: 'review'`:** Alia must show an approval card before every effect.
-- **`writes: 'on_request'`:** the requester's account policy for that app decides whether a direct request without a card is acceptable.
+- The run is created with the requester's own bearer and names `ceilingId`.
+- The requester of every later step is that person, not the bot's parent.
+- Every ticket re-evaluates the rules above: the person must still operate the account, the ceiling must still be current and must be at `autonomous` for an effect.
+- The run ends when the person stops it, when they lose authority over the account, or when the ceiling is revoked.
 
-Payments and irreversible deletes always show a card, whichever value is set.
+### No approval is ever asked
+
+An agent's configuration is its permission: the ceiling (or the owner's grant), the account policy and the limits are the whole decision, and Oxy enforces them on every call. Oxy records no "needs review" fact and Alia shows no approval card. Sensitive packages are reachable only when they are explicitly part of the ceiling or grant, with bounded limits.
 
 ### Present-requester assertions are retired
 
-ADR 0025 is superseded. Once Alia ADR 0020's contract step has shipped, the following are removed:
+ADR 0025 is superseded. The release that adds ceilings deletes, with no deprecation window:
 
 - `POST /internal/native-agents/requester-assertions` and its `/introspect`;
 - `services/nativeRequesterAssertion.service.ts` and `.runtime.ts`;
 - `config/nativeProductAgents.ts`. Clarity's backend application id moves first to `config/firstPartyApplications.ts`, because `routes/resourceIntrospection.ts` still reads it;
 - the native-agent bootstrap script, plan types, workflow and runbook;
-- the `agency.mintRequesterAssertion` / `introspectRequesterAssertion` client methods. They are deprecated in `@oxy.so/core` 4.x and removed in the next major.
+- the `agency.mintRequesterAssertion` / `introspectRequesterAssertion` client methods, removed from `@oxy.so/core` in a major release published with it.
 
-The product workloads lose `inference:invoke` and `acting-as:offline` when nothing they run still uses them. Each loss is proved by a token read-back, as the 2026-10-11 amendment did. `acting-as:offline` stays the lane for absent-user work, for any product that still has some.
+Homiio's and Clarity's workloads lose `inference:invoke` and `acting-as:offline` in the same window, once their own cut ships. Each loss is proved by a token read-back, as the 2026-10-11 amendment did. `acting-as:offline` stays the lane for absent-user work, for any product that still has some.
 
 ADR 0034's foreground `requester` actor is unrelated and unchanged: it is for a present person's own read-only profile tools.
 
@@ -129,7 +131,7 @@ ADR 0034's foreground `requester` actor is unrelated and unchanged: it is for a 
 
 ## Consequences
 
-- Any person can use a public agent on their own data within what its owner published, with no consent screen and no standing grant. Leaving the conversation ends it.
+- Any person can use a public agent on their own data within what its owner published, with no consent screen, no approval card and no standing grant. Only a run the person explicitly starts outlives the conversation.
 - Sindi and Clarity become ordinary agents. Their owners set ceilings in Alia's agent editor, and Homiio and Clarity stop calling Alia from their backends.
 - Contracts gain:
   - `agentRequesterCeilingSchema`;
@@ -138,7 +140,7 @@ ADR 0034's foreground `requester` actor is unrelated and unchanged: it is for a 
   - an optional `internalTransport: 'mcp' | 'http'`, defaulting to `http`. Alia reads it instead of a pilot environment variable.
 
   The catalogue schema is strict. Oxy and Alia must therefore run the release that knows these fields **before** any app registers a catalogue that uses them.
-- Migration `agent_requester_ceilings` is a `pre` migration. The lane is additive. ADR 0025's code is removed only after Alia and the products no longer call it.
+- **Clean cut.** The release that adds `agent_requester_ceilings` (a `pre` migration) also deletes ADR 0025's lane. There is no window in which both exist.
 
 ## Enforcement
 
@@ -149,8 +151,9 @@ ADR 0034's foreground `requester` actor is unrelated and unchanged: it is for a 
   - read or write;
   - each autonomy level.
 
-  A ceiling can never yield `autonomous`, can never reach an account the requester cannot operate, and can never reach the owner's account.
+  A ceiling can never reach an account the requester cannot operate, can never reach the owner's account, and never yields more than its own `maximumAutonomy`.
 - **Revocation:** `reauthorizeCapabilityTicket` refuses within one call after a ceiling is revoked or its version changes.
 - **Claims:** a schema test proves `ceilingId` and `grantId` are exclusive.
 - **Ceiling writes:** a ceiling write by someone who does not operate the bot is refused. A ceiling listing `finance`, `security` or `delegate` is refused.
-- **Contract step:** a CI grep gate fails on `nativeRequesterAssertion`, `NATIVE_PRODUCT_AGENT` or `requester-assertions`.
+- **Requester runs:** a step fails once its requester stops operating the account or the ceiling is revoked or lowered to `read_only`.
+- **Clean cut:** a CI grep gate fails on `nativeRequesterAssertion`, `NATIVE_PRODUCT_AGENT` or `requester-assertions`.
