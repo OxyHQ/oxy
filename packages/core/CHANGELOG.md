@@ -86,6 +86,24 @@ without it.)
 
 ### Added
 
+- `OxyServer.assets.uploadAppFileLarge(source, { mime, visibility, filename?, metadata?, reference?, sha256?, partConcurrency?, partAttempts?, verifyTimeoutMs?, onProgress?, signal? })`
+  and `uploadUserMediaLarge(ownerUserId, source, { … visibility? })` →
+  `LargeServiceUploadResult` (`{ file, deduplicated, uploadId, reference? }`):
+  a file of ANY type up to 8 GiB by a resumable multipart upload
+  (`/assets/service/app/uploads`, `/assets/service/user-media/uploads`, ADR
+  0041 stage 4b). `source` is a `Blob`, bytes, or a file path (Node 20+
+  `fs.openAsBlob`); it is hashed 8 MiB at a time, its parts PUT straight to
+  storage on presigned URLs (`partConcurrency`, default 4, each retried, an
+  expired URL refreshed), and Oxy verifies the assembled file against the
+  declared SHA-256 before it is one. Calling again for the same bytes resumes,
+  sending only the parts storage lacks. A verification that ends without a
+  file rejects with `LargeUploadFailedError` (`code`, `uploadId`); a refusal
+  at open or completion rejects with the API's error (415 for executables and
+  active documents, 413, 451 `CONTENT_BLOCKED`, 422 `CHECKSUM_MISMATCH`).
+  `abortAppFileUpload(uploadId)` / `abortUserMediaUpload(ownerUserId,
+  uploadId)` abandon one. Types `LargeUploadSource`,
+  `LargeServiceUploadOptions`, `LargeServiceUploadResult`,
+  `LargeUploadProgressEvent`, `LargeUploadSession` from `@oxy.so/core/server`.
 - `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
   → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
   Oxy fetches the URL itself (https only on every hop, public addresses only,

@@ -144,6 +144,14 @@ export {
   verifyFileEventSignature,
 } from './fileEvents';
 export type { FileEvent, FileEventType, FileWebhookChallenge } from './fileEvents';
+export { LargeUploadFailedError } from './largeUpload';
+export type {
+  LargeServiceUploadOptions,
+  LargeServiceUploadResult,
+  LargeUploadProgressEvent,
+  LargeUploadSession,
+  LargeUploadSource,
+} from './largeUpload';
 
 // Strict CORS allowlist (Oxy apex family + explicit app origins).
 export { createOxyCors } from './cors';

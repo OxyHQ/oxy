@@ -27,6 +27,7 @@ import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
   ApplicationFile,
+  AssetLiveStatus,
   ApplicationFileImport,
   ApplicationFileImportBatchResult,
   ApplicationFilePage,
@@ -45,6 +46,12 @@ import type {
   ServiceUserMediaImport,
 } from '../models/interfaces';
 import { AssetsApi } from '../api/assets';
+import {
+  runLargeUpload,
+  type LargeServiceUploadOptions,
+  type LargeServiceUploadResult,
+  type LargeUploadSource,
+} from './largeUpload';
 import { NotificationsApi } from '../api/notifications';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
 import {
@@ -461,6 +468,80 @@ export class ServerAssetsApi extends AssetsApi {
       ...(options.signal ? { signal: options.signal } : {}),
       ...(options.timeout ? { timeout: options.timeout } : {}),
     });
+  }
+
+  /**
+   * Store a file of ANY type, up to 8 GiB, that THIS application owns, by a
+   * resumable multipart upload (`/assets/service/app/uploads`, ADR 0041 stage
+   * 4b; `files:app:write`, plus `files:references:write` for `reference`).
+   * The source is hashed first (8 MiB at a time; pass `sha256` to skip it),
+   * then its parts go straight to storage on presigned URLs,
+   * `partConcurrency` at a time, each retried — no byte passes through the
+   * API — and Oxy hashes the assembled file before it is one: bytes that do
+   * not match are refused (422 `CHECKSUM_MISMATCH`). Calling again for the
+   * same bytes after a crash RESUMES: only the parts storage lacks are sent.
+   * Bytes this application already holds answer at once (`deduplicated`).
+   * Refused: executables and active documents such as HTML or SVG (415), more
+   * than 8 GiB (413), taken-down bytes (451 `CONTENT_BLOCKED`), a full plan
+   * for a third-party application (413 `STORAGE_QUOTA_EXCEEDED`). Non-media
+   * types are served as downloads. Renditions are made for images (up to
+   * 100 MiB) and videos only.
+   */
+  async uploadAppFileLarge(
+    source: LargeUploadSource,
+    options: LargeServiceUploadOptions & { visibility: FileVisibility },
+  ): Promise<LargeServiceUploadResult<ApplicationFile>> {
+    return runLargeUpload<ApplicationFile>(
+      lane(this.ctx),
+      '/assets/service/app/uploads',
+      {},
+      options.visibility,
+      source,
+      options,
+    );
+  }
+
+  /**
+   * {@link uploadAppFileLarge} into an existing local user's files
+   * (`/assets/service/user-media/uploads`, `files:user-media:write`): the
+   * account owns the file; public unless `visibility` says otherwise.
+   */
+  async uploadUserMediaLarge(
+    ownerUserId: string,
+    source: LargeUploadSource,
+    options: LargeServiceUploadOptions & { visibility?: FileVisibility },
+  ): Promise<LargeServiceUploadResult<ServiceUserMediaFile & { status: AssetLiveStatus }>> {
+    return runLargeUpload<ServiceUserMediaFile & { status: AssetLiveStatus }>(
+      lane(this.ctx),
+      '/assets/service/user-media/uploads',
+      { 'x-owner-user-id': ownerUserId },
+      options.visibility,
+      source,
+      options,
+    );
+  }
+
+  /**
+   * Abandon an unfinished large upload of this application's: storage
+   * discards its parts. One being verified cannot be aborted (409).
+   */
+  async abortAppFileUpload(uploadId: string): Promise<void> {
+    await lane(this.ctx).request<unknown>(
+      'DELETE',
+      `/assets/service/app/uploads/${encodeURIComponent(uploadId)}`,
+      undefined,
+      { cache: false },
+    );
+  }
+
+  /** {@link abortAppFileUpload} for an upload into `ownerUserId`'s files. */
+  async abortUserMediaUpload(ownerUserId: string, uploadId: string): Promise<void> {
+    await lane(this.ctx).request<unknown>(
+      'DELETE',
+      `/assets/service/user-media/uploads/${encodeURIComponent(uploadId)}`,
+      undefined,
+      { headers: { 'x-owner-user-id': ownerUserId }, cache: false },
+    );
   }
 
   /**
