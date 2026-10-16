@@ -4,6 +4,14 @@
 
 Needs `@oxy.so/core` 4.15.0 (and so `@oxy.so/contracts` 4.19.0).
 
+### Changed
+
+- The `@oxy.so/core` peer is `^4.15.0` (it was an exact version, a leftover
+  of the Oxy One prerelease pin), and `@oxy.so/contracts` is a caret
+  dependency (it was exact): a later core or contracts 4.x minor no longer
+  conflicts with this release or nests a second copy in the app. Core 5 is
+  still refused until it is measured here.
+
 ### Added
 
 - The file manager marks a file no application uses "Not in use" (ADR 0041
