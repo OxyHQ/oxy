@@ -679,7 +679,23 @@ export const SEED_APPS: SeedAppSpec[] = [
     //   (ADR 0021), linked to the page they belong to. Nilo decides who may
     //   read a page (private pages, teamspaces, guests), then mints short-lived
     //   URLs for files linked to it through `/assets/service/linked-url`.
-    scopes: ['user:read', 'inference:invoke', 'files:linked:read'],
+    // - The `noted` capability catalog: Noted's notes are rows of the owner's
+    //   personal Nilo workspace, and Nilo's API serves the notes tools Alia
+    //   and MCP clients call. Nilo registers that catalog (`catalogs:write`,
+    //   `catalog:noted`), re-authorises and audits each ticket
+    //   (`capabilities:read`, `capability-audit:write`) and publishes its
+    //   events to Alia (`capability-events:publish`). The namespace moved from
+    //   the Noted application with `scripts/transfer-capability-catalog.ts`.
+    scopes: [
+      'user:read',
+      'inference:invoke',
+      'files:linked:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('noted')],
   },
   {
     id: WILLO_APPLICATION_ID,
@@ -688,8 +704,8 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://willo.sh',
     type: 'first_party',
     redirectUris: ['https://willo.sh'],
-    // Isolated activity-only principal, same shape as Nilo's: no feature-write
-    // or inference authority.
+    // Isolated activity-only principal: no feature-write or inference
+    // authority.
     scopes: ['user:read'],
   },
   {
