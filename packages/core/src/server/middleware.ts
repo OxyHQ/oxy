@@ -1,12 +1,23 @@
 import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
 /**
  * The Express and Socket.IO middleware `OxyServer` mounts
- * (`server.middleware.auth()`, `.socket()`, `.service()`, `.requireScope()`),
+ * (`server.middleware.auth()`, `.socket()`, `.service()`, `.requireScope()`,
+ * `.requireAppPermission()`),
  * and the Ed25519 service-token and account-event verification they share.
  *
  * Node only; reachable solely from `@oxy.so/core/server`.
  */
 import type { OxyRequestUser } from './auth';
+import {
+  appPermissionErrorBody,
+  appPermissionErrorStatus,
+  assertApplicationPermissionKey,
+  OxyAppPermissionError,
+  type AppPermissionsOptions,
+  type AppPermissionsRequest,
+  type OxyAppPermissions,
+  type RequireAppPermissionOptions,
+} from './appPermissions';
 import { accountActorChainSchema, type AccountActorChain } from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
@@ -314,6 +325,11 @@ export interface OxyMiddlewareHost {
       environment?: string;
     },
   ): Promise<ServiceActingAsVerification | null>;
+  /** `OxyServer.appPermissionsFor` — what the person behind a request holds for this app. */
+  appPermissionsFor(
+    req: AppPermissionsRequest,
+    options?: AppPermissionsOptions,
+  ): Promise<OxyAppPermissions>;
 }
 
 /** Build the middleware set for one server. See `OxyServer.middleware`. */
@@ -1352,7 +1368,84 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
     };
   }
 
-  return { auth, socket, service, requireScope };
+  /**
+   * Express route guard: the PERSON behind this request must hold `permission`,
+   * one of THIS application's own declared keys (application roles,
+   * `docs/auth/application-roles.md`). Mount after `auth()` (or the composed
+   * `createOxyAuthMiddleware`).
+   *
+   * Refusals answer `deny` — `404` by default, so a non-holder (and a request
+   * with no session) cannot tell the route exists; `403` (`401` without a
+   * session) when the surface is public knowledge. Oxy being unreachable
+   * answers `503` and a missing application id `500`: both DENY, neither is
+   * ever treated as "no permissions". A service-token request — delegated or
+   * not — is refused: operator powers are exercised by a person in a session.
+   *
+   * On success the answer is on `req.oxyAppPermissions` (its `operatorId` is the
+   * human to record in an audit log). Answers are cached 30 s per session; pass
+   * `fresh: true` on writes to ask Oxy every time.
+   *
+   * @example
+   * ```typescript
+   * app.use(
+   *   '/internal/payments',
+   *   server.middleware.auth(),
+   *   server.middleware.requireAppPermission('payments.operate'),
+   * );
+   * router.post('/refunds', server.middleware.requireAppPermission('payments.operate', { fresh: true }), handler);
+   * ```
+   */
+  function requireAppPermission(permission: string, options: RequireAppPermissionOptions = {}) {
+    assertApplicationPermissionKey(permission);
+    const { deny = 404, respond = true, ...lookup } = options;
+    if (deny !== 403 && deny !== 404) {
+      throw new Error('requireAppPermission: deny must be 403 or 404');
+    }
+
+    return async (req: AuthReq, res: AuthRes, next: AuthNext): Promise<void> => {
+      let refusal: OxyAppPermissionError;
+      try {
+        const held = await host.appPermissionsFor(req, lookup);
+        if (held.has(permission)) {
+          req.oxyAppPermissions = held;
+          next();
+          return;
+        }
+        refusal = new OxyAppPermissionError(
+          'APP_PERMISSION_DENIED',
+          `Missing application permission ${permission}`,
+          { permission },
+        );
+      } catch (error) {
+        if (!(error instanceof OxyAppPermissionError)) {
+          next(error);
+          return;
+        }
+        refusal = new OxyAppPermissionError(error.code, error.message, {
+          permission,
+          cause: error.cause ?? error,
+        });
+      }
+
+      if (refusal.code !== 'APP_PERMISSION_DENIED') {
+        logger.warn(`[oxy.auth] requireAppPermission refused ${refusal.code}`, {
+          component: 'auth',
+          method: 'requireAppPermission',
+          permission,
+          code: refusal.code,
+          path: req.path,
+        });
+      }
+      if (!respond) {
+        next(refusal);
+        return;
+      }
+      const status = appPermissionErrorStatus(refusal, deny);
+      res.status(status).json(appPermissionErrorBody(status));
+    };
+  }
+
+  return { auth, socket, service, requireScope, requireAppPermission };
 }
 
 /** The middleware set `OxyServer.middleware` exposes. */
@@ -1646,6 +1739,7 @@ interface AuthReq {
   serviceActingAs?: { userId: string; scopes: string[] };
   oxyActor?: AccountActorChain | null;
   oxyAuthRefusal?: OxyAuthRefusal;
+  oxyAppPermissions?: OxyAppPermissions;
 }
 
 interface AuthRes {

@@ -1,0 +1,118 @@
+---
+title: Application roles
+description: Gate your backend's operator surfaces on permissions your app declares and Oxy grants — no allow-lists in your environment.
+order: 4
+---
+
+# Application roles
+
+Your application declares its own permissions — `payments.operate`,
+`catalog.operate`, `moderation.review` — in the Oxy Console (application →
+Settings → Roles). Its owners grant them to people there. Your backend asks Oxy
+which of them the person in front of it holds. Nobody keeps a list of Oxy user
+ids in your environment.
+
+A key is 2–4 dot-separated lowercase words. It never contains a colon, so it can
+never be mistaken for one of Oxy's own permissions or scopes, and only your app
+reads it.
+
+## Configure
+
+```ts
+import { OxyServer } from '@oxy.so/core/server';
+
+const oxy = new OxyServer({
+  baseURL: 'https://api.oxy.so',
+  // Which application's permissions to read. Optional when `serviceAuth` is set:
+  // the service token names the application.
+  applicationId: process.env.OXY_APPLICATION_ID,
+  // Optional: how long one answer is reused per session (default 30 000 ms, 0 = never).
+  appPermissionsCacheTtlMs: 30_000,
+});
+```
+
+## Guard a route
+
+Mount after `oxy.middleware.auth()` (or `createOxyAuthMiddleware(oxy)`):
+
+```ts
+app.use(
+  '/internal/payments',
+  oxy.middleware.auth(),
+  oxy.middleware.requireAppPermission('payments.operate'),
+  paymentsOperatorRouter,
+);
+```
+
+By default a refusal answers **404** — to a person without the permission and
+to a request with no session alike — so an operator surface cannot be
+discovered. Pass `{ deny: 403 }` where the surface is public knowledge (then a
+request with no session gets 401).
+
+| Situation | `deny: 404` (default) | `deny: 403` |
+|---|---|---|
+| Holds the permission | `next()` | `next()` |
+| Signed in, does not hold it | 404 | 403 |
+| No user session, or a service-token request | 404 | 401 |
+| Oxy unreachable / malformed answer | 503 | 503 |
+| No application id, or Oxy does not know it | 500 | 500 |
+
+Bodies are `{ "error": { "code", "message" } }`. Pass `{ respond: false }` to
+receive the typed `OxyAppPermissionError` in your own error handler instead
+(`appPermissionErrorStatus(error, deny)` gives the status the middleware would
+have used).
+
+On success `req.oxyAppPermissions` holds the answer. Its `operatorId` is the
+**person** — when someone acts as their organization, `req.userId` is the
+organization and `operatorId` is them. Record `operatorId` as the actor in your
+audit log.
+
+### A Mercaria-style operator gate
+
+```ts
+type OperatorSurface = 'payments' | 'catalog' | 'guest' | 'analytics' | 'retail' | 'procurement' | 'referrals';
+
+export function requireOperator(surface: OperatorSurface, options: { fresh?: boolean } = {}) {
+  return oxy.middleware.requireAppPermission(`${surface}.operate`, { deny: 404, ...options });
+}
+
+router.get('/internal/payments/fee-schedules', requireOperator('payments'), listFeeSchedules);
+router.post('/internal/payments/remedies', requireOperator('payments', { fresh: true }), decideRemedy);
+```
+
+## Ask without a middleware
+
+```ts
+const held = await oxy.appPermissionsFor(req);             // cached up to 30 s
+if (held.has('catalog.operate')) { … }
+
+const fresh = await oxy.appPermissionsFor(req, { fresh: true });   // before a write
+```
+
+It throws `OxyAppPermissionError` with `code`:
+
+- `APP_PERMISSION_SESSION_REQUIRED` — no verified user session, or a service-token request (delegated or not). Operator powers are exercised by a person in a session.
+- `APP_PERMISSION_UNAVAILABLE` — Oxy could not answer. Treat as denied.
+- `APP_PERMISSION_NOT_CONFIGURED` — no application id, or Oxy does not know it.
+- `APP_PERMISSION_DENIED` — only from the middleware, or when Oxy refuses the session for this application.
+
+It never answers "holds nothing" for a failure.
+
+## How fast a revocation takes effect
+
+Oxy reads grants live. This SDK reuses one answer per session for
+`appPermissionsCacheTtlMs` (default 30 s), so a revoked person keeps a cached
+permission on your backend for at most that long. Use `fresh: true` on writes
+and irreversible actions; it asks Oxy every time and refreshes the cache. To
+drop a person's cached answers immediately: `oxy.invalidateAppPermissions({ userId })`.
+
+## Declaring the vocabulary
+
+Holders of the application's `roles:manage` permission (the owning account's
+owners and admins) declare the whole list in the Console, or with
+`PUT /applications/:appId/roles/permissions`. Removing a key retires it and
+revokes every grant of it. Declare a key before deploying code that checks it —
+until it is declared and granted, the check simply denies.
+
+Mechanism, data model and the full API: `docs/auth/application-roles.md` in the
+Oxy repository.

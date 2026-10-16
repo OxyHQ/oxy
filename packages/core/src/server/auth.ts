@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { AuthMiddlewareOptions, OxyAuthRefusal, OxyMiddleware } from './middleware';
 import type { AccountActorChain } from '@oxy.so/contracts';
+import type { OxyAppPermissions } from './appPermissions';
 import { logger } from '../logger';
 import {
   OXY_SERVICE_ENVIRONMENTS,
@@ -59,6 +60,12 @@ export interface OxyAuthRequest extends Request {
    * {@link getOxyAuthRefusal} — never put it in a response body.
    */
   oxyAuthRefusal?: OxyAuthRefusal;
+  /**
+   * What the person behind this request holds of this application's own
+   * permissions, set by `middleware.requireAppPermission` once it admits the
+   * request. Its `operatorId` is the human to record as the actor.
+   */
+  oxyAppPermissions?: OxyAppPermissions;
 }
 
 export interface OxyAuthenticatedRequest extends OxyAuthRequest {

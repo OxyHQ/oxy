@@ -73,6 +73,13 @@ import {
   type VerifyAccountEventOptions,
 } from './middleware';
 import {
+  APP_PERMISSIONS_CACHE_TTL_MS,
+  OxyAppPermissionsResolver,
+  type AppPermissionsOptions,
+  type AppPermissionsRequest,
+  type OxyAppPermissions,
+} from './appPermissions';
+import {
   ServerAccountsApi,
   ServerAppsApi,
   ServerAgencyApi,
@@ -105,6 +112,21 @@ export interface OxyServerConfig extends OxyConfig {
    * service token.
    */
   serviceIdentity?: 'never' | 'when-anonymous';
+  /**
+   * This backend's Oxy application id — the application whose own permissions
+   * (application roles) `appPermissionsFor` and
+   * `middleware.requireAppPermission` read. Optional when `serviceAuth` is set
+   * (or workload identity is available): the service token names the
+   * application, and that is used instead.
+   */
+  applicationId?: string;
+  /**
+   * How long one application-permissions answer is reused, per session
+   * (default 30 000 ms). This is the longest a revoked grant keeps working on
+   * this backend for a read that does not pass `fresh: true`. `0` disables the
+   * cache.
+   */
+  appPermissionsCacheTtlMs?: number;
 }
 
 /**
@@ -213,6 +235,8 @@ export class OxyServer extends OxyServices {
    * a service token and goes out anonymous. Set after a failed mint.
    */
   private anonymousServiceTokenRetryAt = 0;
+  private readonly configuredApplicationId: string | null;
+  private readonly appPermissions: OxyAppPermissionsResolver;
 
   /**
    * Express and Socket.IO middleware.
@@ -242,6 +266,16 @@ export class OxyServer extends OxyServices {
     if (config.serviceIdentity === 'when-anonymous') {
       this.http.setAnonymousAuthProvider(() => this.serviceTokenForAnonymousRequest());
     }
+    const ttl = config.appPermissionsCacheTtlMs ?? APP_PERMISSIONS_CACHE_TTL_MS;
+    if (!Number.isFinite(ttl) || ttl < 0) {
+      throw new Error('appPermissionsCacheTtlMs must be a non-negative number of milliseconds');
+    }
+    this.configuredApplicationId = config.applicationId?.trim() || null;
+    this.appPermissions = new OxyAppPermissionsResolver({
+      ttlMs: ttl,
+      defaultApplicationId: () => this.defaultApplicationId(),
+      fetchRolesMe: (applicationId, accessToken) => this.fetchRolesMe(applicationId, accessToken),
+    });
     this.middleware = createOxyMiddleware({
       get baseURL() {
         return server.baseURL;
@@ -249,6 +283,7 @@ export class OxyServer extends OxyServices {
       jwksCache: this.jwksCache,
       validateSession: (sessionId, options) => this.session.validate(sessionId, options),
       verifyActingAs: (appId, userId, options) => this.verifyActingAs(appId, userId, options),
+      appPermissionsFor: (req, options) => this.appPermissionsFor(req, options),
     });
   }
 
@@ -492,6 +527,56 @@ export class OxyServer extends OxyServices {
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
+  }
+
+  // ── Application roles ────────────────────────────────────────────────────
+
+  /**
+   * Which of this application's own declared permissions the PERSON behind
+   * `req` holds (application roles, `docs/auth/application-roles.md`). `req`
+   * must have passed `middleware.auth()`: the answer is read from Oxy with the
+   * request's own verified bearer, for the human operator of its session.
+   *
+   * Cached per session for `appPermissionsCacheTtlMs` (30 s); pass
+   * `{ fresh: true }` before a write. Throws `OxyAppPermissionError` — no
+   * session (`APP_PERMISSION_SESSION_REQUIRED`, also for any service-token
+   * request), Oxy unreachable (`APP_PERMISSION_UNAVAILABLE`), no or unknown
+   * application id (`APP_PERMISSION_NOT_CONFIGURED`) — and never answers
+   * "nothing held" for a failure.
+   */
+  appPermissionsFor(
+    req: AppPermissionsRequest,
+    options: AppPermissionsOptions = {},
+  ): Promise<OxyAppPermissions> {
+    return this.appPermissions.resolve(req, options);
+  }
+
+  /**
+   * Drop cached application-permission answers — all of them, or one
+   * person's (as the session user or the resolved operator). For a backend
+   * that learns of a revocation out of band and will not wait out the TTL.
+   */
+  invalidateAppPermissions(filter: { userId?: string } = {}): void {
+    this.appPermissions.invalidate(filter);
+  }
+
+  private async defaultApplicationId(): Promise<string | null> {
+    if (this.configuredApplicationId) return this.configuredApplicationId;
+    if (!this.canMintServiceToken()) return null;
+    const appId = jwtDecode<{ appId?: unknown }>(await this.serviceToken()).appId;
+    return typeof appId === 'string' && appId.length > 0 ? appId : null;
+  }
+
+  private fetchRolesMe(applicationId: string, accessToken: string): Promise<unknown> {
+    if (/[\r\n]/.test(accessToken)) {
+      return Promise.reject(new Error('A user session is required'));
+    }
+    return this.request<unknown>(
+      'GET',
+      `/applications/${encodeURIComponent(applicationId)}/roles/me`,
+      undefined,
+      { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } },
+    );
   }
 
   // ── Delegation and account events ────────────────────────────────────────

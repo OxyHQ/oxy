@@ -124,6 +124,16 @@ or unresolved actors routinely omit it. Render it when present; when absent,
 fall back to the normalized handle (`displayName ?? handle`). Do not rebuild
 names from `name.first`, `name.last`, `name.full`, or `username`.
 
+### Application roles
+
+Gate your backend's operator surfaces on permissions your application declares and Oxy grants to people — never on a list of user ids in your environment:
+
+```ts
+app.use('/internal/payments', oxy.middleware.auth(), oxy.middleware.requireAppPermission('payments.operate'));
+```
+
+See [Application roles](./application-roles.mdx).
+
 ### Service tokens
 
 For backend-to-backend calls inside the Oxy ecosystem, register an `Application` with an `ApplicationCredential` of `type: 'service'` and use the OAuth2 client-credentials flow. The credential's `publicKey` (`oxy_dk_…`) is the client id; the secret is shown once at create/rotate time:
