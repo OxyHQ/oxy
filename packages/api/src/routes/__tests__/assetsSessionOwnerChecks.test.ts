@@ -60,7 +60,7 @@ jest.mock('../../queue/assetVariants.queue', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { files, users } from '../../db/schema';
+import { fileLinks, files, users } from '../../db/schema';
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 import fileCache from '../../utils/fileCache';
@@ -207,5 +207,39 @@ describe('POST /assets/:id/restore — only the owner brings a file back from tr
 
     expect(res.status).toBe(404);
     expect((await row(id)).status).toBe('trash');
+  });
+});
+
+describe('POST /assets/:id/links — only the owner links a file', () => {
+  const target = { app: 'goway', entityType: 'place', entityId: 'place-1' };
+
+  it('links the owner’s file, and the operator’s own file while acting for a business', async () => {
+    const owner = await account();
+    const id = await fileOf(owner);
+    actAs(owner);
+    expect((await send('POST', `/assets/${id}/links`, target)).status).toBe(200);
+
+    // GoWay: the session speaks as the business; the photo is the person's.
+    const person = await account();
+    const photo = await fileOf(person);
+    actAs(await account(), person);
+    expect((await send('POST', `/assets/${photo}/links`, target)).status).toBe(200);
+  });
+
+  it('refuses anybody else, writing no link and leaving visibility as it was', async () => {
+    const id = await fileOf(await account(), { visibility: 'private' });
+
+    actAs(await account());
+    const res = await send('POST', `/assets/${id}/links`, {
+      app: 'profile',
+      entityType: 'avatar',
+      entityId: 'attacker',
+      visibility: 'public',
+    });
+
+    expect(res.status).toBe(403);
+    expect((await row(id)).visibility).toBe('private');
+    const links = await getDb().select().from(fileLinks).where(eq(fileLinks.fileId, id));
+    expect(links).toEqual([]);
   });
 });

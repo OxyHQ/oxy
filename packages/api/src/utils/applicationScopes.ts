@@ -140,10 +140,11 @@
  *   Not privileged, and the bound that makes it self-grantable is the LINK, not
  *   the token. `file_links` records `created_by` and `files` records
  *   `owner_user_id`; the route admits a file only when some link for the calling
- *   app was created BY THE FILE'S OWNER. `assetService.linkFile` performs no
- *   ownership check — any authenticated user may link any file id into any app —
- *   so "a link for my app exists" is an attacker-supplied fact and would have
- *   made this scope "read any file whose id you can guess". `created_by =
+ *   app was created BY THE FILE'S OWNER. Linking performed no ownership check
+ *   until 2026-10 — any authenticated user could link any file id into any app,
+ *   and those links remain — so "a link for my app exists" is an
+ *   attacker-supplied fact and would have made this scope "read any file whose
+ *   id you can guess". `created_by =
  *   owner_user_id` is not attacker-supplied: forging it requires the owner's own
  *   credentials, and a user who attaches their own file to an application has
  *   done the thing consent would have asked them about. The authority is

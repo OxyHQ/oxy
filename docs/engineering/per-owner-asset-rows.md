@@ -183,11 +183,11 @@ Treat 0124 as forward-only.
   PUT match the declared `sha256`. Such a row's object can hold other content,
   and a later second owner's row would share it. This predates the change. The
   fix is `ChecksumSHA256` on the presigned PUT, or a hash check at `complete`.
-- `POST /assets/:id/links` and `DELETE /assets/:id/links` accept any
-  authenticated caller and any file id. Linking also re-derives the file's
-  visibility, so any account can make anyone's file private or public by
-  linking it. This predates the change and was left alone because an owner
-  check changes behaviour for consumers.
+- `POST /assets/:id/links` now requires the file's owner (the session's
+  subject or its operator). `DELETE /assets/:id/links` still accepts any
+  authenticated caller: GoWay's business-claim withdrawal removes a
+  contributor's link with the business's session, so an owner check there
+  needs a decision about that flow first.
 - A visibility relocation copies originals and recorded renditions, not HLS
   segments. Playlists relocated to the other spelling name segments that were
   never copied. This predates the change.

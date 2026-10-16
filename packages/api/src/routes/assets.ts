@@ -1798,17 +1798,19 @@ const assetLinkedUrlLimiter = rateLimit({
  * This predicate is the whole authorization of the route below, so it is worth
  * being explicit about what it is NOT. It is not "the app holds a service
  * token" — every caller here does. It is not "a link for this app exists":
- * `assetService.linkFile` performs no ownership check at all, so any
- * authenticated user can link any file id they can name into any app, and a
- * bare link test would make this route "read any file whose id you can guess,
- * after one call you make yourself". And it is not the file's `visibility`,
+ * until 2026-10 the link route checked no ownership, so any authenticated user
+ * could link any file id they could name into any app — and those links
+ * remain — so a bare link test would make this route "read any file whose id
+ * you can guess". And it is not the file's `visibility`,
  * which says who may VIEW it in Oxy's own surfaces and has nothing to say about
  * a third-party service.
  *
  * It is the conjunction, and the conjunction is not forgeable by anyone but the
  * owner: `file_links.created_by` is always `req.user._id` at the one route that
  * writes it, so a link satisfying `created_by = owner_user_id` can only have
- * been created by someone holding the owner's own credentials. A user who
+ * been created by someone holding the owner's own credentials. (That route now
+ * also refuses a caller who does not own the file, but links written before it
+ * did remain, so the conjunction is still the whole check.) A user who
  * attaches their own file to an application has performed the act a consent
  * screen would have asked about, per file, revocably (they can unlink it).
  *
@@ -2099,7 +2101,7 @@ router.post(
 /**
  * @route POST /api/assets/:id/links
  * @desc Link file to an entity
- * @access Private
+ * @access Private — the file's owner only; anybody else gets 403
  */
 router.post(
   '/:id/links',
@@ -2120,6 +2122,17 @@ router.post(
         throw new ValidationError('Invalid request data', { details: error.errors });
       }
       throw error;
+    }
+
+    // A link is a USE of the file, and it re-derives the file's visibility and
+    // pulls it out of trash. Naming someone else's id used to do all three to
+    // their file — make it public, make it private, or keep it alive.
+    const target = await assetService.getFile(fileId);
+    if (!target) {
+      throw new NotFoundError('File not found');
+    }
+    if (!(await sessionOwnsFile(req, target))) {
+      throw new ForbiddenError('You do not own this file');
     }
 
     const linkRequest = {
