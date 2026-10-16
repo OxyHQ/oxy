@@ -1,6 +1,6 @@
 # ADR 0042 — An agent acts for a present requester under its owner's published ceiling; present-requester assertions are retired
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-16
 - Amends: ADR 0018 (adds the addendum "an agent acts for a present non-owner requester")
 - Supersedes: ADR 0025 (present-requester assertions for native product agents)
