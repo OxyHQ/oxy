@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Fixed (Kaana's grant traffic is charged to Kaana's credential, not its address)
+
+- The global limiters (`rl:general`, 1000/15min per address, and the
+  `slowDown` past 100) recognised only `oxy-api` service tokens as service
+  traffic, so Kaana's workload token (`oxy-api:kaana-control`) was charged to
+  its egress address as a browser. Every kaana.ai caller's grant shares that
+  address: past 1,000 authorizations in fifteen minutes every caller was
+  refused, with the limiter's plain-text `Too many requests` that Kaana could
+  not read and answered as `503 service_unavailable` (2026-10-16, ~05:00–05:56Z,
+  1,059 refusals). Past 100, every grant waited 500 ms more. Kaana's token now
+  counts as service traffic and is charged to its credential
+  (`rl:service:credential:`, 60,000/15min); each caller's own limits are still
+  the grant route's machine-lane limiters, which answer the public
+  `rate_limited` error.
+- `verifyServiceToken` takes a list of audiences; only the rate limiters, which
+  authorize nothing, pass one.
+
 ### Fixed (an embeddings batch is held to the context per input, not in total)
 
 - `POST /internal/kaana/v1/authorizations` for `embeddings` compared the batch's

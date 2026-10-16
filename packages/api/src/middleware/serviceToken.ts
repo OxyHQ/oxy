@@ -164,12 +164,15 @@ function verifyEd25519ServiceToken(token: string): UnverifiedServiceClaims | nul
  *
  * `audience` defaults to Oxy's own API: every existing caller keeps refusing a
  * token minted for `kaana.ai` or Kaana's control plane, and the grant API asks
- * for exactly the audience it serves (`config/serviceTokenAudiences.ts`).
+ * for exactly the audience it serves (`config/serviceTokenAudiences.ts`). A
+ * list admits a token minted for any one of them — only the rate limiters,
+ * which charge a budget and authorize nothing, ask that question.
  */
 export function verifyServiceToken(
   token: string,
-  audience: ServiceTokenAudience = OXY_API_AUDIENCE,
+  audience: ServiceTokenAudience | readonly ServiceTokenAudience[] = OXY_API_AUDIENCE,
 ): ServiceTokenVerification {
+  const audiences: readonly string[] = typeof audience === 'string' ? [audience] : audience;
   let header: { alg?: unknown } | null = null;
   try {
     const candidate = decodeSegment(token.split('.')[0] ?? '');
@@ -204,7 +207,9 @@ export function verifyServiceToken(
   }
   if (
     decoded.iss !== 'oxy-auth' ||
-    !(decoded.aud === audience || (Array.isArray(decoded.aud) && decoded.aud.includes(audience))) ||
+    !(typeof decoded.aud === 'string'
+      ? audiences.includes(decoded.aud)
+      : Array.isArray(decoded.aud) && decoded.aud.some((named) => audiences.includes(named))) ||
     (decoded.nbf !== undefined && (!Number.isInteger(decoded.nbf) || decoded.nbf > now)) ||
     !hasBoundedServiceTokenLifetime(decoded, now)
   ) {

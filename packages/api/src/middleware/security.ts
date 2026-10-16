@@ -7,6 +7,7 @@ import { RedisStore } from 'rate-limit-redis';
 import type { RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../config/redis';
 import type { AuthRequest } from './auth';
+import { KAANA_CONTROL_AUDIENCE, OXY_API_AUDIENCE } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
 
@@ -133,6 +134,9 @@ export function isServiceTokenMintPath(path: string): boolean {
  */
 const SERVICE_PRINCIPAL = Symbol('oxy.rateLimit.servicePrincipal');
 
+/** The audiences of the service tokens Oxy's routes accept; see {@link servicePrincipal}. */
+const RATE_LIMITED_SERVICE_AUDIENCES = [OXY_API_AUDIENCE, KAANA_CONTROL_AUDIENCE] as const;
+
 interface RequestWithServicePrincipal extends Request {
   [SERVICE_PRINCIPAL]?: { payload: ReturnType<typeof verifyServiceToken> };
 }
@@ -145,6 +149,16 @@ interface RequestWithServicePrincipal extends Request {
  * be charged to. AUTHORISATION still belongs to `serviceAuthMiddleware` at the
  * route, which verifies the same token again through the same single source of
  * truth and checks its scopes. Nothing here grants access.
+ *
+ * Both audiences Oxy's own routes serve count: `oxy-api`, and Kaana's workload
+ * token for `/internal/kaana/v1` (`oxy-api:kaana-control`). Kaana asks for a
+ * grant on behalf of every kaana.ai caller from one egress address, so charged
+ * to that address under the browser budget (`rl:general`, 1000/15min) it was
+ * refused for EVERY customer once the fleet's traffic crossed 1000 grants in
+ * fifteen minutes — with this limiter's plain-text body rather than the public
+ * error the grant API answers, which Kaana could not read and turned into a 503
+ * (2026-10-16). Its grant traffic is the credential's, and each caller's own
+ * limits are the grant route's machine-lane limiters.
  */
 function servicePrincipal(req: Request): { appId: string } | undefined {
   const cached = (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL];
@@ -154,7 +168,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 
   const authHeader = req.headers.authorization;
   const verification = authHeader?.startsWith('Bearer ')
-    ? verifyServiceToken(authHeader.slice('Bearer '.length))
+    ? verifyServiceToken(authHeader.slice('Bearer '.length), RATE_LIMITED_SERVICE_AUDIENCES)
     : ({ ok: false, reason: 'invalid' } as ReturnType<typeof verifyServiceToken>);
   (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL] = { payload: verification };
   return verification.ok ? { appId: verification.payload.appId } : undefined;
