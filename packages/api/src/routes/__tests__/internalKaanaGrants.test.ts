@@ -35,7 +35,11 @@ import {
   KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
 } from '../../config/kaanaDataPlane';
 import { KAANA_SETTLEMENT_PUBLIC_KEYS_VARIABLE } from '../../config/kaanaSettlementKeys';
-import { ALIA_INFERENCE_CONSUMER_APPLICATION_ID } from '../../config/inferenceEconomicPolicy';
+import {
+  ALIA_INFERENCE_CONSUMER_APPLICATION_ID,
+  CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
+  INTERNAL_METERED_RELATIONSHIPS,
+} from '../../config/inferenceEconomicPolicy';
 import * as economicPolicy from '../../config/inferenceEconomicPolicy';
 import {
   KAANA_CONTROL_APPLICATION_ID,
@@ -1475,6 +1479,133 @@ describe('the alia-kaana relationship (service_token, internal_metered)', () => 
 /* -------------------------------------------------------------------------- */
 /*  ADR 0037: a named promotional level is two steps                           */
 /* -------------------------------------------------------------------------- */
+
+describe('the clarity-kaana relationship (service_token, embeddings only)', () => {
+  /** qwen/qwen3-embedding-8b's declared list: $0.01 per 1M input tokens, nothing per request or vector. */
+  const EMBEDDING_PRICES: Readonly<Partial<Record<UsageUnit, FixturePrice>>> = {
+    requests: '0',
+    input_tokens: '0.01',
+    embeddings: { amount: '0', per: 1 },
+  };
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'clarity-kaana',
+  );
+  let clarity: { accountId: string; credentialId: string; token: string };
+  let clarityToken: string;
+
+  beforeAll(async () => {
+    clarity = await pinnedApplication(
+      CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
+      'Clarity Backend',
+      ['inference:invoke'],
+    );
+    await getDb()
+      .update(inferenceRoutingPolicies)
+      .set({ status: 'archived' })
+      .where(
+        and(
+          eq(inferenceRoutingPolicies.applicationId, CLARITY_INFERENCE_CONSUMER_APPLICATION_ID),
+          eq(inferenceRoutingPolicies.status, 'active'),
+        ),
+      );
+    clarityToken = serviceToken({
+      applicationId: CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
+      credentialId: clarity.credentialId,
+      ownerAccountId: clarity.accountId,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+  });
+
+  async function embeddingLine() {
+    return addModelLine(clarity.accountId, {
+      prices: EMBEDDING_PRICES,
+      inputModalities: ['text'],
+      outputModalities: ['embedding'],
+      apiFormats: ['embeddings'],
+    });
+  }
+
+  /** The production relationship, its pilot naming this fixture's route instead of production's. */
+  function onRoute(line: ExtraLine) {
+    if (relationship?.pilot?.embeddings === undefined)
+      throw new Error('clarity-kaana terms missing');
+    jest.spyOn(economicPolicy, 'resolveEconomicTreatment').mockReturnValue({
+      treatment: 'internal_metered',
+      policyVersion: economicPolicy.INFERENCE_ECONOMIC_POLICY_VERSION,
+      relationship: {
+        ...relationship,
+        pilot: {
+          embeddings: {
+            ...relationship.pilot.embeddings,
+            deployments: [
+              {
+                deploymentId: line.deploymentId,
+                modelReference: `${line.modelLine}@${AUDIO_REVISION}`,
+                provider: line.provider,
+              },
+            ],
+          },
+        },
+      },
+    });
+  }
+
+  const embeddingsRequest = (modelLine: string, estimatedInputTokens: number) =>
+    inferenceRequest({
+      credential: clarityToken,
+      operation: 'embeddings',
+      target: { kind: 'model', modelLine },
+      facts: { estimatedInputTokens, embeddingInputs: 4, declaredTools: 0, stream: false },
+    });
+
+  it('grants an embeddings request with no hold, on the pilot’s route, under its USD 0.001 ceiling', async () => {
+    const line = await embeddingLine();
+    onRoute(line);
+    const request = embeddingsRequest(line.modelLine, 1_610);
+    const grant = verifiedGrant(await authorize(request));
+    expect(grant).toMatchObject({
+      operation: 'embeddings',
+      principal: { lane: 'service_token', billingAccountId: clarity.accountId },
+      economics: { treatment: 'internal_metered', relationshipId: 'clarity-kaana' },
+    });
+    expect(grant.reservation).toBeUndefined();
+    expect(grant.steps[0].limits.maxPricePerRequest).toEqual({ amount: '0.001', currency: 'USD' });
+    expect(await meteredRow(request.requestId as string)).toMatchObject({
+      economicTreatment: 'internal_metered',
+      economicRelationshipId: 'clarity-kaana',
+      status: 'admitted',
+    });
+  });
+
+  it('refuses an embeddings request above the pilot’s 65,536 estimated tokens', async () => {
+    const line = await embeddingLine();
+    onRoute(line);
+    const refused = await authorize(embeddingsRequest(line.modelLine, 65_537));
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('context_length_exceeded');
+  });
+
+  it('admits no route but the pilot’s own', async () => {
+    const line = await embeddingLine();
+    const other = await embeddingLine();
+    onRoute(other);
+    const refused = await authorize(embeddingsRequest(line.modelLine, 1_610));
+    expect(refused.status).not.toBe(200);
+  });
+
+  it('refuses every operation but embeddings, under the production terms as written', async () => {
+    const text = await addModelLine(clarity.accountId, { prices: TEXT_PRICES });
+    const completion = await authorize(
+      inferenceRequest({
+        credential: clarityToken,
+        target: { kind: 'model', modelLine: text.modelLine },
+      }),
+    );
+    expect(completion.status).toBe(400);
+    expect(completion.body.code).toBe('unsupported_modality');
+    expect(completion.body.message).toBe('The operation is outside the controlled internal pilot.');
+  });
+});
 
 describe('an internal pilot naming a promotional level (ADR 0037)', () => {
   it('signs the level on credit only, then the pilot’s xhigh routes', async () => {
