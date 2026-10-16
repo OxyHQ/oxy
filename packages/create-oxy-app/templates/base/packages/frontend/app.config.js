@@ -54,6 +54,10 @@ module.exports = {
       // defaults, and the Android signature permissions + <queries> that let
       // this app sign in silently through Commons.
       ['@oxy.so/app-preset', {}],
+      // Release signing with the ONE ecosystem key (OXY_UPLOAD_* Gradle
+      // properties). Commons answers only apps signed with its certificate;
+      // without the properties the release falls back to the debug key.
+      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
     ],
     extra: {
       router: {},

@@ -16,7 +16,7 @@ android {
 
 dependencies {
   // Android Block Store (Google Play services): the identity's device backup,
-  // held outside the so.oxy.shared UID's Keystore. See
+  // held outside Commons' own Keystore. See
   // docs/identity/device-backup.md in the oxy repo.
   implementation "com.google.android.gms:play-services-auth-blockstore:16.4.0"
 }

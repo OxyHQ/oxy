@@ -73,8 +73,11 @@ resolves the caller with `OxyCallerPolicy` (one copy in `@oxy.so/services`
    `onl.alia.app`, Allo `com.allo.app`, Homiio `com.homiio.android`, CrowdSource
    `so.oxy.crowdsource`, Peable `to.peable.app`, Atlas `so.oxy.atlas`, GoWay
    `to.goway.app`, Move `so.oxy.move`, Willo `sh.willo.app`, Moovo
-   `now.moovo.app` / `.go` / `.tracker` / `.hub`, Noted `so.oxy.noted`, Accounts
-   `so.oxy.accounts`, Commons `so.oxy.commons`, each with its `.dev` variant.
+   `now.moovo.app` / `.go` / `.tracker` / `.hub`, Noted `so.oxy.noted`, Inbox
+   `so.oxy.inbox`, Clarity `so.oxy.clarity`, Nilo `so.oxy.nilo`, Mercaria
+   `co.mercaria.app` / `.dashboard` / `.pos`, Schedio `com.schedio.app`, Syra
+   `com.syra.app` / `com.syra.studio`, Accounts `so.oxy.accounts`, Commons
+   `so.oxy.commons`, each with its `.dev` variant.
 3. It must be signed with the provider's own certificate:
    `hasSigningCertificate(pkg, sha256, CERT_INPUT_SHA256)` on API 28+,
    `checkSignatures` below.
