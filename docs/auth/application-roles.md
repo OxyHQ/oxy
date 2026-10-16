@@ -47,7 +47,7 @@ unrelated things.
 | `application_role_grants` | `permission_id` (the key ROW), `user_id` (grantee), `granted_by_user_id`, `grant_reason`, `created_at`, `revoked_at`, `revoked_by_user_id`, `revoke_reason` | Append-only. The one permitted edit is the revocation stamp on a live grant. One live grant per `(user_id, permission_id)` (partial unique). Re-granting inserts a new row. |
 
 Both tables are guarded by `BEFORE UPDATE` triggers (migration
-`0166_application_roles`, authoritative text in `applicationRolesImmutability.ts`):
+`0167_application_roles`, authoritative text in `applicationRolesImmutability.ts`):
 a grant cannot be un-revoked, re-pointed, back-dated or have its reason rewritten;
 a key cannot be renamed, moved to another application or un-retired, and a
 retired key's description is history. The only other transition is account
