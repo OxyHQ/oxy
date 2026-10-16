@@ -186,3 +186,26 @@ describe('GET /assets/:id/exists — the storage key is the owner’s business o
     expect(JSON.stringify(res.body)).not.toContain('content/');
   });
 });
+
+describe('POST /assets/:id/restore — only the owner brings a file back from trash', () => {
+  it('restores the owner’s trashed file', async () => {
+    const owner = await account();
+    const id = await fileOf(owner, { status: 'trash' });
+
+    actAs(owner);
+    const res = await send('POST', `/assets/${id}/restore`);
+
+    expect(res.status).toBe(200);
+    expect((await row(id)).status).toBe('active');
+  });
+
+  it('is 404 to anybody else, and the file stays in trash', async () => {
+    const id = await fileOf(await account(), { status: 'trash' });
+
+    actAs(await account());
+    const res = await send('POST', `/assets/${id}/restore`);
+
+    expect(res.status).toBe(404);
+    expect((await row(id)).status).toBe('trash');
+  });
+});

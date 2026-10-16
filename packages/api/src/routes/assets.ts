@@ -2757,7 +2757,7 @@ router.get(
 /**
  * @route POST /api/assets/:id/restore
  * @desc Restore file from trash
- * @access Private
+ * @access Private — the file's owner only; any other caller gets 404
  */
 router.post(
   '/:id/restore',
@@ -2770,6 +2770,12 @@ router.post(
     }
 
     const { id: fileId } = req.params;
+    // Trash is the owner's: restoring is re-activating a file nobody else can
+    // decide to bring back, and an answer at all would say the id exists.
+    const existing = await assetService.getFile(fileId);
+    if (!existing || !(await sessionOwnsFile(req, existing))) {
+      throw new NotFoundError('File not found');
+    }
     const file = await assetService.restoreFile(fileId);
 
     logger.info('File restored from trash', {
