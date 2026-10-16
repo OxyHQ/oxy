@@ -53,7 +53,8 @@ import { sessions } from '../db/schema/sessions';
 import { transactions } from '../db/schema/transactions';
 import { userFollows } from '../db/schema/userFollows';
 import { users } from '../db/schema/users';
-import { sendRateLimited } from '../middleware/rateLimiter';
+import { sendRateLimited } from '../middleware/errorHandler';
+import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -183,10 +184,12 @@ router.get('/', async (_req: Request, res: Response) => {
 // SSE endpoint — true real-time push
 router.get('/stream', (req: Request, res: Response) => {
   if (activeStatsStreams >= MAX_ACTIVE_STATS_STREAMS) {
-    sendRateLimited(res, {
-      message: 'Too many active platform stats streams',
-      retryAfterSeconds: STATS_STREAM_RETRY_AFTER_SECONDS,
-    });
+    sendRateLimited(
+      res,
+      new RateLimitedError('Too many active platform stats streams', {
+        retryAfterSeconds: STATS_STREAM_RETRY_AFTER_SECONDS,
+      }),
+    );
     return;
   }
 

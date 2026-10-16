@@ -15,13 +15,15 @@ import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
-import { rateLimit, sendRateLimited } from '../middleware/rateLimiter';
+import { sendRateLimited } from '../middleware/errorHandler';
+import { rateLimit } from '../middleware/rateLimiter';
 import { clearFailures, type LockoutCheck, reserveAttempt } from '../services/loginLockout.service';
 import deviceSessionService from '../services/deviceSession.service';
 import deviceJoinService from '../services/deviceJoin.service';
 import sessionService from '../services/session.service';
 import { broadcastDeviceState, broadcastSessionAccountsChanged } from '../utils/socket';
 import { asyncHandler } from '../utils/asyncHandler';
+import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { isAuthWebOrigin, isBrowserClient, normaliseOrigin } from '../utils/origin';
 import { hashedIpKey } from '../utils/ipKey';
@@ -56,10 +58,10 @@ function reserveMintAttempt(scope: string, deviceId: string, req: Request) {
 
 /** A locked-out device secret is refused like every other limit (`sendRateLimited`). */
 function refuseLockedOut(res: Response, lockout: LockoutCheck): void {
-  sendRateLimited(res, {
-    message: 'Too many attempts',
-    retryAfterSeconds: lockout.retryAfterSeconds ?? 0,
-  });
+  sendRateLimited(
+    res,
+    new RateLimitedError('Too many attempts', { retryAfterSeconds: lockout.retryAfterSeconds }),
+  );
 }
 
 async function clearMintAttempts(scope: string, deviceId: string, req: Request): Promise<void> {

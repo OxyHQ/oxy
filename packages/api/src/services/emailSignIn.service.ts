@@ -309,12 +309,14 @@ export async function startEmailSignIn(
   // sends nothing — the budget is never visible (`reserveSendBudget`).
   let retryLater = false;
   if (
-    !(await reserveSendBudget({
-      group: 'public',
-      emailHash: target.emailHash,
-      requesterKey,
-      knownDevice,
-    }))
+    !(
+      await reserveSendBudget({
+        group: 'public',
+        emailHash: target.emailHash,
+        requesterKey,
+        knownDevice,
+      })
+    ).reserved
   ) {
     retryLater = knownDevice;
     target = { ...target, userId: null, mailbox: false, sendTo: null };

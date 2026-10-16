@@ -6,6 +6,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { sendApiError } from '../middleware/errorHandler';
 import { logger } from './logger';
 import { ApiError } from './error';
 
@@ -24,7 +25,7 @@ export const asyncHandler = (fn: AsyncRequestHandler) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
       // If error is already an ApiError, pass it through
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json(error.toJSON());
+        return sendApiError(res, error);
       }
 
       // Log unexpected errors

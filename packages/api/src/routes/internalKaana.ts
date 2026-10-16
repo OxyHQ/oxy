@@ -34,6 +34,7 @@ import {
   type AuthorizationRequest,
   settlementSchema,
 } from '@kaana.ai/contracts/internal';
+import { PUBLIC_ERROR_HTTP_STATUS, type PublicError } from '@kaana.ai/contracts';
 import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
 import { resolveKaanaSettlementKeys } from '../config/kaanaSettlementKeys';
 import {
@@ -149,9 +150,10 @@ async function parseAndAuthenticate(
       kind: request.kind,
       reason: authentication.reason,
     });
-    res
-      .status(401)
-      .json(publicError(request.requestId, 'authentication_failed', AUTHENTICATION_MESSAGE));
+    sendPublicError(
+      res,
+      publicError(request.requestId, 'authentication_failed', AUTHENTICATION_MESSAGE),
+    );
     return;
   }
   req.grantRequest = request;
@@ -159,6 +161,18 @@ async function parseAndAuthenticate(
   if (authentication.machinePrincipal !== undefined)
     req.machineCredential = authentication.machinePrincipal;
   next();
+}
+
+/**
+ * Answer a public error: the status the public vocabulary gives its code and,
+ * when it states a wait, `Retry-After` beside its `retryAfterMs`. The one way
+ * the grant API refuses, its machine rate limits included.
+ */
+export function sendPublicError(res: Response, error: PublicError): void {
+  if (error.retryAfterMs !== undefined) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
+  }
+  res.status(PUBLIC_ERROR_HTTP_STATUS[error.code]).json(error);
 }
 
 /** The machine limits' window: their budgets are per minute, as on the edge. */
@@ -179,17 +193,16 @@ function machineLimit(prefix: string, max: number, key: (principal: EdgePrincipa
     handler: (req, res) => {
       const grantRequest = (req as GrantRequest).grantRequest;
       const retryAfterMs = rateLimitRetryAfterMs(req, MACHINE_LIMIT_WINDOW_MS);
-      res
-        .status(429)
-        .json(
-          publicError(
-            grantRequest?.requestId ?? 'unknown',
-            'rate_limited',
-            'This API key or application is over its request limit. Slow down and retry.',
-            undefined,
-            retryAfterMs,
-          ),
-        );
+      sendPublicError(
+        res,
+        publicError(
+          grantRequest?.requestId ?? 'unknown',
+          'rate_limited',
+          'This API key or application is over its request limit. Slow down and retry.',
+          undefined,
+          retryAfterMs,
+        ),
+      );
     },
   });
 }
@@ -233,7 +246,7 @@ async function respondToAuthorization(req: GrantRequest, res: Response): Promise
         signing: plane.status === 'configured' ? plane.config : undefined,
       });
       if (decision.status === 'refused') {
-        res.status(decision.httpStatus).json(decision.error);
+        sendPublicError(res, decision.error);
         return;
       }
       for (const [name, value] of Object.entries(decision.headers)) res.setHeader(name, value);
@@ -246,15 +259,14 @@ async function respondToAuthorization(req: GrantRequest, res: Response): Promise
     case 'receipt.read': {
       const decision = await authorizeReceiptRead(request, principal);
       if (decision.status === 'not-found') {
-        res
-          .status(404)
-          .json(
-            publicError(
-              request.requestId,
-              'model_not_found',
-              'No generation record is available to you.',
-            ),
-          );
+        sendPublicError(
+          res,
+          publicError(
+            request.requestId,
+            'model_not_found',
+            'No generation record is available to you.',
+          ),
+        );
         return;
       }
       res.status(200).json(decision.access);

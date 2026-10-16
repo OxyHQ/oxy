@@ -158,6 +158,36 @@ export class ServiceUnavailableError extends ApiError {
 }
 
 /**
+ * The caller is over a budget: 429, and — when there is one to wait out — when
+ * to retry, in whole seconds (never 0: "retry now" is not what a refusal
+ * means). The ONLY way oxy-api builds a 429 (`rateLimiterRefusal.test.ts`):
+ * `sendRateLimited` answers it with its `Retry-After`, whether a limiter
+ * refused or a service threw it (`errorHandler`).
+ *
+ * `code` defaults to `RATE_LIMITED`; a surface whose contract names its own
+ * refusal (`SIGN_IN_ERROR_CODES.locked`) passes that. No `retryAfterSeconds`
+ * means no wait helps — a code spent by wrong guesses needs a new code.
+ */
+export class RateLimitedError extends ApiError {
+  public readonly retryAfterSeconds?: number;
+
+  constructor(message: string, input: { code?: string; retryAfterSeconds?: number } = {}) {
+    const retryAfterSeconds =
+      input.retryAfterSeconds === undefined
+        ? undefined
+        : Math.max(1, Math.ceil(input.retryAfterSeconds));
+    super(
+      429,
+      message,
+      input.code ?? ErrorCodes.RATE_LIMITED,
+      retryAfterSeconds === undefined ? undefined : { retryAfterSeconds },
+    );
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.name = 'RateLimitedError';
+  }
+}
+
+/**
  * Handle HTTP errors and convert to ApiError
  * Useful for converting axios errors and other HTTP errors to ApiError instances
  */

@@ -64,7 +64,7 @@ import {
   mintSignInSession,
 } from '../services/signInSession.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ApiError, BadRequestError } from '../utils/error';
+import { ApiError, BadRequestError, RateLimitedError } from '../utils/error';
 import { hashEmail } from '../utils/contactHash';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
@@ -181,15 +181,6 @@ router.post(
   }),
 );
 
-function lockedOut(retryAfterSeconds?: number): ApiError {
-  return new ApiError(
-    429,
-    'Too many wrong attempts. Try again later.',
-    SIGN_IN_ERROR_CODES.locked,
-    retryAfterSeconds ? { retryAfterSeconds } : undefined,
-  );
-}
-
 /**
  * A personal, active account WITHOUT a Commons key the identifier names — the
  * only kind a password signs in. A Commons account signs in with Commons
@@ -238,7 +229,12 @@ router.post(
     // not there is an account or a password, so the time says nothing either.
     const key = identifierLockoutKey(body.identifier);
     const reservation = await reserveAttempt({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-    if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
+    if (reservation.locked) {
+      throw new RateLimitedError('Too many wrong attempts. Try again later.', {
+        code: SIGN_IN_ERROR_CODES.locked,
+        retryAfterSeconds: reservation.retryAfterSeconds,
+      });
+    }
     const stored = await readPasswordHash(userId ?? '00000000-0000-0000-0000-000000000000');
     const ok = await verifyPasswordOrDummy(body.password, userId ? stored : null);
     if (!ok || !userId) {

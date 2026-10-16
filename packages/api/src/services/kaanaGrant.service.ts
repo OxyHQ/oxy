@@ -67,7 +67,6 @@ import {
 } from '@kaana.ai/contracts/internal';
 import {
   NON_RETRYABLE_PUBLIC_ERROR_CODES,
-  PUBLIC_ERROR_HTTP_STATUS,
   type PublicError,
   type PublicErrorCode,
   publicErrorSchema,
@@ -166,7 +165,7 @@ export type GrantDecision =
       readonly body: Buffer;
       readonly headers: SignedHeaders;
     }
-  | { readonly status: 'refused'; readonly httpStatus: number; readonly error: PublicError };
+  | { readonly status: 'refused'; readonly error: PublicError };
 
 type UnresolvedRoute = Exclude<GrantLineResolution, { readonly status: 'resolved' }>;
 
@@ -262,7 +261,6 @@ function refusal(
   });
   return {
     status: 'refused',
-    httpStatus: PUBLIC_ERROR_HTTP_STATUS[error.code],
     error: publicError(request.requestId, error.code, error.message, error.options.param),
   };
 }
