@@ -122,22 +122,7 @@
     "test:bun:postgres-js": "OXYDB_TEST_DRIVER=postgres-js bun test ./src/__tests__",
     "test:bun:bun-sql": "OXYDB_TEST_DRIVER=bun-sql bun test ./src/__tests__",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
-    "release": "rm -rf dist && bun run build && release-it"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/db@${version}",
-      "tagAnnotation": "Release @oxy.so/db@${version}",
-      "commitMessage": "chore(db): release @oxy.so/db@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/db@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "peerDependencies": {
     "drizzle-orm": "^0.45.2",
@@ -149,7 +134,6 @@
     "drizzle-orm": "catalog:",
     "jest": "^30.5.1",
     "postgres": "catalog:",
-    "release-it": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }

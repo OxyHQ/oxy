@@ -77,22 +77,7 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
-    "release": "rm -rf dist && bun run build && release-it"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/contracts@${version}",
-      "tagAnnotation": "Release @oxy.so/contracts@${version}",
-      "commitMessage": "chore(contracts): release @oxy.so/contracts@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/contracts@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
     "zod": "^3.25.64"
@@ -100,7 +85,6 @@
   "devDependencies": {
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
-    "release-it": "catalog:",
     "typescript": "^5.9.2"
   }
 }

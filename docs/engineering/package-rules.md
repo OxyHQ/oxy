@@ -108,15 +108,7 @@ Two consequences, both counter-intuitive:
 - **Publishing a tarball runs no checks at all — that is the property the tarball path is chosen for.** What you inspect is exactly what ships, with nothing regenerating it underneath you. It also means `prepublishOnly` never fires, so nothing on that path typechecks, tests, builds, or even asserts that bun did the packing. `@oxy.so/services@30.0.0` went out that way from a tree whose `lib/` had never been built: 276 entries against 30.0.1's 2017, `lib/` at zero while `files` still listed it, and 26 of 33 `exports` targets resolving to nothing. Only the `react-native` conditions worked, because those point at `src/` — so Metro was fine and every check anyone ran was green, true, and about a different artefact.
 - **`--dry-run` is not a rehearsal.** It runs `publish` and `postpublish` as well, so any side effect in those (a git tag, a notification, a deploy trigger) happens for real.
 
-**Never publish a services tarball you did not build in the same command.** The pack has to be cut from a tree the build just produced, because `postbuild` is the only thing that runs `packages/services/scripts/verify-package.mjs`:
-
-```bash
-cd packages/services
-bun run build && bun pm pack --destination /tmp/rel   # postbuild verifies the tree the pack is cut from
-bun publish /tmp/rel/oxy-services-<version>.tgz     # runs NO scripts, by design
-```
-
-`bun run release` (`rm -rf lib && bun run build && release-it`) already satisfies this — it builds, so the verifier runs, and release-it publishes from the directory, so `prepublishOnly` runs too.
+**A tarball is published only if it was built in the same job that packed it**, because `postbuild` is the only thing that runs `packages/services/scripts/verify-package.mjs`. `npm-release.yml` runs `prepublishOnly`, then `build`, then `bun pm pack` in one job, and the publish job rebuilds and repacks before comparing bytes. There is no laptop path any more: the `release` scripts and `release-it` are gone from every package, and nobody publishes with an npm account token.
 
 On the tarball path `assert-bun-publish.mjs` is inert, so nothing checks the packer at publish time. What makes it safe is that **bun** cut the tarball, and `verify-package.mjs` re-asserts that from the artefact itself: a surviving `workspace:` or `catalog:` literal in the packed manifest means it was not `bun pm pack`.
 
