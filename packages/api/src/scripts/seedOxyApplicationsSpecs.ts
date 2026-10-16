@@ -594,6 +594,11 @@ export const SEED_APPS: SeedAppSpec[] = [
       'payments:read',
       'payments:write',
       'files:user-media:write',
+      // Digital goods (Mercaria ADR 0010 D17): a creator's asset files are
+      // private Oxy files the creator links to Mercaria; Mercaria decides who
+      // bought what, then mints short-lived download URLs for them through
+      // `/assets/service/linked-url`. Only files their own owners linked here.
+      'files:linked:read',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
