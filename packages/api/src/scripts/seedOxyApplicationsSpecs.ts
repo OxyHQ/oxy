@@ -670,9 +670,16 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://nilo.so',
     type: 'first_party',
     redirectUris: ['https://nilo.so'],
-    // Sign-in and the isolated activity principal need no feature-write or
-    // inference authority. This is not an internal catalogue audience.
-    scopes: ['user:read'],
+    // - `inference:invoke`: Nilo's one-shot AI actions on a member's own text
+    //   (rewrite, summarize, translate) go app -> Oxy edge -> Kaana with the
+    //   member's session, naming a power level. It spends the balance of the
+    //   account that owns Nilo, never the member's (ADR 0007); the owner chose
+    //   that. Not an internal catalogue audience: Nilo stays first_party.
+    // - `files:linked:read`: Nilo's attachments live in Oxy's file manager
+    //   (ADR 0021), linked to the page they belong to. Nilo decides who may
+    //   read a page (private pages, teamspaces, guests), then mints short-lived
+    //   URLs for files linked to it through `/assets/service/linked-url`.
+    scopes: ['user:read', 'inference:invoke', 'files:linked:read'],
   },
   {
     id: WILLO_APPLICATION_ID,
