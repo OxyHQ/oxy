@@ -249,7 +249,13 @@ Terms in `config/inferenceEconomicPolicy.ts` (policy version
   realtime lines have no per-minute bound and are not admitted. No hold; the
   usage row is the session's slot (`/v1/realtime`, up to 75 min unless settled).
 - **`audio_transcriptions`**: at most **300 000 ms** (Alia's 5-minute clip) and
-  **USD 0.05** per request.
+  **USD 0.05** per request. The hold is the measured duration; a line that also
+  prices `requests` is quoted with one request, a line that prices the duration
+  alone (xAI `grok-voice-transcribe-2.0`, settled in `audio_input_milliseconds`
+  only) without it. A line that prices the transcript (`output_tokens`) is never
+  admitted. When no line is admitted, `inference.grant.refused` logs
+  `reason: no_admissible_line` with `exclusions` (`no-routes`,
+  `priced-transcript`, `over-price`, `unquoted:<reason>`).
 
 A commercial realtime session is refused: the facts carry no session duration,
 so no hold sized from them would be a bound.

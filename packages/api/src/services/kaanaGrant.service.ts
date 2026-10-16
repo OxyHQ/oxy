@@ -229,7 +229,12 @@ class GrantRefusal extends Error {
   constructor(
     readonly code: PublicErrorCode,
     message: string,
-    readonly options: { readonly param?: string; readonly reason?: string } = {},
+    readonly options: {
+      readonly param?: string;
+      readonly reason?: string;
+      /** Why no line was admitted (`no_admissible_line`); logged, never sent. */
+      readonly exclusions?: readonly string[];
+    } = {},
   ) {
     super(message);
   }
@@ -252,6 +257,7 @@ function refusal(
           lane: principal.lane,
         }),
     ...(error.options.reason === undefined ? {} : { reason: error.options.reason }),
+    ...(error.options.exclusions === undefined ? {} : { exclusions: error.options.exclusions }),
   });
   return {
     status: 'refused',
@@ -395,11 +401,19 @@ function planOperation(request: InferenceAuthorizationRequest): OperationPlan {
         maxOutputTokens: undefined,
         // The hold is the measured duration Kaana read from the upload
         // (`facts.audioInputMilliseconds`), exactly; the transcript's text is
-        // free on every route this admits (see `admitLine`).
+        // free on every route this admits (see `admitLine`). A line that also
+        // prices the request is quoted with it; one that prices the duration
+        // alone (xAI's grok-voice-transcribe, whose adapter settles only
+        // `audio_input_milliseconds`) is quoted without it — an unpriced
+        // `requests` fails the first plan closed, never the line.
         plans: () => [
           {
             metering: 'duration',
             scenarios: [{ requests: 1, audio_input_milliseconds: milliseconds }],
+          },
+          {
+            metering: 'duration',
+            scenarios: [{ audio_input_milliseconds: milliseconds }],
           },
         ],
       };
@@ -827,6 +841,8 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
 
   const resolvedSteps: ResolvedStep[] = [];
   let sawPriceExclusion = false;
+  /** Why each resolved lane was not admitted, for the refusal's log line. */
+  const exclusions = new Set<LineExclusion>();
   /** The first step's own failure, when it names one model: what the caller asked for. */
   let primaryFailure: UnresolvedRoute | undefined;
   for (const stepPlan of stepPlans) {
@@ -857,8 +873,13 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
             ),
         );
         const admitted = await admitLine(resolution.line, lane, routes, plan, stepPlan);
-        if (admitted === 'over-price') sawPriceExclusion = true;
-        else if (admitted !== undefined) lines.push(admitted);
+        if (admitted.status === 'admitted') lines.push(admitted.line);
+        else {
+          if (admitted.status === 'over-price') sawPriceExclusion = true;
+          exclusions.add(
+            admitted.status === 'unquoted' ? `unquoted:${admitted.reason}` : admitted.status,
+          );
+        }
       }
     }
     if (lines.length > 0) {
@@ -880,6 +901,7 @@ async function authorize(input: AuthorizeInferenceInput): Promise<GrantDecision>
     }
     throw new GrantRefusal('no_route_available', 'No route is currently available.', {
       reason: 'no_admissible_line',
+      exclusions: [...exclusions].sort(),
     });
   }
 
@@ -1368,41 +1390,55 @@ function levelStepPlans(
  * key is the exception, by construction: the grant carries ONE credential, so a
  * `byok` line is admitted for the provider that credential belongs to.
  */
+/**
+ * Why a resolved lane was not admitted. Logged on `no_admissible_line` (never
+ * sent to the caller), so a refusal says which rule excluded every line.
+ */
+type LineExclusion = 'no-routes' | 'priced-transcript' | 'over-price' | `unquoted:${string}`;
+
+type LineAdmission =
+  | { readonly status: 'admitted'; readonly line: AdmittedLine }
+  | { readonly status: 'no-routes' | 'priced-transcript' | 'over-price' }
+  | { readonly status: 'unquoted'; readonly reason: string };
+
 async function admitLine(
   line: GrantLine,
   lane: GrantLane,
   routes: readonly GrantRoute[],
   plan: OperationPlan,
   step: StepPlan,
-): Promise<AdmittedLine | 'over-price' | undefined> {
+): Promise<LineAdmission> {
   const best = routes[0];
-  if (best === undefined) return undefined;
+  if (best === undefined) return { status: 'no-routes' };
   if (
     plan.family === 'transcription' &&
     (await publishedUnitPrice(lane.price, 'output_tokens')) === 'positive'
   ) {
     // A transcript's text has no bound in the facts; a line that charges for it
     // could settle above any hold sized from them.
-    return undefined;
+    return { status: 'priced-transcript' };
   }
   const quote = await quoteRouteCeiling(lane.price, plan.plans(line));
-  if (quote.status !== 'quoted') return undefined;
+  if (quote.status !== 'quoted') return { status: 'unquoted', reason: quote.reason };
   const ceiling = step.maxPrice;
   if (
     ceiling !== undefined &&
     (quote.currency !== ceiling.currency || exceedsAmount(quote.amount, ceiling.amount))
   ) {
-    return 'over-price';
+    return { status: 'over-price' };
   }
   const served =
     lane.kind === 'byok' ? routes.filter((route) => route.provider === best.provider) : routes;
   return {
-    modelLine: line.modelLine,
-    lane: lane.kind,
-    price: lane.price,
-    quote: { amount: quote.amount, currency: quote.currency },
-    bestRoute: best,
-    providers: [...new Set(served.map((route) => route.provider))],
+    status: 'admitted',
+    line: {
+      modelLine: line.modelLine,
+      lane: lane.kind,
+      price: lane.price,
+      quote: { amount: quote.amount, currency: quote.currency },
+      bestRoute: best,
+      providers: [...new Set(served.map((route) => route.provider))],
+    },
   };
 }
 
