@@ -1,7 +1,7 @@
 # ADR 0043 — Who owns a file, who uses it, and when it goes away
 
 - Status: proposed (design agreed with the owner of Oxy on 2026-10-16; stages
-  1, 2, 3, 4a and 4b of the rollout are implemented on this branch; the
+  1, 2, 3, 4a, 4b and 4c of the rollout are implemented on this branch; the
   release runbook is at the end)
 - Date: 2026-10-16
 - Decided by: the owner of Oxy
@@ -619,7 +619,8 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   `files:references:write` for `reference`) `{ sha256, size, mime, visibility,
   filename?, metadata?, reference? }` opens a resumable S3 multipart upload and
   answers `201 { uploadId, status: 'uploading', partSize, partCount, expiresAt,
-  parts }` — presigned `UploadPart` URLs (an hour; each SIGNS its part's exact
+  parts }` — presigned `UploadPart` URLs (at most an hour, or less if the API
+  task role's credentials expire sooner; each SIGNS its part's exact
   Content-Length) for the first 100 parts; `POST …/:uploadId/parts
   { partNumbers }` (≤ 100) for more, `GET …/:uploadId` for the state and the
   parts storage holds, `DELETE …/:uploadId` to abort, `POST
@@ -813,6 +814,243 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   legal@oxy.so). Ten an hour per network, five a day per account. SDK
   `oxy.contentClaims.submitCounterNotice`.
 
+### Stage 4c as built (consent, streaming, audio, recordings, large imports, SVG)
+
+What Syra, Alia and Homiio still needed to leave their own buckets. It ships
+as a second release, after stages 1–4b (#1764). Migration
+`0178_file_access_streams_ingests` (pre): three new tables, nothing existing
+changes; it sits behind `0177_drop_file_links` (post), which #1764's deploy
+already applied. SDKs: `@oxy.so/core` 4.19.0 and `@oxy.so/services` 11.10.0;
+`@oxy.so/contracts` has nothing new and stays 4.22.0.
+
+- **A person's private media from a service.** `POST
+  /assets/service/user-media` takes `x-visibility` (`public` default |
+  `unlisted` | `private`) like the import and large-upload twins already did;
+  a private file is stored in the private spelling and never reaches
+  `public/` or the CDN. The streamed service uploads (`/service/user-media`,
+  `/service/app`) and the imports admit audio as well as images and video
+  (SVG sanitized, below). The answer gains `deduplicated`. SDK:
+  `uploadUserMedia(owner, bytes, mime, { visibility })`.
+- **Consent for an application to read a person's file** (`file_access_grants`,
+  refining D4 and ADR 0021). A person's file is readable through a service
+  token (`/service/linked-url`, a play session, adopting or referencing a
+  private file) only with that person's consent, which has exactly two
+  origins: the application stored the file FOR the person — any
+  `/service/user-media` upload, import, large upload or recording, which needs
+  the staff-granted act-as scope `files:user-media:write` — and a `granted`
+  row (`source = 'upload'`) is written when it is stored (also when the person
+  already held the bytes); or the person attached the file to the application
+  (an owner-made reference, no row). The owner revokes an application with
+  `DELETE /assets/:id/access/:applicationId`: the row becomes `revoked`, which
+  beats BOTH origins, ends every play session that application holds for the
+  file, and survives the application uploading the same bytes again; the
+  person attaching the file to it again (`POST /assets/:id/links`) is a new
+  consent and lifts it (`source = 'owner'`). References are kept: they record
+  USE, not access. `GET /assets/:id/access` lists `{ applicationId, name,
+  icon, via: ('upload' | 'link')[], since }` for the owner (404 for anyone
+  else). The predicate is `fileReference.service.applicationReadConsent`
+  over the file aggregate, which now carries its grant rows
+  (`FileRecord.accessGrants`); every grant write invalidates the file across
+  tasks. `files:linked:read` stays self-service: alone it still reaches
+  nothing a person did not attach or a privileged act-as did not store
+  (`utils/applicationScopes.ts`). The seed adds it to Syra, Alia and Homiio.
+  Core: `oxy.assets.listAppAccess` / `revokeAppAccess`; the file manager's
+  file details show "Apps with access" with a confirmed Revoke, in all eleven
+  locales.
+- **Audio renditions** (`variantService.generateAudioVariants`,
+  `audioRenditions.ts`), eager through the asset-variants queue for mp3,
+  m4a/AAC, ogg/opus, wav and flac: an audio-only HLS ladder of AAC-LC rungs
+  `hls_a64` / `hls_a128` / `hls_a256` (48 kHz, at most stereo, cover art
+  dropped, 6 s mpegts segments, VOD) — the 64k rung always, a higher one only
+  for a lossless source, an unknown bitrate, or at least 0.75× the rung — under
+  an `hls_master` with measured `BANDWIDTH`/`AVERAGE-BANDWIDTH` and
+  `CODECS="mp4a.40.2"` (the same type as video, so `/service/by-ids`'s
+  `hlsReadyAt` works); a `waveform` (`waveform.json`, the audiowaveform JSON
+  format, int8, ~2,000 buckets, decoded at 8 kHz mono through a pipe — bounded
+  memory); and a 30-second `preview` (AAC 128k fragmented m4a, from
+  `previewStartSeconds` clamped so 30 s fit, the whole of a shorter file, a
+  2 s fade-out when cut). Optional EBU R128 loudness normalization
+  (`loudnorm` I=-16, TP=-1.5, LRA=11) for the ladder, waveform and preview is
+  asked per file with `x-audio-options` / `audio: { normalizeLoudness,
+  previewStartSeconds }` and stored as the server-owned
+  `metadata.audioOptions` (a caller's free-form metadata cannot set it); a
+  normalized set lives under `<sha>/ln/`, and a content twin's renditions are
+  reused only by a row with the same audio profile. Every ffmpeg pass gets a
+  fresh presigned URL, a protocol whitelist and a SIGKILL deadline of
+  max(120 s, 2× duration); one rung failing keeps the others, a ladder with
+  every rung failed fails the job after committing what encoded. Nothing
+  audio is encoded on a request (`ensureVariant` serves only what is ready).
+  `metadata.audio` records duration, codec, sample rate, channels, bitrate.
+- **Play sessions — per-play, revocable streaming** (`file_play_sessions`,
+  `playSession.service.ts`, `hlsStreamServing.ts`). `POST
+  /assets/service/streams { fileId, endUserId?, ttlSeconds? (60–43200,
+  default 3600), encryption? ('aes-128' default | 'none'), keyAuthorization?
+  ('none' default | 'webhook') }` by an application that owns the file or may
+  read it (`files:linked:read` for a person's file; 404 otherwise; 409
+  `STREAM_NOT_READY` without a ladder) answers `201 { sessionId, fileId, kind,
+  status, encryption, keyAuthorization, endUserId, expiresAt, masterUrl,
+  renditions: [{ type, url, bandwidth }], previewUrl?, waveformUrl? }` — URLs
+  under `/assets/streams/<sessionId>.<secret>/`, shown once (only the
+  secret's SHA-256 is stored). `GET`/`DELETE /assets/service/streams/:id`,
+  `POST /assets/service/streams/revoke { fileId?, endUserId? }`. Serving
+  mirrors the ladder's directory, so a player's relative URIs resolve back
+  here and only names the ladder lists are served (`master.m3u8`, its
+  renditions, the segments a rendition lists, `key`, `preview.m4a`,
+  `waveform.json`). EVERY request re-checks the session (secret, not revoked,
+  not expired, application `active`), the file (`active`) and the
+  application's consent — anything else is 404 `PLAY_SESSION_INVALID` — so
+  `DELETE`, the owner's revocation, the file leaving `active` (trash, block,
+  delete) or the application's deletion stops the next segment. A session is
+  cached per task for 30 s and the cache rides stage 4b's cross-task
+  file-cache channel (`fileCache.onInvalidate`): every revocation ends with
+  `fileCache.invalidate(fileId)`, which drops that file's sessions on every
+  task. **AES-128**: each session has its own random content key (sealed,
+  `play-session-key|<id>`); rendition playlists get `#EXT-X-KEY:METHOD=AES-128,
+  URI="key"` before the first segment and segments are AES-128-CBC encrypted
+  as they are served (PKCS#7, IV = media sequence number, RFC 8216 §5.2) —
+  the stored ladder stays in clear and one ladder serves every session. The
+  key is `no-store`. **Key authorization under product control**: with
+  `keyAuthorization: 'webhook'` (409 `FILES_WEBHOOK_REQUIRED` without one) the
+  key is released only after the application's verified file-events endpoint
+  answers a synchronous, signed request — `{ id, type:
+  'stream.key_authorization', occurredAt, session: { id, fileId, endUserId,
+  expiresAt } }` with `oxy-event-id`, `oxy-event-type`, `oxy-signature` exactly
+  as file events — with a 2xx `{ "allow": true }` within 3 s; an allow is
+  reused for 60 s per session, anything else (an error, a timeout, a
+  non-2xx) is 403 `KEY_AUTHORIZATION_DENIED`, fail closed. The URLs are
+  bearer capabilities: CORS `*` without credentials, `Referrer-Policy:
+  no-referrer`, `nosniff`. `endUserId` (an Oxy account) is recorded, handed to
+  the key-authorization check and is the handle of bulk revocation; it does
+  not bind the URLs to a signed-in viewer. Core: `server.assets.streams.create
+  / get / revoke / revokeWhere` and `verifyStreamKeyAuthorization(rawBody,
+  headers, secret)` in `@oxy.so/core/server`.
+- **Recording targets — LiveKit egress into Oxy Files** (`file_ingests`,
+  `source = 'recording'`; `recordingIngest.ts`, `utils/sigv4.ts`,
+  `utils/awsChunked.ts`). `POST /assets/service/app/recording-targets` (or the
+  account-owned `/assets/service/user-media/recording-targets` with
+  `x-owner-user-id`, private by default) `{ visibility, filename?, metadata?,
+  reference?, maxBytes? (≤ 8 GiB), expiresInSeconds? (60–604800, default a
+  day), audio? }` answers `201 { targetId, status: 'awaiting_upload',
+  expiresAt, filepath, s3: { accessKey, secret, region, endpoint, bucket,
+  forcePathStyle }, livekit: { filepath, s3: { access_key, secret, region,
+  endpoint, bucket, force_path_style } } }` — `livekit` is exactly an
+  `EncodedFileOutput`'s `filepath` and `S3Upload` (LiveKit's `livekit/storage`
+  speaks the AWS SDK for Go v2 upload manager: `PutObject` below 5 MiB,
+  `CreateMultipartUpload` / `UploadPart` / `CompleteMultipartUpload` above;
+  with a custom endpoint it computes checksums only when required, and it
+  uploads its JSON manifest beside the file after it). The endpoint is Oxy's
+  own S3-compatible ingest, `/assets/recording-ingest`, path-style: SigV4
+  (header-signed, any region, ±15 min) against the target's secret (sealed,
+  `file-ingest-secret|<id>`; the access key is the target id); a hex,
+  `UNSIGNED-PAYLOAD` or `STREAMING-UNSIGNED-PAYLOAD-TRAILER` (aws-chunked)
+  payload, a hex hash verified against the body; signed streaming chunks are
+  `NotImplemented`. Only the target's prefix, ONE recording (audio or video,
+  from its type or extension) and side objects of at most 1 MiB, which are
+  discarded; only uploads — any other call answers S3's XML error (`AccessDenied`,
+  `InvalidAccessKeyId` for an unknown, failed, aborted or expired target or a
+  suspended/deleted application, `SignatureDoesNotMatch`, `EntityTooLarge`,
+  `NotImplemented`…). Bytes stream straight to a private staging key (a part
+  to the backing multipart upload's part, `PutObject` hashed on the way);
+  once the object is complete Oxy hashes it (multipart) and finalizes it
+  through `finalizeLargeUpload` — dedupe, blocklist, a metered owner's plan
+  (`insertFile`), the public copy only after verification — with the asked-for
+  reference and, for a person, the creator's access grant. `GET …/:targetId`,
+  `POST …/:targetId/complete` (200 with the file, 202 `verifying`, 409
+  `RECORDING_NOT_RECEIVED`, a failed target's own error), `DELETE` to abort.
+  The endpoint is exempt from the per-address browser limiters and carries
+  its own (20,000 per address and 5,000 per target per 15 min) and the
+  upload's 5-minute request timeout; no global body parser reads it. Not STS
+  credentials: a LiveKit egress uploads a file output when the recording ENDS,
+  hours after the target was made, and an API task can only mint chained-role
+  credentials that live one hour. Core: `createAppRecordingTarget`,
+  `createUserRecordingTarget`, `getRecordingTarget`, `completeRecordingTarget`
+  (polls `verifying`), `abortRecordingTarget`.
+- **Large imports by URL** (`file_ingests`, `source = 'import'`). A source
+  that declares more than 40 MiB (up to 8 GiB; above that 413 before a byte
+  is read), or audio/video that declares no size, is not stored in the
+  request: the import routes answer `202 { importId, status: 'importing',
+  source: { host } }` (a batch item `{ ok: true, pending: true, importId, … }`)
+  and the already-open response is streamed in the background — the same
+  SSRF-safe, https-only, credential-less fetch — to a private staging object
+  by S3 multipart, hashed on the way, at most an hour in all
+  (`LARGE_IMPORT_TOTAL_TIMEOUT_MS`) and a minute without bytes, and exactly the
+  declared length; then finalized like a recording, with the reference, the
+  grant and the `file_sources` row (once-per-URL memory, URL sealed). `GET
+  /assets/service/{app,user-media}/imports/:importId` → `{ importId, status:
+  'importing' | 'verifying' | 'completed' | 'failed', source, file?, outcome,
+  deduplicated, reference?, error? }`. A fetcher that died (its task, a
+  transient error) is resumed by the upload worker, which fetches the source
+  again under a lease, five attempts at most. SDK `importAppFile`,
+  `importUserMedia`, `importAppFiles` poll a pending import and resolve to the
+  usual import result.
+- **The ingest worker** is the large-upload worker
+  (`fileUploadSession.worker.ts`, `FILE_UPLOAD_WORKER_ENABLED`): each tick it
+  also verifies what is due, resumes stalled imports and aborts expired
+  targets and imports (deleting their staging objects and aborting their
+  multipart uploads). Finished ingests are kept a week (`db/expiry.ts`).
+- **Safe SVG** (the coordinator's item 9). `image/svg+xml` is accepted on every
+  path that reads the bytes — the streamed service uploads, `/assets/upload`,
+  the imports, the cache and federation, stickers, and the multipart service
+  upload (≤ 5 MiB, sanitized after the declared hash verifies) — and stored
+  ONLY as its sanitized document (`utils/svgSanitizer.ts`, DOMPurify 3.4.16
+  over jsdom): ≤ 5 MiB, UTF-8 only (svgz refused), DOCTYPE, entities,
+  processing instructions and comments removed before parsing (no entity is
+  ever expanded), a well-formed XML document with an SVG-namespace root or 415
+  `INVALID_SVG`; only SVG-namespace elements (foreignObject and every other
+  namespace go with their subtree); DOMPurify's svg + svgFilters allow-list;
+  `href`/`xlink:href` only as `#id`; no `on*`, `xml:base`, or animation that
+  targets href, a handler or style; in CSS (style elements and attributes,
+  escapes resolved) no `@import`, every non-fragment `url()` and image
+  function becomes `none`, no `expression(`, `javascript:`, `-moz-binding`,
+  `behavior:`. Deterministic and idempotent, so the stored hash is the
+  SANITIZED bytes' and dedupes on them; the original's hash is
+  `metadata.svg.originalSha256` (server-owned, a caller's copy is dropped).
+  Served inline with `Content-Type: image/svg+xml`, `Content-Security-Policy:
+  default-src 'none'; style-src 'unsafe-inline'; sandbox` and `nosniff` (an
+  `<img>` never runs script; a direct navigation is a sandboxed, fetch-less
+  document); an SVG Oxy did not sanitize (a mail attachment, kept byte for
+  byte) stays a sandboxed download. Raster renditions (the webp ladder) are
+  rendered from the sanitized SVG at the density that draws it at the
+  rendition's width (≤ 2,400 dpi, ≤ 64 M pixels). `POST /assets/init` refuses
+  SVG (415 `SVG_UPLOAD_REQUIRES_SANITIZATION`): its presigned PUT stores
+  bytes the API never reads; the SDK's `uploadLarge` sends an SVG through
+  `upload()` instead.
+- **Application deletion (D8)** also revokes the application's play sessions
+  and expires the imports and recording targets it created, in the same
+  transaction.
+- **Rate limits.** `/assets/streams/*` and `/assets/recording-ingest/*` are
+  capability URLs paced by machines (a player fetches a segment every few
+  seconds; many listeners share an address): they skip `rl:general` and the
+  slowDown penalty (`isCapabilityUrlPath`) and carry their own limiters
+  instead — the stream objects 60,000 per address per 15 min and 600 per
+  session per minute.
+
+### Required changes in other repositories (stage 4c)
+
+- **Syra** (TODO(oxy-4b)): podcast and music audio into Oxy Files — the
+  catalogue's as Syra application files, a person's uploads with
+  `uploadUserMedia(owner, …, { visibility: 'private' })` or
+  `importUserMedia` for an enclosure (large ones are imported in the
+  background; the SDK waits); playback through `server.assets.streams.create`
+  (AES-128, `endUserId` the listener, `keyAuthorization: 'webhook'` where a
+  play needs Syra's entitlement check, answering `stream.key_authorization`
+  on its file-events endpoint after `verifyStreamKeyAuthorization`); the
+  waveform and preview URLs for its UI; `revokeWhere({ endUserId })` when a
+  subscription ends.
+- **Alia**: a person's chat attachments with `uploadUserMedia(…, { visibility:
+  'private' })` and read back with `linkedDownloadUrls` (the seed now grants
+  `files:linked:read`); LiveKit room recordings into
+  `createUserRecordingTarget` (or `createAppRecordingTarget`) — pass
+  `target.livekit` as the egress `EncodedFileOutput`'s `filepath` and `s3`, then
+  `completeRecordingTarget`.
+- **Homiio**: private documents a person uploads, read back with
+  `linkedDownloadUrls` (`files:linked:read` in the seed).
+- **Every product with a file-events endpoint** that opens sessions with key
+  authorization answers `stream.key_authorization` with `{ "allow": … }`
+  within 3 s (and ignores the type otherwise).
+- **The website and Clarity** may now upload SVG logos, icons and favicons;
+  the stored file is the sanitized document.
+
 ### Required changes in other repositories (stage 4b)
 
 - **Mercaria** (digital deliverables) and **Mention / CrowdSource** (evidence)
@@ -828,12 +1066,17 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
   `contentClaimCounterNoticeSchema`, shows `COUNTER_NOTICE_STATEMENTS` word for
   word and translates `contentClaim.counterNotice.errors.*`; the
   `content_blocked` email then links to it.
-- **oxy-infra**: the growth alarm, and a viewer-response CloudFront Function on
-  `cloud.oxy.so` that sends `Content-Disposition: attachment` and
-  `Content-Security-Policy: sandbox` for any response whose Content-Type is not
-  inline-safe media (image/* except SVG, audio/*, video/*, application/pdf,
-  text/plain) — the CDN half of the serving rule above, for objects stored
-  before stage 4b or by paths that do not set the disposition (runbook below).
+- **oxy-infra** (OxyHQ/oxy-infra#316): the growth alarm, and a viewer-response
+  CloudFront Function on the four S3-backed behaviours of `cloud.oxy.so`
+  (`*.m3u8`, `/content/*`, `/variants/*`, `/oxy-website/*` — the default
+  behaviour only serves the API's redirects and 404s) that sends, on a 2xx
+  whose Content-Type is not inline-safe (image/* except SVG, audio/*, video/*,
+  HLS playlists, application/pdf, text/plain), `Content-Disposition:
+  attachment` (an existing `attachment; filename=…` is kept) and
+  `Content-Security-Policy: sandbox; default-src 'none'`, serves a sanitized
+  SVG inline under its own CSP (stage 4c), and leaves 304s untouched — the CDN
+  half of the serving rule above, for objects stored before stage 4b or by
+  paths that do not set the disposition (runbook below).
 
 ### Required changes in other repositories (stage 4a)
 
@@ -878,78 +1121,127 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
 
 ## Release runbook
 
-One release carries stages 1–4b. In order; each step names how to know it
-worked before the next.
+Two releases. Stages 1–4b shipped in #1764 (`d2cb538bd`): its deploy
+applied `0170`–`0176` before the rollout and `0177_drop_file_links` after it,
+and `@oxy.so/contracts` 4.22.0, `@oxy.so/core` 4.18.0 and `@oxy.so/services`
+11.9.0 are published. Stage 4c is the second release: steps 1 and 4 are done
+for 1–4b and step 1 has one new migration; every other step names what 4c
+adds. In order; each step names how to know it worked before the next.
 
-1. **Pre migrations** (`run-postgres-migrations.yml`, phase `pre`):
+1. **Pre migrations** (`deploy-aws.yml` applies phase `pre` before its
+   rollout; `run-postgres-migrations.yml` by hand). Stages 1–4b (done):
    `0170_application_owned_files` … `0176_content_claim_counter_notices`.
-   First run `bun run packages/api/scripts/file-references-preflight.ts`
+   Stage 4c: `0178_file_access_streams_ingests` alone. The `pre` phase
+   refuses to apply it while `0177_drop_file_links` (post) is still pending —
+   the ledger is a high-water mark — so first confirm `0177` is applied. For
+   1–4b, first run `bun run packages/api/scripts/file-references-preflight.ts`
    against production (read-only): every legacy `file_links.app` value must
    resolve, or `0171` fails by design. For a large `files`, build the indexes
    `0170` and `0174` create `CONCURRENTLY` out of band first (their headers
    give the statements; the migrations skip an index that already exists and
-   is valid). *Verify:* the migrator reports the seven applied; `select
-   count(*) from file_references` equals the `file_links` rows it copied.
-2. **API** (`deploy-aws.yml`). The image serves both tables during the rollout
+   is valid). *Verify:* for 1–4b the migrator reported the seven applied and
+   `select count(*) from file_references` equalled the `file_links` rows it
+   copied; for 4c it reports `0178` applied, and `file_access_grants`,
+   `file_play_sessions` and `file_ingests` exist and are empty.
+2. **IAM and the bucket** (oxy-infra, before the API deploys): the `oxy-api`
+   task role needs `s3:ListMultipartUploadParts` and `s3:AbortMultipartUpload`
+   on the media bucket (the large upload's resume and abort, and the recording
+   ingest's completion and abort; `UploadPart` and `CreateMultipartUpload` are
+   `s3:PutObject`, which it holds). The bucket keeps its lifecycle rule
+   `AbortIncompleteMultipartUpload` after 10 days — the backstop for a
+   multipart upload no worker aborted. *Verify:* the role's policy lists both
+   actions; the lifecycle rule is on the bucket.
+3. **API** (`deploy-aws.yml`). The image serves both tables during the rollout
    (the `file_links` mirror trigger); the post migration `0177_drop_file_links`
-   runs after the rollout completes. New env vars all have defaults:
-   `FILE_LIFECYCLE_MODE` (`report`), `FILE_UPLOAD_WORKER_ENABLED`,
-   `LARGE_UPLOAD_COMPLETE_WAIT_MS`, `FILE_STORAGE_GROWTH_*`,
+   runs after the rollout completes (1–4b; 4c's release has no post
+   migration). New env vars all have defaults:
+   `FILE_LIFECYCLE_MODE` (`report`), `FILE_UPLOAD_WORKER_ENABLED` (also runs
+   the stage-4c ingests), `LARGE_UPLOAD_COMPLETE_WAIT_MS` (also a recording's
+   `complete`), `LARGE_IMPORT_TOTAL_TIMEOUT_MS` (an hour), `FILE_STORAGE_GROWTH_*`,
    `FILE_STORAGE_METRICS_MAX_APPLICATIONS`, `CONTENT_CLAIM_STAFF_EMAIL`
-   (`legal@oxy.so`). Every task needs `REDIS_URL` for the cross-task file-cache
-   channel (it already needs it for the user cache). *Verify:* `GET
+   (`legal@oxy.so`). Every task needs `REDIS_URL` for the cross-task
+   file-cache channel (it already needs it for the user cache): play-session
+   revocation rides it too. The asset-variant worker image needs nothing new
+   (ffmpeg already renders video; audio uses the same binary). *Verify:* `GET
    /assets/admin/lifecycle/sweeps` (staff) shows a `report` run within the
    hour with a `deletedApplications` step; the log shows `[FileUploads] Worker
-   started`; CloudWatch has `Oxy/FileStorage` datapoints.
-3. **Seed**: `DRY_RUN=1 bun run --cwd packages/api seed:oxy-applications`, read
-   the plan, then without `DRY_RUN` —
-   the file scopes of D11 for every adopting product. Then the native
-   product-agent bootstrap for Clarity (dry-run, review `planSha256`, apply),
-   which grants its backend the file scopes. Re-bind the workload identities
-   that must reach new scopes (Homiio's `oxy-homiio-task`; Alia's if it
-   authenticates by workload). *Verify:* `GET /applications/:id` of each lists
-   the scopes; a service token minted for each carries them.
-4. **Grants**: give `content:claims` (with `is_staff`) to the people who review
+   started`; CloudWatch has `Oxy/FileStorage` datapoints;
+   `POST /assets/recording-ingest/x/y` unsigned answers an S3 XML
+   `MissingSecurityHeader`.
+4. **Post migration** `0177_drop_file_links` (phase `post`) once every task
+   runs the new image — done with 1–4b. *Verify:* `file_links` is gone.
+5. **Seed**: `DRY_RUN=1 bun run --cwd packages/api seed:oxy-applications`, read
+   the plan, then without `DRY_RUN` — the file scopes of D11 for every adopting
+   product, and `files:linked:read` for Syra, Alia and Homiio (stage 4c). Then
+   the native product-agent bootstrap for Clarity (dry-run, review
+   `planSha256`, apply), which grants its backend the file scopes. Re-bind the
+   workload identities that must reach new scopes (Homiio's `oxy-homiio-task`;
+   Alia's if it authenticates by workload). *Verify:* `GET /applications/:id`
+   of each lists the scopes; a service token minted for each carries them.
+6. **Grants**: give `content:claims` (with `is_staff`) to the people who review
    claims; make sure `legal@oxy.so` (or `CONTENT_CLAIM_STAFF_EMAIL`) reaches
    them. *Verify:* the console shows "Content claims" to them and
    `GET /content-claims/access` answers `{ canReview: true }`.
-5. **Publish the SDKs** with `release-packages.yml`, in dependency order:
-   `@oxy.so/contracts` 4.22.0, `@oxy.so/core` 4.18.0, `@oxy.so/services`
-   11.9.0 (re-check npm first; if a version was taken meanwhile, bump to the
-   next free one in all three changelogs and in core's contracts dependency).
-   *Verify:* `npm view @oxy.so/core@4.18.0 version` etc.
-6. **Product PRs** (each its own repository): Mercaria (store and catalogue
+7. **Publish the SDKs** with `release-packages.yml`, in dependency order,
+   from `main`'s head. 1–4b (done): `@oxy.so/contracts` 4.22.0, `@oxy.so/core`
+   4.18.0, `@oxy.so/services` 11.9.0. 4c: `@oxy.so/core` 4.19.0, then
+   `@oxy.so/services` 11.10.0 (contracts is unchanged). Re-check npm first,
+   and open PRs that claim the same numbers: if a version was taken meanwhile, bump to the next
+   free one — the `version` line of each package's `package.json`, the heading
+   of each `CHANGELOG.md`, core's `@oxy.so/contracts` dependency
+   (`workspace:<contracts version>`) and the root catalog's `@oxy.so/core`
+   range (services' peer floor), one line each; `bun install` to refresh
+   `bun.lock`. *Verify:* `npm view @oxy.so/core@4.19.0 version` etc.
+8. **The CDN's content types and headers** (oxy-infra): first run
+   `scripts/operations/oxy-website-media-content-types.py` (dry run, review,
+   then `--apply`) so the website's media objects carry real Content-Types —
+   the function below decides by them. Then publish the CloudFront Function
+   and associate it, event `viewer-response`, with the four S3-backed
+   behaviours of the `cloud.oxy.so` distribution — `*.m3u8`, `/content/*`,
+   `/variants/*`, `/oxy-website/*` (the default behaviour only serves the
+   API's redirects and 404s) — and add the growth alarm (both below). Stage
+   4c's part — the sanitized-SVG branch — is OxyHQ/oxy-infra#316.
+   *Verify:* below the code.
+9. **Product PRs** (each its own repository): Mercaria (store and catalogue
    media ownership, references, `adoptAppFile` for digital deliverables,
    `importAppFile` for the importer, `file.blocked` handling); GoWay (claim
    withdrawal through `assets.references.remove`); Mention (GIF library as
    Mention files, post-media references, `adoptAppFile` for evidence); Moovo,
    Nilo, Peable, CrowdSource (references); the own-bucket products (Syra,
    Homiio, the website, Alia, Clarity) move into Oxy Files one at a time with
-   a verified copy and a read-only soak; the website's counter-notice page.
-7. **Webhooks and secrets**: each product that wants file events registers its
-   endpoint (console → Webhooks → File events, or `oxy.apps.setFilesWebhook`),
-   answers the challenge, and stores the secret in its own secret store (SSM);
-   it verifies with `verifyFileEventSignature`. *Verify:* `GET
-   /applications/:id/files-webhook` shows `verifiedAt`.
-8. **Backfills — dry run, then apply**:
-   - `bun run packages/api/scripts/reconcile-profile-media-references.ts`
-     (preview), then `--apply`; a second `--apply` reports 0 added, 0 removed,
-     0 orphans.
-   - Every product runs `OxyServer.assets.references.reconcile(entityType,
-     items, { dryRun: true })` per entity type, reviews `{ added, removed,
-     refused }`, then runs it for real, and schedules it (nightly).
-9. **The lifecycle's report week**: leave `FILE_LIFECYCLE_MODE=report` for a
-   week and review `GET /assets/admin/lifecycle/sweeps` daily: `trash.due` and
-   `purge.due` are applications' files nobody references (spot-check samples
-   with the owning product); `deletedApplications` names only applications
-   that really are deleted (expect mostly references; if a live product still
-   needs one of their files, move it before enforcing); `staleUploads.withObject`
-   is explained; nothing jumps without a cause.
-10. **Enforce**: set `FILE_LIFECYCLE_MODE=enforce` on the API task definition
-    and redeploy. `deletedApplications.due` falls to 0 within ceil(due / 10)
+   a verified copy and a read-only soak — Syra, Alia and Homiio with the
+   stage-4c surfaces (private person media, read-back, play sessions,
+   recording targets, large imports); the website's counter-notice page.
+10. **Webhooks and secrets**: each product that wants file events (or key
+    authorization for play sessions) registers its endpoint (console →
+    Webhooks → File events, or `oxy.apps.setFilesWebhook`), answers the
+    challenge, and stores the secret in its own secret store (SSM); it
+    verifies with `verifyFileEventSignature` (file events) and
+    `verifyStreamKeyAuthorization` (`stream.key_authorization`). *Verify:*
+    `GET /applications/:id/files-webhook` shows `verifiedAt`.
+11. **Backfills — dry run, then apply**:
+    - `bun run packages/api/scripts/reconcile-profile-media-references.ts`
+      (preview), then `--apply`; a second `--apply` reports 0 added, 0 removed,
+      0 orphans.
+    - Every product runs `OxyServer.assets.references.reconcile(entityType,
+      items, { dryRun: true })` per entity type, reviews `{ added, removed,
+      refused }`, then runs it for real, and schedules it (nightly).
+12. **The lifecycle's report week**: leave `FILE_LIFECYCLE_MODE=report` for a
+    week and review `GET /assets/admin/lifecycle/sweeps` daily: `trash.due` and
+    `purge.due` are applications' files nobody references (spot-check samples
+    with the owning product); `deletedApplications` names only applications
+    that really are deleted (expect mostly references; if a live product still
+    needs one of their files, move it before enforcing); `staleUploads.withObject`
+    is explained; nothing jumps without a cause.
+13. **Enforce**: add `"FILE_LIFECYCLE_MODE":"enforce"` to `TASK_ENV_OVERRIDES_JSON`
+    in this repository's `.github/workflows/deploy-aws.yml` and deploy — a
+    release is rendered from the RUNNING task revision, so a change to the
+    Terraform task definition does not reach production; this override is the
+    mechanism. `deletedApplications.due` falls to 0 within ceil(due / 10)
     hourly runs; the back-filled backlog is worked off 200 files per step per
-    hour. To stop at once, set `report` (or `off`) again: nothing is purged
-    before 30 days in trash, and a reference or a re-upload restores it.
+    hour. To stop at once, set `report` (or `off`) there and deploy again:
+    nothing is purged before 30 days in trash, and a reference or a re-upload
+    restores it.
 
 **oxy-infra** (`terraform-uswest2/alerts.tf`, beside
 `oxy_asset_variant_permanent_failures`):
@@ -962,7 +1254,7 @@ resource "aws_cloudwatch_metric_alarm" "oxy_file_storage_growth_anomaly" {
   metric_name         = "ApplicationGrowthAnomalies"
   statistic           = "Maximum"
   period              = 3600
-  evaluation_periods  = 1
+  evaluation_periods  = 2
   datapoints_to_alarm = 1
   threshold           = 1
   comparison_operator = "GreaterThanOrEqualToThreshold"
@@ -972,28 +1264,46 @@ resource "aws_cloudwatch_metric_alarm" "oxy_file_storage_growth_anomaly" {
 }
 ```
 
-and a CloudFront Function on the `cloud.oxy.so` distribution's default
-behaviour, event `viewer-response`:
+and the CloudFront Function (viewer-response, on the four S3-backed
+behaviours named in step 8):
 
 ```js
 function handler(event) {
   var response = event.response;
+  var status = parseInt(response.statusCode, 10);
+  // A 304 carries no body and its headers revalidate a cached 200: untouched.
+  if (status === 304) return response;
   var type = ((response.headers['content-type'] || {}).value || '').split(';')[0].trim().toLowerCase();
-  var inline = type.indexOf('image/svg') !== 0 && (
-    type.indexOf('image/') === 0 || type.indexOf('video/') === 0 ||
-    type.indexOf('audio/') === 0 || type === 'application/pdf' || type === 'text/plain');
-  if (!inline) {
-    response.headers['content-disposition'] = { value: 'attachment' };
-    response.headers['content-security-policy'] = { value: "sandbox; default-src 'none'" };
+  if (type === 'image/svg+xml') {
+    // Oxy stores SVG only sanitized (ADR 0043 stage 4c): inline for <img>; a
+    // direct navigation is a sandboxed, scriptless, fetch-less document.
+    delete response.headers['content-disposition'];
+    response.headers['content-security-policy'] = { value: "default-src 'none'; style-src 'unsafe-inline'; sandbox" };
+  } else {
+    var inline = type.indexOf('image/svg') !== 0 && (
+      type.indexOf('image/') === 0 || type.indexOf('video/') === 0 ||
+      type.indexOf('audio/') === 0 || type === 'application/pdf' || type === 'text/plain' ||
+      type === 'application/vnd.apple.mpegurl' || type === 'application/x-mpegurl');
+    if (!inline && status >= 200 && status < 300) {
+      var disposition = ((response.headers['content-disposition'] || {}).value || '').toLowerCase();
+      if (disposition.indexOf('attachment') !== 0) {
+        response.headers['content-disposition'] = { value: 'attachment' };
+      }
+      response.headers['content-security-policy'] = { value: "sandbox; default-src 'none'" };
+    }
   }
   response.headers['x-content-type-options'] = { value: 'nosniff' };
   return response;
 }
 ```
 
-*Verify:* an image on `cloud.oxy.so` has no `content-disposition`; a public
-zip uploaded with `uploadAppFileLarge` answers `content-disposition:
-attachment`; the alarm is `OK`.
+*Verify:* an image on `cloud.oxy.so` has no `content-disposition` (or
+`inline`: a large upload stores `inline` on media); a public zip uploaded with
+`uploadAppFileLarge` answers `content-disposition: attachment`; a public SVG
+uploaded through `/assets/service/app` answers `content-type: image/svg+xml`,
+no `content-disposition`, the SVG CSP above and `nosniff`; a public
+`hls_master.m3u8` has no `content-disposition`; a conditional request
+answering 304 carries none of these headers; the alarm is `OK`.
 
 **Verification after release** (production, with a staff session and a test
 application holding the new scopes):
@@ -1012,6 +1322,29 @@ application holding the new scopes):
   arrive.
 - After blocking a file, `/assets/:id/stream` answers 404 from every task at
   once (the cache channel), not after five minutes.
+- Stage 4c, with a test person and the test application holding
+  `files:user-media:write` and `files:linked:read`:
+  - `uploadUserMedia(person, mp3, 'audio/mpeg', { visibility: 'private' })`:
+    the object key has no `public/`; within minutes the file has `hls_master`,
+    `hls_a64`, `waveform` and `preview` variants; `linkedDownloadUrls([id])`
+    answers one URL for the test application and none for another.
+  - The person's file manager lists the test application under "Apps with
+    access" ("Stored this file for you"); Revoke → `linkedDownloadUrls`
+    answers none, and a play session opened before stops (its next segment
+    404s).
+  - `streams.create(id)` → `masterUrl` plays in Safari and hls.js (AES-128);
+    `streams.revoke` → the next segment is 404 on every task.
+  - A LiveKit room composite egress with `file: { filepath: target.livekit.filepath,
+    s3: target.livekit.s3 }` from `createAppRecordingTarget` → after the egress
+    ends, `completeRecordingTarget` answers the recording as a file with the
+    right `sha256` and size; the target's credentials then refuse a second
+    recording.
+  - `importUserMedia(person, <a 100 MiB podcast enclosure>)` → resolves (the SDK
+    polls the `202`) with the file; a second call answers `existing` without
+    fetching.
+  - An SVG with `<script>` uploaded with `uploadAppFile`: the stored bytes have
+    no script; its `stream` answers `image/svg+xml` inline with the SVG CSP;
+    `?variant=w320` is a webp.
 
 ## Alternatives rejected
 
