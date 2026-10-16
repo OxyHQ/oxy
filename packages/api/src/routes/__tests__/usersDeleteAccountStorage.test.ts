@@ -101,7 +101,14 @@ import { storageObjectDeletions } from '../../db/schema/storageObjectDeletions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import usersRouter from '../users';
-import { personalPlanCheckoutIntents, accountClosureFences } from '../../db/schema';
+import {
+  personalPlanCheckoutIntents,
+  accountClosureFences,
+  applications,
+  fileEventDeliveries,
+} from '../../db/schema';
+import { addFileReferences } from '../../services/fileRepository';
+import { sealFileWebhookSecret } from '../../services/fileEvents.service';
 import { productAccessFixture } from '../../services/__fixtures__/productAccessFixtures';
 import {
   startPersonalPlanCheckout,
@@ -125,6 +132,7 @@ const savedEnv = { ...process.env };
 let server: http.Server;
 
 beforeAll(async () => {
+  process.env.DEVICE_ID_SALT ??= 'test-device-id-salt-that-is-long-enough-000';
   process.env.SERVICE_TOKEN_SIGNING_KEY_ID = 'users-delete-storage-test';
   process.env.SERVICE_TOKEN_PRIVATE_KEY = signingKey.privateKey
     .export({ type: 'pkcs8', format: 'pem' })
@@ -285,6 +293,89 @@ describe("DELETE /users/me deletes the account's stored uploads", () => {
       await getDb().select({ id: files.id }).from(files).where(eq(files.id, photoId)),
     ).toHaveLength(1);
     expect(await owed(person.id)).toEqual([]);
+  });
+});
+
+/** An application using the person's photo, with or without a verified file-events endpoint. */
+async function usingApplication(photoId: string, entityId: string, withWebhook: boolean) {
+  const suffix = randomUUID().slice(0, 8);
+  const [developer] = await getDb()
+    .insert(users)
+    .values({ username: `dev-${suffix}` })
+    .returning({ id: users.id });
+  const id = randomBytes(12).toString('hex');
+  await getDb()
+    .insert(applications)
+    .values({
+      id,
+      name: `Reader ${suffix}`,
+      type: 'third_party',
+      ownerAccountId: developer.id,
+      createdByUserId: developer.id,
+      ...(withWebhook
+        ? {
+            filesWebhookUrl: 'https://receiver.example/files',
+            filesWebhookSecretCiphertext: sealFileWebhookSecret(id, 'whsec_test'),
+            filesWebhookVerifiedAt: new Date(),
+          }
+        : {}),
+    });
+  await addFileReferences([{ fileId: photoId, applicationId: id, entityType: 'post', entityId }]);
+  return id;
+}
+
+async function fileDeletedDeliveries(photoId: string) {
+  return getDb()
+    .select({
+      applicationId: fileEventDeliveries.applicationId,
+      type: fileEventDeliveries.type,
+      payload: fileEventDeliveries.payload,
+    })
+    .from(fileEventDeliveries)
+    .where(eq(fileEventDeliveries.fileId, photoId));
+}
+
+describe('DELETE /users/me tells the applications using its files (ADR 0041 D9, stage 4b)', () => {
+  beforeEach(() => {
+    signatureValid = true;
+    forceArchive = false;
+  });
+
+  for (const archive of [false, true]) {
+    it(`${archive ? 'archive' : 'hard delete'}: one file.deleted per subscribed application, none without an endpoint`, async () => {
+      const { person, photoId } = await seedPersonWithUploads();
+      const subscribed = await usingApplication(photoId, 'post-1', true);
+      await usingApplication(photoId, 'post-2', false);
+      currentUserId = person.id;
+      forceArchive = archive;
+
+      const response = await callDelete(deleteBody(person.username ?? ''));
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({ retained: archive });
+
+      const deliveries = await fileDeletedDeliveries(photoId);
+      expect(deliveries).toEqual([
+        {
+          applicationId: subscribed,
+          type: 'file.deleted',
+          payload: expect.objectContaining({
+            type: 'file.deleted',
+            file: { id: photoId, ownerKind: 'account', visibility: 'public', status: 'deleted' },
+            references: [{ entityType: 'post', entityId: 'post-1' }],
+          }),
+        },
+      ]);
+    });
+  }
+
+  it('a refused deletion tells nobody', async () => {
+    const { person, photoId } = await seedPersonWithUploads();
+    await usingApplication(photoId, 'post-1', true);
+    currentUserId = person.id;
+    signatureValid = false;
+
+    expect((await callDelete(deleteBody(person.username ?? ''))).status).toBe(401);
+    expect(await fileDeletedDeliveries(photoId)).toEqual([]);
   });
 });
 

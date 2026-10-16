@@ -36,6 +36,7 @@ import { applications } from '../db/schema/applications';
 import { files } from '../db/schema/files';
 import { fileVariants } from '../db/schema/fileVariants';
 import { messageAttachments } from '../db/schema/messageAttachments';
+import { recordFileEvents } from './fileEvents.service';
 import {
   storageObjectDeletions,
   type StorageObjectDeletionKind,
@@ -251,7 +252,9 @@ export async function recordAccountStorageDeletion(
       id: files.id,
       sha256: files.sha256,
       storageKey: files.storageKey,
+      ownerUserId: files.ownerUserId,
       ownerApplicationId: files.ownerApplicationId,
+      status: files.status,
     })
     .from(files)
     .where(
@@ -322,6 +325,22 @@ export async function recordAccountStorageDeletion(
   }
 
   const fileIds = owned.map((asset) => asset.id);
+
+  // Every application using one of the ACCOUNT's own files is told it is gone
+  // (ADR 0041 D9), in this transaction and while the rows and their references
+  // still stand: the archive removes them below, the hard delete's `users`
+  // cascade after. The account's applications' files were tombstoned — and
+  // their users told — by `deleteAccountApplications` just before; a file
+  // tombstoned earlier was announced then.
+  await recordFileEvents(
+    tx,
+    'file.deleted',
+    owned
+      .filter((asset) => asset.ownerUserId === accountId && asset.status !== 'deleted')
+      .map((asset) => asset.id),
+    { status: 'deleted' },
+  );
+
   // An application's rows go on EVERY path: no cascade reaches them
   // (`RESTRICT`), and on a hard delete they must be gone before the `users`
   // cascade deletes their application.

@@ -468,3 +468,53 @@ describe("an account's archive deletes its applications first (ADR 0041 D8)", ()
     expect((await statusOf(personFile.id)).unreferencedSince).not.toBeNull();
   });
 });
+
+describe("an account's archive tells the applications using its files (ADR 0041 D9, stage 4b)", () => {
+  it('queues exactly one file.deleted per (file, subscribed application), never to its own deleted application', async () => {
+    const { accountService: realAccountService } = jest.requireActual(
+      '../../services/account.service',
+    );
+    const channel = await account('channel');
+    const ownApp = await application(channel, true);
+    const subscribed = await application(await account(), true);
+    const unsubscribed = await application(await account(), false);
+    const photo = await storedFile({ ownerUserId: channel });
+    await addFileReferences([
+      { fileId: photo.id, applicationId: ownApp, entityType: 'banner', entityId: 'b' },
+      { fileId: photo.id, applicationId: subscribed, entityType: 'post', entityId: 'p1' },
+      { fileId: photo.id, applicationId: subscribed, entityType: 'post', entityId: 'p2' },
+      { fileId: photo.id, applicationId: unsubscribed, entityType: 'post', entityId: 'p3' },
+    ]);
+
+    await realAccountService.archiveAccount(channel);
+
+    expect(await getDb().select().from(files).where(eq(files.id, photo.id))).toHaveLength(0);
+    const deliveries = await getDb()
+      .select({
+        applicationId: fileEventDeliveries.applicationId,
+        type: fileEventDeliveries.type,
+        payload: fileEventDeliveries.payload,
+      })
+      .from(fileEventDeliveries)
+      .where(eq(fileEventDeliveries.fileId, photo.id));
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]).toMatchObject({
+      applicationId: subscribed,
+      type: 'file.deleted',
+      payload: {
+        type: 'file.deleted',
+        file: { id: photo.id, ownerKind: 'account', status: 'deleted', visibility: 'public' },
+      },
+    });
+    expect(
+      (deliveries[0].payload as { references: unknown[] }).references.sort((a, b) =>
+        JSON.stringify(a).localeCompare(JSON.stringify(b)),
+      ),
+    ).toEqual([
+      { entityType: 'post', entityId: 'p1' },
+      { entityType: 'post', entityId: 'p2' },
+    ]);
+    // The account is never named.
+    expect(JSON.stringify(deliveries[0].payload)).not.toContain(channel);
+  });
+});

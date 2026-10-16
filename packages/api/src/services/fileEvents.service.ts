@@ -82,7 +82,15 @@ export async function recordFileEvents(
   tx: Transaction,
   type: FileEventType,
   fileIds: readonly string[],
-  options: { occurredAt?: Date } = {},
+  options: {
+    occurredAt?: Date;
+    /**
+     * The status the payload states instead of the row's: for files whose rows
+     * the same transaction REMOVES rather than tombstones (an account's
+     * deletion or archive), read here while they still stand.
+     */
+    status?: (typeof files.$inferSelect)['status'];
+  } = {},
 ): Promise<number> {
   const ids = [...new Set(fileIds)];
   if (ids.length === 0) return 0;
@@ -159,7 +167,7 @@ export async function recordFileEvents(
             id: row.id,
             ownerKind: ownerKind(row),
             visibility: row.visibility,
-            status: row.status,
+            status: options.status ?? row.status,
           },
           references: fileReferencesOfRow
             .filter((reference) => reference.applicationId === applicationId)
