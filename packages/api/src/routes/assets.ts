@@ -64,7 +64,14 @@ import {
   appImportBodySchema,
   appImportBatchBodySchema,
   userMediaImportBodySchema,
+  appLargeUploadBodySchema,
+  userMediaLargeUploadBodySchema,
+  largeUploadParams,
+  largeUploadPartsBodySchema,
 } from '../schemas/assets.schemas';
+import type { LargeUploadOwner, LargeUploadView } from '../services/fileUploadSession.service';
+import { fileUploadSessionService } from '../services/fileUploadSessionSingleton';
+import { contentDispositionFor } from '../utils/fileContentPolicy';
 import { FileImportService, type ImportResult } from '../services/fileImport.service';
 import {
   isOwnerReferencedToApp,
@@ -1732,6 +1739,312 @@ router.post(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Large uploads (ADR 0041 stage 4b): any type, up to 8 GiB, resumable. The
+// client PUTs parts to S3 on presigned URLs; the API verifies the assembled
+// bytes against the declared SHA-256 before they become a file
+// (`services/fileUploadSession.service.ts`).
+// ---------------------------------------------------------------------------
+
+type LargeUploadBody = z.infer<typeof appLargeUploadBodySchema>;
+
+function serializeUserMediaFile(file: FileRecord) {
+  return {
+    id: file.id,
+    sha256: file.sha256,
+    size: file.size,
+    mime: file.mime,
+    visibility: file.visibility,
+    status: file.status,
+  };
+}
+
+/** The wire view of an upload: `file` in the shape of the route family's other answers. */
+function serializeLargeUpload(view: LargeUploadView, kind: LargeUploadOwner['kind']) {
+  return {
+    uploadId: view.uploadId,
+    status: view.status,
+    size: view.size,
+    ...(view.partSize === undefined ? {} : { partSize: view.partSize, partCount: view.partCount }),
+    ...(view.expiresAt && (view.status === 'uploading' || view.status === 'verifying')
+      ? { expiresAt: view.expiresAt }
+      : {}),
+    ...(view.parts ? { parts: view.parts } : {}),
+    ...(view.uploadedParts ? { uploadedParts: view.uploadedParts } : {}),
+    ...(view.file
+      ? {
+          file:
+            kind === 'application'
+              ? serializeApplicationFile(view.file)
+              : serializeUserMediaFile(view.file),
+          deduplicated: view.deduplicated ?? false,
+        }
+      : {}),
+    ...(view.reference ? { reference: { result: view.reference } } : {}),
+    ...(view.error ? { error: { code: view.error.code, message: view.error.message } } : {}),
+  };
+}
+
+/**
+ * `complete`'s answer: 200 with the file, 202 while it is still being
+ * verified, and a failed upload's own error (422 `CHECKSUM_MISMATCH` /
+ * `SIZE_MISMATCH`, 451 `CONTENT_BLOCKED`, 413 `STORAGE_QUOTA_EXCEEDED`, 410
+ * `EXPIRED` / `ABORTED` / `OWNER_GONE`).
+ */
+function sendLargeUploadOutcome(
+  res: express.Response,
+  view: LargeUploadView,
+  kind: LargeUploadOwner['kind'],
+): void {
+  if ((view.status === 'failed' || view.status === 'aborted') && view.error) {
+    throw new ApiError(view.error.status, view.error.message, view.error.code, {
+      uploadId: view.uploadId,
+    });
+  }
+  sendSuccess(res, serializeLargeUpload(view, kind), view.status === 'verifying' ? 202 : 200);
+}
+
+/** The calling application, admitted to its own large uploads (and their reference). */
+async function admitAppLargeUpload(
+  req: ServiceAuthRequest,
+  wantsReference: boolean,
+): Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }> {
+  const appId = await admitAppImport(req, wantsReference);
+  return { owner: { kind: 'application', applicationId: appId }, uploaderApplicationId: appId };
+}
+
+/** An account's large uploads: `/service/user-media`'s authority and owner, by the calling application. */
+async function admitUserMediaLargeUpload(
+  req: ServiceAuthRequest,
+  wantsReference: boolean,
+): Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }> {
+  const ownerUserId = await requireUserMediaOwner(req);
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  if (wantsReference) await requireActiveApplication(req, ['files:references:write']);
+  return { owner: { kind: 'account', userId: ownerUserId }, uploaderApplicationId: appId };
+}
+
+/**
+ * The five large-upload handlers for one owner family. Both families share
+ * every rule; only who owns the file (and so who may continue the upload)
+ * differs. Mounted below with literal paths, each documented.
+ */
+function largeUploadHandlers(
+  kind: LargeUploadOwner['kind'],
+  admit: (
+    req: ServiceAuthRequest,
+    wantsReference: boolean,
+  ) => Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }>,
+) {
+  const load = async (req: ServiceAuthRequest) => {
+    const { owner, uploaderApplicationId } = await admit(req, false);
+    return fileUploadSessionService.load(req.params.uploadId, owner, uploaderApplicationId);
+  };
+  return {
+    open: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const body = req.body as LargeUploadBody;
+      const { owner, uploaderApplicationId } = await admit(req, body.reference !== undefined);
+      const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
+        ...body,
+        visibility: body.visibility ?? 'public',
+      });
+      sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
+    }),
+    describe: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendSuccess(res, serializeLargeUpload(await fileUploadSessionService.describe(row), kind));
+    }),
+    parts: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      const { partNumbers } = req.body as { partNumbers: number[] };
+      const view = await fileUploadSessionService.requestPartUrls(row, partNumbers);
+      sendSuccess(res, serializeLargeUpload(view, kind));
+    }),
+    complete: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendLargeUploadOutcome(res, await fileUploadSessionService.complete(row), kind);
+    }),
+    abort: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendSuccess(res, serializeLargeUpload(await fileUploadSessionService.abort(row), kind));
+    }),
+  };
+}
+
+const appLargeUpload = largeUploadHandlers('application', admitAppLargeUpload);
+const userMediaLargeUpload = largeUploadHandlers('account', admitUserMediaLargeUpload);
+
+/**
+ * @route POST /api/assets/service/app/uploads
+ * @desc Open (or resume) a large upload of a file the CALLING APPLICATION will
+ *       own (ADR 0041 stage 4b). Body `{ sha256, size, mime, visibility,
+ *       filename?, metadata?, reference? }`: any type but executables,
+ *       installers and active documents (HTML, SVG, XML, scripts — 415), at
+ *       most 8 GiB (413), never blocked bytes (451), within a third-party
+ *       application's developer plan (413 `STORAGE_QUOTA_EXCEEDED`, D3).
+ *       201 `{ uploadId, status: 'uploading', partSize, partCount, expiresAt,
+ *       parts: [{ partNumber, url, size }] }` — the first 100 part URLs; PUT
+ *       exactly `size` bytes to each. The same bytes already open answer that
+ *       session, with the parts storage holds (`uploadedParts`) and URLs for
+ *       the missing ones. Bytes the application already owns answer 200
+ *       `{ uploadId: null, status: 'completed', file, deduplicated: true }`.
+ *       An upload not completed within a day of its last part-URL request (a
+ *       week at most) is aborted. Non-media types are stored and served with
+ *       `Content-Disposition: attachment`.
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         for `reference`), on an active application
+ */
+router.post(
+  '/service/app/uploads',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appLargeUploadBodySchema }),
+  appLargeUpload.open,
+);
+
+/**
+ * @route GET /api/assets/service/app/uploads/:uploadId
+ * @desc One of this application's large uploads as it stands: `status`
+ *       (`uploading` | `verifying` | `completed` | `failed` | `aborted`), the
+ *       parts storage holds while uploading (`uploadedParts`), the `file` once
+ *       completed, the `error` once failed. Poll it after a 202 `complete`.
+ *       Another application's upload is 404.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.get(
+  '/service/app/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.describe,
+);
+
+/**
+ * @route POST /api/assets/service/app/uploads/:uploadId/parts
+ * @desc Presigned part URLs: `{ partNumbers }` (1–100) → `{ parts: [{
+ *       partNumber, url, size }] }`, valid an hour; also slides the upload's
+ *       idle deadline. 409 once the upload is no longer `uploading`.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/uploads/:uploadId/parts',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams, body: largeUploadPartsBodySchema }),
+  appLargeUpload.parts,
+);
+
+/**
+ * @route POST /api/assets/service/app/uploads/:uploadId/complete
+ * @desc Assemble the parts, then VERIFY: Oxy hashes the assembled file and
+ *       only bytes matching the declared `sha256` become a file. 200 `{
+ *       status: 'completed', file, deduplicated, reference? }`; 202 `{ status:
+ *       'verifying' }` when it takes longer (poll the GET); 409
+ *       `UPLOAD_INCOMPLETE` naming missing or mis-sized parts (the upload stays
+ *       open); a failed upload's own error — 422 `CHECKSUM_MISMATCH` /
+ *       `SIZE_MISMATCH`, 451 `CONTENT_BLOCKED`, 413 `STORAGE_QUOTA_EXCEEDED`,
+ *       410 `EXPIRED` / `ABORTED` / `OWNER_GONE`. Idempotent.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/uploads/:uploadId/complete',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/app/uploads/:uploadId
+ * @desc Abort an unfinished large upload: storage discards its parts and any
+ *       reservation is released. 409 while it is being verified.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.delete(
+  '/service/app/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.abort,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads
+ * @desc The account-owned twin of `POST /service/app/uploads`, with
+ *       `/service/user-media`'s authority and owner: `x-owner-user-id` names an
+ *       existing local user, on EVERY call of the upload; `visibility`
+ *       defaults to `public`. Only the application that opened an upload can
+ *       continue it, for that owner.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ body: userMediaLargeUploadBodySchema }),
+  userMediaLargeUpload.open,
+);
+
+/**
+ * @route GET /api/assets/service/user-media/uploads/:uploadId
+ * @desc As `GET /service/app/uploads/:uploadId`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.get(
+  '/service/user-media/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.describe,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads/:uploadId/parts
+ * @desc As `POST /service/app/uploads/:uploadId/parts`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads/:uploadId/parts',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams, body: largeUploadPartsBodySchema }),
+  userMediaLargeUpload.parts,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads/:uploadId/complete
+ * @desc As `POST /service/app/uploads/:uploadId/complete`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads/:uploadId/complete',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/user-media/uploads/:uploadId
+ * @desc As `DELETE /service/app/uploads/:uploadId`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.delete(
+  '/service/user-media/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.abort,
+);
+
 /** One item of a reference batch, as the body names it. */
 type ServiceReferenceItem = { fileId: string; entityType: string; entityId: string };
 
@@ -3271,6 +3584,14 @@ router.get(
 
       if (streamInfo.contentType) {
         res.setHeader('Content-Type', streamInfo.contentType);
+      }
+      // Only media a browser renders without running anything is inline; any
+      // other type (HTML, SVG, XML… a mail attachment, a large upload) is a
+      // download, and sandboxed in case a browser renders it anyway — it must
+      // never run as this origin (ADR 0041 stage 4b, `fileContentPolicy.ts`).
+      if (contentDispositionFor(streamInfo.contentType ?? file.mime) === 'attachment') {
+        res.setHeader('Content-Disposition', 'attachment');
+        res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
       }
       if (streamInfo.contentLength != null) {
         res.setHeader('Content-Length', String(streamInfo.contentLength));

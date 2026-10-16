@@ -128,6 +128,34 @@ export async function releaseUnwrittenStorageReservation(
 }
 
 /**
+ * Release a large upload's reservation (ADR 0041 stage 4b) once its upload is
+ * TERMINAL and the reserved key will never be written by it: the S3 multipart
+ * upload was aborted (S3 refuses every further part), or it was assembled and
+ * then deleted or stored under another key (a deduplicated or shared row).
+ * Unlike {@link releaseUnwrittenStorageReservation}, the proof is the
+ * multipart upload's own terminal state, which a single presigned PUT cannot
+ * give — hence `presigned` is accepted here and nowhere else. Caller holds the
+ * content-hash lock in `tx`.
+ */
+export async function releaseTerminalMultipartReservation(
+  tx: Transaction,
+  id: string,
+): Promise<void> {
+  const [current] = await tx
+    .select()
+    .from(storageByteReservations)
+    .where(eq(storageByteReservations.id, id))
+    .for('update');
+  if (!current || current.cleanedAt) return;
+  await withStorageQuota(tx, [current.accountId], async () => {
+    await tx
+      .update(storageByteReservations)
+      .set({ cleanedAt: new Date() })
+      .where(eq(storageByteReservations.id, id));
+  });
+}
+
+/**
  * Bounded recovery entrypoint for the existing storage worker/scheduler.
  * Does no live/provider work unless its caller supplies an object-deletion adapter.
  * Presigned rows stay counted: signature expiry cannot bound in-flight PUTs.

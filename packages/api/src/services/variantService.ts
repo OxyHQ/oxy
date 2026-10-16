@@ -245,6 +245,14 @@ const POSTER_FFMPEG_TIMEOUT_MS = 30_000;
 const POSTER_MAX_OUTPUT_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 /**
+ * The largest image whose renditions are made. Sharp reads the original into
+ * memory, so a large upload of a huge image (ADR 0041 stage 4b allows 8 GiB)
+ * would take the task down; such an image is stored and served as it is, with
+ * no renditions (and a size request for it falls back like any missing one).
+ */
+export const IMAGE_VARIANT_MAX_SOURCE_BYTES = 100 * 1024 * 1024;
+
+/**
  * The protocols ffmpeg is allowed to open for a poster decode, derived from the
  * input URL's OWN scheme.
  *
@@ -465,7 +473,12 @@ export class VariantService {
 
       // Generate new variants based on file type
       if (file.mime.startsWith('image/')) {
-        await this.generateImageVariants(file);
+        if (file.size <= IMAGE_VARIANT_MAX_SOURCE_BYTES) await this.generateImageVariants(file);
+        else
+          logger.info('Image too large for renditions; served as stored', {
+            fileId,
+            size: file.size,
+          });
       } else if (file.mime.startsWith('video/')) {
         await this.generateVideoVariants(file);
       } else if (file.mime === 'application/pdf') {
@@ -635,6 +648,7 @@ export class VariantService {
     }
 
     if (file.mime.startsWith('image/')) {
+      if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) return false;
       const originalBuffer = await this.s3Service.downloadBuffer(file.storageKey);
       const meta = await sharp(originalBuffer, { failOn: 'none' }).metadata();
       const width = typeof meta.width === 'number' && meta.width > 0 ? meta.width : undefined;
@@ -1844,6 +1858,9 @@ export class VariantService {
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported image variant: ${variantType}`);
+    }
+    if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) {
+      throw new Error(`Image too large for renditions: ${file.size} bytes`);
     }
 
     const sourceBuffer = await this.s3Service.downloadBuffer(file.storageKey);

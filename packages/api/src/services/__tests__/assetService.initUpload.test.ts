@@ -211,7 +211,7 @@ describe('AssetService.initUpload dedupe signing', () => {
     );
 
     const privateKey = publicKey.slice('public/'.length);
-    expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey);
+    expect(fakeS3.copyFile).toHaveBeenCalledWith(publicKey, privateKey, { sizeHint: 123 });
     expect(await rowOf(result.fileId)).toMatchObject({
       ownerUserId: callerId,
       storageKey: privateKey,

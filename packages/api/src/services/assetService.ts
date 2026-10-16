@@ -7,6 +7,7 @@ import {
   reserveStorageBytes,
   reserveStorageBytesWithinTransaction,
   assertStorageReservationWritable,
+  releaseTerminalMultipartReservation,
   releaseUnwrittenStorageReservation,
 } from './storageByteReservation.service';
 import { createWriteStream, createReadStream } from 'fs';
@@ -707,7 +708,9 @@ export class AssetService {
               shared !== source.storageKey &&
               (await this.s3Service.fileExists(source.storageKey))
             ) {
-              await this.s3Service.copyFile(source.storageKey, shared);
+              await this.s3Service.copyFile(source.storageKey, shared, {
+                sizeHint: expectedSize,
+              });
               storageKey = shared;
               needsUpload = false;
             } else {
@@ -1187,6 +1190,156 @@ export class AssetService {
     );
     if (!tombstoned) return classifyApplicationFileDeleteRefusal(fileId, applicationId);
     return 'deleted';
+  }
+
+  /**
+   * Where a large upload's parts are assembled (ADR 0041 stage 4b): a key of the
+   * upload's own (`…/<sha>-<random><ext>`), ALWAYS in the private spelling —
+   * bytes not yet verified are never under `public/`, which the CDN serves.
+   */
+  largeUploadStagingKey(sha256: string, ext: string): string {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `content/${now.getFullYear()}/${month}/${sha256.substring(0, 2)}/${sha256}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+  }
+
+  /** The key a large upload's row ends at when it keeps its own object: the staging key, spelled for `visibility`. */
+  largeUploadFinalKey(stagingKey: string, visibility: FileVisibility): string {
+    return this.targetKeyForVisibility(stagingKey, visibility);
+  }
+
+  /**
+   * An owner's existing live row for bytes it uploads or adopts again: refused
+   * when blocked (ADR 0041 D10), and an application's own file in trash comes
+   * back to `active` with a fresh 24-hour clock, as a re-upload does.
+   */
+  async reuseOwnLiveFile(file: FileRecord, owner: FileOwner): Promise<FileRecord> {
+    refuseBlockedFile(file);
+    return this.prepareExistingStreamedMediaFile(file, {
+      owner,
+      purpose: 'user',
+      visibility: file.visibility,
+      metadata: {},
+      tempPrefix: '',
+      logLabel: 'Existing file',
+    });
+  }
+
+  /**
+   * Turn a VERIFIED large upload into its owner's file (ADR 0041 stage 4b): the
+   * assembled object at `stagingKey` hashed to `sha256` (the caller checked).
+   *
+   * Under the content-hash lock, with the blocklist re-checked there: the
+   * owner's existing row for these bytes is returned (`deduplicated`); else the
+   * row shares the object of another owner's live row in the spelling its
+   * visibility needs, or keeps the upload's own object — copied to its
+   * `public/` spelling for a public file, after verification, never before.
+   * An object the row does not end up using is deleted (the staging key is the
+   * upload's own: nobody else's row names it).
+   *
+   * `reservation` (storage admission on, a metered owner) was taken for
+   * {@link largeUploadFinalKey}; when the row ends on another key — or is a
+   * duplicate — it is released inside the same transaction, BEFORE the insert
+   * is admitted, so the bytes are never counted twice.
+   */
+  async finalizeLargeUpload(upload: {
+    owner: FileOwner;
+    sha256: string;
+    size: number;
+    mime: string;
+    ext: string;
+    originalName: string | null;
+    visibility: FileVisibility;
+    metadata: Record<string, unknown>;
+    stagingKey: string;
+    reservationId: string | null;
+  }): Promise<StreamedMediaResult> {
+    const finalKey = this.largeUploadFinalKey(upload.stagingKey, upload.visibility);
+    const objectsToDrop = new Set<string>();
+    const releaseReservation = async (tx: Transaction) => {
+      if (upload.reservationId) await releaseTerminalMultipartReservation(tx, upload.reservationId);
+    };
+    let outcome: { kind: 'existing'; file: FileRecord } | { kind: 'created'; file: FileRecord };
+    try {
+      outcome = await withContentHashLock(upload.sha256, async (tx) => {
+        await assertContentNotBlocked(upload.sha256, tx);
+        const own = await findLiveFileBySha256ForOwner(upload.sha256, upload.owner, tx);
+        if (own) {
+          await releaseReservation(tx);
+          return { kind: 'existing' as const, file: own };
+        }
+        const source = await findLiveStorageSourceBySha256(upload.sha256, upload.visibility, tx);
+        const shared = source
+          ? this.targetKeyForVisibility(source.storageKey, upload.visibility)
+          : null;
+        let storageKey: string;
+        if (shared && shared !== finalKey && (await this.s3Service.fileExists(shared))) {
+          storageKey = shared;
+          await releaseReservation(tx);
+        } else {
+          storageKey = finalKey;
+          if (finalKey !== upload.stagingKey) {
+            await this.s3Service.copyFile(upload.stagingKey, finalKey, { sizeHint: upload.size });
+          }
+        }
+        const file = await insertFile(
+          {
+            sha256: upload.sha256,
+            size: upload.size,
+            mime: upload.mime,
+            ext: upload.ext,
+            ...upload.owner,
+            purpose: 'user',
+            status: 'active',
+            storageKey,
+            originalName: upload.originalName ? normalizeInlineText(upload.originalName) : null,
+            visibility: upload.visibility,
+            metadata: upload.metadata,
+          },
+          tx,
+        );
+        return { kind: 'created' as const, file };
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // The same owner raced itself (an import or upload of the same bytes).
+      const raced = await findLiveFileBySha256ForOwner(upload.sha256, upload.owner);
+      if (!raced) throw error;
+      if (upload.reservationId) {
+        const reservationId = upload.reservationId;
+        await withContentHashLock(upload.sha256, (tx) =>
+          releaseTerminalMultipartReservation(tx, reservationId),
+        );
+      }
+      outcome = { kind: 'existing', file: raced };
+    }
+
+    if (outcome.file.storageKey !== upload.stagingKey) objectsToDrop.add(upload.stagingKey);
+    if (outcome.kind === 'existing' && finalKey !== upload.stagingKey) {
+      // A copy this attempt may have made before losing a race is its own key too.
+      if (outcome.file.storageKey !== finalKey) objectsToDrop.add(finalKey);
+    }
+    for (const key of objectsToDrop) {
+      await this.s3Service.deleteFile(key).catch((error: unknown) => {
+        logger.warn('Large upload: failed to delete an object the file does not use', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+
+    if (outcome.kind === 'existing') {
+      return { file: await this.reuseOwnLiveFile(outcome.file, upload.owner), deduplicated: true };
+    }
+    this.queueVariantGeneration(outcome.file);
+    logger.info('Large upload stored', {
+      fileId: outcome.file.id,
+      sha256: upload.sha256,
+      size: upload.size,
+      mime: upload.mime,
+      sharedStorage: outcome.file.storageKey !== finalKey,
+    });
+    return { file: outcome.file, deduplicated: false };
   }
 
   /**
@@ -2110,7 +2263,11 @@ export class AssetService {
             await meteredOwnerId(file),
             'visibility relocation copy',
           );
-          await this.s3Service.copyFile(move.key, move.target);
+          await this.s3Service.copyFile(
+            move.key,
+            move.target,
+            move.variantId === null ? { sizeHint: file.size } : {},
+          );
         }
         if (move.hlsRendition) await this.copyHlsSegments(file, move.key, move.target);
       }

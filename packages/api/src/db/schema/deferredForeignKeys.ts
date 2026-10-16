@@ -82,6 +82,7 @@ import { federationKeyPairs } from './federationKeyPairs';
 import { fileReferenceReconciliationItems } from './fileReferenceReconciliations';
 import { fileReferences } from './fileReferences';
 import { fileEventDeliveries } from './fileEventDeliveries';
+import { fileUploadSessions } from './fileUploadSessions';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
 import {
@@ -863,6 +864,23 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "The file an event is about. An account's deletion removes file rows, and " +
       'a queued event must still be delivered then: its payload stands alone.',
+  },
+  ...(['ownerUserId', 'ownerApplicationId', 'uploaderApplicationId'] as const).map((key) => ({
+    table: fileUploadSessions,
+    column: fileUploadSessions[key],
+    reason:
+      'A large upload in progress (ADR 0041 stage 4b): this row is what aborts its S3 ' +
+      'multipart upload and releases its storage reservation when nobody finishes it. A ' +
+      "foreign key would let the owner's (or uploader's) deletion take that cleanup away, " +
+      'as `storage_byte_reservations.account_id` has none for the same reason; a session ' +
+      'whose owner is gone fails at finalization, where `insertFile` refuses it.',
+  })),
+  {
+    table: fileUploadSessions,
+    column: fileUploadSessions.s3UploadId,
+    reason:
+      "S3's own `UploadId` of the multipart upload — an opaque handle into the bucket, " +
+      'not a row of this database.',
   },
   {
     table: fileReferences,

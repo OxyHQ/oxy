@@ -81,6 +81,7 @@ export * from './fileLifecycleSweeps';
 export * from './fileReferenceReconciliations';
 export * from './fileReferences';
 export * from './fileSources';
+export * from './fileUploadSessions';
 export * from './fileVariants';
 export * from './files';
 export * from './followNamespaces';

@@ -70,6 +70,10 @@ import {
   fileEventDeliveries,
 } from './schema/fileEventDeliveries';
 import {
+  FILE_UPLOAD_SESSION_RETENTION_SECONDS,
+  fileUploadSessions,
+} from './schema/fileUploadSessions';
+import {
   CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
   contentClaimClaimants,
   contentClaimNotifications,
@@ -413,6 +417,16 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Thirty days of file events to applications (ADR 0041 D9), far past the ' +
       'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
       'stays inspectable for support, then goes. Nothing reads an old row.',
+  },
+  {
+    table: fileUploadSessions,
+    column: fileUploadSessions.finishedAt,
+    retentionSeconds: FILE_UPLOAD_SESSION_RETENTION_SECONDS,
+    reason:
+      'A large upload that finished — a file, a failure or an abort (ADR 0041 ' +
+      'stage 4b) — stays readable by its uploader for a week, so a client that ' +
+      'lost the answer still learns the outcome, then goes. An open session has ' +
+      'no `finished_at` and is never swept here: the upload worker aborts it.',
   },
   {
     table: contentClaimClaimants,

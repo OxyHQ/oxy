@@ -168,6 +168,10 @@ import {
   stopFileEventDeliveryWorker,
 } from './services/fileEventDelivery.worker';
 import {
+  startFileUploadSessionWorker,
+  stopFileUploadSessionWorker,
+} from './services/fileUploadSession.worker';
+import {
   startContentClaimNotificationWorker,
   stopContentClaimNotificationWorker,
 } from './services/contentClaims/contentClaimNotification.worker';
@@ -586,6 +590,7 @@ async function gracefulShutdown(signal: string) {
   stopStorageDeletionWorker();
   stopFileLifecycleWorker();
   stopFileEventDeliveryWorker();
+  stopFileUploadSessionWorker();
   stopContentClaimNotificationWorker();
   await flushCdnInvalidations();
   await stopBackgroundJobs();
@@ -1491,6 +1496,9 @@ export async function bootstrap(
   // Tell applications about the files they use (ADR 0041 D9). ON by default:
   // only applications that verified an endpoint have anything queued.
   startFileEventDeliveryWorker();
+  // Verify completed large uploads and abort abandoned ones (ADR 0041 stage
+  // 4b). ON by default: nothing to do until an application opens an upload.
+  startFileUploadSessionWorker();
   // Send content-claim emails: the claimant's confirmation, and word to the
   // owners of what a takedown blocked (ADR 0041 D10). ON by default.
   startContentClaimNotificationWorker();

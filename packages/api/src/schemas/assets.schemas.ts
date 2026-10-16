@@ -335,3 +335,51 @@ export const userMediaImportBodySchema = z
     visibility: z.enum(['private', 'public', 'unlisted']).optional(),
   })
   .strict();
+
+// ---------------------------------------------------------------------------
+// Large uploads (ADR 0041 stage 4b): a resumable S3 multipart upload of any
+// type, up to 8 GiB, opened by an application's service token.
+// ---------------------------------------------------------------------------
+
+/** Part URLs one call hands out (`init` and `POST …/:uploadId/parts`). */
+export const MAX_UPLOAD_PART_URLS_PER_CALL = 100;
+
+const largeUploadShape = {
+  // The content's identity: hex, lowercased (verified against the assembled object).
+  sha256: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'sha256 must be 64 hexadecimal characters')
+    .transform((value) => value.toLowerCase()),
+  size: z.number().int().positive(),
+  mime: z.string().trim().min(1).max(255),
+  filename: z.string().trim().min(1).max(255).optional(),
+  metadata: z.record(z.unknown()).optional(),
+  reference: importReferenceSchema.optional(),
+};
+
+// POST /assets/service/app/uploads — the calling application will own the file.
+export const appLargeUploadBodySchema = z
+  .object({ ...largeUploadShape, visibility: z.enum(['private', 'public', 'unlisted']) })
+  .strict();
+
+// POST /assets/service/user-media/uploads — an account will own it (x-owner-user-id).
+export const userMediaLargeUploadBodySchema = z
+  .object({
+    ...largeUploadShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();
+
+export const largeUploadParams = z.object({
+  uploadId: z.string().trim().min(1).max(64),
+});
+
+// POST …/uploads/:uploadId/parts — presigned URLs for these parts.
+export const largeUploadPartsBodySchema = z
+  .object({
+    partNumbers: z
+      .array(z.number().int().min(1).max(10_000))
+      .min(1)
+      .max(MAX_UPLOAD_PART_URLS_PER_CALL),
+  })
+  .strict();
