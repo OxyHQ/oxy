@@ -125,6 +125,66 @@ const benefit = {
   combination: 'sum',
 };
 
+const supervision = {
+  childAccountId: 'child',
+  guardianAccountId: 'guardian',
+  status: 'active',
+  policyVersion: '2',
+  consentVersion: '1',
+  createdAt: ISO,
+};
+const invitation = {
+  id: 'inv-1',
+  childAccountId: 'child',
+  guardianAccountId: 'guardian',
+  status: 'pending',
+  expiresAt: ISO_LATER,
+  consentVersion: '1',
+  createdAt: ISO,
+};
+const purchaseApproval = {
+  operationId: 'op-1',
+  resourceId: 'order-1',
+  cartFingerprint: HEX64,
+  summary: ' Two books ',
+  merchantAccountIds: ['merchant-b', 'merchant-a'],
+  lineItems: [
+    {
+      itemReference: 'sku-1',
+      title: 'Book',
+      optionsText: ' Paperback ',
+      merchantAccountId: 'merchant-a',
+      quantity: 2,
+      unitAmountMinor: 400,
+      lineAmountMinor: 800,
+    },
+    {
+      itemReference: 'sku-2',
+      title: 'Map',
+      optionsText: '',
+      merchantAccountId: 'merchant-b',
+      quantity: 1,
+      unitAmountMinor: 250,
+      lineAmountMinor: 250,
+    },
+  ],
+  shippingMinor: 150,
+  taxMinor: 0,
+  discountMinor: 50,
+  roundingAdjustmentMinor: 0,
+  paymentFingerprint: HEX64,
+  amountMinor: 1150,
+  currency: 'EUR',
+  expiresAt: ISO_LATER,
+  id: 'approval-1',
+  childAccountId: 'child',
+  applicationId: 'app-1',
+  status: 'pending',
+  createdAt: ISO,
+  receiptReference: null,
+};
+const { lineItems: _lineItems, ...purchaseApprovalSummary } = purchaseApproval;
+
 const PAIRS: Pair[] = [
   {
     name: 'deviceSessionState',
@@ -426,6 +486,129 @@ const PAIRS: Pair[] = [
     check: client.profileAccessDecisionCheck,
     schema: contracts.profileAccessDecisionSchema,
     samples: [{ allowed: false, reason: 'blocked', policyVersion: '1' }],
+  },
+  {
+    name: 'supervisionState',
+    check: client.supervisionStateCheck,
+    schema: contracts.supervisionStateSchema,
+    samples: [
+      {
+        self: supervision,
+        children: [{ ...supervision, guardianAccountId: null }],
+        invitations: [invitation],
+      },
+      { self: null, children: [], invitations: [] },
+    ],
+  },
+  {
+    name: 'supervisionInvitation',
+    check: client.supervisionInvitationCheck,
+    schema: contracts.supervisionInvitationSchema,
+    samples: [invitation],
+  },
+  {
+    name: 'supervisionContactsResponse',
+    check: client.supervisionContactsResponseCheck,
+    schema: contracts.supervisionContactsResponseSchema,
+    samples: [
+      { items: [{ childAccountId: 'child', contactAccountId: 'friend', approvedAt: ISO }] },
+    ],
+  },
+  {
+    name: 'supervisionInviteInput',
+    check: client.supervisionInviteInputCheck,
+    schema: contracts.supervisionInviteInputSchema,
+    samples: [{ guardianAccountId: 'guardian', consentVersion: '1', reauth }],
+  },
+  {
+    name: 'supervisionAcceptInput',
+    check: client.supervisionAcceptInputCheck,
+    schema: contracts.supervisionAcceptInputSchema,
+    samples: [{ consentVersion: '1', reauth }],
+  },
+  {
+    name: 'supervisionContactInput',
+    check: client.supervisionContactInputCheck,
+    schema: contracts.supervisionContactInputSchema,
+    samples: [{ childAccountId: 'child', contactAccountId: 'friend', reauth }],
+  },
+  {
+    name: 'supervisionReviewInput',
+    check: client.supervisionReviewInputCheck,
+    schema: contracts.supervisionReviewInputSchema,
+    samples: [
+      {
+        childAccountId: 'child',
+        action: 'transfer',
+        guardianAccountId: 'guardian-2',
+        evidenceReference: ' case-1 ',
+        reauth,
+      },
+      { childAccountId: 'child', action: 'end', evidenceReference: 'case-2', reauth },
+    ],
+  },
+  {
+    name: 'safetyPeopleInput',
+    check: client.safetyPeopleInputCheck,
+    schema: contracts.safetyPeopleInputSchema,
+    samples: [{ query: ' na ' }, { accountIds: ['a', 'b'] }],
+  },
+  {
+    name: 'safetyPeopleResponse',
+    check: client.safetyPeopleResponseCheck,
+    schema: contracts.safetyPeopleResponseSchema,
+    samples: [{ items: [{ accountId: 'a', username: 'nate', displayName: null }] }, { items: [] }],
+  },
+  {
+    name: 'safetyOrganizationsInput',
+    check: client.safetyOrganizationsInputCheck,
+    schema: contracts.safetyOrganizationsInputSchema,
+    samples: [{ query: ' Acme ', limit: 5 }, { query: 'A' }, { ids: ['org-1', 'org-2'] }],
+  },
+  {
+    name: 'safetyOrganizationsResponse',
+    check: client.safetyOrganizationsResponseCheck,
+    schema: contracts.safetyOrganizationsResponseSchema,
+    samples: [
+      {
+        items: [
+          {
+            requestedAccountId: 'old',
+            organization: {
+              accountId: 'org',
+              username: null,
+              name: 'Acme',
+              organizationType: 'business',
+            },
+          },
+        ],
+        missingIds: ['gone'],
+      },
+    ],
+  },
+  {
+    name: 'purchaseApproval',
+    check: client.purchaseApprovalCheck,
+    schema: contracts.purchaseApprovalSchema,
+    samples: [
+      purchaseApproval,
+      { ...purchaseApproval, roundingAdjustmentMinor: -1, amountMinor: 1149 },
+    ],
+  },
+  {
+    name: 'purchaseApprovalList',
+    check: client.purchaseApprovalListCheck,
+    schema: contracts.purchaseApprovalListSchema,
+    samples: [
+      { items: [purchaseApprovalSummary], nextCursor: 'next' },
+      { items: [], nextCursor: null },
+    ],
+  },
+  {
+    name: 'purchaseReviewInput',
+    check: client.purchaseReviewInputCheck,
+    schema: contracts.purchaseReviewInputSchema,
+    samples: [{ decision: 'approved', reauth }],
   },
   {
     name: 'recommendationRequest',

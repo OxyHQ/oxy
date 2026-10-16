@@ -33,6 +33,9 @@ export {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+export { ServerSafetyApi } from './safety';
+export { ServerSessionApi } from './session';
+export type { ServerSessionValidateOptions } from './session';
 export {
   createOxyAliaMachineCredentialAuth,
   getOxyAliaMachineCredentialBearer,

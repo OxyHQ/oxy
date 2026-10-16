@@ -88,6 +88,8 @@ import {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+import { ServerSafetyApi } from './safety';
+import { ServerSessionApi } from './session';
 
 export interface OxyServerConfig extends OxyConfig {
   /** This service's application credential. Omit to use workload identity (ADR 0026). */
@@ -296,6 +298,8 @@ export class OxyServer extends OxyServices {
   private _serverAgency?: ServerAgencyApi;
   private _serverApps?: ServerAppsApi;
   private _serverReputation?: ServerReputationApi;
+  private _serverSafety?: ServerSafetyApi;
+  private _serverSession?: ServerSessionApi;
 
   /** The account graph, plus the service-only `accessFor` membership verdict. */
   override get accounts(): ServerAccountsApi {
@@ -333,6 +337,16 @@ export class OxyServer extends OxyServices {
   override get reputation(): ServerReputationApi {
     if (!this._serverReputation) this._serverReputation = new ServerReputationApi(this.context);
     return this._serverReputation;
+  }
+  /** Policy reads, plus the consumer-service decision lanes (ADR 0041). */
+  override get safety(): ServerSafetyApi {
+    if (!this._serverSafety) this._serverSafety = new ServerSafetyApi(this.context);
+    return this._serverSafety;
+  }
+  /** Session state, plus validation through a reviewed supervised action. */
+  override get session(): ServerSessionApi {
+    if (!this._serverSession) this._serverSession = new ServerSessionApi(this.context);
+    return this._serverSession;
   }
 
   // ── Service token ────────────────────────────────────────────────────────

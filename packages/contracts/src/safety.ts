@@ -1,8 +1,28 @@
 import { z } from 'zod';
+import { accountActorChainSchema } from './accountSubject';
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// its vocabularies are re-exported here so the root entry is unchanged.
+import {
+  PURCHASE_APPROVAL_STATUSES,
+  SAFETY_POLICY_VERSION,
+  SUPERVISED_ACTIONS,
+  SUPERVISION_CONSENT_VERSION,
+  SUPERVISION_INVITATION_STATUSES,
+  SUPERVISION_STATUSES,
+} from './client/safety';
 import { ORGANIZATION_TYPES } from './organizations';
 import { reauthProofSchema } from './signIn';
 import { userResponseSchema } from './userResponse';
-import { accountActorChainSchema } from './accountSubject';
+
+export {
+  PURCHASE_APPROVAL_STATUSES,
+  SAFETY_POLICY_VERSION,
+  SUPERVISED_ACTIONS,
+  SUPERVISION_CONSENT_VERSION,
+  SUPERVISION_INVITATION_STATUSES,
+  SUPERVISION_STATUSES,
+};
+
 /** The requester is authenticated by the bearer; applications cannot submit viewer IDs. */
 export const profileAccessInputSchema = z
   .object({ subjectAccountId: z.string().min(1).max(128) })
@@ -18,10 +38,7 @@ export type ProfileAccessInput = z.infer<typeof profileAccessInputSchema>;
 export type ProfileAccessDecision = z.infer<typeof profileAccessDecisionSchema>;
 
 /** Supervision is a personal-account safety policy, never a new login/account kind. */
-export const SUPERVISED_ACTIONS = ['profile', 'messaging', 'content', 'purchases'] as const;
 export type SupervisedAction = (typeof SUPERVISED_ACTIONS)[number];
-export const SAFETY_POLICY_VERSION = '2' as const;
-export const SUPERVISION_CONSENT_VERSION = '1' as const;
 export const SAFETY_DECISION_REASONS = [
   'allowed',
   'owner',
@@ -250,8 +267,6 @@ export type ContentAccessInput = z.infer<typeof contentAccessInputSchema>;
 export type ContentAccessBatchInput = z.infer<typeof contentAccessBatchInputSchema>;
 export type DeliveryAccessInput = z.infer<typeof deliveryAccessInputSchema>;
 
-export const SUPERVISION_STATUSES = ['active', 'orphaned', 'ended'] as const;
-export const SUPERVISION_INVITATION_STATUSES = ['pending', 'accepted', 'cancelled'] as const;
 export const supervisionSchema = z
   .object({
     childAccountId: accountId,
@@ -292,15 +307,10 @@ export const supervisionContactsResponseSchema = z
   .strict();
 export type Supervision = z.infer<typeof supervisionSchema>;
 export type SupervisionInvitation = z.infer<typeof supervisionInvitationSchema>;
+export type SupervisionContact = z.infer<typeof supervisionContactSchema>;
+export type SupervisionState = z.infer<typeof supervisionStateSchema>;
+export type SupervisionContactsResponse = z.infer<typeof supervisionContactsResponseSchema>;
 
-export const PURCHASE_APPROVAL_STATUSES = [
-  'pending',
-  'approved',
-  'rejected',
-  'reserved',
-  'confirmed',
-  'cancelled',
-] as const;
 const fingerprint = z.string().regex(/^[a-f0-9]{64}$/);
 const minorUnits = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const purchaseApprovalLineSchema = z
@@ -410,6 +420,7 @@ export const reservePurchaseSchema = purchaseEffectsObject
   .superRefine(validatePurchaseEvidence);
 export type PurchaseApprovalLine = z.infer<typeof purchaseApprovalLineSchema>;
 export type PurchaseApprovalSummary = z.infer<typeof purchaseApprovalSummarySchema>;
+export type PurchaseApprovalList = z.infer<typeof purchaseApprovalListSchema>;
 export const confirmPurchaseSchema = z
   .object({
     approvalId: accountId,
@@ -502,6 +513,7 @@ export const safetyPeopleResponseSchema = z
   .strict();
 export type SafetyPerson = z.infer<typeof safetyPersonSchema>;
 export type SafetyPeopleInput = z.infer<typeof safetyPeopleInputSchema>;
+export type SafetyPeopleResponse = z.infer<typeof safetyPeopleResponseSchema>;
 
 /** Existing public employer identity only; never directory content or management authority. */
 export const safetyOrganizationIdentitySchema = z
@@ -535,3 +547,4 @@ export const safetyOrganizationsResponseSchema = z
   .strict();
 export type SafetyOrganizationIdentity = z.infer<typeof safetyOrganizationIdentitySchema>;
 export type SafetyOrganizationsInput = z.infer<typeof safetyOrganizationsInputSchema>;
+export type SafetyOrganizationsResponse = z.infer<typeof safetyOrganizationsResponseSchema>;

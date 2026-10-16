@@ -21,7 +21,12 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-import { rateLimiter, idpServiceLimiter, isIdpServiceToServicePath } from '../security';
+import {
+  rateLimiter,
+  idpServiceLimiter,
+  isIdpServiceToServicePath,
+  sessionHeaderValidationLimiter,
+} from '../security';
 
 interface Probe {
   status: number;
@@ -63,7 +68,7 @@ describe('isIdpServiceToServicePath', () => {
   });
 
   it('does NOT match browser-reachable neighbours that must stay under the general budget', () => {
-    // Bearer-cross-checked, browser-reachable — MUST NOT be exempted.
+    // Bearer-cross-checked, keyed per subject by its own limiter instead.
     expect(isIdpServiceToServicePath('/session/validate-header/sess-abc')).toBe(false);
     // Ordinary user/session traffic.
     expect(isIdpServiceToServicePath('/session/user/64f7c2a1b8e9d3f4a1c2b3d4')).toBe(false);
@@ -87,7 +92,7 @@ describe('general limiter (rl:general) exempts IdP service paths', () => {
   });
 
   it('does not consume / emit the general budget on exempt paths', async () => {
-    for (const path of ['/session/validate/sess-abc']) {
+    for (const path of ['/session/validate/sess-abc', '/session/validate-header/sess-abc']) {
       const res = await get(server, path);
       expect(res.status).toBe(200);
       // A skipped request never touches the store and emits NO RateLimit
@@ -97,7 +102,7 @@ describe('general limiter (rl:general) exempts IdP service paths', () => {
   });
 
   it('still enforces the general budget on browser-facing paths', async () => {
-    const res = await get(server, '/session/validate-header/sess-abc');
+    const res = await get(server, '/session/user/64f7c2a1b8e9d3f4a1c2b3d4');
     expect(res.status).toBe(200);
     expect(hasRateLimitHeaders(res.headers)).toBe(true);
     // NODE_ENV is not "development" under jest → production ceiling of 1000.
@@ -127,5 +132,26 @@ describe('idpServiceLimiter (rl:idp:service) is the dedicated high-cap limiter',
     // distinct instance from rl:general (different limit proves distinctness).
     expect(res.headers['ratelimit-limit']).toBe('20000');
     expect(res.headers['ratelimit-limit']).not.toBe('1000');
+  });
+});
+
+describe('sessionHeaderValidationLimiter is the bearer validation route\'s own budget', () => {
+  let server: http.Server;
+
+  beforeAll(async () => {
+    const app = express();
+    app.use(sessionHeaderValidationLimiter);
+    app.all('*', (_req, res) => res.json({ ok: true }));
+    server = await listen(app);
+  });
+
+  afterAll(async () => {
+    await close(server);
+  });
+
+  it('carries the high ceiling a relying app validating every request needs', async () => {
+    const res = await get(server, '/session/validate-header/sess-abc');
+    expect(res.status).toBe(200);
+    expect(res.headers['ratelimit-limit']).toBe('20000');
   });
 });

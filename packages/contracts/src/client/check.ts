@@ -24,6 +24,7 @@
  *   strictObject(shape)   unknown keys FAIL (`.strict()`)
  *   looseObject(shape)    unknown keys are KEPT (`.passthrough()`)
  *   refine(c, test)       a further condition, run once `c` passes
+ *   transform(c, f)       `f` rewrites the value once `c` passes
  *   union / discriminatedUnion   as Zod 3 reports them
  *
  * A failure carries the first issue Zod would report and whether Zod would have
@@ -323,6 +324,14 @@ export function refineAt<T>(
     return problem
       ? fail([...path, ...problem.path], { code: 'custom', message: problem.message }, false)
       : checked;
+  };
+}
+
+/** Zod's `.transform()`: rewrites a value `inner` accepted. */
+export function transform<T, U>(inner: Check<T>, rewrite: (value: T) => U): Check<U> {
+  return (input, path) => {
+    const checked = inner(input, path);
+    return checked.ok ? ok(rewrite(checked.value)) : checked;
   };
 }
 

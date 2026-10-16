@@ -1,4 +1,4 @@
-# ADR 0040 — Supervision is a personal safety policy
+# ADR 0041 — Supervision is a personal safety policy
 
 - Status: implementation in progress; no consumer capability enabled
 - Date: 2026-10-15

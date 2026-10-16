@@ -1,5 +1,3 @@
-import { extractErrorStatus } from '../utils/errorUtils';
-import type { SupervisedAction, UserResponse } from '@oxy.so/contracts';
 import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
 /**
  * The Express and Socket.IO middleware `OxyServer` mounts
@@ -20,13 +18,18 @@ import {
   type OxyAppPermissions,
   type RequireAppPermissionOptions,
 } from './appPermissions';
-import { accountActorChainSchema, type AccountActorChain } from '@oxy.so/contracts';
+import {
+  accountActorChainSchema,
+  type AccountActorChain,
+  type SupervisedAction,
+} from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
 import { toOxyApiError } from '../OxyServices.errors';
+import { extractErrorStatus } from '../utils/errorUtils';
 import {
   OXY_SERVICE_ENVIRONMENTS,
   type OxyServiceEnvironment,
@@ -325,7 +328,7 @@ export interface OxyMiddlewareHost {
       accessToken?: string;
       supervisedAction?: SupervisedAction;
     },
-  ): Promise<{ valid: boolean; user?: UserResponse | User; actor?: unknown } | null>;
+  ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(
     appId: string,
     userId: string,
@@ -1693,7 +1696,7 @@ function readStringClaim(value: unknown): string | null {
  * instead. We accept either, but only a non-empty string — anything else
  * means the validated identity is unusable and the caller must reject.
  */
-function getUserIdentityId(user: UserResponse | User): string | null {
+function getUserIdentityId(user: User): string | null {
   const candidate =
     (user as { id?: unknown; _id?: unknown }).id ?? (user as { id?: unknown; _id?: unknown })._id;
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
