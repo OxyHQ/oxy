@@ -698,7 +698,7 @@ export class S3Service {
 
   /**
    * Upload one part of a multipart upload FROM the API (a recording target's
-   * S3-compatible ingest, ADR 0042 stage 4c): `body` is streamed, never
+   * S3-compatible ingest, ADR 0043 stage 4c): `body` is streamed, never
    * buffered, and must be exactly `contentLength` bytes. Returns S3's ETag.
    */
   async uploadPart(

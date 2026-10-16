@@ -1,11 +1,11 @@
 /**
- * A person's consent for an application to read their file (ADR 0042 stage 4c,
+ * A person's consent for an application to read their file (ADR 0043 stage 4c,
  * `file_access_grants`). The decision itself is `applicationReadConsent` in
  * `fileReference.service.ts`, over the file aggregate; this module writes the
  * rows and answers the owner's "Apps with access" list.
  *
  * Every write here changes what a cached file record answers, so each one ends
- * with `fileCache.invalidate` (cross-task, ADR 0042 stage 4b) — which also drops
+ * with `fileCache.invalidate` (cross-task, ADR 0043 stage 4b) — which also drops
  * every task's cached play sessions of the file, so a revocation stops a play
  * mid-stream.
  */

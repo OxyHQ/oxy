@@ -1,5 +1,5 @@
 /**
- * Bytes Oxy receives or fetches before their hash is known (ADR 0042 stage 4c,
+ * Bytes Oxy receives or fetches before their hash is known (ADR 0043 stage 4c,
  * `file_ingests`): large imports by URL and recording targets. See the
  * schema's header for the model; this module is its lifecycle.
  *
@@ -1036,7 +1036,7 @@ export class FileIngestService {
     });
   }
 
-  /** The import's once-per-URL memory (ADR 0042 D7), as the synchronous import records it. */
+  /** The import's once-per-URL memory (ADR 0043 D7), as the synchronous import records it. */
   private async recordSource(row: FileIngestRow, file: FileRecord): Promise<void> {
     const url = openSecret(row.sourceUrlCiphertext as string, sourceContext(row.id));
     const owner =

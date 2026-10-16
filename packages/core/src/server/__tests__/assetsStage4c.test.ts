@@ -1,5 +1,5 @@
 /**
- * `OxyServer.assets` — stage 4c of ADR 0042: a person's private media from a
+ * `OxyServer.assets` — stage 4c of ADR 0043: a person's private media from a
  * service, audio rendition options, play sessions, recording targets
  * (LiveKit egress) and imports of sources over 40 MiB that Oxy fetches in the
  * background.

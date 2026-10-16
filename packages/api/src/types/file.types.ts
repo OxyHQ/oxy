@@ -87,7 +87,7 @@ export type FileReferenceRecord = typeof fileReferences.$inferSelect;
 
 /**
  * A person's consent (or its revocation) for one application to read one of
- * their files with its service token (`file_access_grants`, ADR 0042 stage 4c).
+ * their files with its service token (`file_access_grants`, ADR 0043 stage 4c).
  */
 export type FileAccessGrantRecord = typeof fileAccessGrants.$inferSelect;
 
@@ -112,7 +112,7 @@ export type FileRecord = typeof files.$inferSelect & {
   links: FileReferenceRecord[];
   variants: FileVariantRecord[];
   /**
-   * The owner's consent decisions per application (ADR 0042 stage 4c) — read
+   * The owner's consent decisions per application (ADR 0043 stage 4c) — read
    * with the file so a cached record answers "may this application read it"
    * (`fileReference.service.mayApplicationRead`); every write to the table
    * invalidates the file's cache entry.

@@ -37,7 +37,7 @@ export const mutationKeys = {
     revoke: ['mutation', 'connectedApps', 'revoke'] as const,
   },
 
-  // A file's applications with access (ADR 0042 stage 4c)
+  // A file's applications with access (ADR 0043 stage 4c)
   fileAppAccess: {
     revoke: ['mutation', 'fileAppAccess', 'revoke'] as const,
   },

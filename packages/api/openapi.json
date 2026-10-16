@@ -8535,7 +8535,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0042). Raw bytes",
+        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes",
         "description": "as the body (not multipart); `Content-Type` must be an image, video or\n      audio type (an SVG is stored as its sanitized document), at most 40\n      MiB; `x-audio-options` (JSON `{ normalizeLoudness?,\n      previewStartSeconds? }`) shapes an audio file's renditions. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0043 D2/D3).",
         "parameters": [],
         "responses": {
@@ -9179,7 +9179,7 @@
           "Files"
         ],
         "summary": "A place a LiveKit egress (or any S3 client) records into, for a file",
-        "description": "the CALLING APPLICATION will own (ADR 0042 stage 4c). Body `{\n      visibility, filename?, metadata?, reference?, maxBytes? (≤ 8 GiB,\n      default 8 GiB), expiresInSeconds? (60–604800, default 86400), audio? }`\n      → 201 `{ targetId, status: 'awaiting_upload', expiresAt, filepath, s3:\n      { accessKey, secret, region, endpoint, bucket, forcePathStyle }, livekit:\n      { filepath, s3: { access_key, secret, region, endpoint, bucket,\n      force_path_style } } }` — `livekit` is exactly an `EncodedFileOutput`'s\n      `filepath` and `s3`. The credentials are an S3-compatible endpoint of\n      Oxy's own (`/assets/recording-ingest`, path-style, SigV4) that accepts\n      ONE recording under `filepath` (the egress appends its extension;\n      audio or video) plus small side objects such as its manifest, which\n      are discarded; `PutObject` and the multipart calls the AWS SDK makes.\n      The bytes never touch `public/`; once the object is complete Oxy\n      hashes it and stores it as a file through the large-upload\n      finalization (dedupe, blocklist, a third-party application's plan),\n      with the `reference` asked for. The secret is shown only here.\n        for `reference`), on an active application",
+        "description": "the CALLING APPLICATION will own (ADR 0043 stage 4c). Body `{\n      visibility, filename?, metadata?, reference?, maxBytes? (≤ 8 GiB,\n      default 8 GiB), expiresInSeconds? (60–604800, default 86400), audio? }`\n      → 201 `{ targetId, status: 'awaiting_upload', expiresAt, filepath, s3:\n      { accessKey, secret, region, endpoint, bucket, forcePathStyle }, livekit:\n      { filepath, s3: { access_key, secret, region, endpoint, bucket,\n      force_path_style } } }` — `livekit` is exactly an `EncodedFileOutput`'s\n      `filepath` and `s3`. The credentials are an S3-compatible endpoint of\n      Oxy's own (`/assets/recording-ingest`, path-style, SigV4) that accepts\n      ONE recording under `filepath` (the egress appends its extension;\n      audio or video) plus small side objects such as its manifest, which\n      are discarded; `PutObject` and the multipart calls the AWS SDK makes.\n      The bytes never touch `public/`; once the object is complete Oxy\n      hashes it and stores it as a file through the large-upload\n      finalization (dedupe, blocklist, a third-party application's plan),\n      with the `reference` asked for. The secret is shown only here.\n        for `reference`), on an active application",
         "parameters": [],
         "responses": {
           "200": {
@@ -11075,7 +11075,7 @@
           "Files"
         ],
         "summary": "Mint short-lived download URLs for files linked to the calling app",
-        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each of the caller's OWN files (ADR 0042) and for each person's file the person consented to the calling application reading (ADR 0042 stage 4c): one the application stored for them (`/service/user-media` upload, import, large upload or recording), or one THE FILE'S OWN OWNER attached to it (a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id`) — unless the person revoked the application's access (`DELETE /assets/{id}/access/{applicationId}`). Any other id is silently OMITTED from `data`: unknown, not active, system-owned, another application's, not consented, or revoked (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
+        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each of the caller's OWN files (ADR 0043) and for each person's file the person consented to the calling application reading (ADR 0043 stage 4c): one the application stored for them (`/service/user-media` upload, import, large upload or recording), or one THE FILE'S OWN OWNER attached to it (a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id`) — unless the person revoked the application's access (`DELETE /assets/{id}/access/{applicationId}`). Any other id is silently OMITTED from `data`: unknown, not active, system-owned, another application's, not consented, or revoked (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -11806,7 +11806,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "Open a play session over a file's HLS ladder (ADR 0042 stage 4c): a",
+        "summary": "Open a play session over a file's HLS ladder (ADR 0043 stage 4c): a",
         "description": "short-lived, revocable set of URLs for ONE file, optionally for one\n      end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default\n      3600), encryption? ('aes-128' default | 'none'), keyAuthorization?\n      ('none' default | 'webhook') }`. The file must be the calling\n      application's own, or a person's file the application may read (it\n      stored it for them, or they attached it to it, and did not revoke\n      that — `files:linked:read`); anything else is 404, like no file. 409\n      `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,\n      fileId, kind: 'video' | 'audio', status: 'active', encryption,\n      keyAuthorization, endUserId, expiresAt, masterUrl, renditions: [{\n      type, url, bandwidth }], previewUrl?, waveformUrl? }` — the URLs are\n      bearer authority for this session only and are shown once. Every\n      request under them re-checks the session, so revoking it (`DELETE`),\n      the owner revoking the application's access, or the file leaving\n      `active` stops the next segment. With `aes-128` the segments are\n      encrypted as served under a key of this session, released at\n      `<base>/key`; with `keyAuthorization: 'webhook'` only after the\n      application's verified file-events endpoint answers `{ \"allow\": true\n      }` to a signed `stream.key_authorization` request (409\n      `FILES_WEBHOOK_REQUIRED` without one).\n        `files:app:write` (the application's own), on an active application",
         "parameters": [],
         "responses": {
@@ -12195,7 +12195,7 @@
           "Files"
         ],
         "summary": "Stream-upload durable media into a file owned by an existing local Oxy",
-        "description": "user (`x-owner-user-id`), e.g. Mention MCP intent-media or a product\n      storing what a person made in it. Raw bytes as the body; image, video\n      or audio (SVG is sanitized first), at most 40 MiB. `x-visibility`\n      (`public` default | `unlisted` | `private`): a private file is never\n      under `public/` or on the CDN. The calling application may read the\n      file back (`/service/linked-url`, play sessions) because it stored it\n      for the person (ADR 0042 stage 4c) — until the person revokes that.\n      `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds?\n      }`) shapes an audio file's renditions. Rows are per owner: bytes the\n      person already holds answer that file, its visibility unchanged.\n        files:write together with federation:write",
+        "description": "user (`x-owner-user-id`), e.g. Mention MCP intent-media or a product\n      storing what a person made in it. Raw bytes as the body; image, video\n      or audio (SVG is sanitized first), at most 40 MiB. `x-visibility`\n      (`public` default | `unlisted` | `private`): a private file is never\n      under `public/` or on the CDN. The calling application may read the\n      file back (`/service/linked-url`, play sessions) because it stored it\n      for the person (ADR 0043 stage 4c) — until the person revokes that.\n      `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds?\n      }`) shapes an audio file's renditions. Rows are per owner: bytes the\n      person already holds answer that file, its visibility unchanged.\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -12256,7 +12256,7 @@
           "Files"
         ],
         "summary": "Import a file by URL into an ACCOUNT's files (ADR 0043 D7): the",
-        "description": "account-owned equivalent of `/service/app/import`, with the authority\n      and owner of `/service/user-media` — `x-owner-user-id` names an\n      existing local user. Body `{ sourceUrl, visibility? (default public),\n      reference?, revalidate?, audio? }`; the same fetch, policies,\n      once-per-URL memory (per account) and answers, a large source\n      included (`202`, poll `GET /assets/service/user-media/imports/{importId}`).\n      `reference` registers the CALLING application's use of the file\n      (needs `files:references:write`). The calling application may read the\n      file back (ADR 0042 stage 4c) until the person revokes that.\n        files:write together with federation:write",
+        "description": "account-owned equivalent of `/service/app/import`, with the authority\n      and owner of `/service/user-media` — `x-owner-user-id` names an\n      existing local user. Body `{ sourceUrl, visibility? (default public),\n      reference?, revalidate?, audio? }`; the same fetch, policies,\n      once-per-URL memory (per account) and answers, a large source\n      included (`202`, poll `GET /assets/service/user-media/imports/{importId}`).\n      `reference` registers the CALLING application's use of the file\n      (needs `files:references:write`). The calling application may read the\n      file back (ADR 0043 stage 4c) until the person revokes that.\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -12481,7 +12481,7 @@
           "Files"
         ],
         "summary": "The account-owned twin of `POST /service/app/recording-targets`, with",
-        "description": "`/service/user-media`'s authority and owner (`x-owner-user-id` on\n      EVERY call); `visibility` defaults to `private`. The recording becomes\n      the person's file, which the creating application may read back\n      until the person revokes that (ADR 0042 stage 4c).\n        files:write together with federation:write",
+        "description": "`/service/user-media`'s authority and owner (`x-owner-user-id` on\n      EVERY call); `visibility` defaults to `private`. The recording becomes\n      the person's file, which the creating application may read back\n      until the person revokes that (ADR 0043 stage 4c).\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -13434,7 +13434,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "What a play session's URLs name (ADR 0042 stage 4c): `master.m3u8`,",
+        "summary": "What a play session's URLs name (ADR 0043 stage 4c): `master.m3u8`,",
         "description": "a rendition playlist, a segment it lists, `key` (the AES-128 key, 16\n      bytes), `preview.m4a` and `waveform.json` (audio). The token is\n      `<sessionId>.<secret>`; every request checks the session (live, not\n      revoked, not expired), the file (`active`) and that the application\n      may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An\n      encrypted session's rendition playlists declare the key and its\n      segments are AES-128-CBC encrypted as served (IV = media sequence\n      number). The key with key authorization: 403\n      `KEY_AUTHORIZATION_DENIED` unless the application allowed it. CORS is\n      open (`*`, no credentials): the URL is the credential.",
         "parameters": [
           {
@@ -13667,7 +13667,7 @@
           "Files"
         ],
         "summary": "The applications that can read the caller's file with their service",
-        "description": "token right now (ADR 0042 stage 4c), for \"Apps with access\": `{\n      fileId, applications: [{ applicationId, name, icon, via: ('upload' |\n      'link')[], since }] }` — `upload`: the application stored the file\n      for you; `link`: you attached the file to it. Anybody but the owner\n      gets 404.",
+        "description": "token right now (ADR 0043 stage 4c), for \"Apps with access\": `{\n      fileId, applications: [{ applicationId, name, icon, via: ('upload' |\n      'link')[], since }] }` — `upload`: the application stored the file\n      for you; `link`: you attached the file to it. Anybody but the owner\n      gets 404.",
         "parameters": [
           {
             "name": "id",
@@ -13737,7 +13737,7 @@
         "tags": [
           "Files"
         ],
-        "summary": "The owner withdraws an application's access to their file (ADR 0042",
+        "summary": "The owner withdraws an application's access to their file (ADR 0043",
         "description": "stage 4c): whatever gave it — the application stored it for them, or\n      they attached it to it — the application can no longer read it\n      (`/service/linked-url`, play sessions), and every play session it\n      holds for the file ends now. It stays withdrawn when the application\n      uploads the same bytes again; attaching the file to that application\n      again (`POST /assets/{id}/links`) gives it back. References the\n      application holds are kept: they record its USE, which is not access.\n      Idempotent: `{ fileId, applicationId, revoked: true, streamsRevoked }`.\n      404 for anybody but the owner, and for an unknown application.",
         "parameters": [
           {

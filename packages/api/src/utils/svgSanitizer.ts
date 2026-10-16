@@ -1,5 +1,5 @@
 /**
- * Safe SVG (ADR 0042 stage 4c): every SVG Oxy Files stores is the output of
+ * Safe SVG (ADR 0043 stage 4c): every SVG Oxy Files stores is the output of
  * this module, never the uploader's bytes.
  *
  * An SVG is an active document: rendered as a page it can run script, load

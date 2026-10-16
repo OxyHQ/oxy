@@ -75,12 +75,12 @@ export function isOwnerReferencedToApp(file: FileRecord, appId: string): boolean
   );
 }
 
-/** How an application came to be able to read a person's file (ADR 0042 stage 4c). */
+/** How an application came to be able to read a person's file (ADR 0043 stage 4c). */
 export type ApplicationReadConsent = 'owner' | 'upload' | 'link';
 
 /**
  * Why application `appId` may read `file` with its service token, or `null`
- * when it may not (ADR 0042 stage 4c) — the whole authorization of
+ * when it may not (ADR 0043 stage 4c) — the whole authorization of
  * `/service/linked-url` and of a play session:
  *
  * - `owner`: the application's OWN file;

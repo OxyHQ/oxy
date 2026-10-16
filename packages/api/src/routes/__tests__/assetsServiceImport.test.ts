@@ -627,7 +627,7 @@ describe('POST /assets/service/user-media/import', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Large sources (ADR 0042 stage 4c): > 40 MiB, or audio/video without a
+// Large sources (ADR 0043 stage 4c): > 40 MiB, or audio/video without a
 // declared size, are fetched in the background and stored the same way.
 // ---------------------------------------------------------------------------
 

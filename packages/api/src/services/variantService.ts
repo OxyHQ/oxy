@@ -336,7 +336,7 @@ const SVG_MAX_DENSITY = 2400;
 
 /**
  * Sharp's input options for a stored image. An SVG (always a sanitized one,
- * ADR 0042 stage 4c — it references nothing outside itself, and librsvg loads
+ * ADR 0043 stage 4c — it references nothing outside itself, and librsvg loads
  * nothing for an in-memory buffer) is a vector: given the rendition's
  * `targetWidth` it is rasterized at the density that draws it at that width,
  * so a 24-pixel icon renders a crisp 2048-pixel rendition rather than an
@@ -963,7 +963,7 @@ export class VariantService {
   }
 
   /**
-   * Audio renditions (ADR 0042 stage 4c, `audioRenditions.ts`): an audio-only
+   * Audio renditions (ADR 0043 stage 4c, `audioRenditions.ts`): an audio-only
    * AAC HLS ladder (`hls_a64` always, `hls_a128`/`hls_a256` when the source
    * carries that much), its `hls_master`, a `waveform` of peaks and a 30-second
    * `preview` clip — loudness-normalized (EBU R128) when the owner asked for it

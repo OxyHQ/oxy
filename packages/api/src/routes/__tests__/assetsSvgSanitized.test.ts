@@ -1,5 +1,5 @@
 /**
- * Safe SVG end to end (ADR 0042 stage 4c) — over real `node:http`, the REAL
+ * Safe SVG end to end (ADR 0043 stage 4c) — over real `node:http`, the REAL
  * AssetService, the REAL sanitizer and a REAL Postgres; S3 is an in-memory map.
  *
  * Invariants:

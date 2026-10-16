@@ -123,7 +123,7 @@
  *   `accounts:act-as-session` and does not lead to it: a channel can never be
  *   acted AS, and this scope is what lets an app avoid ever needing to.
  * - `files:linked:read` permits a service credential to read a PERSON's file
- *   the person consented to THIS application reading (ADR 0042 stage 4c,
+ *   the person consented to THIS application reading (ADR 0043 stage 4c,
  *   `file_access_grants`): one THE FILE'S OWN OWNER attached to it, or one the
  *   application itself stored for the person with the staff-granted act-as
  *   authority of `files:user-media:write` — never after the person revoked

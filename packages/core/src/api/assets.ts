@@ -348,7 +348,7 @@ export class AssetsApi {
   /**
    * An SVG never takes the presigned path: those bytes reach storage without
    * passing through the API, and an SVG is stored only as the API sanitized it
-   * (ADR 0042 stage 4c — `/assets/init` refuses it with 415
+   * (ADR 0043 stage 4c — `/assets/init` refuses it with 415
    * `SVG_UPLOAD_REQUIRES_SANITIZATION`). It goes through {@link upload}, and
    * the committed record is read back in `uploadLarge`'s shape. Its `sha256`
    * is the SANITIZED bytes', so `deduplicated` is always `false` here.
@@ -529,7 +529,7 @@ export class AssetsApi {
 
   /**
    * The applications that can read one of YOUR files with their own service
-   * token (ADR 0042 stage 4c): one that stored the file for you (`via:
+   * token (ADR 0043 stage 4c): one that stored the file for you (`via:
    * 'upload'` — an upload, import or recording it made on your behalf) or one
    * you attached it to yourself (`'link'`). 404 for a file that is not yours.
    */

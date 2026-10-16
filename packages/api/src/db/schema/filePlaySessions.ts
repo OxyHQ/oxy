@@ -1,6 +1,6 @@
 /**
  * `file_play_sessions` — one revocable play of one file's HLS ladder by an
- * application (ADR 0042 stage 4c).
+ * application (ADR 0043 stage 4c).
  *
  * `POST /assets/service/streams` opens one for a file the calling application
  * owns or may read (`fileReference.service.mayApplicationRead`) and answers

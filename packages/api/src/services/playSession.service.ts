@@ -1,5 +1,5 @@
 /**
- * Revocable play sessions over a file's HLS ladder (ADR 0042 stage 4c,
+ * Revocable play sessions over a file's HLS ladder (ADR 0043 stage 4c,
  * `file_play_sessions`).
  *
  * An application that owns a file, or may read a person's file

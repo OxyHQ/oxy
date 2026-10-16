@@ -1,6 +1,6 @@
 /**
  * `/assets/recording-ingest` — the S3-compatible endpoint a recording target's
- * credentials point at (ADR 0042 stage 4c). A LiveKit egress, configured with
+ * credentials point at (ADR 0043 stage 4c). A LiveKit egress, configured with
  * the target's `livekit.s3` (endpoint, bucket, `force_path_style`, access key
  * and secret), uploads its file here exactly as it would to S3: the AWS SDK's
  * upload manager sends `PutObject` for a small file and the multipart calls for

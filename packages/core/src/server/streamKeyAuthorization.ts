@@ -1,5 +1,5 @@
 /**
- * Authorizing a play session's content key (ADR 0042 stage 4c).
+ * Authorizing a play session's content key (ADR 0043 stage 4c).
  *
  * A play session (`OxyServer.assets.streams.create`) with
  * `keyAuthorization: 'webhook'` makes Oxy ask the application before it serves

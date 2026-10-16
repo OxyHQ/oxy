@@ -56,7 +56,7 @@ export const FEDERATION_CACHE_ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audi
  * allowed prefix: every SVG spelling but `image/svg+xml`. An SVG is an active
  * document (it can embed `<script>`), so it is stored only as the output of
  * `utils/svgSanitizer.ts` — which every upload and import path runs on
- * `image/svg+xml` (ADR 0042 stage 4c) — and never under another spelling.
+ * `image/svg+xml` (ADR 0043 stage 4c) — and never under another spelling.
  */
 export const DISALLOWED_CACHE_MIME_PREFIXES = ['image/svg'] as const;
 

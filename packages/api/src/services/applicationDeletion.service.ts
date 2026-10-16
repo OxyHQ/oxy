@@ -61,7 +61,7 @@ export interface DeletedApplicationContent {
   /** `storage_object_deletions` rows armed, to work off right away. */
   ledgerIds: string[];
   /**
-   * Files whose play sessions this application held were revoked (ADR 0042
+   * Files whose play sessions this application held were revoked (ADR 0043
    * stage 4c): their cached sessions are dropped on every task after commit.
    */
   playSessionFileIds: string[];

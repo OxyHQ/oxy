@@ -248,7 +248,7 @@ export function seedApplicationLookupIdentity(
  *    to (an attachment they sent), never as Alia's.
  *  - `files:linked:read` — read back the bytes of a person's file Alia stored
  *    for them (or one they attached to Alia), private ones included, while
- *    they have not revoked Alia's access (ADR 0042 stage 4c). Not privileged:
+ *    they have not revoked Alia's access (ADR 0043 stage 4c). Not privileged:
  *    the person's consent per file is the bound, not the token.
  *
  * WITHHELD, each for its own reason rather than by omission:

@@ -116,7 +116,7 @@ export const queryKeys = {
     /** The owner's trash (ADR 0043 D5) — under `files.all`, so one invalidation covers both. */
     trash: (ownerId?: string) => [...queryKeys.files.all, 'trash', ownerId || 'anonymous'] as const,
     /**
-     * The applications that can read one file with their own token (ADR 0042
+     * The applications that can read one file with their own token (ADR 0043
      * stage 4c) — under `files.all`, so a library invalidation refreshes it too.
      */
     appAccess: (fileId: string) => [...queryKeys.files.all, 'appAccess', fileId] as const,

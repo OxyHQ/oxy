@@ -987,7 +987,7 @@ export interface ServiceUserMediaFile {
 }
 
 /**
- * How Oxy renders an AUDIO file it stores (ADR 0042 stage 4c). Every audio
+ * How Oxy renders an AUDIO file it stores (ADR 0043 stage 4c). Every audio
  * file gets an audio-only HLS ladder (AAC 64k/128k/256k, a rung above the
  * source's own bitrate is skipped), a waveform (`waveform`, peaks JSON) and a
  * 30-second `preview` clip, made after the upload returns.
@@ -1000,7 +1000,7 @@ export interface AudioRenditionOptions {
 }
 
 /**
- * An import by URL Oxy is still running (ADR 0042 stage 4c): a source over
+ * An import by URL Oxy is still running (ADR 0043 stage 4c): a source over
  * 40 MiB is fetched in the background and answered `202` with this. The SDK's
  * import methods wait for it and resolve to the ordinary import result.
  */
@@ -1024,7 +1024,7 @@ export interface FileImportState<TFile> {
 
 /**
  * One application that can read one of your files with its service token
- * (ADR 0042 stage 4c), from `GET /assets/:id/access`:
+ * (ADR 0043 stage 4c), from `GET /assets/:id/access`:
  * - `upload`: the application stored the file for you (an upload, import or
  *   recording it made on your behalf);
  * - `link`: you attached the file to the application yourself (ADR 0021).
@@ -1063,7 +1063,7 @@ export interface PlaySessionOptions {
   keyAuthorization?: 'none' | 'webhook';
 }
 
-/** A revocable play session of one file (ADR 0042 stage 4c), `POST /assets/service/streams`. */
+/** A revocable play session of one file (ADR 0043 stage 4c), `POST /assets/service/streams`. */
 export interface PlaySessionState {
   sessionId: string;
   fileId: string;
@@ -1095,7 +1095,7 @@ export interface PlaySession extends PlaySessionState {
   waveformUrl?: string;
 }
 
-/** Options of a recording target (ADR 0042 stage 4c). */
+/** Options of a recording target (ADR 0043 stage 4c). */
 export interface RecordingTargetOptions {
   /** Stored as the original name. */
   filename?: string;

@@ -107,7 +107,7 @@ export function isServiceTokenMintPath(path: string): boolean {
 
 /**
  * Paths whose URL itself is the credential and whose traffic is machine-paced
- * (ADR 0042 stage 4c):
+ * (ADR 0043 stage 4c):
  *   - `/assets/streams/<sessionId>.<secret>/…` — a play session's playlists,
  *     segments and key: a player fetches a segment every few seconds, and many
  *     listeners share one NAT address;

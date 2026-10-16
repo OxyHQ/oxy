@@ -303,7 +303,7 @@ function isCacheUploadRequest(req: express.Request): boolean {
 }
 
 /**
- * A recording target's S3-compatible ingest (ADR 0042 stage 4c): its bodies
+ * A recording target's S3-compatible ingest (ADR 0043 stage 4c): its bodies
  * (media, a JSON manifest, multipart XML) are streamed and signed exactly as
  * sent, so no global parser may consume them, and a part takes longer than the
  * default timeout on a slow link.

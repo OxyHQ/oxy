@@ -55,7 +55,7 @@ class FileCache {
   private recentInvalidations: Map<string, number> = new Map();
   private config: FileCacheConfig;
   private cleanupTimer: NodeJS.Timeout | null = null;
-  /** Caches DERIVED from a file's record (play sessions, ADR 0042 stage 4c), dropped with it. */
+  /** Caches DERIVED from a file's record (play sessions, ADR 0043 stage 4c), dropped with it. */
   private readonly invalidationListeners = new Set<(fileIds: readonly string[]) => void>();
 
   constructor(config: Partial<FileCacheConfig> = {}) {

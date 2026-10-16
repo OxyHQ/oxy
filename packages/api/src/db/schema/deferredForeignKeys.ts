@@ -902,7 +902,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: fileIngests,
     column: fileIngests[key],
     reason:
-      'A large import or a recording target in progress (ADR 0042 stage 4c): as a large ' +
+      'A large import or a recording target in progress (ADR 0043 stage 4c): as a large ' +
       "upload's session, this row is what aborts its S3 multipart upload and deletes its " +
       "staging object when nobody finishes it, and the owner's (or creator's) deletion must " +
       'not take that cleanup away; an ingest whose owner is gone fails at finalization, ' +

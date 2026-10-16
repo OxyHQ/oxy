@@ -73,12 +73,12 @@ export interface ImportRequest {
   revalidate?: boolean;
   /** Register the calling application's use of the file in the same request. */
   reference?: { entityType: string; entityId: string };
-  /** How an audio file's renditions are made (`metadata.audioOptions`, ADR 0042 stage 4c). */
+  /** How an audio file's renditions are made (`metadata.audioOptions`, ADR 0043 stage 4c). */
   audio?: { normalizeLoudness?: boolean; previewStartSeconds?: number };
 }
 
 /**
- * A source too large to store within the request (ADR 0042 stage 4c): it is
+ * A source too large to store within the request (ADR 0043 stage 4c): it is
  * being fetched in the background as a `file_ingests` row; the route answers
  * `202` with its id.
  */
@@ -406,7 +406,7 @@ export class FileImportService {
     }
 
     // A person's file the calling application stored for them: it may read it
-    // back (ADR 0042 stage 4c).
+    // back (ADR 0043 stage 4c).
     if (owner.kind === 'account') {
       await grantUploadAccess(result.file.id, referencingApplicationId);
     }

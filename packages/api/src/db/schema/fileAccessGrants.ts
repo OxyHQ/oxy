@@ -1,6 +1,6 @@
 /**
  * `file_access_grants` — a person's consent, per (file, application), for an
- * application to READ that person's file with its service token (ADR 0042
+ * application to READ that person's file with its service token (ADR 0043
  * stage 4c).
  *
  * Reading a person's private file from a service (`POST

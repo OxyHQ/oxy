@@ -239,7 +239,7 @@ export class FileUploadSessionService {
       // The owner already holds these bytes: nothing to upload.
       const file = await this.assets.reuseOwnLiveFile(own, columns);
       // A person's file the application is storing for them: it may read it
-      // back (ADR 0042 stage 4c), the bytes already being theirs included.
+      // back (ADR 0043 stage 4c), the bytes already being theirs included.
       if (owner.kind === 'account') await grantUploadAccess(file.id, uploaderApplicationId);
       const reference = await this.addReference(file, request.reference, uploaderApplicationId);
       return {
@@ -551,7 +551,7 @@ export class FileUploadSessionService {
   }
 
   /**
-   * A verified SVG becomes a file only as its sanitized document (ADR 0042
+   * A verified SVG becomes a file only as its sanitized document (ADR 0043
    * stage 4c): the uploaded bytes are read (bounded at open), sanitized, and
    * the sanitized bytes written next to them (a key derived from the upload's,
    * so a retried attempt rewrites the same object); the file's hash is the
@@ -639,7 +639,7 @@ export class FileUploadSessionService {
     }
 
     // A person's file the uploading application stored for them: it may read
-    // it back (ADR 0042 stage 4c).
+    // it back (ADR 0043 stage 4c).
     if (row.kind === 'account') await grantUploadAccess(stored.file.id, row.uploaderApplicationId);
     const reference = await this.addReference(
       stored.file,

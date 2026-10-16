@@ -1,5 +1,5 @@
 /**
- * `oxy.assets` — the applications that can read one of your files (ADR 0042
+ * `oxy.assets` — the applications that can read one of your files (ADR 0043
  * stage 4c): listing them and revoking one, and `uploadLarge` sending an SVG
  * through the sanitizing upload instead of the presigned path.
  */

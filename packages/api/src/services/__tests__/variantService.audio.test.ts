@@ -1,5 +1,5 @@
 /**
- * Audio renditions (ADR 0042 stage 4c) — REAL ffmpeg against generated audio,
+ * Audio renditions (ADR 0043 stage 4c) — REAL ffmpeg against generated audio,
  * a REAL Postgres for the file and variant rows, and an in-memory bucket served
  * over a local HTTP server so ffmpeg reads its input exactly as it reads a
  * presigned URL in production.

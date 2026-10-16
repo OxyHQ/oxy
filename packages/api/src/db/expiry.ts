@@ -464,7 +464,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: FILE_INGEST_RETENTION_SECONDS,
     reason:
       'A large import or a recording target that finished — a file, a failure or an ' +
-      'abort (ADR 0042 stage 4c) — stays readable by its creator for a week, so a ' +
+      'abort (ADR 0043 stage 4c) — stays readable by its creator for a week, so a ' +
       'client that lost the answer still learns the outcome, then goes. An open ingest ' +
       'has no `finished_at` and is never swept here: the ingest worker aborts it.',
   },
@@ -473,7 +473,7 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: filePlaySessions.expiresAt,
     retentionSeconds: PLAY_SESSION_RETENTION_SECONDS,
     reason:
-      'A play session (ADR 0042 stage 4c) is dead at `expires_at` — every serving ' +
+      'A play session (ADR 0043 stage 4c) is dead at `expires_at` — every serving ' +
       'request checks it — and is kept a day longer so the application reading it ' +
       'learns "expired" rather than "unknown". Housekeeping only.',
   },

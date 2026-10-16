@@ -31,7 +31,7 @@ export interface LargeServiceUploadOptions {
   /**
    * The file's type. Executables and active documents (HTML, XML, scripts)
    * are refused (415); an SVG (at most 5 MiB) is sanitized when Oxy verifies
-   * it, and the sanitized bytes are what is stored (ADR 0042 stage 4c).
+   * it, and the sanitized bytes are what is stored (ADR 0043 stage 4c).
    */
   mime: string;
   /** How an audio file is rendered (ignored for other types). */

@@ -277,7 +277,7 @@ export class ServerAssetsApi extends AssetsApi {
   };
 
   /**
-   * Per-play, revocable streaming access (ADR 0042 stage 4c). A play session
+   * Per-play, revocable streaming access (ADR 0043 stage 4c). A play session
    * is ONE file's HLS ladder (a video's, or an audio file's audio-only one)
    * for a short time, optionally for one end user: `masterUrl` is what the
    * player opens, and every playlist, segment and key it then fetches is
@@ -493,7 +493,7 @@ export class ServerAssetsApi extends AssetsApi {
    * A URL comes back for this application's own files, and for a person's
    * file the person consented to: they attached it to this application (ADR
    * 0021), or this application stored it for them (a user-media upload,
-   * import, large upload or recording, ADR 0042 stage 4c) — unless they
+   * import, large upload or recording, ADR 0043 stage 4c) — unless they
    * revoked this application's access in their file manager. Every other id
    * is omitted, and the route answers identically
    * for "no such file" and "not yours". ABSENCE IS A REFUSAL, not a fact about
@@ -607,7 +607,7 @@ export class ServerAssetsApi extends AssetsApi {
    * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image,
    * video or audio (an SVG is sanitized and stored as sanitized), at most
    * 40 MiB; `audio` sets how an audio file is rendered. Bytes taken down after a content claim are
-   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0042 D10) — here, by
+   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0043 D10) — here, by
    * the imports and by every other upload.
    *
    * `visibility` is required: `public` and `unlisted` are readable by anyone
@@ -902,7 +902,7 @@ export class ServerAssetsApi extends AssetsApi {
   /**
    * Import a file by URL into an existing local user's files
    * (`POST /assets/service/user-media/import`, the staff-granted scope
-   * `files:user-media:write`, ADR 0042 D7) — the account-owned twin of
+   * `files:user-media:write`, ADR 0043 D7) — the account-owned twin of
    * {@link importAppFile}, public unless `visibility` says otherwise (a
    * `private` file reaches no CDN; this application can still read it — it
    * stored it for the person — until the person revokes that). The same URL
@@ -961,7 +961,7 @@ export class ServerAssetsApi extends AssetsApi {
   // ── Recording targets (LiveKit egress) ──────────────────────────────────
 
   /**
-   * An upload target a room recorder writes into (ADR 0042 stage 4c): Oxy
+   * An upload target a room recorder writes into (ADR 0043 stage 4c): Oxy
    * answers S3-compatible credentials that accept exactly ONE object — the
    * recording at `filepath` — and nothing else, for `expiresInSeconds`.
    * Hand `livekit` to LiveKit's egress as its `EncodedFileOutput`

@@ -20,7 +20,7 @@ interface FileAppAccessSectionProps {
 }
 
 /**
- * "Apps with access" (ADR 0042 stage 4c): the applications that can open this
+ * "Apps with access" (ADR 0043 stage 4c): the applications that can open this
  * file on their own — one that stored it for the person (`upload`), one the
  * person attached it to (`link`) — each with a Revoke action behind a
  * confirmation. Revoking stops the application reading the file and every

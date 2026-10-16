@@ -1,5 +1,5 @@
 /**
- * The pure halves of the audio rendition pipeline (ADR 0042 stage 4c,
+ * The pure halves of the audio rendition pipeline (ADR 0043 stage 4c,
  * `audioRenditions.ts`): which rungs a source gets, the preview window, the
  * waveform accumulator's bounded memory, the measured bandwidth.
  */

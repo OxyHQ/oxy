@@ -126,7 +126,7 @@ import { isHlsRenditionVariant, playlistSiblingKey, playlistUris } from './hlsPl
 /**
  * An uploaded SVG as it is stored: the sanitized document, with the server's
  * record of the sanitization (`metadata.svg`) replacing anything the caller sent
- * under that key (ADR 0042 stage 4c, `utils/svgSanitizer.ts`).
+ * under that key (ADR 0043 stage 4c, `utils/svgSanitizer.ts`).
  */
 function sanitizedSvgUpload(
   bytes: Buffer,
@@ -680,7 +680,7 @@ export class AssetService {
 
     if (fileObj.mime.startsWith('audio/')) {
       // Audio renditions (the HLS ladder, `waveform`, `preview`) are made by
-      // the upload pipeline's queued job only (ADR 0042 stage 4c). Never here:
+      // the upload pipeline's queued job only (ADR 0043 stage 4c). Never here:
       // public routes reach this, and an on-demand encode would let any caller
       // spend FFmpeg CPU. A size name has no meaning for audio either.
       throw new Error(`Audio rendition ${variantType} is not available`);
@@ -921,7 +921,7 @@ export class AssetService {
     options: { svg?: 'sanitize' | 'preserve' } = {},
   ): Promise<FileRecord> {
     // An SVG a person uploads is stored only as its sanitized document (ADR
-    // 0042 stage 4c); the hash below is the hash of THOSE bytes. `preserve`
+    // 0043 stage 4c); the hash below is the hash of THOSE bytes. `preserve`
     // keeps a mail attachment byte for byte — it is then served as a
     // download, never inline. Either way `metadata.svg` is the server's.
     const { bytes: fileBuffer, metadata } =
@@ -1738,7 +1738,7 @@ export class AssetService {
     uploadedOptions: StreamedMediaOptions,
   ): Promise<StreamedMediaResult> {
     // Every streamed path (service uploads, imports, the federation and media
-    // caches, stickers) stores an SVG only as its sanitized document (ADR 0042
+    // caches, stickers) stores an SVG only as its sanitized document (ADR 0043
     // stage 4c): read it (bounded), sanitize, and store those bytes. The
     // metadata's `svg` key is the server's on every path.
     const { source, maxBytes, options } = isSvgType(mimeType)
@@ -2037,7 +2037,7 @@ export class AssetService {
       }
       // The presigned PUT stores bytes the API never saw, so they cannot have
       // been sanitized: an SVG is stored only through a path that reads it
-      // (ADR 0042 stage 4c).
+      // (ADR 0043 stage 4c).
       if (isSvgType(request.mime) || request.mime.toLowerCase().startsWith('image/svg')) {
         throw svgRequiresSanitizationError();
       }

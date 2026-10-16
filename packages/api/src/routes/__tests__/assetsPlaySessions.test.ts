@@ -1,5 +1,5 @@
 /**
- * Per-play, revocable streaming access (ADR 0042 stage 4c) — over real
+ * Per-play, revocable streaming access (ADR 0043 stage 4c) — over real
  * `node:http`, the REAL play-session service, the REAL AssetService and a REAL
  * Postgres. Stubbed: the auth middlewares, the rate limiter, S3 (in memory,
  * holding a stored HLS ladder) and the application's key-authorization

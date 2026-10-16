@@ -23,7 +23,7 @@ interface FileDetailsModalProps {
 /**
  * File-detail panel — a rich presented surface (NOT a yes/no confirm): a file's
  * icon + metadata, for the owner the applications that can open it ("Apps with
- * access", ADR 0042 stage 4c), plus download / delete / cancel actions. Each action first
+ * access", ADR 0043 stage 4c), plus download / delete / cancel actions. Each action first
  * dismisses this surface, then runs its handler, so a follow-up delete confirm
  * stacks cleanly above whatever remains. Presented via {@link presentFileDetails}.
  */

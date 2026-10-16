@@ -28,7 +28,7 @@
  * checking the signature, so the receiver can echo `challenge`. Nothing else
  * may be done with it.
  *
- * The same endpoint also receives `stream.key_authorization` (ADR 0042 stage
+ * The same endpoint also receives `stream.key_authorization` (ADR 0043 stage
  * 4c) when the application starts a play session with
  * `keyAuthorization: 'webhook'`: a SYNCHRONOUS request, signed the same way,
  * that must be answered within 3 s with `{ "allow": true }` for the player to

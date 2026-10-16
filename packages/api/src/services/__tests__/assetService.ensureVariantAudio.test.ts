@@ -1,5 +1,5 @@
 /**
- * AssetService.ensureVariant for audio (ADR 0042 stage 4c): audio renditions
+ * AssetService.ensureVariant for audio (ADR 0043 stage 4c): audio renditions
  * are made by the queued upload job only. Public media routes reach
  * ensureVariant, so a missing one is refused — never encoded on the request.
  */

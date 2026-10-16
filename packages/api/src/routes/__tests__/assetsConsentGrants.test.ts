@@ -1,5 +1,5 @@
 /**
- * A person's consent for an application to read their file (ADR 0042 stage
+ * A person's consent for an application to read their file (ADR 0043 stage
  * 4c) — over real `node:http`, the REAL AssetService, the real grant service
  * and a REAL Postgres. Stubbed: the two auth middlewares (a mutable session
  * user and service application), the rate limiter, S3 (in memory) and the

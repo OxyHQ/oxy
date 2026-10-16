@@ -1,5 +1,5 @@
 /**
- * Audio renditions (ADR 0042 stage 4c): the pure halves of
+ * Audio renditions (ADR 0043 stage 4c): the pure halves of
  * `VariantService.generateAudioVariants` — which rungs an audio file gets, the
  * profile that keeps differently-processed ladders of the same bytes apart, the
  * audio master playlist, the waveform peaks, and a bounded ffmpeg runner.

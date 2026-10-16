@@ -1,5 +1,5 @@
 /**
- * The file details' "Apps with access" section (ADR 0042 stage 4c): lists the
+ * The file details' "Apps with access" section (ADR 0043 stage 4c): lists the
  * applications that can open the file with how they got access, and revokes
  * one only after the person confirms, naming the app.
  */

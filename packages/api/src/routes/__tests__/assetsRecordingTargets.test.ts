@@ -1,5 +1,5 @@
 /**
- * Recording targets — LiveKit egress S3 output into Oxy Files (ADR 0042 stage
+ * Recording targets — LiveKit egress S3 output into Oxy Files (ADR 0043 stage
  * 4c). End to end: the REAL `@aws-sdk/client-s3` (and `@aws-sdk/lib-storage`'s
  * multipart `Upload`, the shape of the Go SDK's upload manager LiveKit uses)
  * signs and sends to the recording ingest over real `node:http`; the REAL

@@ -373,7 +373,7 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'metadata',
     holds: 'per-variant metadata of a derived image, video or audio rendition',
   },
-  // ---- ADR 0042 stages 4b and 4c: large uploads, imports and recordings -------
+  // ---- ADR 0043 stages 4b and 4c: large uploads, imports and recordings -------
   {
     table: 'file_upload_sessions',
     column: 'metadata',

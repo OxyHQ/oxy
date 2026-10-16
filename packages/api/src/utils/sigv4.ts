@@ -1,6 +1,6 @@
 /**
  * AWS Signature Version 4 verification for an S3-compatible endpoint Oxy
- * serves itself (ADR 0042 stage 4c: a recording target's ingest, written by a
+ * serves itself (ADR 0043 stage 4c: a recording target's ingest, written by a
  * LiveKit egress through the AWS SDK).
  *
  * Header-signed requests only (`Authorization: AWS4-HMAC-SHA256 …`), service

@@ -1,5 +1,5 @@
 /**
- * Safe SVG (ADR 0042 stage 4c, `utils/svgSanitizer.ts`): what an uploaded SVG
+ * Safe SVG (ADR 0043 stage 4c, `utils/svgSanitizer.ts`): what an uploaded SVG
  * may keep, against a corpus of real attack payloads, and that a benign one
  * keeps its drawing — and still rasterizes.
  */

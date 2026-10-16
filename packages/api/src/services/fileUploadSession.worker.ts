@@ -32,7 +32,7 @@ async function tick(): Promise<void> {
     if (result.verified > 0 || result.expired > 0) {
       logger.info('[FileUploads] Sweep', result);
     }
-    // Large imports and recording targets (ADR 0042 stage 4c) ride the same
+    // Large imports and recording targets (ADR 0043 stage 4c) ride the same
     // worker: verify what is due, re-fetch an import whose fetcher died, abort
     // what expired.
     const ingests = await fileIngestService.sweep(refetchLargeImport);

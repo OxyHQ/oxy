@@ -93,7 +93,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     uploadCachedMediaStream: (...args: unknown[]) => mockUploadCachedMediaStream(...args),
     uploadFederatedMediaStream: (...args: unknown[]) => mockUploadFederatedMediaStream(...args),
-    // Since ADR 0042 stage 4c the route calls the detailed variant (visibility,
+    // Since ADR 0043 stage 4c the route calls the detailed variant (visibility,
     // deduplicated); the file it stores is still what this mock resolves.
     uploadUserMediaStreamDetailed: async (...args: unknown[]) => ({
       file: await mockUploadUserMediaStream(...args),
@@ -497,7 +497,7 @@ describe('POST /assets/service/user-media', () => {
     expect(mockUploadUserMediaStream).toHaveBeenCalledTimes(1);
     expect(mockUploadUserMediaStream.mock.calls[0][4]).toBe(LOCAL_OWNER_ID);
     // Public unless the caller says otherwise, and the uploading application
-    // may read back what it stored for the person (ADR 0042 stage 4c).
+    // may read back what it stored for the person (ADR 0043 stage 4c).
     expect(mockUploadUserMediaStream.mock.calls[0][5]).toBe('public');
     expect(mockGrantUploadAccess).toHaveBeenCalledWith(USER_FILE_ID, 'mention-app');
   });

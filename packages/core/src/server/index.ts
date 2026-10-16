@@ -144,7 +144,7 @@ export {
   verifyFileEventSignature,
 } from './fileEvents';
 export type { FileEvent, FileEventType, FileWebhookChallenge } from './fileEvents';
-// Authorizing a play session's content key (ADR 0042 stage 4c), same signature.
+// Authorizing a play session's content key (ADR 0043 stage 4c), same signature.
 export {
   STREAM_KEY_AUTHORIZATION_EVENT_TYPE,
   StreamKeyAuthorizationVerificationError,

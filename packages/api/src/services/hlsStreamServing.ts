@@ -1,5 +1,5 @@
 /**
- * Serving a file's HLS ladder through a play session (ADR 0042 stage 4c):
+ * Serving a file's HLS ladder through a play session (ADR 0043 stage 4c):
  * which stored object a session URL names, the rendition playlists rewritten
  * for AES-128, and segments encrypted as they are served.
  *

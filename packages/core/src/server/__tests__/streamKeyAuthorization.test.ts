@@ -1,5 +1,5 @@
 /**
- * `verifyStreamKeyAuthorization` (ADR 0042 stage 4c): the synchronous request
+ * `verifyStreamKeyAuthorization` (ADR 0043 stage 4c): the synchronous request
  * Oxy sends a file-events endpoint before it serves a play session's key,
  * signed exactly like a file event.
  */

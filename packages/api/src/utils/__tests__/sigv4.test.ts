@@ -1,6 +1,6 @@
 /**
  * SigV4 verification and aws-chunked decoding for the recording ingest (ADR
- * 0042 stage 4c), against requests the REAL `@aws-sdk/client-s3` signs: the
+ * 0043 stage 4c), against requests the REAL `@aws-sdk/client-s3` signs: the
  * SDK's request handler is replaced by one that captures the signed request,
  * so nothing is sent anywhere.
  */

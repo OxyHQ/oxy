@@ -1,5 +1,5 @@
 /**
- * The file manager's "Apps with access" strings (ADR 0042 stage 4c) exist in
+ * The file manager's "Apps with access" strings (ADR 0043 stage 4c) exist in
  * EVERY locale, with the same `{{placeholders}}` as English — a missing one
  * would fall back to English mid-screen, a wrong placeholder would print
  * `{{name}}` to a person.

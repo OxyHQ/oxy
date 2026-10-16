@@ -712,7 +712,7 @@ export const useUploadFile = () => {
 };
 
 /**
- * Take an application's access to one of the person's files away (ADR 0042
+ * Take an application's access to one of the person's files away (ADR 0043
  * stage 4c): optimistic — the application leaves the cached list at once and
  * comes back if the revoke fails — then the list is re-read either way. The
  * caller shows its own toasts (it knows the application's name).

@@ -10,7 +10,7 @@ URL and sanitized SVG (migration `0178_file_access_streams_ingests`). Same
 ### Changed
 
 - `OxyServer.assets.importAppFile`, `importAppFiles` and `importUserMedia`
-  accept sources up to 8 GiB (ADR 0042 stage 4c): Oxy fetches one over 40 MiB
+  accept sources up to 8 GiB (ADR 0043 stage 4c): Oxy fetches one over 40 MiB
   in the background and the API answers `202 { importId, status, source }`;
   the SDK waits for it (polling `GET /assets/service/{app,user-media}/imports/:importId`,
   2 s backing off to 10 s, `waitMs` default 60 min, `signal` honoured) and
@@ -34,7 +34,7 @@ URL and sanitized SVG (migration `0178_file_access_streams_ingests`). Same
 
 ### Added
 
-- Stage 4c of ADR 0042 on `OxyServer.assets`:
+- Stage 4c of ADR 0043 on `OxyServer.assets`:
   - **A person's private media from a service**: `uploadUserMedia(ownerUserId,
     bytes, mime, { visibility?, audio?, … })` sends `x-visibility` (default
     `public`); a `private` file never reaches the CDN, and only its person and
@@ -84,7 +84,7 @@ URL and sanitized SVG (migration `0178_file_access_streams_ingests`). Same
   `FileApplicationAccessRevocation` (`{ fileId, applicationId, revoked,
   streamsRevoked }`): the applications that can read one of the signed-in
   person's files with their own token, and taking that away (`GET` /
-  `DELETE /assets/:id/access…`, ADR 0042 stage 4c). A revocation stops the
+  `DELETE /assets/:id/access…`, ADR 0043 stage 4c). A revocation stops the
   application's play sessions of the file at once and holds when it stores
   the same bytes again; attaching the file to it yourself (`assets.link`)
   restores it.

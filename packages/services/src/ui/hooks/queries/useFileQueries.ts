@@ -191,7 +191,7 @@ export function patchFileMetadataInCache(
   );
 }
 
-// --- Applications with access (ADR 0042 stage 4c) ---------------------------
+// --- Applications with access (ADR 0043 stage 4c) ---------------------------
 
 /**
  * The applications that can open one of the owner's files with their own

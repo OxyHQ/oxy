@@ -1,5 +1,5 @@
 /**
- * "Apps with access" (ADR 0042 stage 4c): the query reads a file's
+ * "Apps with access" (ADR 0043 stage 4c): the query reads a file's
  * applications with access, and a revoke removes the application from the
  * cached list at once, restores it when the revoke fails, and re-reads the
  * list either way.

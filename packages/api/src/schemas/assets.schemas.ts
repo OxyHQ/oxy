@@ -307,7 +307,7 @@ const importReferenceSchema = z
   .strict();
 
 /**
- * How an audio file's renditions are made (ADR 0042 stage 4c): EBU R128
+ * How an audio file's renditions are made (ADR 0043 stage 4c): EBU R128
  * loudness normalization of the HLS ladder and preview, and where the 30-second
  * preview starts. Stored as the file's server-owned `metadata.audioOptions`.
  */

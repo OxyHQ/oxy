@@ -184,7 +184,7 @@ const ownAssetAuth: express.RequestHandler = (req, res, next) => {
   return authMiddleware(req, res, next);
 };
 
-// A recording target's S3-compatible ingest (ADR 0042 stage 4c): mounted first,
+// A recording target's S3-compatible ingest (ADR 0043 stage 4c): mounted first,
 // on its own raw body (`server.ts` skips the body parsers for it).
 router.use('/recording-ingest', recordingIngestRouter);
 
@@ -833,7 +833,7 @@ router.post(
       }
     }
 
-    // An SVG is stored only as its sanitized document (ADR 0042 stage 4c).
+    // An SVG is stored only as its sanitized document (ADR 0043 stage 4c).
     const file = await assetService.uploadFileDirect(
       user._id,
       req.file.buffer,
@@ -909,7 +909,7 @@ function getSingleHeader(req: express.Request, name: string): string | undefined
 }
 
 /**
- * Image, video or audio (ADR 0042 stage 4c added audio) of a type the media
+ * Image, video or audio (ADR 0043 stage 4c added audio) of a type the media
  * pipeline admits — what the streamed service uploads and imports store.
  */
 function isStorableMediaMime(mime: string): boolean {
@@ -941,7 +941,7 @@ function audioOptionsHeader(req: express.Request): AudioOptions | undefined {
 /**
  * A caller's file metadata with the server-owned keys put right: the caller
  * cannot set `audioOptions` (how renditions are made) through free-form
- * metadata — only through the dedicated option (ADR 0042 stage 4c).
+ * metadata — only through the dedicated option (ADR 0043 stage 4c).
  */
 function withAudioOptions(
   metadata: Record<string, unknown> | undefined,
@@ -1271,7 +1271,7 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
  *       (`public` default | `unlisted` | `private`): a private file is never
  *       under `public/` or on the CDN. The calling application may read the
  *       file back (`/service/linked-url`, play sessions) because it stored it
- *       for the person (ADR 0042 stage 4c) — until the person revokes that.
+ *       for the person (ADR 0043 stage 4c) — until the person revokes that.
  *       `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds?
  *       }`) shapes an audio file's renditions. Rows are per owner: bytes the
  *       person already holds answer that file, its visibility unchanged.
@@ -1496,7 +1496,7 @@ function decodeApplicationFileCursor(cursor: string): { createdAt: Date; id: str
 
 /**
  * @route POST /api/assets/service/app
- * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0042). Raw bytes
+ * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes
  *       as the body (not multipart); `Content-Type` must be an image, video or
  *       audio type (an SVG is stored as its sanitized document), at most 40
  *       MiB; `x-audio-options` (JSON `{ normalizeLoudness?,
@@ -1757,7 +1757,7 @@ function serializeUserMediaImport(result: ImportResult) {
   };
 }
 
-/** A large import's first answer (`202`): it is being fetched in the background (ADR 0042 stage 4c). */
+/** A large import's first answer (`202`): it is being fetched in the background (ADR 0043 stage 4c). */
 function serializePendingImport(pending: PendingImport) {
   return {
     importId: pending.ingest.id,
@@ -1950,7 +1950,7 @@ router.post(
  *       included (`202`, poll `GET /assets/service/user-media/imports/{importId}`).
  *       `reference` registers the CALLING application's use of the file
  *       (needs `files:references:write`). The calling application may read the
- *       file back (ADR 0042 stage 4c) until the person revokes that.
+ *       file back (ADR 0043 stage 4c) until the person revokes that.
  * @access Privileged service token only: files:user-media:write, or
  *         files:write together with federation:write
  */
@@ -1993,7 +1993,7 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// Large imports and recording targets (ADR 0042 stage 4c): bytes Oxy fetches
+// Large imports and recording targets (ADR 0043 stage 4c): bytes Oxy fetches
 // or receives before their hash is known (`services/fileIngest.service.ts`).
 // ---------------------------------------------------------------------------
 
@@ -2200,7 +2200,7 @@ const userMediaRecordingTarget = recordingTargetHandlers(
 /**
  * @route POST /api/assets/service/app/recording-targets
  * @desc A place a LiveKit egress (or any S3 client) records into, for a file
- *       the CALLING APPLICATION will own (ADR 0042 stage 4c). Body `{
+ *       the CALLING APPLICATION will own (ADR 0043 stage 4c). Body `{
  *       visibility, filename?, metadata?, reference?, maxBytes? (≤ 8 GiB,
  *       default 8 GiB), expiresInSeconds? (60–604800, default 86400), audio? }`
  *       → 201 `{ targetId, status: 'awaiting_upload', expiresAt, filepath, s3:
@@ -2284,7 +2284,7 @@ router.delete(
  *       `/service/user-media`'s authority and owner (`x-owner-user-id` on
  *       EVERY call); `visibility` defaults to `private`. The recording becomes
  *       the person's file, which the creating application may read back
- *       until the person revokes that (ADR 0042 stage 4c).
+ *       until the person revokes that (ADR 0043 stage 4c).
  * @access Privileged service token only: files:user-media:write, or
  *         files:write together with federation:write
  */
@@ -2339,7 +2339,7 @@ router.delete(
 );
 
 // ---------------------------------------------------------------------------
-// Large uploads (ADR 0042 stage 4b): any type, up to 8 GiB, resumable. The
+// Large uploads (ADR 0043 stage 4b): any type, up to 8 GiB, resumable. The
 // client PUTs parts to S3 on presigned URLs; the API verifies the assembled
 // bytes against the declared SHA-256 before they become a file
 // (`services/fileUploadSession.service.ts`).
@@ -3355,7 +3355,7 @@ const assetLinkedUrlLimiter = rateLimit({
 
 // The linked-url predicate — the application's own file, or a person's file
 // the person consented to it reading (it stored the file for them, or they
-// attached it to it — ADR 0021 — and never after they revoked it; ADR 0042
+// attached it to it — ADR 0021 — and never after they revoked it; ADR 0043
 // stage 4c) — is `mayApplicationRead` in `services/fileReference.service.ts`,
 // shared with the reference routes and play sessions.
 
@@ -3368,9 +3368,9 @@ const assetLinkedUrlLimiter = rateLimit({
  *     summary: Mint short-lived download URLs for files linked to the calling app
  *     description: >
  *       Service-token-only. Given up to 25 file ids, returns a short-lived
- *       direct download URL for each of the caller's OWN files (ADR 0042) and
+ *       direct download URL for each of the caller's OWN files (ADR 0043) and
  *       for each person's file the person consented to the calling application
- *       reading (ADR 0042 stage 4c): one the application stored for them
+ *       reading (ADR 0043 stage 4c): one the application stored for them
  *       (`/service/user-media` upload, import, large upload or recording), or
  *       one THE FILE'S OWN OWNER attached to it (a `file_references` row whose
  *       `application_id` is the caller's and whose `created_by_user_id` is the
@@ -3466,7 +3466,7 @@ router.post(
 
     const data = await Promise.all(
       files
-        // Only an `active` file is ever served (ADR 0042 D5): trash is not.
+        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
         .filter((file) => isServableStatus(file) && mayApplicationRead(file, appId))
         .map(async (file) => ({
           id: file.id,
@@ -3637,7 +3637,7 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// Play sessions (ADR 0042 stage 4c): per-play, revocable access to a file's
+// Play sessions (ADR 0043 stage 4c): per-play, revocable access to a file's
 // HLS ladder, optionally AES-128 encrypted with a key the product authorizes.
 // `services/playSession.service.ts` and `services/hlsStreamServing.ts`.
 // ---------------------------------------------------------------------------
@@ -3734,7 +3734,7 @@ function serializePlaySession(row: FilePlaySessionRow, file: FileRecord | null, 
 
 /**
  * @route POST /api/assets/service/streams
- * @desc Open a play session over a file's HLS ladder (ADR 0042 stage 4c): a
+ * @desc Open a play session over a file's HLS ladder (ADR 0043 stage 4c): a
  *       short-lived, revocable set of URLs for ONE file, optionally for one
  *       end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default
  *       3600), encryption? ('aes-128' default | 'none'), keyAuthorization?
@@ -3856,7 +3856,7 @@ function invalidPlaySession(): ApiError {
 
 /**
  * @route GET /api/assets/streams/:token/:name
- * @desc What a play session's URLs name (ADR 0042 stage 4c): `master.m3u8`,
+ * @desc What a play session's URLs name (ADR 0043 stage 4c): `master.m3u8`,
  *       a rendition playlist, a segment it lists, `key` (the AES-128 key, 16
  *       bytes), `preview.m4a` and `waveform.json` (audio). The token is
  *       `<sessionId>.<secret>`; every request checks the session (live, not
@@ -3970,7 +3970,7 @@ router.get(
 /**
  * @route GET /api/assets/:id/access
  * @desc The applications that can read the caller's file with their service
- *       token right now (ADR 0042 stage 4c), for "Apps with access": `{
+ *       token right now (ADR 0043 stage 4c), for "Apps with access": `{
  *       fileId, applications: [{ applicationId, name, icon, via: ('upload' |
  *       'link')[], since }] }` — `upload`: the application stored the file
  *       for you; `link`: you attached the file to it. Anybody but the owner
@@ -3997,7 +3997,7 @@ router.get(
 
 /**
  * @route DELETE /api/assets/:id/access/:applicationId
- * @desc The owner withdraws an application's access to their file (ADR 0042
+ * @desc The owner withdraws an application's access to their file (ADR 0043
  *       stage 4c): whatever gave it — the application stored it for them, or
  *       they attached it to it — the application can no longer read it
  *       (`/service/linked-url`, play sessions), and every play session it
@@ -4126,7 +4126,7 @@ router.post(
     });
     // Attaching their file to the application is the owner's explicit consent
     // for it to read the file (ADR 0021), which lifts an earlier revocation of
-    // that application's access (ADR 0042 stage 4c).
+    // that application's access (ADR 0043 stage 4c).
     if (target.ownerUserId) {
       await restoreAccessByOwner(fileId, applicationId, user._id.toString());
     }
@@ -4706,7 +4706,7 @@ router.get(
       // Only media a browser renders without running anything is inline; any
       // other type (HTML, XML… a mail attachment, a large upload) is a
       // download, and sandboxed in case a browser renders it anyway — it must
-      // never run as this origin (ADR 0042 stage 4b, `fileContentPolicy.ts`).
+      // never run as this origin (ADR 0043 stage 4b, `fileContentPolicy.ts`).
       // An SVG is inline only when Oxy sanitized it (stage 4c) — with a CSP
       // that loads nothing and sandboxes a direct navigation; any other SVG
       // (a mail attachment kept byte for byte, a legacy row) is a download.

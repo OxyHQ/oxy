@@ -1,6 +1,6 @@
 /**
  * `file_ingests` — bytes Oxy receives or fetches itself before they are a
- * file, when their hash is not known in advance (ADR 0042 stage 4c):
+ * file, when their hash is not known in advance (ADR 0043 stage 4c):
  *
  * - **`import`** — an import by URL whose source is larger than the 40 MiB the
  *   synchronous import streams (a podcast enclosure). The import route answers
