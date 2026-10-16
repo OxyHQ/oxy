@@ -444,12 +444,7 @@ jobs:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
           DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5432/oxy_test
-          ACCESS_TOKEN_SECRET: test_access_token_secret_minimum_32_characters
-          REFRESH_TOKEN_SECRET: test_refresh_token_secret_minimum_32_characters
-          AWS_REGION: us-east-1
-          AWS_ACCESS_KEY_ID: test_aws_access_key
-          AWS_SECRET_ACCESS_KEY: test_aws_secret_key
-          AWS_S3_BUCKET: test-bucket
+          # The suite's own environment (token secrets, AWS) is `jest.setup.cjs`'s.
           NODE_ENV: test
 
       # Checked here as well as in `api-coverage`, so an empty report fails on the
