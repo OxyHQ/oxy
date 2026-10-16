@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getRedisClient } from '../../config/redis';
 import { logger } from '../../utils/logger';
+import { parseRetryAfterMs } from '../../utils/retryAfter';
 
 /**
  * Minimum gap between two avatar fetches from one origin, cluster-wide.
@@ -91,17 +92,6 @@ export async function acquireAvatarOriginLease(
   return 0;
 }
 
-function retryAfterMs(value: string | undefined, now: number): number | null {
-  if (!value) return null;
-  const seconds = Number(value);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.min(Math.ceil(seconds * 1_000), MAX_RATE_LIMIT_BACKOFF_MS);
-  }
-  const date = Date.parse(value);
-  if (!Number.isFinite(date)) return null;
-  return Math.min(Math.max(date - now, 0), MAX_RATE_LIMIT_BACKOFF_MS);
-}
-
 /** Persist a remote origin's 429 cooldown, honouring Retry-After when valid. */
 export async function recordAvatarOriginRateLimit(
   rawUrl: string,
@@ -109,7 +99,9 @@ export async function recordAvatarOriginRateLimit(
 ): Promise<number> {
   const key = originKey(rawUrl);
   const now = Date.now();
-  const advertisedDelay = retryAfterMs(retryAfter, now);
+  const advertised = parseRetryAfterMs(retryAfter, now);
+  const advertisedDelay =
+    advertised === null ? null : Math.min(advertised, MAX_RATE_LIMIT_BACKOFF_MS);
   const redis = getRedisClient();
 
   if (redis) {

@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import locationCache from '../utils/locationCache';
 import { nominatimRateLimiter } from '../utils/apiRateLimiter';
 import performanceMonitor from '../utils/performanceMonitor';
+import { parseRetryAfterMs } from '../utils/retryAfter';
 import { tracedFetch } from '../utils/tracedFetch';
 import type {
   NominatimResult,
@@ -22,11 +23,37 @@ function normalizeOptionalInlineText(value: string | undefined): string | undefi
 /** Per request, response body included. */
 const NOMINATIM_TIMEOUT_MS = 8000;
 
+/** How long Nominatim's refusal holds when its 429 states no `Retry-After`. */
+const NOMINATIM_DEFAULT_RETRY_AFTER_MS = 5_000;
+
 /** A non-2xx answer from Nominatim. Carries the status so a 429 can be told apart. */
 class NominatimHttpError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    /** Nominatim's `Retry-After`, in ms, when it stated a readable one. */
+    readonly retryAfterMs: number | null,
+  ) {
     super(`Nominatim responded ${status}`);
     this.name = 'NominatimHttpError';
+  }
+}
+
+/**
+ * Nominatim is refusing our requests (429) until {@link retryAfterSeconds}
+ * passes. The controller answers it as the API's typed `RATE_LIMITED`.
+ */
+export class LocationRateLimitedError extends Error {
+  constructor(readonly retryAfterSeconds: number) {
+    super('Rate limit exceeded. Please try again in a moment.');
+    this.name = 'LocationRateLimitedError';
+  }
+}
+
+/** Nominatim did not answer within {@link NOMINATIM_TIMEOUT_MS}. */
+export class LocationTimeoutError extends Error {
+  constructor() {
+    super('Request timeout. Please try again.');
+    this.name = 'LocationTimeoutError';
   }
 }
 
@@ -46,6 +73,22 @@ class LocationService {
   };
 
   /**
+   * Refuse a lookup, without calling Nominatim, while the wait its last 429
+   * stated has not passed.
+   */
+  private assertNotRefused(): void {
+    const remainingMs = nominatimRateLimiter.upstreamRefusalRemainingMs();
+    if (remainingMs > 0) throw new LocationRateLimitedError(remainingMs / 1000);
+  }
+
+  /** Record a 429 from Nominatim and return the error that answers it. */
+  private rateLimited(error: NominatimHttpError): LocationRateLimitedError {
+    const waitMs = error.retryAfterMs ?? NOMINATIM_DEFAULT_RETRY_AFTER_MS;
+    nominatimRateLimiter.recordUpstreamRefusal(waitMs);
+    return new LocationRateLimitedError(waitMs / 1000);
+  }
+
+  /**
    * GET a Nominatim URL and parse its JSON body. Throws {@link NominatimHttpError}
    * on any non-2xx status, as axios did, and a `TimeoutError` once
    * {@link NOMINATIM_TIMEOUT_MS} passes, body included.
@@ -58,7 +101,10 @@ class LocationService {
     if (!response.ok) {
       // Release the connection: nothing reads this body.
       await response.body?.cancel().catch(() => undefined);
-      throw new NominatimHttpError(response.status);
+      throw new NominatimHttpError(
+        response.status,
+        parseRetryAfterMs(response.headers.get('retry-after'), Date.now()),
+      );
     }
     return (await response.json()) as T;
   }
@@ -107,6 +153,8 @@ class LocationService {
       }
     }
 
+    this.assertNotRefused();
+
     // Rate limiting
     const rateLimitKey = `nominatim:search:${optimizedQuery}`;
     await nominatimRateLimiter.waitForReset(rateLimitKey);
@@ -150,12 +198,10 @@ class LocationService {
       endTimer();
 
       if (error instanceof NominatimHttpError && error.status === 429) {
-        // Rate limited - increase wait time
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        throw new Error('Rate limit exceeded. Please try again in a moment.');
+        throw this.rateLimited(error);
       }
       if (isTimeout(error)) {
-        throw new Error('Request timeout. Please try again.');
+        throw new LocationTimeoutError();
       }
 
       throw new Error('Error searching locations');
@@ -182,6 +228,8 @@ class LocationService {
       }
     }
 
+    this.assertNotRefused();
+
     // Rate limiting
     const rateLimitKey = `nominatim:details:${lat}:${lon}`;
     await nominatimRateLimiter.waitForReset(rateLimitKey);
@@ -205,8 +253,7 @@ class LocationService {
       logger.error('Error getting location details:', error);
 
       if (error instanceof NominatimHttpError && error.status === 429) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        throw new Error('Rate limit exceeded. Please try again in a moment.');
+        throw this.rateLimited(error);
       }
 
       throw new Error('Error getting location details');
