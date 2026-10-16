@@ -211,3 +211,42 @@ describe('ecosystem activity credentials', () => {
     expect(authorizations(sent)).toContain('Bearer token-from-workload');
   });
 });
+
+it('backs off a refused publisher, reports the outage once, and recovers when Oxy accepts again', async () => {
+  jest.useFakeTimers();
+  const originalFetch = globalThis.fetch;
+  let refuse = true;
+  const attempts: string[] = [];
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    attempts.push(String(input));
+    return new Response(null, { status: refuse ? 403 : 204 });
+  }) as unknown as typeof fetch;
+  const onError = jest.fn();
+  const onRecover = jest.fn();
+  try {
+    const traffic = createEcosystemTraffic({
+      service: 'tnp-relay',
+      region: 'us-west-2',
+      credential: async () => 'token',
+      onError,
+      onRecover,
+    });
+    // A minute of the old cadence: a flush every 2 s and a heartbeat every 10 s.
+    for (let second = 0; second < 60; second += 1) {
+      traffic.record({ scope: 'internal', direction: 'outbound', activityType: 'platform' });
+      await jest.advanceTimersByTimeAsync(1_000);
+    }
+    // 2 s, 4 s, 8 s, 16 s, 32 s ceilings (jittered between half and all of
+    // each): at most a handful of attempts, against ~36 before.
+    expect(attempts.length).toBeLessThanOrEqual(8);
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    refuse = false;
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+    expect(onRecover).toHaveBeenCalledTimes(1);
+    await traffic.stop();
+  } finally {
+    globalThis.fetch = originalFetch;
+    jest.useRealTimers();
+  }
+});

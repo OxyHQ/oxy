@@ -1,5 +1,24 @@
 # Changelog — `@oxy.so/core`
 
+## 4.21.1
+
+No API or contracts requirement.
+
+### Fixed
+
+- `createEcosystemTraffic` backs off when publishing fails instead of retrying
+  every 2 s forever. A workload Oxy refuses (no binding, a revoked credential)
+  used to mint and fail a token on every flush and heartbeat — tnp-relay drew
+  36 `attested workload has no binding` refusals a minute in oxy-api for four
+  days. Now each consecutive failure doubles the wait (2 s up to 10 min, jitter
+  between half and all of it), flushes and heartbeats are skipped while
+  waiting (the collector keeps aggregating, bounded as before), and the first
+  successful publish resets it. `stop()` still flushes and deregisters.
+- `onError` is called ONCE when publishing starts failing (it now receives the
+  error), not on every attempt; the default logs one line. New `onRecover` is
+  called once when it succeeds again (default: one `console.info`).
+- New exports: `publishBackoffMs`, `PUBLISH_BACKOFF_BASE_MS`, `PUBLISH_BACKOFF_MAX_MS`.
+
 ## 4.21.0
 
 Needs the Oxy API with ADR 0043 stage 4c — private person media and consent

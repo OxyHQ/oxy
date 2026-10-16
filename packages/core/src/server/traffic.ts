@@ -30,9 +30,39 @@ export interface EcosystemTrafficOptions {
   baseURL?: string;
   credential?: () => Promise<string>;
   resolveEndpoint?: (url: URL) => ServiceEndpoint | undefined;
-  onError?: () => void;
+  /**
+   * Called ONCE when publishing starts failing (not on every failed attempt;
+   * see {@link PUBLISH_BACKOFF_MAX_MS}). Defaults to one `console.warn`.
+   */
+  onError?: (error: unknown) => void;
+  /** Called once when publishing succeeds again after failing. */
+  onRecover?: () => void;
   ready?: () => boolean;
   location?: { label: string; coordinates: [number, number] };
+}
+
+/** First wait after a failed publish; doubles per consecutive failure. */
+export const PUBLISH_BACKOFF_BASE_MS = 2_000;
+/** Longest wait between attempts while publishing keeps failing. */
+export const PUBLISH_BACKOFF_MAX_MS = 10 * 60_000;
+
+/**
+ * When the next publish may be attempted after `failures` consecutive
+ * failures: half the exponential ceiling plus up to half again at random, so a
+ * fleet refused at once does not retry in lockstep.
+ *
+ * Why it exists: a workload with no binding (or a revoked credential) used to
+ * retry every 2 s forever — each attempt a challenge, an attestation and a
+ * refusal logged on BOTH sides (tnp-relay, 36 refusals a minute in oxy-api for
+ * days). A refusal will not change in two seconds; the fix arriving (a binding
+ * provisioned) is picked up within {@link PUBLISH_BACKOFF_MAX_MS}.
+ */
+export function publishBackoffMs(failures: number, random: () => number = Math.random): number {
+  const ceiling = Math.min(
+    PUBLISH_BACKOFF_MAX_MS,
+    PUBLISH_BACKOFF_BASE_MS * 2 ** Math.max(0, failures - 1),
+  );
+  return Math.round(ceiling / 2 + random() * (ceiling / 2));
 }
 
 /** Install once per service process, before registering HTTP routes. */
@@ -108,33 +138,60 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
     });
     if (!response.ok) throw new Error('Activity collection failed');
   };
+  const reportError =
+    options.onError ??
+    (() =>
+      console.warn(
+        `Ecosystem activity publisher unavailable; backing off (up to ${PUBLISH_BACKOFF_MAX_MS / 60_000} min between attempts)`,
+      ));
+  const reportRecovery =
+    options.onRecover ?? (() => console.info('Ecosystem activity publisher recovered'));
+  // Consecutive failures, and when the next attempt may be made. While
+  // failing, flushes and heartbeats are skipped (the collector keeps
+  // aggregating, bounded) instead of each minting a token Oxy will refuse.
+  let failures = 0;
+  let retryAt = 0;
+  const backingOff = () => failures > 0 && Date.now() < retryAt;
+  const settle = async (work: () => Promise<void>) => {
+    try {
+      await work();
+      if (failures > 0) {
+        failures = 0;
+        reportRecovery();
+      }
+    } catch (error) {
+      failures += 1;
+      retryAt = Date.now() + publishBackoffMs(failures);
+      if (failures === 1) reportError(error);
+    }
+  };
   const collector = createTrafficCollector((events) => post('/internal/activity', events));
   let stopped = false;
   let heartbeatWork = Promise.resolve();
   let heartbeatPending = false;
-  const reportError =
-    options.onError ?? (() => console.warn('Ecosystem activity publisher unavailable'));
   const heartbeat = (removed = false) => {
-    if (!removed && (stopped || heartbeatPending)) return heartbeatWork;
+    if (!removed && (stopped || heartbeatPending || backingOff())) return heartbeatWork;
     heartbeatPending = true;
     heartbeatWork = heartbeatWork
       .then(() =>
-        post('/internal/activity/infrastructure', {
-          instanceId,
-          service: options.service,
-          region,
-          ...location,
-          status: options.ready?.() ? 'online' : 'unknown',
-          removed,
-        }),
+        settle(() =>
+          post('/internal/activity/infrastructure', {
+            instanceId,
+            service: options.service,
+            region,
+            ...location,
+            status: options.ready?.() ? 'online' : 'unknown',
+            removed,
+          }),
+        ),
       )
-      .catch(reportError)
       .finally(() => {
         heartbeatPending = false;
       });
     return heartbeatWork;
   };
-  const flush = () => collector.flush().catch(reportError);
+  const flush = (force = false) =>
+    !force && backingOff() ? Promise.resolve() : settle(() => collector.flush());
   const cleanups = new Set<() => void>();
   const sockets = new WeakMap<object, () => void>();
   let fetchInstalled = false;
@@ -233,7 +290,7 @@ export function createEcosystemTraffic(options: EcosystemTrafficOptions): {
       cleanups.clear();
       clearInterval(timer);
       clearInterval(heartbeatTimer);
-      await flush();
+      await flush(true);
       await heartbeat(true);
     },
   };
