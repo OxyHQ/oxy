@@ -1,5 +1,45 @@
 # Changelog — `@oxy.so/core`
 
+## 4.17.0
+
+Needs `@oxy.so/contracts` 4.21.0.
+
+### Added
+
+- `serviceToken(apiKey?, apiSecret?, { scopes })` and
+  `serviceRequest(..., { serviceTokenScopes })`: mint a token holding exactly
+  that subset of the live grant (Oxy refuses a scope outside it, and a mint
+  that ignores the narrowing is rejected). Each audience, credential and scope
+  set has its own cache entry; invalidation clears every variant.
+- Supervised personal policy (ADR 0041). `oxy.safety` in a browser:
+  `supervisionState`, `inviteGuardian`, `acceptGuardianInvitation`,
+  `cancelGuardianInvitation`, `contacts`, `approveContact`, `revokeContact`,
+  `reviewSupervision`, `people`, `organizations`, `purchaseApproval(s)`,
+  `reviewPurchaseApproval`. On `OxyServer` (`ServerSafetyApi`), the
+  consumer-service lanes, each with a token narrowed to `safety:decide`:
+  `profileAccess(input, requester)`, `profileAccessBatch`, `messageAccess`,
+  `messageAccessBatch`, `deliveryAccess`, `deliveryAccessBatch`,
+  `messagingSessions`, `contactAccess`, `contentAccess`, `contentAccessBatch`,
+  `publicationPolicy`, `publicationPolicies`, `requestPurchaseApproval`,
+  `reservePurchase`, `confirmPurchase`, `cancelPurchase`.
+- `middleware.auth({ supervisedAction })` / `socket({ supervisedAction })`:
+  validate through the reviewed supervised lane (`ServerSessionApi`), and a
+  policy denial is a 403, never an anonymous request.
+  `strictOptionalBearer: true` keeps anonymous access on an optional route but
+  refuses a presented bad bearer (401), a denial (403) or an authority outage
+  (503) instead of downgrading it.
+
+### Changed
+
+- `OxyServer.safety.profileAccess` now asks `POST /safety/service/profile-access`
+  with the service's own `safety:decide` token plus the requester proof
+  (`{ accessToken }`, `{ accessToken: null }` or `{ connectionToken }`): the
+  consumer application needs `safety:decide` first.
+- The auth middleware validates the request's bearer through
+  `/session/validate-header/` (cross-checked against its session) instead of
+  `/session/validate/` by id. `session.validate(id, { accessToken })` does the
+  same; without `accessToken` it is unchanged.
+
 ## 4.16.0
 
 Needs `@oxy.so/contracts` 4.20.0.

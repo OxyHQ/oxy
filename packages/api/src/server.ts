@@ -1,4 +1,5 @@
 import safetyRoutes from './routes/safety';
+import supervisionRoutes from './routes/supervision';
 import {
   initializePlatformInfrastructure,
   refreshInfrastructure,
@@ -854,6 +855,7 @@ app.use('/accounts', accountRoutes);
 // rate limiters (rl:families:*) live inside the router, same as `/accounts`.
 app.use('/families', familyRoutes);
 app.use('/organizations', organizationRoutes);
+app.use('/safety', supervisionRoutes);
 app.use('/safety', safetyRoutes);
 app.use('/capabilities', userRateLimiter, capabilityRoutes);
 app.use('/devices', userRateLimiter, devicesRouter);

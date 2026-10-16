@@ -1,3 +1,4 @@
+import { isSupervised } from '../services/supervisionPolicy.service';
 /**
  * The `oxy_sk_…` machine credential lane (issue #972 §2.3).
  *
@@ -262,6 +263,8 @@ export async function resolveMachineCredential(
   if (!application || application.status !== 'active') {
     return failure('application_inactive', { status: application?.status ?? 'missing' });
   }
+
+  if (await isSupervised(application.ownerAccountId)) return failure('not_usable');
 
   touchLastUsed(credential.id, credential.lastUsedAt);
 

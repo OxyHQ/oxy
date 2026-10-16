@@ -1,5 +1,17 @@
 # Changelog
 
+## [11.8.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.17.0 (exact peer) and `@oxy.so/contracts` 4.21.0.
+
+### Added
+
+- Supervision (ADR 0041): `SupervisionScreen`
+  (`showBottomSheet({ screen: 'Supervision', props: { approvalId?, childAccountId? } })`),
+  `useSupervision`, and its entries in Manage Account and Create Account (the
+  personal-root option). Guardians review purchase approvals line by line with
+  fresh reauthentication; children read their own.
+
 ## [11.7.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.15.0 (exact peer) and `@oxy.so/contracts` 4.19.0. No

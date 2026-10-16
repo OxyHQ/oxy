@@ -22,6 +22,7 @@ import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import type { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
+import { isSupervised } from '../services/supervisionPolicy.service';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
@@ -3768,6 +3769,7 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
   // requested no scopes is a legacy credential: it inherits only the app's
   // non-privileged grants. Privileged authority must always have been named on
   // the credential itself, where creation applies the staff-only gate.
+  if (await isSupervised(app.ownerAccountId)) throw new ForbiddenError('Supervised accounts cannot authorize service credentials');
   const appScopes = app.scopes;
   const grantedScopes =
     credential.scopes.length > 0

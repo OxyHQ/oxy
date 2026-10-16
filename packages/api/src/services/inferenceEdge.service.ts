@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 /**
  * The public inference edge — admission, attribution, authorization,
  * reservation, forwarding and settlement (issue #972 workstream 4, ADR 0010).
@@ -470,6 +471,7 @@ export async function authenticateInferenceBearer(
 
   const machine = await resolveMachineCredential(token);
   if (machine.ok) {
+    if (await isSupervised(machine.principal.ownerAccountId)) return { ok: false, reason: 'supervised_inference_unsupported' };
     const application = await loadCatalogueApplication(machine.principal.applicationId);
     return {
       ok: true,
@@ -528,6 +530,7 @@ export async function authenticateInferenceBearer(
    * unchanged, and nothing on this path needs to know which proof it was — which
    * is the property the single `service_token` lane below already assumed.
    */
+  if (await isSupervised(resolved.ownerAccountId)) return { ok: false, reason: 'supervised_inference_unsupported' };
   const application = await loadCatalogueApplication(resolved.applicationId);
 
   return {

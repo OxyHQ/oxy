@@ -1,4 +1,82 @@
 const dict = {
+  supervision: {
+    exactHandleHint:
+      'Si el tutor tiene una cuenta privada, escribe el nombre de usuario exacto que te haya compartido.',
+    setupOwn: 'Configurar la supervisión de esta cuenta personal',
+    setupOwnDescription:
+      'Usa la cuenta que se va a supervisar. Invitar a un tutor la convierte en privada; cancelar la invitación no la vuelve pública.',
+    title: 'Supervisión',
+    entryDescription: 'Tutor, contactos aprobados y autorización de compras',
+    description:
+      'Acordad las protecciones juntos. Esto registra el consentimiento para supervisar la cuenta, no acredita una tutela legal.',
+    yourAccount: 'Tu cuenta',
+    active: 'Supervisada por {{name}}',
+    activeDescription:
+      'Tu perfil permanece privado. En las aplicaciones compatibles se aplican los contactos aprobados, las restricciones de contenido y la autorización de compras. Otras actividades pueden no estar disponibles.',
+    orphaned: 'La supervisión sigue activa, pero el tutor no está disponible.',
+    notActive: 'La supervisión no está activa.',
+    invite: 'Invitar a un tutor',
+    inviteConsent:
+      'Invita a {{name}} a supervisar esta cuenta. Enviar la invitación convierte el perfil en privado, aunque después la canceles. Si acepta, se cerrarán las sesiones actuales y las actividades protegidas requerirán contactos aprobados o autorización de compra.',
+    pending: 'Invitaciones pendientes',
+    pendingDescription:
+      'Una invitación no activa la supervisión. Ambas personas deben dar su consentimiento.',
+    expires: 'Caduca el {{date}}',
+    accept: 'Aceptar la supervisión',
+    acceptConsent:
+      'Acepta supervisar a {{name}}. Gestionarás los contactos aprobados y revisarás las compras. Esto no te permite iniciar sesión en su cuenta.',
+    cancelInvitation: 'Cancelar invitación',
+    children: 'Cuentas que supervisas',
+    contacts: 'Contactos aprobados de {{name}}',
+    contactsDescription:
+      'Un contacto aprobado puede interactuar en las aplicaciones compatibles. Siguen aplicándose los bloqueos y las protecciones de la otra persona.',
+    removeContact: 'Quitar contacto',
+    removeConsent:
+      'Retira la aprobación de {{name}}. Se comprobará de nuevo el acceso a las conversaciones existentes.',
+    addContact: 'Aprobar un contacto',
+    addConsent: 'Aprueba a {{name}} como contacto de esta cuenta supervisada.',
+    noContacts: 'Aún no hay contactos aprobados.',
+    purchases: 'Autorizaciones de compra',
+    noPurchases: 'No hay autorizaciones de compra.',
+    more: 'Más compras',
+    firstPage: 'Primera página',
+    approvePurchase: 'Autorizar compra',
+    rejectPurchase: 'Rechazar compra',
+    purchaseConsent:
+      'Revisa cada artículo, opción, vendedor y total. Tu decisión se aplica solo a esta compra exacta.',
+    purchaseBound:
+      'La autorización solo sirve para esta compra. Los cambios requieren otra autorización; una autorización cancelada no puede reutilizarse.',
+    quantity: 'Cantidad: {{quantity}}',
+    shipping: 'Envío',
+    tax: 'Impuestos',
+    discount: 'Descuento',
+    rounding: 'Ajuste por conversión de moneda',
+    total: 'Total',
+    merchantUnavailable:
+      'No se puede verificar al vendedor. No es posible autorizar la compra hasta que esté disponible su identidad.',
+    personalOnly: 'La supervisión se gestiona desde una cuenta personal.',
+    account: 'Cuenta',
+    retry: 'Reintentar',
+    saved: 'Cambios guardados.',
+    loadError: 'No se pudo verificar el acceso actual. Inténtalo de nuevo.',
+    changeError: 'No se pudo guardar el cambio. Comprueba el acceso actual y vuelve a intentarlo.',
+    reauthSetup:
+      'Configura una contraseña o un correo verificado en los ajustes antes de confirmar este cambio.',
+    accountSettings: 'Ajustes de la cuenta',
+    confirm: 'Confirmar',
+    transitionHelp: 'Solicitar ayuda para cambiar o terminar la supervisión',
+    searchLabel: 'Nombre de usuario',
+    search: 'Buscar',
+    noPeople: 'No se encontraron personas disponibles.',
+    status: {
+      pending: 'Pendiente de revisión del tutor',
+      approved: 'Autorizada',
+      rejected: 'Rechazada',
+      reserved: 'Compra en curso',
+      confirmed: 'Compra completada',
+      cancelled: 'Cancelada',
+    },
+  },
   organizationDirectory: {
     invalidName: 'Usa un nombre de organización en texto plano (hasta 300 caracteres).',
     review: {

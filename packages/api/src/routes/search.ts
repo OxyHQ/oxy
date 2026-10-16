@@ -1,3 +1,4 @@
+import { optionalUserOrServiceAuth } from '../middleware/optionalAuth';
 import express, { type Request, type Response } from 'express';
 import { and } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
@@ -15,6 +16,7 @@ import { publicUserColumns, toPublicUserView } from '../utils/publicUserProjecti
 import { formatUserResponse } from '../utils/userTransform';
 
 const router = express.Router();
+router.use(optionalUserOrServiceAuth);
 
 type ValidatedSearchQuery = {
   query?: string;

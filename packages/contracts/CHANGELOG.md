@@ -1,5 +1,35 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.21.0
+
+Additive only: no export removed.
+
+### Added
+
+- Supervised personal policy (ADR 0041), in `safety.ts`: the supervision
+  management contracts (`supervisionStateSchema`, `supervisionInvitationSchema`,
+  `supervisionContactsResponseSchema`, the invite/accept/contact/review inputs),
+  the consumer-service decision contracts (`safetyRequesterSchema`,
+  `safetyDecisionSchema`, profile/message/delivery/contact/content access and
+  their batches, `messagingSessions*`, `publicationPolic{y,ies}*`), purchase
+  approvals (`purchaseEffectsSchema`, `purchaseApprovalSchema`,
+  `purchaseApprovalListSchema`, `reservePurchaseSchema`, `confirmPurchaseSchema`,
+  `cancelPurchaseSchema`, `purchaseReviewInputSchema`), the minimal selectors
+  (`safetyPeople*`, `safetyOrganizations*`), `safetySession*`, and the
+  vocabularies `SUPERVISED_ACTIONS`, `SAFETY_POLICY_VERSION`,
+  `SUPERVISION_CONSENT_VERSION`, `SUPERVISION_STATUSES`,
+  `SUPERVISION_INVITATION_STATUSES`, `PURCHASE_APPROVAL_STATUSES`,
+  `SAFETY_DECISION_REASONS`, `CONTENT_CLASSIFICATIONS`, `SAFETY_ERROR_CODES`.
+- `@oxy.so/contracts/client`: Zod-free checks for the browser half
+  (`supervisionStateCheck`, `supervisionInvitationCheck`,
+  `supervisionContactsResponseCheck`, `supervision{Invite,Accept,Contact,Review}InputCheck`,
+  `safetyPeople{Input,Response}Check`, `safetyOrganizations{Input,Response}Check`,
+  `purchaseApprovalCheck`, `purchaseApprovalListCheck`,
+  `purchaseReviewInputCheck`), and `transform` in `check.ts`.
+- `serviceTokenScopesSchema` / `serviceTokenOptionsSchema` /
+  `ServiceTokenOptions`: an exact, normalized subset of a service grant.
+- `REAUTH_ACTIONS` gains `supervision` and `supervision_purchase`.
+
 ## 4.20.0
 
 Additive only: no export removed. ADR 0042 (agent requester ceilings) and Alia

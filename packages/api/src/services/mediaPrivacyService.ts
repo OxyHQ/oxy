@@ -1,3 +1,4 @@
+import { decideSupervisedAsset, type SupervisedAssetPolicy } from './supervisionPolicy.service';
 import blockCache, { restrictCache } from '../utils/blockCache';
 import { and, eq, or, inArray } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
@@ -46,12 +47,23 @@ export class MediaPrivacyService {
     file: FileRecord,
     viewerUserId?: string,
     context?: MediaAccessContext,
+    supervisionPolicy?: SupervisedAssetPolicy,
   ): Promise<MediaAccessResult> {
     try {
       // NULL means a system namespace owns this asset (`files.system_owner`);
       // no account can be its owner and no account can have blocked it.
       const ownerId = file.ownerUserId;
       const isOwner = Boolean(viewerUserId) && ownerId === viewerUserId;
+      // Applies to ordinary session reads and existing scoped stream tokens alike.
+      // Unilateral follows and a historical public URL do not override current supervision.
+      const supervised = supervisionPolicy
+        ? supervisionPolicy(ownerId, viewerUserId)
+        : await decideSupervisedAsset(ownerId, viewerUserId);
+      if (supervised) {
+        if (!supervised.allowed) return { allowed: false, reason: supervised.reason };
+        if (supervised.reason === 'owner') return { allowed: true, reason: 'owner' };
+        // Approved adults still pass through restrictions and entity-level checks below.
+      }
 
       if (isOwner) {
         return { allowed: true, reason: 'owner' };
@@ -96,7 +108,7 @@ export class MediaPrivacyService {
           .where(eq(users.id, ownerId))
           .limit(1);
 
-        if (owner?.isPrivateAccount) {
+        if (owner?.isPrivateAccount && !supervised?.allowed) {
           if (!viewerUserId) {
             return { allowed: false, reason: 'private_account' };
           }

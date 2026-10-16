@@ -9,6 +9,9 @@ import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { logger } from '../utils/logger';
 import sessionService from '../services/session.service';
+import { isSupervised } from '../services/supervisionPolicy.service';
+
+import { OptionalAuthenticationPolicyError } from './optionalAuthError';
 import type { AccountDocument } from '../services/user.service';
 
 export interface TokenDecoded {
@@ -156,7 +159,32 @@ export async function authenticateRequestNonBlocking(
   const source = req.headers.authorization ? 'header' : null;
 
   if (!token) {
+    if (requireAuth && req.headers.authorization !== undefined)
+      throw new OptionalAuthenticationPolicyError(401, 'Invalid bearer authorization');
     return { user: null, source };
+  }
+
+  if (requireAuth) {
+    try {
+      const result = await sessionService.validateSession(token, {
+        allowSupervisedPolicyEvaluation: true,
+        throwOnError: true,
+      });
+      if (!result) throw new OptionalAuthenticationPolicyError(401, 'Invalid or expired session');
+      if (
+        (await isSupervised(result.session.userId)) ||
+        (result.session.operatedByUserId && (await isSupervised(result.session.operatedByUserId)))
+      ) {
+        throw new OptionalAuthenticationPolicyError(
+          403,
+          'Reviewed consumer authorization is required',
+        );
+      }
+      return { user: normalizeUser(result.user), source, sessionId: result.session.sessionId };
+    } catch (error) {
+      if (error instanceof OptionalAuthenticationPolicyError) throw error;
+      throw new OptionalAuthenticationPolicyError(503, 'Session authority is unavailable');
+    }
   }
 
   const decoded = decodeToken(token);

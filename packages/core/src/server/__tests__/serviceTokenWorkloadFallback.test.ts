@@ -20,7 +20,10 @@ import { OxyServer } from '../OxyServer';
  *  3. The token is cached, so a service does not mint one per request.
  */
 
-const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 300 })).toString('base64url')}.fixture`;
+// One clock read: two could straddle a second and mint a 301 s token, which the
+// cache rightly refuses to reuse (OXY_SERVICE_TOKEN_MAX_LIFETIME_SECONDS).
+const mockIssuedAt = Math.floor(Date.now() / 1000);
+const mockToken = `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({ iat: mockIssuedAt, exp: mockIssuedAt + 300 })).toString('base64url')}.fixture`;
 
 jest.mock('../workloadIdentity', () => ({
   canAttestWorkloadIdentity: () => Boolean(process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI),

@@ -1,3 +1,4 @@
+import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
 import multer from 'multer';
 import { assetService } from '../services/assetServiceSingleton';
@@ -40,10 +41,10 @@ import {
   linkFileSchema,
   unlinkFileSchema,
   federatedAssetDeleteBodySchema,
-  federatedAssetDeleteResult,
-  federatedAssetDeleteResponse,
-  federatedAssetBatchDeleteResponse,
-  federatedMediaUploadResponse,
+  type federatedAssetDeleteResult,
+  type federatedAssetDeleteResponse,
+  type federatedAssetBatchDeleteResponse,
+  type federatedMediaUploadResponse,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
@@ -80,6 +81,11 @@ interface AuthenticatedRequest extends express.Request {
 
 const router = express.Router();
 const upload = multer(); // memory storage
+/** Reviewed own-file operations: authentication still proves the original bearer. */
+const ownAssetAuth: express.RequestHandler = (req, res, next) => {
+  res.locals.supervisedSelfOperation = true;
+  return authMiddleware(req, res, next);
+};
 
 /**
  * Project a link/variant row onto the wire shape clients already receive.
@@ -237,7 +243,7 @@ const completeUploadSchema = z.object({
  */
 router.get(
   '/',
-  authMiddleware,
+  ownAssetAuth,
   validate({ query: listAssetsQuerySchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -334,7 +340,7 @@ router.get(
  */
 router.post(
   '/init',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: initUploadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -431,7 +437,7 @@ router.post(
  */
 router.post(
   '/complete',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: completeUploadSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -449,6 +455,13 @@ router.post(
       throw error;
     }
 
+    if (
+      validatedData.visibility &&
+      validatedData.visibility !== 'private' &&
+      (await isSupervised(user._id))
+    ) {
+      throw new ForbiddenError('Supervised accounts must keep uploaded files private');
+    }
     const file = await assetService.completeUpload(validatedData, user._id);
 
     logger.info('Asset upload completed', {
@@ -483,7 +496,7 @@ router.post(
  */
 router.post(
   '/:id/upload-direct',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   upload.single('file'),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
@@ -572,7 +585,7 @@ router.post(
  */
 router.post(
   '/upload',
-  authMiddleware,
+  ownAssetAuth,
   upload.single('file'),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -592,6 +605,9 @@ router.post(
     }
 
     const visibility = (req.body.visibility as FileVisibility) || 'private';
+    if (visibility !== 'private' && (await isSupervised(user._id))) {
+      throw new ForbiddenError('Supervised accounts must keep uploaded files private');
+    }
     let metadata: Record<string, unknown> | undefined;
     if (req.body.metadata) {
       try {
@@ -1862,7 +1878,7 @@ router.delete(
  */
 router.get(
   '/:id',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -1876,6 +1892,9 @@ router.get(
     if (!file) {
       throw new NotFoundError('File not found');
     }
+
+    if (!(await assetService.canUserAccessFile(file, user._id)))
+      throw new ForbiddenError('Access denied');
 
     logger.debug('File metadata retrieved', {
       userId: user._id,
@@ -1957,7 +1976,7 @@ router.get(
  */
 router.get(
   '/:id/url',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams, query: assetUrlQuerySchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -2418,7 +2437,7 @@ router.post(
  */
 router.patch(
   '/:id/visibility',
-  authMiddleware,
+  ownAssetAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
     if (!user?._id) {
@@ -2431,6 +2450,10 @@ router.patch(
     // Validate visibility value
     if (!visibility || !['private', 'public', 'unlisted'].includes(visibility)) {
       throw new BadRequestError('Visibility must be one of: private, public, unlisted');
+    }
+
+    if (visibility !== 'private' && (await isSupervised(user._id))) {
+      throw new ForbiddenError('Supervised accounts keep their files private');
     }
 
     // Get file and verify ownership
@@ -2485,7 +2508,7 @@ router.patch(
  */
 router.delete(
   '/:id',
-  authMiddleware,
+  ownAssetAuth,
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
     if (!user?._id) {
@@ -2550,7 +2573,7 @@ interface BatchAccessResult {
  */
 router.post(
   '/batch-access',
-  authMiddleware,
+  ownAssetAuth,
   validate({ body: batchAccessSchema }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -2571,6 +2594,10 @@ router.post(
     // variant) back to its file. Unknown ids resolve to a "not found" entry.
     const fetched = await assetService.getFilesByIds(requests.map((r) => r.fileId));
     const filesById = new Map(fetched.map((f) => [f.id, f]));
+    const supervisionPolicy = await createSupervisedAssetPolicy(
+      fetched.map((file) => file.ownerUserId),
+      user?._id,
+    );
 
     const results: Record<string, BatchAccessResult> = {};
 
@@ -2582,7 +2609,7 @@ router.post(
           return;
         }
 
-        if (!(await assetService.canUserAccessFile(file, user?._id, context))) {
+        if (!(await assetService.canUserAccessFile(file, user?._id, context, supervisionPolicy))) {
           results[fileId] = { allowed: false, error: 'Access denied' };
           return;
         }

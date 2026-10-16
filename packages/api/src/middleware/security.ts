@@ -26,11 +26,25 @@ const isProd = process.env.NODE_ENV !== 'development';
  * MOUNT-ORDER INVARIANT: the general `rateLimiter` skips these paths, so any
  * path listed here MUST carry its OWN dedicated limiter at its route. Adding a
  * path here without a route-level limiter would leave it entirely unthrottled.
- * `/session/validate-header/` is intentionally NOT matched — it is bearer-cross-
- * checked and browser-reachable, so it stays under the general budget.
+ * `/session/validate-header/` is NOT matched — it is bearer-cross-checked and
+ * keyed per subject; see {@link isSessionHeaderValidationPath}.
  */
 export function isIdpServiceToServicePath(path: string): boolean {
   return path.startsWith('/session/validate/');
+}
+
+/**
+ * `GET /session/validate-header/:id` — the bearer a relying app's request
+ * carried, cross-checked against its session. `@oxy.so/core`'s auth middleware
+ * makes this call for EVERY authenticated request the app serves (ADR 0041), so
+ * under `rl:general` (1000/15min) and `slowDown` (100/15min) — both keyed by
+ * the same subject — a reader browsing an app would spend their own budget on
+ * the app's validations and then pay 500ms on every request, here and to the
+ * app. It is excluded from both and capped by its own per-subject limiter,
+ * {@link sessionHeaderValidationLimiter}, mounted on the route.
+ */
+export function isSessionHeaderValidationPath(path: string): boolean {
+  return path.startsWith('/session/validate-header/');
 }
 
 /**
@@ -299,6 +313,7 @@ const rateLimiter = rateLimit({
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
+    isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
@@ -343,6 +358,18 @@ const idpServiceLimiter = rateLimit({
   message: 'Too many requests, please try again later.',
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
+});
+
+// The SOLE budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
+// sized like idpServiceLimiter: one subject's validations are one per request
+// an app serves them, and a request without a verified bearer falls back to the
+// per-IP key, as `/session/validate/` is capped today.
+const sessionHeaderValidationLimiter = rateLimit({
+  prefix: 'rl:session:validate-header:',
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 20000 : 40000,
+  message: 'Too many requests, please try again later.',
+  keyGenerator: subjectOrIpKey,
 });
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
@@ -424,6 +451,7 @@ const bruteForceProtection = slowDown({
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
+    isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
@@ -476,6 +504,7 @@ export {
   rateLimiter,
   serviceCredentialLimiter,
   idpServiceLimiter,
+  sessionHeaderValidationLimiter,
   federationServiceLimiter,
   authRateLimiter,
   userRateLimiter,

@@ -1,3 +1,6 @@
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
+import { inviteGuardian, acceptInvitation, changeContact } from '../supervision.service';
+import { signMediaToken, verifyMediaToken } from '../../utils/mediaToken';
 /**
  * Media authorization, against a REAL Postgres.
  *
@@ -274,6 +277,39 @@ describe('the rest of the ladder still holds', () => {
     expect(await service.checkMediaAccess(file, viewerId)).toEqual({
       allowed: true,
       isPublic: true,
+    });
+  });
+});
+
+describe('supervised private media remains governed by live consent', () => {
+  it('rejects unilateral follows and revoked approvals even with a previously signed stream token', async () => {
+    const child = await insertUser({ kind: 'personal' }),
+      guardian = await insertUser({ kind: 'personal' }),
+      viewer = await insertUser({ kind: 'personal' });
+    const invitation = await inviteGuardian(child, guardian);
+    await acceptInvitation(invitation.id, guardian);
+    const file = await insertFile({ ownerUserId: child, visibility: 'private' });
+    await getDb().insert(userFollows).values({ followerId: viewer, followedId: child });
+    expect((await service.checkMediaAccess(file, viewer)).allowed).toBe(false);
+    await changeContact(child, viewer, guardian, true);
+    expect((await service.checkMediaAccess(file, viewer)).allowed).toBe(true);
+    const token = signMediaToken(file.id, viewer);
+    await changeContact(child, viewer, guardian, false);
+    const resolved = verifyMediaToken(token, file.id);
+    expect(resolved).toBe(viewer);
+    expect((await service.checkMediaAccess(file, resolved)).allowed).toBe(false);
+    expect((await service.checkMediaAccess(file, child)).allowed).toBe(true);
+  });
+  it('denies unreviewed nonowned media to supervised viewers, including public avatars', async () => {
+    const child = await insertUser({ kind: 'personal' }),
+      guardian = await insertUser({ kind: 'personal' }),
+      owner = await insertUser({ kind: 'personal' });
+    const invitation = await inviteGuardian(child, guardian);
+    await acceptInvitation(invitation.id, guardian);
+    const file = await insertFile({ ownerUserId: owner, visibility: 'public' });
+    expect(await service.checkMediaAccess(file, child)).toMatchObject({
+      allowed: false,
+      reason: 'unrated_content',
     });
   });
 });

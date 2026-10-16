@@ -18,13 +18,18 @@ import {
   type OxyAppPermissions,
   type RequireAppPermissionOptions,
 } from './appPermissions';
-import { accountActorChainSchema, type AccountActorChain } from '@oxy.so/contracts';
+import {
+  accountActorChainSchema,
+  type AccountActorChain,
+  type SupervisedAction,
+} from '@oxy.so/contracts';
 import { jwtDecode } from 'jwt-decode';
 import type { JsonWebKey } from 'node:crypto';
 import type { ApiError, User } from '../models/interfaces';
 import { loadNodeCrypto } from '@oxy.so/protocol';
 import { logger } from '../logger';
 import { toOxyApiError } from '../OxyServices.errors';
+import { extractErrorStatus } from '../utils/errorUtils';
 import {
   OXY_SERVICE_ENVIRONMENTS,
   type OxyServiceEnvironment,
@@ -267,6 +272,8 @@ function isOxyServiceEnvironment(value: unknown): value is OxyServiceEnvironment
  * Options for `server.middleware.auth()`.
  */
 export interface AuthMiddlewareOptions {
+  /** Reviewed server-owned route category. Unspecified routes refuse supervised users. */
+  supervisedAction?: SupervisedAction;
   /** Enable debug logging (default: false) */
   debug?: boolean;
   /** Custom error handler - receives error object, can return response */
@@ -275,6 +282,8 @@ export interface AuthMiddlewareOptions {
   loadUser?: boolean;
   /** Optional auth - attach user if token present but don't block (default: false) */
   optional?: boolean;
+  /** Keep anonymous access, but reject every supplied invalid credential or authority outage. */
+  strictOptionalBearer?: boolean;
   /**
    * Called whenever a PRESENTED credential is refused, on the optional path as
    * well as the blocking one. Runs before the response (if any) and after
@@ -313,7 +322,12 @@ export interface OxyMiddlewareHost {
   readonly jwksCache: ServiceTokenJwksCache;
   validateSession(
     sessionId: string,
-    options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
+    options?: {
+      deviceFingerprint?: string;
+      useHeaderValidation?: boolean;
+      accessToken?: string;
+      supervisedAction?: SupervisedAction;
+    },
   ): Promise<{ valid: boolean; user?: User; actor?: unknown } | null>;
   verifyActingAs(
     appId: string,
@@ -421,6 +435,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
       expectedIssuer = OXY_JWT_ISSUER,
       expectedAudience = OXY_JWT_AUDIENCE,
     } = options;
+    const strictPresentedBearer = Boolean(options.supervisedAction || options.strictOptionalBearer);
 
     /**
      * Make a refusal observable to the HOST, without telling the client
@@ -488,7 +503,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         }
 
         if (!token) {
-          if (optional) {
+          if (optional && (!strictPresentedBearer || rawAuthHeader === undefined)) {
             req.userId = null;
             req.user = null;
             return next();
@@ -525,7 +540,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               decodeError,
             );
           }
-          if (optional) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -591,7 +606,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                   detail: verifyError.message,
                 });
               }
-              if (optional) {
+              if (optional && !strictPresentedBearer) {
                 req.userId = null;
                 req.user = null;
                 return next();
@@ -635,7 +650,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
                 : 'Service token has no integer exp claim',
               status: 401,
             });
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -706,7 +721,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               })`,
               status: 401,
             });
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -832,7 +847,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'Token carries no usable user id claim',
             status: 401,
           });
-          if (optional) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -857,7 +872,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'User access token expired',
             status: 401,
           });
-          if (optional) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -886,7 +901,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             reason: 'User access token is not bound to a session',
             status: 401,
           });
-          if (optional) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -906,7 +921,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         // real and unrevoked, AND yields the identity it belongs to.
         try {
           const validationResult = await host.validateSession(sessionId, {
-            useHeaderValidation: true,
+            accessToken: token,
+            supervisedAction: options.supervisedAction,
           });
 
           if (!validationResult || !validationResult.valid || !validationResult.user) {
@@ -916,7 +932,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session is invalid, revoked or expired',
               status: 401,
             });
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -941,7 +957,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session did not resolve to a usable identity',
               status: 401,
             });
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -974,7 +990,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               status: 401,
             });
 
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -1010,7 +1026,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
               reason: 'Session actor chain does not describe the validated session',
               status: 401,
             });
-            if (optional) {
+            if (optional && !strictPresentedBearer) {
               req.userId = null;
               req.user = null;
               return next();
@@ -1046,6 +1062,25 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
 
           return next();
         } catch (validationError) {
+          // A verified authorization denial is not an anonymous visitor, including optional routes.
+          if (extractErrorStatus(validationError) === 403) {
+            const refusal = {
+              error: 'SESSION_POLICY_DENIED',
+              code: 'SESSION_POLICY_DENIED',
+              message: 'This account is not authorized for this operation',
+              status: 403,
+            };
+            recordRefusal(req, {
+              code: refusal.code,
+              stage: 'session',
+              reason: refusal.message,
+              status: 403,
+            });
+            if (onError) return onError(refusal);
+            return res.status(403).json(refusal);
+          }
+          const validationStatus =
+            strictPresentedBearer && extractErrorStatus(validationError) !== 401 ? 503 : 401;
           recordRefusal(req, {
             code: 'SESSION_VALIDATION_ERROR',
             stage: 'session',
@@ -1053,7 +1088,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             // `validateSession` can carry the request URL, and that URL
             // contains the session id — which is a credential.
             reason: `Session validation call failed (${describeErrorSafely(validationError)})`,
-            status: 401,
+            status: validationStatus,
           });
           if (debug) {
             logger.debug(
@@ -1066,7 +1101,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             );
           }
 
-          if (optional) {
+          if (optional && !strictPresentedBearer) {
             req.userId = null;
             req.user = null;
             return next();
@@ -1076,10 +1111,10 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
             error: 'SESSION_VALIDATION_ERROR',
             message: 'Session validation failed',
             code: 'SESSION_VALIDATION_ERROR',
-            status: 401,
+            status: validationStatus,
           };
           if (onError) return onError(error);
-          return res.status(401).json(error);
+          return res.status(validationStatus).json(error);
         }
       } catch (error) {
         const handled = toOxyApiError(error) as Error & {
@@ -1135,7 +1170,7 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
    * });
    * ```
    */
-  function socket(options: { debug?: boolean } = {}) {
+  function socket(options: { debug?: boolean; supervisedAction?: SupervisedAction } = {}) {
     const { debug = false } = options;
 
     return async (socket: SocketLike, next: (err?: Error) => void) => {
@@ -1184,7 +1219,8 @@ export function createOxyMiddleware(host: OxyMiddlewareHost) {
         let userId = claimedUserId;
         try {
           const result = await host.validateSession(sessionId, {
-            useHeaderValidation: true,
+            accessToken: token,
+            supervisedAction: options.supervisedAction,
           });
           if (!result || !result.valid || !result.user) {
             return next(new Error('Session invalid'));

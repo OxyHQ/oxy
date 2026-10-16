@@ -1,3 +1,8 @@
+import {
+  supervisionPurchaseApprovals,
+  supervisionAudit,
+  supervisionPurchaseLines,
+} from './supervision';
 import { organizationExternalIds, organizationDirectoryAudit } from './organizationProfiles';
 import {
   billingCreditInvoices,
@@ -142,6 +147,37 @@ const PRICE_VERSION_LABEL_REASON =
   'table that resolves Kaana’s; the entries charged are copied beside it.';
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: supervisionPurchaseLines,
+    column: supervisionPurchaseLines.merchantAccountId,
+    reason:
+      'Immutable authorization evidence names the merchant at approval time; its later erasure does not rewrite an outstanding exact payment instruction. This is not a live account permission.',
+  },
+  {
+    table: supervisionPurchaseApprovals,
+    column: supervisionPurchaseApprovals.operationId,
+    reason:
+      'Immutable application checkout operation identifier, scoped by application; the order lives in the merchant product.',
+  },
+  {
+    table: supervisionPurchaseApprovals,
+    column: supervisionPurchaseApprovals.resourceId,
+    reason:
+      'Application checkout resource identifier, not an Oxy account; immutable approved effect.',
+  },
+  {
+    table: supervisionAudit,
+    column: supervisionAudit.resourceId,
+    reason:
+      'Historical supervision resource attribution; may reference invitations or purchase approvals of distinct tables.',
+  },
+  {
+    table: supervisionAudit,
+    column: supervisionAudit.relatedAccountId,
+    reason:
+      'Historical guardian/contact attribution, not current authority; retained in the child-owned audit if that related account is erased.',
+  },
+
   {
     table: organizationExternalIds,
     column: organizationExternalIds.externalId,
