@@ -818,11 +818,13 @@ Migrations `0175_file_upload_sessions` and `0176_content_claim_counter_notices`
 
 What Syra, Alia and Homiio still needed to leave their own buckets. It ships
 as a second release, after stages 1–4b (#1764). Migration
-`0179_file_access_streams_ingests` (pre): three new tables, nothing existing
+`0180_file_access_streams_ingests` (pre): three new tables, nothing existing
 changes; it sits behind `0177_drop_file_links` (post), which #1764's deploy
-already applied, and main's `0178_ecosystem_invitations_and_billing` (pre).
-SDKs: `@oxy.so/core` 4.20.0 and `@oxy.so/services` 11.11.0 (#1721 took 4.19.0
-and 11.10.0 meanwhile); `@oxy.so/contracts` has nothing new and stays 4.23.0.
+already applied, and main's `0178_ecosystem_invitations_and_billing` and
+`0179_application_agents_and_app_assertions` (pre). SDKs: `@oxy.so/core`
+4.21.0 and `@oxy.so/services` 11.12.0 (#1721 and #1770 took 4.19.0/11.10.0
+and 4.20.0/11.11.0 meanwhile); `@oxy.so/contracts` has nothing new and stays
+4.24.0.
 
 - **A person's private media from a service.** `POST
   /assets/service/user-media` takes `x-visibility` (`public` default |
@@ -1134,7 +1136,7 @@ adds. In order; each step names how to know it worked before the next.
 1. **Pre migrations** (`deploy-aws.yml` applies phase `pre` before its
    rollout; `run-postgres-migrations.yml` by hand). Stages 1–4b (done):
    `0170_application_owned_files` … `0176_content_claim_counter_notices`.
-   Stage 4c: `0179_file_access_streams_ingests` (after main's `0178`). The `pre` phase
+   Stage 4c: `0180_file_access_streams_ingests` (after main's `0178` and `0179`). The `pre` phase
    refuses to apply it while `0177_drop_file_links` (post) is still pending —
    the ledger is a high-water mark — so first confirm `0177` is applied. For
    1–4b, first run `bun run packages/api/scripts/file-references-preflight.ts`
@@ -1144,7 +1146,7 @@ adds. In order; each step names how to know it worked before the next.
    give the statements; the migrations skip an index that already exists and
    is valid). *Verify:* for 1–4b the migrator reported the seven applied and
    `select count(*) from file_references` equalled the `file_links` rows it
-   copied; for 4c it reports `0179` applied, and `file_access_grants`,
+   copied; for 4c it reports `0180` applied, and `file_access_grants`,
    `file_play_sessions` and `file_ingests` exist and are empty.
 2. **IAM and the bucket** (oxy-infra, before the API deploys): the `oxy-api`
    task role needs `s3:ListMultipartUploadParts` and `s3:AbortMultipartUpload`
@@ -1187,14 +1189,14 @@ adds. In order; each step names how to know it worked before the next.
    `GET /content-claims/access` answers `{ canReview: true }`.
 7. **Publish the SDKs** with `release-packages.yml`, in dependency order,
    from `main`'s head. 1–4b (done): `@oxy.so/contracts` 4.22.0, `@oxy.so/core`
-   4.18.0, `@oxy.so/services` 11.9.0. 4c: `@oxy.so/core` 4.20.0, then
-   `@oxy.so/services` 11.11.0 (contracts is unchanged at 4.23.0). Re-check npm first,
+   4.18.0, `@oxy.so/services` 11.9.0. 4c: `@oxy.so/core` 4.21.0, then
+   `@oxy.so/services` 11.12.0 (contracts is unchanged at 4.24.0). Re-check npm first,
    and open PRs that claim the same numbers: if a version was taken meanwhile, bump to the next
    free one — the `version` line of each package's `package.json`, the heading
    of each `CHANGELOG.md`, core's `@oxy.so/contracts` dependency
    (`workspace:<contracts version>`) and the root catalog's `@oxy.so/core`
    range (services' peer floor), one line each; `bun install` to refresh
-   `bun.lock`. *Verify:* `npm view @oxy.so/core@4.20.0 version` etc.
+   `bun.lock`. *Verify:* `npm view @oxy.so/core@4.21.0 version` etc.
 8. **The CDN's content types and headers** (oxy-infra): first run
    `scripts/operations/oxy-website-media-content-types.py` (dry run, review,
    then `--apply`) so the website's media objects carry real Content-Types —

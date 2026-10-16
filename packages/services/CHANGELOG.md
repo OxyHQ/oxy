@@ -1,14 +1,14 @@
 # Changelog
 
-## [11.11.0] - 2026-10-16
+## [11.12.0] - 2026-10-16
 
-Needs `@oxy.so/core` 4.20.0 (and so `@oxy.so/contracts` 4.23.0) and the Oxy
+Needs `@oxy.so/core` 4.21.0 (and so `@oxy.so/contracts` 4.24.0) and the Oxy
 API with ADR 0043 stage 4c.
 
 ### Changed
 
-- The `@oxy.so/core` peer is `^4.20.0` (it was `^4.19.0`): "Apps with access"
-  calls `oxy.assets.listAppAccess` / `revokeAppAccess`, which 4.20.0 adds.
+- The `@oxy.so/core` peer is `^4.21.0` (it was `^4.20.0`): "Apps with access"
+  calls `oxy.assets.listAppAccess` / `revokeAppAccess`, which 4.21.0 adds.
 
 ### Added
 

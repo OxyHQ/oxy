@@ -1,11 +1,12 @@
 # Changelog — `@oxy.so/core`
 
-## 4.20.0
+## 4.21.0
 
 Needs the Oxy API with ADR 0043 stage 4c — private person media and consent
 grants, play sessions, audio renditions, recording targets, large imports by
-URL and sanitized SVG (migration `0179_file_access_streams_ingests`). Same
-`@oxy.so/contracts` (4.23.0). (First prepared as 4.19.0, which #1721 took.)
+URL and sanitized SVG (migration `0180_file_access_streams_ingests`). Same
+`@oxy.so/contracts` (4.24.0). (First prepared as 4.19.0, then 4.20.0, which
+#1721 and #1770 took.)
 
 ### Changed
 
