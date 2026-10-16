@@ -331,7 +331,7 @@ export async function recordOperationalCredentialLifecycleEvent(
   },
 ): Promise<void> {
   if (
-    !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_\/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
+    !/^arn:aws:(?:iam|sts)::237343248947:(?:user\/[A-Za-z0-9+=,.@_/-]+|assumed-role\/[A-Za-z0-9+=,.@_-]+\/[A-Za-z0-9+=,.@_-]+)$/.test(
       event.operatorArn,
     ) ||
     !/^[a-f0-9]{64}$/.test(event.authorizationSha256) ||

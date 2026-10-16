@@ -15,7 +15,7 @@ bun install --frozen-lockfile --minimum-release-age=0
 bun run build:all                   # turbo, dependency order
 cd packages/<pkg> && bun run test   # per package; never a bare `bun test`
 bun run validate:agents-md
-bun run build && bun pm pack        # release, in the package; never npm pack
+bun run build && bun pm pack        # local package check, in the package; never npm pack
 ```
 
 ## Rules
@@ -27,7 +27,7 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - Shared versions live in `workspaces.catalog` as `"catalog:"`.
 - Pack with `bun pm pack`, never `npm pack`.
 - Anything that re-resolves passes `--minimum-release-age=0`.
-- Never publish a tarball you did not build in the same command — #publishing
+- Publish only through Actions → Release packages (shared `npm-release.yml`, OIDC); never from a laptop — #publishing
 - TS strict; Biome formats and lints (`bun run lint`; SDK `src/` `--error-on-warnings`); commit `bun.lock` with its `package.json`; path-scope `git add`, never `git add -A` — #coding-standards
 
 **Package boundaries** — #package-boundaries
@@ -36,6 +36,8 @@ Pointers: files in `docs/engineering/`; a bare `#anchor` is in `package-rules.md
 - A module naming an OPTIONAL peer never reaches the root barrel: own export subpath.
 - Never hand-write `declare module '<pkg>'` for a package with types or `@types/` — #ambient-shims
 - ESM builds of core and contracts contain no `require()` — #esm-builds
+- Client code (core's client entries, services) imports contract VALUES from `@oxy.so/contracts/client`, never Zod; root schemas are for servers — core `clientEntriesZodFree.test.ts`
+- Client code loads the identity stack only via `import('@oxy.so/core/crypto')` (core: `../crypto/index`), one lazy root — core `rootEntryGraph.test.ts`
 - Peer ranges on third-party packages that ship breaking majors have an UPPER bound; first-party `@oxy.so/bloom` is deliberately open (`>=`) so apps always run the latest — #peer-ranges
 
 **Runtime traps**

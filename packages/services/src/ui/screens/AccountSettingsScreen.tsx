@@ -1,5 +1,9 @@
 import type React from 'react';
-import { ORGANIZATION_NAME_MAX_LENGTH, organizationNameSchema } from '@oxy.so/contracts';
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  organizationNameCheck,
+  checkContract,
+} from '@oxy.so/contracts/client';
 import { OrganizationSettings } from '../components/organizations/OrganizationSettings';
 import { useCallback, useMemo, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
@@ -152,7 +156,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({
       }
       if (node?.account.kind === 'organization') {
         setDisplayNameError(
-          organizationNameSchema.safeParse(trimmed).success
+          checkContract(organizationNameCheck, trimmed) !== null
             ? ''
             : t('organizationDirectory.invalidName'),
         );

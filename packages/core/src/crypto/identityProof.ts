@@ -9,14 +9,13 @@
 import './polyfill';
 import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils';
-import { signMessage } from '@oxy.so/protocol';
+import { signMessage } from '@oxy.so/protocol/sign';
+import type { IdentityProof, IdentityProofClaims } from '@oxy.so/contracts';
 import {
-  IDENTITY_PROOF_VERSION,
   buildIdentityProofMessage,
   canonicalJson,
-  type IdentityProof,
-  type IdentityProofClaims,
-} from '@oxy.so/contracts';
+  IDENTITY_PROOF_VERSION,
+} from '@oxy.so/contracts/client';
 
 /** SHA-256 hex of the canonical JSON of `payload` — the `payloadDigest` claim. */
 export function digestIdentityPayload(payload: unknown): string {

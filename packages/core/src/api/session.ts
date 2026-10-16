@@ -19,6 +19,13 @@ import { normalizeUserIdentity } from '../utils/userIdentity';
  */
 export type DeviceCredentialProvider = () => Promise<DeviceProof | null> | DeviceProof | null;
 
+export interface SessionValidateOptions {
+  deviceFingerprint?: string;
+  useHeaderValidation?: boolean;
+  /** The bearer the request being authorized carried; cross-checked against the session. */
+  accessToken?: string;
+}
+
 export interface SessionValidation {
   valid: boolean;
   expiresAt: string;
@@ -41,7 +48,7 @@ export class SessionApi {
   private decodedFor: string | null = null;
   private decoded: AccessTokenClaims | null = null;
 
-  constructor(private readonly ctx: OxyContext) {}
+  constructor(protected readonly ctx: OxyContext) {}
 
   // ── Local state ──────────────────────────────────────────────────────────
 
@@ -171,21 +178,45 @@ export class SessionApi {
     }
   }
 
-  /** Validate a session by id and return it with its user. */
+  /**
+   * Validate a session by id and return it with its user.
+   *
+   * With `accessToken` (a server validating the bearer its request carried)
+   * Oxy also cross-checks that token against the session, so a token only ever
+   * validates the session it was issued for.
+   */
   async validate(
     sessionId: string,
-    options: { deviceFingerprint?: string; useHeaderValidation?: boolean } = {},
+    options: SessionValidateOptions = {},
   ): Promise<SessionValidation> {
-    const params: Record<string, string> = {};
-    if (options.deviceFingerprint) params.deviceFingerprint = options.deviceFingerprint;
-    if (options.useHeaderValidation) params.useHeaderValidation = 'true';
     try {
-      const validation = await this.ctx.request<SessionValidation>(
-        'GET',
-        `/session/validate/${sessionId}`,
-        params,
-        { cache: false },
-      );
+      const validation = options.accessToken
+        ? await this.ctx.request<SessionValidation>(
+            'GET',
+            `/session/validate-header/${encodeURIComponent(sessionId)}`,
+            undefined,
+            {
+              cache: false,
+              skipAuth: true,
+              headers: {
+                Authorization: `Bearer ${options.accessToken}`,
+                ...(options.deviceFingerprint
+                  ? { 'x-device-fingerprint': options.deviceFingerprint }
+                  : {}),
+              },
+            },
+          )
+        : await this.ctx.request<SessionValidation>(
+            'GET',
+            `/session/validate/${sessionId}`,
+            {
+              ...(options.deviceFingerprint
+                ? { deviceFingerprint: options.deviceFingerprint }
+                : {}),
+              ...(options.useHeaderValidation ? { useHeaderValidation: 'true' } : {}),
+            },
+            { cache: false },
+          );
       return { ...validation, user: normalizeUserIdentity(validation.user) };
     } catch (error) {
       // The session is gone: drop any user cached for it (#196).

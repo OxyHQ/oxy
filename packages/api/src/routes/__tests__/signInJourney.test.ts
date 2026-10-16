@@ -30,7 +30,6 @@ const mockSendNotice = jest.fn();
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 jest.mock('../../services/accountEmail.mail', () => ({
   sendVerificationCode: (...args: unknown[]) => mockSendCode(...args),
-  sendAccountExistsNotice: jest.fn(),
   sendSignInEmail: (...args: unknown[]) => mockSendSignIn(...args),
   sendReauthCode: (...args: unknown[]) => mockSendReauth(...args),
   sendSecurityNotice: (...args: unknown[]) => mockSendNotice(...args),

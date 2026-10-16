@@ -1,6 +1,6 @@
 # ADR 0025 — A present requester reaches a native product agent through a one-use Oxy assertion, not through offline delegation
 
-- Status: accepted
+- Status: superseded by ADR 0042 (2026-10-16) — present-requester assertions and the native-product-agent lane are retired; a public agent acts for the person present under its owner's ceiling
 - Date: 2026-09-17
 - Amended: 2026-09-20 — an entry point may also be proved by ATTESTATION (see
   "One entry point, two proofs")
@@ -209,3 +209,14 @@ introspection.
   Oxy half; the product's own half is accepting both names for its one service
   identity wherever it pins `credentialId` (OxyHQ/Homiio#536 did this for Sindi).
 - Oxy's replay protection depends on Redis in production and fails closed without it.
+
+### Reviewable bootstrap success reports
+
+The bootstrap now emits the exact non-secret `desired`, `before`, `after`,
+operations and Alia bindings alongside its approval hash. The task wrapper
+validates the complete report, rejects secret-bearing keys or oversized output,
+and verifies its canonical hash before returning it. The workflow prints this
+validated plan for review; error reports retain their existing closed allowlist.
+Observed dates are hashed as their ISO JSON representation, so the printed plan
+can be independently hashed and the reviewed expiry cannot disappear into an
+empty object. Operators must obtain a fresh dry-run report before applying.

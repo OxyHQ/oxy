@@ -32,6 +32,7 @@ import type { DeviceSecretMintOutcome } from './session/refresh';
 import { OxyAuthenticationError } from './OxyServices.errors';
 import { peekBrowserEdgeRegionHeader } from './utils/edgeRegion';
 import { getBrowserActivityIdHeader } from './utils/activityId';
+import { requiresCorsPreflight } from './utils/corsPreflight';
 import { trimLeadingSlashes, trimTrailingSlashes } from './utils/slashes';
 
 export type AuthRefreshReason = 'preflight' | 'response-401';
@@ -712,11 +713,16 @@ export class HttpService {
           Accept: 'application/json',
         };
 
-        // Only set Content-Type for non-FormData requests (FormData sets it automatically with boundary)
-        if (isUrlEncoded) {
-          headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
-        } else if (!isFormData) {
-          headers['Content-Type'] = 'application/json';
+        // Content-Type describes a body, so a GET (which never sends one) gets
+        // none: `application/json` is not a CORS-safelisted type, and on a GET it
+        // only made the browser preflight a request with nothing to describe.
+        // FormData sets its own multipart type with the boundary.
+        if (method !== 'GET') {
+          if (isUrlEncoded) {
+            headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+          } else if (!isFormData) {
+            headers['Content-Type'] = 'application/json';
+          }
         }
 
         // Add authorization header if available
@@ -741,9 +747,14 @@ export class HttpService {
 
         // This is Cloudflare's coarse serving PoP (for example `mad`), never an
         // IP or coordinate. Set it after caller headers so request code cannot
-        // accidentally or deliberately substitute a different origin.
-        Object.assign(headers, edgeRegionHeader);
-        Object.assign(headers, activityIdHeader);
+        // accidentally or deliberately substitute a different origin. Both are
+        // advisory telemetry, so they ride only on a request the browser
+        // preflights anyway: on an anonymous GET they were the only thing that
+        // made it non-simple, and every distinct URL paid an OPTIONS round trip.
+        if (requiresCorsPreflight(method, Object.entries(headers))) {
+          Object.assign(headers, edgeRegionHeader);
+          Object.assign(headers, activityIdHeader);
+        }
 
         // `URLSearchParams` is serialised explicitly rather than handed to
         // `fetch` as-is: RN's fetch does not consistently encode it, and doing
@@ -1637,10 +1648,18 @@ export class HttpService {
     for (const name of ['Authorization', 'Cookie', 'Cookie2', 'Host', 'Proxy-Authorization'])
       headers.delete(name);
     if (authHeader) headers.set('Authorization', authHeader);
-    const edgeRegionHeader = peekBrowserEdgeRegionHeader();
-    for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
-    const activityIdHeader = getBrowserActivityIdHeader();
-    for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
+    // Telemetry rides only on a request the browser preflights anyway — see
+    // `request()`.
+    const sentHeaders: Array<[string, string]> = [];
+    headers.forEach((value, name) => {
+      sentHeaders.push([name, value]);
+    });
+    if (requiresCorsPreflight(config.method, sentHeaders)) {
+      const edgeRegionHeader = peekBrowserEdgeRegionHeader();
+      for (const [name, value] of Object.entries(edgeRegionHeader)) headers.set(name, value);
+      const activityIdHeader = getBrowserActivityIdHeader();
+      for (const [name, value] of Object.entries(activityIdHeader)) headers.set(name, value);
+    }
 
     try {
       const body = config.method === 'GET' ? undefined : config.body;

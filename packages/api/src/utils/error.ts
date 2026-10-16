@@ -25,6 +25,9 @@ export const ErrorCodes = {
   ALREADY_EXISTS: 'ALREADY_EXISTS',
   CONFLICT: 'CONFLICT',
 
+  // Rate limiting: answered 429 with `Retry-After` (`middleware/rateLimiter.ts`)
+  RATE_LIMITED: 'RATE_LIMITED',
+
   // Server errors
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
@@ -49,6 +52,7 @@ export function getErrorCodeFromStatus(statusCode: number): string {
     404: ErrorCodes.NOT_FOUND,
     409: ErrorCodes.CONFLICT,
     422: ErrorCodes.VALIDATION_ERROR,
+    429: ErrorCodes.RATE_LIMITED,
     500: ErrorCodes.INTERNAL_SERVER_ERROR,
     503: ErrorCodes.SERVICE_UNAVAILABLE,
   };
@@ -150,6 +154,36 @@ export class ServiceUnavailableError extends ApiError {
   constructor(message = 'Service unavailable', details?: Record<string, unknown>) {
     super(503, message, ErrorCodes.SERVICE_UNAVAILABLE, details);
     this.name = 'ServiceUnavailableError';
+  }
+}
+
+/**
+ * The caller is over a budget: 429, and — when there is one to wait out — when
+ * to retry, in whole seconds (never 0: "retry now" is not what a refusal
+ * means). The ONLY way oxy-api builds a 429 (`rateLimiterRefusal.test.ts`):
+ * `sendRateLimited` answers it with its `Retry-After`, whether a limiter
+ * refused or a service threw it (`errorHandler`).
+ *
+ * `code` defaults to `RATE_LIMITED`; a surface whose contract names its own
+ * refusal (`SIGN_IN_ERROR_CODES.locked`) passes that. No `retryAfterSeconds`
+ * means no wait helps — a code spent by wrong guesses needs a new code.
+ */
+export class RateLimitedError extends ApiError {
+  public readonly retryAfterSeconds?: number;
+
+  constructor(message: string, input: { code?: string; retryAfterSeconds?: number } = {}) {
+    const retryAfterSeconds =
+      input.retryAfterSeconds === undefined
+        ? undefined
+        : Math.max(1, Math.ceil(input.retryAfterSeconds));
+    super(
+      429,
+      message,
+      input.code ?? ErrorCodes.RATE_LIMITED,
+      retryAfterSeconds === undefined ? undefined : { retryAfterSeconds },
+    );
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.name = 'RateLimitedError';
   }
 }
 

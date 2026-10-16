@@ -38,6 +38,22 @@ const DELIVERY_RESPONSE_PREVIEW_MAX_BYTES = 1024;
 /** The ActivityStreams public collection — the `to` addressee of a public activity. */
 const AP_PUBLIC = 'https://www.w3.org/ns/activitystreams#Public';
 
+/** Trusted sender metadata supplied by the application or its durable job. */
+export interface DeliveryAuthorizationContext {
+  activity: Readonly<Record<string, unknown>>;
+  senderAccountId: string;
+}
+
+/** A definitive refusal: workers must discard, not retry or count a delivery. */
+export class DeliveryAuthorizationDeniedError extends Error {
+  readonly code = 'DELIVERY_AUTHORIZATION_DENIED';
+
+  constructor() {
+    super('Outbound federation delivery is not authorized');
+    this.name = 'DeliveryAuthorizationDeniedError';
+  }
+}
+
 /** Minimal logging sink the delivery service writes to. */
 export interface DeliveryLogger {
   debug(message: string, detail?: unknown): void;
@@ -228,6 +244,13 @@ export interface DeliveryServiceConfig<TActor extends DeliveryActorFields> {
   deliverSingleHop: DeliverSingleHop;
   /** SSRF pre-check for a durable inbox enqueue (never queue a delivery to an unsafe URL). */
   assertSafeInboxUrl(url: string): Promise<SafeUrlVerdict>;
+  /**
+   * Optional live policy check. False throws DeliveryAuthorizationDeniedError before
+   * signing or enqueueing. A thrown authority error propagates unchanged so a
+   * durable worker can retry it. Checked once per fanout, then again at delivery.
+   * Never derive the sender from the activity actor URL or its signing key.
+   */
+  authorizeDelivery?(context: DeliveryAuthorizationContext): Promise<boolean>;
   /** BullMQ enqueue + the durable fallback queue. */
   transport: DeliveryTransport;
   /** The AP actor cache store. */
@@ -306,7 +329,10 @@ export interface DeliveryService {
     localUsername: string,
     remoteActorUri: string,
   ): Promise<{ success: boolean; pending: boolean }>;
-  /** Send an Undo(Follow) to a remote actor (removes the local follow first). */
+  /**
+   * Remove the local follow and attempt Undo delivery. True means the local
+   * relationship was removed, never that remote delivery succeeded.
+   */
   sendUndoFollow(
     localOxyUserId: string,
     localUsername: string,
@@ -344,10 +370,31 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     return host === null || config.isBlockedDomain(host);
   }
 
+  async function authorizeDelivery(
+    activity: Record<string, unknown>,
+    senderAccountId: string,
+  ): Promise<void> {
+    if (
+      config.authorizeDelivery &&
+      !(await config.authorizeDelivery({ activity, senderAccountId }))
+    ) {
+      throw new DeliveryAuthorizationDeniedError();
+    }
+  }
+
   async function deliverActivity(
     activity: Record<string, unknown>,
     targetInbox: string,
     senderOxyUserId: string,
+    senderUsername: string,
+  ): Promise<boolean> {
+    await authorizeDelivery(activity, senderOxyUserId);
+    return deliverAuthorizedActivity(activity, targetInbox, senderUsername);
+  }
+
+  async function deliverAuthorizedActivity(
+    activity: Record<string, unknown>,
+    targetInbox: string,
     senderUsername: string,
   ): Promise<boolean> {
     if (isBlockedUrl(targetInbox)) {
@@ -400,6 +447,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
+    await authorizeDelivery(activity, senderOxyUserId);
     if (isBlockedUrl(targetInbox)) {
       logger.warn(`[FedDeliver] not queueing delivery to blocked inbox ${targetInbox}`);
       return;
@@ -446,6 +494,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     senderUsername: string,
     options: { extraInboxes?: string[] } = {},
   ): Promise<void> {
+    await authorizeDelivery(activity, senderOxyUserId);
     const actorUris = await config.follows.listAcceptedInboundFollowerActorUris(senderOxyUserId);
     const actors = actorUris.length > 0 ? await config.store.findActorInboxesByUris(actorUris) : [];
 
@@ -559,19 +608,12 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     // queue the Follow activity, then refresh the actor in the background.
     const cached = await config.store.findActorByUri(remoteActorUri);
 
-    // Always refresh the actor in the background so its inbox/profile stay
-    // current (and so a missing actor gets resolved for delivery shortly).
-    config.actorRefresh.refreshActorInBackground(remoteActorUri, cached ?? undefined);
-
     const canonicalUri = cached?.uri ?? remoteActorUri;
     const localActorUri = urls.actor(localUsername);
     // Use the actor _id when known, otherwise a stable hash of the URI so the
     // activity ID is deterministic across retries before the actor is cached.
     const activityIdSuffix = cached?._id ? String(cached._id) : encodeURIComponent(canonicalUri);
     const activityId = `${localActorUri}/follows/${activityIdSuffix}`;
-
-    // Create or update the follow record
-    await config.follows.upsertOutboundPending(localOxyUserId, canonicalUri, activityId);
 
     const activity: Record<string, unknown> = {
       '@context': 'https://www.w3.org/ns/activitystreams',
@@ -581,11 +623,17 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       object: canonicalUri,
     };
 
+    // Refuse before committing an outbound follow or reporting success.
+    await authorizeDelivery(activity, localOxyUserId);
+    // A refused follow must not start remote actor discovery either.
+    config.actorRefresh.refreshActorInBackground(remoteActorUri, cached ?? undefined);
+    await config.follows.upsertOutboundPending(localOxyUserId, canonicalUri, activityId);
+
     // If we know the inbox, attempt delivery in the background; otherwise queue
     // for the delivery worker, which resolves the inbox once the actor lands.
     const targetInbox = cached?.sharedInboxUrl ?? cached?.inboxUrl;
     if (targetInbox && !isBlockedUrl(targetInbox)) {
-      void deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
+      void deliverAuthorizedActivity(activity, targetInbox, localUsername)
         .then((delivered) => {
           if (!delivered) return queueDelivery(activity, targetInbox, localOxyUserId);
         })

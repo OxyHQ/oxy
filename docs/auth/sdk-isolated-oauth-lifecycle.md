@@ -69,6 +69,19 @@ one private predicate with the sign-in button and native finalizer. Registry
 first_party/internal/system or explicit official/internal flags select the
 existing device lane; names, origins and Oxy branding grant no trust.
 
+The public record is HTTP-cacheable for 60 seconds (`Cache-Control: public,
+max-age=60`), the dynamic origin registry's own refresh interval, so `cache:false`
+skips only the SDK's in-memory cache; a 404 is never cached.
+
+Classification decides how a session is restored, not whether one exists. A web
+origin whose own store holds no warm token and no device secret, with no OAuth
+return (`code`/`error`) on the URL, ends signed out on either lane, so its boot
+marks auth resolved at once and lets the classification finish in the
+background; that check reads only whether the store holds anything. Every boot
+with something to restore, every native and identity-mode boot, and every later
+sign-in (`ensureDeviceSessionLane` shares the in-flight lookup) still waits for
+the verdict.
+
 Classification has a 5-second bound before the existing device boot deadlines.
 Third-party clients complete an already pending OAuth callback or resolve signed
 out; they never read a prior device secret, join the shared device or probe

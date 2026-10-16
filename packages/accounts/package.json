@@ -17,7 +17,7 @@
     "smoke:csp": "bun run scripts/smoke-csp.ts"
   },
   "dependencies": {
-    "@alia.onl/sdk": "^13.2.0",
+    "@alia.onl/sdk": "^15.8.0",
     "@expo/vector-icons": "^15.1.1",
     "@lottiefiles/dotlottie-react": "catalog:",
     "@oxy.so/app-preset": "workspace:*",
@@ -60,7 +60,6 @@
     "expo-sensors": "catalog:",
     "expo-sharing": "catalog:",
     "expo-splash-screen": "catalog:",
-    "expo-speech-recognition": "~57.1.0",
     "expo-status-bar": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-updates": "~57.0.11",
@@ -72,6 +71,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "catalog:",
+    "react-native-audio-api": "^0.13.6",
     "react-native-css": "^3.0.6",
     "react-native-gesture-handler": "catalog:",
     "react-native-keyboard-controller": "catalog:",

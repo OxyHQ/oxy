@@ -182,7 +182,25 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
       mode: 'dry-run',
       direction: 'bootstrap',
       planSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      plan: expect.objectContaining({
+        desired: expect.any(Object),
+        before: expect.any(Object),
+        after: expect.any(Object),
+        operations: expect.any(Array),
+      }),
     });
+    const safeReport = spawnSync(
+      'bun',
+      ['scripts/validate-native-product-bootstrap-report.mjs', '--check'],
+      {
+        cwd: `${__dirname}/../../..`,
+        input: `NATIVE_PRODUCT_AGENTS_RESULT=${JSON.stringify(dry.result)}`,
+        encoding: 'utf8',
+      },
+    );
+    expect(safeReport.status).toBe(0);
+    expect(JSON.stringify(dry.result)).not.toContain(STORED_SECRET_HASH);
+    expect(JSON.stringify(dry.result)).not.toContain('secretHash');
     expect((await sindiCredential()).status).toBe('active');
     const [beforeApp] = await getDb()
       .select()
@@ -199,7 +217,12 @@ describe('bootstrap-native-product-agents.ts (no key pair)', () => {
     });
     expect(apply).toEqual({
       status: 0,
-      result: { mode: 'apply', direction: 'bootstrap', planSha256: dry.result?.planSha256 },
+      result: {
+        mode: 'apply',
+        direction: 'bootstrap',
+        planSha256: dry.result?.planSha256,
+        plan: dry.result?.plan,
+      },
     });
 
     // Revoked, and only revoked: the row is the attribution of what it spent.

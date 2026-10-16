@@ -27,7 +27,7 @@ import {
 } from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { userTotp, userTotpBackupCodes } from '../db/schema/userTotp';
-import { ApiError } from '../utils/error';
+import { ApiError, RateLimitedError } from '../utils/error';
 import { openSecret, sealSecret } from '../utils/secretBox';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { clearFailures, reserveAttempt } from './loginLockout.service';
@@ -358,15 +358,6 @@ async function spendSecondFactorCode(userId: string, code: string, now: Date): P
   return spent.length > 0;
 }
 
-function lockedOut(retryAfterSeconds?: number): ApiError {
-  return new ApiError(
-    429,
-    'Too many wrong codes. Try again later.',
-    SIGN_IN_ERROR_CODES.locked,
-    retryAfterSeconds ? { retryAfterSeconds } : undefined,
-  );
-}
-
 /**
  * Check a second-factor code for `userId` under the account's lockout. Throws
  * the lockout error when locked; otherwise answers whether the code was right
@@ -379,7 +370,12 @@ export async function verifySecondFactor(
 ): Promise<boolean> {
   // Reserved BEFORE the check: concurrent guesses share one budget.
   const reservation = await reserveAttempt({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
-  if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
+  if (reservation.locked) {
+    throw new RateLimitedError('Too many wrong codes. Try again later.', {
+      code: SIGN_IN_ERROR_CODES.locked,
+      retryAfterSeconds: reservation.retryAfterSeconds,
+    });
+  }
   const ok = await spendSecondFactorCode(userId, code, now);
   if (ok) await clearFailures({ scope: TOTP_LOCKOUT_SCOPE, identifier: userId });
   return ok;

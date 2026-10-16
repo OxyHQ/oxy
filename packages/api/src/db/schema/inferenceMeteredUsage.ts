@@ -52,7 +52,6 @@ import {
   usageUnitColumns,
   usageUnitsNonNegativeCheck,
 } from './ledgerColumns';
-import { priceVersions } from './priceVersions';
 import { INFERENCE_REQUEST_OUTCOMES, USAGE_SOURCE_VALUES, usageReceipts } from './usageReceipts';
 import { INFERENCE_ENVIRONMENTS } from './usageReservations';
 import { users } from './users';
@@ -136,7 +135,8 @@ export const inferenceMeteredUsage = pgTable(
     resolvedModelReference: text(),
     servingProvider: text(),
     generationId: text(),
-    settledPriceVersionId: text().references(() => priceVersions.id, { onDelete: 'restrict' }),
+    /** A label, not a key: Kaana's `priceVersionId` for a grant of `kaana.ai/v1`. */
+    settledPriceVersionId: text(),
     tariffStatus: text({ enum: TARIFF_STATUSES }),
     tariffAmount: exactAmount(),
     tariffCurrency: text(),

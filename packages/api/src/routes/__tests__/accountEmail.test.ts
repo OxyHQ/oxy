@@ -18,12 +18,10 @@ import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
 
 const mockSendCode = jest.fn();
-const mockSendNotice = jest.fn();
 let mockRelays: { name: string }[] = [{ name: 'test-relay' }];
 
 jest.mock('../../services/accountEmail.mail', () => ({
   sendVerificationCode: (...args: unknown[]) => mockSendCode(...args),
-  sendAccountExistsNotice: (...args: unknown[]) => mockSendNotice(...args),
 }));
 jest.mock('../../config/email.config', () => ({
   get SMTP_RELAYS() {
@@ -113,7 +111,6 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRelays = [{ name: 'test-relay' }];
   mockSendCode.mockResolvedValue(undefined);
-  mockSendNotice.mockResolvedValue(undefined);
 });
 
 describe('sign-up', () => {
@@ -193,7 +190,7 @@ describe('sign-up', () => {
     expect(res.status).toBe(401);
   });
 
-  it('answers the same for an email that already has an account — and sends a notice, not a code', async () => {
+  it('sends the code to an email that already holds an account: one email may hold several', async () => {
     const email = freshEmail();
     await getDb().insert(users).values({ email });
 
@@ -201,14 +198,12 @@ describe('sign-up', () => {
 
     expect(res.status).toBe(200);
     expect(Object.keys(res.body).sort()).toEqual(['expiresAt', 'verificationId']);
-    expect(mockSendCode).not.toHaveBeenCalled();
-    expect(mockSendNotice).toHaveBeenCalledWith(email);
-    // The decoy's code was never sent, so nothing confirms it.
-    const guess = await post('/verify/confirm', {
+    expect(mockSendCode).toHaveBeenCalledWith(email, expect.stringMatching(/^\d{6}$/));
+    const confirmed = await post('/verify/confirm', {
       verificationId: res.body.verificationId,
-      code: '123456',
+      code: sentCode(email),
     });
-    expect(guess.status).toBe(401);
+    expect(confirmed.status).toBe(200);
   });
 
   it('limits the codes one address is sent per hour — without ever saying so', async () => {

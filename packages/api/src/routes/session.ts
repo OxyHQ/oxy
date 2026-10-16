@@ -1,7 +1,7 @@
 import express from 'express';
 import { SessionController } from '../controllers/session.controller';
 import { authMiddleware } from '../middleware/auth';
-import { idpServiceLimiter } from '../middleware/security';
+import { idpServiceLimiter, sessionHeaderValidationLimiter } from '../middleware/security';
 import { validate } from '../middleware/validate';
 import {
   sessionIdParams,
@@ -287,8 +287,11 @@ router.get(
  *       404:
  *         description: Session not found.
  */
+// Excluded from rl:general and slowDown (isSessionHeaderValidationPath);
+// sessionHeaderValidationLimiter is this route's sole cap.
 router.get(
   '/validate-header/:sessionId',
+  sessionHeaderValidationLimiter,
   validate({ params: sessionIdParams }),
   SessionController.validateSessionFromHeader,
 );

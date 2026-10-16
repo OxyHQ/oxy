@@ -70,7 +70,6 @@ import {
   usageUnitColumns,
   usageUnitsNonNegativeCheck,
 } from './ledgerColumns';
-import { priceVersions } from './priceVersions';
 import { users } from './users';
 
 /** `held | settled | released | expired`, from the wire contract's own enum. */
@@ -132,12 +131,13 @@ export const usageReservations = pgTable(
     currency: currencyCode(),
     /**
      * The price version of the most expensive route the policy permits — the
-     * one the ceiling was computed from. `RESTRICT`, because a price version
-     * that sized a live hold must remain resolvable.
+     * one the ceiling was computed from. NO foreign key: a hold taken for a
+     * grant of `kaana.ai/v1` carries Kaana's own `priceVersionId` (the list the
+     * grant admitted, kept in `kaana_grant_line_unit_prices`), and Oxy no longer
+     * owns a table that names it. A hold of the old edge still names a
+     * `price_versions` row; nothing reads this column back as a key.
      */
-    ceilingPriceVersionId: text()
-      .notNull()
-      .references(() => priceVersions.id, { onDelete: 'restrict' }),
+    ceilingPriceVersionId: text().notNull(),
     /** The ceiling on generated output, when the request set one. */
     maxOutputTokens: bigint({ mode: 'number' }),
 

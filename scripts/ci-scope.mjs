@@ -13,6 +13,7 @@
  *              and `api-build`, `api-image` (the Bun runtime image smoke)
  *   platform   `packages-platform`
  *   apps       `packages-apps`
+ *   android    `android-kotlin` (decided by PATH, not by closure: see PATH_SUITES)
  *
  * `guards` is not scoped: its checks are repository-wide.
  *
@@ -118,6 +119,40 @@ export const SUITE_JOBS = {
   apps: ['packages-apps'],
 };
 export const SUITES = Object.keys(SUITE_JOBS);
+
+/**
+ * Suites decided by a PATH PATTERN instead of a workspace closure: suite ->
+ * the ci.yml jobs it gates and the changed paths that run them.
+ *
+ * `android-kotlin` compiles Gradle modules that live inside workspaces
+ * (packages/commons/modules, packages/services/android) and an `expo prebuild`
+ * of Commons; no workspace closure describes "the Kotlin and the manifest
+ * plugins", and most of those packages' changes are TypeScript the job never
+ * looks at. This is the exact rule the job used to apply in its own first step
+ * (one runner per pull request, held just to decide it had nothing to do),
+ * moved here so the job can be skipped at job level instead. Matched against
+ * the `--no-renames` diff, so a file moved out of one of these paths still
+ * counts. A failure to compute the scope runs it, like every other suite.
+ */
+export const PATH_SUITES = {
+  android: {
+    jobs: ['android-kotlin'],
+    pattern:
+      /^(packages\/services\/(android\/|plugins\/|expo-module\.config\.json|package\.json)|packages\/commons\/(modules\/|plugins\/|app\.config\.js|package\.json)|packages\/app-preset\/plugin\/|packages\/expo-splash\/|bun\.lock|\.github\/workflows\/ci\.yml)/,
+  },
+};
+
+/** Every output the scope job writes: the closure suites, then the path suites. */
+export const OUTPUTS = [...SUITES, ...Object.keys(PATH_SUITES)];
+
+/**
+ * Output -> the ci.yml jobs a pull request may skip on that output's `false`.
+ * What `check-ci-complete.mjs` reads, so the gate and the scope cannot disagree.
+ */
+export const SCOPED_JOBS_BY_OUTPUT = {
+  ...SUITE_JOBS,
+  ...Object.fromEntries(Object.entries(PATH_SUITES).map(([suite, { jobs }]) => [suite, jobs])),
+};
 
 /**
  * Test files that read the WHOLE repository rather than their own package's
@@ -618,6 +653,11 @@ export function decide({ cwd, base, head }) {
 
     verdicts[suite] = { run: reasons.length > 0, reasons, ignored, roots: roots[suite], closure };
   }
+  for (const [suite, { pattern }] of Object.entries(PATH_SUITES)) {
+    const reasons = changed.filter((path) => pattern.test(path)).map((path) => `${path} matches`);
+    const ignored = changed.filter((path) => !pattern.test(path));
+    verdicts[suite] = { run: reasons.length > 0, reasons, ignored, roots: [], closure: [] };
+  }
   return verdicts;
 }
 
@@ -634,7 +674,7 @@ function parseArgs(argv) {
 }
 
 function emit(runs, lines) {
-  const outputs = SUITES.map((suite) => `${suite}=${runs[suite] ? 'true' : 'false'}`);
+  const outputs = OUTPUTS.map((suite) => `${suite}=${runs[suite] ? 'true' : 'false'}`);
   for (const line of outputs) console.log(line);
   for (const line of lines) console.log(line);
   if (process.env.GITHUB_OUTPUT)
@@ -643,9 +683,9 @@ function emit(runs, lines) {
     appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
       '### Suites on this pull request\n\n' +
-        SUITES.map(
+        OUTPUTS.map(
           (suite) =>
-            `- **${suite}** (${SUITE_JOBS[suite].join(', ')}): ${runs[suite] ? 'RUN' : 'SKIPPED'}`,
+            `- **${suite}** (${SCOPED_JOBS_BY_OUTPUT[suite].join(', ')}): ${runs[suite] ? 'RUN' : 'SKIPPED'}`,
         ).join('\n') +
         '\n\n```\n' +
         lines.join('\n') +
@@ -675,12 +715,15 @@ if (import.meta.main) {
     }
     const verdicts = decide({ cwd, base, head });
     const lines = [`diff: ${base.slice(0, 12)}..${head}`];
-    for (const suite of SUITES) {
+    for (const suite of OUTPUTS) {
       const { run, reasons, ignored, roots, closure } = verdicts[suite];
+      const byPath = suite in PATH_SUITES;
       lines.push(
         '',
-        `[${suite}] ${run ? 'RUN' : 'SKIP'} — roots: ${roots.join(', ')}`,
-        `  closure: ${closure.join(', ')}`,
+        byPath
+          ? `[${suite}] ${run ? 'RUN' : 'SKIP'} — by path: ${PATH_SUITES[suite].pattern.source}`
+          : `[${suite}] ${run ? 'RUN' : 'SKIP'} — roots: ${roots.join(', ')}`,
+        ...(byPath ? [] : [`  closure: ${closure.join(', ')}`]),
         ...(run
           ? [
               `  Runs because (${reasons.length}):`,
@@ -695,10 +738,10 @@ if (import.meta.main) {
           : []),
       );
     }
-    emit(Object.fromEntries(SUITES.map((suite) => [suite, verdicts[suite].run])), lines);
+    emit(Object.fromEntries(OUTPUTS.map((suite) => [suite, verdicts[suite].run])), lines);
   } catch (error) {
     // Fail toward running: a scope we cannot compute is a scope we do not trust.
-    emit(Object.fromEntries(SUITES.map((suite) => [suite, true])), [
+    emit(Object.fromEntries(OUTPUTS.map((suite) => [suite, true])), [
       `Every suite runs because the scope could not be computed: ${error?.stack ?? error}`,
     ]);
   }

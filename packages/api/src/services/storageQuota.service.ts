@@ -1,6 +1,6 @@
 import { withContentHashLock } from './contentHashLock';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { type DatabaseOrTransaction } from '../config/postgres';
+import type { DatabaseOrTransaction } from '../config/postgres';
 import { randomUUID } from 'crypto';
 import type { FileRecord, NewFileVariant } from '../types/file.types';
 import { files, fileVariants, storageByteReservations } from '../db/schema';

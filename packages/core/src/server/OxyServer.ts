@@ -1,4 +1,6 @@
 import {
+  serviceTokenOptionsSchema,
+  type ServiceTokenOptions,
   subjectProductAccessQuerySchema,
   subjectProductGrantSnapshotSchema,
   type SubjectProductAccessQuery,
@@ -33,6 +35,7 @@ import {
  */
 import { jwtDecode } from 'jwt-decode';
 import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
 
 /** Unverified cache metadata only: an old lifetime forces a new signed mint. */
 function reusableServiceToken(token: string): boolean {
@@ -70,6 +73,14 @@ import {
   type VerifyAccountEventOptions,
 } from './middleware';
 import {
+  APP_PERMISSIONS_CACHE_TTL_MS,
+  OxyAppPermissionsResolver,
+  type AppPermissionsOptions,
+  type AppPermissionsRequest,
+  type OxyAppPermissions,
+} from './appPermissions';
+import {
+  ServerAccountsApi,
   ServerAppsApi,
   ServerAgencyApi,
   ServerAssetsApi,
@@ -77,6 +88,8 @@ import {
   ServerNotificationsApi,
   ServerReputationApi,
 } from './namespaces';
+import { ServerSafetyApi } from './safety';
+import { ServerSessionApi } from './session';
 
 export interface OxyServerConfig extends OxyConfig {
   /** This service's application credential. Omit to use workload identity (ADR 0026). */
@@ -101,6 +114,21 @@ export interface OxyServerConfig extends OxyConfig {
    * service token.
    */
   serviceIdentity?: 'never' | 'when-anonymous';
+  /**
+   * This backend's Oxy application id — the application whose own permissions
+   * (application roles) `appPermissionsFor` and
+   * `middleware.requireAppPermission` read. Optional when `serviceAuth` is set
+   * (or workload identity is available): the service token names the
+   * application, and that is used instead.
+   */
+  applicationId?: string;
+  /**
+   * How long one application-permissions answer is reused, per session
+   * (default 30 000 ms). This is the longest a revoked grant keeps working on
+   * this backend for a read that does not pass `fresh: true`. `0` disables the
+   * cache.
+   */
+  appPermissionsCacheTtlMs?: number;
 }
 
 /**
@@ -162,6 +190,22 @@ interface ServiceTokenCacheEntry {
 }
 
 const WORKLOAD_CACHE_KEY = 'workload-identity';
+
+/**
+ * The resource server a service token is minted for (Oxy's closed set,
+ * `packages/api/src/config/serviceTokenAudiences.ts`). A token is only ever
+ * accepted by its own audience: Oxy's API refuses a `kaana.ai` token and
+ * https://kaana.ai/v1 refuses an `oxy-api` one (Kaana ADR 0002 decision 6).
+ */
+export type ServiceTokenAudience = 'oxy-api' | 'kaana.ai' | 'oxy-api:kaana-control';
+
+/** What `serviceToken()` mints, and what Oxy assumes when no audience is sent. */
+export const DEFAULT_SERVICE_TOKEN_AUDIENCE: ServiceTokenAudience = 'oxy-api';
+
+/** Audience, credential and normalized scope set are independent cache dimensions. */
+function audienceCacheKey(audience: ServiceTokenAudience, key: string, scopes?: string[]): string {
+  return JSON.stringify([audience, key, scopes ?? null]);
+}
 /** A token is reused until 60s before expiry (clock drift). */
 const TOKEN_REUSE_MARGIN_MS = 60_000;
 
@@ -193,6 +237,8 @@ export class OxyServer extends OxyServices {
    * a service token and goes out anonymous. Set after a failed mint.
    */
   private anonymousServiceTokenRetryAt = 0;
+  private readonly configuredApplicationId: string | null;
+  private readonly appPermissions: OxyAppPermissionsResolver;
 
   /**
    * Express and Socket.IO middleware.
@@ -222,6 +268,16 @@ export class OxyServer extends OxyServices {
     if (config.serviceIdentity === 'when-anonymous') {
       this.http.setAnonymousAuthProvider(() => this.serviceTokenForAnonymousRequest());
     }
+    const ttl = config.appPermissionsCacheTtlMs ?? APP_PERMISSIONS_CACHE_TTL_MS;
+    if (!Number.isFinite(ttl) || ttl < 0) {
+      throw new Error('appPermissionsCacheTtlMs must be a non-negative number of milliseconds');
+    }
+    this.configuredApplicationId = config.applicationId?.trim() || null;
+    this.appPermissions = new OxyAppPermissionsResolver({
+      ttlMs: ttl,
+      defaultApplicationId: () => this.defaultApplicationId(),
+      fetchRolesMe: (applicationId, accessToken) => this.fetchRolesMe(applicationId, accessToken),
+    });
     this.middleware = createOxyMiddleware({
       get baseURL() {
         return server.baseURL;
@@ -229,18 +285,27 @@ export class OxyServer extends OxyServices {
       jwksCache: this.jwksCache,
       validateSession: (sessionId, options) => this.session.validate(sessionId, options),
       verifyActingAs: (appId, userId, options) => this.verifyActingAs(appId, userId, options),
+      appPermissionsFor: (req, options) => this.appPermissionsFor(req, options),
     });
   }
 
   // ── Server-side namespaces ───────────────────────────────────────────────
 
+  private _serverAccounts?: ServerAccountsApi;
   private _serverAssets?: ServerAssetsApi;
   private _serverNotifications?: ServerNotificationsApi;
   private _serverLinkedAccounts?: ServerLinkedAccountsApi;
   private _serverAgency?: ServerAgencyApi;
   private _serverApps?: ServerAppsApi;
   private _serverReputation?: ServerReputationApi;
+  private _serverSafety?: ServerSafetyApi;
+  private _serverSession?: ServerSessionApi;
 
+  /** The account graph, plus the service-only `accessFor` membership verdict. */
+  override get accounts(): ServerAccountsApi {
+    if (!this._serverAccounts) this._serverAccounts = new ServerAccountsApi(this.context);
+    return this._serverAccounts;
+  }
   /** Files, plus the service-only metadata and linked-URL lookups. */
   override get assets(): ServerAssetsApi {
     if (!this._serverAssets) this._serverAssets = new ServerAssetsApi(this.context);
@@ -273,6 +338,16 @@ export class OxyServer extends OxyServices {
     if (!this._serverReputation) this._serverReputation = new ServerReputationApi(this.context);
     return this._serverReputation;
   }
+  /** Policy reads, plus the consumer-service decision lanes (ADR 0041). */
+  override get safety(): ServerSafetyApi {
+    if (!this._serverSafety) this._serverSafety = new ServerSafetyApi(this.context);
+    return this._serverSafety;
+  }
+  /** Session state, plus validation through a reviewed supervised action. */
+  override get session(): ServerSessionApi {
+    if (!this._serverSession) this._serverSession = new ServerSessionApi(this.context);
+    return this._serverSession;
+  }
 
   // ── Service token ────────────────────────────────────────────────────────
 
@@ -297,7 +372,27 @@ export class OxyServer extends OxyServices {
    * constant-time match the secret that produced it, this throws
    * {@link ServiceCredentialMismatchError} rather than return the cached token.
    */
-  async serviceToken(apiKey?: string, apiSecret?: string): Promise<string> {
+  async serviceToken(
+    apiKey?: string,
+    apiSecret?: string,
+    options: ServiceTokenOptions = {},
+  ): Promise<string> {
+    return this.serviceTokenFor(DEFAULT_SERVICE_TOKEN_AUDIENCE, apiKey, apiSecret, options);
+  }
+
+  /**
+   * A service token for `audience` — e.g. `kaana.ai` for https://kaana.ai/v1.
+   * Minted, cached and refreshed exactly as {@link serviceToken} (which is this
+   * with `oxy-api`), from the same credential or attested workload identity;
+   * each audience has its own cache entry, so one never answers for another.
+   */
+  async serviceTokenFor(
+    audience: ServiceTokenAudience,
+    apiKey?: string,
+    apiSecret?: string,
+    options: ServiceTokenOptions = {},
+  ): Promise<string> {
+    const { scopes } = serviceTokenOptionsSchema.parse(options);
     const key = apiKey || this.serviceApiKey;
     const secret = apiSecret || this.serviceApiSecret;
 
@@ -305,7 +400,7 @@ export class OxyServer extends OxyServices {
       // No credential — prove what this process IS instead. The fallback, not the
       // preference: a deployment that still has a credential keeps using it.
       if (canAttestWorkloadIdentity()) {
-        return this.workloadServiceToken();
+        return this.workloadServiceToken(audience, scopes);
       }
       throw new Error(
         'Service credentials not provided. Pass serviceAuth, call configureServiceAuth(), or pass apiKey and apiSecret.',
@@ -314,7 +409,7 @@ export class OxyServer extends OxyServices {
 
     // The apiKey is the credential's PUBLIC id (`oxy_dk_…`, the OAuth
     // client_id), so it keys the in-memory cache as is; the secret never does.
-    const cacheKey = key;
+    const cacheKey = audienceCacheKey(audience, key, scopes);
     const now = Date.now();
     const providedSecretBuf = Buffer.from(secret, 'utf8');
 
@@ -351,7 +446,7 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.set(cacheKey, entry);
     }
 
-    const pending = this.mintServiceToken(key, secret, cacheKey, providedSecretBuf);
+    const pending = this.mintServiceToken(key, secret, cacheKey, entry, audience, scopes);
     entry.pending = pending;
     try {
       return await pending;
@@ -382,7 +477,10 @@ export class OxyServer extends OxyServices {
       this.serviceTokens.clear();
       return;
     }
-    this.serviceTokens.delete(targetKey);
+    // Every audience and scope set minted from that credential goes with it.
+    for (const [cacheKey, entry] of this.serviceTokens) {
+      if (entry.apiKey === targetKey) this.serviceTokens.delete(cacheKey);
+    }
   }
 
   /**
@@ -436,13 +534,63 @@ export class OxyServer extends OxyServices {
     method: HttpMethod,
     url: string,
     data?: unknown,
-    options: RequestOptions & { actAs?: string } = {},
+    options: RequestOptions & { actAs?: string; serviceTokenScopes?: string[] } = {},
   ): Promise<T> {
-    const { actAs, headers, ...rest } = options;
-    const token = await this.serviceToken();
+    const { actAs, headers, serviceTokenScopes, ...rest } = options;
+    const token = await this.serviceToken(undefined, undefined, { scopes: serviceTokenScopes });
     const merged: Record<string, string> = { ...headers, Authorization: `Bearer ${token}` };
     if (actAs) merged['X-Oxy-User-Id'] = actAs;
     return this.request<T>(method, url, data, { cache: false, ...rest, headers: merged });
+  }
+
+  // ── Application roles ────────────────────────────────────────────────────
+
+  /**
+   * Which of this application's own declared permissions the PERSON behind
+   * `req` holds (application roles, `docs/auth/application-roles.md`). `req`
+   * must have passed `middleware.auth()`: the answer is read from Oxy with the
+   * request's own verified bearer, for the human operator of its session.
+   *
+   * Cached per session for `appPermissionsCacheTtlMs` (30 s); pass
+   * `{ fresh: true }` before a write. Throws `OxyAppPermissionError` — no
+   * session (`APP_PERMISSION_SESSION_REQUIRED`, also for any service-token
+   * request), Oxy unreachable (`APP_PERMISSION_UNAVAILABLE`), no or unknown
+   * application id (`APP_PERMISSION_NOT_CONFIGURED`) — and never answers
+   * "nothing held" for a failure.
+   */
+  appPermissionsFor(
+    req: AppPermissionsRequest,
+    options: AppPermissionsOptions = {},
+  ): Promise<OxyAppPermissions> {
+    return this.appPermissions.resolve(req, options);
+  }
+
+  /**
+   * Drop cached application-permission answers — all of them, or one
+   * person's (as the session user or the resolved operator). For a backend
+   * that learns of a revocation out of band and will not wait out the TTL.
+   */
+  invalidateAppPermissions(filter: { userId?: string } = {}): void {
+    this.appPermissions.invalidate(filter);
+  }
+
+  private async defaultApplicationId(): Promise<string | null> {
+    if (this.configuredApplicationId) return this.configuredApplicationId;
+    if (!this.canMintServiceToken()) return null;
+    const appId = jwtDecode<{ appId?: unknown }>(await this.serviceToken()).appId;
+    return typeof appId === 'string' && appId.length > 0 ? appId : null;
+  }
+
+  private fetchRolesMe(applicationId: string, accessToken: string): Promise<unknown> {
+    if (/[\r\n]/.test(accessToken)) {
+      return Promise.reject(new Error('A user session is required'));
+    }
+    return this.request<unknown>(
+      'GET',
+      `/applications/${encodeURIComponent(applicationId)}/roles/me`,
+      undefined,
+      { cache: false, retry: false, headers: { Authorization: `Bearer ${accessToken}` } },
+    );
   }
 
   // ── Delegation and account events ────────────────────────────────────────
@@ -579,35 +727,40 @@ export class OxyServer extends OxyServices {
     key: string,
     secret: string,
     cacheKey: string,
-    secretBuf: Buffer,
+    expectedEntry: ServiceTokenCacheEntry,
+    audience: ServiceTokenAudience,
+    scopes?: string[],
   ): Promise<string> {
     const response = await this.request<ServiceTokenResponse>(
       'POST',
       '/auth/service-token',
-      { apiKey: key, apiSecret: secret },
+      {
+        apiKey: key,
+        apiSecret: secret,
+        ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+        ...(scopes ? { scopes } : {}),
+      },
       { cache: false, retry: false, skipAuth: true },
     );
+    assertRequestedServiceScopes(response.token, scopes);
     const expiresAt = Date.now() + response.expiresIn * 1000;
     const entry = this.serviceTokens.get(cacheKey);
-    if (entry) {
+    // Invalidation also fences in-flight mints: an old response cannot repopulate
+    // a cleared cache or replace the newly minted token for the same scope set.
+    if (entry === expectedEntry) {
       entry.token = response.token;
       entry.expiresAt = expiresAt;
-      entry.secretBuf = secretBuf;
-    } else {
-      this.serviceTokens.set(cacheKey, {
-        token: response.token,
-        expiresAt,
-        secretBuf,
-        pending: null,
-        apiKey: key,
-      });
     }
     return response.token;
   }
 
-  /** A token obtained by attestation, cached like a credential's (one identity per process). */
-  private async workloadServiceToken(): Promise<string> {
-    const entry = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
+  /** A token obtained by attestation, cached like a credential's (one identity per process, one entry per audience). */
+  private async workloadServiceToken(
+    audience: ServiceTokenAudience,
+    scopes?: string[],
+  ): Promise<string> {
+    const cacheKey = audienceCacheKey(audience, WORKLOAD_CACHE_KEY, scopes);
+    const entry = this.serviceTokens.get(cacheKey);
     if (
       entry?.token &&
       reusableServiceToken(entry.token) &&
@@ -623,12 +776,17 @@ export class OxyServer extends OxyServices {
       pending: null,
       apiKey: WORKLOAD_CACHE_KEY,
     };
-    this.serviceTokens.set(WORKLOAD_CACHE_KEY, seeded);
+    this.serviceTokens.set(cacheKey, seeded);
 
     const pending = (async () => {
-      const granted = await requestWorkloadServiceToken({ baseUrl: this.baseURL });
-      const current = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-      if (current) {
+      const granted = await requestWorkloadServiceToken({
+        baseUrl: this.baseURL,
+        ...(audience === DEFAULT_SERVICE_TOKEN_AUDIENCE ? {} : { audience }),
+        ...(scopes ? { scopes } : {}),
+      });
+      assertRequestedServiceScopes(granted.token, scopes);
+      const current = this.serviceTokens.get(cacheKey);
+      if (current === seeded) {
         current.token = granted.token;
         current.expiresAt = Date.now() + granted.expiresIn * 1000;
       }
@@ -639,12 +797,11 @@ export class OxyServer extends OxyServices {
     try {
       return await pending;
     } catch (error) {
-      const failed = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
-      if (failed?.pending === pending && !failed.token)
-        this.serviceTokens.delete(WORKLOAD_CACHE_KEY);
+      const failed = this.serviceTokens.get(cacheKey);
+      if (failed?.pending === pending && !failed.token) this.serviceTokens.delete(cacheKey);
       throw error;
     } finally {
-      const settled = this.serviceTokens.get(WORKLOAD_CACHE_KEY);
+      const settled = this.serviceTokens.get(cacheKey);
       if (settled?.pending === pending) settled.pending = null;
     }
   }

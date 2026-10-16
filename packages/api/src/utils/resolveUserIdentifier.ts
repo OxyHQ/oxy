@@ -6,15 +6,15 @@
  * centralises the "username or email → account" resolution so every invite path
  * behaves identically.
  *
- * ## The lookups are written as the unique indexes are built
+ * ## The lookups are written as the indexes are built
  *
- * `users` is unique on `lower(btrim(username))`, `lower(btrim(email))` and
- * `lower(btrim(public_key))` (`db/schema/users.ts`). Both lookups below are
- * spelled `lower(btrim(column)) = lower(btrim($1))` because that is the
- * EXPRESSION those indexes are built on — a plain `email = $1` is
- * correct-looking, case-sensitive, and will not use the index.
+ * `users` is unique on `lower(btrim(username))` and indexed (not unique) on
+ * `lower(btrim(email))` (`db/schema/users.ts`). Both lookups below are spelled
+ * `lower(btrim(column)) = lower(btrim($1))` because that is the EXPRESSION
+ * those indexes are built on — a plain `email = $1` is correct-looking,
+ * case-sensitive, and will not use the index.
  *
- * ## There is no ambiguity branch, because the ambiguity is unrepresentable
+ * ## A username is never ambiguous; an email can be
  *
  * Every lookup matches case-INSENSITIVELY, so `Nate` and `nate` coexisting
  * would let a membership grant land on an arbitrary one of two look-alike
@@ -22,6 +22,10 @@
  * second insert fails on the unique index, and `__tests__` pins that
  * constraint: the collision is refused at write time, not tolerated at read
  * time.
+ *
+ * One email may hold several accounts, though. An email that does is REFUSED
+ * (409, "use the username") rather than resolved to an arbitrary one of them:
+ * a grant must land on the account the inviter meant.
  *
  * ## What this returns
  *
@@ -34,6 +38,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
+import { ConflictError } from './error';
 
 /** The account an identifier resolved to. */
 export interface ResolvedUserIdentity {
@@ -48,6 +53,7 @@ export interface ResolvedUserIdentity {
  *
  * @param identifier A raw username or email address.
  * @returns The matching account, or `null` if not found / blank input.
+ * @throws ConflictError when the email holds more than one account.
  */
 export async function resolveUserByIdentifier(
   identifier: string,
@@ -62,12 +68,16 @@ export async function resolveUserByIdentifier(
     ? sql`lower(btrim(${users.email})) = lower(btrim(${trimmed}))`
     : sql`lower(btrim(${users.username})) = lower(btrim(${trimmed}))`;
 
-  const [row] = await getDb()
+  const rows = await getDb()
     .select({ id: users.id, username: users.username, email: users.email })
     .from(users)
     .where(match)
-    .limit(1);
+    .limit(2);
 
+  if (rows.length > 1) {
+    throw new ConflictError('Several accounts use this email. Use the username instead.');
+  }
+  const [row] = rows;
   if (!row) {
     return null;
   }

@@ -155,6 +155,15 @@ export const moneySchema = z
  * estimated from the audio, and a provider billed by the audio it carries (or
  * by tokens) never reports it.
  *
+ * **`input_transcription_milliseconds` is a second model's reading** (added in
+ * contract set 3.9.0, mirroring `@kaana.ai/contracts` 4.1.0): milliseconds of a
+ * realtime session's input audio that the deployment's own TRANSCRIPTION model
+ * transcribed, when the provider bills that model apart from the session model
+ * (OpenAI bills input transcription at the ASR model's price). The session
+ * model's `audio_input_tokens` and this unit are two charges for two models,
+ * each read once, so the partition rule holds. A provider whose session price
+ * already includes the transcription (xAI's Voice Agent) never reports it.
+ *
  * No refinement in this package can enforce it, and saying so is part of the
  * rule: a nested report and a disjoint one are the same four non-negative
  * integers, so no predicate over a single report can tell them apart. The two
@@ -192,6 +201,7 @@ export const USAGE_UNITS = [
   'cached_audio_input_tokens',
   'audio_output_tokens',
   'session_milliseconds',
+  'input_transcription_milliseconds',
 ] as const;
 
 export const usageUnitSchema = z.enum(USAGE_UNITS);

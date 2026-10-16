@@ -1,5 +1,162 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.21.0
+
+Additive only: no export removed.
+
+### Added
+
+- Supervised personal policy (ADR 0041), in `safety.ts`: the supervision
+  management contracts (`supervisionStateSchema`, `supervisionInvitationSchema`,
+  `supervisionContactsResponseSchema`, the invite/accept/contact/review inputs),
+  the consumer-service decision contracts (`safetyRequesterSchema`,
+  `safetyDecisionSchema`, profile/message/delivery/contact/content access and
+  their batches, `messagingSessions*`, `publicationPolic{y,ies}*`), purchase
+  approvals (`purchaseEffectsSchema`, `purchaseApprovalSchema`,
+  `purchaseApprovalListSchema`, `reservePurchaseSchema`, `confirmPurchaseSchema`,
+  `cancelPurchaseSchema`, `purchaseReviewInputSchema`), the minimal selectors
+  (`safetyPeople*`, `safetyOrganizations*`), `safetySession*`, and the
+  vocabularies `SUPERVISED_ACTIONS`, `SAFETY_POLICY_VERSION`,
+  `SUPERVISION_CONSENT_VERSION`, `SUPERVISION_STATUSES`,
+  `SUPERVISION_INVITATION_STATUSES`, `PURCHASE_APPROVAL_STATUSES`,
+  `SAFETY_DECISION_REASONS`, `CONTENT_CLASSIFICATIONS`, `SAFETY_ERROR_CODES`.
+- `@oxy.so/contracts/client`: Zod-free checks for the browser half
+  (`supervisionStateCheck`, `supervisionInvitationCheck`,
+  `supervisionContactsResponseCheck`, `supervision{Invite,Accept,Contact,Review}InputCheck`,
+  `safetyPeople{Input,Response}Check`, `safetyOrganizations{Input,Response}Check`,
+  `purchaseApprovalCheck`, `purchaseApprovalListCheck`,
+  `purchaseReviewInputCheck`), and `transform` in `check.ts`.
+- `serviceTokenScopesSchema` / `serviceTokenOptionsSchema` /
+  `ServiceTokenOptions`: an exact, normalized subset of a service grant.
+- `REAUTH_ACTIONS` gains `supervision` and `supervision_purchase`.
+
+## 4.20.0
+
+Additive only: no export removed. ADR 0042 (agent requester ceilings) and Alia
+ADR 0020 (every agent is the same agent).
+
+### Added
+
+- `agentRequesterCeilingWriteSchema` / `AgentRequesterCeilingWrite` and
+  `agentRequesterCeilingSchema` / `AgentRequesterCeiling`: what an agent may do
+  in one app for whoever uses it, published by an operator of its bot. Its
+  autonomy is one of `AGENT_REQUESTER_CEILING_AUTONOMY` (`read_only` |
+  `autonomous`, Alia's "Ver" / "Ver y actuar").
+- `capabilityTicketClaimsSchema.ceilingId` and `policyDecisionSchema.ceilingId`.
+  A ticket carries a grant or a ceiling, never both, and a ceiling only for an
+  `agent` actor on the requester's own authority (`ownerAccountId ===
+  requesterAccountId`) at an account root.
+- `appCapabilityCatalogSchema.features` (`catalogFeatureSchema` /
+  `CatalogFeature`): a feature an agent may gate on, answered by an
+  internal-only read `checkTool` and optionally spent by an internal-only,
+  idempotency-required `consumeTool`.
+- `appCapabilityCatalogSchema.internalTransport` (`CATALOG_INTERNAL_TRANSPORTS`:
+  `http` | `mcp`): how a coordinator reaches the catalogue's internal tools.
+## 4.19.0
+
+Additive only: no export removed or changed in the root entry.
+
+### Added
+
+- **Application roles** (`applicationRoles.ts`): the wire contract for the
+  permissions an application declares about its own users and the grants of
+  them to Oxy users. `APPLICATION_PERMISSION_KEY_PATTERN_SOURCE` /
+  `APPLICATION_PERMISSION_KEY_PATTERN` / `isApplicationPermissionKey` (2-4
+  dot-separated lowercase segments, at most 64 characters, never a colon, so a
+  key cannot collide with an Oxy permission or scope), the request schemas
+  (`declareApplicationPermissionsRequestSchema`,
+  `createApplicationRoleGrantRequestSchema`,
+  `revokeApplicationRoleGrantRequestSchema`,
+  `listApplicationRoleGrantsQuerySchema`), the response schemas
+  (`applicationPermissionSchema`, `applicationPermissionListSchema`,
+  `declareApplicationPermissionsResponseSchema`, `applicationRoleGrantSchema`,
+  `applicationRoleGrantListSchema`, `applicationRolesMeSchema`), their types,
+  the limits, and `APPLICATION_ROLE_ERROR_CODES`. Root entry only; nothing is
+  added to `@oxy.so/contracts/client`.
+
+## 4.18.0
+
+Additive only: no export removed.
+
+### Added
+
+- `accountAccess.ts`, the wire contract of
+  `GET /internal/accounts/:accountId/access/:userId`:
+  `accountAccessVerdictSchema` / `AccountAccessVerdict`
+  (`{ accountId, kind, access }`), `accountAccessGrantSchema` /
+  `AccountAccessGrant` (`{ role, permissions, status: 'active', source }`),
+  `ACCOUNT_ACCESS_SOURCES` / `accountAccessSourceSchema` / `AccountAccessSource`
+  (`self` | `direct` | `inherited`), and `ACCOUNTS_MEMBERSHIP_READ_SCOPE`
+  (`accounts:membership:read`, privileged). `role` and `permissions` are open
+  strings so an older consumer keeps reading new ones.
+
+## 4.17.0
+
+Additive only: no export removed or changed in the root entry.
+
+### Added
+
+- **`@oxy.so/contracts/client`** — the contracts without Zod, for client
+  bundles. Structural checks (`*Check`) for the responses and requests the SDK
+  validates, used through `checkContract(check, value)` (the twin of
+  `safeParseContract`) and `parseContract(check, value)` (the twin of a schema's
+  `.parse()`, throwing `ContractCheckError` whose `issues[0]` has Zod's
+  `code`/`path`/`message`), plus the constants and pure helpers clients use
+  (account kinds and categories, sign-in and username policy, identity proof
+  and link formats, organization vocabularies, `isLoopbackOrigin`, …). Zod's
+  runtime (~120 KB, evaluated at startup) is no longer needed to answer "does
+  this response have its contract's shape".
+- Every check is tied to its schema's type at compile time (`exact<T>()`) and
+  to its behaviour by `clientChecks.parity.test.ts`: same verdict, same output
+  (unknown keys stripped/kept/refused, strings trimmed) and the same first
+  issue (path, code, message) as Zod over thousands of generated inputs.
+  `clientEntryGraph.test.ts` keeps the entry free of any package import.
+- Type aliases for schemas that had none: `AgentChallengeRequest`,
+  `AgentVerifyRequest`, `ExecuteAgentKeyOperation`,
+  `AgentKeyOperationChallenge`, `AgentKeyOperationResult`,
+  `AgentKeyListResponse`, `OrganizationClaimList`,
+  `OrganizationImportBatchResult`, `OrganizationExternal`,
+  `OrganizationExternalResolution`, `OrganizationCurationResult`,
+  `ProductSubscriptionsResponse`, `SubscriptionCreditGrantsResponse`,
+  `CancelProductSubscription`.
+
+### Changed (internal)
+
+- The Zod-free constants and helpers of `accountEmail`, `accountGraph`,
+  `agentKeys`, `deviceSession`, `identityLink`, `identityProof`,
+  `organizations`, `reputation`, `signIn` and `username` live under
+  `src/client/` and are re-exported from their old modules, so the root entry
+  exports the same 843 names with the same values.
+
+## 4.16.0
+
+One email may hold several accounts (ADR 0040). Additive only: no export
+removed. (4.15.0 is #1721's.)
+
+### Added
+
+- `EMAIL_ACCOUNTS_MAX` (20) and `EMAIL_SIGNIN_CHOICE_TTL_MS` (5 minutes).
+- `EmailSignInChooseAccount` / `emailSignInChooseAccountSchema`: what
+  `POST /auth/signin/email/confirm` and `/collect` answer when the email holds
+  several accounts, with `EmailSignInAccountOption` /
+  `emailSignInAccountOptionSchema` for each; `EmailSignInStepResult`;
+  `isEmailSignInChooseAccount`.
+- `emailSignInChooseRequestSchema` / `EmailSignInChooseRequest`:
+  `POST /auth/signin/email/choose`.
+- `SIGN_IN_ERROR_CODES.emailAccountsFull` (`EMAIL_ACCOUNTS_FULL`).
+
+### Changed
+
+- `isSecondFactorRequired` also accepts an `EmailSignInStepResult`.
+
+### Added — inference contract set **3.9.0** (a closed enum gains a member)
+
+- `USAGE_UNITS` gains `input_transcription_milliseconds`: milliseconds of a
+  realtime session's input audio transcribed by the deployment's own
+  transcription model, billed apart from the session model. Mirrors
+  `@kaana.ai/contracts` 4.1.0 (Alia ADR 0017), so Oxy's ledger can price and
+  settle the unit Kaana now reports.
+
 ## 4.13.0
 
 Additive only: no export removed.

@@ -1,4 +1,8 @@
 import { z } from 'zod';
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// it is re-exported here so the root entry is unchanged.
+import { SESSION_ACCOUNTS_CHANGED_EVENT } from './client/deviceSession';
+export { SESSION_ACCOUNTS_CHANGED_EVENT } from './client/deviceSession';
 
 export const sessionAccountSchema = z.object({
   accountId: z.string(),
@@ -73,23 +77,6 @@ export const deviceTokenMintResponseSchema = z.object({
 
 export type DeviceTokenMintRequest = z.infer<typeof deviceTokenMintRequestSchema>;
 export type DeviceTokenMintResponse = z.infer<typeof deviceTokenMintResponseSchema>;
-
-/* -------------------------------------------------------------------------- */
-/*  Instant cross-app session sync (token-free socket signal)                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Name of the token-free Socket.IO event emitted to room `user:<userId>` on
- * every DeviceSession mutation that changes what is signed in for that user.
- *
- * This is a pure SIGNAL — it carries NO access token, NO deviceSecret and NO
- * account bodies. A client that receives it re-fetches its authenticated
- * session/account state (`GET /session/device/state`, `GET /accounts`). Unlike
- * `session_state` (scoped to `device:<deviceId>`, i.e. a single origin), this
- * reaches ALL of a user's connected sockets across their devices/origins so
- * every Oxy app reflects an add / switch / signout instantly.
- */
-export const SESSION_ACCOUNTS_CHANGED_EVENT = 'session_accounts_changed';
 
 /**
  * Why the signed-in set changed:

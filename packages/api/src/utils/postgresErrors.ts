@@ -45,8 +45,8 @@ export function isUniqueViolation(error: unknown): boolean {
 /**
  * Whether a failure is a unique violation on ONE named index.
  *
- * The name matters. A `users` insert can violate `users_lower_email_key` or
- * `users_lower_public_key_key` just as easily as `users_lower_username_key`, and
+ * The name matters. A `users` insert can violate `users_lower_public_key_key` or
+ * `users_federation_actor_uri_key` just as easily as `users_lower_username_key`, and
  * reporting any of them as "that username is taken" would send the caller to fix
  * the wrong field — a plausible, confidently wrong error message, which is worse
  * than the 500 it replaced.

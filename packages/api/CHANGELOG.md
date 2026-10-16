@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Added (a service asks whether a person may act for an account)
+
+- `GET /internal/accounts/:accountId/access/:userId` → always 200
+  `{ accountId, kind, access: { role, permissions, status, source } | null }`:
+  the effective access `accountService` resolves for every other membership
+  check (direct, inherited, a personal account's own owner), `null` for no
+  active membership, an archived, unknown or unclaimed directory account.
+  Behind `/internal`'s service-token and trust gates plus the new privileged
+  scope `accounts:membership:read`; 600/minute per calling application; each
+  answer logged with caller, account and outcome, never the person. It is how
+  Mention and Oxy Move publish to a channel (which nobody may act AS) on a
+  member's behalf with no session of theirs.
+- Migration `0166` (deploy phase `pre`) widens the three scope CHECKs by that
+  one value. It grants nothing.
+
+### Fixed (an embeddings batch is held to the context per input, not in total)
+
+- `POST /internal/kaana/v1/authorizations` for `embeddings` compared the batch's
+  TOTAL estimate with the route's context window, so Clarity's 128 chunks of
+  2,000 characters (64,128 estimated tokens) were refused
+  `context_length_exceeded` by a 32,000-token model that embeds each chunk on
+  its own. The route is now held to the smallest the largest input can be (the
+  batch's mean; exact for one input). The total still answers to the pilot's
+  `maxInputTokens` and prices the request.
+- `inference.grant.refused` names `reason: 'route-context'` or `'route-output'`
+  when no route fits, where it named none.
+
+### Changed (the public app record is cacheable)
+
+- `GET /auth/oauth/client/:clientId` answers `Cache-Control: public, max-age=60`
+  on a 200, the dynamic origin registry's own refresh interval. Every Oxy app reads
+  it on each cold boot; a reload now reuses it. A 404 stays uncached.
+
 ### Added (a bot account carries a 3D avatar character)
 
 - `users.character` (nullable `jsonb`, migration `0159`, deploy phase `pre`) and

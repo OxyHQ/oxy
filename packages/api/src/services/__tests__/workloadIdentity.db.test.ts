@@ -59,6 +59,11 @@ jest.mock('../../config/redis', () => ({
   closeRedis: async () => {},
 }));
 
+import {
+  KAANA_CONTROL_AUDIENCE,
+  KAANA_PUBLIC_AUDIENCE,
+  type ServiceTokenAudience,
+} from '../../config/serviceTokenAudiences';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
@@ -435,4 +440,83 @@ describe('workload-identity mint', () => {
       expect(scopesOf((await exchange(subject)).token)).toEqual(['user:read']);
     });
   });
+});
+
+describe('workload-identity mint — audience (Kaana ADR 0002)', () => {
+  async function exchangeFor(subject: string, audience: ServiceTokenAudience) {
+    const { nonce } = await issueWorkloadChallenge();
+    return exchangeWorkloadAttestation({
+      provider: 'aws-iam',
+      nonce,
+      attestation: { subject, answersNonce: nonce },
+      audience,
+    });
+  }
+
+  it('mints a kaana.ai token when the binding grants inference:invoke', async () => {
+    const application = await applicationFixture({ scopes: ['user:read', 'inference:invoke'] });
+    const subject = `${SUBJECT}-kaana-public`;
+    await bind(application.id, subject, { scopes: ['inference:invoke'] });
+
+    const grant = await exchangeFor(subject, KAANA_PUBLIC_AUDIENCE);
+
+    expect(verifyServiceToken(grant.token).ok).toBe(false);
+    const verified = verifyServiceToken(grant.token, KAANA_PUBLIC_AUDIENCE);
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.scopes).toEqual(['inference:invoke']);
+  });
+
+  it('refuses kaana.ai when the minted scopes lack inference:invoke, writing nothing', async () => {
+    const application = await applicationFixture();
+    const subject = `${SUBJECT}-kaana-no-scope`;
+    await bind(application.id, subject);
+
+    await expect(exchangeFor(subject, KAANA_PUBLIC_AUDIENCE)).rejects.toMatchObject({
+      status: 403,
+      reason: 'kaana_requires_inference_scope',
+    });
+    expect(await readCredentialRow(workloadAttestationHandle(subject))).toBeUndefined();
+  });
+
+  it("refuses Kaana's control audience to an application that is not Kaana", async () => {
+    const application = await applicationFixture();
+    const subject = `${SUBJECT}-kaana-control`;
+    await bind(application.id, subject);
+
+    await expect(exchangeFor(subject, KAANA_CONTROL_AUDIENCE)).rejects.toMatchObject({
+      status: 403,
+      reason: 'kaana_control_reserved',
+    });
+  });
+});
+
+it('narrows requested workload scopes without widening a binding or surviving its revocation', async () => {
+  const app = await applicationFixture({ scopes: ['user:read', 'files:read'] }),
+    subject = `${SUBJECT}-narrow`;
+  await bind(app.id, subject, { scopes: ['user:read', 'files:read'] });
+  const narrow = async (scopes: string[]) => {
+    const { nonce } = await issueWorkloadChallenge();
+    return exchangeWorkloadAttestation({
+      provider: 'aws-iam',
+      nonce,
+      attestation: { subject, answersNonce: nonce },
+      scopes,
+    });
+  };
+  expect(scopesOf((await narrow(['user:read'])).token)).toEqual(['user:read']);
+  await expect(narrow(['files:write'])).rejects.toMatchObject({
+    status: 403,
+    reason: 'scope_not_granted',
+  });
+  await getDb()
+    .update(applicationWorkloadIdentities)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applicationWorkloadIdentities.applicationId, app.id));
+  await expect(narrow(['files:read'])).rejects.toMatchObject({ status: 403 });
+  await getDb()
+    .update(applications)
+    .set({ status: 'suspended' })
+    .where(eq(applications.id, app.id));
+  await expect(narrow(['user:read'])).rejects.toMatchObject({ status: 403 });
 });

@@ -53,6 +53,8 @@ import { sessions } from '../db/schema/sessions';
 import { transactions } from '../db/schema/transactions';
 import { userFollows } from '../db/schema/userFollows';
 import { users } from '../db/schema/users';
+import { sendRateLimited } from '../middleware/errorHandler';
+import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -87,6 +89,11 @@ let inFlightStatsRefresh: Promise<PlatformStats> | null = null;
 let activeStatsStreams = 0;
 const CACHE_TTL = 2_000; // 2s cache for real-time feel
 const MAX_ACTIVE_STATS_STREAMS = 25;
+/**
+ * A full house frees a slot only when a viewer leaves, which nothing can
+ * predict; a refused client is told to try again after this long.
+ */
+const STATS_STREAM_RETRY_AFTER_SECONDS = 15;
 
 async function fetchStats(): Promise<PlatformStats> {
   const now = Date.now();
@@ -177,7 +184,12 @@ router.get('/', async (_req: Request, res: Response) => {
 // SSE endpoint — true real-time push
 router.get('/stream', (req: Request, res: Response) => {
   if (activeStatsStreams >= MAX_ACTIVE_STATS_STREAMS) {
-    res.status(429).json({ error: 'Too many active platform stats streams' });
+    sendRateLimited(
+      res,
+      new RateLimitedError('Too many active platform stats streams', {
+        retryAfterSeconds: STATS_STREAM_RETRY_AFTER_SECONDS,
+      }),
+    );
     return;
   }
 
@@ -191,6 +203,10 @@ router.get('/stream', (req: Request, res: Response) => {
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no', // Disable Nginx buffering
   });
+  // Open the stream now: `writeHead` only buffers, so a first stats read that is
+  // slow or fails would leave the viewer without even the headers until the
+  // first keep-alive, 15 s later.
+  res.flushHeaders();
 
   // Send initial data immediately
   const sendStats = async () => {

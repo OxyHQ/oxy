@@ -14,6 +14,12 @@ interface RateLimitState {
 class ApiRateLimiter {
   private limits: Map<string, RateLimitState> = new Map();
   private config: RateLimitConfig;
+  /**
+   * Until when the upstream itself refused us (its 429's `Retry-After`).
+   * Every key waits for it: asking again inside the window it stated only
+   * extends the block.
+   */
+  private upstreamRefusedUntil = 0;
 
   constructor(config: Partial<RateLimitConfig> = {}) {
     this.config = {
@@ -88,6 +94,16 @@ class ApiRateLimiter {
     }
   }
 
+  /** Record the upstream's own refusal: no request should be made for `waitMs`. */
+  recordUpstreamRefusal(waitMs: number): void {
+    this.upstreamRefusedUntil = Math.max(this.upstreamRefusedUntil, Date.now() + waitMs);
+  }
+
+  /** How long the upstream's last refusal still holds, in ms; 0 once it has passed. */
+  upstreamRefusalRemainingMs(): number {
+    return Math.max(0, this.upstreamRefusedUntil - Date.now());
+  }
+
   /**
    * Get current state for a key
    */
@@ -107,6 +123,7 @@ class ApiRateLimiter {
    */
   clearAll(): void {
     this.limits.clear();
+    this.upstreamRefusedUntil = 0;
   }
 }
 

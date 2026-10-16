@@ -56,7 +56,7 @@
  *                  news.
  *
  *   4. The event. `pull_request` runs are PR-LIGHT: a scoped suite (the API,
- *      platform or apps jobs) may be skipped when scripts/ci-scope.mjs proved
+ *      platform, apps or Android Kotlin jobs) may be skipped when scripts/ci-scope.mjs proved
  *      the pull request cannot reach it — and a skip of a SCOPED job passes
  *      only when the scope job itself succeeded and said `false` for THAT
  *      suite, so a scope job that failed, was skipped or printed nothing can
@@ -85,7 +85,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { SUITE_JOBS } from './ci-scope.mjs';
+import { SCOPED_JOBS_BY_OUTPUT } from './ci-scope.mjs';
 
 const WORKFLOW_PATH = join('.github', 'workflows', 'ci.yml');
 
@@ -106,12 +106,13 @@ const SCOPE_JOB = 'scope';
 /**
  * Jobs a pull request may skip on the scope job's word, and only on it:
  * job id -> the scope job and the output that must read exactly `false`.
- * Derived from ci-scope.mjs's own suite map, so the two cannot disagree about
- * which job belongs to which suite. `api-coverage` is not listed: it needs
+ * Derived from ci-scope.mjs's own map — the closure suites and the path-decided
+ * ones (`android-kotlin` on `android`) — so the two cannot disagree about which
+ * job belongs to which output. `api-coverage` is not listed: it needs
  * `api-test` and inherits its skip.
  */
 const SCOPED_JOBS = Object.fromEntries(
-  Object.entries(SUITE_JOBS).flatMap(([suite, ids]) =>
+  Object.entries(SCOPED_JOBS_BY_OUTPUT).flatMap(([suite, ids]) =>
     ids.map((id) => [id, { scopeJob: SCOPE_JOB, output: suite }]),
   ),
 );

@@ -20,7 +20,8 @@ const dict = {
     },
     errors: {
       rateLimited: '尝试次数过多。请在 {{seconds}} 秒后重试。',
-      invalidCredentials: '用户名、邮箱或密码不正确。',
+      invalidCredentials: '用户名、邮箱或密码不正确。 如果多个账号使用此邮箱，请用用户名登录。',
+      emailAccountsFull: '此邮箱的账号数量已达上限。',
       codeInvalid: '验证码不正确或已过期。',
       requestExpired: '此次登录已过期。请重新发送邮件。',
       secondFactorInvalid: '验证码不正确。请使用当前的验证码。',
@@ -30,6 +31,10 @@ const dict = {
       notConfiguredDescription: '{{app}} 尚未配置登录功能。请联系该应用的开发者。',
       failed: '无法开始登录',
       failedDescription: '出了点问题，请重试。',
+    },
+    emailAccounts: {
+      title: '选择账号',
+      description: '{{identifier}} 有多个账号。请选择要登录的账号。',
     },
     chooser: {
       subtitleToApp: '以继续前往 {{app}}',

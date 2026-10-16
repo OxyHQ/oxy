@@ -36,6 +36,7 @@
  * production cannot have one without the other.
  */
 
+import type { DeploymentCommercial } from '@kaana.ai/contracts/internal';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
 import { createHttpKaanaCatalogueReader } from './httpKaanaClient';
 import { logger } from '../utils/logger';
@@ -44,6 +45,20 @@ export const PUBLICATION_TTL_MS = 15_000;
 export const PUBLICATION_MAX_STALE_MS = 120_000;
 const PUBLICATION_READ_TIMEOUT_MS = 5_000;
 
+/** What Kaana's descriptor says of a published deployment. */
+export interface PublishedRoute {
+  readonly deploymentId: string;
+  /** `publisher/model@revision`, exactly as Kaana's inventory names it. */
+  readonly modelReference: string;
+  readonly provider: string;
+  readonly regions: readonly string[];
+  /**
+   * How Kaana says the deployment may be sold (`commercial` on its descriptor).
+   * Absent: Kaana does not publish it, and Oxy does not sell the route.
+   */
+  readonly commercial?: DeploymentCommercial;
+}
+
 /** One observation of Kaana's serving snapshot, or the honest lack of one. */
 export type DeploymentPublication =
   | {
@@ -51,6 +66,14 @@ export type DeploymentPublication =
       readonly snapshotId: string;
       /** Exact `deploymentId`s (Oxy's `internal_route_id`) the snapshot publishes. */
       readonly deploymentIds: ReadonlySet<string>;
+      /**
+       * The same deployments with what Kaana's descriptor says of each: the
+       * exact model reference (`publisher/model@revision`), the provider and the
+       * attested regions. The grant API takes its ROUTES from here, so it needs
+       * no model or revision table of Oxy's to know which model a deployment
+       * serves. Absent on an observation built without descriptors.
+       */
+      readonly routes?: ReadonlyMap<string, PublishedRoute>;
       readonly observedAt: number;
     }
   | { readonly status: 'unavailable' };
@@ -99,17 +122,26 @@ export function createDeploymentPublicationCache(
     const timer = setTimeout(() => controller.abort(), PUBLICATION_READ_TIMEOUT_MS);
     try {
       const snapshot = await reader.listPublishedDeployments(controller.signal);
+      const ordinary = snapshot.deployments.filter(
+        (deployment) =>
+          deployment.scopedExecution === undefined &&
+          deployment.privateAutoSourceApproval === undefined,
+      );
       last = {
         status: 'observed',
         snapshotId: snapshot.snapshotId,
-        deploymentIds: new Set(
-          snapshot.deployments
-            .filter(
-              (deployment) =>
-                deployment.scopedExecution === undefined &&
-                deployment.privateAutoSourceApproval === undefined,
-            )
-            .map((deployment) => deployment.deploymentId),
+        deploymentIds: new Set(ordinary.map((deployment) => deployment.deploymentId)),
+        routes: new Map(
+          ordinary.map((deployment) => [
+            deployment.deploymentId,
+            {
+              deploymentId: deployment.deploymentId,
+              modelReference: deployment.modelReference,
+              provider: deployment.provider,
+              regions: deployment.regions,
+              ...(deployment.commercial === undefined ? {} : { commercial: deployment.commercial }),
+            },
+          ]),
         ),
         observedAt: now(),
       };

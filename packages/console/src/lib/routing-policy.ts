@@ -175,6 +175,7 @@ export const USAGE_UNIT_LABELS: Readonly<Record<UsageUnit, string>> = {
   cached_audio_input_tokens: 'Cached audio input tokens',
   audio_output_tokens: 'Audio output tokens',
   session_milliseconds: 'Session time (ms)',
+  input_transcription_milliseconds: 'Input transcription (ms)',
 };
 
 /** A short line per constraint, for the read-only summary on the overview. */

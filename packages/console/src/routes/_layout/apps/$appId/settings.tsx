@@ -4,6 +4,7 @@ import {
   ChartLineData02Icon,
   Key01Icon,
   Settings01Icon,
+  UserGroupIcon,
   WebhookIcon,
 } from '@hugeicons/core-free-icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +16,7 @@ import { GeneralSection } from '@/components/apps/general-section';
 import { CredentialsSection } from '@/components/apps/credentials-section';
 import { UsageSection } from '@/components/apps/usage-section';
 import { WebhooksAuditSection } from '@/components/apps/webhooks-audit-section';
+import { RolesSection } from '@/components/apps/roles-section';
 
 export const Route = createFileRoute('/_layout/apps/$appId/settings')({
   component: AppSettingsPage,
@@ -53,6 +55,8 @@ function AppSettingsPage() {
   // right the API enforces over the two endpoint columns, asked for by name.
   const showWebhooksTab = access.can('webhooks:read');
   const showUsageTab = access.can('usage:read');
+  // Who holds this application's own permissions (application roles).
+  const showRolesTab = access.can('roles:read');
 
   return (
     <ScrollArea className="flex-1 bg-background">
@@ -81,6 +85,12 @@ function AppSettingsPage() {
               <TabsTrigger value="usage">
                 <HugeiconsIcon icon={ChartLineData02Icon} size={16} />
                 Usage
+              </TabsTrigger>
+            )}
+            {showRolesTab && (
+              <TabsTrigger value="roles">
+                <HugeiconsIcon icon={UserGroupIcon} size={16} />
+                Roles
               </TabsTrigger>
             )}
           </TabsList>
@@ -113,6 +123,12 @@ function AppSettingsPage() {
           {showUsageTab && (
             <TabsContent value="usage" className="max-w-3xl">
               <UsageSection application={application} access={access} />
+            </TabsContent>
+          )}
+
+          {showRolesTab && (
+            <TabsContent value="roles" className="max-w-3xl">
+              <RolesSection key={application._id} application={application} access={access} />
             </TabsContent>
           )}
         </Tabs>

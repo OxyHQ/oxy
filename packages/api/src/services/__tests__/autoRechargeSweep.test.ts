@@ -24,27 +24,12 @@
  * logs once.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { runAutoRechargeSweep } from '../stripeAccountBilling.service';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from '../../db/schema/billingAutoRechargeAttempts';
 
-const SERVER_SOURCE = readFileSync(join(__dirname, '..', '..', 'server.ts'), 'utf8');
-
-describe('the sweep is registered by the entrypoint', () => {
-  it('schedules runAutoRechargeSweep on its own interval', () => {
-    // The floor first: this read can see the OTHER sweeps, so a missing match
-    // below means the registration is absent rather than the file unread.
-    expect(SERVER_SOURCE).toContain('followExpirySweep');
-    expect(SERVER_SOURCE).toContain('nodeLivenessSweep');
-
-    expect(SERVER_SOURCE).toContain('runAutoRechargeSweep()');
-    expect(SERVER_SOURCE).toContain('AUTO_RECHARGE_SWEEP_INTERVAL_MS');
-    // Unref'd, like every other sweep: an interval that keeps the process alive
-    // hangs jest non-deterministically and blocks a graceful shutdown.
-    expect(SERVER_SOURCE).toContain('autoRechargeSweep.unref()');
-  });
-
+// That the entrypoint SCHEDULES this sweep is asserted with every other sweep's
+// registration in `src/__tests__/scheduledSweeps.test.ts`.
+describe('the sweep interval', () => {
   it('runs far more often than a card may be charged', () => {
     // The interval decides how promptly a candidate is NOTICED; the claim window
     // decides how often one may be CHARGED. Collapsing them would make the

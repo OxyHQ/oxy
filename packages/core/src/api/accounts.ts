@@ -18,15 +18,15 @@ import type { OrganizationType } from '@oxy.so/contracts';
  * no per-request "acting-as" header. Identity is carried by the session/token,
  * so a switch propagates through reload and cross-domain exactly like a login.
  */
+import type { AgentKeyOperation, AgentKeyOperationProof } from '@oxy.so/contracts';
 import {
-  agentKeyOperationSchema,
-  executeAgentKeyOperationSchema,
-  agentKeyOperationChallengeSchema,
-  agentKeyOperationResultSchema,
-  agentKeyListResponseSchema,
-  type AgentKeyOperation,
-  type AgentKeyOperationProof,
-} from '@oxy.so/contracts';
+  agentKeyListResponseCheck,
+  agentKeyOperationChallengeCheck,
+  agentKeyOperationCheck,
+  agentKeyOperationResultCheck,
+  executeAgentKeyOperationCheck,
+  parseContract,
+} from '@oxy.so/contracts/client';
 import type { User } from '../models/interfaces';
 import type {
   AccountCategoryId,
@@ -73,7 +73,7 @@ export {
   isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
-} from '@oxy.so/contracts';
+} from '@oxy.so/contracts/client';
 
 /**
  * The calling user's relationship to an account node, as resolved by the API:
@@ -451,7 +451,8 @@ export class AccountMembersApi {
 export class AccountAgentKeysApi {
   constructor(private readonly ctx: OxyContext) {}
   async list(accountId: string) {
-    return agentKeyListResponseSchema.parse(
+    return parseContract(
+      agentKeyListResponseCheck,
       await this.ctx.request<unknown>('GET', `/accounts/${enc(accountId)}/agent-keys`, undefined, {
         cache: false,
       }),
@@ -461,19 +462,19 @@ export class AccountAgentKeysApi {
     const response = await this.ctx.request<unknown>(
       'POST',
       `/accounts/${enc(accountId)}/agent-keys/challenge`,
-      agentKeyOperationSchema.parse(operation),
+      parseContract(agentKeyOperationCheck, operation),
       { cache: false },
     );
-    return agentKeyOperationChallengeSchema.parse(response);
+    return parseContract(agentKeyOperationChallengeCheck, response);
   }
   async execute(accountId: string, operation: AgentKeyOperation, proof: AgentKeyOperationProof) {
     const response = await this.ctx.request<unknown>(
       'POST',
       `/accounts/${enc(accountId)}/agent-keys/execute`,
-      executeAgentKeyOperationSchema.parse({ operation, proof }),
+      parseContract(executeAgentKeyOperationCheck, { operation, proof }),
       { cache: false },
     );
-    return agentKeyOperationResultSchema.parse(response);
+    return parseContract(agentKeyOperationResultCheck, response);
   }
 }
 

@@ -1,5 +1,66 @@
 # Changelog
 
+## [11.8.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.17.0 (exact peer) and `@oxy.so/contracts` 4.21.0.
+
+### Added
+
+- Supervision (ADR 0041): `SupervisionScreen`
+  (`showBottomSheet({ screen: 'Supervision', props: { approvalId?, childAccountId? } })`),
+  `useSupervision`, and its entries in Manage Account and Create Account (the
+  personal-root option). Guardians review purchase approvals line by line with
+  fresh reauthentication; children read their own.
+
+## [11.7.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.15.0 (exact peer) and `@oxy.so/contracts` 4.19.0. No
+source change: the peer moves so an app can take core's
+`accounts.accessFor` and `assets.uploadLarge` (4.14.0) and application roles
+(`requireAppPermission`, 4.15.0) without nesting a second core. 11.7.0 was
+never published with the 4.14.0 peer; it is cut from the commit that carries
+core 4.15.0.
+
+## [11.6.0] - 2026-10-16
+
+Needs `@oxy.so/core` 4.13.0 (and so `@oxy.so/contracts` 4.17.0).
+
+### Changed
+
+- The provider no longer puts the identity stack in an app's startup
+  JavaScript: `KeyManager`, `SignatureService` and `deriveIdentityLinkCode` load
+  from `@oxy.so/core/crypto` with `import()` where a key is read or a signature
+  made (`ui/utils/identityCrypto.ts`).
+- Application classification, the sign-up email, organization forms and the
+  username field check with `@oxy.so/contracts/client` instead of the Zod
+  schemas (same verdicts, outputs and messages), so services ships no Zod.
+
+## [11.5.0] - 2026-10-15
+
+Needs `@oxy.so/core` 4.10.0. (11.4.0 is #1721's.)
+
+### Added
+
+- One email, several accounts (ADR 0040): after the code or the link proves an
+  email that holds several accounts, the sign-in panel lists them
+  (`OxyEmailAccountChoice`, name, `@handle` and avatar) and signs in the one
+  chosen; its authenticator still applies. A username signs in only its
+  account, as before.
+- The sign-up panel names `EMAIL_ACCOUNTS_FULL`.
+## [11.3.1] - 2026-10-15
+
+Needs `@oxy.so/core` 4.9.1.
+
+### Fixed
+
+- A web origin with nothing to restore (no warm token, no device secret, no OAuth
+  return on the URL) resolves auth signed out at once instead of waiting for the
+  application classification round trip, which cannot change that outcome. The
+  classification still runs, and every boot with something to restore, every
+  native and identity-mode boot, and every later sign-in still waits for it.
+  Measured on a cold load against `api.oxy.so`: auth resolved 2.08 s to 0.75 s after
+  navigation, and the first request after it starts 1.36 s sooner.
+
 ## [11.2.0] - 2026-10-14
 
 Promoted from `11.2.0-oxy-one.7` to the stable release; no code change. It is the first

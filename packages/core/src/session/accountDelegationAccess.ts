@@ -14,7 +14,7 @@
  * API's already-resolved relationship and effective permissions identically.
  */
 
-import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxy.so/contracts/client';
 import type { AccountKind, AccountMember, AccountRelationship } from '../api/accounts';
 
 export interface AccountDelegationAccess {

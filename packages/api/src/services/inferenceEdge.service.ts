@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 /**
  * The public inference edge — admission, attribution, authorization,
  * reservation, forwarding and settlement (issue #972 workstream 4, ADR 0010).
@@ -182,6 +183,7 @@ import {
   type MachineCredentialPrincipal,
 } from '../middleware/machineCredential';
 import { verifyServiceToken } from '../middleware/serviceToken';
+import { OXY_API_AUDIENCE, type ServiceTokenAudience } from '../config/serviceTokenAudiences';
 import { resolveServiceTokenPrincipal } from './attribution.service';
 import {
   claimMeteredAdmission,
@@ -213,6 +215,7 @@ import {
   previewReservation,
   settle,
   type LedgerAttribution,
+  type PriceRef,
   type ReservationView,
 } from './inferenceLedger.service';
 import {
@@ -444,13 +447,31 @@ export async function authenticateEdgeCaller(
   if (!token) {
     return { ok: false, reason: 'no_bearer' };
   }
+  return authenticateInferenceBearer(token, OXY_API_AUDIENCE);
+}
 
+/**
+ * The two lanes of {@link authenticateEdgeCaller}, for a bearer already in hand.
+ *
+ * Shared with the grant API (Kaana ADR 0002), which receives the caller's
+ * credential VERBATIM in Kaana's authorization request rather than in a header,
+ * and asks for the service-token audience `kaana.ai` where this edge asks for
+ * `oxy-api`. Everything else — the machine lane and its rollout flag, the
+ * row re-read that makes a revocation immediate — is one implementation, so a
+ * credential cannot authenticate on one surface and be refused on the other
+ * for any reason but the audience it was minted for.
+ */
+export async function authenticateInferenceBearer(
+  token: string,
+  audience: ServiceTokenAudience
+): Promise<EdgeAuthentication> {
   if (machineCredentialTokenPrefix(token) !== null && !isMachineCredentialLaneEnabled()) {
     return { ok: false, reason: 'machine_lane_disabled' };
   }
 
   const machine = await resolveMachineCredential(token);
   if (machine.ok) {
+    if (await isSupervised(machine.principal.ownerAccountId)) return { ok: false, reason: 'supervised_inference_unsupported' };
     const application = await loadCatalogueApplication(machine.principal.applicationId);
     return {
       ok: true,
@@ -472,7 +493,7 @@ export async function authenticateEdgeCaller(
     return { ok: false, reason: `machine_${machine.reason}` };
   }
 
-  const verification = verifyServiceToken(token);
+  const verification = verifyServiceToken(token, audience);
   if (!verification.ok) {
     return { ok: false, reason: `service_${verification.reason}` };
   }
@@ -509,6 +530,7 @@ export async function authenticateEdgeCaller(
    * unchanged, and nothing on this path needs to know which proof it was — which
    * is the property the single `service_token` lane below already assumed.
    */
+  if (await isSupervised(resolved.ownerAccountId)) return { ok: false, reason: 'supervised_inference_unsupported' };
   const application = await loadCatalogueApplication(resolved.applicationId);
 
   return {
@@ -787,7 +809,7 @@ function compareExactDeploymentIds(left: string, right: string): number {
  * ahead of one that does, before price, because a reasoning model's output
  * budget is spent on reasoning first — at `instant`'s budgets, often all of it.
  */
-function compareQualifiedRoutes(
+export function compareQualifiedRoutes(
   left: EdgeRoute,
   right: EdgeRoute,
   preferByok: boolean,
@@ -870,7 +892,7 @@ function deploymentAttestationMismatch(
 }
 
 /** The stable model line shared by all revision-pinned references. */
-function modelLineOf(reference: string): string {
+export function modelLineOf(reference: string): string {
   const separator = reference.indexOf('@');
   return separator === -1 ? reference : reference.slice(0, separator);
 }
@@ -2147,6 +2169,13 @@ async function admitWithAutoDecision(
   if (claim.status === 'parent-unavailable') {
     return refuse('policy_violation', 'Private Auto requires its retained active parent admission.');
   }
+  // Only the grant API passes Console session limits (`realtimeSessionLimits`);
+  // this edge never does, so this arm is the type's, not a path it takes.
+  if (claim.status === 'sessions-exceeded') {
+    return refuse('rate_limited', 'This application has reached its concurrent realtime sessions.', {
+      reason: `realtime-sessions-${claim.scope}`,
+    });
+  }
   if (claim.status === 'capacity-exceeded') {
     await recordEdgeTelemetry(context, {
       requestedModelReference,
@@ -3111,7 +3140,7 @@ async function reservationExists(idempotencyKey: string): Promise<boolean> {
  * decides the race. The loser borrowing the winner's hold would forward a
  * second execution against one reservation.
  */
-function reservationOrRefusal(
+export function reservationOrRefusal(
   result: Awaited<ReturnType<typeof reserve>>,
   requestId: string,
   currency: string
@@ -4326,7 +4355,7 @@ export function routeCeilingPlans(
   ];
 }
 
-type RouteCeilingQuote =
+export type RouteCeilingQuote =
   | {
       readonly status: 'quoted';
       readonly amount: string;
@@ -4360,8 +4389,8 @@ async function quoteRouteForRequest(
 }
 
 /** The first fully-quoted plan's dearest scenario, with the ledger's own arithmetic. */
-async function quoteRouteCeiling(
-  priceVersionId: string,
+export async function quoteRouteCeiling(
+  priceVersionId: PriceRef,
   plans: readonly RouteCeilingPlan[]
 ): Promise<RouteCeilingQuote> {
   let reason = 'no-ceiling-plan';

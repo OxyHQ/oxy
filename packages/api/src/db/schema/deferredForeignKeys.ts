@@ -1,3 +1,8 @@
+import {
+  supervisionPurchaseApprovals,
+  supervisionAudit,
+  supervisionPurchaseLines,
+} from './supervision';
 import { organizationExternalIds, organizationDirectoryAudit } from './organizationProfiles';
 import {
   billingCreditInvoices,
@@ -104,6 +109,7 @@ import { usageReceipts } from './usageReceipts';
 import { usageRefunds } from './usageRefunds';
 import { usageReservations } from './usageReservations';
 import { inferenceMeteredUsage } from './inferenceMeteredUsage';
+import { kaanaGrantAdmittedLines, kaanaGrants } from './kaanaGrants';
 import { inferenceProviderCostAttempts } from './inferenceProviderCostAttempts';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
@@ -127,7 +133,51 @@ export interface IdColumnWithoutForeignKey {
 
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
+/**
+ * Why four `price_version_id` columns carry no foreign key since migration 0161.
+ * Kaana ADR 0002, amendment 2026-10-15: the model catalogue and its list prices
+ * are Kaana's, so a grant for `kaana.ai/v1` is rated at a list identified by
+ * KAANA's `priceVersionId`, which no Oxy table resolves. The column is a label;
+ * what the charge was computed from is copied next to it
+ * (`usage_receipt_unit_prices`, `kaana_grant_line_unit_prices`).
+ */
+const PRICE_VERSION_LABEL_REASON =
+  'Kaana’s `priceVersionId` for a grant of `kaana.ai/v1` (declared catalogue, contract set ' +
+  '4.3.0), or an Oxy `price_versions.id` for the old edge. A label, not a key: Oxy owns no ' +
+  'table that resolves Kaana’s; the entries charged are copied beside it.';
+
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: supervisionPurchaseLines,
+    column: supervisionPurchaseLines.merchantAccountId,
+    reason:
+      'Immutable authorization evidence names the merchant at approval time; its later erasure does not rewrite an outstanding exact payment instruction. This is not a live account permission.',
+  },
+  {
+    table: supervisionPurchaseApprovals,
+    column: supervisionPurchaseApprovals.operationId,
+    reason:
+      'Immutable application checkout operation identifier, scoped by application; the order lives in the merchant product.',
+  },
+  {
+    table: supervisionPurchaseApprovals,
+    column: supervisionPurchaseApprovals.resourceId,
+    reason:
+      'Application checkout resource identifier, not an Oxy account; immutable approved effect.',
+  },
+  {
+    table: supervisionAudit,
+    column: supervisionAudit.resourceId,
+    reason:
+      'Historical supervision resource attribution; may reference invitations or purchase approvals of distinct tables.',
+  },
+  {
+    table: supervisionAudit,
+    column: supervisionAudit.relatedAccountId,
+    reason:
+      'Historical guardian/contact attribution, not current authority; retained in the child-owned audit if that related account is erased.',
+  },
+
   {
     table: organizationExternalIds,
     column: organizationExternalIds.externalId,
@@ -1024,6 +1074,58 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'versioned in code with `economic_policy_version` beside it. There is no ' +
       'relationship table and there must not be one: the policy is reviewed data, ' +
       'not a row an operator can edit.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.requestId,
+    reason:
+      "(e) Kaana's `Kaana-Request-Id`, minted by the data plane at admission: a " +
+      'correlation key Oxy did not create and has no row for, exactly like ' +
+      '`usage_reservations.request_id`.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.economicRelationshipId,
+    reason: 'Same as `inference_metered_usage.economic_relationship_id`: a reviewed policy name.',
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.signingKeyId,
+    reason:
+      'The `kid` of the Oxy edge key that signed the grant (`KAANA_EDGE_SIGNING_KEY_ID`). ' +
+      "Keys live in SSM and in Kaana's `KAANA_EDGE_PUBLIC_KEYS`, never in this database.",
+  },
+  {
+    table: kaanaGrantAdmittedLines,
+    column: kaanaGrantAdmittedLines.priceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: usageReceipts,
+    column: usageReceipts.priceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: usageReservations,
+    column: usageReservations.ceilingPriceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: inferenceMeteredUsage,
+    column: inferenceMeteredUsage.settledPriceVersionId,
+    reason: PRICE_VERSION_LABEL_REASON,
+  },
+  {
+    table: kaanaGrants,
+    column: kaanaGrants.settlementId,
+    reason:
+      "Kaana's settlement-outbox row id, stable across redeliveries. The outbox is in " +
+      "Kaana's PostgreSQL; Oxy keeps the id only to make a second settlement visible.",
   },
   {
     table: inferenceProviderCostAttempts,

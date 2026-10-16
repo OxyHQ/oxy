@@ -4,8 +4,8 @@
  */
 import { OxyServices } from '../../OxyServices';
 
-jest.mock('../../crypto/internal', () => ({
-  ...jest.requireActual('../../crypto/internal'),
+jest.mock('../../crypto/index', () => ({
+  ...jest.requireActual('../../crypto/index'),
   solveRegistrationPow: jest.fn(async () => 'nonce-1'),
 }));
 

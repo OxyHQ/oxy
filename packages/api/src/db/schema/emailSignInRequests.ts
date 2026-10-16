@@ -15,9 +15,19 @@
  *   shared one), or null. The link approves only when auth.oxy.so proves the
  *   same device — the same browser. Null means the link cannot approve at all.
  *
- * A row with no `user_id` is a decoy: nobody was sent anything, and it can never
- * be approved or confirmed. `expires_at` is the row's deadline (the link's,
- * the later one); every read filters it, the sweep only reclaims storage.
+ * Who signs in:
+ *
+ * - `user_id`: the one account a USERNAME named.
+ * - `mailbox`: the identifier was an EMAIL holding at least one account that
+ *   can sign in by email. Nobody is named until the mailbox is proven; then its
+ *   accounts are read by `email_verifications.email_hash`. One signs in
+ *   directly; several set `proven_at` and wait for the person to choose one.
+ * - neither: a decoy. Nobody was sent anything, and it can never be approved,
+ *   confirmed or chosen from.
+ *
+ * `expires_at` is the row's deadline (the link's, the later one; once the
+ * mailbox is proven, the choice's); every read filters it, the sweep only
+ * reclaims storage.
  */
 
 import { sql } from 'drizzle-orm';
@@ -34,8 +44,10 @@ export const emailSignInRequests = pgTable(
     verificationId: text()
       .notNull()
       .references(() => emailVerifications.id, { onDelete: 'cascade' }),
-    /** The account signing in; `null` for a decoy. */
+    /** The account a username named; `null` for an email and for a decoy. */
     userId: text().references(() => users.id, { onDelete: 'cascade' }),
+    /** An email that holds accounts: whoever proves it chooses among them. */
+    mailbox: boolean().notNull().default(false),
     requestSecretHash: text().notNull(),
     linkTokenHash: text().notNull(),
     requesterDeviceId: text(),
@@ -46,6 +58,11 @@ export const emailSignInRequests = pgTable(
     longCode: boolean().notNull().default(false),
     /** When the link was opened in the requester's browser. */
     approvedAt: timestamptz(),
+    /**
+     * When the mailbox was proven (the code, or the link collected) and it held
+     * several accounts: the request now waits for the choice.
+     */
+    provenAt: timestamptz(),
     /** When a session (or a second-factor challenge) was issued for it: spent. */
     completedAt: timestamptz(),
     expiresAt: timestamptz().notNull(),
@@ -63,7 +80,12 @@ export const emailSignInRequests = pgTable(
     check('email_signin_requests_link_hash_check', sql`${t.linkTokenHash} ~ '^[0-9a-f]{64}$'`),
     check(
       'email_signin_requests_approved_check',
-      sql`${t.approvedAt} is null or ${t.userId} is not null`,
+      sql`${t.approvedAt} is null or ${t.userId} is not null or ${t.mailbox}`,
     ),
+    check(
+      'email_signin_requests_mailbox_check',
+      sql`not (${t.mailbox} and ${t.userId} is not null)`,
+    ),
+    check('email_signin_requests_proven_check', sql`${t.provenAt} is null or ${t.mailbox}`),
   ],
 );

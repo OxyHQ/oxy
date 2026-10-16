@@ -1,3 +1,4 @@
+import { isSupervised } from './supervisionPolicy.service';
 import { randomUUID } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import type {
@@ -25,6 +26,7 @@ import {
 } from '../db/schema/agency';
 import { users } from '../db/schema/users';
 import accountService from './account.service';
+import { loadLiveCeiling } from './agentRequesterCeiling.service';
 import { revalidateForegroundRequester } from './foregroundCapabilityRequester.service';
 import { readLiveAgentKey } from './agentKeyAuthority.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
@@ -65,12 +67,19 @@ export interface AuthorityResult {
   };
 }
 
-interface GrantParts {
-  grant: DelegationGrantRow;
+/**
+ * The standing bound an agent acts under on somebody else's account: its owner's
+ * DelegationGrant, or (ADR 0042) its owner's published ceiling for whoever uses
+ * it. Both are judged by the same tool, limit and autonomy rules below.
+ */
+interface AgentBound {
+  source: { kind: 'grant'; id: string } | { kind: 'ceiling'; id: string };
   boundCatalog: AppCapabilityCatalog;
+  capabilityPackages: DelegationGrantRow['capabilityPackages'];
   capabilities: string[];
   overrides: Array<{ tool: string; decision: 'allow' | 'deny' }>;
   limits: GrantLimit[];
+  maximumAutonomy: AutonomyLevel;
 }
 
 type ExecutionAuthorizationRow = typeof capabilityExecutionAuthorizations.$inferSelect;
@@ -157,7 +166,7 @@ async function loadGrant(
   authorization: ExecutionAuthorizationRow,
   actorAccountId: string,
   now: Date,
-): Promise<GrantParts | null> {
+): Promise<AgentBound | null> {
   const db = getDb();
   const [grant] = await db
     .select()
@@ -211,11 +220,50 @@ async function loadGrant(
   const registration = registrations[0];
   if (!registration) return null;
   return {
-    grant,
+    source: { kind: 'grant', id: grant.id },
     boundCatalog: registration.catalog,
+    capabilityPackages: grant.capabilityPackages,
     capabilities: capabilities.map((entry) => entry.capability),
     overrides,
     limits,
+    maximumAutonomy: grant.maximumAutonomy,
+  };
+}
+
+/**
+ * The owner's published ceiling for this agent and app (ADR 0042), when the
+ * authorization names it. It bounds the agent only on the requester's OWN
+ * authority (`ownerAccountId === requesterAccountId`) and only at the app's
+ * account root of the effective account; anything else is refused rather than
+ * stretched.
+ */
+async function loadCeilingBound(
+  authorization: ExecutionAuthorizationRow,
+  actorAccountId: string,
+  catalog: AppCapabilityCatalog,
+): Promise<AgentBound | null> {
+  if (!authorization.ceilingId) return null;
+  if (
+    authorization.ownerAccountId !== authorization.requesterAccountId ||
+    authorization.resourceType !== catalog.accountResourceType ||
+    authorization.resourceKey !== authorization.effectiveAccountId
+  )
+    return null;
+  const live = await loadLiveCeiling(authorization.ceilingId);
+  if (
+    !live ||
+    live.row.agentAccountId !== actorAccountId ||
+    live.row.appSlug !== authorization.resourceApp
+  )
+    return null;
+  return {
+    source: { kind: 'ceiling', id: live.row.id },
+    boundCatalog: live.boundCatalog,
+    capabilityPackages: live.row.capabilityPackages,
+    capabilities: live.row.capabilities,
+    overrides: live.row.toolOverrides,
+    limits: live.row.limits.filter((limit) => limit.tool === authorization.tool),
+    maximumAutonomy: live.row.maximumAutonomy,
   };
 }
 
@@ -267,6 +315,15 @@ export async function evaluateCapabilityAuthority(
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
+  const safetySubjects = [
+    ...new Set([
+      authorization.requesterAccountId,
+      authorization.ownerAccountId,
+      authorization.effectiveAccountId,
+    ]),
+  ];
+  if ((await Promise.all(safetySubjects.map(isSupervised))).some(Boolean))
+    return denied('supervised_delegation_unsupported');
   if (
     authorization.requesterAuthMethodId &&
     !(await readLiveAgentKey({
@@ -376,7 +433,10 @@ export async function evaluateCapabilityAuthority(
   }
 
   const actor = actorOf(authorization);
-  let grantParts: GrantParts | null = null;
+  if (authorization.ceilingId && (actor.type !== 'agent' || autonomousSelf || agentOwnAccount)) {
+    return denied('ceiling_requires_agent_on_requester_account');
+  }
+  let bound: AgentBound | null = null;
   let grantAutonomy: AutonomyLevel = 'autonomous';
   let limits = authorization.limits.filter((limit) => limit.tool === authorization.tool);
   if (limits.length !== authorization.limits.length) return denied('execution_limit_tool_mismatch');
@@ -399,36 +459,35 @@ export async function evaluateCapabilityAuthority(
     }
   }
   if (actor.type === 'agent' && !autonomousSelf && !agentOwnAccount) {
-    grantParts = await loadGrant(authorization, actor.accountId, now);
-    if (!grantParts) return denied('agent_has_no_active_grant');
+    const byCeiling = authorization.ceilingId !== null;
+    bound = byCeiling
+      ? await loadCeilingBound(authorization, actor.accountId, registration.catalog)
+      : await loadGrant(authorization, actor.accountId, now);
+    if (!bound) return denied(byCeiling ? 'agent_ceiling_not_active' : 'agent_has_no_active_grant');
     if (
       !grantAllowsTool(
         tool,
         {
-          capabilities: grantParts.capabilities,
-          overrides: grantParts.overrides,
-          capabilityPackages: grantParts.grant.capabilityPackages,
+          capabilities: bound.capabilities,
+          overrides: bound.overrides,
+          capabilityPackages: bound.capabilityPackages,
         },
-        grantParts.boundCatalog.tools.find((entry) => entry.name === tool.name),
+        bound.boundCatalog.tools.find((entry) => entry.name === tool.name),
       )
     ) {
-      return denied('grant_does_not_allow_tool');
+      return denied(byCeiling ? 'ceiling_does_not_allow_tool' : 'grant_does_not_allow_tool');
     }
-    grantAutonomy = grantParts.grant.maximumAutonomy;
-    const grantLimitError = capabilityLimitError(
-      grantParts.limits,
-      [tool],
-      authorization.resourceType,
-    );
+    grantAutonomy = bound.maximumAutonomy;
+    const grantLimitError = capabilityLimitError(bound.limits, [tool], authorization.resourceType);
     if (grantLimitError) return denied(grantLimitError);
     const grantSensitiveLimitError = autonomousSensitiveToolLimitError(
       grantAutonomy,
       tool,
-      grantParts.limits,
+      bound.limits,
     );
     if (grantSensitiveLimitError) return denied(grantSensitiveLimitError);
     try {
-      limits = mergeLimits(grantParts.limits, limits);
+      limits = mergeLimits(bound.limits, limits);
     } catch {
       return denied('execution_limits_conflict_with_grant');
     }
@@ -458,7 +517,8 @@ export async function evaluateCapabilityAuthority(
     allowed: true,
     reason: 'allowed_by_current_authority',
     effectiveAutonomy,
-    ...(grantParts ? { grantId: grantParts.grant.id } : {}),
+    ...(bound?.source.kind === 'grant' ? { grantId: bound.source.id } : {}),
+    ...(bound?.source.kind === 'ceiling' ? { ceilingId: bound.source.id } : {}),
   };
   const resolvedAuthority = {
     capabilities: tool.requiredCapabilities,
@@ -502,7 +562,8 @@ export async function evaluateCapabilityAuthority(
       : request.expectedCatalog
         ? { catalog: request.expectedCatalog }
         : {}),
-    ...(grantParts ? { grantId: grantParts.grant.id } : {}),
+    ...(bound?.source.kind === 'grant' ? { grantId: bound.source.id } : {}),
+    ...(bound?.source.kind === 'ceiling' ? { ceilingId: bound.source.id } : {}),
     requesterAccountId: authorization.requesterAccountId,
     ownerAccountId: authorization.ownerAccountId,
     actor,
@@ -595,6 +656,7 @@ function claimsMatchAuthorization(
     claims.tool === authorization.tool &&
     runScopeMatches &&
     claims.automationId === (authorization.automationId ?? undefined) &&
+    (claims.ceilingId ?? null) === authorization.ceilingId &&
     claims.autonomy === authorization.maximumAutonomy
   );
 }
@@ -624,6 +686,9 @@ export async function reauthorizeCapabilityTicket(
   });
   if (claims.grantId && result.decision.grantId !== claims.grantId) {
     return { allowed: false, reason: 'ticket_grant_is_no_longer_current' };
+  }
+  if (claims.ceilingId && result.decision.ceilingId !== claims.ceilingId) {
+    return { allowed: false, reason: 'ticket_ceiling_is_no_longer_current' };
   }
   const resolved = result.resolvedAuthority;
   if (

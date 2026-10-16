@@ -8,12 +8,8 @@
 
 import type React from 'react';
 import { useState } from 'react';
-import {
-  EMAIL_CODE_LENGTH,
-  TOTP_DIGITS,
-  type ReauthAction,
-  type ReauthProof,
-} from '@oxy.so/contracts';
+import type { ReauthAction, ReauthProof } from '@oxy.so/contracts';
+import { EMAIL_CODE_LENGTH, TOTP_DIGITS } from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/OxyContext';
 import { useI18n } from '../../hooks/useI18n';
 import { SubtleLink } from '../authChooser/primitives';

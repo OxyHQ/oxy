@@ -6,12 +6,20 @@ repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 subject="$repository_root/packages/api/scripts/run-native-product-agent-bootstrap.sh"
 test_root=$(mktemp -d)
 real_mktemp=$(command -v mktemp)
+export TEST_REAL_BUN=$(command -v bun)
+export TEST_SUCCESS_REPORT=$(bun -e '
+import {createHash} from "node:crypto";
+const plan={after:{},aliaManifest:{},before:{},desired:{},direction:"bootstrap",manifestVersion:1,operations:[]};
+console.log("NATIVE_PRODUCT_AGENTS_RESULT="+JSON.stringify({mode:"dry-run",direction:"bootstrap",planSha256:createHash("sha256").update(JSON.stringify(plan)).digest("hex"),plan}));')
 trap 'rm -rf -- "$test_root"' EXIT
 
 mkdir -p "$test_root/bin"
 cat >"$test_root/bin/bun" <<'EOF'
 #!/bin/sh
 set -eu
+if [ "$1" = packages/api/scripts/validate-native-product-bootstrap-report.mjs ]; then
+  exec "$TEST_REAL_BUN" "$@"
+fi
 [ "$1" = run ]
 [ "$2" = packages/api/scripts/bootstrap-native-product-agents.ts ]
 [ "${LOG_LEVEL:-}" = silent ]
@@ -25,11 +33,11 @@ set -eu
 
 case "${TEST_BUN_MODE:-success}" in
   success)
-    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    printf '%s\n' "$TEST_SUCCESS_REPORT"
     ;;
   success-noise)
     printf '%s\n' "$TEST_UNSAFE_MARKER"
-    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    printf '%s\n' "$TEST_SUCCESS_REPORT"
     ;;
   success-extra)
     printf '%s\n' "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"secret\":\"$TEST_UNSAFE_MARKER\"}"
@@ -40,14 +48,14 @@ case "${TEST_BUN_MODE:-success}" in
     printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","serviceCredentialState":{"homiioSindiExists":false,"clarityBackendExists":true}}'
     ;;
   success-multiple)
-    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    printf '%s\n' "$TEST_SUCCESS_REPORT"
     printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"apply","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
     ;;
   success-missing) ;;
   must-not-run)
     # Succeeds if reached, so a wrapper that let the process start fails the
     # exit-code assertion rather than passing by coincidence.
-    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+    printf '%s\n' "$TEST_SUCCESS_REPORT"
     ;;
   classified-failure)
     printf '%s\n' "$TEST_UNSAFE_MARKER"
@@ -78,7 +86,7 @@ chmod 0700 "$test_root/bin/mktemp"
 export TEST_REAL_MKTEMP="$real_mktemp"
 
 success_output=$(PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=0 sh "$subject")
-[ "$success_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"mode":"dry-run","direction":"bootstrap","planSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' ]
+[ "$success_output" = "$TEST_SUCCESS_REPORT" ]
 
 PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 sh "$subject"
 PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=1 sh "$subject"

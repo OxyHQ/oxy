@@ -754,3 +754,165 @@ describe('authSocket keeps refusing session-less tokens', () => {
     expect(socket.data?.sessionId).toBe('session-1');
   });
 });
+
+describe('supervised policy refusal is never anonymous', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('passes the original bearer and action and propagates a reviewed denial on optional HTTP routes', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const token = forgeToken({ userId: VICTIM_ID, sessionId: 'bound-session' });
+    const validation = jest
+      .spyOn(oxy.session, 'validate')
+      .mockRejectedValue(Object.assign(new Error('Denied'), { status: 403 }));
+    const req = makeReq({ headers: { authorization: `Bearer ${token}` } }),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth({ optional: true, supervisedAction: 'content' }), req, res, next);
+    expect(validation).toHaveBeenCalledWith(
+      'bound-session',
+      expect.objectContaining({ accessToken: token, supervisedAction: 'content' }),
+    );
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+  it('keeps an actual anonymous request anonymous', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' }),
+      req = makeReq(),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth({ optional: true, supervisedAction: 'content' }), req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(req.userId).toBeNull();
+  });
+});
+
+describe('reviewed optional authentication fails closed during authority failure', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it.each([undefined, 500, 501, 503])(
+    'does not downgrade a presented bearer when authority fails with %s',
+    async (status) => {
+      const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+      jest
+        .spyOn(oxy.session, 'validate')
+        .mockRejectedValue(Object.assign(new Error('Unavailable'), { status }));
+      const req = makeReq({
+          headers: {
+            authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'session' })}`,
+          },
+        }),
+        res = makeRes(),
+        next = jest.fn();
+      await run(
+        oxy.middleware.auth({ optional: true, supervisedAction: 'content' }),
+        req,
+        res,
+        next,
+      );
+      expect(res.statusCode).toBe(503);
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
+  it('does not downgrade an invalid session returned by authority', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest.spyOn(oxy.session, 'validate').mockResolvedValue(null);
+    const req = makeReq({
+        headers: {
+          authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'session' })}`,
+        },
+      }),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth({ optional: true, supervisedAction: 'content' }), req, res, next);
+    expect(res.statusCode).toBe(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+  it('preserves legacy optional adult behavior outside reviewed routes', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest.spyOn(oxy.session, 'validate').mockRejectedValue(new Error('Unavailable'));
+    const req = makeReq({
+        headers: {
+          authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'session' })}`,
+        },
+      }),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth({ optional: true }), req, res, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.userId).toBeNull();
+  });
+});
+
+describe('strict optional bearer on unreviewed public routes', () => {
+  afterEach(() => jest.restoreAllMocks());
+  const options = { optional: true, strictOptionalBearer: true };
+  it('keeps no-token requests anonymous and accepts a verified adult without a supervised action', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const validate = jest
+      .spyOn(oxy.session, 'validate')
+      .mockResolvedValue(validSessionFor(asUser(VICTIM_ID)));
+    const anonymous = makeReq(),
+      anonymousNext = jest.fn();
+    await run(oxy.middleware.auth(options), anonymous, makeRes(), anonymousNext);
+    expect(anonymousNext).toHaveBeenCalledTimes(1);
+    expect(validate).not.toHaveBeenCalled();
+    const req = makeReq({
+      headers: {
+        authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'strict-session' })}`,
+      },
+    });
+    const next = jest.fn();
+    await run(oxy.middleware.auth(options), req, makeRes(), next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.userId).toBe(VICTIM_ID);
+    expect(validate).toHaveBeenCalledWith(
+      'strict-session',
+      expect.objectContaining({ supervisedAction: undefined }),
+    );
+  });
+  it.each(['', 'Basic credential', 'Bearer ', 'Bearer invalid'])(
+    'rejects supplied malformed header %j',
+    async (authorization) => {
+      const oxy = new OxyServer({ baseURL: 'http://test.invalid' }),
+        req = makeReq({ headers: { authorization } }),
+        res = makeRes(),
+        next = jest.fn();
+      await run(oxy.middleware.auth(options), req, res, next);
+      expect(res.statusCode).toBe(401);
+      expect(next).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    { status: 401, expected: 401 },
+    { status: 403, expected: 403 },
+    { status: 503, expected: 503 },
+    { status: undefined, expected: 503 },
+  ])('does not downgrade authority refusal $status', async ({ status, expected }) => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest
+      .spyOn(oxy.session, 'validate')
+      .mockRejectedValue(Object.assign(new Error('Authority failure'), { status }));
+    const req = makeReq({
+        headers: {
+          authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'strict-session' })}`,
+        },
+      }),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth(options), req, res, next);
+    expect(res.statusCode).toBe(expected);
+    expect(next).not.toHaveBeenCalled();
+  });
+  it('rejects a session that authority declares invalid', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    jest.spyOn(oxy.session, 'validate').mockResolvedValue(null);
+    const req = makeReq({
+        headers: {
+          authorization: `Bearer ${forgeToken({ userId: VICTIM_ID, sessionId: 'strict-session' })}`,
+        },
+      }),
+      res = makeRes(),
+      next = jest.fn();
+    await run(oxy.middleware.auth(options), req, res, next);
+    expect(res.statusCode).toBe(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+});

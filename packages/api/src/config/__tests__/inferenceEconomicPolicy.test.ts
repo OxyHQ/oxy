@@ -6,11 +6,15 @@
 
 import {
   ALIA_INFERENCE_CONSUMER_APPLICATION_ID,
+  CLARITY_EMBEDDINGS_DEPLOYMENT,
+  CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
   INFERENCE_ECONOMIC_POLICY_VERSION,
   INTERNAL_METERED_RELATIONSHIPS,
+  pilotTextTerms,
   resolveEconomicTreatment,
   type EconomicTreatmentPrincipal,
 } from '../inferenceEconomicPolicy';
+import { NATIVE_PRODUCT_AGENTS } from '../nativeProductAgents';
 import { ALIA_APPLICATION_ID } from '../../scripts/seedOxyApplicationsSpecs';
 
 const alia: EconomicTreatmentPrincipal = {
@@ -89,5 +93,111 @@ describe('resolveEconomicTreatment', () => {
       expect(relationship.capacity.maxConcurrentRequests).toBeGreaterThan(0);
       expect(relationship.capacity.maxRequestsPerUtcDay).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('alia-kaana grant terms for voice (Alia ADR 0017, Kaana ADR 0002)', () => {
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'alia-kaana',
+  );
+
+  it('admits realtime conversation sessions under a per-minute price ceiling, and nothing else', () => {
+    expect(relationship?.pilot?.realtime).toEqual({
+      sessionKinds: ['conversation'],
+      maxPricePerMinuteUsd: '0.25',
+    });
+  });
+
+  it('admits transcriptions of at most Alia’s 5-minute clip under a per-request ceiling', () => {
+    expect(relationship?.pilot?.transcription).toEqual({
+      maxInputAudioMilliseconds: 300_000,
+      maxPricePerRequestUsd: '0.05',
+    });
+  });
+
+  it('carries no concurrency or spend of its own for voice: those are Console configuration', () => {
+    const realtime = relationship?.pilot?.realtime ?? {};
+    const transcription = relationship?.pilot?.transcription ?? {};
+    for (const terms of [realtime, transcription]) {
+      expect(Object.keys(terms).some((key) => /concurren|session.*limit|spend/i.test(key))).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe('clarity-kaana: Clarity search embeddings, and nothing else', () => {
+  const relationship = INTERNAL_METERED_RELATIONSHIPS.find(
+    (candidate) => candidate.relationshipId === 'clarity-kaana',
+  );
+  const clarity: EconomicTreatmentPrincipal = {
+    lane: 'service_token',
+    applicationId: CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
+    environment: 'production',
+    applicationIsInternal: true,
+  };
+
+  it('pins the backend application Clarity calls kaana.ai with', () => {
+    expect(CLARITY_INFERENCE_CONSUMER_APPLICATION_ID).toBe(
+      NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id,
+    );
+  });
+
+  it('treats Clarity’s production service token as internal_metered under it, and nothing else', () => {
+    expect(resolveEconomicTreatment(clarity)).toMatchObject({
+      treatment: 'internal_metered',
+      relationship: { relationshipId: 'clarity-kaana', consumerProduct: 'clarity' },
+    });
+    expect(resolveEconomicTreatment({ ...clarity, lane: 'machine_credential' }).treatment).toBe(
+      'commercial',
+    );
+    expect(resolveEconomicTreatment({ ...clarity, environment: 'development' }).treatment).toBe(
+      'commercial',
+    );
+    expect(resolveEconomicTreatment({ ...clarity, applicationIsInternal: false }).treatment).toBe(
+      'commercial',
+    );
+  });
+
+  it('carries embeddings terms only: no text, speech, realtime, transcription or promotional lane', () => {
+    const pilot = relationship?.pilot;
+    expect(pilot).toBeDefined();
+    if (pilot === undefined) return;
+    expect(pilotTextTerms(pilot)).toBeUndefined();
+    expect(Object.keys(pilot)).toEqual(['embeddings']);
+    expect(pilot.embeddings).toEqual({
+      maxInputTokens: 65_536,
+      maxPricePerRequestUsd: '0.001',
+      deployments: [CLARITY_EMBEDDINGS_DEPLOYMENT],
+    });
+  });
+
+  it('names the one route Kaana published for qwen/qwen3-embedding-8b', () => {
+    expect(CLARITY_EMBEDDINGS_DEPLOYMENT).toEqual({
+      deploymentId: 'dep_openrouter_qwen_qwen3_embedding_8b_observed_2026_10_15',
+      modelReference: 'qwen/qwen3-embedding-8b@observed-2026-10-15',
+      provider: 'openrouter',
+    });
+  });
+
+  it('admits Clarity’s largest request and quotes it under the ceiling at the line’s list price', () => {
+    // 128 chunks of 2,000 characters, as Kaana estimates them (length / 4 + 1).
+    const largest = 128 * (2000 / 4 + 1);
+    expect(largest).toBeLessThanOrEqual(relationship?.pilot?.embeddings?.maxInputTokens ?? 0);
+    // $0.01 per 1M input tokens, in micro-dollars to stay exact.
+    const quoteMicroUsd =
+      ((relationship?.pilot?.embeddings?.maxInputTokens ?? 0) * 10_000) / 1_000_000;
+    expect(quoteMicroUsd).toBeLessThanOrEqual(1_000);
+  });
+
+  it('bounds the day and the concurrency', () => {
+    expect(relationship?.capacity).toEqual({
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 60_000,
+    });
+  });
+
+  it('stamps the version that introduced it', () => {
+    expect(INFERENCE_ECONOMIC_POLICY_VERSION).toBe('oxy-inference-economics/2026-10-15.3');
   });
 });

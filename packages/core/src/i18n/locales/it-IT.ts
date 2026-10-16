@@ -20,7 +20,9 @@ const dict = {
     },
     errors: {
       rateLimited: 'Troppi tentativi. Riprova tra {{seconds}} s.',
-      invalidCredentials: 'Nome utente, email o password non corretti.',
+      invalidCredentials:
+        'Nome utente, email o password non corretti. Se più account usano questa email, accedi con il nome utente.',
+      emailAccountsFull: 'Questa email ha già il numero massimo di account.',
       codeInvalid: 'Il codice non è corretto o è scaduto.',
       requestExpired: 'Questo accesso è scaduto. Invia una nuova email.',
       secondFactorInvalid: 'Il codice non è corretto. Prova con quello attuale.',
@@ -31,6 +33,10 @@ const dict = {
         "{{app}} non è ancora configurata per l'accesso. Contatta lo sviluppatore dell'app.",
       failed: "Impossibile avviare l'accesso",
       failedDescription: 'Qualcosa è andato storto. Riprova.',
+    },
+    emailAccounts: {
+      title: 'Scegli un account',
+      description: '{{identifier}} ha più account. Scegli quello con cui accedere.',
     },
     chooser: {
       subtitleToApp: 'per continuare su {{app}}',

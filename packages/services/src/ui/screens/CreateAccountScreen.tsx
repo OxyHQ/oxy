@@ -1,9 +1,10 @@
 import type React from 'react';
+import type { OrganizationType } from '@oxy.so/contracts';
 import {
   ORGANIZATION_NAME_MAX_LENGTH,
-  organizationNameSchema,
-  type OrganizationType,
-} from '@oxy.so/contracts';
+  organizationNameCheck,
+  checkContract,
+} from '@oxy.so/contracts/client';
 import { OrganizationDirectorySearch } from '../components/organizations/OrganizationDirectorySearch';
 import { OrganizationTypePicker } from '../components/organizations/OrganizationTypePicker';
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -21,12 +22,12 @@ import {
 import {
   applyBotUsernameSuffix,
   stripDisallowedUsernameCharacters,
-  usernameSchemaForAccountKind,
+  usernameCheckForAccountKind,
   BOT_USERNAME_INVALID_MESSAGE,
   USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
-} from '@oxy.so/contracts';
+} from '@oxy.so/contracts/client';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -119,7 +120,12 @@ const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUN
  * account via the `parentAccountId` prop. NOT the cryptographic Commons/DID
  * "identity" — that is a separate concept.
  */
-const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, parentAccountId }) => {
+const CreateAccountScreen: React.FC<BaseScreenProps> = ({
+  onClose,
+  goBack,
+  parentAccountId,
+  navigate,
+}) => {
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount, user, canUsePrivateApi } = useOxy();
   const { t, locale } = useI18n();
@@ -196,9 +202,9 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
       // somebody who typed `a.b` to append `bot` sends them to be refused a second
       // time. The issue is read to choose between two LOCALIZED strings rather than
       // shown directly — the schema's message is English, and this screen is not.
-      const parsed = usernameSchemaForAccountKind(forKind).safeParse(value);
-      if (!parsed.success) {
-        const failedTheLabel = parsed.error.issues[0]?.message === BOT_USERNAME_INVALID_MESSAGE;
+      const checked = usernameCheckForAccountKind(forKind)(value, []);
+      if (!checked.ok) {
+        const failedTheLabel = checked.issue.message === BOT_USERNAME_INVALID_MESSAGE;
         setUsernameStatus('invalid');
         setUsernameMessage(
           failedTheLabel
@@ -282,7 +288,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
       }
       if (kind === 'organization') {
         setDisplayNameError(
-          organizationNameSchema.safeParse(trimmed).success
+          checkContract(organizationNameCheck, trimmed) !== null
             ? ''
             : t('organizationDirectory.invalidName'),
         );
@@ -398,6 +404,15 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, paren
 
   return (
     <View className="gap-space-16 px-screen-margin pt-space-16 pb-space-32">
+      {user?.kind === 'personal' && !parentId ? (
+        <SettingsListGroup title={t('supervision.title')}>
+          <SettingsListItem
+            title={t('supervision.setupOwn')}
+            description={t('supervision.setupOwnDescription')}
+            onPress={() => navigate?.('Supervision')}
+          />
+        </SettingsListGroup>
+      ) : null}
       {/* Account type — canonical grouped selection rows (checkmark on the chosen one) */}
       <SettingsListGroup title={t('accounts.create.typeSection') || 'Account type'}>
         {KIND_OPTIONS.map((option) => {

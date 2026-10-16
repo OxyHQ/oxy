@@ -18,7 +18,7 @@ export type { AuthorizationHeaders } from './http';
 export { createCatalogMcpHttpService } from './httpTransport';
 export { createInternalCatalogMcpHttpService } from './internalTransport';
 export type { InternalCatalogMcpHttpServiceOptions } from './internalTransport';
-export { createInternalCatalogMcpClient } from './internalClient';
+export { createInternalCatalogMcpClient, InternalMcpRefusedError } from './internalClient';
 export type { InternalCatalogMcpClientOptions } from './internalClient';
 export {
   registerCatalogWithInvocationPrincipal,
@@ -43,6 +43,8 @@ export {
 } from './connections';
 export type { OxyMcpAccountLink } from './connections';
 export { OxyMcpRequestError, postOxyServiceJson } from './serviceRequest';
+export { capabilityCatalogDigest, registerCapabilityCatalog } from './catalogRegistration';
+export type { RegisterCapabilityCatalogOptions } from './catalogRegistration';
 export type { OxyMcpServiceRequestOptions } from './serviceRequest';
 export {
   buildProtectedResourceMetadata,

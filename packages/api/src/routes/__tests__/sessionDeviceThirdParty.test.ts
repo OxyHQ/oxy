@@ -31,6 +31,7 @@ jest.mock('../../middleware/originGuard', () => ({
   requireSameSiteOrigin: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../middleware/rateLimiter', () => ({
+  ...jest.requireActual('../../middleware/rateLimiter'),
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../services/loginLockout.service', () => ({

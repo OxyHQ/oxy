@@ -184,7 +184,7 @@ export async function selectValidators(
 
   // Weighted reservoir: key = u^(1/w); highest keys win. Deterministic in seed.
   const ranked = candidates
-    .map((c) => ({ ...c, key: Math.pow(hashUnit(rngSeed, c.userId), 1 / c.weight) }))
+    .map((c) => ({ ...c, key: hashUnit(rngSeed, c.userId) ** (1 / c.weight) }))
     .sort((a, b) => b.key - a.key);
 
   const selected: string[] = [];

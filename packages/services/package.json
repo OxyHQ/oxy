@@ -1,6 +1,6 @@
 {
   "name": "@oxy.so/services",
-  "version": "11.4.0",
+  "version": "11.9.0",
   "description": "OxyHQ Expo/React Native SDK — UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -111,7 +111,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/oxyhq/sdk",
+    "url": "git+https://github.com/OxyHQ/oxy.git",
     "directory": "packages/services"
   },
   "author": "OxyHQ",
@@ -136,28 +136,13 @@
     "copy-dts": "copyfiles -u 1 \"src/**/*.d.ts\" lib/typescript",
     "delete-debug-view": "rm -rf ./lib/commonjs/components/bottomSheetDebugView ./lib/module/components/bottomSheetDebugView ./lib/typescript/components/bottomSheetDebugView || true",
     "delete-dts.js": "find ./lib/commonjs -name '*.d.js*' -delete && find ./lib/module -name '*.d.js*' -delete",
-    "release": "rm -rf lib && bun run build && release-it",
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run typescript && bun run test && bun run build"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/services@${version}",
-      "tagAnnotation": "Release @oxy.so/services@${version}",
-      "commitMessage": "chore(services): release @oxy.so/services@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/services@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
   },
   "dependencies": {
     "@expo/config-plugins": "catalog:",
     "@oxy.so/contracts": "workspace:*",
     "color": "^5.0.3",
-    "@peable.to/sdk": "0.2.7-oxy-one.1"
+    "@peable.to/sdk": "0.2.7"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",
@@ -206,7 +191,6 @@
     "react-native-reanimated": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
-    "release-it": "catalog:",
     "socket.io-client": "catalog:",
     "ts-jest": "^29.4.12",
     "typescript": "^5.9.2",

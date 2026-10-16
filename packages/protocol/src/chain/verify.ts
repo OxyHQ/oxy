@@ -10,7 +10,8 @@
  *  - the {@link RecordStore} owns the monotonicity frontier + the chain head.
  *
  * The ordered checks (first failure wins):
- *  1. **shape** — the base `signedRecordEnvelopeSchema` (open `type`, opaque
+ *  1. **shape** — the base `signedRecordEnvelopeCheck`, the Zod-free twin of
+ *     `signedRecordEnvelopeSchema` (open `type`, opaque
  *     `record`). An app re-narrows `type` to its own set in its adapter.
  *  2. **signature** — `verifyEnvelopeSignature` recomputes the canonical signing
  *     input and checks the secp256k1 signature against the embedded `publicKey`.
@@ -25,7 +26,8 @@
  * caller makes before invoking the engine, not a property of the envelope.
  */
 
-import { signedRecordEnvelopeSchema, type SignedRecordEnvelope } from '@oxy.so/contracts';
+import type { SignedRecordEnvelope } from '@oxy.so/contracts';
+import { checkContract, signedRecordEnvelopeCheck } from '@oxy.so/contracts/client';
 import { verifyEnvelopeSignature } from '../envelope/sign';
 import { isAuthorizedKey, type VerificationMethodResolver } from '../identity/resolver';
 import { checkContinuity } from './continuity';
@@ -56,7 +58,7 @@ export async function verifyEnvelope(
 ): Promise<VerifyOutcome> {
   // 1. Base envelope shape (open `type`, `record` opaque). An app's adapter
   //    re-narrows `type` to its own accepted set before/around this call.
-  if (!signedRecordEnvelopeSchema.safeParse(env).success) {
+  if (checkContract(signedRecordEnvelopeCheck, env) === null) {
     return { ok: false, reason: 'invalid_envelope' };
   }
 

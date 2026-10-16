@@ -54,23 +54,9 @@ env:
   DOCKERFILE: Dockerfile
 
 jobs:
-  policy:
-    runs-on: ubuntu-latest
-    outputs:
-      active: ${{ steps.policy.outputs.active }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
-      - id: policy
-        run: bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"))' >> "$GITHUB_OUTPUT"
   image:
-    needs: policy
     name: Production image (oxy-api)
-    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy' && needs.policy.outputs.active != 'true'
+    if: github.event_name == 'merge_group' && github.repository == 'OxyHQ/oxy'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     permissions:
@@ -87,10 +73,21 @@ jobs:
         with:
           bun-version-file: package.json
 
+      # The committed Forge audit policy. This was its own `policy` job, a
+      # second runner per queue entry for one `bun -e`; it is the first thing
+      # this job runs now, with the same check, and it still decides before
+      # any AWS step: a failure here fails the job before OIDC is requested,
+      # and an ACTIVE policy skips the scope and so every step after it
+      # (forge-queue-image-inspection.yml publishes the inspected image then).
+      - name: Read the committed Forge audit policy
+        id: policy
+        run: bun -e 'import {readCommittedPolicyStatus} from "./scripts/forge-audit-policy.mjs"; console.log("active=" + (readCommittedPolicyStatus() === "ACTIVE"))' >> "$GITHUB_OUTPUT"
+
       # Deploy to AWS only runs when the push touches its `on.push.paths`; an
       # image for a commit it will not deploy is a wasted runner.
       - name: Does Deploy to AWS ship this entry?
         id: scope
+        if: steps.policy.outputs.active != 'true'
         run: bun scripts/deploy-image-scope.mjs "${{ github.event.merge_group.base_sha }}" "$GITHUB_SHA"
 
       - name: Configure AWS credentials (OIDC, ECR push only)

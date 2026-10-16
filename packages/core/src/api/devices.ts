@@ -11,21 +11,24 @@
  * its own non-rotating credential. The mint carries NO persistence or
  * token-planting side effects: the cold boot / re-mint handler own those.
  */
-import {
-  deviceBackgroundCredentialResponseSchema,
-  deviceJoinCodeResponseSchema,
-  deviceJoinResponseSchema,
-  deviceRegisterResponseSchema,
-  deviceTokenMintResponseSchema,
-  safeParseContract,
-  type DeviceBackgroundCredentialResponse,
-  type DeviceJoinCodeRequest,
-  type DeviceJoinCodeResponse,
-  type DeviceJoinRequest,
-  type DeviceJoinResponse,
-  type DeviceRegisterResponse,
-  type DeviceTokenMintResponse,
+import type {
+  DeviceBackgroundCredentialResponse,
+  DeviceJoinCodeRequest,
+  DeviceJoinCodeResponse,
+  DeviceJoinRequest,
+  DeviceJoinResponse,
+  DeviceRegisterResponse,
+  DeviceTokenMintResponse,
 } from '@oxy.so/contracts';
+import {
+  checkContract,
+  deviceBackgroundCredentialResponseCheck,
+  deviceJoinCodeResponseCheck,
+  deviceJoinResponseCheck,
+  deviceRegisterResponseCheck,
+  deviceTokenMintResponseCheck,
+  type Check,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import type {
   DeviceLinkedSession,
@@ -103,7 +106,7 @@ async function bridgeRequest<T>(
   ctx: OxyContext,
   url: string,
   body: object,
-  schema: Parameters<typeof safeParseContract<T>>[0],
+  check: Check<T>,
 ): Promise<T> {
   const res = await ctx.request<unknown>('POST', url, body, {
     cache: false,
@@ -111,7 +114,7 @@ async function bridgeRequest<T>(
     retry: false,
     bypassQueue: true,
   });
-  const parsed = safeParseContract(schema, res);
+  const parsed = checkContract(check, res);
   if (!parsed) {
     throw new Error(`${url.slice(1)} returned an unexpected response shape`);
   }
@@ -326,7 +329,7 @@ export class DevicesApi {
    * `401 account_not_on_device`, surfaced here as {@link AccountNotOnDeviceError}.
    *
    * @throws {AccountNotOnDeviceError} when a pinned mint's account is not on the device.
-   * @throws if the response does not match {@link deviceTokenMintResponseSchema}.
+   * @throws if the response does not match {@link deviceTokenMintResponseCheck}.
    */
   async mintToken(
     deviceId: string,
@@ -344,7 +347,7 @@ export class DevicesApi {
         // awaiting it, or the whole client deadlocks. See RequestOptions.bypassQueue.
         { cache: false, skipAuth: true, retry: false, bypassQueue: true },
       );
-      const parsed = safeParseContract(deviceTokenMintResponseSchema, res);
+      const parsed = checkContract(deviceTokenMintResponseCheck, res);
       if (!parsed) {
         throw new Error('session/device/token returned an unexpected response shape');
       }
@@ -362,10 +365,10 @@ export class DevicesApi {
    * device with a server-chosen id and auth.oxy.so's holder credential. No
    * bearer: this runs before anyone is signed in.
    *
-   * @throws if the response does not match {@link deviceRegisterResponseSchema}.
+   * @throws if the response does not match {@link deviceRegisterResponseCheck}.
    */
   async registerBrowser(): Promise<DeviceRegisterResponse> {
-    return bridgeRequest(this.ctx, '/session/device/register', {}, deviceRegisterResponseSchema);
+    return bridgeRequest(this.ctx, '/session/device/register', {}, deviceRegisterResponseCheck);
   }
 
   /**
@@ -380,7 +383,7 @@ export class DevicesApi {
       this.ctx,
       '/session/device/join-code',
       request,
-      deviceJoinCodeResponseSchema,
+      deviceJoinCodeResponseCheck,
     );
   }
 
@@ -391,7 +394,7 @@ export class DevicesApi {
    * {@link DevicesApi.mintToken} like any other holder.
    */
   async joinBrowser(request: DeviceJoinRequest): Promise<DeviceJoinResponse> {
-    return bridgeRequest(this.ctx, '/session/device/join', request, deviceJoinResponseSchema);
+    return bridgeRequest(this.ctx, '/session/device/join', request, deviceJoinResponseCheck);
   }
 
   /**
@@ -444,7 +447,7 @@ export class DevicesApi {
    * (404). The API deploy leads the SDK release, so a client on a newer SDK
    * than the server degrades to "no background session" quietly instead of
    * surfacing an error.
-   * @throws if the response does not match {@link deviceBackgroundCredentialResponseSchema}.
+   * @throws if the response does not match {@link deviceBackgroundCredentialResponseCheck}.
    */
   async provisionBackgroundCredential(): Promise<DeviceBackgroundCredentialResponse | null> {
     try {
@@ -454,7 +457,7 @@ export class DevicesApi {
         undefined,
         { cache: false },
       );
-      const parsed = safeParseContract(deviceBackgroundCredentialResponseSchema, res);
+      const parsed = checkContract(deviceBackgroundCredentialResponseCheck, res);
       if (!parsed) {
         throw new Error(
           'session/device/background-credential returned an unexpected response shape',

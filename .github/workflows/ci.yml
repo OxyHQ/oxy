@@ -47,6 +47,7 @@ concurrency:
 #                    api       `api-test` (+ `api-coverage`) and `api-build`
 #                    platform  `packages-platform`
 #                    apps      `packages-apps`
+#                    android   `android-kotlin` (by path, not closure)
 #   merge_group    everything, unconditionally. `CI complete` refuses to pass
 #   (and push)     there if ANY job was skipped (scripts/check-ci-complete.mjs),
 #                  so nothing reaches main without the complete suite passing on
@@ -55,10 +56,11 @@ concurrency:
 #
 # Jobs per run (each holds one of the org's 20 concurrent runners): 14 on
 # merge_group/push and on a pull request that reaches everything (6 shards + 8);
-# a pull request that touches one package runs `scope`, `guards`,
-# `android-kotlin` (which decides in its own steps), the one suite that reaches
-# it and `CI complete` — 5 — and a docs-only one runs 4 (a skipped job or matrix
-# holds no runner). Of the 19 pull requests merged before
+# a pull request that touches one package runs `scope`, `guards`, the one suite
+# that reaches it and `CI complete` — 4 — and a docs-only one runs 3 (a skipped
+# job or matrix holds no runner). `android-kotlin` used to take a runner on
+# every pull request just to decide in its first step that it had nothing to
+# do; `scope` decides it now. Of the 19 pull requests merged before
 # 2026-09-30, the scope skipped `packages-platform` on 10 and `packages-apps` on
 # 9 (`bun scripts/ci-scope.mjs --base <merge>^1 --head <merge>`).
 #
@@ -103,11 +105,12 @@ jobs:
       api: ${{ steps.full.outputs.api || steps.scope.outputs.api }}
       platform: ${{ steps.full.outputs.platform || steps.scope.outputs.platform }}
       apps: ${{ steps.full.outputs.apps || steps.scope.outputs.apps }}
+      android: ${{ steps.full.outputs.android || steps.scope.outputs.android }}
     steps:
       - name: Not a pull request, so the complete suite runs
         id: full
         if: ${{ github.event_name != 'pull_request' }}
-        run: printf 'api=true\nplatform=true\napps=true\n' >> "$GITHUB_OUTPUT"
+        run: printf 'api=true\nplatform=true\napps=true\nandroid=true\n' >> "$GITHUB_OUTPUT"
       - name: Checkout code
         if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v7
@@ -441,12 +444,7 @@ jobs:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: ${{ strategy.job-total }}
           DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5432/oxy_test
-          ACCESS_TOKEN_SECRET: test_access_token_secret_minimum_32_characters
-          REFRESH_TOKEN_SECRET: test_refresh_token_secret_minimum_32_characters
-          AWS_REGION: us-east-1
-          AWS_ACCESS_KEY_ID: test_aws_access_key
-          AWS_SECRET_ACCESS_KEY: test_aws_secret_key
-          AWS_S3_BUCKET: test-bucket
+          # The suite's own environment (token secrets, AWS) is `jest.setup.cjs`'s.
           NODE_ENV: test
 
       # Checked here as well as in `api-coverage`, so an empty report fails on the
@@ -560,6 +558,9 @@ jobs:
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
       contents: read
+    # ~2.5 minutes measured (p95 under 3); a backstop for a wedged runner, not
+    # a budget.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout code
@@ -632,7 +633,15 @@ jobs:
   # asset-variant worker and SIGTERM. amd64, not production's arm64: the
   # PostGIS image the migrations need (postgis/postgis, as in `api-test`) is
   # published for amd64 only. The merge queue still builds the arm64 image.
-  # No BuildKit cache: the shared scope holds arm64 layers.
+  #
+  # BuildKit cache: READ-ONLY, from its own amd64 scope `oxy-api-ci-amd64` (the
+  # deploy's `oxy-api-backend` scope holds arm64 layers). The only writer is
+  # `.github/workflows/ci-build-cache.yml`, on a push to main, and the weekly
+  # `--no-cache` rebuild in refresh-image-cache.yml, exactly as for the arm64
+  # scope; nothing in this file exports one (scripts/check-ci-build-cache.mjs). A
+  # layer is reused only when its inputs hash the same, so a hit skips a
+  # rebuild of identical inputs, never a step this smoke asserts on: the smoke
+  # runs the image, and the image is built from this tree.
   api-image:
     name: API Image (Bun runtime smoke)
     needs: scope
@@ -683,10 +692,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # `type=gha` needs the Actions runtime token and cache URL, which only
+      # JavaScript actions receive; without this buildx silently skips the
+      # cache (see deploy-aws.yml).
+      - name: Expose the Actions cache to buildx
+        uses: crazy-max/ghaction-github-runtime@v4
+
       - name: Build the API image (linux/amd64)
         run: |
           docker buildx build \
             --platform linux/amd64 \
+            --cache-from type=gha,scope=oxy-api-ci-amd64 \
             -f Dockerfile \
             -t oxy-api:ci \
             --load \
@@ -957,14 +973,13 @@ jobs:
           bash .github/scripts/test-resolve-queue-image.sh
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
+          node --test packages/api/scripts/validate-native-product-bootstrap-report.test.mjs
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           bash .github/scripts/test-report-native-product-agent-task-failure.sh
           bash .github/scripts/test-smoke-inbox-mcp.sh
           bash .github/scripts/test-smoke-service-token-jwks.sh
           bash .github/scripts/test-attest-kaana-catalogue-rollout.sh
-          node --test .github/scripts/release-external-identity-packages.test.mjs
-          node --test .github/scripts/release-external-identity-publication.test.mjs
-          node --test .github/scripts/release-decisions-packages.test.mjs
+          node --test .github/scripts/release-package.test.mjs
           bash .github/scripts/test-run-external-identity-reconciliation.sh
           bash .github/scripts/test-collect-external-identity-task.sh
           python3 .github/scripts/test-read-external-identity-api-logs.py
@@ -1505,11 +1520,15 @@ jobs:
   # project; only the two library modules compile, and only the host's JVM unit
   # test runs — no app, no NDK, no emulator.
   #
-  # Always runs (no job-level `if`, so `CI complete` never sees it skipped); on
-  # a pull request that touches none of these paths its steps are skipped
-  # after the checkout. The merge queue always runs it all.
+  # On a pull request it runs only when `scope` says the change can reach it
+  # (scripts/ci-scope.mjs PATH_SUITES.android: the Kotlin, the manifest
+  # plugins, the manifests, bun.lock or this file). `CI complete` excuses that
+  # skip only on a pull request whose scope succeeded and said `android=false`;
+  # the merge queue always runs it, and refuses a skip there.
   android-kotlin:
     name: Android Kotlin (Commons identity host + services)
+    needs: scope
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.scope.outputs.android != 'false') }}
     runs-on: ubuntu-latest
     # Only reads the checkout (CodeQL `actions/missing-workflow-permissions`).
     permissions:
@@ -1517,46 +1536,22 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 2
-      - name: Does this change reach the Android Kotlin?
-        id: scope
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [ "$EVENT_NAME" != "pull_request" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          # The PR merge commit against its first parent: what the PR adds.
-          if git diff --name-only HEAD^1 HEAD | grep -Eq '^(packages/services/(android/|plugins/|expo-module\.config\.json|package\.json)|packages/commons/(modules/|plugins/|app\.config\.js|package\.json)|packages/app-preset/plugin/|packages/expo-splash/|bun\.lock|\.github/workflows/ci\.yml)'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "No Android Kotlin or manifest-plugin change; nothing to compile." >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - if: ${{ steps.scope.outputs.run == 'true' }}
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - if: ${{ steps.scope.outputs.run == 'true' }}
-        uses: actions/setup-java@v6
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-      - if: ${{ steps.scope.outputs.run == 'true' }}
-        uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6
       - name: Install dependencies
-        if: ${{ steps.scope.outputs.run == 'true' }}
         run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build expo-splash (Commons' app.config.js loads its plugin)
-        if: ${{ steps.scope.outputs.run == 'true' }}
         run: bun run --filter @oxy.so/expo-splash build
       - name: Prebuild Commons (Android)
-        if: ${{ steps.scope.outputs.run == 'true' }}
         working-directory: ./packages/commons
         run: bunx expo prebuild --platform android --no-install
       - name: Compile the identity host and services, run the host's JVM tests
-        if: ${{ steps.scope.outputs.run == 'true' }}
         working-directory: ./packages/commons/android
         run: >-
           ./gradlew --no-daemon -PreactNativeArchitectures=arm64-v8a
@@ -1564,7 +1559,6 @@ jobs:
           :oxy-identity-host:testDebugUnitTest
           :oxy-so-services:compileDebugKotlin
       - name: The merged manifest declares no shared UID and hosts both providers
-        if: ${{ steps.scope.outputs.run == 'true' }}
         working-directory: ./packages/commons/android
         run: |
           set -euo pipefail

@@ -1,0 +1,51 @@
+name: Release packages
+
+# Publishes one public package of this repository (`@oxy.so/core`,
+# `create-oxy-app`, … — any package.json that is not `private`) to npm through
+# the shared `npm-release.yml`, with npm trusted publishing (OIDC) and
+# provenance. Every OxyHQ repository that publishes to npm has this same caller;
+# docs/engineering/package-rules.md#publishing.
+#
+# Order matters when a release spans packages: publish a dependency (contracts,
+# then protocol/telemetry, then core, then services) before its dependents;
+# `inspect` refuses a dependent whose range does not resolve yet.
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package name to release, e.g. @oxy.so/core
+        required: true
+        type: string
+      expected_source_sha:
+        description: Exact protected commit to build and publish
+        required: true
+        type: string
+      dry_run:
+        description: Build, verify and preflight the registry without publishing
+        required: true
+        type: boolean
+        default: true
+      dist_tag:
+        description: npm dist-tag (latest only moves forward)
+        required: true
+        type: string
+        default: latest
+
+# The shared workflow's publish job is the only one that keeps id-token.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release-packages
+  cancel-in-progress: false
+
+jobs:
+  release:
+    uses: ./.github/workflows/npm-release.yml
+    with:
+      package: ${{ inputs.package }}
+      expected_source_sha: ${{ inputs.expected_source_sha }}
+      dry_run: ${{ inputs.dry_run }}
+      dist_tag: ${{ inputs.dist_tag }}

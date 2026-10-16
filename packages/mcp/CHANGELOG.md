@@ -1,5 +1,34 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.3.0
+
+### Added
+
+- `registerCapabilityCatalog(catalog, options)`: register the catalogue this
+  process serves at startup and get back the binding
+  `createInternalCatalogMcpHttpService` requires. It refuses a registration
+  whose version or digest is not this catalogue's. This is Mention's
+  `catalog-registration.ts`, lifted so every app has one copy.
+- `capabilityCatalogDigest(catalog)`: the digest Oxy and the internal transport
+  both compute.
+
+### Changed
+
+- `OxyMcpRequestError.message` carries Oxy's `{ error, message }` refusal text
+  (bounded) when there is no OAuth `error_description`, instead of only the
+  code.
+
+## 1.2.0
+
+### Added
+
+- `InternalMcpRefusedError` from `createInternalCatalogMcpClient`: the app
+  refused the call before it ran, so the operation did NOT happen — the MCP
+  connection failed (the call was never sent) or the call came back 4xx (not
+  408) or 503. Every other failure may follow a committed effect and stays a
+  plain error the caller must treat as an unknown outcome. Alia read Mention's
+  not-ready lane (503) as "outcome unknown" for every read until this.
+
 ## 0.6.0
 
 ### Added

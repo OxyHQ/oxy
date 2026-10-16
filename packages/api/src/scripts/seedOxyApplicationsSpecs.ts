@@ -463,7 +463,21 @@ export const SEED_APPS: SeedAppSpec[] = [
     // `reputation:write` is staff-gated — the seed script grants it to official apps.
     // Interactive Sindi uses Homiio's service token plus X-Oxy-User-Id. The
     // delegation verifier requires this app/credential ceiling explicitly.
-    scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
+    // - The `homiio` capability catalog (Alia ADR 0020, Homiio docs/sindi.md):
+    //   Homiio's API registers it at startup (`catalogs:write`, `catalog:homiio`)
+    //   and serves its internal MCP to Alia, re-authorising and auditing each
+    //   ticket (`capabilities:read`, `capability-audit:write`); its public OAuth
+    //   MCP is mcp.homiio.oxy.so.
+    scopes: [
+      'user:read',
+      'reputation:write',
+      'inference:invoke',
+      'acting-as:offline',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+    ],
+    capabilities: [catalogApplicationCapability('homiio')],
   },
   {
     name: 'Allo',
@@ -594,6 +608,11 @@ export const SEED_APPS: SeedAppSpec[] = [
       'payments:read',
       'payments:write',
       'files:user-media:write',
+      // Digital goods (Mercaria ADR 0010 D17): a creator's asset files are
+      // private Oxy files the creator links to Mercaria; Mercaria decides who
+      // bought what, then mints short-lived download URLs for them through
+      // `/assets/service/linked-url`. Only files their own owners linked here.
+      'files:linked:read',
     ],
     capabilities: [catalogApplicationCapability('mercaria')],
   },
@@ -670,9 +689,32 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://nilo.so',
     type: 'first_party',
     redirectUris: ['https://nilo.so'],
-    // Sign-in and the isolated activity principal need no feature-write or
-    // inference authority. This is not an internal catalogue audience.
-    scopes: ['user:read'],
+    // - `inference:invoke`: Nilo's one-shot AI actions on a member's own text
+    //   (rewrite, summarize, translate) go app -> Oxy edge -> Kaana with the
+    //   member's session, naming a power level. It spends the balance of the
+    //   account that owns Nilo, never the member's (ADR 0007); the owner chose
+    //   that. Not an internal catalogue audience: Nilo stays first_party.
+    // - `files:linked:read`: Nilo's attachments live in Oxy's file manager
+    //   (ADR 0021), linked to the page they belong to. Nilo decides who may
+    //   read a page (private pages, teamspaces, guests), then mints short-lived
+    //   URLs for files linked to it through `/assets/service/linked-url`.
+    // - The `noted` capability catalog: Noted's notes are rows of the owner's
+    //   personal Nilo workspace, and Nilo's API serves the notes tools Alia
+    //   and MCP clients call. Nilo registers that catalog (`catalogs:write`,
+    //   `catalog:noted`), re-authorises and audits each ticket
+    //   (`capabilities:read`, `capability-audit:write`) and publishes its
+    //   events to Alia (`capability-events:publish`). The namespace moved from
+    //   the Noted application with `scripts/transfer-capability-catalog.ts`.
+    scopes: [
+      'user:read',
+      'inference:invoke',
+      'files:linked:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('noted')],
   },
   {
     id: WILLO_APPLICATION_ID,
@@ -681,8 +723,8 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://willo.sh',
     type: 'first_party',
     redirectUris: ['https://willo.sh'],
-    // Isolated activity-only principal, same shape as Nilo's: no feature-write
-    // or inference authority.
+    // Isolated activity-only principal: no feature-write or inference
+    // authority.
     scopes: ['user:read'],
   },
   {

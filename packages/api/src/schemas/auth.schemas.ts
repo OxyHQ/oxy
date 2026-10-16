@@ -1,6 +1,12 @@
-import { commonsDenyReasonSchema, deviceProofSchema, usernameSchema } from '@oxy.so/contracts';
+import {
+  serviceTokenScopesSchema,
+  commonsDenyReasonSchema,
+  deviceProofSchema,
+  usernameSchema,
+} from '@oxy.so/contracts';
 import { z } from 'zod';
 import { ATTESTATION_PROVIDERS } from '../services/workloadAttestation.service';
+import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 
 // POST /auth/register (public key). The username is REQUIRED: an account never
 // exists without one, so it is written in the same insert as the key.
@@ -158,8 +164,11 @@ export const authSessionClaimSchema = z.object({
 
 // POST /auth/service-token
 export const serviceTokenSchema = z.object({
+  scopes: serviceTokenScopesSchema.optional(),
   apiKey: z.string().trim().min(1),
   apiSecret: z.string().trim().min(1),
+  /** The resource server the token is for; `oxy-api` when omitted (Kaana ADR 0002). */
+  audience: z.enum(SERVICE_TOKEN_AUDIENCES).optional(),
 });
 
 // POST /auth/service-token/workload
@@ -169,9 +178,12 @@ export const serviceTokenSchema = z.object({
 // provider's verifier, so it is only constrained to "an object" here — a schema
 // that guessed at AWS's fields would have to change to admit the next provider.
 export const workloadServiceTokenSchema = z.object({
+  scopes: serviceTokenScopesSchema.optional(),
   provider: z.enum(ATTESTATION_PROVIDERS),
   nonce: z.string().trim().min(1).max(256),
   attestation: z.record(z.string(), z.unknown()),
+  /** The resource server the token is for; `oxy-api` when omitted (Kaana ADR 0002). */
+  audience: z.enum(SERVICE_TOKEN_AUDIENCES).optional(),
 });
 
 // POST /auth/oauth/authorize

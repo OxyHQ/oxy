@@ -1,10 +1,17 @@
 {
   "name": "@oxy.so/contracts",
-  "version": "4.15.0",
+  "version": "4.22.0",
   "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "client": [
+        "dist/types/client/index.d.ts"
+      ]
+    }
+  },
   "source": "src/index.ts",
   "sideEffects": false,
   "publishConfig": {
@@ -23,11 +30,24 @@
       },
       "default": "./dist/esm/index.js"
     },
+    "./client": {
+      "react-native": "./dist/esm/client/index.js",
+      "import": {
+        "types": "./dist/types/client/index.d.ts",
+        "default": "./dist/esm/client/index.js"
+      },
+      "require": {
+        "types": "./dist/types/client/index.d.ts",
+        "default": "./dist/cjs/client/index.js"
+      },
+      "default": "./dist/esm/client/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "NOTICE",
-    "dist"
+    "dist",
+    "!dist/**/*.tsbuildinfo"
   ],
   "keywords": [
     "oxyhq",
@@ -39,7 +59,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/oxyhq/sdk",
+    "url": "git+https://github.com/OxyHQ/oxy.git",
     "directory": "packages/contracts"
   },
   "author": "OxyHQ",
@@ -57,22 +77,7 @@
     "typescript": "tsc --noEmit",
     "test": "jest --passWithNoTests",
     "lint": "biome lint --error-on-warnings ./src",
-    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build",
-    "release": "rm -rf dist && bun run build && release-it"
-  },
-  "release-it": {
-    "git": {
-      "tagName": "@oxy.so/contracts@${version}",
-      "tagAnnotation": "Release @oxy.so/contracts@${version}",
-      "commitMessage": "chore(contracts): release @oxy.so/contracts@${version}"
-    },
-    "github": {
-      "release": true,
-      "releaseName": "@oxy.so/contracts@${version}"
-    },
-    "npm": {
-      "publish": true
-    }
+    "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
     "zod": "^3.25.64"
@@ -80,7 +85,6 @@
   "devDependencies": {
     "@types/node": "^20.19.43",
     "jest": "^30.5.1",
-    "release-it": "catalog:",
     "typescript": "^5.9.2"
   }
 }

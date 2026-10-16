@@ -16,6 +16,7 @@ import http from 'http';
 import { createHash, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 import { eq } from 'drizzle-orm';
+import { EMAIL_ACCOUNTS_MAX, EMAIL_SIGNIN_CHOICE_TTL_MS } from '@oxy.so/contracts';
 
 process.env.ACCESS_TOKEN_SECRET = 'signin-test-access-secret';
 process.env.REFRESH_TOKEN_SECRET = 'signin-test-refresh-secret';
@@ -23,12 +24,10 @@ process.env.DEVICE_ID_SALT = 'signin-test-device-id-salt-0123456789abcdef';
 
 const mockSendSignIn = jest.fn();
 const mockSendCode = jest.fn();
-const mockSendNotice = jest.fn();
 
 jest.mock('../../services/accountEmail.mail', () => ({
   sendSignInEmail: (...args: unknown[]) => mockSendSignIn(...args),
   sendVerificationCode: (...args: unknown[]) => mockSendCode(...args),
-  sendAccountExistsNotice: (...args: unknown[]) => mockSendNotice(...args),
   sendReauthCode: jest.fn(),
   sendSecurityNotice: jest.fn(),
 }));
@@ -67,6 +66,7 @@ import {
 } from '../../services/totp.service';
 import {
   SIGNIN_CODE_FAILURES_PER_DAY,
+  chooseEmailSignInAccount,
   confirmEmailSignIn,
   startEmailSignIn,
 } from '../../services/emailSignIn.service';
@@ -130,7 +130,6 @@ beforeEach(() => {
   setOriginSnapshotForTests([APP_ORIGIN], ['https://third-party.example']);
   mockSendSignIn.mockResolvedValue(undefined);
   mockSendCode.mockResolvedValue(undefined);
-  mockSendNotice.mockResolvedValue(undefined);
 });
 
 afterEach(() => resetOriginRegistryForTests());
@@ -1031,7 +1030,7 @@ describe('the per-account code ceiling', () => {
     await burnCeiling(victim);
     await expect(
       confirmEmailSignIn({ ...early, code: earlyCode, requesterKey: 'another-ip', device: app }),
-    ).resolves.toBe(victim.id);
+    ).resolves.toEqual({ userId: victim.id });
   });
 });
 
@@ -1201,6 +1200,279 @@ describe('sign-up', () => {
     expect(
       (await post('/signup', { username: 'no spaces allowed', email, emailTicket })).status,
     ).toBe(400);
+  });
+});
+
+describe('one email, several accounts', () => {
+  /** Two (or more) personal accounts on one fresh address, oldest first. */
+  async function sharedEmail(count = 2) {
+    const email = `shared-${suffix()}@example.test`;
+    const holders = [];
+    for (let index = 0; index < count; index += 1) holders.push(await account({ email }));
+    return { email, holders };
+  }
+
+  type Choice = { chooseAccount: true; accounts: { id: string; username?: string }[] };
+
+  it('a sign-up for an email that already holds an account creates another one', async () => {
+    const { confirmEmailVerification, startEmailVerification } = await import(
+      '../../services/accountEmail.service'
+    );
+    const existing = await account();
+    const email = existing.email as string;
+    const { verificationId } = await startEmailVerification(
+      { purpose: 'signup', email },
+      'test-requester',
+    );
+    const code = mockSendCode.mock.calls.find(([to]) => to === email)?.[1] as string;
+    const { ticket } = await confirmEmailVerification(verificationId, code);
+
+    const username = `second${suffix()}`;
+    const res = await post('/signup', { username, email, emailTicket: ticket });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ user: { username } });
+    const holders = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email));
+    expect(holders).toHaveLength(2);
+  });
+
+  it(`refuses a sign-up past ${EMAIL_ACCOUNTS_MAX} accounts on one email`, async () => {
+    const { confirmEmailVerification, startEmailVerification } = await import(
+      '../../services/accountEmail.service'
+    );
+    const { email } = await sharedEmail(EMAIL_ACCOUNTS_MAX);
+    const { verificationId } = await startEmailVerification(
+      { purpose: 'signup', email },
+      'test-requester',
+    );
+    const code = mockSendCode.mock.calls.find(([to]) => to === email)?.[1] as string;
+    const { ticket } = await confirmEmailVerification(verificationId, code);
+
+    const res = await post('/signup', { username: `full${suffix()}`, email, emailTicket: ticket });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('EMAIL_ACCOUNTS_FULL');
+  });
+
+  it('the code proves the mailbox and lists its accounts; the chosen one signs in, once', async () => {
+    const { email, holders } = await sharedEmail();
+    const { requestId, requestSecret } = await start(email.toUpperCase());
+    const mail = mailFor(email);
+    // Which account is not said in the email: it is chosen after the code.
+    expect(mail).toMatchObject({ username: null, severalAccounts: true });
+
+    const proven = await post('/signin/email/confirm', {
+      requestId,
+      requestSecret,
+      code: mail.code,
+    });
+    expect(proven.status).toBe(200);
+    expect(proven.body).toMatchObject({
+      chooseAccount: true,
+      accounts: holders.map((holder) => ({ id: holder.id, username: holder.username })),
+    });
+    expect(await sessionCount(holders[0].id)).toBe(0);
+    expect(await sessionCount(holders[1].id)).toBe(0);
+
+    // The choice again with the code: spent.
+    expect(
+      (await post('/signin/email/confirm', { requestId, requestSecret, code: mail.code })).status,
+    ).toBe(401);
+
+    const chosen = await post('/signin/email/choose', {
+      requestId,
+      requestSecret,
+      userId: holders[1].id,
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body).toMatchObject({ user: { id: holders[1].id } });
+    expect(await sessionCount(holders[1].id)).toBe(1);
+    expect(await sessionCount(holders[0].id)).toBe(0);
+
+    // Spent: no second account from the same proof.
+    expect(
+      (await post('/signin/email/choose', { requestId, requestSecret, userId: holders[0].id }))
+        .status,
+    ).toBe(401);
+    expect(await sessionCount(holders[0].id)).toBe(0);
+  });
+
+  it('chooses only among the listed accounts, only with the secret, and only while the choice lasts', async () => {
+    const { email, holders } = await sharedEmail();
+    const stranger = await account();
+    const { requestId, requestSecret } = await start(email);
+    await post('/signin/email/confirm', { requestId, requestSecret, code: mailFor(email).code });
+
+    const outsider = await post('/signin/email/choose', {
+      requestId,
+      requestSecret,
+      userId: stranger.id,
+    });
+    expect(outsider.status).toBe(401);
+    expect(outsider.body.error).toBe('SIGNIN_REQUEST_INVALID');
+    expect(await sessionCount(stranger.id)).toBe(0);
+    const noSecret = await post('/signin/email/choose', {
+      requestId,
+      requestSecret: 'B'.repeat(43),
+      userId: holders[0].id,
+    });
+    expect(noSecret.status).toBe(401);
+    await expect(
+      chooseEmailSignInAccount(
+        { requestId, requestSecret, userId: holders[0].id },
+        new Date(Date.now() + EMAIL_SIGNIN_CHOICE_TTL_MS + 1000),
+      ),
+    ).rejects.toMatchObject({ code: 'SIGNIN_REQUEST_INVALID' });
+
+    // None of those spent it.
+    expect(
+      (await post('/signin/email/choose', { requestId, requestSecret, userId: holders[0].id }))
+        .status,
+    ).toBe(200);
+  });
+
+  it('a request for an email that holds no account can never be chosen from', async () => {
+    const someone = await account();
+    const { requestId, requestSecret } = await start(`nobody-${suffix()}@example.test`);
+    expect(
+      (await post('/signin/email/choose', { requestId, requestSecret, userId: someone.id })).status,
+    ).toBe(401);
+    expect(
+      (await post('/signin/email/confirm', { requestId, requestSecret, code: '123456' })).status,
+    ).toBe(401);
+  });
+
+  it('a username names its one account, whatever else shares its email', async () => {
+    const { email, holders } = await sharedEmail();
+    const { requestId, requestSecret } = await start(holders[1].username);
+    const mail = mailFor(email);
+    expect(mail.username).toBe(holders[1].username);
+
+    const res = await post('/signin/email/confirm', { requestId, requestSecret, code: mail.code });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ user: { id: holders[1].id } });
+    expect(res.body.chooseAccount).toBeUndefined();
+    expect(await sessionCount(holders[0].id)).toBe(0);
+  });
+
+  it('an email that holds one account signs it in directly', async () => {
+    const only = await account();
+    const { requestId, requestSecret } = await start(only.email as string);
+    const res = await post('/signin/email/confirm', {
+      requestId,
+      requestSecret,
+      code: mailFor(only.email as string).code,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ user: { id: only.id } });
+  });
+
+  it('lists only the accounts that sign in by email: a Commons account is not offered', async () => {
+    const email = `shared-${suffix()}@example.test`;
+    const personal = await account({ email });
+    const keyed = await account({ email, publicKey: `0x${suffix()}${suffix()}` });
+    const { requestId, requestSecret } = await start(email);
+    const res = await post('/signin/email/confirm', {
+      requestId,
+      requestSecret,
+      code: mailFor(email).code,
+    });
+    expect(res.status).toBe(200);
+    // One account left to offer: it signs in, no choice.
+    expect(res.body).toMatchObject({ user: { id: personal.id } });
+    expect(await sessionCount(keyed.id)).toBe(0);
+  });
+
+  it('the link in the same browser proves the mailbox too: collect answers the choice', async () => {
+    const { email, holders } = await sharedEmail();
+    const { auth, app } = await browserDevice();
+    const { requestId, requestSecret } = await start(email, app);
+    const { linkToken } = mailFor(email);
+    expect(
+      (await post('/signin/email/link', { token: linkToken, device: auth }, AUTH_ORIGIN)).status,
+    ).toBe(200);
+
+    // Only with the device the request was made with.
+    expect((await post('/signin/email/collect', { requestId, requestSecret })).status).toBe(401);
+    const collected = await post('/signin/email/collect', {
+      requestId,
+      requestSecret,
+      device: app,
+    });
+    expect(collected.status).toBe(200);
+    expect((collected.body as unknown as Choice).accounts.map((option) => option.id)).toEqual(
+      holders.map((holder) => holder.id),
+    );
+    // A repeated poll answers the same choice.
+    expect(
+      (await post('/signin/email/collect', { requestId, requestSecret, device: app })).body,
+    ).toMatchObject({ chooseAccount: true });
+
+    const chosen = await post('/signin/email/choose', {
+      requestId,
+      requestSecret,
+      userId: holders[0].id,
+      device: app,
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body).toMatchObject({ deviceId: app.deviceId, user: { id: holders[0].id } });
+    expect(
+      (await post('/signin/email/collect', { requestId, requestSecret, device: app })).status,
+    ).toBe(401);
+  });
+
+  it('the chosen account still asks for its authenticator', async () => {
+    const { email, holders } = await sharedEmail();
+    await enableTotp(holders[0].id);
+    const { requestId, requestSecret } = await start(email);
+    await post('/signin/email/confirm', { requestId, requestSecret, code: mailFor(email).code });
+
+    const chosen = await post('/signin/email/choose', {
+      requestId,
+      requestSecret,
+      userId: holders[0].id,
+    });
+    expect(chosen.status).toBe(200);
+    expect(chosen.body.secondFactorRequired).toBe(true);
+    expect(await sessionCount(holders[0].id)).toBe(0);
+  });
+
+  it('a password with a shared email is refused like a wrong one; with the username it signs in', async () => {
+    const { email, holders } = await sharedEmail();
+    await storePassword(holders[0].id, 'correct horse battery');
+
+    const byEmail = await post('/signin/password', {
+      identifier: email,
+      password: 'correct horse battery',
+    });
+    expect(byEmail.status).toBe(401);
+    expect(byEmail.body.error).toBe('SIGNIN_INVALID_CREDENTIALS');
+    const byUsername = await post('/signin/password', {
+      identifier: holders[0].username,
+      password: 'correct horse battery',
+    });
+    expect(byUsername.status).toBe(200);
+    expect(byUsername.body).toMatchObject({ user: { id: holders[0].id } });
+  });
+
+  it('codes guessed through a username count against the whole mailbox', async () => {
+    const { email, holders } = await sharedEmail();
+    const burner = await startEmailSignIn({ identifier: holders[0].username }, 'burner');
+    const burnerCode = mailFor(email).code;
+    const wrong = burnerCode === '000000' ? '000001' : '000000';
+    for (let requester = 0; requester < 10; requester += 1) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await confirmEmailSignIn({
+          ...burner,
+          code: wrong,
+          requesterKey: `rotating-${requester}`,
+        }).catch(() => undefined);
+      }
+    }
+    mockSendSignIn.mockClear();
+    await startEmailSignIn({ identifier: email }, 'fresh-ip');
+    expect(mailFor(email).code).toMatch(/^[2-9A-HJKMNP-TV-Z]{5}-[2-9A-HJKMNP-TV-Z]{5}$/);
   });
 });
 

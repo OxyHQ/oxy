@@ -69,7 +69,7 @@ challenge, plus a fresh email code for `link_commons`):
 |---|---|
 | An email account is created with a confirmed email and no key | `POST /auth/signup` spends the `signup` ticket (`spendSignupTicket`) in the transaction that creates the user |
 | Only official Oxy apps and auth.oxy.so sign in or create accounts | `requireOfficialOrigin` on `/auth/signin/*`, `/auth/signup`, `/auth/email/*`; the link approval answers auth.oxy.so only (`requireAuthWebOrigin`) |
-| Nothing says whether an email or username has an account | `start` answers the same for every case and records a decoy row when nothing is sent; a sign-up for a taken email sends a notice (no code); password sign-in runs the same scrypt work for any identifier (`verifyPasswordOrDummy`). Mail is dispatched without the response waiting on it |
+| Nothing says whether an email or username has an account | `start` answers the same for every case and records a decoy row when nothing is sent; a sign-up mails its code whatever the address already holds (one email may hold several accounts, ADR 0040); password sign-in runs the same scrypt work for any identifier (`verifyPasswordOrDummy`). Mail is dispatched without the response waiting on it |
 | A code is guessed at most 5 times and lives 10 minutes | `consumeEmailCode` / `confirmEmailVerification` (row lock, attempt counter, `expires_at` filter) |
 | Codes are not guessable across requests | 10 wrong sign-in codes per account per requester per day, 50 per account per day overall; past that, the long code (`services/emailSignIn.service.ts`) |
 | The link signs in only the browser that asked | `approveEmailSignInLink`: approves only when auth.oxy.so's proven device is the one the dialog proved at `start`; the session is collected with the dialog's `requestSecret` |
@@ -95,7 +95,7 @@ challenge, plus a fresh email code for `link_commons`):
 | `POST /auth/email/verify/start` | official origin, per-IP and per-email limits | `{ purpose: 'signup', email }` → `{ verificationId, expiresAt }`, whatever exists. |
 | `POST /auth/email/verify/confirm` | official origin, the code | → `{ ticket, expiresAt }`. |
 | `POST /auth/signup` | official origin + the ticket | `{ username, email, emailTicket, device? }` → session. |
-| `POST /auth/signin/email/start`, `/confirm`, `/collect` | official origin; `confirm`/`collect` need the `requestSecret` | Code or link → session, or a second-factor challenge. |
+| `POST /auth/signin/email/start`, `/confirm`, `/collect`, `/choose` | official origin; `confirm`/`collect`/`choose` need the `requestSecret` | Code or link → session, a second-factor challenge, or (an email holding several accounts) the accounts to choose from, then `/choose`. |
 | `POST /auth/signin/email/link` | auth.oxy.so + its device credential | Approves the request for the same browser only. |
 | `POST /auth/signin/password` | official origin, identifier lockout | → session or second-factor challenge. |
 | `POST /auth/signin/second-factor` | the challenge + a TOTP or backup code | → session. |

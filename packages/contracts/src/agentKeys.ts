@@ -2,17 +2,16 @@
 import { z } from 'zod';
 import { reauthProofSchema } from './signIn';
 import { canonicalJson } from './identityProof';
-
-export const AGENT_PROOF_AUDIENCE = 'oxy-api/agent' as const;
-export const AGENT_PROOF_TTL_MS = 60_000;
-export const AGENT_PROOF_ACTIONS = [
-  'agent_signin',
-  'agent_enroll',
-  'agent_rotate',
-  'agent_recover',
-  'agent_governance',
-] as const;
-export type AgentProofAction = (typeof AGENT_PROOF_ACTIONS)[number];
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// it is re-exported here so the root entry is unchanged.
+import { AGENT_PROOF_AUDIENCE, AGENT_PROOF_ACTIONS } from './client/agentKeys';
+export {
+  AGENT_PROOF_AUDIENCE,
+  AGENT_PROOF_TTL_MS,
+  AGENT_PROOF_ACTIONS,
+  ACCOUNT_AUTH_METHODS,
+} from './client/agentKeys';
+export type { AgentProofAction, AccountAuthMethod } from './client/agentKeys';
 
 export const agentProofClaimsSchema = z
   .object({
@@ -58,9 +57,11 @@ export type AgentSignature = z.infer<typeof agentSignatureSchema>;
 export const agentChallengeRequestSchema = z
   .object({ publicKey: z.string().trim().min(1).max(130) })
   .strict();
+export type AgentChallengeRequest = z.infer<typeof agentChallengeRequestSchema>;
 export const agentVerifyRequestSchema = agentSignatureSchema
   .extend({ publicKey: z.string().trim().min(1).max(130) })
   .strict();
+export type AgentVerifyRequest = z.infer<typeof agentVerifyRequestSchema>;
 
 const newKey = {
   publicKey: z.string().trim().min(1).max(130),
@@ -99,6 +100,7 @@ export const executeAgentKeyOperationSchema = z
     proof: agentKeyOperationProofSchema,
   })
   .strict();
+export type ExecuteAgentKeyOperation = z.infer<typeof executeAgentKeyOperationSchema>;
 
 export const agentKeyOperationChallengeSchema = z
   .object({
@@ -106,15 +108,14 @@ export const agentKeyOperationChallengeSchema = z
     governorPublicKey: z.string().nullable(),
   })
   .strict();
+export type AgentKeyOperationChallenge = z.infer<typeof agentKeyOperationChallengeSchema>;
 export const agentKeyOperationResultSchema = z
   .object({
     methodId: z.string().nullable(),
     revokedMethodIds: z.array(z.string()),
   })
   .strict();
-
-export const ACCOUNT_AUTH_METHODS = ['identity', 'agent_key'] as const;
-export type AccountAuthMethod = (typeof ACCOUNT_AUTH_METHODS)[number];
+export type AgentKeyOperationResult = z.infer<typeof agentKeyOperationResultSchema>;
 /** Public credential inventory. Never includes a proof, bearer or private key. */
 export const agentKeyListResponseSchema = z
   .object({
@@ -134,3 +135,4 @@ export const agentKeyListResponseSchema = z
     ),
   })
   .strict();
+export type AgentKeyListResponse = z.infer<typeof agentKeyListResponseSchema>;

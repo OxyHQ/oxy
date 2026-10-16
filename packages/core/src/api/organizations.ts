@@ -1,25 +1,28 @@
-import {
-  organizationSchema,
-  organizationListSchema,
-  organizationBatchSchema,
-  organizationClaimSchema,
-  organizationExternalSchema,
-  organizationExternalResolutionSchema,
-  organizationImportBatchResultSchema,
-  organizationCurationResultSchema,
-  type OrganizationCuration,
-  type OrganizationImportBatch,
-  organizationClaimListSchema,
-  organizationClaimDetailSchema,
-  type OrganizationClaimListQuery,
-  type CreateOrganization,
-  type OrganizationSearch,
-  type UpdateOrganization,
-  type OrganizationClaimInput,
-  type OrganizationClaimReview,
-  type OrganizationExternalInput,
-  type OrganizationMerge,
+import type {
+  OrganizationCuration,
+  OrganizationImportBatch,
+  OrganizationClaimListQuery,
+  CreateOrganization,
+  OrganizationSearch,
+  UpdateOrganization,
+  OrganizationClaimInput,
+  OrganizationClaimReview,
+  OrganizationExternalInput,
+  OrganizationMerge,
 } from '@oxy.so/contracts';
+import {
+  organizationBatchCheck,
+  organizationCheck,
+  organizationClaimCheck,
+  organizationClaimDetailCheck,
+  organizationClaimListCheck,
+  organizationCurationResultCheck,
+  organizationExternalCheck,
+  organizationExternalResolutionCheck,
+  organizationImportBatchResultCheck,
+  organizationListCheck,
+  parseContract,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
 
@@ -27,12 +30,14 @@ import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
 export class OrganizationsApi {
   constructor(private readonly ctx: OxyContext) {}
   async search(input: OrganizationSearch) {
-    return organizationListSchema.parse(
+    return parseContract(
+      organizationListCheck,
       await this.ctx.request('GET', '/organizations', input, { cache: false, skipAuth: true }),
     );
   }
   async get(accountId: string) {
-    return organizationSchema.parse(
+    return parseContract(
+      organizationCheck,
       await this.ctx.request('GET', `/organizations/${encodeURIComponent(accountId)}`, undefined, {
         cache: false,
         skipAuth: true,
@@ -40,7 +45,8 @@ export class OrganizationsApi {
     );
   }
   async batch(input: { ids: string[] }) {
-    return organizationBatchSchema.parse(
+    return parseContract(
+      organizationBatchCheck,
       await this.ctx.request('POST', '/organizations/batch', input, {
         cache: false,
         skipAuth: true,
@@ -48,12 +54,14 @@ export class OrganizationsApi {
     );
   }
   async create(input: CreateOrganization) {
-    return organizationSchema.parse(
+    return parseContract(
+      organizationCheck,
       await this.ctx.request('POST', '/organizations', input, { cache: false }),
     );
   }
   async update(accountId: string, input: UpdateOrganization) {
-    const result = organizationSchema.parse(
+    const result = parseContract(
+      organizationCheck,
       await this.ctx.request('PATCH', `/organizations/${encodeURIComponent(accountId)}`, input, {
         cache: false,
       }),
@@ -63,7 +71,8 @@ export class OrganizationsApi {
     return result;
   }
   async claim(accountId: string, input: OrganizationClaimInput) {
-    return organizationClaimSchema.parse(
+    return parseContract(
+      organizationClaimCheck,
       await this.ctx.request(
         'POST',
         `/organizations/${encodeURIComponent(accountId)}/claims`,
@@ -73,12 +82,14 @@ export class OrganizationsApi {
     );
   }
   async myClaims(input: OrganizationClaimListQuery = {}) {
-    return organizationClaimListSchema.parse(
+    return parseContract(
+      organizationClaimListCheck,
       await this.ctx.request('GET', '/organizations/claims/mine', input, { cache: false }),
     );
   }
   async myClaim(claimId: string) {
-    return organizationClaimDetailSchema.parse(
+    return parseContract(
+      organizationClaimDetailCheck,
       await this.ctx.request(
         'GET',
         `/organizations/claims/mine/${encodeURIComponent(claimId)}`,
@@ -88,12 +99,14 @@ export class OrganizationsApi {
     );
   }
   async reviewClaims(input: OrganizationClaimListQuery = {}) {
-    return organizationClaimListSchema.parse(
+    return parseContract(
+      organizationClaimListCheck,
       await this.ctx.request('GET', '/organizations/claims/review', input, { cache: false }),
     );
   }
   async reviewClaimDetail(claimId: string) {
-    return organizationClaimDetailSchema.parse(
+    return parseContract(
+      organizationClaimDetailCheck,
       await this.ctx.request(
         'GET',
         `/organizations/claims/review/${encodeURIComponent(claimId)}`,
@@ -103,7 +116,8 @@ export class OrganizationsApi {
     );
   }
   async reviewClaim(claimId: string, input: OrganizationClaimReview) {
-    const result = organizationClaimSchema.parse(
+    const result = parseContract(
+      organizationClaimCheck,
       await this.ctx.request(
         'POST',
         `/organizations/claims/${encodeURIComponent(claimId)}/review`,
@@ -118,19 +132,22 @@ export class OrganizationsApi {
   async importBatch(input: OrganizationImportBatch) {
     if (!this.ctx.service?.available)
       throw new Error('Organization batch import requires an OxyServer service identity');
-    return organizationImportBatchResultSchema.parse(
+    return parseContract(
+      organizationImportBatchResultCheck,
       await this.ctx.service.request('POST', '/organizations/external/batch', input, {
         cache: false,
       }),
     );
   }
   async importExternal(input: OrganizationExternalInput) {
-    return organizationExternalSchema.parse(
+    return parseContract(
+      organizationExternalCheck,
       await this.ctx.request('POST', '/organizations/external', input, { cache: false }),
     );
   }
   async resolveExternal(input: { namespace: string; externalId: string }) {
-    return organizationExternalResolutionSchema.parse(
+    return parseContract(
+      organizationExternalResolutionCheck,
       await this.ctx.request(
         'GET',
         `/organizations/external/${encodeURIComponent(input.namespace)}/${encodeURIComponent(input.externalId)}`,
@@ -140,7 +157,8 @@ export class OrganizationsApi {
     );
   }
   async curate(accountId: string, input: OrganizationCuration) {
-    const result = organizationCurationResultSchema.parse(
+    const result = parseContract(
+      organizationCurationResultCheck,
       await this.ctx.request(
         'POST',
         `/organizations/${encodeURIComponent(accountId)}/curation`,
@@ -153,7 +171,8 @@ export class OrganizationsApi {
     return result;
   }
   async merge(accountId: string, input: OrganizationMerge) {
-    const result = organizationSchema.parse(
+    const result = parseContract(
+      organizationCheck,
       await this.ctx.request(
         'POST',
         `/organizations/${encodeURIComponent(accountId)}/merge`,

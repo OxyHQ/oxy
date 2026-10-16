@@ -22,10 +22,11 @@ import {
   INSTANCE_ACTOR_USERNAME,
   normalizeAlsoKnownAs,
 } from '@oxy.so/federation';
+import { createTcoLinkExpander } from '@oxy.so/federation/node';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxy.so/core/server';
 import { getDb } from '../config/postgres';
 import { federationKeyPairs } from '../db/schema/federationKeyPairs';
-import { ACCOUNT_KINDS, users } from '../db/schema/users';
+import { type ACCOUNT_KINDS, users } from '../db/schema/users';
 import { externalIdentityActors } from '../db/schema/externalIdentities';
 import { externalIdentityInstagramPins } from '../db/schema/externalIdentityMetaProofs';
 import { FEDERATION_BRIDGE_POLICY } from '../config/federationBridgePolicy';
@@ -214,6 +215,28 @@ async function safeFederationFetch(
     return null;
   }
 }
+
+/**
+ * A bridged X account's bio carries X's `t.co` wrapper for every link; this
+ * puts back the link the author posted. One SSRF-safe hop, never followed on.
+ */
+const expandTcoLinks = createTcoLinkExpander({
+  userAgent: USER_AGENT,
+  fetchSingleHop: async (url, init) => {
+    const res = await safeFetch(url, {
+      headers: init.headers,
+      signal: init.signal,
+      headersTimeoutMs: init.headersTimeoutMs,
+      redirect: 'manual',
+    });
+    res.response.destroy();
+    const { location } = res.headers;
+    return new Response(null, {
+      status: res.status,
+      headers: typeof location === 'string' ? { location } : {},
+    });
+  },
+});
 
 /**
  * Read an {@link IncomingMessage} body into a Buffer, aborting (and destroying
@@ -1241,6 +1264,7 @@ class FederationService {
           { actorUri },
           res.status,
         );
+      profile.bio = await expandTcoLinks(profile.bio);
       const actorHost = canonicalFederationHost(new URL(actor.id).hostname);
       // Split account/actor hosts are legitimate only when the account host's
       // WebFinger names this exact actor. Neither caller hints nor actor fields

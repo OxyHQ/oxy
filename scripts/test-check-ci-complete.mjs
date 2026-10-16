@@ -85,7 +85,8 @@ function needsFor(root, overrides = {}) {
     needs[id] = { result: 'success', outputs: {} };
   }
   // The scope job's outputs are part of the verdict: a real run reports them.
-  if (needs.scope) needs.scope.outputs = { api: 'true', platform: 'true', apps: 'true' };
+  if (needs.scope)
+    needs.scope.outputs = { api: 'true', platform: 'true', apps: 'true', android: 'true' };
   for (const [id, result] of Object.entries(overrides)) {
     if (result === undefined) delete needs[id];
     else if (typeof result === 'object') needs[id] = { outputs: {}, ...result };
@@ -275,6 +276,7 @@ const REQUIRED_JOBS = [
   'api-image',
   'packages-platform',
   'packages-apps',
+  'android-kotlin',
 ];
 const workflowJobs = Object.keys(
   Bun.YAML.parse(readFileSync(join(repoRoot, WORKFLOW), 'utf8'))?.jobs ?? {},
@@ -434,6 +436,7 @@ for (const [job, output] of [
   ['api-image', 'api'],
   ['packages-platform', 'platform'],
   ['packages-apps', 'apps'],
+  ['android-kotlin', 'android'],
 ]) {
   // Wired to another suite's output, the job would skip on the wrong word.
   const root = createFixture();
@@ -474,6 +477,85 @@ for (const [job, output] of [
     needsFor(root),
     1,
     '`packages-apps` must need `scope`',
+  );
+}
+// ── android-kotlin: decided by `scope` (PATH_SUITES), skippable only on its word
+{
+  const root = createFixture();
+  expectVerdict(
+    'pr-a-scoped-out-android-job-passes',
+    root,
+    needsFor(root, {
+      scope: {
+        result: 'success',
+        outputs: { api: 'true', platform: 'true', apps: 'true', android: 'false' },
+      },
+      'android-kotlin': 'skipped',
+    }),
+    0,
+    '1 skipped for a declared reason',
+  );
+}
+{
+  // The scope said the Kotlin is reached: a skip then has no excuse.
+  const root = createFixture();
+  expectVerdict(
+    'pr-an-android-skip-the-scope-did-not-order-fails',
+    root,
+    needsFor(root, { 'android-kotlin': 'skipped' }),
+    1,
+    '`android-kotlin` was skipped, but `scope` did not decide it could be',
+  );
+}
+{
+  // Another output's `false` never excuses it.
+  const root = createFixture();
+  expectVerdict(
+    'pr-an-android-skip-on-the-api-word-fails',
+    root,
+    needsFor(
+      root,
+      scopedOut({
+        scope: {
+          result: 'success',
+          outputs: { api: 'false', platform: 'true', apps: 'true', android: 'true' },
+        },
+        'android-kotlin': 'skipped',
+      }),
+    ),
+    1,
+    'with android="true"',
+  );
+}
+{
+  // The queue runs it always, whatever a pull request's scope said.
+  const root = createFixture();
+  expectVerdict(
+    'merge-group-refuses-a-scoped-out-android-job',
+    root,
+    needsFor(root, {
+      scope: {
+        result: 'success',
+        outputs: { api: 'true', platform: 'true', apps: 'true', android: 'false' },
+      },
+      'android-kotlin': 'skipped',
+    }),
+    1,
+    '`android-kotlin` was skipped on a `merge_group` run',
+    'merge_group',
+  );
+}
+{
+  const root = createFixture();
+  edit(root, 'android-kotlin-without-an-if-cannot-be-scoped', (yaml) =>
+    yaml.replace(/^ {4}if: .*needs\.scope\.outputs\.android != 'false'.*\n/m, ''),
+  );
+  expectVerdict(
+    'android-kotlin-without-an-if-cannot-be-scoped',
+    root,
+    needsFor(root),
+    1,
+    '`android-kotlin` must need `scope`',
   );
 }
 {

@@ -15,3 +15,5 @@ export { default as ConnectedAppsScreen } from './ConnectedAppsScreen';
 export { default as CreateAccountScreen } from './CreateAccountScreen';
 export { default as AccountMembersScreen } from './AccountMembersScreen';
 export { default as AccountSettingsScreen } from './AccountSettingsScreen';
+
+export { default as SupervisionScreen } from './SupervisionScreen';

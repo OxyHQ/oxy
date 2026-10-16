@@ -15,11 +15,41 @@ name: Deploy Frontends to Cloudflare
 on:
   push:
     branches: [main]
+    # Exactly the union of the `detect-changes` filters below (keep the two in
+    # step): a push outside it would only run `detect-changes` to deploy
+    # nothing, and that runner is one of the org's 20. Not a required check,
+    # so a skipped run blocks nothing; `workflow_dispatch` is unfiltered.
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'turbo.json'
+      - 'patches/**'
+      - 'vendor/expo-native/**'
+      - 'tooling/expo-code-signing-native/**'
+      - '.github/workflows/deploy-cloudflare.yml'
+      - 'packages/accounts/**'
+      - 'packages/auth/**'
+      - 'packages/console/**'
+      - 'packages/app-preset/**'
+      - 'packages/bloom/**'
+      - 'packages/expo-splash/**'
+      - 'packages/core/**'
+      - 'packages/protocol/**'
+      - 'packages/telemetry/**'
+      - 'packages/services/**'
+      - 'packages/contracts/**'
   workflow_dispatch:
+
+# Checkout only. Secrets reach the deploy steps through `secrets.*`, which the
+# token's permissions do not gate.
+permissions:
+  contents: read
 
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       accounts: ${{ steps.filter.outputs.accounts }}
       auth: ${{ steps.filter.outputs.auth }}
@@ -46,6 +76,8 @@ jobs:
               - 'packages/expo-splash/**'
               - 'packages/core/**'
               - 'packages/protocol/**'
+              # core's own dependency: every app here bundles it through core.
+              - 'packages/telemetry/**'
               - 'packages/services/**'
               - 'packages/contracts/**'
             auth:
@@ -63,6 +95,8 @@ jobs:
               - 'packages/bloom/**'
               - 'packages/core/**'
               - 'packages/protocol/**'
+              # core's own dependency: every app here bundles it through core.
+              - 'packages/telemetry/**'
               - 'packages/services/**'
               - 'packages/contracts/**'
             console:
@@ -80,6 +114,8 @@ jobs:
               - 'packages/bloom/**'
               - 'packages/core/**'
               - 'packages/protocol/**'
+              # core's own dependency: every app here bundles it through core.
+              - 'packages/telemetry/**'
               - 'packages/services/**'
               - 'packages/contracts/**'
 
@@ -87,6 +123,15 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.auth == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # p95 ~2m (16 runs to 2026-10-15)
+    # One auth deploy at a time, never cancelled mid-deploy. Per app, not per
+    # workflow: GitHub keeps one PENDING run per group and cancels the older,
+    # which is harmless only when the newer run deploys the same app (it checks
+    # out `main`, a superset); a workflow-wide group would let a push that
+    # touches only another app cancel this one's pending deploy.
+    concurrency:
+      group: deploy-cloudflare-auth
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -145,6 +190,15 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.accounts == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # p95 ~4.5m
+    # One accounts deploy at a time, never cancelled mid-deploy. Per app, not per
+    # workflow: GitHub keeps one PENDING run per group and cancels the older,
+    # which is harmless only when the newer run deploys the same app (it checks
+    # out `main`, a superset); a workflow-wide group would let a push that
+    # touches only another app cancel this one's pending deploy.
+    concurrency:
+      group: deploy-cloudflare-accounts
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -229,6 +283,15 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.console == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    timeout-minutes: 10 # p95 ~2m
+    # One console deploy at a time, never cancelled mid-deploy. Per app, not per
+    # workflow: GitHub keeps one PENDING run per group and cancels the older,
+    # which is harmless only when the newer run deploys the same app (it checks
+    # out `main`, a superset); a workflow-wide group would let a push that
+    # touches only another app cancel this one's pending deploy.
+    concurrency:
+      group: deploy-cloudflare-console
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:

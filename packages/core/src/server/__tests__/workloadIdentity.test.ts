@@ -113,6 +113,23 @@ describe('workload identity client', () => {
     expect(calls.some((call) => call.url.includes('sts.amazonaws.com'))).toBe(false);
   });
 
+  it('names the audience it asks for, and only when one was asked for', async () => {
+    const exchangeBody = async (audience?: string) => {
+      const { calls, fetchImpl } = harness();
+      await requestWorkloadServiceToken({
+        baseUrl: 'https://api.oxy.so',
+        fetch: fetchImpl,
+        ...(audience === undefined ? {} : { audience }),
+      });
+      const exchange = calls.find((call) => call.url.endsWith('/auth/service-token/workload'));
+      return JSON.parse(String(exchange?.init?.body)) as { audience?: string };
+    };
+
+    expect((await exchangeBody('kaana.ai')).audience).toBe('kaana.ai');
+    // Omitted, Oxy mints for oxy-api exactly as before the field existed.
+    expect('audience' in (await exchangeBody())).toBe(false);
+  });
+
   it('carries no credential material into the request body', async () => {
     const { calls, fetchImpl } = harness();
 

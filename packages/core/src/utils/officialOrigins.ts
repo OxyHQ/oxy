@@ -1,5 +1,5 @@
-import { isLoopbackOrigin } from '@oxy.so/contracts';
-export { isLoopbackOrigin } from '@oxy.so/contracts';
+import { isLoopbackOrigin } from '@oxy.so/contracts/client';
+export { isLoopbackOrigin } from '@oxy.so/contracts/client';
 /**
  * Official first-party web origin allowlist — shared by OAuth redirect
  * validation and the server-side trusted-origin checks.

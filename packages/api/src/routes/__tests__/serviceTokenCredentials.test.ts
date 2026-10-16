@@ -72,6 +72,8 @@ import {
   revokeEphemeralCredential,
 } from '../../services/mercariaEphemeralCredential.service';
 import { serviceTokenPublicJwks } from '../../config/serviceTokenSigning';
+import { KAANA_CONTROL_AUDIENCE, KAANA_PUBLIC_AUDIENCE } from '../../config/serviceTokenAudiences';
+import { verifyServiceToken } from '../../middleware/serviceToken';
 
 interface JsonResponse {
   status: number;
@@ -684,4 +686,96 @@ describe('operator ephemeral credential through the real HTTP mint route', () =>
     expect((await post(credentials)).status).toBe(401);
     expect((await post({ apiKey: client.apiKey, apiSecret: client.apiSecret })).status).toBe(200);
   });
+});
+
+describe('POST /auth/service-token — audience (Kaana ADR 0002)', () => {
+  it('mints for oxy-api when no audience is named, and the token verifies only there', async () => {
+    const client = await serviceClient();
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+    expect(res.status).toBe(200);
+    const token = (res.body.data as { token: string }).token;
+    expect(decodeServiceJwt(token).aud).toBe('oxy-api');
+    expect(verifyServiceToken(token).ok).toBe(true);
+    expect(verifyServiceToken(token, KAANA_PUBLIC_AUDIENCE)).toEqual({
+      ok: false,
+      reason: 'invalid',
+    });
+  });
+
+  it('mints a kaana.ai token for an application holding inference:invoke', async () => {
+    const client = await serviceClient(
+      { scopes: ['inference:invoke'] },
+      { scopes: ['user:read', 'inference:invoke'] },
+    );
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+    expect(res.status).toBe(200);
+    const token = (res.body.data as { token: string }).token;
+    const claims = decodeServiceJwt(token);
+    expect(claims.aud).toBe('kaana.ai');
+    expect(claims.scopes).toEqual(['inference:invoke']);
+    // Oxy's API refuses it; only the grant API, asking for kaana.ai, accepts it.
+    expect(verifyServiceToken(token)).toEqual({ ok: false, reason: 'invalid' });
+    expect(verifyServiceToken(token, KAANA_PUBLIC_AUDIENCE).ok).toBe(true);
+  });
+
+  it('refuses kaana.ai to an application whose minted scopes lack inference:invoke', async () => {
+    const client = await serviceClient();
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_PUBLIC_AUDIENCE,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses Kaana's control audience to every application but Kaana", async () => {
+    const client = await serviceClient(
+      { scopes: ['inference:invoke'] },
+      { scopes: ['user:read', 'inference:invoke'] },
+    );
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: KAANA_CONTROL_AUDIENCE,
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses an audience outside the closed set', async () => {
+    const client = await serviceClient();
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      audience: 'api.kaana.ai',
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+it('mints only the requested credential scope subset and rechecks revoked authority', async () => {
+  const c = await serviceClient(
+    { scopes: ['user:read', 'files:read'] },
+    { scopes: ['user:read', 'files:read'] },
+  );
+  const input = { apiKey: c.apiKey, apiSecret: c.apiSecret };
+  const narrowed = await post({ ...input, scopes: ['user:read'] });
+  expect(narrowed.status).toBe(200);
+  expect(decodeServiceJwt((narrowed.body.data as { token: string }).token).scopes).toEqual([
+    'user:read',
+  ]);
+  expect((await post({ ...input, scopes: ['files:write'] })).status).toBe(403);
+  await getDb()
+    .update(applications)
+    .set({ scopes: ['user:read'] })
+    .where(eq(applications.id, c.applicationId));
+  expect((await post({ ...input, scopes: ['files:read'] })).status).toBe(403);
+  await getDb()
+    .update(applicationCredentials)
+    .set({ status: 'revoked' })
+    .where(eq(applicationCredentials.id, c.credentialId));
+  expect((await post({ ...input, scopes: ['user:read'] })).status).toBe(401);
 });

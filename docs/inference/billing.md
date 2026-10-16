@@ -177,6 +177,15 @@ It is not an audio unit and belongs to no token partition: it is charged beside
 them. Every realtime route prices it — at zero where the provider bills no
 session time — because every session's hold includes it.
 
+**`input_transcription_milliseconds` is a second model's reading** (contract
+set 3.9.0, `@kaana.ai/contracts` 4.1.0, migration 0159): the milliseconds of a
+realtime session's input audio transcribed by the deployment's own ASR model
+when the provider bills it apart from the session model (OpenAI). Reported
+beside the session model's units, never instead of them; a provider whose
+session price includes it (xAI) never reports it. It settles on grants for
+`kaana.ai/v1` ([kaana-grants.md](./kaana-grants.md)); the old edge refuses input
+transcription.
+
 **Duration-priced realtime routes** (xAI's Voice Agent: audio per minute each
 way, a flat fee per text item) are priced in `audio_input_milliseconds`,
 `audio_output_milliseconds` and `requests` and no token unit. Their hold is
@@ -287,6 +296,7 @@ database CHECK is the second line, for anything reaching the table another way.
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or data-plane event | Idempotent no-op on the provider event id. |
 | BYOK route | Your upstream provider bills you directly. Oxy source selects only the separately linked `platform_fee_price_version_id`, quotes/reserves/settles it with `platformFeeOnly = true`, and records that fact on the receipt. The upstream provider `price_version_id` remains null and is never reused. Production remains fail-closed until an exact immutable fee amount/version is approved, published and associated and the matching migration, images and live probes are verified. |
+| Request on `kaana.ai/v1` (grants) | Rated at the list price **Kaana declares** for the model (`declaredCatalogue`), under the `priceVersionId` the grant admitted; the receipt copies those unit prices. A model with no declared price, or a settled unit the list does not price, is refused with a typed error — never charged at zero. A customer-key (BYOK) route is `platform_fee_only`: rated at Oxy's platform fee alone (`config/inferencePlatformFee.ts`, versioned billing configuration outside `price_versions`), refused while no fee schedule is approved. See [kaana-grants.md](./kaana-grants.md#where-the-price-comes-from-kaanas-catalogue-not-oxys). |
 
 One refusal is worth calling out because it looks like a bug: if the exact charge
 comes out **above** the hold that authorised it, the settlement is refused and

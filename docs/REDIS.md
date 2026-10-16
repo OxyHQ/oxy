@@ -47,24 +47,24 @@ export async function closeRedis(): Promise<void> {
 }
 ```
 
-### Rate limiting (`packages/api/src/middleware/security.ts`)
+### Rate limiting (`packages/api/src/middleware/rateLimiter.ts`)
 
-All rate limiters (`rateLimiter`, `authRateLimiter`, `userRateLimiter`) use `RedisStore` when available:
+Every HTTP limiter — the global budgets in `security.ts` and every route's own — is built by
+`rateLimit({ prefix, windowMs, max, … })` from `middleware/rateLimiter.ts`, the only module that
+imports `express-rate-limit` (`rateLimiterRefusal.test.ts` enforces it). It uses a `RedisStore`
+under the limiter's unique `prefix` when Redis is configured, and the in-memory store otherwise.
 
-```typescript
-import { RedisStore } from 'rate-limit-redis';
-
-function makeStore() {
-  const redis = getRedisClient();
-  if (!redis) return {};  // In-memory fallback
-  return {
-    store: new RedisStore({
-      sendCommand: (...args: string[]) =>
-        redis.call(args[0], ...args.slice(1)),
-    }),
-  };
-}
-```
+A refused request is answered the same way by every limiter: `429`, `Retry-After` until the
+caller's window resets, and the API error `{ "error": "RATE_LIMITED", "message", "details":
+{ "retryAfterSeconds" } }` (or the nested `rate_limited` shape where a surface opted into
+`errorFormat: 'nested'`), written by `sendRateLimited` (`middleware/errorHandler.ts`). Hand-rolled
+budgets answer through the same `sendRateLimited`: the device-secret lockouts and the stats-stream
+cap call it, and a service over a budget (sign-in and second-factor lockouts, the reauth mail
+budget, Nominatim's refusal) throws a `RateLimitedError` that `errorHandler` and `asyncHandler`
+answer with it — keeping a contract code of its own (`SIGN_IN_ERROR_CODES.locked`) where its
+surface has one. `RateLimitedError` is the only 429 oxy-api builds (the same test). The grant API
+and the inference edge answer their own public error vocabularies, each through its one sender
+that sets `Retry-After`.
 
 ### Socket.IO adapter (`packages/api/src/server.ts`)
 

@@ -1,36 +1,14 @@
 import jwt from 'jsonwebtoken';
-import rateLimit from 'express-rate-limit';
 import slowDown from 'express-slow-down';
-import { type Request } from 'express';
+import type { Request } from 'express';
 import helmet from 'helmet';
-import { RedisStore } from 'rate-limit-redis';
-import type { RedisReply } from 'rate-limit-redis';
-import { getRedisClient } from '../config/redis';
 import type { AuthRequest } from './auth';
+import { SERVICE_TOKEN_AUDIENCES } from '../config/serviceTokenAudiences';
 import { verifyServiceToken } from './serviceToken';
 import { hashedIpKey } from '../utils/ipKey';
+import { rateLimit } from './rateLimiter';
 
 const isProd = process.env.NODE_ENV !== 'development';
-
-/** hashedIpKey already buckets IPv6 before HMAC; silence express-rate-limit v8's false-positive scan. */
-const rateLimitValidate = { validate: { keyGeneratorIpFallback: false } } as const;
-
-// Build Redis-backed store options if available, otherwise fall back to in-memory.
-// Each limiter MUST pass a unique `prefix` so that hits land in distinct Redis
-// keys; otherwise a request that flows through both the global limiter and a
-// per-route limiter increments the same counter twice and express-rate-limit
-// emits ERR_ERL_DOUBLE_COUNT (and the user's effective budget is halved).
-function makeStore(prefix: string) {
-  const redis = getRedisClient();
-  if (!redis) return {};
-  return {
-    store: new RedisStore({
-      prefix,
-      sendCommand: (...args: string[]) =>
-        redis.call(args[0], ...args.slice(1)) as Promise<RedisReply>,
-    }),
-  };
-}
 
 /**
  * Paths hit ONLY by the first-party IdP worker (auth.oxy.so) server-to-server,
@@ -48,11 +26,25 @@ function makeStore(prefix: string) {
  * MOUNT-ORDER INVARIANT: the general `rateLimiter` skips these paths, so any
  * path listed here MUST carry its OWN dedicated limiter at its route. Adding a
  * path here without a route-level limiter would leave it entirely unthrottled.
- * `/session/validate-header/` is intentionally NOT matched — it is bearer-cross-
- * checked and browser-reachable, so it stays under the general budget.
+ * `/session/validate-header/` is NOT matched — it is bearer-cross-checked and
+ * keyed per subject; see {@link isSessionHeaderValidationPath}.
  */
 export function isIdpServiceToServicePath(path: string): boolean {
   return path.startsWith('/session/validate/');
+}
+
+/**
+ * `GET /session/validate-header/:id` — the bearer a relying app's request
+ * carried, cross-checked against its session. `@oxy.so/core`'s auth middleware
+ * makes this call for EVERY authenticated request the app serves (ADR 0041), so
+ * under `rl:general` (1000/15min) and `slowDown` (100/15min) — both keyed by
+ * the same subject — a reader browsing an app would spend their own budget on
+ * the app's validations and then pay 500ms on every request, here and to the
+ * app. It is excluded from both and capped by its own per-subject limiter,
+ * {@link sessionHeaderValidationLimiter}, mounted on the route.
+ */
+export function isSessionHeaderValidationPath(path: string): boolean {
+  return path.startsWith('/session/validate-header/');
 }
 
 /**
@@ -138,6 +130,28 @@ interface RequestWithServicePrincipal extends Request {
 }
 
 /**
+ * A token verified as a service credential Oxy minted for ANY of its audiences.
+ *
+ * Who is calling is what a rate limit keys on; which routes the token may use
+ * is each route's own check. Kaana's workload calls `/internal/kaana/v1` with
+ * a token for `oxy-api:kaana-control` (Kaana ADR 0002): read as `oxy-api` only,
+ * it was not a service request, so every grant for every Kaana caller fell into
+ * the shared per-IP browser budget, one application's embeddings burst spent
+ * it, and Oxy answered every other grant — voice calls included — with 429.
+ * A user or garbage token is refused at the first attempt (not EdDSA), so only
+ * service tokens ever pay for a second audience.
+ */
+function verifiedForAnyAudience(token: string): ReturnType<typeof verifyServiceToken> {
+  let first: ReturnType<typeof verifyServiceToken> | undefined;
+  for (const audience of SERVICE_TOKEN_AUDIENCES) {
+    const verification = verifyServiceToken(token, audience);
+    if (verification.ok || verification.reason !== 'invalid') return verification;
+    first ??= verification;
+  }
+  return first ?? { ok: false, reason: 'invalid' };
+}
+
+/**
  * The verified SERVICE principal behind this request, or `undefined` for a
  * browser, an anonymous caller, a user session, or an invalid/expired token.
  *
@@ -154,7 +168,7 @@ function servicePrincipal(req: Request): { appId: string } | undefined {
 
   const authHeader = req.headers.authorization;
   const verification = authHeader?.startsWith('Bearer ')
-    ? verifyServiceToken(authHeader.slice('Bearer '.length))
+    ? verifiedForAnyAudience(authHeader.slice('Bearer '.length))
     : ({ ok: false, reason: 'invalid' } as ReturnType<typeof verifyServiceToken>);
   (req as RequestWithServicePrincipal)[SERVICE_PRINCIPAL] = { payload: verification };
   return verification.ok ? { appId: verification.payload.appId } : undefined;
@@ -272,13 +286,10 @@ export function isFirstPartyServiceRequest(req: Request): boolean {
  * the same application a second budget.
  */
 const serviceCredentialLimiter = rateLimit({
-  ...makeStore('rl:service:credential:'),
-  ...rateLimitValidate,
+  prefix: 'rl:service:credential:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many requests for this service credential, please slow down.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req: Request) => servicePrincipal(req)?.appId ?? hashedIpKey(req),
   skip: (req: Request) => !isFirstPartyServiceRequest(req),
 });
@@ -291,13 +302,10 @@ const serviceCredentialLimiter = rateLimit({
 // per-account traffic. IdP worker server-to-server paths are skipped (see
 // isIdpServiceToServicePath) so shared-egress traffic never exhausts this budget.
 const rateLimiter = rateLimit({
-  ...makeStore('rl:general:'),
-  ...rateLimitValidate,
+  prefix: 'rl:general:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   // Per SUBJECT for an authenticated caller, per IP for everyone else — see
   // `userPrincipal`. A shared backend egress IP would otherwise pool every
   // signed-in reader of a relying app into ONE bucket.
@@ -305,6 +313,7 @@ const rateLimiter = rateLimit({
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
+    isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
@@ -326,13 +335,10 @@ const rateLimiter = rateLimit({
 // Unique prefix (`rl:federation:service:`) keeps this budget distinct from every
 // other limiter (no ERR_ERL_DOUBLE_COUNT).
 const federationServiceLimiter = rateLimit({
-  ...makeStore('rl:federation:service:'),
-  ...rateLimitValidate,
+  prefix: 'rl:federation:service:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: 'Too many federation signing requests, please slow down.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
 });
@@ -346,15 +352,24 @@ const federationServiceLimiter = rateLimit({
 // Unique prefix (`rl:idp:service:`) keeps the IdP worker's server-to-server
 // READ budget distinct from every other limiter (no ERR_ERL_DOUBLE_COUNT).
 const idpServiceLimiter = rateLimit({
-  ...makeStore('rl:idp:service:'),
-  ...rateLimitValidate,
+  prefix: 'rl:idp:service:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 20000 : 40000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   skip: (req: Request) => req.path.startsWith('/files/upload'),
+});
+
+// The SOLE budget of `/session/validate-header/` (see isSessionHeaderValidationPath),
+// sized like idpServiceLimiter: one subject's validations are one per request
+// an app serves them, and a request without a verified bearer falls back to the
+// per-IP key, as `/session/validate/` is capped today.
+const sessionHeaderValidationLimiter = rateLimit({
+  prefix: 'rl:session:validate-header:',
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 20000 : 40000,
+  message: 'Too many requests, please try again later.',
+  keyGenerator: subjectOrIpKey,
 });
 
 // Per-IP rate limiting for /auth/*. This guards against blanket abuse of the
@@ -365,13 +380,10 @@ const idpServiceLimiter = rateLimit({
 // signing in hits ~5–8 /auth/* endpoints, and active sessions refresh on
 // /auth/refresh roughly every 15 minutes.
 const authRateLimiter = rateLimit({
-  ...makeStore('rl:auth:'),
-  ...rateLimitValidate,
+  prefix: 'rl:auth:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 300 : 2000,
   message: 'Too many authentication attempts from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: hashedIpKey,
   // Mounted under `/auth`, so the mount point is in `baseUrl`, not `path`.
   // The email sign-in dialog polls `collect` every few seconds for the link's
@@ -410,13 +422,10 @@ const authRateLimiter = rateLimit({
  * else's outage.
  */
 const userRateLimiter = rateLimit({
-  ...makeStore('rl:user:'),
-  ...rateLimitValidate,
+  prefix: 'rl:user:',
   windowMs: 15 * 60 * 1000,
   max: isProd ? 2000 : 4000,
   message: 'Too many requests, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req: Request) => {
     return (req as AuthRequest).user?.id || hashedIpKey(req);
   },
@@ -442,6 +451,7 @@ const bruteForceProtection = slowDown({
   skip: (req: Request) =>
     req.path.startsWith('/files/upload') ||
     isIdpServiceToServicePath(req.path) ||
+    isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
     isFirstPartyServiceRequest(req),
@@ -494,6 +504,7 @@ export {
   rateLimiter,
   serviceCredentialLimiter,
   idpServiceLimiter,
+  sessionHeaderValidationLimiter,
   federationServiceLimiter,
   authRateLimiter,
   userRateLimiter,

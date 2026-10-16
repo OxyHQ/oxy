@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import { createDomainPolicy } from '../apUri';
 import {
   createDeliveryService,
+  DeliveryAuthorizationDeniedError,
   type DeliveryServiceConfig,
   type DeliveryActorFields,
   type DeliveryQueueJob,
@@ -39,6 +40,7 @@ function makeRig(
     sharingEnabled?: boolean;
     assertSafeInboxUrl?: DeliveryServiceConfig<StoredActor>['assertSafeInboxUrl'];
     blockedHosts?: string[];
+    authorizeDelivery?: DeliveryServiceConfig<StoredActor>['authorizeDelivery'];
   } = {},
 ) {
   const deliveredBodies: Array<{ url: string; body: string }> = [];
@@ -53,7 +55,11 @@ function makeRig(
   const deletedFollowIds: unknown[] = [];
   const refreshedInBackground: string[] = [];
 
-  const sign: HttpSignatureSigner = async () => 'TESTSIG';
+  const signatures: string[] = [];
+  const sign: HttpSignatureSigner = async (keyId) => {
+    signatures.push(keyId);
+    return 'TESTSIG';
+  };
   const domainPolicy =
     overrides.blockedHosts === undefined
       ? createDomainPolicy({ domain: DOMAIN })
@@ -61,6 +67,7 @@ function makeRig(
 
   const config: DeliveryServiceConfig<StoredActor> = {
     federationEnabled: overrides.federationEnabled ?? true,
+    authorizeDelivery: overrides.authorizeDelivery,
     userAgent: 'Mention/mention.earth (ActivityPub)',
     apContentType: 'application/activity+json',
     keys: {
@@ -145,6 +152,7 @@ function makeRig(
 
   return {
     service: createDeliveryService(config),
+    signatures,
     deliveredBodies,
     enqueued,
     fallbackCreates,
@@ -460,5 +468,105 @@ describe('federateActorUpdate', () => {
     const rig = makeRig({ sharingEnabled: false, followerActorUris: ['a'] });
     await rig.service.federateActorUpdate('u-alice', 'alice');
     expect(rig.enqueued).toHaveLength(0);
+  });
+});
+
+describe('live delivery authorization', () => {
+  const activity = {
+    type: 'Create',
+    actor: 'https://untrusted.example/not-the-sender',
+    object: { type: 'Note', content: 'protected' },
+  };
+  const remoteActorUri = 'https://remote.example/users/bob';
+  const actorsByUri = {
+    [remoteActorUri]: { uri: remoteActorUri, inboxUrl: 'https://remote.example/inbox' },
+  };
+
+  it('uses trusted sender metadata and refuses before signing, sending or enqueueing', async () => {
+    const authorizeDelivery = jest.fn(async () => false);
+    const rig = makeRig({ authorizeDelivery });
+    await expect(
+      rig.service.deliverActivity(
+        activity,
+        'https://remote.example/inbox',
+        'canonical-sender',
+        'alice',
+      ),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    await expect(
+      rig.service.queueDelivery(activity, 'https://remote.example/inbox', 'canonical-sender'),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    expect(authorizeDelivery).toHaveBeenCalledWith({
+      activity,
+      senderAccountId: 'canonical-sender',
+    });
+    expect(rig.signatures).toEqual([]);
+    expect(rig.deliveredBodies).toEqual([]);
+    expect(rig.enqueued).toEqual([]);
+    expect(rig.fallbackCreates).toEqual([]);
+  });
+
+  it('propagates transient authority failure without disguising it as a denial or send success', async () => {
+    const unavailable = new Error('policy service unavailable');
+    const rig = makeRig({
+      authorizeDelivery: async () => {
+        throw unavailable;
+      },
+    });
+    await expect(
+      rig.service.deliverActivity(activity, 'https://remote.example/inbox', 'sender', 'alice'),
+    ).rejects.toBe(unavailable);
+    expect(rig.signatures).toEqual([]);
+    expect(rig.deliveredBodies).toEqual([]);
+  });
+
+  it('checks internal Follow and Accept paths and does not commit a refused follow', async () => {
+    const rig = makeRig({ actorsByUri, authorizeDelivery: async () => false });
+    await expect(rig.service.sendFollow('sender', 'alice', remoteActorUri)).rejects.toBeInstanceOf(
+      DeliveryAuthorizationDeniedError,
+    );
+    await expect(
+      rig.service.sendAccept('sender', 'alice', 'follow-id', remoteActorUri),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    await flush();
+    expect(rig.upsertedFollows).toEqual([]);
+    expect(rig.refreshedInBackground).toEqual([]);
+    expect(rig.signatures).toEqual([]);
+    expect(rig.deliveredBodies).toEqual([]);
+    expect(rig.enqueued).toEqual([]);
+  });
+
+  it('authorizes one fanout once and rechecks a durable delivery after revocation', async () => {
+    const authorizeDelivery = jest.fn(async () => true);
+    const rig = makeRig({
+      authorizeDelivery,
+      followerActorUris: ['a', 'b'],
+      followerInboxes: {
+        a: { inboxUrl: 'https://a.example/inbox' },
+        b: { inboxUrl: 'https://b.example/inbox' },
+      },
+    });
+    await rig.service.deliverToFollowers(activity, 'sender', 'alice');
+    expect(authorizeDelivery).toHaveBeenCalledTimes(1);
+    expect(rig.enqueued).toHaveLength(2);
+    authorizeDelivery.mockResolvedValue(false);
+    const job = rig.enqueued[0];
+    await expect(
+      rig.service.deliverActivity(job.activityJson, job.targetInbox, job.senderOxyUserId, 'alice'),
+    ).rejects.toBeInstanceOf(DeliveryAuthorizationDeniedError);
+    expect(rig.signatures).toEqual([]);
+  });
+
+  it('preserves approved adult delivery and checks a Follow once per immediate operation', async () => {
+    const authorizeDelivery = jest.fn(async () => true);
+    const rig = makeRig({ actorsByUri, authorizeDelivery });
+    expect(await rig.service.sendFollow('adult', 'alice', remoteActorUri)).toEqual({
+      success: true,
+      pending: false,
+    });
+    await flush();
+    expect(authorizeDelivery).toHaveBeenCalledTimes(1);
+    expect(rig.deliveredBodies).toHaveLength(1);
+    expect(rig.signatures).toHaveLength(1);
   });
 });

@@ -14,6 +14,7 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts/client$': '<rootDir>/../contracts/src/client/index.ts',
   },
   transform: {
     '^.+\\.ts$': [

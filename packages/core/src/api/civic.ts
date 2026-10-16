@@ -193,7 +193,7 @@ export class CivicApi {
    */
   async buildAttestQrPayload(input: { context: string }): Promise<AttestQrPayload> {
     const subject = this.myDid('build an attestation QR');
-    const { SignatureService } = await import('../crypto/internal');
+    const { SignatureService } = await import('../crypto/index');
     const nonce = await SignatureService.generateChallenge();
     const exp = Date.now() + ATTEST_QR_TTL_MS;
     const payload =
@@ -395,7 +395,7 @@ export class CivicCredentialsApi {
     };
 
     // A fresh crypto-random rkey: every credential is its own chain entry.
-    const { SignatureService } = await import('../crypto/internal');
+    const { SignatureService } = await import('../crypto/index');
     const rkey = await SignatureService.generateChallenge();
     const envelope = await signOwnChainRecord(this.ctx, 'credential', record, {
       collection: CREDENTIAL_COLLECTION,

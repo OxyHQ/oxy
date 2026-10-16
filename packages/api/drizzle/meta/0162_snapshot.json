@@ -1,5 +1,5 @@
 {
-  "id": "5fd554b8-0da8-47c5-b01f-7d83add6c107",
+  "id": "4d001e8d-657f-4573-8ae4-9a76d83a6575",
   "prevId": "6d09af0d-629a-4b79-8cbd-72b826597ad9",
   "version": "7",
   "dialect": "postgresql",
@@ -3541,6 +3541,21 @@
           "method": "btree",
           "with": {}
         },
+        "app_user_signals_user_id_idx": {
+          "name": "app_user_signals_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "app_user_signals_application_id_interest_score_user_id_idx": {
           "name": "app_user_signals_application_id_interest_score_user_id_idx",
           "columns": [
@@ -3556,21 +3571,6 @@
               "asc": false,
               "nulls": "last"
             },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "app_user_signals_user_id_idx": {
-          "name": "app_user_signals_user_id_idx",
-          "columns": [
             {
               "expression": "user_id",
               "isExpression": false,
@@ -4600,6 +4600,105 @@
         "applications_scopes_check": {
           "name": "applications_scopes_check",
           "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch']::text[]"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.application_inference_limits": {
+      "name": "application_inference_limits",
+      "schema": "",
+      "columns": {
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "max_concurrent_realtime_sessions": {
+          "name": "max_concurrent_realtime_sessions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_concurrent_realtime_sessions_per_credential": {
+          "name": "max_concurrent_realtime_sessions_per_credential",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_concurrent_requests": {
+          "name": "max_concurrent_requests",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_requests_per_utc_day": {
+          "name": "max_requests_per_utc_day",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_account_id": {
+          "name": "updated_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "application_inference_limits_application_id_applications_id_fk": {
+          "name": "application_inference_limits_application_id_applications_id_fk",
+          "tableFrom": "application_inference_limits",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "application_inference_limits_updated_by_account_id_users_id_fk": {
+          "name": "application_inference_limits_updated_by_account_id_users_id_fk",
+          "tableFrom": "application_inference_limits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "application_inference_limits_range_check": {
+          "name": "application_inference_limits_range_check",
+          "value": "(\"application_inference_limits\".\"max_concurrent_realtime_sessions\" is null or \"application_inference_limits\".\"max_concurrent_realtime_sessions\" between 1 and 1000000)\n        and (\"application_inference_limits\".\"max_concurrent_realtime_sessions_per_credential\" is null or \"application_inference_limits\".\"max_concurrent_realtime_sessions_per_credential\" between 1 and 1000000)\n        and (\"application_inference_limits\".\"max_concurrent_requests\" is null or \"application_inference_limits\".\"max_concurrent_requests\" between 1 and 1000000)\n        and (\"application_inference_limits\".\"max_requests_per_utc_day\" is null or \"application_inference_limits\".\"max_requests_per_utc_day\" between 1 and 1000000)"
+        },
+        "application_inference_limits_credential_check": {
+          "name": "application_inference_limits_credential_check",
+          "value": "\"application_inference_limits\".\"max_concurrent_realtime_sessions_per_credential\" is null or \"application_inference_limits\".\"max_concurrent_realtime_sessions\" is null\n        or \"application_inference_limits\".\"max_concurrent_realtime_sessions_per_credential\" <= \"application_inference_limits\".\"max_concurrent_realtime_sessions\""
         }
       },
       "isRLSEnabled": false
@@ -15973,6 +16072,602 @@
         "inference_metered_usage_units_check": {
           "name": "inference_metered_usage_units_check",
           "value": "\"inference_metered_usage\".\"input_tokens\" >= 0 and \"inference_metered_usage\".\"cached_input_tokens\" >= 0 and \"inference_metered_usage\".\"output_tokens\" >= 0 and \"inference_metered_usage\".\"reasoning_tokens\" >= 0 and \"inference_metered_usage\".\"requests\" >= 0 and \"inference_metered_usage\".\"images\" >= 0 and \"inference_metered_usage\".\"audio_input_milliseconds\" >= 0 and \"inference_metered_usage\".\"audio_output_milliseconds\" >= 0 and \"inference_metered_usage\".\"video_milliseconds\" >= 0 and \"inference_metered_usage\".\"characters\" >= 0 and \"inference_metered_usage\".\"embeddings\" >= 0 and \"inference_metered_usage\".\"audio_input_tokens\" >= 0 and \"inference_metered_usage\".\"cached_audio_input_tokens\" >= 0 and \"inference_metered_usage\".\"audio_output_tokens\" >= 0 and \"inference_metered_usage\".\"session_milliseconds\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.kaana_grant_admitted_lines": {
+      "name": "kaana_grant_admitted_lines",
+      "schema": "",
+      "columns": {
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step_index": {
+          "name": "step_index",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_line": {
+          "name": "model_line",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_version_id": {
+          "name": "price_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "kaana_grant_admitted_lines_price_idx": {
+          "name": "kaana_grant_admitted_lines_price_idx",
+          "columns": [
+            {
+              "expression": "price_version_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "kaana_grant_admitted_lines_price_version_id_price_versions_id_fk": {
+          "name": "kaana_grant_admitted_lines_price_version_id_price_versions_id_fk",
+          "tableFrom": "kaana_grant_admitted_lines",
+          "tableTo": "price_versions",
+          "columnsFrom": [
+            "price_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grant_admitted_lines_step_fk": {
+          "name": "kaana_grant_admitted_lines_step_fk",
+          "tableFrom": "kaana_grant_admitted_lines",
+          "tableTo": "kaana_grant_steps",
+          "columnsFrom": [
+            "grant_id",
+            "step_index"
+          ],
+          "columnsTo": [
+            "grant_id",
+            "step_index"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kaana_grant_admitted_lines_grant_id_step_index_model_line_pk": {
+          "name": "kaana_grant_admitted_lines_grant_id_step_index_model_line_pk",
+          "columns": [
+            "grant_id",
+            "step_index",
+            "model_line"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.kaana_grant_steps": {
+      "name": "kaana_grant_steps",
+      "schema": "",
+      "columns": {
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step_index": {
+          "name": "step_index",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_kind": {
+          "name": "target_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target": {
+          "name": "target",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_funding_tier": {
+          "name": "max_funding_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_price_amount": {
+          "name": "max_price_amount",
+          "type": "numeric(30, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_price_currency": {
+          "name": "max_price_currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "kaana_grant_steps_grant_id_kaana_grants_id_fk": {
+          "name": "kaana_grant_steps_grant_id_kaana_grants_id_fk",
+          "tableFrom": "kaana_grant_steps",
+          "tableTo": "kaana_grants",
+          "columnsFrom": [
+            "grant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "kaana_grant_steps_grant_id_step_index_pk": {
+          "name": "kaana_grant_steps_grant_id_step_index_pk",
+          "columns": [
+            "grant_id",
+            "step_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "kaana_grant_steps_index_check": {
+          "name": "kaana_grant_steps_index_check",
+          "value": "\"kaana_grant_steps\".\"step_index\" between 0 and 7"
+        },
+        "kaana_grant_steps_target_kind_check": {
+          "name": "kaana_grant_steps_target_kind_check",
+          "value": "\"kaana_grant_steps\".\"target_kind\" in ('model', 'level')"
+        },
+        "kaana_grant_steps_funding_tier_check": {
+          "name": "kaana_grant_steps_funding_tier_check",
+          "value": "\"kaana_grant_steps\".\"max_funding_tier\" is null or \"kaana_grant_steps\".\"max_funding_tier\" in ('free', 'credit', 'paid')"
+        },
+        "kaana_grant_steps_price_check": {
+          "name": "kaana_grant_steps_price_check",
+          "value": "(\"kaana_grant_steps\".\"max_price_amount\" is null) = (\"kaana_grant_steps\".\"max_price_currency\" is null)\n        and (\"kaana_grant_steps\".\"max_price_currency\" is null or \"kaana_grant_steps\".\"max_price_currency\" ~ '^[A-Z]{3}$')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.kaana_grants": {
+      "name": "kaana_grants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lane": {
+          "name": "lane",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "application_credential_id": {
+          "name": "application_credential_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "delegated_user_id": {
+          "name": "delegated_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "economic_treatment": {
+          "name": "economic_treatment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "economic_policy_version": {
+          "name": "economic_policy_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "economic_relationship_id": {
+          "name": "economic_relationship_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metered_usage_id": {
+          "name": "metered_usage_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reservation_id": {
+          "name": "reservation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ceiling_amount": {
+          "name": "ceiling_amount",
+          "type": "numeric(30, 12)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ceiling_currency": {
+          "name": "ceiling_currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "routing_policy_version_id": {
+          "name": "routing_policy_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body_sha256": {
+          "name": "body_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_sha256": {
+          "name": "grant_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signing_key_id": {
+          "name": "signing_key_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "execute_by": {
+          "name": "execute_by",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'issued'"
+        },
+        "settlement_id": {
+          "name": "settlement_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "settled_at": {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "served_step": {
+          "name": "served_step",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "served_outside_grant": {
+          "name": "served_outside_grant",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "served_funding_tier": {
+          "name": "served_funding_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "kaana_grants_request_key": {
+          "name": "kaana_grants_request_key",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kaana_grants_metered_usage_key": {
+          "name": "kaana_grants_metered_usage_key",
+          "columns": [
+            {
+              "expression": "metered_usage_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kaana_grants_reservation_key": {
+          "name": "kaana_grants_reservation_key",
+          "columns": [
+            {
+              "expression": "reservation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kaana_grants_settlement_key": {
+          "name": "kaana_grants_settlement_key",
+          "columns": [
+            {
+              "expression": "settlement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "kaana_grants_open_idx": {
+          "name": "kaana_grants_open_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "kaana_grants_account_id_users_id_fk": {
+          "name": "kaana_grants_account_id_users_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grants_application_id_applications_id_fk": {
+          "name": "kaana_grants_application_id_applications_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grants_application_credential_id_application_credentials_id_fk": {
+          "name": "kaana_grants_application_credential_id_application_credentials_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "application_credentials",
+          "columnsFrom": [
+            "application_credential_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grants_metered_usage_id_inference_metered_usage_id_fk": {
+          "name": "kaana_grants_metered_usage_id_inference_metered_usage_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "inference_metered_usage",
+          "columnsFrom": [
+            "metered_usage_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grants_reservation_id_usage_reservations_id_fk": {
+          "name": "kaana_grants_reservation_id_usage_reservations_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "usage_reservations",
+          "columnsFrom": [
+            "reservation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "kaana_grants_routing_policy_version_id_inference_routing_policy_versions_id_fk": {
+          "name": "kaana_grants_routing_policy_version_id_inference_routing_policy_versions_id_fk",
+          "tableFrom": "kaana_grants",
+          "tableTo": "inference_routing_policy_versions",
+          "columnsFrom": [
+            "routing_policy_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "kaana_grants_operation_check": {
+          "name": "kaana_grants_operation_check",
+          "value": "\"kaana_grants\".\"operation\" in ('responses', 'chat_completions', 'embeddings', 'audio_speech', 'audio_transcriptions', 'images_generations', 'decisions', 'realtime_session')"
+        },
+        "kaana_grants_lane_check": {
+          "name": "kaana_grants_lane_check",
+          "value": "\"kaana_grants\".\"lane\" in ('machine_credential', 'service_token', 'product_session')"
+        },
+        "kaana_grants_environment_check": {
+          "name": "kaana_grants_environment_check",
+          "value": "\"kaana_grants\".\"environment\" in ('development', 'staging', 'production')"
+        },
+        "kaana_grants_treatment_check": {
+          "name": "kaana_grants_treatment_check",
+          "value": "\"kaana_grants\".\"economic_treatment\" in ('commercial', 'internal_metered', 'platform_fee_only')"
+        },
+        "kaana_grants_status_check": {
+          "name": "kaana_grants_status_check",
+          "value": "\"kaana_grants\".\"status\" in ('issued', 'settled', 'expired')"
+        },
+        "kaana_grants_funding_tier_check": {
+          "name": "kaana_grants_funding_tier_check",
+          "value": "\"kaana_grants\".\"served_funding_tier\" is null or \"kaana_grants\".\"served_funding_tier\" in ('free', 'credit', 'paid')"
+        },
+        "kaana_grants_ceiling_check": {
+          "name": "kaana_grants_ceiling_check",
+          "value": "(\"kaana_grants\".\"ceiling_amount\" is null) = (\"kaana_grants\".\"ceiling_currency\" is null)\n        and (\"kaana_grants\".\"ceiling_currency\" is null or \"kaana_grants\".\"ceiling_currency\" ~ '^[A-Z]{3}$')\n        and (\"kaana_grants\".\"reservation_id\" is null or \"kaana_grants\".\"ceiling_amount\" is not null)"
+        },
+        "kaana_grants_hashes_check": {
+          "name": "kaana_grants_hashes_check",
+          "value": "\"kaana_grants\".\"body_sha256\" ~ '^[0-9a-f]{64}$' and \"kaana_grants\".\"grant_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "kaana_grants_window_check": {
+          "name": "kaana_grants_window_check",
+          "value": "\"kaana_grants\".\"execute_by\" > \"kaana_grants\".\"issued_at\" and \"kaana_grants\".\"execute_by\" <= \"kaana_grants\".\"issued_at\" + interval '60 seconds'\n        and \"kaana_grants\".\"expires_at\" >= \"kaana_grants\".\"execute_by\""
+        },
+        "kaana_grants_reservation_check": {
+          "name": "kaana_grants_reservation_check",
+          "value": "(\"kaana_grants\".\"economic_treatment\" = 'internal_metered') = (\"kaana_grants\".\"reservation_id\" is null)"
+        },
+        "kaana_grants_settlement_check": {
+          "name": "kaana_grants_settlement_check",
+          "value": "(\"kaana_grants\".\"status\" = 'settled') = (\"kaana_grants\".\"settlement_id\" is not null and \"kaana_grants\".\"settled_at\" is not null)\n        and (\"kaana_grants\".\"status\" = 'settled' or (\"kaana_grants\".\"served_step\" is null and \"kaana_grants\".\"served_outside_grant\" is null\n          and \"kaana_grants\".\"served_funding_tier\" is null))"
+        },
+        "kaana_grants_served_step_check": {
+          "name": "kaana_grants_served_step_check",
+          "value": "\"kaana_grants\".\"served_step\" is null or \"kaana_grants\".\"served_step\" between 0 and 7"
         }
       },
       "isRLSEnabled": false
@@ -31628,12 +32323,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "preference_display_currency": {
-          "name": "preference_display_currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "theme_preference_mode": {
           "name": "theme_preference_mode",
           "type": "text",
@@ -32053,10 +32742,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "users_display_currency_check": {
-          "name": "users_display_currency_check",
-          "value": "\"users\".\"preference_display_currency\" IN ('USD', 'EUR', 'FAIR')"
-        },
         "users_kind_check": {
           "name": "users_kind_check",
           "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel')"
@@ -32072,10 +32757,6 @@
         "users_account_categories_kind_check": {
           "name": "users_account_categories_kind_check",
           "value": "\"users\".\"kind\" in ('organization', 'project', 'bot', 'channel') or cardinality(\"users\".\"account_categories\") = 0"
-        },
-        "users_character_kind_check": {
-          "name": "users_character_kind_check",
-          "value": "\"users\".\"character\" is null or \"users\".\"kind\" = 'bot'"
         },
         "users_account_status_check": {
           "name": "users_account_status_check",
@@ -32112,6 +32793,10 @@
         "users_staff_capabilities_check": {
           "name": "users_staff_capabilities_check",
           "value": "\"users\".\"staff_capabilities\" <@ array['inference:catalogue:publish', 'billing:adjust', 'billing:cost_centers']::text[]"
+        },
+        "users_character_kind_check": {
+          "name": "users_character_kind_check",
+          "value": "\"users\".\"character\" is null or \"users\".\"kind\" = 'bot'"
         }
       },
       "isRLSEnabled": false
@@ -35400,8 +36085,7 @@
           "nullsNotDistinct": false,
           "columns": [
             "source_segment_id",
-            "benefit_index",
-            "period_start"
+            "benefit_index"
           ]
         }
       },
@@ -37214,12 +37898,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "renewal_source_id": {
-          "name": "renewal_source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "offer_id": {
           "name": "offer_id",
           "type": "text",
@@ -37273,13 +37951,6 @@
           "type": "bigint",
           "primaryKey": false,
           "notNull": true
-        },
-        "billing_interval": {
-          "name": "billing_interval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'month'"
         },
         "price_valid_from": {
           "name": "price_valid_from",
@@ -37552,19 +38223,6 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "personal_plan_checkout_intents_renewal_source_id_access_subscription_sources_id_fk": {
-          "name": "personal_plan_checkout_intents_renewal_source_id_access_subscription_sources_id_fk",
-          "tableFrom": "personal_plan_checkout_intents",
-          "tableTo": "access_subscription_sources",
-          "columnsFrom": [
-            "renewal_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk": {
           "name": "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk",
           "tableFrom": "personal_plan_checkout_intents",
@@ -37600,10 +38258,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "personal_checkout_interval": {
-          "name": "personal_checkout_interval",
-          "value": "\"personal_plan_checkout_intents\".\"billing_interval\" IN ('month', 'year') AND (\"personal_plan_checkout_intents\".\"price_kind\" <> 'oxy_one' OR \"personal_plan_checkout_intents\".\"billing_interval\" = 'month')"
-        },
         "personal_checkout_namespace": {
           "name": "personal_checkout_namespace",
           "value": "(\"personal_plan_checkout_intents\".\"mode\" = 'live' and \"personal_plan_checkout_intents\".\"environment\" = 'production') or (\"personal_plan_checkout_intents\".\"mode\" = 'test' and \"personal_plan_checkout_intents\".\"environment\" in ('test', 'staging', 'development'))"
@@ -37614,7 +38268,7 @@
         },
         "personal_checkout_price": {
           "name": "personal_checkout_price",
-          "value": "((\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one') or (\"personal_plan_checkout_intents\".\"offer_kind\" = 'individual' and \"personal_plan_checkout_intents\".\"price_kind\" = 'existing_product')) and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
+          "value": "\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one' and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
         },
         "personal_checkout_authority_complete": {
           "name": "personal_checkout_authority_complete",
@@ -38143,68 +38797,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.organization_directory_audit": {
-      "name": "organization_directory_audit",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "actor_user_id": {
-          "name": "actor_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actor_application_id": {
-          "name": "actor_application_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_reference": {
-          "name": "evidence_reference",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "related_account_id": {
-          "name": "related_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.organization_external_ids": {
       "name": "organization_external_ids",
       "schema": "",
@@ -38276,6 +38868,131 @@
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organization_search_terms": {
+      "name": "organization_search_terms",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "term": {
+          "name": "term",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "organization_search_terms_prefix_idx": {
+          "name": "organization_search_terms_prefix_idx",
+          "columns": [
+            {
+              "expression": "\"term\" text_pattern_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_search_terms_account_id_users_id_fk": {
+          "name": "organization_search_terms_account_id_users_id_fk",
+          "tableFrom": "organization_search_terms",
+          "tableTo": "users",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "organization_search_terms_account_id_term_pk": {
+          "name": "organization_search_terms_account_id_term_pk",
+          "columns": [
+            "account_id",
+            "term"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organization_directory_audit": {
+      "name": "organization_directory_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_application_id": {
+          "name": "actor_application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_reference": {
+          "name": "evidence_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "related_account_id": {
+          "name": "related_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -38453,240 +39170,6 @@
         "organization_profiles_merge_check": {
           "name": "organization_profiles_merge_check",
           "value": "(\"organization_profiles\".\"status\" = 'merged') = (\"organization_profiles\".\"merged_into_account_id\" is not null) and \"organization_profiles\".\"account_id\" is distinct from \"organization_profiles\".\"merged_into_account_id\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.organization_search_terms": {
-      "name": "organization_search_terms",
-      "schema": "",
-      "columns": {
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "term": {
-          "name": "term",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "organization_search_terms_prefix_idx": {
-          "name": "organization_search_terms_prefix_idx",
-          "columns": [
-            {
-              "expression": "\"term\" text_pattern_ops",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "organization_search_terms_account_id_users_id_fk": {
-          "name": "organization_search_terms_account_id_users_id_fk",
-          "tableFrom": "organization_search_terms",
-          "tableTo": "users",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "organization_search_terms_account_id_term_pk": {
-          "name": "organization_search_terms_account_id_term_pk",
-          "columns": [
-            "account_id",
-            "term"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.account_invitations": {
-      "name": "account_invitations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invited_by_user_id": {
-          "name": "invited_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inherit": {
-          "name": "inherit",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_at": {
-          "name": "accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_by_user_id": {
-          "name": "accepted_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "account_invitations_account_id_idx": {
-          "name": "account_invitations_account_id_idx",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "account_invitations_expires_at_idx": {
-          "name": "account_invitations_expires_at_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "account_invitations_account_id_users_id_fk": {
-          "name": "account_invitations_account_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "account_invitations_invited_by_user_id_users_id_fk": {
-          "name": "account_invitations_invited_by_user_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "invited_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "account_invitations_accepted_by_user_id_users_id_fk": {
-          "name": "account_invitations_accepted_by_user_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "accepted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "account_invitations_token_hash_key": {
-          "name": "account_invitations_token_hash_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "account_invitations_role_check": {
-          "name": "account_invitations_role_check",
-          "value": "\"account_invitations\".\"role\" in ('admin', 'editor', 'developer', 'billing', 'viewer')"
         }
       },
       "isRLSEnabled": false

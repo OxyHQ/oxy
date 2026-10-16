@@ -13,25 +13,18 @@
  * (`reauth`) use the same code, through their own routes (`signIn.ts`).
  */
 import { z } from 'zod';
-
-/**
- * - `signup`: above.
- * - `signin`: the code (and link) of an email sign-in (`POST /auth/signin/email/start`).
- * - `reauth`: a signed-in person proving it is them before a sensitive step
- *   (`POST /users/me/reauth/email`): a password, an authenticator, deleting the
- *   account, linking Commons.
- */
-export const EMAIL_VERIFICATION_PURPOSES = ['signup', 'signin', 'reauth'] as const;
-export type EmailVerificationPurpose = (typeof EMAIL_VERIFICATION_PURPOSES)[number];
-
-/** Digits in a code. */
-export const EMAIL_CODE_LENGTH = 6;
-/** How long a code can be confirmed. */
-export const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
-/** Wrong codes before a verification is spent and a new code is needed. */
-export const EMAIL_CODE_MAX_ATTEMPTS = 5;
-/** How long a confirmed code's ticket can be spent. */
-export const EMAIL_TICKET_TTL_MS = 15 * 60 * 1000;
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// it is re-exported here so the root entry is unchanged.
+import { EMAIL_CODE_LENGTH } from './client/accountEmail';
+export {
+  EMAIL_VERIFICATION_PURPOSES,
+  EMAIL_CODE_LENGTH,
+  EMAIL_CODE_TTL_MS,
+  EMAIL_CODE_MAX_ATTEMPTS,
+  EMAIL_TICKET_TTL_MS,
+  EMAIL_VERIFICATION_ERROR_CODES,
+} from './client/accountEmail';
+export type { EmailVerificationPurpose, EmailVerificationErrorCode } from './client/accountEmail';
 
 /** An email address as the API stores it: trimmed and lowercase. */
 export const emailAddressSchema = z.string().trim().toLowerCase().min(3).max(254).email();
@@ -84,22 +77,3 @@ export const emailVerificationConfirmResponseSchema: z.ZodType<EmailVerification
     ticket: emailTicketSchema,
     expiresAt: z.number().int().positive(),
   });
-
-/**
- * Stable error codes (`error.code` in the API error body). Clients map these
- * through their localization, never the English message.
- */
-export const EMAIL_VERIFICATION_ERROR_CODES = {
-  /** The code is wrong, or its verification expired or was spent. */
-  codeInvalid: 'EMAIL_CODE_INVALID',
-  /** Too many wrong codes: request a new one. */
-  tooManyAttempts: 'EMAIL_CODE_TOO_MANY_ATTEMPTS',
-  /** The ticket is unknown, expired, spent, or for another email or purpose. */
-  ticketInvalid: 'EMAIL_TICKET_INVALID',
-  /** A sign-up without a confirmed email. */
-  ticketRequired: 'EMAIL_TICKET_REQUIRED',
-  /** This server cannot send mail. */
-  unavailable: 'EMAIL_UNAVAILABLE',
-} as const;
-export type EmailVerificationErrorCode =
-  (typeof EMAIL_VERIFICATION_ERROR_CODES)[keyof typeof EMAIL_VERIFICATION_ERROR_CODES];

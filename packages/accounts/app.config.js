@@ -95,14 +95,19 @@ module.exports = {
           },
         },
       ],
-      // Dictation and voice calls with Alia (`@alia.onl/sdk`) recognise speech on
-      // the device; the plugin writes the two iOS purpose strings and the
-      // Android RECORD_AUDIO permission.
+      // Voice calls with Alia (`@alia.onl/sdk/voice`) capture and play audio through
+      // react-native-audio-api on iOS and Android; dictation records with expo-audio
+      // and is transcribed by Alia, so nothing is recognised on the device. The plugin
+      // writes the iOS purpose string and declares RECORD_AUDIO.
+      'expo-audio',
       [
-        'expo-speech-recognition',
+        'react-native-audio-api',
         {
-          microphonePermission: 'Allow Oxy Accounts to hear what you dictate and say to Alia.',
-          speechRecognitionPermission: 'Allow Oxy Accounts to turn your speech into text.',
+          iosMicrophonePermission:
+            'Allow Oxy Accounts to hear what you dictate and say in voice calls with Alia.',
+          iosBackgroundMode: false,
+          androidForegroundService: false,
+          androidPermissions: ['android.permission.RECORD_AUDIO'],
         },
       ],
       'expo-secure-store',
@@ -124,6 +129,10 @@ module.exports = {
       // installed official app join the device's session without a QR and
       // without the Commons private key.
       '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
+      // Release signing with the ONE ecosystem key (OXY_UPLOAD_* Gradle
+      // properties): the device-session provider this app hosts answers only
+      // callers signed with its own certificate, and they all carry that one.
+      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself

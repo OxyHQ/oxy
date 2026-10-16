@@ -56,13 +56,30 @@ import {
  * The version every metered record is stamped with. Bump it on ANY change to
  * {@link INTERNAL_METERED_RELATIONSHIPS} — added, removed or re-sized.
  */
-export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.1';
+export const INFERENCE_ECONOMIC_POLICY_VERSION = 'oxy-inference-economics/2026-10-15.3';
 
 /**
  * Alia's Oxy application, pinned. A test compares it to the seed spec's
  * `ALIA_APPLICATION_ID`, so a re-seeded id cannot silently orphan the relationship.
  */
 export const ALIA_INFERENCE_CONSUMER_APPLICATION_ID = '6a2f851751b784a86fd0e934';
+
+/**
+ * Clarity's BACKEND application, pinned. A test compares it to
+ * `NATIVE_PRODUCT_AGENTS.products.clarity.backendApplication.id`, the application whose
+ * workload-attested service token Clarity calls `kaana.ai/v1` with.
+ */
+export const CLARITY_INFERENCE_CONSUMER_APPLICATION_ID = '01a0648b-8d73-70ad-8e67-1c07ddc5eb6e';
+
+/**
+ * The one route Clarity's search embeddings run on: `qwen/qwen3-embedding-8b`
+ * served by OpenRouter (zero data retention), as Kaana's publisher minted it.
+ */
+export const CLARITY_EMBEDDINGS_DEPLOYMENT: InternalMeteredPilotDeployment = {
+  deploymentId: 'dep_openrouter_qwen_qwen3_embedding_8b_observed_2026_10_15',
+  modelReference: 'qwen/qwen3-embedding-8b@observed-2026-10-15',
+  provider: 'openrouter',
+};
 
 /** Technical limits that replace what a monetary hold used to bound. */
 export interface InternalMeteredCapacity {
@@ -124,7 +141,70 @@ export interface InternalMeteredSpeechPilot {
   readonly deployments: readonly InternalMeteredPilotDeployment[];
 }
 
-export interface InternalMeteredPilot {
+/**
+ * The pilot's terms for a realtime session granted on `kaana.ai/v1/realtime`
+ * (Kaana ADR 0002, Alia ADR 0017 §5). Only the grant API reads them: the old
+ * edge's pilot refuses realtime and keeps doing so until it is deleted.
+ *
+ * A session is one grant, held open for its whole life and settled at close.
+ * How long it lasts and how many answers it gives are the CONSUMER's product
+ * rules (Alia: 30 minutes, 2 minutes idle), and how many may be open at once
+ * is the application's Console configuration (`application_inference_limits`).
+ * What the relationship decides is which models it may run on, by price:
+ */
+export interface InternalMeteredRealtimePilot {
+  /** The session kinds admitted; Alia's calls are `conversation` sessions. */
+  readonly sessionKinds: readonly ('conversation' | 'transcription' | 'translation')[];
+  /**
+   * Exact USD ceiling on ONE MINUTE of session on a model line, quoted at the
+   * line's price version over every duration unit a session can be billed in
+   * (`audio_input_milliseconds`, `audio_output_milliseconds`,
+   * `session_milliseconds`, each at 60 000) and, where the line prices it
+   * apart, the input transcription of that minute
+   * (`input_transcription_milliseconds`, `@kaana.ai/contracts` 4.1.0): Alia's
+   * calls transcribe their input. A line priced in tokens has no per-minute
+   * figure that is a bound rather than a guess, so it does not quote and is
+   * not admitted.
+   */
+  readonly maxPricePerMinuteUsd: string;
+}
+
+/**
+ * The pilot's terms for `POST kaana.ai/v1/audio/transcriptions` (Alia ADR
+ * 0017 §7: dictation). Kaana measures the upload's duration before it asks for
+ * the grant (`facts.audioInputMilliseconds`), so a transcription is bounded
+ * exactly, in the unit it is billed in.
+ */
+export interface InternalMeteredTranscriptionPilot {
+  /** Exact milliseconds of audio one transcription may carry. */
+  readonly maxInputAudioMilliseconds: number;
+  /** Exact USD tariff quote ceiling for one transcription, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+}
+
+/**
+ * The pilot's terms for `POST kaana.ai/v1/embeddings`. Only the grant API reads
+ * them: the old edge's pilot keeps refusing embeddings until it is deleted.
+ * Kaana estimates the input before it asks for the grant
+ * (`facts.estimatedInputTokens`, a quarter of the UTF-16 length plus one per
+ * input), so the ceiling is in that figure; the settlement is the provider's
+ * own count.
+ */
+export interface InternalMeteredEmbeddingsPilot {
+  /** Kaana's estimated input tokens (`facts.estimatedInputTokens`) one request may carry. */
+  readonly maxInputTokens: number;
+  /** Exact USD tariff quote ceiling for one embeddings request, before any claim. */
+  readonly maxPricePerRequestUsd: string;
+  /** The only routes an embeddings request may sign, including failovers. */
+  readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
+/**
+ * The pilot's TEXT terms (completions and decisions). A relationship that only
+ * embeds, speaks or transcribes carries none of them, and every text request is
+ * then outside its pilot and refused: see {@link pilotTextTerms}.
+ */
+export interface InternalMeteredTextPilot {
   readonly maxControlledInputBudget: number;
   /** Optional text-completion ceiling; decisions retain the base ceiling. */
   readonly maxControlledCompletionInputBudget?: number;
@@ -132,12 +212,37 @@ export interface InternalMeteredPilot {
   readonly maxOutputTokens: number;
   /** Exact USD tariff quote ceiling, before any claim; not an upstream invoice guarantee. */
   readonly maxPricePerRequestUsd?: string;
-  /** Every operation's exact routes except speech, which has its own below. */
+  /** Every text operation's exact routes. */
   readonly deployments: readonly InternalMeteredPilotDeployment[];
+}
+
+/** The same keys, all absent: a pilot with no text terms. */
+type NoTextPilot = { readonly [Key in keyof InternalMeteredTextPilot]?: never };
+
+/**
+ * A relationship's pilot: its text terms, all present or all absent (the type
+ * admits no half), and the terms of each other operation, each absent unless
+ * that operation is admitted.
+ */
+export type InternalMeteredPilot = (InternalMeteredTextPilot | NoTextPilot) & {
   /** Absent: only the exact {@link deployments} above are ever admitted. */
   readonly promotionalCredit?: InternalMeteredPromotionalCredit;
   /** Absent: every speech request is outside the pilot and refused. */
   readonly speech?: InternalMeteredSpeechPilot;
+  /** Absent: every realtime grant is outside the pilot and refused. */
+  readonly realtime?: InternalMeteredRealtimePilot;
+  /** Absent: every transcription grant is outside the pilot and refused. */
+  readonly transcription?: InternalMeteredTranscriptionPilot;
+  /** Absent: every embeddings grant is outside the pilot and refused. */
+  readonly embeddings?: InternalMeteredEmbeddingsPilot;
+};
+
+/**
+ * The pilot's text terms, or `undefined` when it has none, in which case every
+ * completion and decision is outside the pilot and refused.
+ */
+export function pilotTextTerms(pilot: InternalMeteredPilot): InternalMeteredTextPilot | undefined {
+  return pilot.maxControlledInputBudget === undefined ? undefined : pilot;
 }
 
 export interface InternalMeteredRelationship {
@@ -236,6 +341,70 @@ export const INTERNAL_METERED_RELATIONSHIPS: readonly InternalMeteredRelationshi
             provider: KAANA_SPEECH_PROVIDER_SLUG,
           },
         ],
+      },
+      // Alia ADR 0017 (accepted 2026-10-15): calls are realtime conversation
+      // sessions and dictation is batch transcription, both on kaana.ai/v1
+      // through a grant. Granted only by the grant API (Kaana ADR 0002 phase 2);
+      // nothing calls it before phase 3. Concurrency and spend are the Alia
+      // application's Console configuration, not terms here.
+      //
+      // USD 0.25 a minute admits the one reviewed realtime voice line (xAI's
+      // Voice Agent, $0.08/min audio in + $0.08 out + $0.08 session, held all
+      // three: $0.24) and no token-priced realtime line.
+      realtime: {
+        sessionKinds: ['conversation'],
+        maxPricePerMinuteUsd: '0.25',
+      },
+      // Alia's dictation clip is capped at 5 minutes (ADR 0017 §7). USD 0.05
+      // covers a full clip at up to $0.01/min; batch transcription lists at
+      // $0.003-0.006/min (2026-10-15).
+      transcription: {
+        maxInputAudioMilliseconds: 300_000,
+        maxPricePerRequestUsd: '0.05',
+      },
+    },
+  },
+  {
+    relationshipId: 'clarity-kaana',
+    consumerApplicationId: CLARITY_INFERENCE_CONSUMER_APPLICATION_ID,
+    consumerProduct: 'clarity',
+    providerProduct: 'kaana',
+    environments: ['production'],
+    lane: 'service_token',
+    // Approved by Nate on 2026-10-16.
+    //
+    // Clarity's search embeddings (`src/lib/kaana-embeddings.ts`): the crawl
+    // worker embeds each indexed document's chunks (2,000 characters at a
+    // 1,600 stride, up to 128 per request) and search embeds the query. Sized
+    // from Clarity's production logs, 2026-10-13..15, after its chunk-currency
+    // fix (OxyHQ/Clarity 2d6fa1a, 2026-10-12) stopped re-embedding every
+    // document on every feed poll: 22,253 to 30,134 documents a day asked for
+    // embeddings (about 1,070 an hour), busiest hour 2,066; and from a
+    // read-only sample of its index (921k documents, 3.0M chunks): a document
+    // averages 3.9 chunks and 6,440 characters (p95 13,828), about 1,610
+    // estimated tokens.
+    //
+    // 60,000 requests a day is twice the busiest measured day; 16 in flight is
+    // two worker tasks at four feed polls each, doubled. Either refuses with a
+    // 429 and never asks for a top-up. At the expected ~41M tokens a day and
+    // the line's $0.01 per 1M input tokens this is ~$0.41 a day (~$12.50 a
+    // month); the hard ceiling, every request at its maximum, is 60,000 x
+    // USD 0.001.
+    capacity: {
+      maxConcurrentRequests: 16,
+      maxRequestsPerUtcDay: 60_000,
+    },
+    pilot: {
+      // Embeddings only: no text, speech, realtime or transcription terms, so
+      // every other operation is outside this pilot and refused.
+      //
+      // 65,536 estimated tokens admits Clarity's largest request: 128 chunks
+      // of 2,000 characters estimate at 128 x 501 = 64,128. At $0.01 per 1M
+      // input tokens that request quotes USD 0.00065536, under USD 0.001.
+      embeddings: {
+        maxInputTokens: 65_536,
+        maxPricePerRequestUsd: '0.001',
+        deployments: [CLARITY_EMBEDDINGS_DEPLOYMENT],
       },
     },
   },

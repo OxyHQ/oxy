@@ -708,6 +708,12 @@ export {
   emailSignInLinkRequestSchema,
   emailSignInLinkResponseSchema,
   emailSignInPendingSchema,
+  EMAIL_SIGNIN_CHOICE_TTL_MS,
+  EMAIL_ACCOUNTS_MAX,
+  emailSignInAccountOptionSchema,
+  emailSignInChooseAccountSchema,
+  emailSignInChooseRequestSchema,
+  isEmailSignInChooseAccount,
   passwordSignInRequestSchema,
   secondFactorSignInRequestSchema,
   secondFactorRequiredSchema,
@@ -733,6 +739,10 @@ export type {
   EmailSignInLinkRequest,
   EmailSignInLinkResponse,
   EmailSignInPending,
+  EmailSignInAccountOption,
+  EmailSignInChooseAccount,
+  EmailSignInChooseRequest,
+  EmailSignInStepResult,
   PasswordSignInRequest,
   SecondFactorSignInRequest,
   SecondFactorRequired,
@@ -1391,6 +1401,9 @@ export {
   capabilityCoordinatorSchema,
   capabilityTicketRequestSchema,
   delegationGrantSchema,
+  AGENT_REQUESTER_CEILING_AUTONOMY,
+  agentRequesterCeilingWriteSchema,
+  agentRequesterCeilingSchema,
   automationTriggerSchema,
   automationActorSelectionSchema,
   automationDataFlowSchema,
@@ -1402,6 +1415,8 @@ export {
   auditEventSchema,
   catalogToolSchema,
   catalogEventSchema,
+  catalogFeatureSchema,
+  CATALOG_INTERNAL_TRANSPORTS,
   appCapabilityCatalogSchema,
   catalogRegistrationSchema,
   normalizedAppEventSchema,
@@ -1431,6 +1446,11 @@ export type {
   CatalogTool,
   CatalogEvent,
   AppCapabilityCatalog,
+  CatalogFeature,
+  CatalogInternalTransport,
+  AgentRequesterCeilingWrite,
+  AgentRequesterCeiling,
+  AgentRequesterCeilingAutonomy,
   CatalogRegistration,
   NormalizedAppEvent,
 } from './agency';
@@ -1492,6 +1512,7 @@ export type {
 export * from './externalIdentity';
 export * from './linkedAccounts';
 export * from './federationInstanceFetch';
+export * from './accountAccess';
 export * from './notifications';
 export * from './email/messages';
 export * from './stickers';
@@ -1604,3 +1625,11 @@ export * from './products/checkout';
 export * from './organizations';
 
 export * from './safety';
+
+export {
+  serviceTokenScopesSchema,
+  serviceTokenOptionsSchema,
+  type ServiceTokenOptions,
+} from './serviceToken';
+
+export * from './applicationRoles';

@@ -97,3 +97,9 @@ export const productSubscriptionCancellationResultSchema = z.union([
 export type ProductSubscriptionCancellationResult = z.infer<
   typeof productSubscriptionCancellationResultSchema
 >;
+
+export type ProductSubscriptionsResponse = z.infer<typeof productSubscriptionsResponseSchema>;
+export type SubscriptionCreditGrantsResponse = z.infer<
+  typeof subscriptionCreditGrantsResponseSchema
+>;
+export type CancelProductSubscription = z.infer<typeof cancelProductSubscriptionSchema>;

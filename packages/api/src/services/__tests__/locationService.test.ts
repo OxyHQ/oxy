@@ -1,16 +1,18 @@
 /**
  * `locationService` talks to Nominatim through `tracedFetch` (it used axios).
  * These pin the axios behaviour the port has to keep: a non-2xx status is an
- * error even when its body parses, a 429 maps to the rate-limit message after a
- * 2s back-off, a timeout maps to the timeout message in search, and the request
- * carries the User-Agent Nominatim's usage policy requires plus a timeout signal.
+ * error even when its body parses, a timeout maps to the timeout message in
+ * search, and the request carries the User-Agent Nominatim's usage policy
+ * requires plus a timeout signal. A 429 is `LocationRateLimitedError` carrying
+ * Nominatim's own `Retry-After`, and no lookup calls Nominatim again until that
+ * wait has passed.
  */
 
 jest.mock('../../utils/tracedFetch', () => ({ tracedFetch: jest.fn() }));
 
 import { tracedFetch } from '../../utils/tracedFetch';
 import { nominatimRateLimiter } from '../../utils/apiRateLimiter';
-import { locationService } from '../locationService';
+import { LocationRateLimitedError, locationService } from '../locationService';
 
 const fetchMock = tracedFetch as jest.MockedFunction<typeof tracedFetch>;
 
@@ -26,10 +28,10 @@ const place = {
   address: { city: 'Barcelona', country: 'Spain', country_code: 'es' },
 };
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
   });
 }
 
@@ -76,15 +78,54 @@ describe('locationService.searchLocations', () => {
     ).rejects.toThrow('Error searching locations');
   });
 
-  it('maps a 429 to the rate-limit message after backing off 2s', async () => {
-    jest.useFakeTimers();
+  it("maps a 429 to LocationRateLimitedError carrying Nominatim's Retry-After", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'slow down' }, 429, { 'Retry-After': '30' }),
+    );
+
+    const error = await locationService
+      .searchLocations('rate limited query', { useCache: false })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(LocationRateLimitedError);
+    expect((error as LocationRateLimitedError).retryAfterSeconds).toBe(30);
+    expect((error as Error).message).toBe('Rate limit exceeded. Please try again in a moment.');
+  });
+
+  it('waits a default when the 429 states no Retry-After', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'slow down' }, 429));
 
-    const outcome = expect(
-      locationService.searchLocations('rate limited query', { useCache: false }),
-    ).rejects.toThrow('Rate limit exceeded. Please try again in a moment.');
-    await jest.advanceTimersByTimeAsync(2000);
-    await outcome;
+    const error = await locationService
+      .searchLocations('rate limited, no header', { useCache: false })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(LocationRateLimitedError);
+    expect((error as LocationRateLimitedError).retryAfterSeconds).toBe(5);
+  });
+
+  it('calls Nominatim for no lookup until its stated wait has passed', async () => {
+    jest.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'slow down' }, 429, { 'Retry-After': '10' }),
+    );
+    await expect(
+      locationService.searchLocations('first query', { useCache: false }),
+    ).rejects.toBeInstanceOf(LocationRateLimitedError);
+
+    await jest.advanceTimersByTimeAsync(4_000);
+    const refused = await locationService
+      .getLocationDetails(7.5, 8.5, { useCache: false })
+      .catch((caught: unknown) => caught);
+    expect(refused).toBeInstanceOf(LocationRateLimitedError);
+    expect((refused as LocationRateLimitedError).retryAfterSeconds).toBe(6);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(6_000);
+    fetchMock.mockResolvedValueOnce(jsonResponse([place]));
+    await expect(
+      locationService.searchLocations('after the wait', { useCache: false }),
+    ).resolves.toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('maps a timeout to the timeout message', async () => {
@@ -124,15 +165,17 @@ describe('locationService.getLocationDetails', () => {
     );
   });
 
-  it('maps a 429 to the rate-limit message after backing off 2s', async () => {
-    jest.useFakeTimers();
-    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'slow down' }, 429));
+  it("maps a 429 to LocationRateLimitedError carrying Nominatim's Retry-After", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'slow down' }, 429, { 'Retry-After': '12' }),
+    );
 
-    const outcome = expect(
-      locationService.getLocationDetails(3.5, 4.5, { useCache: false }),
-    ).rejects.toThrow('Rate limit exceeded. Please try again in a moment.');
-    await jest.advanceTimersByTimeAsync(2000);
-    await outcome;
+    const error = await locationService
+      .getLocationDetails(3.5, 4.5, { useCache: false })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(LocationRateLimitedError);
+    expect((error as LocationRateLimitedError).retryAfterSeconds).toBe(12);
   });
 
   it('keeps a timeout as the generic error, as before', async () => {

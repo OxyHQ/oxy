@@ -1,6 +1,13 @@
 /**
  * The automatic Kaana → Oxy model catalogue sync.
  *
+ * **Feeds the old edge only (`api.oxy.so/v1` and its `/v1/models`) and ends with
+ * it.** The model catalogue is Kaana's (Kaana ADR 0002, amendment 2026-10-15);
+ * grants for `kaana.ai/v1` are rated from the `declaredCatalogue` Kaana relays
+ * (`kaanaDeclaredCatalogue.service.ts`) and never from the tables this job
+ * fills. Phase 5 deletes this job; until then it is not extended, it gains no
+ * reverse direction, and nothing new reads its output for price or identity.
+ *
  * Owner direction (2026-09-25): Kaana discovers hundreds of real models, and
  * official Oxy products (Alia first) must be able to list and call ALL of them
  * by model id. Nothing hand-curated sits in between. So this job reads Kaana's
@@ -92,13 +99,18 @@ import {
   type InferenceOutputModalityValue,
 } from '../db/schema';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import {
   indexReviewedProviderRoutes,
   reviewedRouteKey,
   type ReviewedProviderRoute,
   type ReviewedProviderRouteIndex,
 } from '../config/kaanaReviewedProviderRoutes';
-import { createHttpKaanaCatalogueReader, type KaanaCatalogueReader } from './httpKaanaClient';
+import {
+  createHttpKaanaCatalogueReader,
+  type KaanaCatalogueReader,
+  kaanaDeploymentCommercialSchema,
+} from './httpKaanaClient';
 import type { KaanaDeploymentAttestation } from './kaanaClient';
 import {
   createHttpKaanaCredentialEconomicsReader,
@@ -284,6 +296,10 @@ const kaanaCatalogueResponseSchema = z
             providerRateCardVersionId: z.string().optional(),
             providerSourceVersion: z.string().optional(),
             acceptedParameters: z.array(z.string()).optional(),
+            // How the route may be sold: @kaana.ai/contracts
+            // `deploymentCommercialSchema`, the one validator Oxy applies to it
+            // (httpKaanaClient). Kaana publishes it on every descriptor (#178).
+            commercial: kaanaDeploymentCommercialSchema.optional(),
           })
           .strict(),
       )
@@ -360,7 +376,12 @@ function parsePricedRoute(raw: unknown): KaanaPricedRoute | undefined {
 export function parseKaanaCatalogue(payload: unknown): ParsedKaanaCatalogue {
   const response = kaanaCatalogueResponseSchema.safeParse(payload);
   if (!response.success) {
-    throw new Error('Kaana returned a catalogue body Oxy cannot read (no models array)');
+    // Name what failed: the old fixed "no models array" hid that a single
+    // unknown descriptor member rejects the whole body (2026-10-15 outage).
+    const issue = response.error.issues[0];
+    throw new Error(
+      `Kaana returned a catalogue body Oxy cannot read (${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'})`,
+    );
   }
   if (
     (response.data.scopedExecutionContractVersion !== undefined ||
@@ -2091,36 +2112,19 @@ export async function unblockCatalogueModel(modelId: string): Promise<boolean> {
  * lock lets exactly one run at a time and the rest return `locked`. A task with
  * no Kaana binding registers nothing.
  */
-export function startKaanaCatalogueSyncSchedule(): { stop(): void } | undefined {
+export function startKaanaCatalogueSyncSchedule(): PeriodicJob | undefined {
   if (createHttpKaanaCatalogueReader() === undefined) {
     logger.info('inference.catalogue_sync.not_configured', {
       component: 'inference-catalogue-sync',
     });
     return undefined;
   }
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    runKaanaCatalogueSync()
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.catalogue_sync.failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const first = setTimeout(tick, KAANA_CATALOGUE_SYNC_FIRST_RUN_DELAY_MS);
-  const interval = setInterval(tick, KAANA_CATALOGUE_SYNC_INTERVAL_MS);
-  first.unref();
-  interval.unref();
-  return {
-    stop(): void {
-      clearTimeout(first);
-      clearInterval(interval);
+  return schedulePeriodicJob({
+    failureMessage: 'inference.catalogue_sync.failed',
+    intervalMs: KAANA_CATALOGUE_SYNC_INTERVAL_MS,
+    firstRunDelayMs: KAANA_CATALOGUE_SYNC_FIRST_RUN_DELAY_MS,
+    run: async () => {
+      await runKaanaCatalogueSync();
     },
-  };
+  });
 }

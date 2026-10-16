@@ -15,12 +15,14 @@ import type {
 import {
   oauthAuthorizeCodeResponseSchema,
   oauthConsentDecisionSchema,
+  serviceTokenScopesSchema,
 } from '@oxy.so/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
-import { z } from 'zod';
+import type { z } from 'zod';
 import { SessionController } from '../controllers/session.controller';
+import { isSupervised } from '../services/supervisionPolicy.service';
 import { publicColumns } from '@oxy.so/db/assert';
 import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
@@ -46,6 +48,11 @@ import { serviceTokenMintRateLimitKey } from '../utils/serviceRateLimitKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from '../utils/error';
 import { mintServiceToken, SERVICE_TOKEN_EXPIRY } from '../services/serviceTokenMint.service';
+import {
+  audienceRefusal,
+  OXY_API_AUDIENCE,
+  type ServiceTokenAudience,
+} from '../config/serviceTokenAudiences';
 import {
   exchangeWorkloadAttestation,
   issueWorkloadChallenge,
@@ -2419,6 +2426,9 @@ const oauthUserinfoLimiter = rateLimit({
   max: process.env.NODE_ENV === 'development' ? 200 : 60,
 });
 
+/** Freshness of `GET /auth/oauth/client/:clientId` — see the handler. */
+const PUBLIC_CLIENT_METADATA_MAX_AGE_SECONDS = 60;
+
 const oauthClientLookupLimiter = rateLimit({
   prefix: 'rl:auth:client-lookup:',
   windowMs: 60 * 1000,
@@ -3510,6 +3520,13 @@ router.get(
 
     const developerName = await resolveDeveloperName(app);
 
+    // Public metadata every Oxy app reads on every cold boot to classify its
+    // session lane. A short shared freshness lets a reload reuse it instead of
+    // paying the round trip; 60 s matches the dynamic origin registry's own
+    // refresh interval, so a reclassified or deactivated application is seen
+    // no later than the API's trust snapshot sees it. Only the 200 is cacheable:
+    // a 404 stays uncached, so a newly activated client works at once.
+    res.set('Cache-Control', `public, max-age=${PUBLIC_CLIENT_METADATA_MAX_AGE_SECONDS}`);
     sendSuccess(res, {
       application: serializePublicApplication(app, developerName),
     });
@@ -3584,6 +3601,24 @@ const serviceTokenAddressLimiter = rateLimit({
  *               apiSecret:
  *                 type: string
  *                 description: ApplicationCredential plaintext secret
+ *               audience:
+ *                 type: string
+ *                 enum: [oxy-api, kaana.ai, 'oxy-api:kaana-control']
+ *                 description: >
+ *                   The resource server the token is for; `oxy-api` when omitted.
+ *                   `kaana.ai` is the credential for https://kaana.ai/v1 and needs
+ *                   `inference:invoke` among the minted scopes; the Kaana control
+ *                   audience is reserved to the Kaana application (403 otherwise).
+ *               scopes:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 100
+ *                 uniqueItems: true
+ *                 description: Optional exact subset of the live credential/application grant. Omission preserves the default grant.
+ *                 items:
+ *                   type: string
+ *                   minLength: 1
+ *                   maxLength: 128
  *     responses:
  *       200:
  *         description: Service token issued
@@ -3625,6 +3660,7 @@ const serviceTokenAddressLimiter = rateLimit({
  */
 router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, validate({ body: serviceTokenSchema }), asyncHandler(async (req, res) => {
   const { apiKey, apiSecret } = req.body;
+  const audience: ServiceTokenAudience = req.body.audience ?? OXY_API_AUDIENCE;
 
   if (!apiKey || !apiSecret) {
     throw new BadRequestError('apiKey and apiSecret are required');
@@ -3733,11 +3769,18 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
   // requested no scopes is a legacy credential: it inherits only the app's
   // non-privileged grants. Privileged authority must always have been named on
   // the credential itself, where creation applies the staff-only gate.
+  if (await isSupervised(app.ownerAccountId)) throw new ForbiddenError('Supervised accounts cannot authorize service credentials');
   const appScopes = app.scopes;
-  const scopes =
+  const grantedScopes =
     credential.scopes.length > 0
       ? intersectScopes(credential.scopes, appScopes)
       : appScopes.filter((scope) => !isPrivilegedScope(scope));
+  const requestedScopes =
+    req.body.scopes === undefined ? undefined : serviceTokenScopesSchema.parse(req.body.scopes);
+  if (requestedScopes?.some((scope) => !grantedScopes.includes(scope))) {
+    throw new ForbiddenError('Requested service scope is not granted');
+  }
+  const scopes = requestedScopes ?? grantedScopes;
   const serviceClaims = {
     appId: app.id,
     appName: app.name,
@@ -3749,9 +3792,24 @@ router.post('/service-token', serviceTokenLimiter, serviceTokenAddressLimiter, v
     scopes,
     environment: credential.environment,
   } as const;
+  // Kaana ADR 0002: the audience is the caller's choice, who may hold it is
+  // not — `kaana.ai` needs `inference:invoke` among these scopes and Kaana's
+  // control audience belongs to the Kaana application alone.
+  const refusal = audienceRefusal(audience, app.id, scopes);
+  if (refusal !== undefined) {
+    logger.warn('[ServiceToken] audience refused', {
+      credentialId: credential.id,
+      applicationId: app.id,
+      audience,
+      reason: refusal,
+    });
+    throw new ForbiddenError('This application may not hold a service token for that audience.', {
+      reason: refusal,
+    });
+  }
   // Signed by `services/serviceTokenMint.service.ts`, which the workload mint
   // shares: two ways to prove who you are, one claim set.
-  const token = mintServiceToken(serviceClaims);
+  const token = mintServiceToken(serviceClaims, audience);
 
   // Update lastUsedAt on the credential and the application.
   const usedAt = new Date();
@@ -3830,9 +3888,13 @@ router.post(
   workloadTokenLimiter,
   validate({ body: workloadServiceTokenSchema }),
   asyncHandler(async (req, res) => {
-    const { provider, nonce, attestation } = req.body;
+    const { provider, nonce, attestation, scopes } = req.body;
+    const audience: ServiceTokenAudience = req.body.audience ?? OXY_API_AUDIENCE;
     try {
-      sendSuccess(res, await exchangeWorkloadAttestation({ provider, nonce, attestation }));
+      sendSuccess(
+        res,
+        await exchangeWorkloadAttestation({ provider, nonce, attestation, audience, scopes }),
+      );
     } catch (error: unknown) {
       throw asWorkloadHttpError(error);
     }

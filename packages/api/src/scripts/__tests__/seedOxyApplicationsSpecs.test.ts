@@ -146,14 +146,22 @@ describe('the canonical official-application registry', () => {
     expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
-  it('registers Nilo by exact identity with only public user-read authority', () => {
+  it('registers Nilo by exact identity: inference, linked-file reads and the notes catalog', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
       id: NILO_APPLICATION_ID,
       websiteUrl: 'https://nilo.so',
       redirectUris: ['https://nilo.so'],
       type: 'first_party',
-      scopes: ['user:read'],
+      scopes: [
+        'user:read',
+        'inference:invoke',
+        'files:linked:read',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+        'capability-events:publish',
+      ],
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
     expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
@@ -162,7 +170,7 @@ describe('the canonical official-application registry', () => {
       id: NILO_APPLICATION_ID,
     });
     expect(seededPrincipal(nilo)).toEqual({ type: 'first_party', isInternal: false });
-    expect(nilo.capabilities ?? []).toEqual([]);
+    expect(nilo.capabilities).toEqual(['catalog:noted']);
   });
 
   it('pins a separate media worker with no sign-in redirects or write grants', () => {
@@ -207,7 +215,16 @@ describe('the canonical official-application registry', () => {
     it('pins the exact id and the narrow scopes its service credential needs', () => {
       expect(specNamed('Homiio')).toMatchObject({
         id: HOMIIO_APPLICATION_ID,
-        scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
+        scopes: [
+          'user:read',
+          'reputation:write',
+          'inference:invoke',
+          'acting-as:offline',
+          'catalogs:write',
+          'capabilities:read',
+          'capability-audit:write',
+        ],
+        capabilities: ['catalog:homiio'],
       });
       expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
     });
@@ -580,7 +597,7 @@ describe('the canonical official-application registry', () => {
   });
 
   describe('Mercaria owns its catalog and approved merchant billing authority', () => {
-    it('declares the scopes used by catalog registration, ticket introspection, audit and merchant billing', () => {
+    it('declares the scopes used by catalog registration, ticket introspection, audit, merchant billing and digital downloads', () => {
       expect(specNamed('Mercaria').scopes).toEqual([
         'user:read',
         'catalogs:write',
@@ -589,6 +606,7 @@ describe('the canonical official-application registry', () => {
         'payments:read',
         'payments:write',
         'files:user-media:write',
+        'files:linked:read',
       ]);
     });
 

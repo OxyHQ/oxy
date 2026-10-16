@@ -3,8 +3,12 @@
  * recovery phrase, and the primitives under them.
  *
  * Its own entry so an app that never holds a key never ships secp256k1, bip39
- * or the AEAD cipher. The `oxy.identity` / `oxy.civic` namespaces load what they
- * need from here on first use.
+ * or the AEAD cipher. The SDK's own namespaces (`oxy.auth`, `oxy.identity`,
+ * `oxy.civic`, the identity-bound session) and `@oxy.so/services` load it with
+ * `import()` on first use — all through THIS module, so a web bundler makes it
+ * one lazy chunk. Two lazy roots over the same modules (this entry and a second
+ * internal barrel) made Metro hoist the shared stack into the always-loaded
+ * common chunk, which is the cost the lazy loading exists to avoid.
  */
 
 // MUST stay the first import: `@noble/hashes` captures `globalThis.crypto` when
@@ -24,7 +28,7 @@ export type { IdentityDeviceBackupStore } from './deviceBackup';
 export type { IdentitySignerStore } from './identitySigner';
 export { SignatureService } from './signatureService';
 export type { SignedMessage, AuthChallenge } from './signatureService';
-export { RecoveryPhraseService } from './recoveryPhrase';
+export { RecoveryPhraseService, BACKUP_KDF_ENCRYPTION_INFO } from './recoveryPhrase';
 export type { RecoveryPhraseResult, PendingIdentityResult, BackupMaterial } from './recoveryPhrase';
 
 // Low-level primitives (encrypted backup, device transfer)
@@ -50,3 +54,11 @@ export {
 export { digestIdentityPayload, signIdentityProof } from './identityProof';
 // Linking Commons to an account: the code both screens compare (ADR 0029 D3)
 export { deriveIdentityLinkCode } from './identityLink';
+// The registration proof-of-work and the protocol signing primitives the
+// namespaces use, so they load with the rest of the identity stack.
+export { solveRegistrationPow } from './registrationPow';
+// Content addressing for direct-to-storage uploads (`oxy.assets.uploadLarge`).
+export { createContentHasher } from './contentHash';
+export type { ContentHasher } from './contentHash';
+export { canonicalize, loadCommonsIdentityBridge } from '@oxy.so/protocol';
+export { signMessage, verifySignature } from '@oxy.so/protocol/sign';

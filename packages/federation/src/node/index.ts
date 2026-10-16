@@ -27,6 +27,17 @@ export {
 } from './signedFetch';
 
 /**
+ * X's `t.co` wrapper unwrapped into the link the author posted, over the same
+ * injected single-hop transport — for bridged X bios and posts.
+ */
+export {
+  createTcoLinkExpander,
+  type TcoLinkExpander,
+  type TcoLinkCache,
+  type CreateTcoLinkExpanderConfig,
+} from './tcoLinks';
+
+/**
  * The actor↔Oxy-user identity bridge — the default implementation of the
  * `PUT /users/resolve` + actor-gone archive/delete seam over an injected
  * service-request transport.
@@ -70,6 +81,8 @@ export {
  */
 export {
   createDeliveryService,
+  DeliveryAuthorizationDeniedError,
+  type DeliveryAuthorizationContext,
   type DeliveryService,
   type DeliveryServiceConfig,
   type DeliveryLogger,

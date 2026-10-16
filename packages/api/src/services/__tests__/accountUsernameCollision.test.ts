@@ -274,19 +274,19 @@ describe('the lost race gets the same answer as the lost probe', () => {
 
   /**
    * The translation is by constraint NAME. A `users` write can violate
-   * `users_lower_email_key` just as easily, and reporting that as "username
+   * `users_lower_public_key_key` just as easily, and reporting that as "username
    * taken" would send the caller to fix a field that was never the problem —
    * confidently wrong, which is worse than the 500 it replaced.
    */
   it('does not dress a DIFFERENT unique violation up as a taken username', async () => {
     const ownerId = await seedOwner();
-    const email = `${uniqueUsername('dup')}@example.com`;
-    await getDb().update(users).set({ email }).where(eq(users.id, ownerId));
+    const publicKey = `0x${uniqueUsername('dup')}`;
+    await getDb().update(users).set({ publicKey }).where(eq(users.id, ownerId));
 
     const other = await seedOwner();
 
     await expect(
-      getDb().update(users).set({ email }).where(eq(users.id, other)),
+      getDb().update(users).set({ publicKey }).where(eq(users.id, other)),
     ).rejects.not.toMatchObject({ statusCode: 409 });
   });
 });

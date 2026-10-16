@@ -17,34 +17,39 @@
  */
 import type { User } from '../models/interfaces';
 import type { CommonsDenyReason, DeviceProof, LoginResult } from '@oxy.so/contracts';
-import {
-  agentProofClaimsSchema,
-  agentChallengeRequestSchema,
-  agentVerifyRequestSchema,
-  type AgentProofClaims,
-  type AgentSignature,
-  emailSignInLinkResponseSchema,
-  emailSignInPendingSchema,
-  emailSignInStartResponseSchema,
-  emailVerificationConfirmResponseSchema,
-  emailVerificationStartResponseSchema,
-  loginResultSchema,
-  safeParseContract,
-  secondFactorRequiredSchema,
-  signInMethodsSchema,
-  totpBackupCodesResponseSchema,
-  totpEnrollResponseSchema,
-  type EmailSignInPending,
-  type EmailSignInStartResponse,
-  type EmailVerificationConfirmResponse,
-  type EmailVerificationStartRequest,
-  type EmailVerificationStartResponse,
-  type ReauthAction,
-  type ReauthProof,
-  type SignInMethods,
-  type SignInStepResult,
-  type TotpEnrollResponse,
+import type {
+  AgentProofClaims,
+  AgentSignature,
+  EmailSignInPending,
+  EmailSignInStepResult,
+  EmailSignInStartResponse,
+  EmailVerificationConfirmResponse,
+  EmailVerificationStartRequest,
+  EmailVerificationStartResponse,
+  ReauthAction,
+  ReauthProof,
+  SignInMethods,
+  SignInStepResult,
+  TotpEnrollResponse,
 } from '@oxy.so/contracts';
+import {
+  agentChallengeRequestCheck,
+  agentProofClaimsCheck,
+  agentVerifyRequestCheck,
+  checkContract,
+  emailSignInChooseAccountCheck,
+  emailSignInLinkResponseCheck,
+  emailSignInPendingCheck,
+  emailSignInStartResponseCheck,
+  emailVerificationConfirmResponseCheck,
+  emailVerificationStartResponseCheck,
+  loginResultCheck,
+  secondFactorRequiredCheck,
+  signInMethodsCheck,
+  totpBackupCodesResponseCheck,
+  totpEnrollResponseCheck,
+  parseContract,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import type { SessionLoginResponse } from '../models/session';
 import type { PublicApplication } from './apps';
@@ -55,10 +60,9 @@ import { isAndroid } from '../utils/platform';
 
 // The identity key, signatures and the registration proof-of-work load on first
 // use: an app that never signs anything must not ship secp256k1.
-const loadKeyManager = async () => (await import('../crypto/internal')).KeyManager;
-const loadSignatureService = async () => (await import('../crypto/internal')).SignatureService;
-const loadCommonsBridge = async () =>
-  (await import('../crypto/internal')).loadCommonsIdentityBridge();
+const loadKeyManager = async () => (await import('../crypto/index')).KeyManager;
+const loadSignatureService = async () => (await import('../crypto/index')).SignatureService;
+const loadCommonsBridge = async () => (await import('../crypto/index')).loadCommonsIdentityBridge();
 
 /**
  * Default lifetime of a "Sign in with Oxy" device-flow session / authorize code.
@@ -489,7 +493,7 @@ async function signInEnvelope(
 
 /** Parse a session, planting its token. */
 function plantSession(ctx: OxyContext, res: unknown, path: string): LoginResult {
-  const parsed = safeParseContract(loginResultSchema, res);
+  const parsed = checkContract(loginResultCheck, res);
   if (!parsed) throw new Error(`${path} returned an unexpected response shape`);
   if (parsed.accessToken) ctx.oxy.session.setAccessToken(parsed.accessToken);
   return parsed;
@@ -497,9 +501,16 @@ function plantSession(ctx: OxyContext, res: unknown, path: string): LoginResult 
 
 /** Parse a first factor's answer: the second-factor step, or a session. */
 function signInStep(ctx: OxyContext, res: unknown, path: string): SignInStepResult {
-  const challenge = safeParseContract(secondFactorRequiredSchema, res);
+  const challenge = checkContract(secondFactorRequiredCheck, res);
   if (challenge) return challenge;
   return plantSession(ctx, res, path);
+}
+
+/** Parse what proving an email answers: the account choice, the second-factor step, or a session. */
+function emailSignInStep(ctx: OxyContext, res: unknown, path: string): EmailSignInStepResult {
+  const choice = checkContract(emailSignInChooseAccountCheck, res);
+  if (choice) return choice;
+  return signInStep(ctx, res, path);
 }
 
 /** `oxy.auth.email` — email sign-in (code or link) and email confirmation codes. */
@@ -518,7 +529,7 @@ export class AuthEmailApi {
       cache: false,
       skipAuth: true,
     });
-    const parsed = safeParseContract(emailVerificationStartResponseSchema, res);
+    const parsed = checkContract(emailVerificationStartResponseCheck, res);
     if (!parsed) throw new Error('auth/email/verify/start returned an unexpected response shape');
     return parsed;
   }
@@ -538,7 +549,7 @@ export class AuthEmailApi {
       { verificationId, code },
       { cache: false, skipAuth: true },
     );
-    const parsed = safeParseContract(emailVerificationConfirmResponseSchema, res);
+    const parsed = checkContract(emailVerificationConfirmResponseCheck, res);
     if (!parsed) throw new Error('auth/email/verify/confirm returned an unexpected response shape');
     return parsed;
   }
@@ -560,20 +571,21 @@ export class AuthEmailApi {
       { identifier, ...(device ? { device } : {}) },
       { cache: false, skipAuth: true },
     );
-    const parsed = safeParseContract(emailSignInStartResponseSchema, res);
+    const parsed = checkContract(emailSignInStartResponseCheck, res);
     if (!parsed) throw new Error('auth/signin/email/start returned an unexpected response shape');
     return parsed;
   }
 
   /**
-   * The code from the email → a session, or the second-factor step. The code
-   * is 6 digits, or the 10-character long code (`XXXXX-XXXXX`) an account
-   * gets after too many guesses in a day — accept both in one field and pass
-   * it as typed.
+   * The code from the email → a session, the second-factor step, or — signed
+   * in with an email that holds several accounts — the accounts to choose
+   * from ({@link AuthEmailApi.choose}). The code is 6 digits, or the
+   * 10-character long code (`XXXXX-XXXXX`) an account gets after too many
+   * guesses in a day — accept both in one field and pass it as typed.
    */
   async confirm(
     request: { requestId: string; requestSecret: string; code: string } & SignInDeviceOptions,
-  ): Promise<SignInStepResult> {
+  ): Promise<EmailSignInStepResult> {
     const { requestId, requestSecret, code, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -581,16 +593,17 @@ export class AuthEmailApi {
       { requestId, requestSecret, code, ...(await signInEnvelope(this.ctx, options)) },
       { cache: false, skipAuth: true },
     );
-    return signInStep(this.ctx, res, 'auth/signin/email/confirm');
+    return emailSignInStep(this.ctx, res, 'auth/signin/email/confirm');
   }
 
   /**
    * Whether the email's link was opened in this browser: `{ status: 'pending' }`
-   * until it was, then a session (or the second-factor step). Poll it.
+   * until it was, then a session, the second-factor step, or the accounts to
+   * choose from. Poll it.
    */
   async collect(
     request: { requestId: string; requestSecret: string } & SignInDeviceOptions,
-  ): Promise<SignInStepResult | EmailSignInPending> {
+  ): Promise<EmailSignInStepResult | EmailSignInPending> {
     const { requestId, requestSecret, ...options } = request;
     const res = await this.ctx.request<unknown>(
       'POST',
@@ -598,9 +611,26 @@ export class AuthEmailApi {
       { requestId, requestSecret, ...(await signInEnvelope(this.ctx, options)) },
       { cache: false, skipAuth: true },
     );
-    const pending = safeParseContract(emailSignInPendingSchema, res);
+    const pending = checkContract(emailSignInPendingCheck, res);
     if (pending) return pending;
-    return signInStep(this.ctx, res, 'auth/signin/email/collect');
+    return emailSignInStep(this.ctx, res, 'auth/signin/email/collect');
+  }
+
+  /**
+   * The account the person chose from those {@link AuthEmailApi.confirm} or
+   * {@link AuthEmailApi.collect} listed → a session, or the second-factor step.
+   */
+  async choose(
+    request: { requestId: string; requestSecret: string; userId: string } & SignInDeviceOptions,
+  ): Promise<SignInStepResult> {
+    const { requestId, requestSecret, userId, ...options } = request;
+    const res = await this.ctx.request<unknown>(
+      'POST',
+      '/auth/signin/email/choose',
+      { requestId, requestSecret, userId, ...(await signInEnvelope(this.ctx, options)) },
+      { cache: false, skipAuth: true },
+    );
+    return signInStep(this.ctx, res, 'auth/signin/email/choose');
   }
 
   /**
@@ -617,7 +647,7 @@ export class AuthEmailApi {
       { token, device: proof },
       { cache: false, skipAuth: true },
     );
-    const parsed = safeParseContract(emailSignInLinkResponseSchema, res);
+    const parsed = checkContract(emailSignInLinkResponseCheck, res);
     if (!parsed) throw new Error('auth/signin/email/link returned an unexpected response shape');
     return parsed;
   }
@@ -659,7 +689,7 @@ export class AuthTotpApi {
     const res = await this.ctx.request<unknown>('POST', '/users/me/totp/enroll', undefined, {
       cache: false,
     });
-    const parsed = safeParseContract(totpEnrollResponseSchema, res);
+    const parsed = checkContract(totpEnrollResponseCheck, res);
     if (!parsed) throw new Error('users/me/totp/enroll returned an unexpected response shape');
     return parsed;
   }
@@ -671,7 +701,7 @@ export class AuthTotpApi {
       { code, reauth },
       { cache: false },
     );
-    const parsed = safeParseContract(totpBackupCodesResponseSchema, res);
+    const parsed = checkContract(totpBackupCodesResponseCheck, res);
     if (!parsed) throw new Error('users/me/totp/confirm returned an unexpected response shape');
     return parsed.backupCodes;
   }
@@ -692,7 +722,7 @@ export class AuthTotpApi {
       { reauth },
       { cache: false },
     );
-    const parsed = safeParseContract(totpBackupCodesResponseSchema, res);
+    const parsed = checkContract(totpBackupCodesResponseCheck, res);
     if (!parsed)
       throw new Error('users/me/totp/backup-codes returned an unexpected response shape');
     return parsed.backupCodes;
@@ -1202,16 +1232,16 @@ export class AuthAgentApi {
   constructor(private readonly ctx: OxyContext) {}
 
   async requestChallenge(publicKey: string): Promise<AgentProofClaims> {
-    const body = agentChallengeRequestSchema.parse({ publicKey });
+    const body = parseContract(agentChallengeRequestCheck, { publicKey });
     const response = await this.ctx.request<unknown>('POST', '/auth/agent/challenge', body, {
       cache: false,
       skipAuth: true,
     });
-    return agentProofClaimsSchema.parse(response);
+    return parseContract(agentProofClaimsCheck, response);
   }
 
   async verify(publicKey: string, proof: AgentSignature): Promise<LoginResult> {
-    const body = agentVerifyRequestSchema.parse({ publicKey, ...proof });
+    const body = parseContract(agentVerifyRequestCheck, { publicKey, ...proof });
     const response = await this.ctx.request<unknown>('POST', '/auth/agent/verify', body, {
       cache: false,
       skipAuth: true,
@@ -1264,7 +1294,7 @@ export class AuthApi {
     // Advisory for now (server soft-enforces — see
     // `SessionController.register`), but solved unconditionally so every
     // client is already sending it once the server starts requiring it.
-    const { solveRegistrationPow } = await import('../crypto/internal');
+    const { solveRegistrationPow } = await import('../crypto/index');
     const powNonce = await solveRegistrationPow(publicKey, timestamp);
 
     const res = await this.ctx.request<{ message: string; user: User }>(
@@ -1561,7 +1591,7 @@ export class AuthApi {
     const res = await this.ctx.request<unknown>('GET', '/users/me/sign-in-methods', undefined, {
       cache: false,
     });
-    const parsed = safeParseContract(signInMethodsSchema, res);
+    const parsed = checkContract(signInMethodsCheck, res);
     if (!parsed) throw new Error('users/me/sign-in-methods returned an unexpected response shape');
     return parsed;
   }
@@ -1579,7 +1609,7 @@ export class AuthApi {
       { action },
       { cache: false },
     );
-    const parsed = safeParseContract(emailVerificationStartResponseSchema, res);
+    const parsed = checkContract(emailVerificationStartResponseCheck, res);
     if (!parsed) throw new Error('users/me/reauth/email returned an unexpected response shape');
     return parsed;
   }

@@ -1,5 +1,211 @@
 # Changelog — `@oxy.so/core`
 
+## 4.17.0
+
+Needs `@oxy.so/contracts` 4.21.0.
+
+### Added
+
+- `serviceToken(apiKey?, apiSecret?, { scopes })` and
+  `serviceRequest(..., { serviceTokenScopes })`: mint a token holding exactly
+  that subset of the live grant (Oxy refuses a scope outside it, and a mint
+  that ignores the narrowing is rejected). Each audience, credential and scope
+  set has its own cache entry; invalidation clears every variant.
+- Supervised personal policy (ADR 0041). `oxy.safety` in a browser:
+  `supervisionState`, `inviteGuardian`, `acceptGuardianInvitation`,
+  `cancelGuardianInvitation`, `contacts`, `approveContact`, `revokeContact`,
+  `reviewSupervision`, `people`, `organizations`, `purchaseApproval(s)`,
+  `reviewPurchaseApproval`. On `OxyServer` (`ServerSafetyApi`), the
+  consumer-service lanes, each with a token narrowed to `safety:decide`:
+  `profileAccess(input, requester)`, `profileAccessBatch`, `messageAccess`,
+  `messageAccessBatch`, `deliveryAccess`, `deliveryAccessBatch`,
+  `messagingSessions`, `contactAccess`, `contentAccess`, `contentAccessBatch`,
+  `publicationPolicy`, `publicationPolicies`, `requestPurchaseApproval`,
+  `reservePurchase`, `confirmPurchase`, `cancelPurchase`.
+- `middleware.auth({ supervisedAction })` / `socket({ supervisedAction })`:
+  validate through the reviewed supervised lane (`ServerSessionApi`), and a
+  policy denial is a 403, never an anonymous request.
+  `strictOptionalBearer: true` keeps anonymous access on an optional route but
+  refuses a presented bad bearer (401), a denial (403) or an authority outage
+  (503) instead of downgrading it.
+
+### Changed
+
+- `OxyServer.safety.profileAccess` now asks `POST /safety/service/profile-access`
+  with the service's own `safety:decide` token plus the requester proof
+  (`{ accessToken }`, `{ accessToken: null }` or `{ connectionToken }`): the
+  consumer application needs `safety:decide` first.
+- The auth middleware validates the request's bearer through
+  `/session/validate-header/` (cross-checked against its session) instead of
+  `/session/validate/` by id. `session.validate(id, { accessToken })` does the
+  same; without `accessToken` it is unchanged.
+
+## 4.16.0
+
+Needs `@oxy.so/contracts` 4.20.0.
+
+### Added
+
+- `CreateExecutionAuthorizationInput.ceilingId` (`OxyServer.agency.createExecutionAuthorization`):
+  name the agent owner's published ceiling that bounds the authority (ADR 0042),
+  for an agent acting for the requester on the requester's own account root.
+## 4.15.0
+
+Needs `@oxy.so/contracts` 4.19.0. Additive: nothing existing changes behaviour.
+
+### Added
+
+- **Application roles** in `@oxy.so/core/server`: gate a backend's operator
+  surfaces on permissions the application declares and Oxy grants to people,
+  instead of an allow-list of user ids in the environment.
+  - `server.middleware.requireAppPermission(key, { deny?, fresh?, respond?, applicationId? })`
+    — after `middleware.auth()`. A refusal answers `404` by default (to a
+    non-holder and to a request with no session alike) or `403`/`401` with
+    `deny: 403`; Oxy unreachable answers `503`, a missing or unknown
+    application id `500`. A service-token request, delegated or not, is
+    refused. A malformed key throws at mount time. On success
+    `req.oxyAppPermissions` holds the answer; its `operatorId` is the human.
+  - `server.appPermissionsFor(req, { fresh?, applicationId? })` — the same
+    answer without a middleware: `{ applicationId, operatorId, permissions, has() }`.
+    Throws `OxyAppPermissionError` (`APP_PERMISSION_SESSION_REQUIRED`,
+    `APP_PERMISSION_UNAVAILABLE`, `APP_PERMISSION_NOT_CONFIGURED`,
+    `APP_PERMISSION_DENIED`); never answers "holds nothing" for a failure.
+  - `server.invalidateAppPermissions({ userId? })`.
+  - `OxyServerConfig.applicationId` (optional when service auth names the
+    application) and `OxyServerConfig.appPermissionsCacheTtlMs` (default
+    30 000; `0` disables). One answer is reused per (application, session,
+    user) for that long; `fresh: true` asks Oxy and refreshes the entry.
+  - Exports `OxyAppPermissionError`, `appPermissionErrorStatus`,
+    `APP_PERMISSIONS_CACHE_TTL_MS` and the types `OxyAppPermissions`,
+    `AppPermissionsOptions`, `RequireAppPermissionOptions`,
+    `OxyAppPermissionDenyStatus`, `OxyAppPermissionErrorCode`.
+  - Reads `GET /applications/:appId/roles/me` (oxy-api with migration
+    `0167_application_roles`). Against an API without it every check denies
+    (`APP_PERMISSION_NOT_CONFIGURED`, answered 500).
+
+## 4.14.0
+
+Needs `@oxy.so/contracts` 4.18.0.
+
+### Added
+
+- `OxyServer.accounts.accessFor(accountId, userId)` (`ServerAccountsApi`):
+  may this person act for that account, and with what? Calls
+  `GET /internal/accounts/:accountId/access/:userId` with the service's own
+  token (the application needs `accounts:membership:read`) and returns the
+  parsed `AccountAccessVerdict`. Never cached; anything but a valid 200 verdict
+  throws, so callers fail closed.
+- `oxy.assets.initUpload(...)` and `oxy.assets.completeUpload(...)`: the two
+  steps of the direct-to-storage upload (`POST /assets/init`,
+  `POST /assets/complete`).
+- `oxy.assets.uploadLarge(blob, { mime, name, visibility, metadata, onProgress })`:
+  hashes the file in 8 MiB slices (SHA-256, loaded lazily from `@oxy.so/core/crypto`, which now also exports `createContentHasher`), then init → PUT
+  to the presigned URL → complete, so no byte passes through the API and the
+  file is never held whole in memory. Hashing comes first because the presigned
+  URL is short-lived. An empty `uploadUrl` (bytes already stored) skips the PUT
+  and answers `deduplicated: true`. On the web the PUT uses `XMLHttpRequest`,
+  so `onProgress({ phase, loaded, total })` sees bytes sent; elsewhere `fetch`.
+  Types: `LargeUploadOptions`, `LargeUploadProgress`, `LargeUploadResult`,
+  `CompletedAssetUpload`.
+
+## 4.13.0
+
+Needs `@oxy.so/contracts` 4.17.0 and `@oxy.so/protocol` 1.3.0. Smaller
+startup for every app: measured on Mention web, the startup JavaScript loses
+~125 KB raw / ~38 KB gzip with this release and services 11.6.0.
+
+### Changed
+
+- The client entries (`.`, `./session`, `./crypto`, `./civic`, `./logger`) no
+  longer import Zod. Responses and request bodies are checked with
+  `@oxy.so/contracts/client` (same verdicts and outputs as the schemas). Where
+  a schema's `.parse()` used to throw a `ZodError`, the call now throws
+  `ContractCheckError` from `@oxy.so/contracts/client`, whose `issues[0]`
+  keeps Zod's `code`, `path` and `message`. `./server` and `./inference`
+  still validate with the Zod schemas. `clientEntriesZodFree.test.ts` walks
+  each entry's graph, into the workspace packages, to keep it that way.
+- The identity stack (secp256k1, bip39, the AEAD cipher) loads on first use
+  everywhere: the identity-bound session's default key binding imports it
+  with `import()`, and every lazy load goes through the ONE module
+  `@oxy.so/core/crypto`. A second lazy root (the internal crypto barrel, and
+  `KeyManager`'s own lazy `./recoveryPhrase`) made Metro hoist the whole stack
+  into the always-loaded common chunk. The polyfill still runs first.
+- `@oxy.so/core/crypto` also exports `BACKUP_KDF_ENCRYPTION_INFO`,
+  `solveRegistrationPow`, `canonicalize`, `loadCommonsIdentityBridge`,
+  `signMessage` and `verifySignature` (they were reached through the removed
+  internal barrel).
+
+## 4.12.0
+
+### Added
+
+- `safeFetch` takes `redirect: 'manual'`, which returns the first response even
+  when it is a redirect, so the caller can read its `Location`. The URL is still
+  validated and the connection pinned. The default stays `'follow'`.
+
+## 4.11.0
+
+### Changed
+
+- `createOxyRateLimit` answers 429 with the API error envelope, as
+  `docs/api-conventions.md` requires, instead of a plain-text body:
+  `{ error: { code: 'rate_limited', message, details: { retryAfterSeconds } } }`,
+  with `retryAfterSeconds` equal to the `Retry-After` header. `message`
+  now sets `error.message`.
+
+## 4.10.0
+
+Needs `@oxy.so/contracts` 4.16.0. One email may hold several accounts
+(ADR 0040).
+
+### Added
+
+- `oxy.auth.email.choose({ requestId, requestSecret, userId })`: signs in the
+  account chosen from those an email holds → a session or the second-factor
+  step.
+- Locale strings `signin.emailAccounts.*` and
+  `signin.errors.emailAccountsFull`, in every locale.
+
+### Changed
+
+- `oxy.auth.email.confirm` and `collect` may answer
+  `{ chooseAccount: true, accounts, expiresAt }` (an `EmailSignInStepResult`)
+  instead of a session; nothing is planted then.
+- `signin.errors.invalidCredentials` says to use the username when several
+  accounts share the email.
+
+## 4.9.1
+
+### Fixed
+
+- A GET no longer sends `Content-Type: application/json`. It has no body, and the
+  header alone made every cross-origin GET a non-simple request the browser
+  preflights.
+- `X-Oxy-Activity-Id` and `X-Oxy-Edge-Region` ride only on requests the browser
+  preflights anyway (a bearer, a JSON body, a custom header, a non-simple method).
+  An anonymous GET is a simple request again, so it no longer waits an `OPTIONS`
+  round trip per URL. Measured on a cold load against `api.oxy.so`: two
+  preflights to zero, and the public app lookup 1.31 s to 0.66 s.
+## 4.9.0
+
+### Added
+
+- `OxyServer.serviceTokenFor(audience, apiKey?, apiSecret?)`: a service token
+  minted FOR a resource server, `kaana.ai` being the credential for
+  https://kaana.ai/v1 (Kaana ADR 0002 decision 6). Both mints name it — the
+  credential's `POST /auth/service-token` and the attested workload's
+  `POST /auth/service-token/workload` — and each audience has its own cache
+  entry, so one is never answered with another's token.
+  `invalidateServiceToken(apiKey)` drops every audience that credential
+  minted. Exported with `ServiceTokenAudience` and
+  `DEFAULT_SERVICE_TOKEN_AUDIENCE` from `@oxy.so/core/server`.
+- `requestWorkloadServiceToken({ audience })`.
+
+### Unchanged
+
+- `serviceToken()` mints for `oxy-api` and sends no `audience`, byte for byte
+  as before.
+
 ## 4.6.0
 
 ### Added

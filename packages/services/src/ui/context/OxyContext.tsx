@@ -29,7 +29,6 @@ import type {
   AccountDialogController,
   AccountDialogView,
 } from '@oxy.so/core/session';
-import { KeyManager } from '@oxy.so/core/crypto';
 import {
   refreshDeviceSecretArm,
   establishIdentitySession,
@@ -60,6 +59,7 @@ import {
   type RequestOAuthConsentOptions,
 } from '../oauth/explicitOAuthConsent';
 import { isWebBrowser } from '../utils/isWebBrowser';
+import { loadIdentityCrypto } from '../utils/identityCrypto';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
 import { resolveApplicationSessionLane } from '../oauth/applicationSessionLane';
@@ -696,6 +696,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
         try {
           // The same keys the refresh handler's second arm signs with: the
           // identity-bound client's own key, or the cross-app shared identity.
+          const { KeyManager } = await loadIdentityCrypto();
           return identity ? await KeyManager.hasIdentity() : await KeyManager.hasSharedIdentity();
         } catch {
           return false;
@@ -1495,9 +1496,12 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // — a locked keychain must never be misreported as "no identity". `hasIdentity`
   // still resolves `false` and `getPublicKey` still resolves `null` for a genuine
   // absence.
-  const hasIdentity = useCallback(async (): Promise<boolean> => KeyManager.hasIdentity(), []);
+  const hasIdentity = useCallback(
+    async (): Promise<boolean> => (await loadIdentityCrypto()).KeyManager.hasIdentity(),
+    [],
+  );
   const getPublicKey = useCallback(
-    async (): Promise<string | null> => KeyManager.getPublicKey(),
+    async (): Promise<string | null> => (await loadIdentityCrypto()).KeyManager.getPublicKey(),
     [],
   );
 

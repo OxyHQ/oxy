@@ -1,6 +1,10 @@
 import type { Request, Response } from 'express';
 import { logger } from '../utils/logger';
-import locationService from '../services/locationService';
+import { sendRateLimited } from '../middleware/errorHandler';
+import locationService, {
+  LocationRateLimitedError,
+  LocationTimeoutError,
+} from '../services/locationService';
 import locationQueryService from '../services/locationQueryService';
 import performanceMonitor from '../utils/performanceMonitor';
 
@@ -47,17 +51,13 @@ export class LocationSearchController {
     } catch (error) {
       logger.error('Error searching locations:', error);
 
-      if (error instanceof Error) {
-        if (error.message.includes('Rate limit')) {
-          return res.status(429).json({
-            message: error.message,
-          });
-        }
-        if (error.message.includes('timeout')) {
-          return res.status(408).json({
-            message: error.message,
-          });
-        }
+      if (error instanceof LocationRateLimitedError) {
+        return sendRateLimited(res, error);
+      }
+      if (error instanceof LocationTimeoutError) {
+        return res.status(408).json({
+          message: error.message,
+        });
       }
 
       res.status(500).json({
@@ -118,12 +118,8 @@ export class LocationSearchController {
     } catch (error) {
       logger.error('Error getting location details:', error);
 
-      if (error instanceof Error) {
-        if (error.message.includes('Rate limit')) {
-          return res.status(429).json({
-            message: error.message,
-          });
-        }
+      if (error instanceof LocationRateLimitedError) {
+        return sendRateLimited(res, error);
       }
 
       res.status(500).json({

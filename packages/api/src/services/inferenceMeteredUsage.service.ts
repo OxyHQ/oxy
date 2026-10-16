@@ -47,6 +47,7 @@ import { internalCostCenters } from '../db/schema/internalCostCenters';
 import { usageUnitColumnValues, USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
 import { usageReceipts } from '../db/schema/usageReceipts';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { quoteUnits } from './inferenceLedger.service';
 
 /* -------------------------------------------------------------------------- */
@@ -77,7 +78,24 @@ export interface MeteredAdmissionInput {
   readonly routingPolicyVersionId: string | undefined;
   readonly ceiling: { readonly amount: string; readonly currency: string } | undefined;
   readonly expiresInSeconds: number;
+  /**
+   * The realtime-session limits the application set in Console
+   * (`application_inference_limits`), checked under the same lock as the claim.
+   * Present only for a realtime grant; `null` limits are unset and bound nothing.
+   */
+  readonly realtimeSessionLimits?: {
+    readonly perApplication: number | null;
+    readonly perCredential: number | null;
+  };
 }
+
+/**
+ * The endpoint every realtime session's usage row is recorded under. A session
+ * holds its slot for its whole life, so it is counted apart from one-shot
+ * requests: against the application's session limits, never against an
+ * internal relationship's request concurrency (Alia ADR 0017 §5).
+ */
+export const REALTIME_SESSION_ENDPOINT = '/v1/realtime';
 
 export type MeteredAdmission =
   | { readonly status: 'claimed'; readonly meteredUsageId: string }
@@ -88,7 +106,9 @@ export type MeteredAdmission =
       readonly status: 'capacity-exceeded';
       readonly limit: 'concurrency' | 'daily';
       readonly capacity: InternalMeteredCapacity;
-    };
+    }
+  /** A Console realtime-session limit is reached (`application` or `credential`). */
+  | { readonly status: 'sessions-exceeded'; readonly scope: 'application' | 'credential' };
 
 /**
  * The nearest ACTIVE cost centre above an account, as one scalar subquery, so
@@ -132,7 +152,8 @@ export async function readMeteredCapacity(
     sql`
       select
         count(*) filter (where ${inferenceMeteredUsage.status} = 'admitted'
-          and ${inferenceMeteredUsage.expiresAt} > now())::text as in_flight,
+          and ${inferenceMeteredUsage.expiresAt} > now()
+          and ${inferenceMeteredUsage.endpoint} <> ${REALTIME_SESSION_ENDPOINT})::text as in_flight,
         count(*) filter (where ${inferenceMeteredUsage.createdAt}
           >= (date_trunc('day', now() at time zone 'utc') at time zone 'utc'))::text as today
       from ${inferenceMeteredUsage}
@@ -243,6 +264,45 @@ export async function claimMeteredAdmission(
       }
       if (counts.dailyAdmissions >= capacity.maxRequestsPerUtcDay) {
         return { status: 'capacity-exceeded', limit: 'daily', capacity };
+      }
+    }
+
+    const sessionLimits = input.realtimeSessionLimits;
+    if (
+      sessionLimits !== undefined &&
+      (sessionLimits.perApplication !== null || sessionLimits.perCredential !== null)
+    ) {
+      // The same lock as the relationship's capacity: N sessions opening at
+      // once cannot all observe one slot left. Re-entrant within the transaction.
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${capacityLockKey(input.applicationId, input.environment).toString()}::bigint)`,
+      );
+      const [open] = await executeRows<{ application: string; credential: string }>(
+        tx,
+        sql`
+          select
+            count(*)::text as application,
+            count(*) filter (where ${inferenceMeteredUsage.applicationCredentialId}
+              = ${input.applicationCredentialId})::text as credential
+          from ${inferenceMeteredUsage}
+          where ${inferenceMeteredUsage.applicationId} = ${input.applicationId}
+            and ${inferenceMeteredUsage.environment} = ${input.environment}
+            and ${inferenceMeteredUsage.endpoint} = ${REALTIME_SESSION_ENDPOINT}
+            and ${inferenceMeteredUsage.status} = 'admitted'
+            and ${inferenceMeteredUsage.expiresAt} > now()
+        `,
+      );
+      if (
+        sessionLimits.perApplication !== null &&
+        Number(open?.application ?? 0) >= sessionLimits.perApplication
+      ) {
+        return { status: 'sessions-exceeded', scope: 'application' };
+      }
+      if (
+        sessionLimits.perCredential !== null &&
+        Number(open?.credential ?? 0) >= sessionLimits.perCredential
+      ) {
+        return { status: 'sessions-exceeded', scope: 'credential' };
       }
     }
 
@@ -550,29 +610,14 @@ export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
 }
 
 /** Recover committed receipts on every API task, without depending on Kaana configuration. */
-export function startMeteredReceiptReconciliationSchedule(): { stop(): void } {
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    reconcileMeteredReceipts()
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.metered_usage.reconciliation_failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const interval = setInterval(tick, 60_000);
-  interval.unref();
-  return {
-    stop(): void {
-      clearInterval(interval);
+export function startMeteredReceiptReconciliationSchedule(): PeriodicJob {
+  return schedulePeriodicJob({
+    failureMessage: 'inference.metered_usage.reconciliation_failed',
+    intervalMs: 60_000,
+    run: async () => {
+      await reconcileMeteredReceipts();
     },
-  };
+  });
 }
 
 /* -------------------------------------------------------------------------- */

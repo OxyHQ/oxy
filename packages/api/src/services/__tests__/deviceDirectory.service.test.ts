@@ -100,17 +100,22 @@ async function storedDevice(deviceId: string) {
 
 async function storedContexts(deviceId: string) {
   const device = await storedDevice(deviceId);
-  return getDb()
-    .select({
-      id: deviceAccountContexts.id,
-      principalId: deviceAccountContexts.principalId,
-      accountId: deviceAccountContexts.accountId,
-      sessionId: deviceAccountContexts.sessionId,
-      principalUserId: devicePrincipals.userId,
-    })
-    .from(deviceAccountContexts)
-    .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
-    .where(eq(deviceAccountContexts.deviceSessionId, device.id));
+  return (
+    getDb()
+      .select({
+        id: deviceAccountContexts.id,
+        principalId: deviceAccountContexts.principalId,
+        accountId: deviceAccountContexts.accountId,
+        sessionId: deviceAccountContexts.sessionId,
+        principalUserId: devicePrincipals.userId,
+      })
+      .from(deviceAccountContexts)
+      .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
+      .where(eq(deviceAccountContexts.deviceSessionId, device.id))
+      // A stable order: a snapshot compared before and after a rollback must not
+      // depend on the heap order Postgres happens to return (CI, 2026-10-16).
+      .orderBy(deviceAccountContexts.id)
+  );
 }
 
 /** The directory's context for one `(person, account)` pair. */

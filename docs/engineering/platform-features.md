@@ -316,6 +316,6 @@ Mail delivery errors are surfaced; the manager can resend the retained row.
 
 `POST /accounts/:id/members` and the deprecated `accounts.members.invite` no
 longer grant immediate access (HTTP 410). Deploy updated SDK consumers and the
-Accounts acceptance page together with this API change. Apply migration 0159
+Accounts acceptance page together with this API change. Apply migration 0170
 before rollout. SMTP delivery and the public acceptance URL require an environment
 smoke test; automated tests use the real database and a mocked mail transport.

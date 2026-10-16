@@ -2,6 +2,7 @@ import { revokeApplicationCredential } from '../services/applicationCredentialRe
 import { generateCredentialMaterial } from '../utils/credentialMaterial';
 import express from 'express';
 import crypto from 'crypto';
+import type { z } from 'zod';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
@@ -23,6 +24,7 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
+  ApiError,
   BadRequestError,
   ConflictError,
   ForbiddenError,
@@ -46,6 +48,8 @@ import {
 import {
   appIdRouteParams,
   appCredentialParams,
+  appRoleGrantParams,
+  listApplicationRolePermissionsQuerySchema,
   credentialAuditQuerySchema,
   periodQuerySchema,
   createApplicationSchema,
@@ -60,6 +64,30 @@ import {
   listCredentialAuditTrail,
   recordCredentialLifecycleEvent,
 } from '../services/applicationCredentialAudit.service';
+import {
+  APPLICATION_ROLE_ERROR_CODES,
+  createApplicationRoleGrantRequestSchema,
+  declareApplicationPermissionsRequestSchema,
+  listApplicationRoleGrantsQuerySchema,
+  revokeApplicationRoleGrantRequestSchema,
+  type applicationPermissionListSchema,
+  type applicationRoleGrantListSchema,
+  type applicationRoleGrantSchema,
+  type applicationRolesMeSchema,
+  type declareApplicationPermissionsResponseSchema,
+  type CreateApplicationRoleGrantRequest,
+  type DeclareApplicationPermissionsRequest,
+  type ListApplicationRoleGrantsQuery,
+  type RevokeApplicationRoleGrantRequest,
+} from '@oxy.so/contracts';
+import {
+  declarePermissions,
+  grantPermission,
+  listGrants,
+  listPermissions,
+  permissionsHeldBy,
+  revokeGrant,
+} from '../services/applicationRoles.service';
 import {
   storeListingBody,
   storeScreenshotBody,
@@ -127,6 +155,8 @@ interface AppAccess {
   role: AccountRole;
   /** Effective application permissions — role baseline adjusted by the member's deltas. */
   permissions: Set<ApplicationPermission>;
+  /** The HUMAN the access was resolved for (`resolveOperatorId`), never an org acted as. */
+  operatorId: string;
 }
 
 /**
@@ -641,7 +671,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
 
   const permissions = new Set<ApplicationPermission>(appPermissionsForAccountAccess(accountAccess));
 
-  const access: AppAccess = { application, role: accountAccess.role, permissions };
+  const access: AppAccess = { application, role: accountAccess.role, permissions, operatorId };
   req.application = application;
   req.access = access;
   return access;
@@ -1666,6 +1696,209 @@ router.delete(
       screenshotId: req.params.screenshotId,
     });
     res.status(204).end();
+  }),
+);
+
+// ============================================================================
+// Application roles
+//
+// The application's OWN permission vocabulary (`payments.operate`, …), who
+// holds it, and the read its backend makes about the person in front of it.
+// Mechanism and rules: `services/applicationRoles.service.ts` and
+// `docs/auth/application-roles.md`. Management reuses `requireAppPermission`
+// (`roles:read` / `roles:manage`); every actor is the HUMAN operator.
+// ============================================================================
+
+/**
+ * The application permissions the HUMAN behind this bearer holds.
+ *
+ * The one roles read open to every signed-in person, about themselves only:
+ * no membership of the owning account is needed, because the answer is the
+ * caller's own grants. The person is the operator (`resolveOperatorId`), so
+ * someone acting as their organization is answered for themselves.
+ *
+ * A bearer whose session belongs to ONE application (a third-party OAuth
+ * session) may ask only about that application; the shared first-party session
+ * may ask about any. Never cached: a revocation is visible to the next read.
+ *
+ * @response 200 applicationRolesMeSchema The caller's held keys.
+ */
+router.get(
+  '/:appId/roles/me',
+  validate({ params: appIdRouteParams }),
+  asyncHandler(async (req: AuthRequest, res) => {
+    const appId = req.params.appId;
+    const boundApplicationId = req.oxyToken?.applicationId ?? null;
+    if (boundApplicationId !== null && boundApplicationId !== appId) {
+      throw new ApiError(
+        403,
+        'This session belongs to a different application',
+        APPLICATION_ROLE_ERROR_CODES.sessionApplicationMismatch,
+      );
+    }
+    const operatorId = await resolveOperatorId(req);
+
+    const [application] = await getDb()
+      .select({ id: applications.id })
+      .from(applications)
+      .where(and(eq(applications.id, appId), ne(applications.status, 'deleted')))
+      .limit(1);
+    if (!application) {
+      throw new NotFoundError('Application not found');
+    }
+
+    const body: z.infer<typeof applicationRolesMeSchema> = {
+      applicationId: application.id,
+      userId: operatorId,
+      permissions: await permissionsHeldBy(application.id, operatorId),
+    };
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(body);
+  }),
+);
+
+/**
+ * The application's declared permission keys; `?includeRetired=true` adds the
+ * retired ones (history — they confer nothing).
+ *
+ * @response 200 applicationPermissionListSchema The declared keys, by key.
+ */
+router.get(
+  '/:appId/roles/permissions',
+  validate({ params: appIdRouteParams, query: listApplicationRolePermissionsQuerySchema }),
+  requireAppPermission('roles:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const query = req.query as { includeRetired?: boolean };
+    const body: z.infer<typeof applicationPermissionListSchema> = {
+      items: await listPermissions(requireApplication(req).id, {
+        includeRetired: query.includeRetired === true,
+      }),
+    };
+    res.json(body);
+  }),
+);
+
+/**
+ * Declare the application's WHOLE permission vocabulary. New keys are added,
+ * kept keys take the new description, missing keys are retired and every live
+ * grant of them is revoked, in one transaction. Idempotent.
+ *
+ * @response 200 declareApplicationPermissionsResponseSchema The live vocabulary and what changed.
+ */
+router.put(
+  '/:appId/roles/permissions',
+  validate({ params: appIdRouteParams, body: declareApplicationPermissionsRequestSchema }),
+  requireAppPermission('roles:manage'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as DeclareApplicationPermissionsRequest;
+    const access = req.access;
+    if (!access) {
+      throw new NotFoundError('Application not found');
+    }
+    const result: z.infer<typeof declareApplicationPermissionsResponseSchema> =
+      await declarePermissions({
+        applicationId: requireApplication(req).id,
+        actorId: access.operatorId,
+        declared: body.permissions,
+      });
+    logger.info('Application permissions declared', {
+      userId: access.operatorId,
+      applicationId: access.application.id,
+      added: result.added,
+      retired: result.retired,
+      revokedGrants: result.revokedGrants,
+    });
+    res.json(result);
+  }),
+);
+
+/**
+ * Grants of the application's keys, newest first. Live only unless
+ * `?includeRevoked=true`; filter with `?permission=` and `?userId=`.
+ *
+ * @response 200 applicationRoleGrantListSchema One page of grants.
+ */
+router.get(
+  '/:appId/roles/grants',
+  validate({ params: appIdRouteParams, query: listApplicationRoleGrantsQuerySchema }),
+  requireAppPermission('roles:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const query = req.query as ListApplicationRoleGrantsQuery;
+    const body: z.infer<typeof applicationRoleGrantListSchema> = await listGrants({
+      applicationId: requireApplication(req).id,
+      ...query,
+    });
+    res.json(body);
+  }),
+);
+
+/**
+ * Grant a declared key to a person (by `userId` or `username`). A grant to
+ * yourself is refused unless the application is owned by your own personal
+ * account (`SELF_GRANT_FORBIDDEN`).
+ *
+ * @response 201 applicationRoleGrantSchema The new grant.
+ */
+router.post(
+  '/:appId/roles/grants',
+  validate({ params: appIdRouteParams, body: createApplicationRoleGrantRequestSchema }),
+  requireAppPermission('roles:manage'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as CreateApplicationRoleGrantRequest;
+    const access = req.access;
+    if (!access) {
+      throw new NotFoundError('Application not found');
+    }
+    const application = requireApplication(req);
+    const grant: z.infer<typeof applicationRoleGrantSchema> = await grantPermission({
+      application: { id: application.id, ownerAccountId: application.ownerAccountId },
+      actorId: access.operatorId,
+      grantee:
+        body.userId !== undefined ? { userId: body.userId } : { username: body.username ?? '' },
+      permission: body.permission,
+      reason: body.reason,
+    });
+    logger.info('Application permission granted', {
+      userId: access.operatorId,
+      applicationId: application.id,
+      grantId: grant.id,
+      granteeUserId: grant.userId,
+      permission: grant.permission,
+    });
+    res.status(201).json(grant);
+  }),
+);
+
+/**
+ * Revoke a live grant. A revoked grant stays in the history; granting the key
+ * again creates a new grant.
+ *
+ * @response 200 applicationRoleGrantSchema The revoked grant.
+ */
+router.post(
+  '/:appId/roles/grants/:grantId/revoke',
+  validate({ params: appRoleGrantParams, body: revokeApplicationRoleGrantRequestSchema }),
+  requireAppPermission('roles:manage'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as RevokeApplicationRoleGrantRequest;
+    const access = req.access;
+    if (!access) {
+      throw new NotFoundError('Application not found');
+    }
+    const grant = await revokeGrant({
+      applicationId: requireApplication(req).id,
+      grantId: req.params.grantId,
+      actorId: access.operatorId,
+      reason: body.reason,
+    });
+    logger.info('Application permission revoked', {
+      userId: access.operatorId,
+      applicationId: access.application.id,
+      grantId: grant.id,
+      granteeUserId: grant.userId,
+      permission: grant.permission,
+    });
+    res.json(grant);
   }),
 );
 
