@@ -319,7 +319,7 @@ application, not with the business's session).
   undone. One open session per (application, entity type), 409 otherwise; an
   expired one answers 410 and is retired by the next `begin`. SDK:
   `OxyServer.assets.references.reconcile(entityType, items, { dryRun })`,
-  `@oxy.so/core` 4.13.0 (4.12.0 was published from `main` first).
+  `@oxy.so/core` 4.14.0 (4.12.0 and 4.13.0 were published from `main` first).
 - **GoWay** holds `files:references:write` in the seed.
 
 #### Switching the sweep to enforce
@@ -483,7 +483,7 @@ columns. The drop of `file_links` moved to `0171_drop_file_links` (post).
   `oxy.apps.setFilesWebhook`), stores the secret, verifies with
   `verifyFileEventSignature`, and answers the challenge.
 - **Callers of `oxy.apps.delete`** pass `{ confirmName }` (`@oxy.so/core`
-  4.13.0); the console does.
+  4.14.0); the console does.
 
 ### Required changes in other repositories (stage 2)
 
@@ -495,7 +495,7 @@ columns. The drop of `file_links` moved to `0171_drop_file_links` (post).
   `files:references:write`; run `seed:oxy-applications` for it to take effect.
 - **A product that showed a trashed file** (a link removed, the file kept
   being displayed) now gets a 404 / placeholder for it: trash is not served.
-- **SDK consumers** take `@oxy.so/core` 4.13.0 for `references.reconcile`,
+- **SDK consumers** take `@oxy.so/core` 4.14.0 for `references.reconcile`,
   `Asset.inUse` and `assets.list({ inUse })`; nothing else changes shape.
 
 ## Alternatives rejected

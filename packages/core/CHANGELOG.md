@@ -55,7 +55,8 @@ Needs the Oxy API with application-owned files, file references, the file
 lifecycle, import by URL, application deletion and file events (ADR 0041,
 migrations `0167_application_owned_files`, `0168_file_references`,
 `0169_file_lifecycle` and `0170_application_file_events`). (The work below was
-first prepared as 4.12.0; 4.12.0 was published from `main` without it.)
+first prepared as 4.12.0, then 4.13.0; both were published from `main` without
+it.)
 
 ### Breaking
 
