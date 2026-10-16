@@ -74,6 +74,22 @@ Additive only: no export removed or changed.
   `ContentClaimListResponse`, `ContentClaimSubmissionResponse`,
   `ContentClaimSubmissionError`). The constants and the two predicates are
   also on `@oxy.so/contracts/client`.
+- **The owner's counter-notice** (ADR 0041 D10, the Oxy API's
+  `POST /content-claims/counter-notices`; 17 U.S.C. § 512(g)(3)):
+  `contentClaimCounterNoticeSchema` (strict; the claim by `reference`,
+  `claimId` or `fileIds`; the subscriber's name, address, phone and email; the
+  material and where it appeared; the owner's explanation; the four affirmed
+  `statements`; the signature — every message a key under
+  `contentClaim.counterNotice.errors.*`, listed in
+  `CONTENT_CLAIM_COUNTER_NOTICE_VALIDATION_KEYS`), `ContentClaimCounterNotice`,
+  `ContentClaimCounterNoticeResponse`, `ContentClaimCounterNoticeError`, and
+  `ContentClaimCounterNoticeView` on `ContentClaimDetailView.counterNotices`.
+  `COUNTER_NOTICE_STATEMENTS` (the exact wording the form shows) and
+  `COUNTER_NOTICE_STATEMENT_VERSION`, `CONTENT_CLAIM_COUNTER_NOTICE_LIMITS`,
+  `CONTENT_CLAIM_REFERENCE_PATTERN`, the event action
+  `counter_notice_submitted` and three error codes
+  (`CONTENT_CLAIM_COUNTER_NOTICE_INVALID`, `…_AMBIGUOUS`, `…_EXISTS`) — the
+  constants also on `@oxy.so/contracts/client`.
 
 ## 4.19.0
 

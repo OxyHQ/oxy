@@ -15,8 +15,10 @@ import { z } from 'zod';
 // it is re-exported here so the root entry carries the whole contract.
 import {
   CLAIMANT_RELATIONSHIPS,
+  CONTENT_CLAIM_COUNTER_NOTICE_LIMITS,
   CONTENT_CLAIM_KINDS,
   CONTENT_CLAIM_LIMITS,
+  CONTENT_CLAIM_REFERENCE_PATTERN,
   type ClaimantRelationship,
   type ContentClaimKind,
   type ContentClaimState,
@@ -24,10 +26,14 @@ import {
 export {
   CLAIMANT_RELATIONSHIPS,
   CLOSED_CONTENT_CLAIM_STATES,
+  CONTENT_CLAIM_COUNTER_NOTICE_LIMITS,
   CONTENT_CLAIM_ERROR_CODES,
   CONTENT_CLAIM_KINDS,
   CONTENT_CLAIM_LIMITS,
+  CONTENT_CLAIM_REFERENCE_PATTERN,
   CONTENT_CLAIM_STATES,
+  COUNTER_NOTICE_STATEMENT_VERSION,
+  COUNTER_NOTICE_STATEMENTS,
   ERASURE_REQUEST_DEADLINE_DAYS,
   OPEN_CONTENT_CLAIM_STATES,
   isErasureRequest,
@@ -183,6 +189,8 @@ export const CONTENT_CLAIM_EVENT_ACTIONS = [
   'targets_blocked',
   'rejected',
   'counter_notice_recorded',
+  /** The owner of the blocked content sent a counter-notice themselves (`POST /content-claims/counter-notices`). */
+  'counter_notice_submitted',
   'reinstated',
   'upheld',
   'note_added',
@@ -261,6 +269,8 @@ export interface ContentClaimDetailView extends ContentClaimSummaryView {
   claimantExpiresAt: string | null;
   targets: ContentClaimTargetView[];
   events: ContentClaimEventView[];
+  /** The owners' own counter-notices, oldest first. */
+  counterNotices: ContentClaimCounterNoticeView[];
 }
 
 /** `GET /content-claims` */
@@ -268,4 +278,185 @@ export interface ContentClaimListResponse {
   claims: ContentClaimSummaryView[];
   /** Pass as `cursor` for the next page; null on the last. */
   nextCursor: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// The owner's counter-notice (`POST /content-claims/counter-notices`)
+// ---------------------------------------------------------------------------
+
+/** Every key a counter-notice's validation can produce, under `contentClaim.counterNotice.errors.*`. */
+export const CONTENT_CLAIM_COUNTER_NOTICE_VALIDATION_KEYS = [
+  'contentClaim.counterNotice.errors.claim',
+  'contentClaim.counterNotice.errors.reference',
+  'contentClaim.counterNotice.errors.claimId',
+  'contentClaim.counterNotice.errors.fileIds',
+  'contentClaim.counterNotice.errors.name',
+  'contentClaim.counterNotice.errors.address',
+  'contentClaim.counterNotice.errors.phone',
+  'contentClaim.counterNotice.errors.email',
+  'contentClaim.counterNotice.errors.materialDescription',
+  'contentClaim.counterNotice.errors.materialLocation',
+  'contentClaim.counterNotice.errors.explanation',
+  'contentClaim.counterNotice.errors.perjury',
+  'contentClaim.counterNotice.errors.jurisdiction',
+  'contentClaim.counterNotice.errors.serviceOfProcess',
+  'contentClaim.counterNotice.errors.disclosure',
+  'contentClaim.counterNotice.errors.signature',
+] as const;
+
+export type ContentClaimCounterNoticeValidationKey =
+  (typeof CONTENT_CLAIM_COUNTER_NOTICE_VALIDATION_KEYS)[number];
+
+const N = CONTENT_CLAIM_COUNTER_NOTICE_LIMITS;
+
+const boundedText = (min: number, max: number, message: ContentClaimCounterNoticeValidationKey) =>
+  z.string({ message }).trim().min(min, message).max(max, message);
+
+const affirmed = (message: ContentClaimCounterNoticeValidationKey) =>
+  z.literal(true, { errorMap: () => ({ message }) });
+
+/**
+ * `POST /content-claims/counter-notices` — the owner of content a claim took
+ * down disputes it (17 U.S.C. § 512(g)(3)). Signed in: the API answers only
+ * for files the caller owns.
+ *
+ * Names the claim by its `reference` (the `OXY-XXXX-XXXX` the owner was
+ * emailed), its `claimId`, or the blocked `fileIds` — at least one. With
+ * `fileIds` the notice covers exactly those files; without, every one of the
+ * caller's files the claim blocked. Strict: an unknown key is refused.
+ */
+export const contentClaimCounterNoticeSchema = z
+  .object({
+    reference: z
+      .string({ message: 'contentClaim.counterNotice.errors.reference' })
+      .trim()
+      .toUpperCase()
+      .regex(CONTENT_CLAIM_REFERENCE_PATTERN, 'contentClaim.counterNotice.errors.reference')
+      .optional(),
+    claimId: z
+      .string({ message: 'contentClaim.counterNotice.errors.claimId' })
+      .trim()
+      .uuid('contentClaim.counterNotice.errors.claimId')
+      .optional(),
+    fileIds: z
+      .array(boundedText(1, N.maxFileId, 'contentClaim.counterNotice.errors.fileIds'), {
+        message: 'contentClaim.counterNotice.errors.fileIds',
+      })
+      .min(1, 'contentClaim.counterNotice.errors.fileIds')
+      .max(N.maxFileIds, 'contentClaim.counterNotice.errors.fileIds')
+      .optional(),
+    subscriber: z
+      .object(
+        {
+          name: boundedText(1, N.maxName, 'contentClaim.counterNotice.errors.name'),
+          address: boundedText(1, N.maxAddress, 'contentClaim.counterNotice.errors.address'),
+          phone: boundedText(
+            N.minPhone,
+            N.maxPhone,
+            'contentClaim.counterNotice.errors.phone',
+          ).regex(/^\+?[0-9 ().-]+$/, 'contentClaim.counterNotice.errors.phone'),
+          email: z
+            .string({ message: 'contentClaim.counterNotice.errors.email' })
+            .trim()
+            .email('contentClaim.counterNotice.errors.email')
+            .max(N.maxEmail, 'contentClaim.counterNotice.errors.email'),
+        },
+        { message: 'contentClaim.counterNotice.errors.name' },
+      )
+      .strict(),
+    material: z
+      .object(
+        {
+          /** What was removed. */
+          description: boundedText(
+            N.minMaterial,
+            N.maxMaterial,
+            'contentClaim.counterNotice.errors.materialDescription',
+          ),
+          /** Where it appeared before it was removed (a URL, or where in an app). */
+          location: boundedText(
+            1,
+            N.maxLocation,
+            'contentClaim.counterNotice.errors.materialLocation',
+          ),
+        },
+        { message: 'contentClaim.counterNotice.errors.materialDescription' },
+      )
+      .strict(),
+    /** Why it was a mistake or a misidentification, in the owner's words. */
+    explanation: boundedText(
+      N.minExplanation,
+      N.maxExplanation,
+      'contentClaim.counterNotice.errors.explanation',
+    ),
+    /** Each of `COUNTER_NOTICE_STATEMENTS`, affirmed. */
+    statements: z
+      .object(
+        {
+          perjury: affirmed('contentClaim.counterNotice.errors.perjury'),
+          jurisdiction: affirmed('contentClaim.counterNotice.errors.jurisdiction'),
+          serviceOfProcess: affirmed('contentClaim.counterNotice.errors.serviceOfProcess'),
+          disclosure: affirmed('contentClaim.counterNotice.errors.disclosure'),
+        },
+        { message: 'contentClaim.counterNotice.errors.perjury' },
+      )
+      .strict(),
+    /** The owner's full legal name, typed as their signature. */
+    signature: boundedText(1, N.maxSignature, 'contentClaim.counterNotice.errors.signature'),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      value.reference === undefined &&
+      value.claimId === undefined &&
+      value.fileIds === undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reference'],
+        message: 'contentClaim.counterNotice.errors.claim',
+      });
+    }
+  });
+
+export type ContentClaimCounterNotice = z.infer<typeof contentClaimCounterNoticeSchema>;
+
+/** `201` to a counter-notice. */
+export interface ContentClaimCounterNoticeResponse {
+  /** The counter-notice's id. */
+  id: string;
+  /** The claim it answers, as the owner was emailed it. */
+  reference: string;
+  /** Where the claim is now: `counter_noticed`. */
+  state: ContentClaimState;
+  /** The caller's blocked files the notice covers. */
+  fileIds: string[];
+}
+
+/**
+ * `400` to a counter-notice: `{ error, code: CONTENT_CLAIM_COUNTER_NOTICE_INVALID,
+ * fields }`, `fields` mapping each body path to a sentence.
+ */
+export type ContentClaimCounterNoticeError = ContentClaimSubmissionError;
+
+/** An owner's counter-notice as staff see it on the claim. */
+export interface ContentClaimCounterNoticeView {
+  id: string;
+  /** The account that sent it (null once that account is deleted). */
+  submittedByUserId: string | null;
+  fileIds: string[];
+  /** Which wording of `COUNTER_NOTICE_STATEMENTS` was affirmed. */
+  statementVersion: string;
+  /** What the owner wrote; null once the retention period erased it. */
+  statement: {
+    name: string;
+    address: string;
+    phone: string;
+    email: string;
+    materialDescription: string;
+    materialLocation: string;
+    explanation: string;
+    signature: string;
+  } | null;
+  createdAt: string;
 }

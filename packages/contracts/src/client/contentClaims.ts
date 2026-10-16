@@ -108,7 +108,57 @@ export const CONTENT_CLAIM_ERROR_CODES = {
   invalid: 'CONTENT_CLAIM_INVALID',
   /** These exact bytes were taken down after a claim and cannot be stored again. */
   contentBlocked: 'CONTENT_BLOCKED',
+  /** A counter-notice failed validation; `fields` names each problem. */
+  counterNoticeInvalid: 'CONTENT_CLAIM_COUNTER_NOTICE_INVALID',
+  /** The files named are blocked by more than one claim: name the claim's reference. */
+  counterNoticeAmbiguous: 'CONTENT_CLAIM_COUNTER_NOTICE_AMBIGUOUS',
+  /** This account already sent a counter-notice for this claim. */
+  counterNoticeExists: 'CONTENT_CLAIM_COUNTER_NOTICE_EXISTS',
 } as const;
 
 export type ContentClaimErrorCode =
   (typeof CONTENT_CLAIM_ERROR_CODES)[keyof typeof CONTENT_CLAIM_ERROR_CODES];
+
+/**
+ * A claim's reference as the claimant and the owner are sent it:
+ * `OXY-XXXX-XXXX`, Crockford base32 (no I, L, O or U).
+ */
+export const CONTENT_CLAIM_REFERENCE_PATTERN = /^OXY-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
+
+/** The bounds of an owner's counter-notice. The website fills its validation messages from these. */
+export const CONTENT_CLAIM_COUNTER_NOTICE_LIMITS = {
+  maxFileIds: 50,
+  maxFileId: 64,
+  maxName: 200,
+  maxAddress: 500,
+  minPhone: 5,
+  maxPhone: 40,
+  maxEmail: 254,
+  minMaterial: 10,
+  maxMaterial: 2000,
+  maxLocation: 2048,
+  minExplanation: 20,
+  maxExplanation: 5000,
+  maxSignature: 200,
+} as const;
+
+/**
+ * The statements an owner's counter-notice makes, word for word — what the
+ * form shows beside each box (17 U.S.C. § 512(g)(3)(C) and (D), and what Oxy
+ * does with the notice). The API records {@link COUNTER_NOTICE_STATEMENT_VERSION}
+ * with every notice, so the wording a person agreed to can always be told
+ * apart from a later one. Change the text only together with the version.
+ */
+export const COUNTER_NOTICE_STATEMENTS = {
+  perjury:
+    'I swear, under penalty of perjury, that I have a good faith belief that the material identified above was removed or disabled as a result of a mistake or misidentification of the material to be removed or disabled.',
+  jurisdiction:
+    'I consent to the jurisdiction of the Federal District Court for the judicial district in which my address is located or, if my address is outside of the United States, any judicial district in which Oxy may be found.',
+  serviceOfProcess:
+    'I will accept service of process from the person who provided the notification of the claimed infringement, or an agent of such person.',
+  disclosure:
+    'I understand that Oxy sends a copy of this counter-notice, including my name and contact details, to the person who made the claim, as the law requires.',
+} as const;
+
+/** The version of {@link COUNTER_NOTICE_STATEMENTS} in force. */
+export const COUNTER_NOTICE_STATEMENT_VERSION = '2026-10-16';
