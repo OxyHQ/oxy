@@ -12,8 +12,8 @@
     "check": "biome check --write ."
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
-    "@clarity.surf/sdk": "0.1.0",
+    "@base-ui/react": "^1.9.0",
+    "@clarity.surf/sdk": "0.4.0",
     "@expo/vector-icons": "^15.0.3",
     "@hugeicons/core-free-icons": "catalog:",
     "@hugeicons/react": "^1.1.9",
@@ -26,7 +26,7 @@
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
     "@tanstack/react-router": "^1.170.18",
-    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/react-router-devtools": "^1.167.2",
     "@tanstack/router-plugin": "^1.168.20",
     "@vitejs/plugin-react": "catalog:",
     "axios": "catalog:",
@@ -52,7 +52,7 @@
     "react-native-qrcode-svg": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
-    "react-native-web": "^0.21.0",
+    "react-native-web": "^0.21.4",
     "react-resizable-panels": "^4.12.2",
     "shadcn": "catalog:",
     "shiki": "^3.23.0",
@@ -69,7 +69,7 @@
   "devDependencies": {
     "nativewind": "catalog:",
     "react-native-css": "^3.0.6",
-    "@testing-library/dom": "^10.4.0",
+    "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.2.0",
     "@types/node": "^22.20.1",
     "@types/react": "^19.2.18",
