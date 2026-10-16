@@ -1,6 +1,6 @@
 {
-  "id": "19ec2620-ee3c-4f36-9ad7-36217b79630e",
-  "prevId": "8c02886c-235d-4a4f-852d-e39449f3f3dd",
+  "id": "8c02886c-235d-4a4f-852d-e39449f3f3dd",
+  "prevId": "f9030d36-3056-40f2-9987-8b5afa11bae3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4095,7 +4095,7 @@
         },
         "application_credentials_scopes_check": {
           "name": "application_credentials_scopes_check",
-          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
+          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
         },
         "application_credentials_rotated_from_not_self_check": {
           "name": "application_credentials_rotated_from_not_self_check",
@@ -4241,7 +4241,7 @@
       "checkConstraints": {
         "application_workload_identities_scopes_check": {
           "name": "application_workload_identities_scopes_check",
-          "value": "\"application_workload_identities\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
+          "value": "\"application_workload_identities\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
         }
       },
       "isRLSEnabled": false
@@ -4656,7 +4656,7 @@
         },
         "applications_scopes_check": {
           "name": "applications_scopes_check",
-          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
+          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete', 'files:references:write']::text[]"
         },
         "applications_files_webhook_secret_check": {
           "name": "applications_files_webhook_secret_check",
@@ -14690,7 +14690,7 @@
         },
         "email_verifications_reauth_action_check": {
           "name": "email_verifications_reauth_action_check",
-          "value": "(\"email_verifications\".\"purpose\" = 'reauth') = (\"email_verifications\".\"reauth_action\" is not null) and (\"email_verifications\".\"reauth_action\" is null or \"email_verifications\".\"reauth_action\" in ('change_password', 'totp', 'link_commons', 'delete_account', 'credentials_manage'))"
+          "value": "(\"email_verifications\".\"purpose\" = 'reauth') = (\"email_verifications\".\"reauth_action\" is not null) and (\"email_verifications\".\"reauth_action\" is null or \"email_verifications\".\"reauth_action\" in ('change_password', 'totp', 'link_commons', 'delete_account', 'credentials_manage', 'supervision', 'supervision_purchase'))"
         }
       },
       "isRLSEnabled": false
@@ -41705,6 +41705,155 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.file_links": {
+      "name": "file_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app": {
+          "name": "app",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "webhook_url": {
+          "name": "webhook_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "file_links_app_entity_type_entity_id_created_by_idx": {
+          "name": "file_links_app_entity_type_entity_id_created_by_idx",
+          "columns": [
+            {
+              "expression": "app",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "file_links_created_by_idx": {
+          "name": "file_links_created_by_idx",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "file_links_file_id_files_id_fk": {
+          "name": "file_links_file_id_files_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "files",
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "file_links_created_by_users_id_fk": {
+          "name": "file_links_created_by_users_id_fk",
+          "tableFrom": "file_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "file_links_file_id_app_entity_key": {
+          "name": "file_links_file_id_app_entity_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "file_id",
+            "app",
+            "entity_type",
+            "entity_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.application_role_grants": {
       "name": "application_role_grants",
       "schema": "",
@@ -42263,6 +42412,894 @@
         "agent_requester_ceilings_limits_check": {
           "name": "agent_requester_ceilings_limits_check",
           "value": "jsonb_typeof(\"agent_requester_ceilings\".\"limits\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.key) || @.key.type() != \"string\" || !exists(@.value) || (@.value.type() != \"number\" && @.value.type() != \"boolean\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"key\" && @.key != \"value\")')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.supervision_contacts": {
+      "name": "supervision_contacts",
+      "schema": "",
+      "columns": {
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_account_id": {
+          "name": "contact_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_by_account_id": {
+          "name": "approved_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "supervision_contacts_contact_idx": {
+          "name": "supervision_contacts_contact_idx",
+          "columns": [
+            {
+              "expression": "contact_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk": {
+          "name": "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "supervision_profiles",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "child_account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_contacts_contact_account_id_users_id_fk": {
+          "name": "supervision_contacts_contact_account_id_users_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "contact_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_contacts_approved_by_account_id_users_id_fk": {
+          "name": "supervision_contacts_approved_by_account_id_users_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "approved_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "supervision_contacts_child_account_id_contact_account_id_pk": {
+          "name": "supervision_contacts_child_account_id_contact_account_id_pk",
+          "columns": [
+            "child_account_id",
+            "contact_account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.supervision_audit": {
+      "name": "supervision_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_account_id": {
+          "name": "actor_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "related_account_id": {
+          "name": "related_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_reference": {
+          "name": "evidence_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "supervision_audit_child_idx": {
+          "name": "supervision_audit_child_idx",
+          "columns": [
+            {
+              "expression": "child_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_audit_child_account_id_users_id_fk": {
+          "name": "supervision_audit_child_account_id_users_id_fk",
+          "tableFrom": "supervision_audit",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_audit_actor_account_id_users_id_fk": {
+          "name": "supervision_audit_actor_account_id_users_id_fk",
+          "tableFrom": "supervision_audit",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "supervision_audit_application_id_applications_id_fk": {
+          "name": "supervision_audit_application_id_applications_id_fk",
+          "tableFrom": "supervision_audit",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.supervision_invitations": {
+      "name": "supervision_invitations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "guardian_account_id": {
+          "name": "guardian_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "consent_version": {
+          "name": "consent_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "supervision_invitations_guardian_idx": {
+          "name": "supervision_invitations_guardian_idx",
+          "columns": [
+            {
+              "expression": "guardian_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "supervision_invitations_child_idx": {
+          "name": "supervision_invitations_child_idx",
+          "columns": [
+            {
+              "expression": "child_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "supervision_invitations_pending_key": {
+          "name": "supervision_invitations_pending_key",
+          "columns": [
+            {
+              "expression": "child_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "guardian_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"supervision_invitations\".\"status\"='pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_invitations_child_account_id_users_id_fk": {
+          "name": "supervision_invitations_child_account_id_users_id_fk",
+          "tableFrom": "supervision_invitations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_invitations_guardian_account_id_users_id_fk": {
+          "name": "supervision_invitations_guardian_account_id_users_id_fk",
+          "tableFrom": "supervision_invitations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "guardian_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "supervision_invitations_status_check": {
+          "name": "supervision_invitations_status_check",
+          "value": "\"supervision_invitations\".\"status\" in ('pending', 'accepted', 'cancelled')"
+        },
+        "supervision_invitations_distinct_accounts_check": {
+          "name": "supervision_invitations_distinct_accounts_check",
+          "value": "\"supervision_invitations\".\"child_account_id\" <> \"supervision_invitations\".\"guardian_account_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.supervision_profiles": {
+      "name": "supervision_profiles",
+      "schema": "",
+      "columns": {
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "guardian_account_id": {
+          "name": "guardian_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "consent_version": {
+          "name": "consent_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sessions_valid_after": {
+          "name": "sessions_valid_after",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "supervision_profiles_guardian_idx": {
+          "name": "supervision_profiles_guardian_idx",
+          "columns": [
+            {
+              "expression": "guardian_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "child_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_profiles_child_account_id_users_id_fk": {
+          "name": "supervision_profiles_child_account_id_users_id_fk",
+          "tableFrom": "supervision_profiles",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_profiles_guardian_account_id_users_id_fk": {
+          "name": "supervision_profiles_guardian_account_id_users_id_fk",
+          "tableFrom": "supervision_profiles",
+          "tableTo": "users",
+          "columnsFrom": [
+            "guardian_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "supervision_profiles_status_check": {
+          "name": "supervision_profiles_status_check",
+          "value": "\"supervision_profiles\".\"status\" in ('active', 'orphaned', 'ended')"
+        },
+        "supervision_profiles_distinct_guardian_check": {
+          "name": "supervision_profiles_distinct_guardian_check",
+          "value": "\"supervision_profiles\".\"child_account_id\" is distinct from \"supervision_profiles\".\"guardian_account_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.supervision_purchase_approvals": {
+      "name": "supervision_purchase_approvals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cart_fingerprint": {
+          "name": "cart_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shipping_minor": {
+          "name": "shipping_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tax_minor": {
+          "name": "tax_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discount_minor": {
+          "name": "discount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rounding_adjustment_minor": {
+          "name": "rounding_adjustment_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_sealed": {
+          "name": "evidence_sealed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "merchant_account_ids": {
+          "name": "merchant_account_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_fingerprint": {
+          "name": "payment_fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_minor": {
+          "name": "amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "reviewed_by_account_id": {
+          "name": "reviewed_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reserved_at": {
+          "name": "reserved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receipt_reference": {
+          "name": "receipt_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "supervision_purchase_approvals_operation_key": {
+          "name": "supervision_purchase_approvals_operation_key",
+          "columns": [
+            {
+              "expression": "application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "operation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "supervision_purchase_approvals_child_id_idx": {
+          "name": "supervision_purchase_approvals_child_id_idx",
+          "columns": [
+            {
+              "expression": "child_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_purchase_approvals_child_account_id_users_id_fk": {
+          "name": "supervision_purchase_approvals_child_account_id_users_id_fk",
+          "tableFrom": "supervision_purchase_approvals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_purchase_approvals_application_id_applications_id_fk": {
+          "name": "supervision_purchase_approvals_application_id_applications_id_fk",
+          "tableFrom": "supervision_purchase_approvals",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_purchase_approvals_reviewed_by_account_id_users_id_fk": {
+          "name": "supervision_purchase_approvals_reviewed_by_account_id_users_id_fk",
+          "tableFrom": "supervision_purchase_approvals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reviewed_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "supervision_purchase_approvals_merchants_check": {
+          "name": "supervision_purchase_approvals_merchants_check",
+          "value": "cardinality(\"supervision_purchase_approvals\".\"merchant_account_ids\") between 1 and 100"
+        },
+        "supervision_purchase_approvals_status_check": {
+          "name": "supervision_purchase_approvals_status_check",
+          "value": "\"supervision_purchase_approvals\".\"status\" in ('pending', 'approved', 'rejected', 'reserved', 'confirmed', 'cancelled')"
+        },
+        "supervision_purchase_approvals_amount_check": {
+          "name": "supervision_purchase_approvals_amount_check",
+          "value": "\"supervision_purchase_approvals\".\"amount_minor\" between 0 and 9007199254740991"
+        },
+        "supervision_purchase_approvals_currency_check": {
+          "name": "supervision_purchase_approvals_currency_check",
+          "value": "\"supervision_purchase_approvals\".\"currency\" ~ '^[A-Z]{3}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.supervision_purchase_lines": {
+      "name": "supervision_purchase_lines",
+      "schema": "",
+      "columns": {
+        "approval_id": {
+          "name": "approval_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_reference": {
+          "name": "item_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "options_text": {
+          "name": "options_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "merchant_account_id": {
+          "name": "merchant_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_amount_minor": {
+          "name": "unit_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_amount_minor": {
+          "name": "line_amount_minor",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "supervision_purchase_lines_approval_id_supervision_purchase_approvals_id_fk": {
+          "name": "supervision_purchase_lines_approval_id_supervision_purchase_approvals_id_fk",
+          "tableFrom": "supervision_purchase_lines",
+          "tableTo": "supervision_purchase_approvals",
+          "columnsFrom": [
+            "approval_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "supervision_purchase_lines_approval_id_position_pk": {
+          "name": "supervision_purchase_lines_approval_id_position_pk",
+          "columns": [
+            "approval_id",
+            "position"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "supervision_purchase_lines_position_check": {
+          "name": "supervision_purchase_lines_position_check",
+          "value": "\"supervision_purchase_lines\".\"position\" between 0 and 199"
+        },
+        "supervision_purchase_lines_quantity_check": {
+          "name": "supervision_purchase_lines_quantity_check",
+          "value": "\"supervision_purchase_lines\".\"quantity\" between 1 and 1000000"
+        },
+        "supervision_purchase_lines_amounts_check": {
+          "name": "supervision_purchase_lines_amounts_check",
+          "value": "\"supervision_purchase_lines\".\"unit_amount_minor\" between 0 and 9007199254740991 and \"supervision_purchase_lines\".\"line_amount_minor\" between 0 and 9007199254740991"
         }
       },
       "isRLSEnabled": false

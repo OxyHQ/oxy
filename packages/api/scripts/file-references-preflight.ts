@@ -1,9 +1,9 @@
 /**
- * Pre-flight for migration `0170_file_references` (ADR 0043 D4). READ-ONLY.
+ * Pre-flight for migration `0171_file_references` (ADR 0043 D4). READ-ONLY.
  *
  *   DATABASE_URL=… bun run packages/api/scripts/file-references-preflight.ts
  *
- * 0170 copies every `file_links` row into `file_references`, resolving its
+ * 0171 copies every `file_links` row into `file_references`, resolving its
  * free-text `app` to an application, and FAILS — copying nothing — when any
  * `app` names no single active application. Run this against the target
  * database before deploying: it prints one JSON line per distinct `app` with
@@ -14,7 +14,7 @@
  * migration's `oxy_file_link_application_id`; both read
  * `src/utils/legacyFileLinkApplications.ts`, and a test holds the migration's
  * copy equal to it. An unmappable value is fixed by adding it to that table
- * (and to 0170, before it ships) or by deleting those links deliberately —
+ * (and to 0171, before it ships) or by deleting those links deliberately —
  * never by guessing.
  */
 import { sql } from 'drizzle-orm';

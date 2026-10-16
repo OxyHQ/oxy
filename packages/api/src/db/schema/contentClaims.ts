@@ -259,7 +259,7 @@ export const contentClaimTargets = pgTable(
 
 /**
  * The audit trail: one row per thing that happened to a claim, never edited
- * (no `updated_at`; a trigger refuses an UPDATE — `0173_content_claims`).
+ * (no `updated_at`; a trigger refuses an UPDATE — `0174_content_claims`).
  *
  * `actor_user_id` names the staff member who acted, or the signed-in account
  * that submitted; NULL for an anonymous submission and for what the system did

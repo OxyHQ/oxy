@@ -3063,7 +3063,7 @@ router.post(
  * is refused. The shared device session every official app uses cannot say
  * which app it is (`sessions.application_id` is NULL by design), so for it the
  * body's `app` is all there is: an application id, or one of the legacy
- * strings migration 0170 maps (`utils/legacyFileLinkApplications.ts`). A
+ * strings migration 0171 maps (`utils/legacyFileLinkApplications.ts`). A
  * string that names no single active application is refused — a reference is
  * never recorded against free text again.
  */

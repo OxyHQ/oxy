@@ -23,7 +23,7 @@ review of #1441 found this.
   `files_owner_application_id_sha256_live_key` on
   `(owner_application_id, sha256)`. Only a `third_party` application's
   files are metered (against its developer account); Oxy's own are not.
-  Usage is `file_references` (migration 0170), which names a real
+  Usage is `file_references` (migration 0171), which names a real
   application and never changes a file's visibility.
 - **Dedup is owner-scoped.** Every upload path first looks up the uploader's
   own live row (`findLiveFileBySha256ForOwner`). If a different owner uploads
