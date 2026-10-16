@@ -912,7 +912,11 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             <Ionicons name={getFileIcon(file.contentType)} size={20} color={colors.primary} />
           ) : undefined),
         title: file.filename,
-        description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}`,
+        // "Not in use": no application references it. Informational only —
+        // the file is never removed for that (ADR 0041 D5).
+        description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}${
+          file.inUse === false ? ` • ${t('fileManagement.notInUse')}` : ''
+        }`,
         onPress: () => {
           // Support selection in regular mode with long press or if already selecting
           if (!selectMode && selectedIds.size > 0) {
@@ -974,6 +978,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     thumbSourceFor,
     selectMode,
     selectedIds,
+    t,
   ]);
 
   // Browse-themed terminal load-failure state — DISTINCT from the empty state.

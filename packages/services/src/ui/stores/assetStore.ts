@@ -1,6 +1,20 @@
 import { create } from 'zustand';
 import type { Asset, AssetUploadProgress, AssetLink } from '@oxy.so/core';
 
+/**
+ * Whether a link is the given application's use. The Oxy API names the using
+ * application by ID (`applicationId`, mirrored in `app` since ADR 0041 D4);
+ * a link added locally before the server answered may still carry the name
+ * the caller passed in `app`. Either matches.
+ */
+function linkIsApp(link: AssetLink, app: string): boolean {
+  return (link.applicationId ?? link.app) === app || link.app === app;
+}
+
+function sameLink(link: AssetLink, app: string, entityType: string, entityId: string): boolean {
+  return linkIsApp(link, app) && link.entityType === entityType && link.entityId === entityId;
+}
+
 interface AssetState {
   // Asset data
   assets: Record<string, Asset>;
@@ -145,7 +159,8 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       // Check if link already exists
       const existingLink = asset.links.find(
         (l: AssetLink) =>
-          l.app === link.app && l.entityType === link.entityType && l.entityId === link.entityId,
+          sameLink(l, link.applicationId ?? link.app, link.entityType, link.entityId) ||
+          sameLink(l, link.app, link.entityType, link.entityId),
       );
 
       if (existingLink) return state;
@@ -154,6 +169,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
         ...asset,
         links: [...asset.links, link],
         usageCount: asset.links.length + 1,
+        inUse: true,
       };
 
       return {
@@ -171,15 +187,16 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       if (!asset) return state;
 
       const filteredLinks = asset.links.filter(
-        (link: AssetLink) =>
-          !(link.app === app && link.entityType === entityType && link.entityId === entityId),
+        (link: AssetLink) => !sameLink(link, app, entityType, entityId),
       );
 
       const updatedAsset = {
         ...asset,
         links: filteredLinks,
         usageCount: filteredLinks.length,
-        status: filteredLinks.length === 0 ? ('trash' as const) : asset.status,
+        // The last link going never trashes the file (ADR 0041 D5): it stays
+        // where it is and is only no longer in use.
+        inUse: filteredLinks.length > 0,
       };
 
       return {
@@ -237,17 +254,14 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   getAssetsByApp: (app: string) => {
     const { assets } = get();
     return Object.values(assets).filter((asset) =>
-      asset.links.some((link: AssetLink) => link.app === app),
+      asset.links.some((link: AssetLink) => linkIsApp(link, app)),
     );
   },
 
   getAssetsByEntity: (app: string, entityType: string, entityId: string) => {
     const { assets } = get();
     return Object.values(assets).filter((asset) =>
-      asset.links.some(
-        (link: AssetLink) =>
-          link.app === app && link.entityType === entityType && link.entityId === entityId,
-      ),
+      asset.links.some((link: AssetLink) => sameLink(link, app, entityType, entityId)),
     );
   },
 
@@ -262,10 +276,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
     const asset = assets[assetId];
     if (!asset) return false;
 
-    return asset.links.some(
-      (link: AssetLink) =>
-        link.app === app && link.entityType === entityType && link.entityId === entityId,
-    );
+    return asset.links.some((link: AssetLink) => sameLink(link, app, entityType, entityId));
   },
 
   // Reset store

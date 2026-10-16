@@ -27,6 +27,8 @@ export interface RawUserFile {
   createdAt?: string;
   metadata?: Record<string, unknown>;
   variants?: unknown[];
+  /** Whether any application uses the file (ADR 0041 D5). */
+  inUse?: boolean;
 }
 
 /** One page of the infinite file list. */
@@ -48,6 +50,7 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
     length: raw.size ?? 0,
     chunkSize: 0,
     uploadDate: raw.createdAt ?? '',
+    ...(typeof raw.inUse === 'boolean' ? { inUse: raw.inUse } : {}),
     metadata: raw.metadata ?? {},
     variants: (raw.variants ?? []) as FileMetadata['variants'],
   };
