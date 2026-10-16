@@ -2165,9 +2165,12 @@ export class AssetService {
         return cached;
       }
 
+      // An invalidation that arrives while this read is in flight (a write
+      // committed on this or another task) wins: the record read may predate it.
+      const readStartedAt = Date.now();
       const file = await findFileById(fileId);
       if (file) {
-        fileCache.set(fileId, file);
+        fileCache.setIfFresh(fileId, file, readStartedAt);
         return file;
       }
       return null;

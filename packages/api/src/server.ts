@@ -216,6 +216,7 @@ import { reconcileOfficialRedirectUris } from './config/reconcileOfficialRedirec
 import { createAdapter } from '@socket.io/redis-adapter';
 import { getRedisClient, closeRedis } from './config/redis';
 import { startUserCacheInvalidationSubscriber } from './utils/userCacheInvalidationSubscriber';
+import { startFileCacheInvalidationSubscriber } from './utils/fileCacheInvalidationSubscriber';
 import { initializeIO, socketRoomsFor } from './utils/socket';
 import { resolveSocketIdentity } from './utils/socketAuth';
 import performanceMiddleware, { getMemoryStats, getDatabaseStats } from './middleware/performance';
@@ -402,12 +403,15 @@ initializePlatformInfrastructure(platformActivityNamespace, () => server.listeni
 // Attach Redis adapter for multi-instance broadcast (if Redis available)
 const redis = getRedisClient();
 let userCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
+let fileCacheInvalidationSubscriber: { stop: () => Promise<void> } | null = null;
 if (redis) {
   const pubClient = redis.duplicate();
   const subClient = redis.duplicate();
   io.adapter(createAdapter(pubClient, subClient));
   logger.info('Socket.IO Redis adapter enabled');
   userCacheInvalidationSubscriber = startUserCacheInvalidationSubscriber(redis);
+  // A file's status or visibility changed on another task: drop our copy (ADR 0041).
+  fileCacheInvalidationSubscriber = startFileCacheInvalidationSubscriber(redis);
 }
 
 // Store io instance in app for use in controllers
@@ -605,6 +609,10 @@ async function gracefulShutdown(signal: string) {
   if (userCacheInvalidationSubscriber) {
     await userCacheInvalidationSubscriber.stop();
     userCacheInvalidationSubscriber = null;
+  }
+  if (fileCacheInvalidationSubscriber) {
+    await fileCacheInvalidationSubscriber.stop();
+    fileCacheInvalidationSubscriber = null;
   }
   await closeRedis();
   await closePostgres();

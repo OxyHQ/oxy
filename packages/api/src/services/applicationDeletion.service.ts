@@ -224,9 +224,9 @@ export async function purgeDeletedApplicationContent(
  */
 export function invalidateDeletedApplicationFiles(content: DeletedApplicationContent): void {
   try {
+    fileCache.invalidateMany(content.files.map((file) => file.id));
     const queue = getCdnInvalidationQueue();
     for (const file of content.files) {
-      fileCache.invalidate(file.id);
       if (file.visibility !== 'public') continue;
       for (const key of [file.storageKey, ...file.variantKeys]) {
         queue.enqueueDeletedKey(applyPublicPrefix(key));

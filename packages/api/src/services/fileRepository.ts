@@ -54,6 +54,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import { qualified } from '@oxy.so/db';
+import fileCache from '../utils/fileCache';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { applications, fileReferences, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
@@ -629,7 +630,7 @@ export async function updateFile(
   patch: FilePatch,
   options: { afterUpdate?: (tx: Transaction, record: FileRecord) => Promise<void> } = {},
 ): Promise<FileRecord | null> {
-  return getDb().transaction(async (tx) => {
+  const updated = await getDb().transaction(async (tx) => {
     const old = await readMeteredOwner(tx, fileId);
     return withStorageQuota(tx, await quotaAccountsFor(tx, old, patch), async () => {
       await assertStableFileOwner(tx, fileId, old);
@@ -639,6 +640,9 @@ export async function updateFile(
       return record ?? null;
     });
   });
+  // Committed: every API task drops its copy (ADR 0041 stage 4b).
+  fileCache.invalidate(fileId);
+  return updated;
 }
 
 /**
@@ -949,7 +953,12 @@ export async function addFileReferences(
     ownerRecordedFileIds: [],
   };
   if (references.length === 0) return none;
-  if (db === getDb()) return getDb().transaction((tx) => addFileReferences(references, tx));
+  if (db === getDb()) {
+    const added = await getDb().transaction((tx) => addFileReferences(references, tx));
+    // Committed: the reference set (and a restored file's status) changed.
+    fileCache.invalidateMany([...added.createdFileIds, ...added.ownerRecordedFileIds]);
+    return added;
+  }
   const tx = db as Transaction;
 
   // Applications first, then files: the order an application's deletion
@@ -1149,7 +1158,7 @@ export async function reactivateTrashedFile(
   fileId: string,
   options: { restartUnreferencedClock?: boolean } = {},
 ): Promise<FileRecord | null> {
-  return getDb().transaction(async (tx) => {
+  const changed = await getDb().transaction(async (tx) => {
     const rows = await tx
       .update(files)
       .set({
@@ -1167,6 +1176,9 @@ export async function reactivateTrashedFile(
     if (record) await recordFileEvents(tx, 'file.restored', [record.id]);
     return record ?? null;
   });
+  // Committed: every API task drops its copy (ADR 0041 stage 4b).
+  if (changed) fileCache.invalidate(fileId);
+  return changed;
 }
 
 /**
@@ -1181,7 +1193,7 @@ export async function trashAccountFile(
   ownerUserId: string,
   now: Date = new Date(),
 ): Promise<FileRecord | null> {
-  return getDb().transaction(async (tx) => {
+  const changed = await getDb().transaction(async (tx) => {
     const rows = await tx
       .update(files)
       .set({ status: 'trash', trashedAt: now })
@@ -1193,6 +1205,9 @@ export async function trashAccountFile(
     if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
     return record ?? null;
   });
+  // Committed: every API task drops its copy (ADR 0041 stage 4b).
+  if (changed) fileCache.invalidate(fileId);
+  return changed;
 }
 
 // ---------------------------------------------------------------------------
@@ -1471,7 +1486,7 @@ export async function trashUnreferencedApplicationFile(
   fileId: string,
   now: Date,
 ): Promise<FileRecord | null> {
-  return getDb().transaction(async (tx) => {
+  const changed = await getDb().transaction(async (tx) => {
     const rows = await tx
       .update(files)
       .set({ status: 'trash', trashedAt: now })
@@ -1482,6 +1497,9 @@ export async function trashUnreferencedApplicationFile(
     if (record) await recordFileEvents(tx, 'file.trashed', [record.id], { occurredAt: now });
     return record ?? null;
   });
+  // Committed: every API task drops its copy (ADR 0041 stage 4b).
+  if (changed) fileCache.invalidate(fileId);
+  return changed;
 }
 
 /**
@@ -1528,7 +1546,7 @@ export async function upsertVariantSet(
   variants: NewFileVariant[],
   patch?: FilePatch,
 ): Promise<FileVariantRecord[]> {
-  return getDb().transaction(async (tx) => {
+  const written = await getDb().transaction(async (tx) => {
     const old = await readMeteredOwner(tx, fileId);
     return withStorageQuota(tx, await quotaAccountsFor(tx, old, patch), async () => {
       await assertStableFileOwner(tx, fileId, old);
@@ -1554,6 +1572,9 @@ export async function upsertVariantSet(
       return inserted;
     });
   });
+  // Committed: a task holding the record without these renditions drops it.
+  fileCache.invalidate(fileId);
+  return written;
 }
 
 /**

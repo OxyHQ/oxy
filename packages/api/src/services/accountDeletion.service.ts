@@ -153,7 +153,7 @@ export async function deleteAccount(
     });
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
-    for (const fileId of archivedStorage?.fileIds ?? []) fileCache.invalidate(fileId);
+    fileCache.invalidateMany(archivedStorage?.fileIds ?? []);
     for (const content of archivedApplications) invalidateDeletedApplicationFiles(content);
     logger.info('Account archived with retained financial records', {
       userId,
@@ -194,7 +194,7 @@ export async function deleteAccount(
   });
   userCache.invalidate(userId);
   await graphCache.invalidate(userId);
-  for (const fileId of storage.fileIds) fileCache.invalidate(fileId);
+  fileCache.invalidateMany(storage.fileIds);
   for (const content of deletedApplications) invalidateDeletedApplicationFiles(content);
   logger.info('Account deleted', {
     userId,

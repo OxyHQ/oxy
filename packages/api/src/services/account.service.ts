@@ -856,7 +856,7 @@ export class AccountService {
       throw new NotFoundError('Account not found');
     }
     userCache.invalidate(accountId);
-    for (const fileId of storage?.fileIds ?? []) fileCache.invalidate(fileId);
+    fileCache.invalidateMany(storage?.fileIds ?? []);
     for (const content of deletedApplications) invalidateDeletedApplicationFiles(content);
 
     logger.info('Account archived', {
