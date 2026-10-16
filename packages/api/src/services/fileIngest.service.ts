@@ -20,7 +20,6 @@
 import crypto from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { Transform, type Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { and, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { normalizeInlineText } from '@oxy.so/core';
 import { getDb } from '../config/postgres';
@@ -889,11 +888,19 @@ export class FileIngestService {
         'RECORDING_NOT_RECEIVED',
       );
     }
-    if (row.status === 'verifying') {
+    // Verify here unless another verifier holds it, and wait for whichever
+    // does, up to the bound; then the outcome as it stands.
+    const deadline = Date.now() + RECORDING_COMPLETE_WAIT_MS;
+    let current = row;
+    while (current.status === 'verifying' && Date.now() < deadline) {
       await Promise.race([
-        this.verify(row.id).catch(() => undefined),
-        new Promise((resolve) => setTimeout(resolve, RECORDING_COMPLETE_WAIT_MS).unref?.()),
+        this.verify(current.id).catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - Date.now())).unref?.()),
       ]);
+      current = await this.reload(row.id);
+      if (current.status === 'verifying') {
+        await new Promise((resolve) => setTimeout(resolve, 200).unref?.());
+      }
     }
     return this.reload(row.id);
   }
@@ -929,11 +936,9 @@ export class FileIngestService {
         and(
           eq(fileIngests.id, id),
           eq(fileIngests.status, 'verifying'),
-          or(
-            isNull(fileIngests.leaseExpiresAt),
-            lt(fileIngests.leaseExpiresAt, sql`now()`),
-            eq(fileIngests.leaseOwner, LEASE_OWNER),
-          ),
+          // One verifier at a time, this task's own concurrent attempts
+          // included: a second would finalize the same bytes twice.
+          or(isNull(fileIngests.leaseExpiresAt), lt(fileIngests.leaseExpiresAt, sql`now()`)),
         ),
       )
       .returning();

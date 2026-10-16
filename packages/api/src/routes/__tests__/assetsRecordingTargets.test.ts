@@ -377,7 +377,12 @@ describe('POST /assets/service/app/recording-targets', () => {
       }),
     );
 
-    const done = await complete(appId, target.targetId);
+    // Two completes racing the background verification: ONE finalization.
+    const [done, raced] = await Promise.all([
+      complete(appId, target.targetId),
+      complete(appId, target.targetId),
+    ]);
+    expect(raced.body.data.file.id).toBe(done.body.data.file.id);
     expect(done.status).toBe(200);
     expect(done.body.data).toMatchObject({
       status: 'completed',
