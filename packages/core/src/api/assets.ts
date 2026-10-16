@@ -489,17 +489,23 @@ export class AssetsApi {
   }
 
   /**
-   * The signed-in user's files, newest first. Each says whether an application
-   * uses it (`inUse`); `inUse: false` lists only the files no application uses
-   * — never removed for you, shown so you can decide (ADR 0041 D5).
+   * The signed-in user's files. Each says whether an application uses it
+   * (`inUse`); `inUse: false` lists only the files no application uses — never
+   * removed for you, shown so you can decide (ADR 0041 D5).
+   *
+   * By default the LIBRARY: `active` files and `blocked` ones (removed after a
+   * legal claim), newest first — never a file in trash. `status: 'trash'`
+   * lists the trash instead, most recently trashed first (`trashedAt`); each
+   * can be {@link restore}d or {@link delete}d for good.
    */
   async list(
-    params: { limit?: number; offset?: number; inUse?: boolean } = {},
+    params: { limit?: number; offset?: number; inUse?: boolean; status?: 'trash' } = {},
   ): Promise<{ files: AssetRecord[]; total: number; hasMore: boolean }> {
     const query: Record<string, number | string> = {};
     if (params.limit) query.limit = params.limit;
     if (params.offset) query.offset = params.offset;
     if (params.inUse !== undefined) query.inUse = String(params.inUse);
+    if (params.status) query.status = params.status;
     return this.ctx.request('GET', '/assets', query, { cache: false });
   }
 
@@ -645,14 +651,19 @@ export class AssetsApi {
     return res;
   }
 
-  /** Restore an asset from the trash. */
+  /**
+   * Restore an asset from the trash. A file not in trash — restored or deleted
+   * meanwhile, or `blocked` after a content claim — is refused with 409
+   * `FILE_NOT_IN_TRASH`.
+   */
   async restore(
     fileId: string,
   ): Promise<{ file: { id: string; status: Asset['status']; usageCount: number } }> {
     const res = await this.ctx.request<{
       file: { id: string; status: Asset['status']; usageCount: number };
     }>('POST', `/assets/${enc(fileId)}/restore`, undefined, { cache: false });
-    this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
+    // Restoring changes the record AND what may be served, like trash.
+    this.evict(fileId);
     return res;
   }
 
