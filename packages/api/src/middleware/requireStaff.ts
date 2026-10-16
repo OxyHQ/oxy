@@ -50,6 +50,7 @@ const CAPABILITY_DESCRIPTIONS: Record<StaffCapability, string> = {
     'publishing, restricting or retiring a model route in the inference catalogue',
   'billing:adjust': "adjusting a customer's balance or closing an invoice period",
   'billing:cost_centers': 'registering or retiring an internal cost centre',
+  'content:claims': 'reviewing content claims and taking content down',
 };
 
 /**
@@ -83,6 +84,26 @@ const CAPABILITY_DESCRIPTIONS: Record<StaffCapability, string> = {
  * and a hanging request on a guard reads, from outside, like a slow admin
  * endpoint rather than a broken one.
  */
+/**
+ * Whether this account is staff AND holds `capability`, read from the database
+ * (see below for why not from `req.user`). For a surface that must answer a
+ * probe — the console asking whether to show a staff page — without a 403.
+ */
+export async function hasStaffCapability(
+  userId: string,
+  capability: StaffCapability,
+): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ staffCapabilities: users.staffCapabilities, isStaff: users.isStaff })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  // A missing row is refused, not treated as an absent capability list: the
+  // authenticated account no longer exists, and `[]` would be the same answer
+  // this guard gives a staff member who simply holds nothing.
+  return row !== undefined && row.isStaff === true && row.staffCapabilities.includes(capability);
+}
+
 export const requireStaffCapability = (capability: StaffCapability) => {
   return asyncHandler(
     async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -95,20 +116,7 @@ export const requireStaffCapability = (capability: StaffCapability) => {
         return;
       }
 
-      const [row] = await getDb()
-        .select({ staffCapabilities: users.staffCapabilities, isStaff: users.isStaff })
-        .from(users)
-        .where(eq(users.id, userId))
-        .limit(1);
-
-      // A missing row is refused, not treated as an absent capability list: the
-      // authenticated account no longer exists, and `[]` would be the same answer
-      // this guard gives a staff member who simply holds nothing.
-      if (
-        row === undefined ||
-        row.isStaff !== true ||
-        !row.staffCapabilities.includes(capability)
-      ) {
+      if (!(await hasStaffCapability(userId, capability))) {
         res.status(403).json({
           error: 'Forbidden',
           message: `This operation requires the ${capability} staff capability (${CAPABILITY_DESCRIPTIONS[capability]}). Platform staff status alone does not grant it.`,

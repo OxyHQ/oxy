@@ -15043,6 +15043,1409 @@
         "operationId": "postContactsDiscover"
       }
     },
+    "/content-claims": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Report content, or make a rights or privacy claim",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Public. The Oxy website's \"Report content\" page posts here; a valid bearer records the submitting account but is not needed. A person reviews every claim. The claimant gets a confirmation email with the reference. Limited per network (10 an hour) and per claimant email (5 a day); over that, 429 with `Retry-After`. A privacy claim by the affected person is a GDPR erasure request and is answered within 30 days. The body is `contentClaimSubmissionSchema` in `@oxy.so/contracts`.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "contentUrls",
+                  "description",
+                  "claimant",
+                  "statements",
+                  "signature"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "copyright",
+                      "trademark",
+                      "privacy",
+                      "illegal_content",
+                      "other"
+                    ]
+                  },
+                  "contentUrls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string",
+                      "format": "uri",
+                      "maxLength": 2048,
+                      "description": "An https URL"
+                    }
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": 5000
+                  },
+                  "originalWorkUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  },
+                  "claimant": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "email",
+                      "relationship"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 254
+                      },
+                      "organization": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "relationship": {
+                        "type": "string",
+                        "enum": [
+                          "rights_holder",
+                          "authorized_agent",
+                          "affected_person",
+                          "other"
+                        ]
+                      }
+                    }
+                  },
+                  "statements": {
+                    "type": "object",
+                    "required": [
+                      "goodFaith",
+                      "accurate"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "goodFaith": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "accurate": {
+                        "type": "boolean",
+                        "enum": [
+                          true
+                        ]
+                      }
+                    }
+                  },
+                  "signature": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Received.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "reference"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string",
+                      "example": "OXY-7K3M-9Q2D"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The claim has errors: `{ error, code: CONTENT_CLAIM_INVALID, fields }`, `fields` mapping each body path to a sentence.\n"
+          },
+          "429": {
+            "description": "Too many reports from this network or this email; see `Retry-After`."
+          }
+        },
+        "operationId": "postContentClaims"
+      },
+      "get": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "The queue. `state` and `kind` filter (comma-separated); `deadline`",
+        "description": "(`overdue`, `due_soon`, `any`) lists only open erasure requests, soonest due\nfirst. Otherwise newest first. Paged by the opaque `cursor`.",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "received",
+                  "reviewing",
+                  "actioned",
+                  "rejected",
+                  "counter_noticed",
+                  "reinstated",
+                  "upheld"
+                ]
+              },
+              "maxItems": 7
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "copyright",
+                  "trademark",
+                  "privacy",
+                  "illegal_content",
+                  "other"
+                ]
+              },
+              "maxItems": 5
+            }
+          },
+          {
+            "name": "deadline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "overdue",
+                "due_soon",
+                "any"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getContentClaims"
+      }
+    },
+    "/content-claims/access": {
+      "get": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Whether the signed-in account may review claims — the console asks before it",
+        "description": "shows the queue. Answers `{ canReview }` to anyone signed in; never a 403.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getContentClaimsAccess"
+      }
+    },
+    "/content-claims/{id}": {
+      "get": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "One claim in full: the claimant's statement, every target, the audit trail.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getContentClaimsId"
+      }
+    },
+    "/content-claims/{id}/block": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Block targets (all unblocked file targets when `targetIds` is absent).",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "targetIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "minItems": 1,
+                    "maxItems": 200
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdBlock"
+      }
+    },
+    "/content-claims/{id}/counter-notice": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "`actioned → counter_noticed`; the note (staff's summary) is sent to the claimant.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  }
+                },
+                "required": [
+                  "note"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdCounterNotice"
+      }
+    },
+    "/content-claims/{id}/notes": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "A note on the audit trail.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  }
+                },
+                "required": [
+                  "note"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdNotes"
+      }
+    },
+    "/content-claims/{id}/reinstate": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "`counter_noticed → reinstated`: this claim's blocks are lifted.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "maxLength": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdReinstate"
+      }
+    },
+    "/content-claims/{id}/reject": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "`received | reviewing → rejected`; the reason is sent to the claimant.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 5000
+                  }
+                },
+                "required": [
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdReject"
+      }
+    },
+    "/content-claims/{id}/review": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "`received → reviewing`.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postContentClaimsIdReview"
+      }
+    },
+    "/content-claims/{id}/targets": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Attach files by id (what a page URL shows).",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "minItems": 1,
+                    "maxItems": 50
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "fileIds"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdTargets"
+      }
+    },
+    "/content-claims/{id}/targets/{targetId}/content": {
+      "get": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "Streams a claimed file to the reviewer a preview token was minted for —",
+        "description": "whatever the file's status (blocked, trashed, private, or deleted with its\nbytes held as evidence). Never cached, never interpreted by the browser as\nanything but the file.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "pt",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getContentClaimsIdTargetsTargetIdContent"
+      }
+    },
+    "/content-claims/{id}/targets/{targetId}/preview": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "A short-lived link to preview one target's file.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postContentClaimsIdTargetsTargetIdPreview"
+      }
+    },
+    "/content-claims/{id}/uphold": {
+      "post": {
+        "tags": [
+          "Safety"
+        ],
+        "summary": "`counter_noticed → upheld`: the blocks stand.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/contentClaims.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/contentClaims.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "maxLength": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postContentClaimsIdUphold"
+      }
+    },
     "/credits": {
       "get": {
         "tags": [

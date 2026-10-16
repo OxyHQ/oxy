@@ -70,6 +70,11 @@ import {
   fileEventDeliveries,
 } from './schema/fileEventDeliveries';
 import {
+  CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
+  contentClaimClaimants,
+  contentClaimNotifications,
+} from './schema/contentClaims';
+import {
   FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
   fileLifecycleSweeps,
 } from './schema/fileLifecycleSweeps';
@@ -408,6 +413,25 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'Thirty days of file events to applications (ADR 0041 D9), far past the ' +
       'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
       'stays inspectable for support, then goes. Nothing reads an old row.',
+  },
+  {
+    table: contentClaimClaimants,
+    column: contentClaimClaimants.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      "A content claimant's identity and statement (ADR 0041 D10), set to expire " +
+      'three years after the claim closes (`CONTENT_CLAIMANT_RETENTION_SECONDS`); ' +
+      'NULL — kept — while the claim is open. Housekeeping only: every read ' +
+      'treats a row past `expires_at` as erased. The claim keeps its trail.',
+  },
+  {
+    table: contentClaimNotifications,
+    column: contentClaimNotifications.createdAt,
+    retentionSeconds: CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
+    reason:
+      'Ninety days of claim emails, far past the day-and-a-half retry window: ' +
+      'a sent or dead-lettered email stays inspectable for support, then goes. ' +
+      'The rows hold no address and no content.',
   },
   {
     table: fileLifecycleSweeps,

@@ -1,6 +1,7 @@
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { storageByteReservations } from '../db/schema';
+import { FILE_LIVE_STATUS_SQL_LIST } from '../db/schema/files';
 import { withContentHashLock } from './contentHashLock';
 import { withStorageQuota } from './storageQuota.service';
 import { ApiError } from '../utils/error';
@@ -155,7 +156,7 @@ export async function recoverStorageByteReservations(
         ),
         // Referenced holds must not occupy every slot ahead of orphan recovery.
         // Recheck under the hash/account locks below: this is only candidate selection.
-        sql`not exists (select 1 from "files" f where f.status in ('active', 'trash')
+        sql`not exists (select 1 from "files" f where f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
         and (f.storage_key = ${storageByteReservations.objectKey} or exists (
           select 1 from "file_variants" v where v.file_id = f.id and v.key = ${storageByteReservations.objectKey}
         )))`,
@@ -193,7 +194,7 @@ export async function recoverStorageByteReservations(
         )
           return false;
         const claims =
-          await tx.execute(sql`select 1 from "files" f where f.status in ('active', 'trash')
+          await tx.execute(sql`select 1 from "files" f where f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
           and (f.storage_key = ${current.objectKey} or exists (
             select 1 from "file_variants" v where v.file_id = f.id and v.key = ${current.objectKey}
           )) limit 1`);

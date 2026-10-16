@@ -20,6 +20,18 @@
  * others, and completes as `retained_shared` when it kept one. The bytes kept
  * are then that other owner's upload, not the deleted one's
  * ({@link storageSpellingsInUse}).
+ *
+ * ## The evidence hold (ADR 0041 D10)
+ *
+ * Bytes an OPEN content claim names — a target it resolved, or a hash it
+ * blocked — are evidence: the reviewer must be able to see them, and a
+ * reinstatement must be able to serve them again. Whatever tombstoned the row
+ * (its owner, an account's or an application's deletion, the lifecycle's
+ * purge), the worker then keeps the bare spelling, still deletes a `public/`
+ * copy nobody serves (taken-down content must not stay on the CDN), and
+ * DEFERS the row: it comes back every {@link EVIDENCE_HOLD_RECHECK_MS} and is
+ * worked off normally once no open claim holds the bytes. Not a failure: the
+ * attempt count is unchanged.
  */
 
 import { randomBytes } from 'node:crypto';
@@ -37,6 +49,7 @@ import {
 } from '../db/schema/storageObjectDeletions';
 import { logger } from '../utils/logger';
 import { withContentHashLock } from './contentHashLock';
+import { isHeldAsEvidence } from './contentClaims/contentBlocklist';
 import { s3Service } from './s3ServiceSingleton';
 
 export const STORAGE_DELETION_LEASE_MS = 5 * 60_000;
@@ -48,6 +61,9 @@ const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const LIST_PAGE_SIZE = 1000;
 export const STORAGE_DELETION_MAX_LIST_ROUNDS = 20;
 const MAX_RECORDED_ERROR_LENGTH = 500;
+/** How often a row whose bytes an open claim holds is looked at again. */
+export const EVIDENCE_HOLD_RECHECK_MS = 6 * 60 * 60 * 1000;
+const EVIDENCE_HOLD_NOTE = 'Held as evidence by an open content claim; retried when it closes';
 
 /** Delay before attempt `attempts + 1`, after `attempts` failures. */
 export function storageDeletionBackoffMs(attempts: number): number {
@@ -81,6 +97,8 @@ export interface StorageDeletionBatchResult {
   claimed: number;
   deleted: number;
   retainedShared: number;
+  /** Deferred: an open content claim holds the bytes (see the header). */
+  heldAsEvidence: number;
   failed: number;
 }
 
@@ -288,6 +306,7 @@ export async function runStorageDeletionBatch(
     claimed: claimed.length,
     deleted: 0,
     retainedShared: 0,
+    heldAsEvidence: 0,
     failed: 0,
   };
   if (claimed.length === 0) return result;
@@ -309,12 +328,29 @@ export async function runStorageDeletionBatch(
       // done (and then writes its own bytes).
       const outcome = await withContentHashLock(
         row.sha256,
-        async (tx): Promise<StorageObjectDeletionOutcome> => {
+        async (tx): Promise<StorageObjectDeletionOutcome | 'held'> => {
           const inUse = await storageSpellingsInUse(row, tx);
+          if (await isHeldAsEvidence(row.sha256, tx)) {
+            await deleteSpellings(store, row, { base: true, public: inUse.public });
+            return 'held';
+          }
           await deleteSpellings(store, row, inUse);
           return inUse.base || inUse.public ? 'retained_shared' : 'deleted';
         },
       );
+      if (outcome === 'held') {
+        await db
+          .update(storageObjectDeletions)
+          .set({
+            lastError: EVIDENCE_HOLD_NOTE,
+            claimedAt: null,
+            claimedBy: null,
+            nextAttemptAt: new Date(now().getTime() + EVIDENCE_HOLD_RECHECK_MS),
+          })
+          .where(ownedBy(row.id));
+        result.heldAsEvidence += 1;
+        continue;
+      }
       const completed = await db
         .update(storageObjectDeletions)
         .set({

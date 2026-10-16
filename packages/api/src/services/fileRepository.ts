@@ -34,6 +34,7 @@ import { isServedPublicly } from '../config/cdn';
 import { ConflictError, ForbiddenError } from '../utils/error';
 import { storageAccountForOwner, withStorageQuota } from './storageQuota.service';
 import { recordFileEvents } from './fileEvents.service';
+import { assertContentNotBlocked, heldAsEvidence } from './contentClaims/contentBlocklist';
 import {
   and,
   asc,
@@ -52,6 +53,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { qualified } from '@oxy.so/db';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { applications, fileReferences, fileVariants, files, users } from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
@@ -376,7 +378,10 @@ export async function findLiveFilesBySha256(
  * `inUse` narrows it to the files some application references (`true`) or to
  * those none does — *not in use* (`false`, ADR 0041 D5). Read from the
  * reference set itself, not from `unreferenced_since`, so the filter and the
- * `inUse` each file reports can never disagree.
+ * `inUse` each file reports can never disagree. A file blocked under a claim
+ * that is still open is not offered as *not in use* — it is not the owner's
+ * clutter to clear while the claim is decided (D10); it is listed again once
+ * the claim closes.
  */
 export async function listFilesByOwner(
   ownerUserId: string,
@@ -391,7 +396,14 @@ export async function listFilesByOwner(
   const where = and(
     eq(files.ownerUserId, ownerUserId),
     ne(files.status, 'deleted'),
-    options.inUse === undefined ? undefined : options.inUse ? referenced : not(referenced),
+    options.inUse === undefined
+      ? undefined
+      : options.inUse
+        ? referenced
+        : and(
+            not(referenced),
+            sql`not (${files.status} = 'blocked' and ${heldAsEvidence(qualified(files.sha256))})`,
+          ),
   );
 
   const [rows, [totals]] = await Promise.all([
@@ -523,6 +535,11 @@ export async function findSameSpellingTwins(
 /**
  * Insert a file row.
  *
+ * Every new row comes through here, so this is where blocked bytes are
+ * refused for every owner (ADR 0041 D10): `ContentBlockedError` (451) when the
+ * hash is on `blocked_content_hashes`. Callers hold the content-hash lock,
+ * which the block takes too, so the check and the insert cannot straddle one.
+ *
  * @throws when the content hash is already claimed by a live row — see
  *   {@link isUniqueViolation}, which the caller uses to fall back to a re-read.
  */
@@ -531,6 +548,7 @@ export async function insertFile(
   db: DatabaseOrTransaction = getDb(),
 ): Promise<FileRecord> {
   if (db === getDb()) return getDb().transaction((tx) => insertFile(values, tx));
+  await assertContentNotBlocked(values.sha256, db);
   if (values.ownerApplicationId) {
     await assertApplicationNotDeleted(db, [values.ownerApplicationId]);
   }
@@ -1198,7 +1216,12 @@ function heldByNothing(db: DatabaseOrTransaction) {
 }
 
 /** The steps of the sweep, each a predicate over `files` at one instant. */
-export type FileLifecycleStep = 'trash' | 'purge' | 'staleUploads' | 'unpublishTrashed';
+export type FileLifecycleStep =
+  | 'trash'
+  | 'purge'
+  | 'purgeBlocked'
+  | 'staleUploads'
+  | 'unpublishTrashed';
 
 /** Collection windows (ADR 0041 D5). */
 export const APPLICATION_FILE_UNREFERENCED_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -1211,12 +1234,18 @@ export const STALE_UPLOAD_AGE_MS = 24 * 60 * 60 * 1000;
  *
  *  - `trash`: an APPLICATION's active file unreferenced for 24 hours.
  *  - `purge`: an APPLICATION's file in trash for 30 days.
+ *  - `purgeBlocked`: an APPLICATION's file BLOCKED by a takedown (ADR 0041
+ *    D10) that nothing has used for 30 days and that no open claim holds as
+ *    evidence any more (the claim was upheld). It is never trashed — a
+ *    restore from trash would serve it — but tombstoned and purged directly.
+ *    While a claim is open it is evidence, and an account's blocked file is
+ *    its person's to delete, so neither is collected.
  *  - `staleUploads`: an ACCOUNT's upload `POST /assets/init` created and
  *    `/complete` never named (no name, no metadata), 24 hours old. Whether it
  *    holds an object is the store's answer, asked per file.
- *  - `unpublishTrashed`: a public file of any owner in trash whose original or
- *    a rendition is still at a CDN-reachable `public/` key (it entered trash
- *    before trash left the CDN).
+ *  - `unpublishTrashed`: a public file of any owner in trash or blocked whose
+ *    original or a rendition is still at a CDN-reachable `public/` key (it
+ *    left `active` before leaving took it off the CDN, or that move failed).
  */
 export function fileLifecyclePredicate(
   step: FileLifecycleStep,
@@ -1243,6 +1272,15 @@ export function fileLifecyclePredicate(
         lte(files.trashedAt, new Date(now.getTime() - APPLICATION_FILE_TRASH_RETENTION_MS)),
         heldByNothing(db),
       );
+    case 'purgeBlocked':
+      return and(
+        isNotNull(files.ownerApplicationId),
+        eq(files.status, 'blocked'),
+        isNotNull(files.unreferencedSince),
+        lte(files.unreferencedSince, new Date(now.getTime() - APPLICATION_FILE_TRASH_RETENTION_MS)),
+        heldByNothing(db),
+        sql`not ${heldAsEvidence(qualified(files.sha256))}`,
+      );
     case 'staleUploads':
       return and(
         eq(files.status, 'active'),
@@ -1254,7 +1292,7 @@ export function fileLifecyclePredicate(
       );
     case 'unpublishTrashed':
       return and(
-        eq(files.status, 'trash'),
+        inArray(files.status, ['trash', 'blocked']),
         eq(files.visibility, 'public'),
         or(
           sql`starts_with(${files.storageKey}, 'public/')`,
@@ -1281,6 +1319,8 @@ function lifecycleClock(step: FileLifecycleStep) {
       return files.unreferencedSince;
     case 'purge':
       return files.trashedAt;
+    case 'purgeBlocked':
+      return files.unreferencedSince;
     case 'staleUploads':
       return files.createdAt;
     case 'unpublishTrashed':
@@ -1362,7 +1402,7 @@ export async function trashUnreferencedApplicationFile(
 export async function tombstoneFileIfDue(
   tx: Transaction,
   fileId: string,
-  step: 'purge' | 'staleUploads',
+  step: 'purge' | 'purgeBlocked' | 'staleUploads',
   now: Date,
 ): Promise<FileRecord | null> {
   const rows = await tx

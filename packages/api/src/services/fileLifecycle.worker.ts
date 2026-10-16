@@ -5,9 +5,10 @@
  * | Step | Condition | Action (`enforce`) |
  * |---|---|---|
  * | `purge` | an APPLICATION's file in trash for 30 days | tombstone + purge through `storage_object_deletions` |
+ * | `purgeBlocked` | an APPLICATION's blocked file (D10) unused for 30 days, no open claim holding it | tombstone + purge |
  * | `trash` | an APPLICATION's active file unreferenced for 24 hours | trash, off the CDN |
  * | `staleUploads` | an ACCOUNT's `/assets/init` upload never completed, 24 h old, NO object | tombstone (nothing to purge but the row) |
- * | `unpublishTrashed` | a public file in trash still under `public/` | move its objects off the CDN |
+ * | `unpublishTrashed` | a public file in trash or blocked still under `public/` | move its objects off the CDN |
  *
  * Never acted on, in any mode: an ACCOUNT's file because it is unused (it is
  * only marked *not in use*, `unreferenced_since`; its person decides), an
@@ -90,6 +91,7 @@ const METRIC_NAMESPACE = 'Oxy/FileLifecycle';
 /** Enforce order: what has waited 30 days goes before what has waited 24 hours. */
 export const FILE_LIFECYCLE_STEPS: readonly FileLifecycleStep[] = [
   'purge',
+  'purgeBlocked',
   'trash',
   'staleUploads',
   'unpublishTrashed',
@@ -119,6 +121,7 @@ export function fileLifecycleBackoffMs(failures: number): number {
 export interface FileLifecycleActions {
   trashUnusedApplicationFile(fileId: string, now: Date): Promise<unknown | null>;
   purgeTrashedApplicationFile(fileId: string, now: Date): Promise<boolean>;
+  purgeBlockedApplicationFile(fileId: string, now: Date): Promise<boolean>;
   sweepStaleUpload(fileId: string, now: Date): Promise<'tombstoned' | 'has_object' | 'not_due'>;
   storedObjectExists(fileId: string): Promise<boolean>;
   unpublishTrashedFile(fileId: string): Promise<boolean>;
@@ -268,6 +271,9 @@ async function runStep(
         case 'purge':
           acted = await actions.purgeTrashedApplicationFile(candidate.id, now);
           break;
+        case 'purgeBlocked':
+          acted = await actions.purgeBlockedApplicationFile(candidate.id, now);
+          break;
         case 'trash':
           acted = (await actions.trashUnusedApplicationFile(candidate.id, now)) !== null;
           break;
@@ -300,6 +306,8 @@ const defaultActions: FileLifecycleActions = {
   trashUnusedApplicationFile: (fileId, now) => assetService.trashUnusedApplicationFile(fileId, now),
   purgeTrashedApplicationFile: (fileId, now) =>
     assetService.purgeTrashedApplicationFile(fileId, now),
+  purgeBlockedApplicationFile: (fileId, now) =>
+    assetService.purgeBlockedApplicationFile(fileId, now),
   sweepStaleUpload: (fileId, now) => assetService.sweepStaleUpload(fileId, now),
   storedObjectExists: (fileId) => assetService.storedObjectExists(fileId),
   unpublishTrashedFile: (fileId) => assetService.unpublishTrashedFile(fileId),

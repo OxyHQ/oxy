@@ -4,7 +4,7 @@ import type { DatabaseOrTransaction } from '../config/postgres';
 import { randomUUID } from 'crypto';
 import type { FileOwnerColumns, FileRecord, NewFileVariant } from '../types/file.types';
 import { applications, files, fileVariants, storageByteReservations } from '../db/schema';
-import { FILE_LIVE_STATUSES } from '../db/schema/files';
+import { FILE_LIVE_STATUSES, FILE_LIVE_STATUS_SQL_LIST } from '../db/schema/files';
 import { resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import { ApiError } from '../utils/error';
 import {
@@ -137,7 +137,7 @@ export async function reservedStorageBytes(
         sql`not exists (select 1 from "files" f where (f.owner_user_id = ${storageByteReservations.accountId}
           or f.owner_application_id in (select a.id from "applications" a where a.owner_account_id = ${storageByteReservations.accountId}
             and a.type = ${METERED_APPLICATION_TYPE}))
-        and f.status in ('active', 'trash') and (
+        and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)}) and (
           (f.storage_key = ${storageByteReservations.objectKey} and f.size = ${storageByteReservations.size})
           or exists (select 1 from "file_variants" v where v.file_id = f.id
             and v.key = ${storageByteReservations.objectKey} and v.size = ${storageByteReservations.size})

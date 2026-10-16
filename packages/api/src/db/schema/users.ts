@@ -230,10 +230,15 @@ export const DEFAULT_USER_LANGUAGES = ['en-US'] as const;
  *   (which books a rounding entry).
  * - `billing:cost_centers` — registering and retiring the internal cost centres
  *   Oxy books its own first-party spend against.
+ * - `content:claims` — the content-claim queue (ADR 0041 D10): reading claims
+ *   and acting on them — blocking a file's bytes for every owner, rejecting,
+ *   recording a counter-notice, reinstating. Reading is graded too, the one
+ *   exception below: a claim carries the claimant's name, email and
+ *   statement, personal data only the people who review claims may see.
  *
- * READ-ONLY staff surfaces are deliberately NOT graded: a capability that only
- * gates a dashboard buys nothing and makes the grant list long enough that
- * nobody reads it.
+ * READ-ONLY staff surfaces are otherwise deliberately NOT graded: a capability
+ * that only gates a dashboard buys nothing and makes the grant list long
+ * enough that nobody reads it.
  *
  * ## `is_staff` is still required, and is still not grantable
  *
@@ -245,6 +250,7 @@ export const STAFF_CAPABILITIES = [
   'inference:catalogue:publish',
   'billing:adjust',
   'billing:cost_centers',
+  'content:claims',
 ] as const;
 
 export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];

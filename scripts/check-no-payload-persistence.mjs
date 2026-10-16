@@ -345,6 +345,12 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
       "a committed reconciliation's integer counts (added, removed, unchanged, refused) and dryRun flag; no inventory item, no request",
   },
   {
+    table: 'content_claim_events',
+    column: 'details',
+    holds:
+      "the shape of one action on a content claim (ADR 0041 D10), composed by Oxy: target ids, counts of hashes, files and accounts a block reached, whether a claim is an erasure request — never the claimant's identity or statement (sealed in content_claim_claimants), no file content, no prompt, completion or credential",
+  },
+  {
     table: 'file_event_deliveries',
     column: 'payload',
     holds:

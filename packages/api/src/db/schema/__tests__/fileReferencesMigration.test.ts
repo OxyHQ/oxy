@@ -1,5 +1,5 @@
 /**
- * Migrations 0167 (pre) and 0170 (post): `file_links` → `file_references`
+ * Migrations 0167 (pre) and 0171 (post): `file_links` → `file_references`
  * (ADR 0041 D4), run VERBATIM against a seeded legacy table.
  *
  * Both files are read from `drizzle/` and executed statement by statement in
@@ -27,7 +27,7 @@
  *    deletes, and refuses an unmappable `app`;
  *  - an unmappable or ambiguous `app` FAILS the migration, names the value,
  *    and copies nothing;
- *  - 0170 drops `file_links`, the trigger and both functions, and keeps every
+ *  - 0171 drops `file_links`, the trigger and both functions, and keeps every
  *    reference.
  */
 
@@ -148,7 +148,7 @@ describe('the migration table and the runtime table are one table', () => {
   });
 });
 
-describe('0167 + 0170 on links that all map', () => {
+describe('0167 + 0171 on links that all map', () => {
   let url: string;
   let sql: Sql;
   const ids: Record<string, string> = {};
@@ -239,10 +239,10 @@ describe('0167 + 0170 on links that all map', () => {
     ).rejects.toThrow(/not-an-app/);
   });
 
-  it('0170 drops file_links, the trigger and both functions, and keeps every reference', async () => {
+  it('0171 drops file_links, the trigger and both functions, and keeps every reference', async () => {
     const before = await sql`select count(*)::int as n from file_references`;
 
-    await migrate(sql, '0171_drop_file_links.sql');
+    await migrate(sql, '0172_drop_file_links.sql');
 
     const [{ n }] = await sql`select count(*)::int as n from file_references`;
     expect(n).toBe(before[0].n);

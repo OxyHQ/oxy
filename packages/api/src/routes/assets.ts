@@ -245,7 +245,12 @@ function parseMediaAccessContext(raw: unknown): MediaAccessContext | undefined {
 
 // Validation schemas
 const initUploadSchema = z.object({
-  sha256: z.string().length(64, 'SHA256 must be 64 characters'),
+  // Hex, and lowercased: it is the content's identity (dedupe, the presigned
+  // PUT's enforced checksum, the takedown blocklist).
+  sha256: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'SHA256 must be 64 hexadecimal characters')
+    .transform((value) => value.toLowerCase()),
   size: z.number().positive('Size must be positive'),
   mime: z.string().min(1, 'MIME type is required'),
 });

@@ -11,6 +11,7 @@ import {
 } from './storageQuota.service';
 import type { S3Service } from './s3Service';
 import {
+  isServedPublicly,
   storageKeyForVisibility,
   HLS_MASTER_PLAYLIST_CACHE_CONTROL,
   IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -275,6 +276,17 @@ export interface VideoVariantConfig {
   preset?: string; // FFmpeg preset (ultrafast, fast, medium, slow)
 }
 
+/**
+ * The spelling a file's renditions are written in: under `public/` only while
+ * the file is SERVED publicly (public AND `active`, `config/cdn.isServedPublicly`),
+ * exactly as its original's key is. A public file in trash or blocked (ADR
+ * 0041 D5, D10) is not on the CDN, and a rendition generated for it must not
+ * put it back there.
+ */
+function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {
+  return isServedPublicly(file) ? 'public' : 'private';
+}
+
 export class VariantService {
   /**
    * The image ladder is `@oxy.so/utils/image`'s — the one every consumer asks
@@ -439,7 +451,7 @@ export class VariantService {
       // row's visibility needs gives them to this row without re-encoding.
       const existingFile = reencode
         ? null
-        : await findVariantTwin(file.sha256, file.id, file.visibility);
+        : await findVariantTwin(file.sha256, file.id, spellingOf(file));
 
       if (existingFile && existingFile.variants.length > 0) {
         await this.copyVariantSet(existingFile, file);
@@ -521,7 +533,7 @@ export class VariantService {
       for (const twin of await findSameSpellingTwins(
         file.sha256,
         file.id,
-        file.visibility,
+        spellingOf(file),
         twins,
       )) {
         await this.copyVariantSet(file, twin);
@@ -667,7 +679,7 @@ export class VariantService {
           file.sha256,
           config.type,
           config.format || 'webp',
-          file.visibility,
+          spellingOf(file),
         );
 
         const width = config.width || meta.width || 1280;
@@ -753,7 +765,7 @@ export class VariantService {
         file.storageKey, // Use S3 storage key directly - no temp files
         file.sha256,
         posterTime,
-        file.visibility,
+        spellingOf(file),
         metadata, // Pass metadata to preserve exact aspect ratio
       );
       variants.push(posterVariant);
@@ -788,7 +800,7 @@ export class VariantService {
           videoUrl, // Use S3 presigned URL directly - no temp files
           file.sha256,
           config,
-          file.visibility,
+          spellingOf(file),
         );
         if (variant) {
           renditionsSucceeded += 1;
@@ -801,7 +813,7 @@ export class VariantService {
         videoUrl, // Use S3 presigned URL directly - no temp files
         file.sha256,
         metadata,
-        file.visibility,
+        spellingOf(file),
       );
       variants.push(...hlsVariants);
 
@@ -1570,7 +1582,7 @@ export class VariantService {
     try {
       logger.info('Generating PDF variants (placeholder)', { fileId: file.id });
 
-      const thumbnailKey = this.generateVariantKey(file.sha256, 'thumb', 'jpg', file.visibility);
+      const thumbnailKey = this.generateVariantKey(file.sha256, 'thumb', 'jpg', spellingOf(file));
 
       // Placeholder variant
       const variants: NewFileVariant[] = [
@@ -1716,7 +1728,12 @@ export class VariantService {
       );
     }
 
-    const variant = await this.generateVideoVariant(videoUrl, file.sha256, config, file.visibility);
+    const variant = await this.generateVideoVariant(
+      videoUrl,
+      file.sha256,
+      config,
+      spellingOf(file),
+    );
     if (!variant) {
       throw new Error(`Failed to generate video rendition: ${variantType}`);
     }
@@ -1747,7 +1764,7 @@ export class VariantService {
         file.storageKey, // Use S3 storage key directly - no temp files
         file.sha256,
         posterTime,
-        file.visibility,
+        spellingOf(file),
         metadata, // Pass metadata to preserve exact aspect ratio
       );
 
@@ -1792,7 +1809,7 @@ export class VariantService {
     // its own `format` and the upload sets `contentType` explicitly, which is
     // what lets a `video/*` file own an `image/webp` variant (the `poster`
     // variant has always relied on the same property).
-    const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
+    const key = this.generateVariantKey(file.sha256, config.type, format, spellingOf(file));
     const imgMeta = await sharp(out).metadata();
     return uploadAdmittedVariant(
       file,

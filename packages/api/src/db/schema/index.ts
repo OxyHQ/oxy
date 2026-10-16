@@ -58,6 +58,7 @@ export * from './bundles';
 export * from './civicNonces';
 export * from './conductStrikes';
 export * from './contacts';
+export * from './contentClaims';
 export * from './deviceAccountContexts';
 export * from './deviceCredentials';
 export * from './deviceJoinCodes';

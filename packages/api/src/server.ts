@@ -168,6 +168,11 @@ import {
   stopFileEventDeliveryWorker,
 } from './services/fileEventDelivery.worker';
 import {
+  startContentClaimNotificationWorker,
+  stopContentClaimNotificationWorker,
+} from './services/contentClaims/contentClaimNotification.worker';
+import contentClaimRoutes from './routes/contentClaims';
+import {
   startNormalizedEventOutboxWorker,
   stopNormalizedEventOutboxWorker,
 } from './services/normalizedAppEventOutbox.worker';
@@ -581,6 +586,7 @@ async function gracefulShutdown(signal: string) {
   stopStorageDeletionWorker();
   stopFileLifecycleWorker();
   stopFileEventDeliveryWorker();
+  stopContentClaimNotificationWorker();
   await flushCdnInvalidations();
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
@@ -864,6 +870,10 @@ app.use('/families', familyRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/safety', supervisionRoutes);
 app.use('/safety', safetyRoutes);
+// Content claims (ADR 0041 D10): the public "Report content / rights claim"
+// intake (`POST /`, no session needed, limited per IP and per claimant email
+// inside the router) and the staff review behind `content:claims`.
+app.use('/content-claims', contentClaimRoutes);
 app.use('/capabilities', userRateLimiter, capabilityRoutes);
 app.use('/devices', userRateLimiter, devicesRouter);
 app.use('/security', userRateLimiter, securityRoutes);
@@ -1481,6 +1491,9 @@ export async function bootstrap(
   // Tell applications about the files they use (ADR 0041 D9). ON by default:
   // only applications that verified an endpoint have anything queued.
   startFileEventDeliveryWorker();
+  // Send content-claim emails: the claimant's confirmation, and word to the
+  // owners of what a takedown blocked (ADR 0041 D10). ON by default.
+  startContentClaimNotificationWorker();
   // Repair partially applied moderation consequences — by the system, on a
   // schedule, never by a person choosing whose standing to touch.
 

@@ -73,23 +73,31 @@ import { users } from './users';
 /**
  * Lifecycle of a stored asset. `deleted` is a tombstone, not a removed row.
  *
- * Only `active` is ever served (ADR 0041 D5): `trash` and `deleted` are refused
- * by every read path and leave the CDN (`assetService.isServableStatus`).
+ * Only `active` is ever served (ADR 0041 D5): `trash`, `blocked` and `deleted`
+ * are refused by every read path and leave the CDN (`config/cdn.isServableStatus`).
  *
- * STAGE 4 HOOK (ADR 0041 D10): `blocked` — a takedown — joins this set then,
- * with its CHECK migration. Every serving gate already reads "anything but
- * `active`", so it is refused from the moment it exists; what stage 4 decides
- * is whether it holds a live claim on its hash (`FILE_LIVE_STATUSES`, whose
- * partial-unique predicates are literal and need their own rebuild).
+ * `blocked` is a takedown (ADR 0041 D10, `services/contentClaims/`): the bytes
+ * are on `blocked_content_hashes` after a content claim, and EVERY live row
+ * holding them is blocked — whoever owns it. Only staff move a row into or out
+ * of it (a reinstatement returns it to `active`, or to `trash` when it was
+ * there, which `trashed_at` remembers). It is still a claim on its bytes
+ * (`FILE_LIVE_STATUSES`): the bytes are kept, as evidence and for a
+ * reinstatement, and the per-owner unique keeps a second row of them from
+ * being created underneath it.
  */
-export const FILE_STATUSES = ['active', 'trash', 'deleted'] as const;
+export const FILE_STATUSES = ['active', 'trash', 'blocked', 'deleted'] as const;
 
 /**
  * The statuses that hold a claim on their content hash.
  *
- * The single source of the partial unique index's predicate below.
+ * The single source of the partial unique index's predicate below, of the
+ * storage purge's "does a live row still use these bytes" guard and of what a
+ * metered owner's quota counts.
  */
-export const FILE_LIVE_STATUSES = ['active', 'trash'] as const;
+export const FILE_LIVE_STATUSES = ['active', 'trash', 'blocked'] as const;
+
+/** `status in ('active', 'trash', 'blocked')` as SQL text, for hand-written statements. */
+export const FILE_LIVE_STATUS_SQL_LIST = FILE_LIVE_STATUSES.map((value) => `'${value}'`).join(', ');
 
 /** Who may read the asset. */
 export const FILE_VISIBILITIES = ['private', 'public', 'unlisted'] as const;
@@ -132,7 +140,7 @@ export const FILE_SYSTEM_OWNERS = [
 
 /** `status in ('active', 'trash')`, as an IMMUTABLE literal list for an index predicate. */
 function liveStatusPredicate(status: AnyPgColumn) {
-  return sql`${status} in (${sql.raw(FILE_LIVE_STATUSES.map((value) => `'${value}'`).join(', '))})`;
+  return sql`${status} in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})`;
 }
 
 export const files = pgTable(
@@ -280,6 +288,11 @@ export const files = pgTable(
     index('files_application_trashed_at_idx')
       .on(t.trashedAt)
       .where(sql`${t.ownerApplicationId} is not null and ${t.status} = 'trash'`),
+    //  - an application's BLOCKED file nobody uses, once no open claim holds
+    //    its bytes (→ tombstone + purge, `purgeBlocked`, ADR 0041 D10).
+    index('files_application_blocked_unreferenced_since_idx')
+      .on(t.unreferencedSince)
+      .where(sql`${t.ownerApplicationId} is not null and ${t.status} = 'blocked'`),
     index('files_pending_upload_created_at_idx')
       .on(t.createdAt)
       .where(

@@ -15,6 +15,7 @@ import { accessProviderPeriods, accessProviderEvents } from './productProviderEv
 import { accessProviderRefunds } from './productProviderRefunds';
 import { personalPlanCheckoutIntents } from './personalPlanCheckoutIntents';
 import { storageByteReservations } from './storageByteReservations';
+import { contentClaimEvents } from './contentClaims';
 import { emailSignInRequests } from './emailSignInRequests';
 import { signInSecondFactorChallenges } from './signInChallenges';
 import { externalIdentities, externalIdentityClaims } from './externalIdentities';
@@ -839,6 +840,14 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "The entity's id in the reconciling application's database, exactly as " +
       '`file_references.entity_id`: never resolvable here.',
+  },
+  {
+    table: contentClaimEvents,
+    column: contentClaimEvents.actorUserId,
+    reason:
+      'Who acted on a content claim (ADR 0041 D10): the staff member, or the signed-in ' +
+      'claimant. An audit trail that lost its actor when their account was deleted would ' +
+      'not be one, and the trail is append-only (a trigger refuses an UPDATE). Staff-only.',
   },
   {
     table: fileEventDeliveries,

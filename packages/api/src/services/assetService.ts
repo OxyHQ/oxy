@@ -25,7 +25,7 @@ import type { S3Service } from './s3Service';
 import { FEDERATION_MEDIA_CACHE_PURPOSE, isAllowedCacheMime } from '../constants/federationCache';
 import { VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
-import { files as filesTable } from '../db/schema/files';
+import { FILE_LIVE_STATUS_SQL_LIST, files as filesTable } from '../db/schema/files';
 import { storageByteReservations } from '../db/schema/storageByteReservations';
 import {
   recordFileStorageDeletion,
@@ -33,6 +33,12 @@ import {
 } from './accountStorageDeletion.service';
 import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
 import { withContentHashLock } from './contentHashLock';
+import {
+  ContentBlockedError,
+  assertContentNotBlocked,
+  isContentBlocked,
+  refuseBlockedFile,
+} from './contentClaims/contentBlocklist';
 import { enqueueAssetVariantGeneration } from '../queue/assetVariants.queue';
 import {
   buildCdnUrl,
@@ -536,6 +542,9 @@ export class AssetService {
    * route would refuse it).
    */
   private assertStreamedDedupeAllowed(file: FileRecord, options: StreamedMediaOptions): void {
+    // The owner's existing row of taken-down bytes is blocked (ADR 0041 D10):
+    // handing it back would answer an upload of blocked content with success.
+    refuseBlockedFile(file);
     if (options.dedupeScope === 'federated' && !isSameFederatedUpload(file, options)) {
       throw new ApiError(
         409,
@@ -667,6 +676,10 @@ export class AssetService {
   ): Promise<AssetInitResponse> {
     const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
     try {
+      // The declared hash IS the content: the presigned PUT carries it as a
+      // checksum S3 enforces (`presignAdmittedUpload`), so refusing it here
+      // refuses the bytes (ADR 0041 D10).
+      await assertContentNotBlocked(expectedSha256);
       const own = await findLiveFileBySha256ForOwner(expectedSha256, owner);
       if (own) {
         return await this.initUploadForExistingOwnRow(own, userId, expectedMime);
@@ -679,6 +692,8 @@ export class AssetService {
         // re-spells a shared object, and the insert are one step against a
         // purge of the same bytes (`contentHashLock.ts`).
         created = await withContentHashLock(expectedSha256, async (tx) => {
+          // Before the copy below writes anything for these bytes.
+          await assertContentNotBlocked(expectedSha256, tx);
           const source = await findLiveStorageSourceBySha256(expectedSha256, 'private', tx);
           let storageKey = this.generateStorageKey(expectedSha256, expectedMime);
           let needsUpload = true;
@@ -743,6 +758,9 @@ export class AssetService {
         sha256: expectedSha256,
       };
     } catch (error) {
+      // A refusal the caller must see as such (a takedown's 451, a quota's
+      // 413) is not an internal failure.
+      if (error instanceof ApiError) throw error;
       logger.error('Error initializing asset upload:', error);
       throw new Error('Failed to initialize asset upload');
     }
@@ -770,11 +788,14 @@ export class AssetService {
     const uploadUrl = await this.s3Service.getPresignedUploadUrl(file.storageKey, {
       contentType,
       expiresIn: configured ? 60 : 3600,
+      // The declared SHA-256 is enforced on EVERY presigned PUT, not only an
+      // admitted one: the row, its dedupe and the takedown blocklist (ADR 0041
+      // D10) all trust it, so bytes that do not hash to it must not land.
+      checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
       ...(configured
         ? {
             contentLength: file.size,
             ifNoneMatch: '*' as const,
-            checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
           }
         : {}),
     });
@@ -786,6 +807,7 @@ export class AssetService {
     userId: string,
     expectedMime: string,
   ): Promise<AssetInitResponse> {
+    refuseBlockedFile(own);
     let upload: Pick<AssetInitResponse, 'uploadUrl' | 'requiredHeaders'> = { uploadUrl: '' };
     if (!(await this.s3Service.fileExists(own.storageKey))) {
       if (await isStorageKeyUsedByOtherLiveRow(own.sha256, own.storageKey, own.id)) {
@@ -855,6 +877,7 @@ export class AssetService {
         throw new BadRequestError('Uploaded file content does not match the declared image type');
       }
 
+      await assertContentNotBlocked(sha256);
       const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
       const own = await findLiveFileBySha256ForOwner(sha256, owner);
       if (own) {
@@ -878,7 +901,10 @@ export class AssetService {
               ext,
               ...owner,
               status: 'active',
-              storageKey: await this.sharedStorageKeyFor(tx, sha256, mimeType, resolvedVisibility),
+              // Blocked bytes are refused before `sharedStorageKeyFor` may copy them.
+              storageKey: await assertContentNotBlocked(sha256, tx).then(() =>
+                this.sharedStorageKeyFor(tx, sha256, mimeType, resolvedVisibility),
+              ),
               originalName: normalizeInlineText(originalName),
               visibility: resolvedVisibility,
               metadata: metadata ?? {},
@@ -942,6 +968,7 @@ export class AssetService {
     mimeType: string,
     logLabel: string,
   ): Promise<FileRecord> {
+    refuseBlockedFile(own);
     const { file, restored } = await this.restoreMissingDirectUploadContent(
       own,
       fileBuffer,
@@ -1233,6 +1260,7 @@ export class AssetService {
       await pipeline(source, meter, createWriteStream(staged, { flags: 'wx' }));
       if (!size) throw new BadRequestError('Cannot store an empty file');
       const sha256 = hash.digest('hex');
+      await assertContentNotBlocked(sha256);
       const own = await findLiveFileBySha256ForOwner(sha256, options.owner);
       if (own) {
         this.assertStreamedDedupeAllowed(own, options);
@@ -1272,7 +1300,7 @@ export class AssetService {
                 // without this another owner's finished upload of the same
                 // bytes would read as in progress until recovery swept it.
                 sql`not exists (select 1 from "files" f where f.storage_key = ${storageByteReservations.objectKey}
-                  and f.status in ('active', 'trash'))`,
+                  and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)}))`,
               ),
             )
             .limit(1);
@@ -1475,6 +1503,13 @@ export class AssetService {
 
     const sha256 = hash.digest('hex');
 
+    // Taken-down bytes (ADR 0041 D10): refused for every owner, and the temp
+    // object they were streamed into goes.
+    if (await isContentBlocked(sha256)) {
+      await deleteTempKey('Failed to delete temp key of blocked content');
+      throw new ContentBlockedError();
+    }
+
     // Dedup, per OWNER: the uploader's own live row for these bytes is reused
     // and the temp object dropped. Another owner's row is never returned — the
     // uploader gets its own row below, sharing that row's stored object.
@@ -1506,6 +1541,8 @@ export class AssetService {
     let file: FileRecord;
     try {
       file = await withContentHashLock(sha256, async (tx) => {
+        // Before the promotion writes a content-addressed object (ADR 0041 D10).
+        await assertContentNotBlocked(sha256, tx);
         const storageKey = await this.sharedStorageKeyFor(tx, sha256, mimeType, options.visibility);
         if (!(await this.s3Service.fileExists(storageKey))) {
           await this.s3Service.copyFile(tempKey, storageKey);
@@ -2595,6 +2632,25 @@ export class AssetService {
   }
 
   /**
+   * An application's BLOCKED file nothing has used for 30 days, once no open
+   * claim holds its bytes (ADR 0041 D10) → tombstoned and purged directly,
+   * never through trash (a restore from trash would serve it). `false`: no
+   * longer due.
+   */
+  async purgeBlockedApplicationFile(fileId: string, now: Date): Promise<boolean> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'purgeBlocked', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return false;
+    logger.info('Blocked application file purged: unused, and no open claim holds it', {
+      fileId,
+      ownerApplicationId: tombstoned.ownerApplicationId,
+    });
+    return true;
+  }
+
+  /**
    * An upload `POST /assets/init` created and nobody completed, 24 hours old:
    * tombstoned when the store holds NO object at its key (ADR 0041 D5, "uploads
    * that never completed"). One that does hold an object is the account's bytes
@@ -2626,12 +2682,18 @@ export class AssetService {
   }
 
   /**
-   * A public file that entered trash before trash left the CDN: move its
-   * objects off `public/` now. `false` when it is no longer a trashed public file.
+   * A public file in trash or blocked whose objects are still under
+   * `public/` (it left `active` before leaving took it off the CDN, or that
+   * move failed): move them off now. `false` when it is no longer such a file.
    */
   async unpublishTrashedFile(fileId: string): Promise<boolean> {
     const file = await findFileById(fileId);
-    if (!file || file.status !== 'trash' || file.visibility !== 'public') return false;
+    if (
+      !file ||
+      (file.status !== 'trash' && file.status !== 'blocked') ||
+      file.visibility !== 'public'
+    )
+      return false;
     this.invalidateServedPaths(file);
     // Throws on a failed copy: the sweep counts it as failed and retries.
     await this.relocateAllForVisibility(file);
