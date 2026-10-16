@@ -25,8 +25,7 @@
 import type { OxyServices } from '../OxyServices';
 import type { AuthStateStore } from './authStateStore';
 import type { SessionLoginResponse } from '../models/session';
-import { KeyManager } from '../crypto/keyManager';
-import { SignatureService, type AuthChallenge } from '../crypto/signatureService';
+import type { AuthChallenge } from '../crypto/signatureService';
 import { identityPinMatches, type IdentityPin, type IdentityPinStore } from './identityPin';
 import { logger } from '../logger';
 
@@ -66,12 +65,21 @@ export interface EstablishedIdentitySession {
   pin: IdentityPin;
 }
 
+// The identity key and signatures load on first use, through the module that
+// installs the crypto polyfill first: a client that never resolves an identity
+// pin (every web reader without a key) must not evaluate secp256k1 and bip39
+// at startup.
+const loadCrypto = () => import('../crypto/index');
+
 function readPublicKeyOf(binding: IdentityBinding): () => Promise<string | null> {
-  return binding.readPublicKey ?? (() => KeyManager.getPublicKey());
+  return binding.readPublicKey ?? (async () => (await loadCrypto()).KeyManager.getPublicKey());
 }
 
 function signChallengeOf(binding: IdentityBinding): (challenge: string) => Promise<AuthChallenge> {
-  return binding.signChallenge ?? ((challenge) => SignatureService.signChallenge(challenge));
+  return (
+    binding.signChallenge ??
+    (async (challenge) => (await loadCrypto()).SignatureService.signChallenge(challenge))
+  );
 }
 
 /**

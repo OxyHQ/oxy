@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  updateOrganizationSchema,
-  type Organization,
-  type OrganizationType,
-} from '@oxy.so/contracts';
+import type { Organization, OrganizationType, UpdateOrganization } from '@oxy.so/contracts';
+import { updateOrganizationCheck, checkContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
 import { toast } from '@oxy.so/bloom/toast';
 import { SettingsListGroup } from '@oxy.so/bloom/settings-list';
@@ -62,7 +59,7 @@ function OrganizationForm({ organization }: { organization: Organization }) {
   const [type, setType] = useState<OrganizationType>(organization.organizationType);
   const [invalid, setInvalid] = useState(false);
   const save = useMutation({
-    mutationFn: (input: ReturnType<typeof updateOrganizationSchema.parse>) => {
+    mutationFn: (input: UpdateOrganization) => {
       if (!canUsePrivateApi) throw new Error('An authenticated session is required');
       return oxyServices.organizations.update(organization.accountId, input);
     },
@@ -113,14 +110,14 @@ function OrganizationForm({ organization }: { organization: Organization }) {
           disabled={save.isPending || !canUsePrivateApi}
           loading={save.isPending}
           onPress={() => {
-            const input = updateOrganizationSchema.safeParse({
+            const input = checkContract(updateOrganizationCheck, {
               legalName: legalName.trim() || null,
               websiteUrl: website.trim() || null,
               countryCode: country.trim().toUpperCase() || null,
               organizationType: type,
             });
-            setInvalid(!input.success);
-            if (input.success) save.mutate(input.data);
+            setInvalid(input === null);
+            if (input) save.mutate(input);
           }}
         >
           {t('organizationDirectory.save')}

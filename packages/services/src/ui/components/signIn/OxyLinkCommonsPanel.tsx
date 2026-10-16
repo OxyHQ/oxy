@@ -19,9 +19,9 @@ import { Button } from '@oxy.so/bloom/button';
 import { Loading } from '@oxy.so/bloom/loading';
 import { useTheme } from '@oxy.so/bloom/theme';
 import { Text } from '@oxy.so/bloom/typography';
-import { deriveIdentityLinkCode } from '@oxy.so/core/crypto';
 import type { IdentityLinkCreateResponse } from '@oxy.so/contracts';
 import { useOxy } from '../../context/OxyContext';
+import { loadIdentityCrypto } from '../../utils/identityCrypto';
 import { useSignInMethods } from '../../hooks/queries/useAuthMethods';
 import { useI18n } from '../../hooks/useI18n';
 import { OxyAuthScreen, OxyAuthScreenHeader } from './OxyAuthScreen';
@@ -99,6 +99,8 @@ export const OxyLinkCommonsPanel: React.FC<OxyLinkCommonsPanelProps> = ({ onLink
         const state = await oxyServices.identity.links.get(link.linkId);
         if (stopped) return;
         if (state.status === 'signed' && state.publicKey) {
+          const { deriveIdentityLinkCode } = await loadIdentityCrypto();
+          if (stopped) return;
           setStep({
             name: 'matching',
             link,

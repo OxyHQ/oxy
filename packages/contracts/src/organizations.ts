@@ -1,23 +1,25 @@
 import { z } from 'zod';
+// The Zod-free half of this contract lives in `./client/` (`@oxy.so/contracts/client`);
+// it is re-exported here so the root entry is unchanged.
+import {
+  ORGANIZATION_TYPES,
+  ORGANIZATION_STATUSES,
+  ORGANIZATION_CLAIM_STATUSES,
+  ORGANIZATION_ALIAS_KINDS,
+  ORGANIZATION_CLAIM_DECISIONS,
+  ORGANIZATION_NAME_MAX_LENGTH,
+  ORGANIZATION_ERROR_CODES,
+} from './client/organizations';
+export {
+  ORGANIZATION_TYPES,
+  ORGANIZATION_STATUSES,
+  ORGANIZATION_CLAIM_STATUSES,
+  ORGANIZATION_ALIAS_KINDS,
+  ORGANIZATION_CLAIM_DECISIONS,
+  ORGANIZATION_NAME_MAX_LENGTH,
+  ORGANIZATION_ERROR_CODES,
+} from './client/organizations';
 
-/** Real-world identity classification, independent of account topics and permissions. */
-export const ORGANIZATION_TYPES = [
-  'business',
-  'nonprofit',
-  'public_body',
-  'community',
-  'other',
-] as const;
-export const ORGANIZATION_STATUSES = ['active', 'inactive', 'merged', 'suppressed'] as const;
-export const ORGANIZATION_CLAIM_STATUSES = ['unclaimed', 'claimed'] as const;
-export const ORGANIZATION_ALIAS_KINDS = [
-  'name_variant',
-  'former_name',
-  'localized_name',
-  'marketing_name',
-  'misspelling',
-] as const;
-export const ORGANIZATION_CLAIM_DECISIONS = ['pending', 'approved', 'rejected'] as const;
 const id = z.string().min(1).max(128);
 const optionalText = (max: number) => z.string().trim().min(1).max(max).nullable().optional();
 export const organizationAliasSchema = z
@@ -27,7 +29,6 @@ export const organizationAliasSchema = z
     language: z.string().min(2).max(35).optional(),
   })
   .strict();
-export const ORGANIZATION_NAME_MAX_LENGTH = 300;
 export const organizationNameSchema = z
   .string()
   .trim()
@@ -183,18 +184,6 @@ export const organizationMergeSchema = z
     evidenceReference: z.string().trim().min(1).max(1000),
   })
   .strict();
-export const ORGANIZATION_ERROR_CODES = [
-  'bad_request',
-  'unauthorized',
-  'forbidden',
-  'not_found',
-  'unknown_route',
-  'conflict',
-  'validation_failed',
-  'rate_limited',
-  'internal_error',
-  'service_unavailable',
-] as const;
 export const organizationErrorSchema = z
   .object({
     error: z
@@ -241,3 +230,9 @@ export const organizationCurationResultSchema = z
   .object({ accountId: id, status: z.enum(['active', 'inactive', 'suppressed']) })
   .strict();
 export type OrganizationCuration = z.infer<typeof organizationCurationSchema>;
+
+export type OrganizationClaimList = z.infer<typeof organizationClaimListSchema>;
+export type OrganizationImportBatchResult = z.infer<typeof organizationImportBatchResultSchema>;
+export type OrganizationExternal = z.infer<typeof organizationExternalSchema>;
+export type OrganizationExternalResolution = z.infer<typeof organizationExternalResolutionSchema>;
+export type OrganizationCurationResult = z.infer<typeof organizationCurationResultSchema>;

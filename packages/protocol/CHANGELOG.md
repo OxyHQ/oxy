@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/protocol`
 
+## 1.3.0
+
+Needs `@oxy.so/contracts` 4.17.0.
+
+### Added
+
+- `@oxy.so/protocol/sign`: `signMessage`, `verifySignature`, `signEnvelope`,
+  `verifyEnvelopeSignature` on their own entry, so a client loads the signer
+  (and `@noble/curves`) where it signs, while the root it imports at startup
+  for hashing and platform loaders drops it under tree shaking.
+
+### Changed
+
+- `verifyEnvelope` checks the envelope's shape with
+  `signedRecordEnvelopeCheck` from `@oxy.so/contracts/client` instead of the
+  Zod schema (same verdict, by contracts' parity test), so the root entry no
+  longer reaches Zod.
+
 ## 1.2.1
 
 - No code change: the same contents as 1.2.0, republished while npm was

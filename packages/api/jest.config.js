@@ -40,6 +40,7 @@ module.exports = {
     // regex below; the contracts source only imports `zod`, which resolves
     // normally from node_modules.
     '^@oxy.so/contracts$': '<rootDir>/../contracts/src/index.ts',
+    '^@oxy.so/contracts/client$': '<rootDir>/../contracts/src/client/index.ts',
     // The protocol node subpath (NodeClient, used by nodeSync.service) — resolve
     // from source like the protocol root so the api-test job needs no prior build.
     '^@oxy.so/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
@@ -49,6 +50,7 @@ module.exports = {
     '^@oxy.so/protocol$': '<rootDir>/../protocol/src/index.ts',
     '^@oxy.so/protocol/random$': '<rootDir>/../protocol/src/random.ts',
     '^@oxy.so/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
+    '^@oxy.so/protocol/sign$': '<rootDir>/../protocol/src/sign.ts',
     // Same rationale for @oxy.so/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxy.so/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.

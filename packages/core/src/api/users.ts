@@ -6,7 +6,7 @@ import type {
   RecommendationRequest,
   UserProfileUpdate,
 } from '@oxy.so/contracts';
-import { recommendationRequestSchema } from '@oxy.so/contracts';
+import { recommendationRequestCheck, parseContract } from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 import type { PaginationInfo, SearchProfilesResponse, User } from '../models/interfaces';
 import { buildQueryParams, type PaginationParams } from '../utils/apiUtils';
@@ -286,7 +286,7 @@ export class UsersApi {
    *
    * Only `excludeTypes` / `limit` → the cached `GET /profiles/recommendations`.
    * Any scored field (`boosts`, `excludeIds`, `signalWeights`, `clientId`,
-   * `offset`) → `POST` with the body validated by `recommendationRequestSchema`
+   * `offset`) → `POST` with the body validated by `recommendationRequestCheck`
    * (also cached, keyed on the body).
    */
   async recommendations(options?: RecommendationRequest): Promise<RecommendationItem[]> {
@@ -301,7 +301,7 @@ export class UsersApi {
 
     try {
       if (scored && options) {
-        const body = recommendationRequestSchema.parse(options);
+        const body = parseContract(recommendationRequestCheck, options);
         return await this.ctx.request<RecommendationItem[]>(
           'POST',
           '/profiles/recommendations',
@@ -396,7 +396,7 @@ export class UsersApi {
 
     // Loaded on demand: only a Commons account deleting from its own device
     // needs the key store, and nobody else should ship it.
-    const { KeyManager, SignatureService } = await import('../crypto/internal');
+    const { KeyManager, SignatureService } = await import('../crypto/index');
     const publicKey = await KeyManager.getPublicKey();
     if (!publicKey) {
       throw new Error(

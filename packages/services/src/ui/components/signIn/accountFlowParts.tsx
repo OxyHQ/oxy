@@ -18,6 +18,7 @@ import { useTheme } from '@oxy.so/bloom/theme';
 import { TextField, TextFieldHint, TextFieldInput, TextFieldLabel } from '@oxy.so/bloom/text-field';
 import { Text } from '@oxy.so/bloom/typography';
 import { WizardProgress } from '@oxy.so/bloom/wizard';
+import type { EmailVerificationConfirmResponse } from '@oxy.so/contracts';
 import {
   EMAIL_CODE_LENGTH,
   EMAIL_SIGNIN_LONG_CODE_ALPHABET,
@@ -25,8 +26,7 @@ import {
   EMAIL_VERIFICATION_ERROR_CODES,
   SIGN_IN_ERROR_CODES,
   normalizeEmailSignInCode,
-  type EmailVerificationConfirmResponse,
-} from '@oxy.so/contracts';
+} from '@oxy.so/contracts/client';
 import { useOxy } from '../../context/OxyContext';
 import { useI18n } from '../../hooks/useI18n';
 import type { Translate } from '../authChooser/types';

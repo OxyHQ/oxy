@@ -1,9 +1,3 @@
-import {
-  personalPlanCheckoutRequestSchema,
-  personalPlanCheckoutResultSchema,
-  type PersonalPlanCheckoutRequest,
-  type PersonalPlanCheckoutResult,
-} from '@oxy.so/contracts';
 /**
  * `oxy.billing` — the signed-in user's subscription, wallet and payment history.
  *
@@ -15,22 +9,29 @@ import {
  * `payment.controller`, `wallet.routes` in `packages/api`); `Date` columns
  * arrive as ISO-8601 strings.
  */
-import { personalPlanCatalogueSchema, type PersonalPlanCatalogue } from '@oxy.so/contracts';
-import {
-  type SubjectProductAccess,
-  type SubjectProductAccessQuery,
-  subjectProductAccessQuerySchema,
-  subjectProductAccessSchema,
+
+import type {
+  PersonalPlanCatalogue,
+  PersonalPlanCheckoutRequest,
+  PersonalPlanCheckoutResult,
+  ProductSubscriptionCancellationResult,
+  ProductSubscriptionSummary,
+  SubjectProductAccess,
+  SubjectProductAccessQuery,
+  SubscriptionCreditGrant,
 } from '@oxy.so/contracts';
 import {
-  type ProductSubscriptionSummary,
-  type SubscriptionCreditGrant,
-  type ProductSubscriptionCancellationResult,
-  productSubscriptionCancellationResultSchema,
-  cancelProductSubscriptionSchema,
-  productSubscriptionsResponseSchema,
-  subscriptionCreditGrantsResponseSchema,
-} from '@oxy.so/contracts';
+  cancelProductSubscriptionCheck,
+  parseContract,
+  personalPlanCatalogueCheck,
+  personalPlanCheckoutRequestCheck,
+  personalPlanCheckoutResultCheck,
+  productSubscriptionCancellationResultCheck,
+  productSubscriptionsResponseCheck,
+  subjectProductAccessCheck,
+  subjectProductAccessQueryCheck,
+  subscriptionCreditGrantsResponseCheck,
+} from '@oxy.so/contracts/client';
 import type { OxyContext } from '../client/context';
 
 const SUBSCRIPTION_TTL = 2 * 60 * 1000;
@@ -130,11 +131,12 @@ export class BillingApi {
   async startPersonalPlanCheckout(
     request: PersonalPlanCheckoutRequest,
   ): Promise<PersonalPlanCheckoutResult> {
-    return personalPlanCheckoutResultSchema.parse(
+    return parseContract(
+      personalPlanCheckoutResultCheck,
       await this.ctx.request<unknown>(
         'POST',
         '/billing/checkout/personal-plan',
-        personalPlanCheckoutRequestSchema.parse(request),
+        parseContract(personalPlanCheckoutRequestCheck, request),
         { cache: false },
       ),
     );
@@ -142,7 +144,8 @@ export class BillingApi {
 
   /** Public versioned personal plans. Discovery never proves customer access. */
   async personalPlans(): Promise<PersonalPlanCatalogue> {
-    return personalPlanCatalogueSchema.parse(
+    return parseContract(
+      personalPlanCatalogueCheck,
       await this.ctx.request<unknown>('GET', '/billing/personal-plans', undefined, {
         cache: false,
       }),
@@ -151,21 +154,22 @@ export class BillingApi {
 
   /** Product rights only; requires a production application-bound user session. Never cached. */
   async productAccess(query: SubjectProductAccessQuery): Promise<SubjectProductAccess> {
-    const parsed = subjectProductAccessQuerySchema.parse(query);
+    const parsed = parseContract(subjectProductAccessQueryCheck, query);
     const response = await this.ctx.request<unknown>(
       'GET',
       `/v1/products/${encodeURIComponent(parsed.productId)}/access/${encodeURIComponent(parsed.subjectAccountId)}`,
       undefined,
       { cache: false },
     );
-    return subjectProductAccessSchema.parse(response);
+    return parseContract(subjectProductAccessCheck, response);
   }
 
   /** Named commercial sources for the current subject; no inferred plan collapse. */
   async productSubscriptions(
     expectedSubjectAccountId?: string,
   ): Promise<ProductSubscriptionSummary[]> {
-    return productSubscriptionsResponseSchema.parse(
+    return parseContract(
+      productSubscriptionsResponseCheck,
       await this.ctx.request<unknown>(
         'GET',
         expectedSubjectAccountId
@@ -179,7 +183,8 @@ export class BillingApi {
 
   /** Per-grant credit provenance; no interpretation of the historical mixed balance. */
   async creditGrants(): Promise<SubscriptionCreditGrant[]> {
-    return subscriptionCreditGrantsResponseSchema.parse(
+    return parseContract(
+      subscriptionCreditGrantsResponseCheck,
       await this.ctx.request<unknown>('GET', '/billing/credit-grants', undefined, { cache: false }),
     ).grants;
   }
@@ -193,7 +198,7 @@ export class BillingApi {
     await this.ctx.request(
       'POST',
       '/billing/product-subscriptions/cancel',
-      cancelProductSubscriptionSchema.parse({
+      parseContract(cancelProductSubscriptionCheck, {
         sourceId,
         ...(actionId ? { actionId } : {}),
         ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}),
@@ -208,11 +213,12 @@ export class BillingApi {
     expectedSubjectAccountId?: string,
     actionId?: string,
   ): Promise<ProductSubscriptionCancellationResult> {
-    return productSubscriptionCancellationResultSchema.parse(
+    return parseContract(
+      productSubscriptionCancellationResultCheck,
       await this.ctx.request<unknown>(
         'POST',
         '/billing/product-subscriptions/cancel',
-        cancelProductSubscriptionSchema.parse({
+        parseContract(cancelProductSubscriptionCheck, {
           sourceId,
           ...(actionId ? { actionId } : {}),
           ...(expectedSubjectAccountId ? { expectedSubjectAccountId } : {}),

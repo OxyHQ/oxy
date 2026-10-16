@@ -1,5 +1,32 @@
 # Changelog — `@oxy.so/core`
 
+## 4.13.0
+
+Needs `@oxy.so/contracts` 4.17.0 and `@oxy.so/protocol` 1.3.0. Smaller
+startup for every app: measured on Mention web, the startup JavaScript loses
+~125 KB raw / ~38 KB gzip with this release and services 11.6.0.
+
+### Changed
+
+- The client entries (`.`, `./session`, `./crypto`, `./civic`, `./logger`) no
+  longer import Zod. Responses and request bodies are checked with
+  `@oxy.so/contracts/client` (same verdicts and outputs as the schemas). Where
+  a schema's `.parse()` used to throw a `ZodError`, the call now throws
+  `ContractCheckError` from `@oxy.so/contracts/client`, whose `issues[0]`
+  keeps Zod's `code`, `path` and `message`. `./server` and `./inference`
+  still validate with the Zod schemas. `clientEntriesZodFree.test.ts` walks
+  each entry's graph, into the workspace packages, to keep it that way.
+- The identity stack (secp256k1, bip39, the AEAD cipher) loads on first use
+  everywhere: the identity-bound session's default key binding imports it
+  with `import()`, and every lazy load goes through the ONE module
+  `@oxy.so/core/crypto`. A second lazy root (the internal crypto barrel, and
+  `KeyManager`'s own lazy `./recoveryPhrase`) made Metro hoist the whole stack
+  into the always-loaded common chunk. The polyfill still runs first.
+- `@oxy.so/core/crypto` also exports `BACKUP_KDF_ENCRYPTION_INFO`,
+  `solveRegistrationPow`, `canonicalize`, `loadCommonsIdentityBridge`,
+  `signMessage` and `verifySignature` (they were reached through the removed
+  internal barrel).
+
 ## 4.12.0
 
 ### Added

@@ -9,16 +9,8 @@
  */
 
 import type { SignedRecordEnvelope } from '@oxy.so/contracts';
-import {
-  signEnvelope,
-  signMessage,
-  verifySignature,
-  sha256,
-  loadExpoCrypto,
-  loadNodeCrypto,
-  isReactNative,
-  isNodeJS,
-} from '@oxy.so/protocol';
+import { sha256, loadExpoCrypto, loadNodeCrypto, isReactNative, isNodeJS } from '@oxy.so/protocol';
+import { signEnvelope, signMessage, verifySignature } from '@oxy.so/protocol/sign';
 import { KeyManager } from './keyManager';
 import { logger } from '../logger';
 

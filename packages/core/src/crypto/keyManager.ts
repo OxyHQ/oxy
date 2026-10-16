@@ -1764,8 +1764,11 @@ export class KeyManager {
   ): Promise<boolean> {
     try {
       // Imported lazily: `./recoveryPhrase` imports this module, and the phrase
-      // derivation is frozen there, so it is reused rather than copied.
-      const { RecoveryPhraseService } = await import('./recoveryPhrase');
+      // derivation is frozen there, so it is reused rather than copied. Through
+      // `./index`, the one lazy root of the identity stack: a second root
+      // (`./recoveryPhrase` itself) made web bundlers hoist the whole stack into
+      // the always-loaded common chunk.
+      const { RecoveryPhraseService } = await import('./index');
       const derived = await RecoveryPhraseService.derivePublicKeyFromPhrase(phrase);
       return derived.toLowerCase() === publicKey.toLowerCase();
     } catch {

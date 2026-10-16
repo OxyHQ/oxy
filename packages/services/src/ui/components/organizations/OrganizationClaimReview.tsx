@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isHttpRequestError } from '@oxy.so/core';
-import {
-  organizationClaimReviewSchema,
-  type OrganizationClaimReview as OrganizationClaimReviewInput,
-} from '@oxy.so/contracts';
+import type { OrganizationClaimReview as OrganizationClaimReviewInput } from '@oxy.so/contracts';
+import { organizationClaimReviewCheck, parseContract } from '@oxy.so/contracts/client';
 import { Button } from '@oxy.so/bloom/button';
 import { SettingsListGroup, SettingsListItem } from '@oxy.so/bloom/settings-list';
 import { TextField, TextFieldInput } from '@oxy.so/bloom/text-field';
@@ -123,7 +121,7 @@ function ReviewDetail({ claimId, onClose }: { claimId: string; onClose: () => vo
         throw new Error('Independent staff review is required');
       return oxyServices.organizations.reviewClaim(
         claimId,
-        organizationClaimReviewSchema.parse({ decision, evidenceReference: evidence }),
+        parseContract(organizationClaimReviewCheck, { decision, evidenceReference: evidence }),
       );
     },
     onError: (error) => {

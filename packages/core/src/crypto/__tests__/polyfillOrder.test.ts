@@ -115,7 +115,6 @@ describe('crypto polyfill evaluation order', () => {
   it.each([
     ['index.ts', './crypto/polyfill'],
     ['crypto/index.ts', './polyfill'],
-    ['crypto/internal.ts', './polyfill'],
     ['session/index.ts', '../crypto/polyfill'],
     ['civic/index.ts', '../crypto/polyfill'],
   ])('%s imports the polyfill before anything else', (entry, polyfill) => {

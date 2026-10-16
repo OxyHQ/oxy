@@ -1,5 +1,43 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.17.0
+
+Additive only: no export removed or changed in the root entry.
+
+### Added
+
+- **`@oxy.so/contracts/client`** — the contracts without Zod, for client
+  bundles. Structural checks (`*Check`) for the responses and requests the SDK
+  validates, used through `checkContract(check, value)` (the twin of
+  `safeParseContract`) and `parseContract(check, value)` (the twin of a schema's
+  `.parse()`, throwing `ContractCheckError` whose `issues[0]` has Zod's
+  `code`/`path`/`message`), plus the constants and pure helpers clients use
+  (account kinds and categories, sign-in and username policy, identity proof
+  and link formats, organization vocabularies, `isLoopbackOrigin`, …). Zod's
+  runtime (~120 KB, evaluated at startup) is no longer needed to answer "does
+  this response have its contract's shape".
+- Every check is tied to its schema's type at compile time (`exact<T>()`) and
+  to its behaviour by `clientChecks.parity.test.ts`: same verdict, same output
+  (unknown keys stripped/kept/refused, strings trimmed) and the same first
+  issue (path, code, message) as Zod over thousands of generated inputs.
+  `clientEntryGraph.test.ts` keeps the entry free of any package import.
+- Type aliases for schemas that had none: `AgentChallengeRequest`,
+  `AgentVerifyRequest`, `ExecuteAgentKeyOperation`,
+  `AgentKeyOperationChallenge`, `AgentKeyOperationResult`,
+  `AgentKeyListResponse`, `OrganizationClaimList`,
+  `OrganizationImportBatchResult`, `OrganizationExternal`,
+  `OrganizationExternalResolution`, `OrganizationCurationResult`,
+  `ProductSubscriptionsResponse`, `SubscriptionCreditGrantsResponse`,
+  `CancelProductSubscription`.
+
+### Changed (internal)
+
+- The Zod-free constants and helpers of `accountEmail`, `accountGraph`,
+  `agentKeys`, `deviceSession`, `identityLink`, `identityProof`,
+  `organizations`, `reputation`, `signIn` and `username` live under
+  `src/client/` and are re-exported from their old modules, so the root entry
+  exports the same 843 names with the same values.
+
 ## 4.16.0
 
 One email may hold several accounts (ADR 0040). Additive only: no export
