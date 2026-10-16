@@ -885,6 +885,12 @@ export interface AddedFileReferences {
   createdFileIds: string[];
   /** Files a new reference brought back from `trash` to `active`. */
   restoredFileIds: string[];
+  /**
+   * Files whose EXISTING creator-less reference (an application's service-made
+   * one) now records the file's owner as its creator, because the owner made
+   * the same reference — see {@link addFileReferences}.
+   */
+  ownerRecordedFileIds: string[];
 }
 
 /**
@@ -897,12 +903,30 @@ export interface AddedFileReferences {
  * `trash` comes back to `active` — a use is a reason to keep it — and a
  * `deleted` file gains nothing. AUTHORIZATION IS THE CALLER'S
  * (`fileReference.service.ts`).
+ *
+ * The owner's reference wins over a service-made twin. When the reference
+ * already exists with NO creator (the application registered it with its
+ * service token) and this call names the FILE'S OWN ACCOUNT as creator, the
+ * existing row records the owner as its creator. Otherwise the outcome would
+ * depend on who wrote first: owner-then-service leaves an owner-made reference
+ * (ADR 0021's grant, `isOwnerReferencedToApp`), service-then-owner left a
+ * creator-less one, and the application could not read the file its owner had
+ * just attached to it (Nilo, ADR 0041 stage 4b). The condition is part of the
+ * `UPDATE … WHERE`: only a NULL creator is ever filled, never a person's
+ * replaced, and only with `files.owner_user_id` itself — a non-owner named as
+ * creator changes nothing, whatever the caller checked.
  */
 export async function addFileReferences(
   references: readonly (NewFileReference & { fileId: string })[],
   db: DatabaseOrTransaction = getDb(),
 ): Promise<AddedFileReferences> {
-  if (references.length === 0) return { created: 0, createdFileIds: [], restoredFileIds: [] };
+  const none: AddedFileReferences = {
+    created: 0,
+    createdFileIds: [],
+    restoredFileIds: [],
+    ownerRecordedFileIds: [],
+  };
+  if (references.length === 0) return none;
   if (db === getDb()) return getDb().transaction((tx) => addFileReferences(references, tx));
   const tx = db as Transaction;
 
@@ -922,7 +946,7 @@ export async function addFileReferences(
       status !== undefined && status !== 'deleted' && liveApplications.has(reference.applicationId)
     );
   });
-  if (writable.length === 0) return { created: 0, createdFileIds: [], restoredFileIds: [] };
+  if (writable.length === 0) return none;
 
   const inserted = await tx
     .insert(fileReferences)
@@ -937,7 +961,10 @@ export async function addFileReferences(
     })
     .returning({ fileId: fileReferences.fileId });
   const createdFileIds = [...new Set(inserted.map((row) => row.fileId))];
-  if (createdFileIds.length === 0) return { created: 0, createdFileIds, restoredFileIds: [] };
+  const ownerRecordedFileIds = await recordOwnerOnServiceReferences(tx, writable);
+  if (createdFileIds.length === 0) {
+    return { ...none, ownerRecordedFileIds };
+  }
 
   const restored = await tx
     .update(files)
@@ -954,23 +981,64 @@ export async function addFileReferences(
     created: inserted.length,
     createdFileIds,
     restoredFileIds: restored.map((row) => row.id),
+    ownerRecordedFileIds,
   };
 }
 
 /**
+ * {@link addFileReferences}' owner rule: each reference naming a creator fills
+ * the creator of its EXISTING creator-less twin, only when that creator is the
+ * file's owning account. A row this call just inserted already carries its
+ * creator, so it never matches. Returns the files whose reference changed.
+ */
+async function recordOwnerOnServiceReferences(
+  tx: Transaction,
+  references: readonly (NewFileReference & { fileId: string })[],
+): Promise<string[]> {
+  const changed = new Set<string>();
+  for (const reference of references) {
+    const creator = reference.createdByUserId;
+    if (!creator) continue;
+    const rows = await tx
+      .update(fileReferences)
+      .set({ createdByUserId: creator })
+      .where(
+        and(
+          eq(fileReferences.fileId, reference.fileId),
+          eq(fileReferences.applicationId, reference.applicationId),
+          eq(fileReferences.entityType, reference.entityType),
+          eq(fileReferences.entityId, reference.entityId),
+          isNull(fileReferences.createdByUserId),
+          exists(
+            tx
+              .select({ one: sql`1` })
+              .from(files)
+              .where(and(eq(files.id, reference.fileId), eq(files.ownerUserId, creator))),
+          ),
+        ),
+      )
+      .returning({ fileId: fileReferences.fileId });
+    for (const row of rows) changed.add(row.fileId);
+  }
+  return [...changed];
+}
+
+/**
  * Record that an application uses this asset — {@link addFileReferences} for
- * one. Returns whether a row was actually created, and whether that brought the
- * file back from `trash`.
+ * one. Returns whether a row was actually created, whether that brought the
+ * file back from `trash`, and whether an existing service-made twin now
+ * records the owner as its creator.
  */
 export async function insertFileReference(
   fileId: string,
   values: NewFileReference,
   db: DatabaseOrTransaction = getDb(),
-): Promise<{ created: boolean; restored: boolean }> {
+): Promise<{ created: boolean; restored: boolean; ownerRecorded: boolean }> {
   const result = await addFileReferences([{ ...values, fileId }], db);
   return {
     created: result.createdFileIds.length > 0,
     restored: result.restoredFileIds.length > 0,
+    ownerRecorded: result.ownerRecordedFileIds.length > 0,
   };
 }
 

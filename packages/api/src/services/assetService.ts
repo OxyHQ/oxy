@@ -2050,7 +2050,7 @@ export class AssetService {
       // duplicate is refused by the database rather than by a read-then-write
       // two concurrent requests could both pass — which matters because a
       // duplicate would inflate the usage count that decides `trash`.
-      const { created, restored } = await insertFileReference(fileId, {
+      const { created, restored, ownerRecorded } = await insertFileReference(fileId, {
         applicationId: request.applicationId,
         entityType: request.entityType,
         entityId: request.entityId,
@@ -2058,8 +2058,16 @@ export class AssetService {
       });
 
       if (!created) {
-        logger.debug('Reference already exists', { fileId, applicationId: request.applicationId });
-        return { file, created: false };
+        logger.debug('Reference already exists', {
+          fileId,
+          applicationId: request.applicationId,
+          ownerRecorded,
+        });
+        if (!ownerRecorded) return { file, created: false };
+        // The application's own reference now records its owner as creator:
+        // a cached copy would still show it creator-less.
+        const reread = await findFileById(fileId);
+        return { file: reread ? this.cacheFile(reread) : file, created: false };
       }
 
       const reread = await findFileById(fileId);
