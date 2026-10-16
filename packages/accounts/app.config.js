@@ -129,6 +129,10 @@ module.exports = {
       // installed official app join the device's session without a QR and
       // without the Commons private key.
       '@oxy.so/services/plugins/withSharedDeviceSessionProvider',
+      // Release signing with the ONE ecosystem key (OXY_UPLOAD_* Gradle
+      // properties): the device-session provider this app hosts answers only
+      // callers signed with its own certificate, and they all carry that one.
+      '@oxy.so/app-preset/plugin/withOxyAndroidRelease',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself
