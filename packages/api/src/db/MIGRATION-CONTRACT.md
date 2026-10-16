@@ -110,6 +110,48 @@ to the fourteen that predate it was safe only because drizzle stores the file ha
 but never compares it — pendingness is `created_at` versus the journal's `when`
 (verified in `drizzle-orm@0.45.2`, `pg-core/dialect.cjs`).
 
+## Every migration keeps its locks short
+
+Every Oxy app shares ONE Postgres, and oxy-api reads `applications`, `users`,
+`sessions` and friends on nearly every request. On 2026-10-16, 0170–0176 ran in
+one transaction: 0170 took an ACCESS EXCLUSIVE lock on `applications` and held it
+for the 93 s the rest spent backfilling `files` — 16 AAS of lock waits and 503s in
+every product that calls Oxy fail-closed.
+
+What the migrator does (`@oxy.so/db` ≥ 1.2.0, `migrate/locks.ts`):
+
+- **One transaction per migration.** A migration's locks are released when IT
+  commits, so a failed run leaves the earlier migrations applied — each must stand
+  on its own.
+- **`lock_timeout` = 3 s** on every statement, then retry of the whole migration
+  with exponential backoff and full jitter (1 s doubling to 30 s, 8 attempts).
+  While an ACCESS EXCLUSIVE request waits, every reader queues behind it, so the
+  migration yields instead of waiting.
+- **`statement_timeout` = 120 s.** A migration that needs longer declares it on one
+  line: `-- oxy:statement-timeout=600s` (at most 3600). Never on a migration that
+  also alters a hot table.
+
+What the author does (`scripts/check-migration-locks.mjs` enforces the first three
+for every migration after 0179):
+
+- **Foreign keys onto existing tables are added `NOT VALID`** and validated in a
+  LATER migration with `ALTER TABLE … VALIDATE CONSTRAINT …` (SHARE UPDATE
+  EXCLUSIVE: readers and writers keep going). Same for CHECKs on large tables.
+- **Hot-table DDL goes in its own migration.** ADD COLUMN, DROP/ADD CONSTRAINT and
+  every other ALTER on a hot table take ACCESS EXCLUSIVE; nothing slow (UPDATE,
+  DELETE, INSERT … SELECT, an index build on an existing table) shares its file.
+  The scope CHECKs drizzle regenerates on `applications`, `application_credentials`
+  and `application_workload_identities` when a scope is added are exactly this —
+  keep that migration to the CHECKs alone. Hot tables: the `HOT_TABLES` list in the gate.
+- **Indexes on existing hot or large tables are built `CONCURRENTLY` out of band
+  first**, and the migration is `CREATE INDEX IF NOT EXISTS` plus an invalid-index
+  guard (the 0170/0174 pattern). drizzle runs every migration inside a transaction,
+  so `CONCURRENTLY` cannot appear in a migration file; the out-of-band runbook is
+  `docs/engineering/per-owner-asset-rows.md`.
+- **Backfills are batched, or run as a one-shot task** — never one statement over
+  a whole large table in a deploy.
+- A reviewed exception says why in its own file: `-- oxy:lock-review=<reason>`.
+
 ## Verification — evidence, not assertion
 
 Run each package's OWN `bun run test`; `bun run build` must be run from

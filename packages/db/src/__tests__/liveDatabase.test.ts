@@ -450,3 +450,76 @@ describeLive('runMigrations — expectedDatabase is optional', () => {
     }
   });
 });
+
+describeLive(
+  'runMigrations — one transaction per migration, lock_timeout and retry (live Postgres)',
+  () => {
+    it('commits each migration on its own and retries one whose lock is held', async () => {
+      const url = await createTestDatabase({ adminUrl: ADMIN_URL, driver: TEST_DRIVER });
+      const folder = mkdtempSync(join(tmpdir(), 'oxydb-live-locks-'));
+      const holder = openLiveClient(url);
+      try {
+        mkdirSync(join(folder, 'meta'), { recursive: true });
+        const files = [
+          {
+            tag: '0000_table',
+            when: 1_000,
+            sql: '-- oxy:deploy-phase=pre\ncreate table cold (id int);\n',
+          },
+          {
+            tag: '0001_alter',
+            when: 2_000,
+            sql: '-- oxy:deploy-phase=pre\nalter table hot add column note text;\n',
+          },
+        ];
+        writeFileSync(
+          join(folder, 'meta', '_journal.json'),
+          JSON.stringify({
+            version: '7',
+            dialect: 'postgresql',
+            entries: files.map(({ tag, when }) => ({ tag, when })),
+          }),
+        );
+        for (const file of files) writeFileSync(join(folder, `${file.tag}.sql`), file.sql);
+        const run = (attempts: number) =>
+          runMigrations({
+            databaseUrl: url,
+            driver: TEST_DRIVER,
+            migrationsFolder: folder,
+            extensions: [],
+            run: 'all',
+            dryRun: false,
+            lockTimeoutMs: 100,
+            lockRetry: { attempts, baseDelayMs: 50, maxDelayMs: 50 },
+            logger: noopLogger,
+          });
+
+        // A reader holding ACCESS SHARE on a table 0001 must ALTER: 0001 cannot
+        // get its lock, gives up after lock_timeout, and — out of retries — fails.
+        // 0000 committed on its own and stays applied.
+        await holder.exec('create table hot (id int)');
+        await holder.exec('begin');
+        await holder.exec('lock table hot in access share mode');
+        await expect(run(2)).rejects.toThrow(
+          /0001_alter: could not take its locks within 100ms on any of 2 attempts/,
+        );
+        expect(await readAppliedMillis(holder.client)).toEqual([1_000]);
+        await holder.exec('rollback');
+
+        // Released between attempts: a retry gets the lock and applies it.
+        await holder.exec('begin');
+        await holder.exec('lock table hot in access share mode');
+        const releasing = new Promise((resolve) => setTimeout(resolve, 150)).then(() =>
+          holder.exec('rollback'),
+        );
+        await run(20);
+        await releasing;
+        expect(await readAppliedMillis(holder.client)).toEqual([1_000, 2_000]);
+      } finally {
+        await holder.close();
+        rmSync(folder, { recursive: true, force: true });
+        await dropTestDatabase(url, { driver: TEST_DRIVER });
+      }
+    });
+  },
+);

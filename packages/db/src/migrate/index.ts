@@ -49,3 +49,17 @@ export {
   type MigrationRun,
   type MigrationRunPlan,
 } from './phases';
+export {
+  DEFAULT_LOCK_ATTEMPTS,
+  DEFAULT_LOCK_RETRY_BASE_DELAY_MS,
+  DEFAULT_LOCK_RETRY_MAX_DELAY_MS,
+  DEFAULT_LOCK_TIMEOUT_MS,
+  DEFAULT_STATEMENT_TIMEOUT_MS,
+  LOCK_NOT_AVAILABLE,
+  MAX_STATEMENT_TIMEOUT_SECONDS,
+  isLockContention,
+  lockRetryDelayMs,
+  readMigrationStatementTimeouts,
+  statementTimeoutMarkerLine,
+  type MigrationTimeoutReadResult,
+} from './locks';
