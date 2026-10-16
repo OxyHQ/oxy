@@ -135,7 +135,7 @@ describe('idpServiceLimiter (rl:idp:service) is the dedicated high-cap limiter',
   });
 });
 
-describe('sessionHeaderValidationLimiter is the bearer validation route\'s own budget', () => {
+describe('sessionHeaderValidationLimiter is the bearer validation route budget', () => {
   let server: http.Server;
 
   beforeAll(async () => {
