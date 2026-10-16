@@ -2528,6 +2528,62 @@
       }
     },
     "/accounts/{id}/members": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Retired: adding a member directly, without the recipient's consent.",
+        "description": "`POST /:id/invitations` replaced it: the recipient is emailed and gets access\nonly after accepting (`POST /accounts/invitations/accept`). Every first-party\nconsumer has moved, so this answers 410 Gone with a pointer for any caller\nstill on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.\nMounted before authentication: the route is gone for everyone, and the\nanswer is static, so it reads nothing and needs no limiter.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/accounts.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "postAccountsIdMembers"
+      },
       "get": {
         "tags": [
           "Users"
@@ -2606,85 +2662,6 @@
           }
         ],
         "operationId": "getAccountsIdMembers"
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Retired: adding a member directly, without the recipient's consent.",
-        "description": "`POST /:id/invitations` replaced it: the recipient is emailed and gets access\nonly after accepting (`POST /accounts/invitations/accept`). Every first-party\nconsumer has moved, so this answers 410 Gone with a pointer for any caller\nstill on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/accounts.ts`, naming a Zod schema the file imports."
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "operationId": "postAccountsIdMembers"
       }
     },
     "/accounts/{id}/members/{memberId}": {

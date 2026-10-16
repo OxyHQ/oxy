@@ -116,6 +116,25 @@ function requireConferredPermissions(
 
 const router = express.Router();
 
+/**
+ * Retired: adding a member directly, without the recipient's consent.
+ *
+ * `POST /:id/invitations` replaced it: the recipient is emailed and gets access
+ * only after accepting (`POST /accounts/invitations/accept`). Every first-party
+ * consumer has moved, so this answers 410 Gone with a pointer for any caller
+ * still on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.
+ * Mounted before authentication: the route is gone for everyone, and the
+ * answer is static, so it reads nothing and needs no limiter.
+ */
+router.post('/:id/members', () => {
+  throw new ApiError(
+    410,
+    'Adding a member directly is retired. Invite them by email with POST /accounts/:id/invitations; they get access once they accept.',
+    'MEMBER_ADD_RETIRED',
+    { replacement: 'POST /accounts/:id/invitations' },
+  );
+});
+
 // All remaining account routes require an authenticated user.
 router.use(authMiddleware);
 
@@ -825,23 +844,6 @@ router.get(
     res.json({ members: members.map(({ row, source }) => serializeMember(row, source)) });
   }),
 );
-
-/**
- * Retired: adding a member directly, without the recipient's consent.
- *
- * `POST /:id/invitations` replaced it: the recipient is emailed and gets access
- * only after accepting (`POST /accounts/invitations/accept`). Every first-party
- * consumer has moved, so this answers 410 Gone with a pointer for any caller
- * still on a pre-11.10.0 `@oxy.so/services` or a pre-4.22.0 `@oxy.so/core`.
- */
-router.post('/:id/members', membersLimiter, validate({ params: accountIdRouteParams }), () => {
-  throw new ApiError(
-    410,
-    'Adding a member directly is retired. Invite them by email with POST /accounts/:id/invitations; they get access once they accept.',
-    'MEMBER_ADD_RETIRED',
-    { replacement: 'POST /accounts/:id/invitations' },
-  );
-});
 
 router.post(
   '/invitations/preview',
