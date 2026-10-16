@@ -1,5 +1,39 @@
 # Changelog — `@oxy.so/core`
 
+## 4.15.0
+
+Needs `@oxy.so/contracts` 4.19.0. Additive: nothing existing changes behaviour.
+
+### Added
+
+- **Application roles** in `@oxy.so/core/server`: gate a backend's operator
+  surfaces on permissions the application declares and Oxy grants to people,
+  instead of an allow-list of user ids in the environment.
+  - `server.middleware.requireAppPermission(key, { deny?, fresh?, respond?, applicationId? })`
+    — after `middleware.auth()`. A refusal answers `404` by default (to a
+    non-holder and to a request with no session alike) or `403`/`401` with
+    `deny: 403`; Oxy unreachable answers `503`, a missing or unknown
+    application id `500`. A service-token request, delegated or not, is
+    refused. A malformed key throws at mount time. On success
+    `req.oxyAppPermissions` holds the answer; its `operatorId` is the human.
+  - `server.appPermissionsFor(req, { fresh?, applicationId? })` — the same
+    answer without a middleware: `{ applicationId, operatorId, permissions, has() }`.
+    Throws `OxyAppPermissionError` (`APP_PERMISSION_SESSION_REQUIRED`,
+    `APP_PERMISSION_UNAVAILABLE`, `APP_PERMISSION_NOT_CONFIGURED`,
+    `APP_PERMISSION_DENIED`); never answers "holds nothing" for a failure.
+  - `server.invalidateAppPermissions({ userId? })`.
+  - `OxyServerConfig.applicationId` (optional when service auth names the
+    application) and `OxyServerConfig.appPermissionsCacheTtlMs` (default
+    30 000; `0` disables). One answer is reused per (application, session,
+    user) for that long; `fresh: true` asks Oxy and refreshes the entry.
+  - Exports `OxyAppPermissionError`, `appPermissionErrorStatus`,
+    `APP_PERMISSIONS_CACHE_TTL_MS` and the types `OxyAppPermissions`,
+    `AppPermissionsOptions`, `RequireAppPermissionOptions`,
+    `OxyAppPermissionDenyStatus`, `OxyAppPermissionErrorCode`.
+  - Reads `GET /applications/:appId/roles/me` (oxy-api with migration
+    `0167_application_roles`). Against an API without it every check denies
+    (`APP_PERMISSION_NOT_CONFIGURED`, answered 500).
+
 ## 4.14.0
 
 Needs `@oxy.so/contracts` 4.18.0.

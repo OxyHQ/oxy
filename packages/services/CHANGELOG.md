@@ -2,9 +2,12 @@
 
 ## [11.7.0] - 2026-10-16
 
-Needs `@oxy.so/core` 4.14.0 (exact peer) and `@oxy.so/contracts` 4.18.0. No
+Needs `@oxy.so/core` 4.15.0 (exact peer) and `@oxy.so/contracts` 4.19.0. No
 source change: the peer moves so an app can take core's
-`accounts.accessFor` and `assets.uploadLarge` without nesting a second core.
+`accounts.accessFor` and `assets.uploadLarge` (4.14.0) and application roles
+(`requireAppPermission`, 4.15.0) without nesting a second core. 11.7.0 was
+never published with the 4.14.0 peer; it is cut from the commit that carries
+core 4.15.0.
 
 ## [11.6.0] - 2026-10-16
 
