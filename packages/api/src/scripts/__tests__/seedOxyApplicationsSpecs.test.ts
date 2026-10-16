@@ -146,14 +146,14 @@ describe('the canonical official-application registry', () => {
     expect(computeSeedApplicationPlan(plan.desired, target).changes).toEqual([]);
   });
 
-  it('registers Nilo by exact identity with only public user-read authority', () => {
+  it('registers Nilo by exact identity, with inference and linked-file reads and nothing more', () => {
     const nilo = specNamed('Nilo');
     expect(nilo).toMatchObject({
       id: NILO_APPLICATION_ID,
       websiteUrl: 'https://nilo.so',
       redirectUris: ['https://nilo.so'],
       type: 'first_party',
-      scopes: ['user:read'],
+      scopes: ['user:read', 'inference:invoke', 'files:linked:read'],
     });
     expect(SEED_APPS.filter((spec) => spec.id === NILO_APPLICATION_ID)).toHaveLength(1);
     expect(NILO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
