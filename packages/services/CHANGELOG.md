@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [11.8.0] - 2026-10-16
 
 Needs `@oxy.so/core` 4.15.0 (and so `@oxy.so/contracts` 4.19.0).
 

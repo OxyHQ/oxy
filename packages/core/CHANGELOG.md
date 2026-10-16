@@ -53,10 +53,12 @@ Needs `@oxy.so/contracts` 4.20.0.
 
 Needs the Oxy API with application-owned files, file references, the file
 lifecycle, import by URL, application deletion, file events and content
-claims (ADR 0041, migrations `0167_application_owned_files`,
-`0168_file_references`, `0169_file_lifecycle`, `0170_application_file_events`
-and `0171_content_claims`), and `@oxy.so/contracts` 4.18.0. (The work below
-was first prepared as 4.12.0, then 4.13.0; both were published from `main`
+claims, large uploads, adoption and counter-notices (ADR 0041, migrations
+`0167_application_owned_files`, `0168_file_references`, `0169_file_lifecycle`,
+`0170_application_file_events`, `0171_content_claims`,
+`0172_file_upload_sessions` and `0173_content_claim_counter_notices`), and
+`@oxy.so/contracts` 4.19.0. (The work below was first prepared as 4.12.0,
+then 4.13.0, then 4.14.0; each of those was published or taken from `main`
 without it.)
 
 ### Changed
