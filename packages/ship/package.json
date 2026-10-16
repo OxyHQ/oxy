@@ -2,6 +2,11 @@
   "name": "@oxy.so/ship",
   "version": "1.0.0",
   "description": "oxy-ship — publish Expo OTA updates to the Oxy Updates service",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OxyHQ/oxy.git",
+    "directory": "packages/ship"
+  },
   "license": "SEE LICENSE IN LICENSE",
   "type": "commonjs",
   "bin": {

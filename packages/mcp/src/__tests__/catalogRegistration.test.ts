@@ -46,7 +46,7 @@ describe('registerCapabilityCatalog', () => {
     const fetcher = respond(201, { registration: { id: 'reg-1', version: '1.0.0', digest } });
     await expect(
       registerCapabilityCatalog(catalog, {
-        oxyApiUrl: 'https://api.oxy.so/',
+        oxyApiUrl: 'https://api.oxy.so//',
         getServiceToken: async () => 'service-token',
         fetch: fetcher,
         deployedAt: new Date('2026-10-16T10:00:00.000Z'),
