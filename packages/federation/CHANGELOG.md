@@ -1,5 +1,16 @@
 # Changelog: `@oxy.so/federation`
 
+## 2.3.0
+
+### Added
+
+- `createTcoLinkExpander` (`./node`) puts back the link X wrapped in `t.co`.
+  Bridges that mirror X accounts (bird.makeup, mastox) republish bios and
+  posts with only the wrapper; the expander replaces each `t.co/<id>` with the
+  URL its redirect names, over the same injected single-hop transport as
+  `createSignedFetch`. One hop only, `t.co` only; a wrapper that does not
+  resolve is left as written. An optional cache is keyed by the `t.co` id.
+
 ## 2.2.1
 
 ### Changed

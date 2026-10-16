@@ -1309,6 +1309,22 @@ describe('FederationService.fetchActorProfile — the stored handle needs a vouc
     expect(profile?.domain).toBe('x.com');
   });
 
+  it('expands t.co links in the bio', async () => {
+    const actorUri = 'https://bird.makeup/users/someone';
+    const doc = actorDoc(actorUri, 'someone', {
+      summary: 'site <a href="https://t.co/abc123">https://t.co/abc123</a>',
+    });
+    mockSafeFetch.mockImplementation(async (url: string) =>
+      url === 'https://t.co/abc123'
+        ? makeSafeFetchResult(301, { location: 'https://example.com/' })
+        : makeSafeFetchResult(200, { 'content-type': 'application/activity+json' }, doc),
+    );
+
+    const profile = await federationService.fetchActorProfile(actorUri);
+
+    expect(profile?.bio).toBe('site https://example.com/');
+  });
+
   it('falls back to the actor document’s own webfinger field, not to a rejected hint', async () => {
     // Ordering matters: a rejected hint must behave exactly like an ABSENT one,
     // so the actor's self-asserted `webfinger` is next — never the hint.

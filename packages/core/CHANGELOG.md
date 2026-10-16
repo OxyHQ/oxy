@@ -1,5 +1,13 @@
 # Changelog — `@oxy.so/core`
 
+## 4.12.0
+
+### Added
+
+- `safeFetch` takes `redirect: 'manual'`, which returns the first response even
+  when it is a redirect, so the caller can read its `Location`. The URL is still
+  validated and the connection pinned. The default stays `'follow'`.
+
 ## 4.11.0
 
 ### Changed

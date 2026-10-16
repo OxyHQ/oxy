@@ -398,6 +398,13 @@ export interface SafeFetchOptions {
    */
   maxRedirects?: number;
   /**
+   * `'manual'` returns the first response even when it is a redirect, so the
+   * caller can read its `Location` (the WHATWG fetch meaning). The URL is still
+   * validated and the connection pinned; the caller owns the response stream.
+   * Defaults to `'follow'`.
+   */
+  redirect?: 'follow' | 'manual';
+  /**
    * Time-to-first-byte deadline in milliseconds (connect + response headers).
    * Defaults to {@link UPSTREAM_HEADERS_TIMEOUT_MS}.
    */
@@ -409,10 +416,13 @@ export interface SafeFetchOptions {
   signal?: AbortSignal;
 }
 
-/** The validated, non-redirect response returned by {@link safeFetch}. */
+/**
+ * The validated response returned by {@link safeFetch}: the first non-redirect
+ * one, or with `redirect: 'manual'` the first one.
+ */
 export interface SafeFetchResult {
   /**
-   * The first non-redirect response. The caller OWNS draining/destroying this
+   * The response. The caller OWNS draining/destroying this
    * stream (stream it to the client, or buffer a bounded prefix, then destroy).
    */
   response: IncomingMessage;
@@ -511,6 +521,7 @@ export async function safeFetch(
     headers: callerHeaders,
     body,
     maxRedirects = MAX_REDIRECTS,
+    redirect = 'follow',
     headersTimeoutMs = UPSTREAM_HEADERS_TIMEOUT_MS,
     signal,
   } = options;
@@ -556,7 +567,7 @@ export async function safeFetch(
     );
 
     const status = response.statusCode ?? 0;
-    if (REDIRECT_STATUS_CODES.has(status)) {
+    if (REDIRECT_STATUS_CODES.has(status) && redirect === 'follow') {
       const location = response.headers.location;
       // We only need the Location header. Destroy immediately rather than
       // draining the (potentially unbounded) redirect body.
