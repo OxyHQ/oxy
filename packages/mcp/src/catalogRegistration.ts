@@ -49,7 +49,7 @@ export async function registerCapabilityCatalog(
   const { oxyApiUrl, deployedAt, ...request } = options;
   const payload = await postOxyServiceJson(
     { catalog: parsed, deployedAt: (deployedAt ?? new Date()).toISOString() },
-    { ...request, endpoint: `${oxyApiUrl.replace(/\/+$/, '')}/capabilities/catalogs/register` },
+    { ...request, endpoint: new URL('/capabilities/catalogs/register', oxyApiUrl).href },
   );
   const { registration } = registrationResponseSchema.parse(payload);
   const binding = capabilityCatalogBindingSchema.parse({
