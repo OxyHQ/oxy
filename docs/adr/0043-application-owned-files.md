@@ -848,7 +848,9 @@ already applied. SDKs: `@oxy.so/core` 4.19.0 and `@oxy.so/services` 11.10.0;
   consent and lifts it (`source = 'owner'`). References are kept: they record
   USE, not access. `GET /assets/:id/access` lists `{ applicationId, name,
   icon, via: ('upload' | 'link')[], since }` for the owner (404 for anyone
-  else). The predicate is `fileReference.service.applicationReadConsent`
+  else). Both are reviewed own-file operations (`ownAssetAuth`, like trash
+  and restore), so a supervised account (ADR 0041) can see and withdraw
+  access to its own file: it only narrows who reads it. The predicate is `fileReference.service.applicationReadConsent`
   over the file aggregate, which now carries its grant rows
   (`FileRecord.accessGrants`); every grant write invalidates the file across
   tasks. `files:linked:read` stays self-service: alone it still reaches

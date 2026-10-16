@@ -16,6 +16,9 @@
  *  3. The owner attaching the file to the application again restores it.
  *  4. Nobody but the owner reads or changes the list (404), and an unknown
  *     application is 404.
+ *  5. Both are reviewed own-file operations (`ownAssetAuth`), like trash and
+ *     restore: a supervised account may see and withdraw access to its own
+ *     file (ADR 0041 — management that only narrows who reads it).
  */
 
 import express from 'express';
@@ -27,6 +30,8 @@ import { and, eq } from 'drizzle-orm';
 
 const mockServiceAuthMiddleware = jest.fn();
 let mockSessionUserId: string | null = null;
+/** Whether the last session authentication was asked as a reviewed own-file operation. */
+let mockSupervisedSelfOperation: boolean | null = null;
 const mockObjects = new Map<string, { bytes: Buffer; contentType?: string }>();
 
 const mockS3 = {
@@ -58,7 +63,12 @@ const mockS3 = {
 };
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
+  authMiddleware: (
+    req: { user?: unknown },
+    res: { locals: Record<string, unknown> },
+    next: () => void,
+  ) => {
+    mockSupervisedSelfOperation = res.locals.supervisedSelfOperation === true;
     if (mockSessionUserId) req.user = { _id: mockSessionUserId, id: mockSessionUserId };
     next();
   },
@@ -225,6 +235,7 @@ afterAll(async () => {
 beforeEach(() => {
   fileCache.clear();
   mockSessionUserId = null;
+  mockSupervisedSelfOperation = null;
 });
 
 describe('private person-owned media from a service, and who may read it back', () => {
@@ -310,14 +321,17 @@ describe('the owner sees and revokes applications with access', () => {
     as(owner);
     const listed = await request('GET', `/assets/${fileId}/access`);
     expect(listed.status).toBe(200);
+    expect(mockSupervisedSelfOperation).toBe(true);
     expect(listed.body.data).toMatchObject({
       fileId,
       applications: [{ applicationId: uploader, via: ['upload'] }],
     });
     expect(typeof listed.body.data.applications[0].since).toBe('string');
 
+    mockSupervisedSelfOperation = null;
     const revoked = await request('DELETE', `/assets/${fileId}/access/${uploader}`);
     expect(revoked.status).toBe(200);
+    expect(mockSupervisedSelfOperation).toBe(true);
     expect(revoked.body.data).toMatchObject({ fileId, applicationId: uploader, revoked: true });
     expect(await linkedUrlIds(uploader, fileId)).toEqual([]);
 

@@ -3979,7 +3979,7 @@ router.get(
  */
 router.get(
   '/:id/access',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     if (!req.user?._id) throw new UnauthorizedError('Authentication required');
@@ -4011,7 +4011,7 @@ router.get(
  */
 router.delete(
   '/:id/access/:applicationId',
-  authMiddleware,
+  ownAssetAuth,
   validate({ params: fileAccessParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     if (!req.user?._id) throw new UnauthorizedError('Authentication required');
