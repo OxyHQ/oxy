@@ -197,7 +197,12 @@ function inspect(tarball, directory) {
   const packed = JSON.parse(
     execFileSync('tar', ['-xzOf', tarball, 'package/package.json'], { encoding: 'utf8' }),
   );
-  const entries = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' })
+  // The listing outgrows execFileSync's 1 MiB default buffer: @oxy.so/bloom
+  // ships ~24 000 files, whose names alone are over 1 MiB (ENOBUFS).
+  const entries = execFileSync('tar', ['-tzf', tarball], {
+    encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  })
     .split('\n')
     .filter(Boolean);
   const problems = manifestProblems(packed, source, entries);
