@@ -82,7 +82,7 @@ async function makeFile(): Promise<FileRecord> {
       ownerUserId: owner.id,
     })
     .returning();
-  return { ...row, links: [], variants: [] };
+  return { ...row, links: [], variants: [], accessGrants: [] };
 }
 
 beforeAll(async () => {

@@ -4,9 +4,10 @@
 
 ### Added (ADR 0043 — who owns a file, who uses it, and when it goes away)
 
-The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4b; its
-"Release runbook" gives the deploy order). Migrations `0170`–`0176` (pre) and
-`0177_drop_file_links` (post).
+The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4c; its
+"Release runbook" gives the deploy order). Migrations `0170`–`0176` (pre),
+`0177_drop_file_links` (post) and, for stage 4c,
+`0178_file_access_streams_ingests` (pre).
 
 - An application can own files (`/assets/service/app`, `files:app:*`);
   third-party applications' files count toward their developer's plan.
@@ -26,6 +27,18 @@ The whole of `docs/adr/0043-application-owned-files.md` (stages 1–4b; its
   (`POST /assets/service/app/adopt`), non-media served as sandboxed
   attachments, profile avatars referenced, per-application storage growth
   metrics, cross-task file-cache invalidation over Redis.
+- Stage 4c: private person-owned media from a service (`x-visibility` on
+  `/assets/service/user-media`); a person's revocable consent for an
+  application to read their file (`file_access_grants`; `GET`/`DELETE
+  /assets/:id/access…`), which `/service/linked-url` now honours; audio
+  renditions (an AAC HLS ladder, waveform peaks, a 30-second preview, optional
+  loudness normalization); per-play, revocable play sessions with on-the-fly
+  AES-128 and product key authorization (`/assets/service/streams`,
+  `/assets/streams/…`); recording targets a LiveKit egress uploads into
+  (`/assets/service/{app,user-media}/recording-targets`, the SigV4
+  `/assets/recording-ingest`); large imports by URL in the background (`202`,
+  `…/imports/:importId`); SVG accepted only as its sanitized document and
+  served inline under a sandboxing CSP.
 
 ### Added (a service asks whether a person may act for an account)
 

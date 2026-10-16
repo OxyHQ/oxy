@@ -371,7 +371,32 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   {
     table: 'file_variants',
     column: 'metadata',
-    holds: 'per-variant metadata of a derived image or video rendition',
+    holds: 'per-variant metadata of a derived image, video or audio rendition',
+  },
+  // ---- ADR 0042 stages 4b and 4c: large uploads, imports and recordings -------
+  {
+    table: 'file_upload_sessions',
+    column: 'metadata',
+    holds:
+      "the file metadata a large upload's file will carry (the same object `files.metadata` holds: dimensions, duration, the caller's descriptive keys) — never the bytes, no prompt, completion or credential",
+  },
+  {
+    table: 'file_upload_sessions',
+    column: 'reference',
+    holds:
+      'the one (entityType, entityId) reference the uploading application registers for itself once the upload is a file',
+  },
+  {
+    table: 'file_ingests',
+    column: 'metadata',
+    holds:
+      "the file metadata a large import's or recording's file will carry (the same object `files.metadata` holds, with the server-owned `audioOptions`) — never the bytes, no prompt, completion or credential",
+  },
+  {
+    table: 'file_ingests',
+    column: 'reference',
+    holds:
+      'the one (entityType, entityId) reference the creating application registers for itself once the ingest is a file',
   },
 
   // ---- the follow graph -------------------------------------------------------

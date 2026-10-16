@@ -206,6 +206,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/aaaa.png',
       variants: [],
+      accessGrants: [],
     });
 
     const res = await requestNoFollow(server, `/assets/${PREFIXED_PUBLIC_FILE_ID}/stream`, {
@@ -225,6 +226,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/aaaa.png',
       variants: [],
+      accessGrants: [],
     });
 
     const res = await requestNoFollow(server, `/assets/${PREFIXED_PUBLIC_FILE_ID}/stream`);
@@ -247,6 +249,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
         status,
         storageKey: 'public/content/2026/06/aa/aaaa.png',
         variants: [],
+        accessGrants: [],
       });
       mockCanUserAccessFile.mockResolvedValue(true);
 
@@ -266,6 +269,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       status: 'trash',
       storageKey: 'content/2026/06/cc/secret.png',
       variants: [],
+      accessGrants: [],
     });
 
     const res = await requestNoFollow(
@@ -285,6 +289,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       status: 'active' as const,
       storageKey: 'content/2026/06/cc/secret.png',
       variants: [],
+      accessGrants: [],
     });
     mockGetObjectStreamRange.mockResolvedValue({
       body: Readable.from([Buffer.from('PRIVATEBYTES')]),
@@ -312,6 +317,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       storageKey: 'content/2026/06/vv/video.mp4',
       mimeType: 'video/mp4',
       variants: [],
+      accessGrants: [],
     });
     mockEnsureVariant.mockRejectedValue(new Error('poster ffmpeg timed out'));
 
@@ -329,6 +335,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       storageKey: 'content/2026/06/vv/video.mp4',
       mimeType: 'video/mp4',
       variants: [],
+      accessGrants: [],
     });
     mockEnsureVariant.mockRejectedValue(new Error('poster ffmpeg timed out'));
 
@@ -349,6 +356,7 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
       status: 'active' as const,
       storageKey: 'content/2026/03/dd/legacy.png',
       variants: [],
+      accessGrants: [],
     });
     mockGetPublicCdnUrl.mockRejectedValue(new Error('S3 head failed'));
     mockGetObjectStreamRange.mockResolvedValue({

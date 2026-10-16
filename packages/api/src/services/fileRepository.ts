@@ -56,10 +56,18 @@ import {
 import { qualified } from '@oxy.so/db';
 import fileCache from '../utils/fileCache';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
-import { applications, fileReferences, fileVariants, files, users } from '../db/schema';
+import {
+  applications,
+  fileAccessGrants,
+  fileReferences,
+  fileVariants,
+  files,
+  users,
+} from '../db/schema';
 import { appListingScreenshots } from '../db/schema/appListingScreenshots';
 import { messageAttachments } from '../db/schema/messageAttachments';
 import type {
+  FileAccessGrantRecord,
   FileReferenceRecord,
   FileOwner,
   FileOwnerColumns,
@@ -179,7 +187,7 @@ async function withChildren(
   }
 
   const ids = rows.map((row) => row.id);
-  const [links, variants] = await Promise.all([
+  const [links, variants, grants] = await Promise.all([
     db
       .select()
       .from(fileReferences)
@@ -190,6 +198,11 @@ async function withChildren(
       .from(fileVariants)
       .where(inArray(fileVariants.fileId, ids))
       .orderBy(asc(fileVariants.type), asc(fileVariants.id)),
+    db
+      .select()
+      .from(fileAccessGrants)
+      .where(inArray(fileAccessGrants.fileId, ids))
+      .orderBy(asc(fileAccessGrants.createdAt), asc(fileAccessGrants.id)),
   ]);
 
   const linksByFile = new Map<string, FileReferenceRecord[]>();
@@ -206,10 +219,18 @@ async function withChildren(
     else variantsByFile.set(variant.fileId, [variant]);
   }
 
+  const grantsByFile = new Map<string, FileAccessGrantRecord[]>();
+  for (const grant of grants) {
+    const bucket = grantsByFile.get(grant.fileId);
+    if (bucket) bucket.push(grant);
+    else grantsByFile.set(grant.fileId, [grant]);
+  }
+
   return rows.map((row) => ({
     ...row,
     links: linksByFile.get(row.id) ?? [],
     variants: variantsByFile.get(row.id) ?? [],
+    accessGrants: grantsByFile.get(row.id) ?? [],
   }));
 }
 
@@ -583,7 +604,7 @@ export async function insertFile(
       .insert(files)
       .values({ unreferencedSince: sql`now()`, ...values })
       .returning();
-    return { ...row, links: [], variants: [] };
+    return { ...row, links: [], variants: [], accessGrants: [] };
   });
 }
 

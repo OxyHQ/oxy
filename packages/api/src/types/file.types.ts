@@ -22,6 +22,7 @@ import type {
   FILE_STATUSES,
   FILE_SYSTEM_OWNERS,
   FILE_VISIBILITIES,
+  fileAccessGrants,
   fileReferences,
   fileVariants,
   files,
@@ -84,6 +85,12 @@ export type FileOwnerColumns = {
 /** One place an application uses an asset (`file_references`, ADR 0043 D4). */
 export type FileReferenceRecord = typeof fileReferences.$inferSelect;
 
+/**
+ * A person's consent (or its revocation) for one application to read one of
+ * their files with its service token (`file_access_grants`, ADR 0042 stage 4c).
+ */
+export type FileAccessGrantRecord = typeof fileAccessGrants.$inferSelect;
+
 /** One derived rendition of an asset (thumbnail, `720p`, HLS playlist, …). */
 export type FileVariantRecord = typeof fileVariants.$inferSelect;
 
@@ -104,4 +111,11 @@ export type NewFileVariant = Omit<typeof fileVariants.$inferInsert, 'fileId'>;
 export type FileRecord = typeof files.$inferSelect & {
   links: FileReferenceRecord[];
   variants: FileVariantRecord[];
+  /**
+   * The owner's consent decisions per application (ADR 0042 stage 4c) — read
+   * with the file so a cached record answers "may this application read it"
+   * (`fileReference.service.mayApplicationRead`); every write to the table
+   * invalidates the file's cache entry.
+   */
+  accessGrants: FileAccessGrantRecord[];
 };

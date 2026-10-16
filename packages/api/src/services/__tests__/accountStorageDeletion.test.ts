@@ -225,6 +225,7 @@ describe('recordAccountStorageDeletion', () => {
       { ownerUserId: person },
       {
         variants: [],
+        accessGrants: [],
       },
     );
     await getDb()

@@ -122,10 +122,15 @@
  *   It ANSWERS A QUESTION; it mints nothing and grants nothing. It is not
  *   `accounts:act-as-session` and does not lead to it: a channel can never be
  *   acted AS, and this scope is what lets an app avoid ever needing to.
- * - `files:linked:read` permits a service credential to mint a short-lived,
- *   direct download URL for a file THE FILE'S OWN OWNER attached to THIS
- *   application. It is the only scope in this vocabulary that reaches BYTES
- *   through a service token.
+ * - `files:linked:read` permits a service credential to read a PERSON's file
+ *   the person consented to THIS application reading (ADR 0042 stage 4c,
+ *   `file_access_grants`): one THE FILE'S OWN OWNER attached to it, or one the
+ *   application itself stored for the person with the staff-granted act-as
+ *   authority of `files:user-media:write` — never after the person revoked
+ *   that application's access. It mints short-lived download URLs
+ *   (`/assets/service/linked-url`) and opens play sessions
+ *   (`/assets/service/streams`). It is the only scope in this vocabulary that
+ *   reaches a person's BYTES through a service token.
  *
  *   IT IS NOT A FLAVOUR OF `files:read`, AND THAT DISTANCE IS THE POINT.
  *   `files:read` is metadata only and its own route's docblock says so in those
@@ -150,7 +155,12 @@
  *   credentials, and a user who attaches their own file to an application has
  *   done the thing consent would have asked them about. The authority is
  *   therefore bounded to the subject user's own content under that user's own
- *   explicit act, which is exactly `podcasts:write`'s shape.
+ *   explicit act, which is exactly `podcasts:write`'s shape. The second
+ *   origin of consent keeps that bound: a grant is written only when the
+ *   application stored the file FOR the person, which needed the PRIVILEGED
+ *   `files:user-media:write` — so a self-granted `files:linked:read` alone still
+ *   reaches nothing a person did not attach, and the person can withdraw any
+ *   application's access per file (`DELETE /assets/{id}/access/{applicationId}`).
  *
  *   It is deliberately ABSENT from {@link USER_CONSENT_REQUIRED_SCOPES}, for the
  *   reason recorded on that constant — the decision it would ask for has already
@@ -582,8 +592,9 @@ export function isFollowScope(scope: string): boolean {
  * the consent screen would ask the wrong QUESTION, not merely the wrong person.
  * A screen naming this scope could only ask "may this app read files you link to
  * it?" — one standing answer covering every file, forever. The decision already
- * being taken is per FILE: attaching one's own file to an application, revocable
- * one at a time by unlinking it. A blanket screen would be strictly coarser than
+ * being taken is per FILE: attaching one's own file to an application (or the
+ * application storing it for them), revocable one at a time from the file
+ * manager's "Apps with access". A blanket screen would be strictly coarser than
  * the control the user already has, and answering it would not be how they
  * actually decide.
  *

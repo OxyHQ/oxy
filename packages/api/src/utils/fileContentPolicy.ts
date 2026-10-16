@@ -4,7 +4,7 @@
  * The large upload (`/assets/service/app/uploads`, `/service/user-media/uploads`)
  * stores files of ANY type, and Oxy serves files from two origins of its own:
  * the API (`/assets/:id/stream`) and the CDN (`cloud.oxy.so`, whose origin is
- * the bucket). A type a browser EXECUTES when it renders a response — HTML, SVG,
+ * the bucket). A type a browser EXECUTES when it renders a response — HTML,
  * XML, script — would run as those origins, so:
  *
  *  - {@link isDeniedUploadType} refuses executables, installers and active
@@ -16,6 +16,12 @@
  *    `attachment` for everything else. The large upload stores it ON the
  *    object, so the CDN replays it; the API's stream route sends it (with a
  *    `sandbox` CSP) for every file, whichever path stored it.
+ *
+ * SVG (stage 4c) is the one active document Oxy stores: only as the output of
+ * `utils/svgSanitizer.ts` (every upload and import path sanitizes it), served
+ * inline — `<img>` never runs an SVG's script — with
+ * {@link SVG_CONTENT_SECURITY_POLICY}, which neuters a direct navigation.
+ * `.svgz` (compressed) stays refused.
  */
 
 /** The largest file the multipart upload accepts. */
@@ -57,7 +63,6 @@ export function normalizeContentType(raw: string): string | null {
 const DENIED_TYPES = new Set([
   'text/html',
   'application/xhtml+xml',
-  'image/svg+xml',
   'text/xml',
   'application/xml',
   'application/xslt+xml',
@@ -101,8 +106,17 @@ const DENIED_TYPES = new Set([
   'application/wasm',
 ]);
 
-/** Families refused by prefix (every SVG spelling, every HTML-like subtype). */
-const DENIED_TYPE_PREFIXES = ['image/svg', 'text/html', 'application/x-msdos', 'application/x-ms-'];
+/**
+ * Families refused by prefix: every HTML-like subtype. Every SVG spelling but
+ * `image/svg+xml` itself (which is sanitized, never stored as sent) is refused
+ * by {@link isOtherSvgSpelling}.
+ */
+const DENIED_TYPE_PREFIXES = ['text/html', 'application/x-msdos', 'application/x-ms-'];
+
+/** An SVG spelling other than the one Oxy sanitizes (`image/svg`, `image/svg-xml`…). */
+function isOtherSvgSpelling(type: string): boolean {
+  return type.startsWith('image/svg') && type !== 'image/svg+xml';
+}
 
 /** Extensions refused whatever type is declared (lowercase, without the dot). */
 const DENIED_EXTENSIONS = new Set([
@@ -111,7 +125,6 @@ const DENIED_EXTENSIONS = new Set([
   'xhtml',
   'xht',
   'shtml',
-  'svg',
   'svgz',
   'xml',
   'xsl',
@@ -178,17 +191,24 @@ export function fileNameExtension(name: string | null | undefined): string | nul
 export function isDeniedUploadType(type: string, name?: string | null): boolean {
   if (DENIED_TYPES.has(type)) return true;
   if (DENIED_TYPE_PREFIXES.some((prefix) => type.startsWith(prefix))) return true;
+  if (isOtherSvgSpelling(type)) return true;
   const ext = fileNameExtension(name);
+  // A `.svg` name is an SVG only when it is declared as one, and so sanitized.
+  if (ext === 'svg') return type !== 'image/svg+xml';
   return ext !== null && DENIED_EXTENSIONS.has(ext);
 }
 
 /**
  * Types a browser renders in place without running anything: raster images,
  * audio, video, PDF (rendered by the browser's sandboxed viewer) and plain
- * text (sent with `nosniff`). SVG is an active document and is never inline.
+ * text (sent with `nosniff`) — and SANITIZED SVG (`image/svg+xml`), with
+ * {@link SVG_CONTENT_SECURITY_POLICY}. The stream route serves a stored SVG
+ * inline only when the server recorded its sanitization
+ * (`svgSanitizer.isSanitizedSvgFile`); any other SVG is a download.
  */
 export function isInlineServableType(type: string): boolean {
   const normalized = normalizeContentType(type) ?? '';
+  if (normalized === 'image/svg+xml') return true;
   if (normalized.startsWith('image/svg')) return false;
   return (
     normalized.startsWith('image/') ||
@@ -204,6 +224,27 @@ export function contentDispositionFor(type: string): 'inline' | 'attachment' {
   return isInlineServableType(type) ? 'inline' : 'attachment';
 }
 
+/**
+ * The CSP a sanitized SVG is served with, by the API and (the CloudFront
+ * Function in the ADR's runbook) by the CDN: nothing loads, inline styles
+ * apply, and a direct navigation gets a sandboxed, scriptless document.
+ */
+export const SVG_CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+
+/** The CSP a download (any type that is not inline-safe) is served with. */
+export const ATTACHMENT_CONTENT_SECURITY_POLICY = "sandbox; default-src 'none'";
+
+/**
+ * The `Content-Security-Policy` a response of `type` carries: the SVG policy
+ * for SVG, the attachment policy for every type that is not inline-safe, none
+ * for inline media.
+ */
+export function contentSecurityPolicyFor(type: string): string | null {
+  const normalized = normalizeContentType(type) ?? '';
+  if (normalized === 'image/svg+xml') return SVG_CONTENT_SECURITY_POLICY;
+  return isInlineServableType(normalized) ? null : ATTACHMENT_CONTENT_SECURITY_POLICY;
+}
+
 const TYPE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
@@ -214,6 +255,7 @@ const TYPE_EXTENSIONS: Record<string, string> = {
   'image/heic': 'heic',
   'image/heif': 'heif',
   'image/tiff': 'tiff',
+  'image/svg+xml': 'svg',
   'video/mp4': 'mp4',
   'video/mpeg': 'mpeg',
   'video/quicktime': 'mov',

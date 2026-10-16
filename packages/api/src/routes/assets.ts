@@ -1,5 +1,7 @@
 import { createSupervisedAssetPolicy, isSupervised } from '../services/supervisionPolicy.service';
 import express from 'express';
+import recordingIngestRouter from './recordingIngest';
+import { withoutServerSvgMetadata } from '../utils/svgSanitizer';
 import multer from 'multer';
 import { assetService } from '../services/assetServiceSingleton';
 import { AssetService } from '../services/assetService';
@@ -70,17 +72,73 @@ import {
   largeUploadParams,
   largeUploadPartsBodySchema,
   appAdoptBodySchema,
+  fileAccessParams,
+  playSessionBodySchema,
+  playSessionParams,
+  revokePlaySessionsBodySchema,
+  streamObjectParams,
+  audioOptionsSchema,
+  type AudioOptions,
+  appRecordingTargetBodySchema,
+  userMediaRecordingTargetBodySchema,
+  recordingTargetParams,
+  ingestImportParams,
 } from '../schemas/assets.schemas';
+import type { FileIngestRow } from '../db/schema/fileIngests';
+import {
+  RECORDING_BUCKET,
+  RECORDING_REGION,
+  type IngestOwner,
+  type IngestView,
+} from '../services/fileIngest.service';
+import type { FilePlaySessionRow } from '../db/schema/filePlaySessions';
 import type { LargeUploadOwner, LargeUploadView } from '../services/fileUploadSession.service';
 import { fileUploadSessionService } from '../services/fileUploadSessionSingleton';
 import { ContentBlockedError } from '../services/contentClaims/contentBlocklist';
-import { contentDispositionFor } from '../utils/fileContentPolicy';
-import { FileImportService, type ImportResult } from '../services/fileImport.service';
+import { contentDispositionFor, contentSecurityPolicyFor } from '../utils/fileContentPolicy';
+import { isSanitizedSvgFile, isSvgType } from '../utils/svgSanitizer';
 import {
-  isOwnerReferencedToApp,
+  isPendingImport,
+  type ImportResult,
+  type PendingImport,
+} from '../services/fileImport.service';
+import { fileImportService, fileIngestService } from '../services/fileIngestSingleton';
+import {
+  applicationReadConsent,
+  mayApplicationRead,
   mayApplicationReference,
   resolveReferenceApplicationId,
 } from '../services/fileReference.service';
+import {
+  applicationExists,
+  grantUploadAccess,
+  listApplicationAccess,
+  restoreAccessByOwner,
+  revokeApplicationAccess,
+} from '../services/fileAccessGrant.service';
+import {
+  authorizeKeyRelease,
+  loadApplicationPlaySession,
+  PLAY_SESSION_DEFAULT_TTL_SECONDS,
+  openPlaySession,
+  playSessionStatus,
+  readyMasterPlaylist,
+  resolveServingSession,
+  revokePlaySession,
+  revokePlaySessionsWhere,
+} from '../services/playSession.service';
+import {
+  cachedPlaylistReader,
+  encryptedLength,
+  encryptedRenditionPlaylist,
+  MASTER_PLAYLIST_NAME,
+  PREVIEW_NAME,
+  readyRenditions,
+  resolveStreamObject,
+  segmentCipher,
+  streamContentType,
+  WAVEFORM_NAME,
+} from '../services/hlsStreamServing';
 import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
@@ -125,8 +183,10 @@ const ownAssetAuth: express.RequestHandler = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
-/** Import by URL (ADR 0043 D7), over the shared AssetService. */
-const fileImportService = new FileImportService(assetService);
+
+// A recording target's S3-compatible ingest (ADR 0042 stage 4c): mounted first,
+// on its own raw body (`server.ts` skips the body parsers for it).
+router.use('/recording-ingest', recordingIngestRouter);
 
 /**
  * Project a link/variant row onto the wire shape clients already receive.
@@ -246,6 +306,12 @@ function parseMediaAccessContext(raw: unknown): MediaAccessContext | undefined {
   }
   return { app: parts[0], entityType: parts[1], entityId: parts[2] };
 }
+
+/** The CSP of a download, and of anything sandboxed: nothing loads, nothing runs. */
+const ATTACHMENT_CSP = "sandbox; default-src 'none'";
+
+/** The placeholder SVG the stream route draws is served like any sanitized SVG. */
+const SVG_PLACEHOLDER_CSP = contentSecurityPolicyFor('image/svg+xml') ?? ATTACHMENT_CSP;
 
 // Auth applied per-route: authMiddleware for private routes,
 // optionalAuthMiddleware for public stream/download endpoints.
@@ -478,6 +544,11 @@ router.get(
  *                   description: True if the SHA-256 was already present.
  *       400:
  *         description: Validation failed.
+ *       415:
+ *         description: >
+ *           `SVG_UPLOAD_REQUIRES_SANITIZATION` — an SVG is never uploaded by
+ *           presigned PUT (Oxy must read it to sanitize it); use
+ *           `POST /assets/upload`.
  *       401:
  *         description: Missing or invalid bearer token.
  */
@@ -679,7 +750,9 @@ router.post(
 
     // Upload buffer to the predetermined storageKey
     await s3Service.uploadBuffer(file.storageKey, req.file.buffer, {
-      contentType: req.file.mimetype || file.mime || 'application/octet-stream',
+      // The row's declared type, never the part's: the object is served as the
+      // row says (an SVG row cannot exist on this path — `/init` refuses SVG).
+      contentType: file.mime || 'application/octet-stream',
       cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
     });
 
@@ -760,6 +833,7 @@ router.post(
       }
     }
 
+    // An SVG is stored only as its sanitized document (ADR 0042 stage 4c).
     const file = await assetService.uploadFileDirect(
       user._id,
       req.file.buffer,
@@ -767,6 +841,7 @@ router.post(
       req.file.originalname || req.file.fieldname || 'upload',
       visibility,
       metadata,
+      { svg: 'sanitize' },
     );
 
     logger.info('File uploaded via direct endpoint', {
@@ -831,6 +906,51 @@ function getSingleHeader(req: express.Request, name: string): string | undefined
   const value = req.headers[name.toLowerCase()];
   if (Array.isArray(value)) return value[0];
   return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Image, video or audio (ADR 0042 stage 4c added audio) of a type the media
+ * pipeline admits — what the streamed service uploads and imports store.
+ */
+function isStorableMediaMime(mime: string): boolean {
+  return (
+    (mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/')) &&
+    isAllowedCacheMime(mime)
+  );
+}
+
+/** `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds? }`) of a streamed upload. */
+function audioOptionsHeader(req: express.Request): AudioOptions | undefined {
+  const raw = getSingleHeader(req, 'x-audio-options');
+  if (raw === undefined || raw.trim() === '') return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new BadRequestError('x-audio-options must be a JSON object');
+  }
+  const result = audioOptionsSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new BadRequestError(
+      'x-audio-options must be { normalizeLoudness?: boolean, previewStartSeconds?: number }',
+    );
+  }
+  return result.data;
+}
+
+/**
+ * A caller's file metadata with the server-owned keys put right: the caller
+ * cannot set `audioOptions` (how renditions are made) through free-form
+ * metadata — only through the dedicated option (ADR 0042 stage 4c).
+ */
+function withAudioOptions(
+  metadata: Record<string, unknown> | undefined,
+  audio: AudioOptions | undefined,
+): Record<string, unknown> | undefined {
+  const { audioOptions: _ignored, ...rest } = metadata ?? {};
+  const options = audio && Object.keys(audio).length > 0 ? audio : undefined;
+  if (!options && !metadata) return undefined;
+  return options ? { ...rest, audioOptions: options } : rest;
 }
 
 /**
@@ -1144,9 +1264,17 @@ async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
 
 /**
  * @route POST /api/assets/service/user-media
- * @desc Stream-upload durable media into a normal public file owned by an
- *       existing local Oxy user. Used by Mention MCP intent-media when the
- *       caller authenticates with an MCP JWT (no Oxy session bearer).
+ * @desc Stream-upload durable media into a file owned by an existing local Oxy
+ *       user (`x-owner-user-id`), e.g. Mention MCP intent-media or a product
+ *       storing what a person made in it. Raw bytes as the body; image, video
+ *       or audio (SVG is sanitized first), at most 40 MiB. `x-visibility`
+ *       (`public` default | `unlisted` | `private`): a private file is never
+ *       under `public/` or on the CDN. The calling application may read the
+ *       file back (`/service/linked-url`, play sessions) because it stored it
+ *       for the person (ADR 0042 stage 4c) — until the person revokes that.
+ *       `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds?
+ *       }`) shapes an audio file's renditions. Rows are per owner: bytes the
+ *       person already holds answer that file, its visibility unchanged.
  * @access Privileged service token only: files:user-media:write, or
  *         files:write together with federation:write
  */
@@ -1156,17 +1284,27 @@ router.post(
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     const ownerUserId = await requireUserMediaOwner(req);
+    const appId = req.serviceApp?.appId;
+    if (typeof appId !== 'string' || appId.length === 0) {
+      throw new ForbiddenError('Service token carries no application id');
+    }
+
+    const visibilityHeader = getSingleHeader(req, 'x-visibility')?.trim();
+    const parsedVisibility = updateVisibilitySchema.shape.visibility.safeParse(
+      visibilityHeader && visibilityHeader.length > 0 ? visibilityHeader : 'public',
+    );
+    if (!parsedVisibility.success) {
+      throw new BadRequestError('x-visibility must be one of: public, unlisted, private');
+    }
 
     const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     if (!mime) {
       throw new BadRequestError('Content-Type header is required');
     }
-    if (!mime.startsWith('image/') && !mime.startsWith('video/')) {
+    if (!isStorableMediaMime(mime)) {
       throw new ApiError(415, 'Unsupported media type for user upload', 'UNSUPPORTED_MEDIA_TYPE');
     }
-    if (!isAllowedCacheMime(mime)) {
-      throw new ApiError(415, 'Unsupported media type for user upload', 'UNSUPPORTED_MEDIA_TYPE');
-    }
+    const audio = audioOptionsHeader(req);
 
     const declaredLength = Number(req.headers['content-length']);
     if (Number.isFinite(declaredLength) && declaredLength > USER_MEDIA_MAX_BYTES) {
@@ -1183,33 +1321,43 @@ router.post(
     let metadata: Record<string, unknown> | undefined;
     if (metadataHeader) {
       try {
-        metadata = JSON.parse(metadataHeader) as Record<string, unknown>;
+        const parsed: unknown = JSON.parse(metadataHeader);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          throw new Error('not an object');
+        }
+        metadata = parsed as Record<string, unknown>;
       } catch {
         throw new BadRequestError('x-media-metadata must be valid JSON');
       }
     }
 
     try {
-      const file = await assetService.uploadUserMediaStream(
+      const { file, deduplicated } = await assetService.uploadUserMediaStreamDetailed(
         req,
         mime,
         originalName,
         USER_MEDIA_MAX_BYTES,
         ownerUserId,
+        parsedVisibility.data,
         {
-          ...(metadata || {}),
-          serviceAppId: req.serviceApp?.appId,
+          source: 'mention-service',
+          ...(withAudioOptions(metadata, audio) ?? {}),
+          serviceAppId: appId,
           serviceAppName: req.serviceApp?.appName,
         },
       );
+      // The application stored this file for the person: it may read it back.
+      await grantUploadAccess(file.id, appId);
 
       logger.info('User media persisted', {
-        appId: req.serviceApp?.appId,
+        appId,
         appName: req.serviceApp?.appName,
         ownerUserId,
         fileId: file.id,
         mime,
         size: file.size,
+        visibility: file.visibility,
+        deduplicated,
       });
 
       sendSuccess(res, {
@@ -1220,9 +1368,14 @@ router.post(
           mime: file.mime,
           visibility: file.visibility,
         },
+        deduplicated,
       });
     } catch (error) {
-      if (error instanceof Error && error.name === 'CacheMediaTooLargeError') {
+      if (
+        error instanceof Error &&
+        (error.name === 'CacheMediaTooLargeError' ||
+          (error instanceof ApiError && error.code === 'STORAGE_STREAM_TOO_LARGE'))
+      ) {
         throw new ApiError(413, 'User media exceeds the maximum allowed size', 'PAYLOAD_TOO_LARGE');
       }
       throw error;
@@ -1343,9 +1496,11 @@ function decodeApplicationFileCursor(cursor: string): { createdAt: Date; id: str
 
 /**
  * @route POST /api/assets/service/app
- * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes
- *       as the body (not multipart); `Content-Type` must be an image or video
- *       type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |
+ * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0042). Raw bytes
+ *       as the body (not multipart); `Content-Type` must be an image, video or
+ *       audio type (an SVG is stored as its sanitized document), at most 40
+ *       MiB; `x-audio-options` (JSON `{ normalizeLoudness?,
+ *       previewStartSeconds? }`) shapes an audio file's renditions. `x-visibility` (`public` | `unlisted` |
  *       `private`) is REQUIRED — an application's file has no default audience.
  *       Optional `x-original-name` and `x-media-metadata` (JSON) as on
  *       `/service/user-media`. Idempotent per (application, bytes): a re-upload
@@ -1373,13 +1528,14 @@ router.post(
     if (!mime) {
       throw new BadRequestError('Content-Type header is required');
     }
-    if (!(mime.startsWith('image/') || mime.startsWith('video/')) || !isAllowedCacheMime(mime)) {
+    if (!isStorableMediaMime(mime)) {
       throw new ApiError(
         415,
         'Unsupported media type for an application file',
         'UNSUPPORTED_MEDIA_TYPE',
       );
     }
+    const audio = audioOptionsHeader(req);
 
     const declaredLength = Number(req.headers['content-length']);
     if (Number.isFinite(declaredLength) && declaredLength > USER_MEDIA_MAX_BYTES) {
@@ -1418,7 +1574,7 @@ router.post(
         USER_MEDIA_MAX_BYTES,
         appId,
         parsedVisibility.data,
-        metadata,
+        withAudioOptions(metadata, audio),
       );
 
       logger.info('Application file persisted', {
@@ -1601,6 +1757,51 @@ function serializeUserMediaImport(result: ImportResult) {
   };
 }
 
+/** A large import's first answer (`202`): it is being fetched in the background (ADR 0042 stage 4c). */
+function serializePendingImport(pending: PendingImport) {
+  return {
+    importId: pending.ingest.id,
+    status: 'importing' as const,
+    source: { host: pending.ingest.sourceHost },
+  };
+}
+
+/** A large import as it stands (`GET …/imports/:importId`). */
+function serializeImportJob(view: IngestView, kind: IngestOwner['kind']) {
+  const status =
+    view.status === 'completed'
+      ? 'completed'
+      : view.status === 'verifying'
+        ? 'verifying'
+        : view.status === 'failed' || view.status === 'aborted'
+          ? 'failed'
+          : 'importing';
+  return {
+    importId: view.id,
+    status,
+    source: {
+      host: view.sourceHost,
+      ...(view.fetchedAt ? { fetchedAt: view.fetchedAt } : {}),
+      ...(view.etag === null ? {} : { etag: view.etag }),
+      ...(view.lastModified === null ? {} : { lastModified: view.lastModified }),
+    },
+    ...(view.file
+      ? {
+          file:
+            kind === 'application'
+              ? serializeApplicationFile(view.file)
+              : serializeUserMediaFile(view.file),
+          outcome: 'downloaded' as const,
+          deduplicated: view.deduplicated ?? false,
+          ...(view.reference ? { reference: { result: view.reference } } : {}),
+        }
+      : {}),
+    ...(view.error
+      ? { error: { status: view.error.status, code: view.error.code, message: view.error.message } }
+      : {}),
+  };
+}
+
 type AppImportItem = z.infer<typeof appImportBodySchema>;
 
 /**
@@ -1618,10 +1819,17 @@ async function admitAppImport(req: ServiceAuthRequest, wantsReference: boolean):
  * @route POST /api/assets/service/app/import
  * @desc Import a file by URL; the CALLING APPLICATION owns it (ADR 0043 D7).
  *       Body `{ sourceUrl, visibility, reference?: { entityType, entityId },
- *       revalidate? }`. Oxy fetches `sourceUrl` itself — `https` only on every
- *       hop, public addresses only, at most 5 redirects, no credentials, 40 MiB
- *       and 60 s at most — and stores it through the ordinary upload pipeline
- *       (image or video; deduplicated by content per application; variants).
+ *       revalidate?, audio?: { normalizeLoudness?, previewStartSeconds? } }`.
+ *       Oxy fetches `sourceUrl` itself — `https` only on every hop, public
+ *       addresses only, at most 5 redirects, no credentials — and stores it
+ *       through the ordinary upload pipeline (image, video or audio; SVG
+ *       sanitized; deduplicated by content per application; variants). A
+ *       source of at most 40 MiB is stored within 60 s in the request. A
+ *       larger one (up to 8 GiB), or audio/video that declares no size,
+ *       answers `202 { importId, status: 'importing', source: { host } }` and
+ *       is fetched in the background (at most an hour, a minute without
+ *       bytes) by multipart streaming, hashed, then stored the same way: poll
+ *       `GET /assets/service/app/imports/{importId}`.
  *       The same URL imported again by the same application answers the
  *       existing file without any request (`outcome: 'existing'`);
  *       `revalidate: true` asks the source conditionally (ETag /
@@ -1647,6 +1855,10 @@ router.post(
       body,
       appId,
     );
+    if (isPendingImport(result)) {
+      sendSuccess(res, serializePendingImport(result), 202);
+      return;
+    }
     sendSuccess(res, serializeAppImport(result));
   }),
 );
@@ -1655,8 +1867,10 @@ router.post(
  * @route POST /api/assets/service/app/import/batch
  * @desc Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The
  *       batch is 200; each item answers on its own, in order: `{ index, ok:
- *       true, file, outcome, deduplicated, source, reference? }` or `{ index,
- *       ok: false, error: { status, code, message } }`.
+ *       true, file, outcome, deduplicated, source, reference? }`, a large
+ *       source still being fetched `{ index, ok: true, pending: true,
+ *       importId, status: 'importing', source }`, or `{ index, ok: false,
+ *       error: { status, code, message } }`.
  * @access Service token only: `files:app:write` (and `files:references:write`
  *         when an item asks for a reference), on an active application
  */
@@ -1690,7 +1904,9 @@ router.post(
             items[index],
             appId,
           );
-          results[index] = { index, ok: true, ...serializeAppImport(result) };
+          results[index] = isPendingImport(result)
+            ? { index, ok: true, pending: true, ...serializePendingImport(result) }
+            : { index, ok: true, ...serializeAppImport(result) };
         } catch (error) {
           if (!(error instanceof ApiError)) {
             logger.error('Application import batch item failed', {
@@ -1729,9 +1945,12 @@ router.post(
  *       account-owned equivalent of `/service/app/import`, with the authority
  *       and owner of `/service/user-media` — `x-owner-user-id` names an
  *       existing local user. Body `{ sourceUrl, visibility? (default public),
- *       reference?, revalidate? }`; the same fetch, policies, once-per-URL
- *       memory (per account) and answers. `reference` registers the CALLING
- *       application's use of the file (needs `files:references:write`).
+ *       reference?, revalidate?, audio? }`; the same fetch, policies,
+ *       once-per-URL memory (per account) and answers, a large source
+ *       included (`202`, poll `GET /assets/service/user-media/imports/{importId}`).
+ *       `reference` registers the CALLING application's use of the file
+ *       (needs `files:references:write`). The calling application may read the
+ *       file back (ADR 0042 stage 4c) until the person revokes that.
  * @access Privileged service token only: files:user-media:write, or
  *         files:write together with federation:write
  */
@@ -1754,6 +1973,15 @@ router.post(
       { ...body, visibility: body.visibility ?? 'public' },
       appId,
     );
+    if (isPendingImport(result)) {
+      logger.info('User media import continues in the background', {
+        appId,
+        ownerUserId,
+        importId: result.ingest.id,
+      });
+      sendSuccess(res, serializePendingImport(result), 202);
+      return;
+    }
     logger.info('User media imported by URL', {
       appId,
       ownerUserId,
@@ -1765,7 +1993,353 @@ router.post(
 );
 
 // ---------------------------------------------------------------------------
-// Large uploads (ADR 0043 stage 4b): any type, up to 8 GiB, resumable. The
+// Large imports and recording targets (ADR 0042 stage 4c): bytes Oxy fetches
+// or receives before their hash is known (`services/fileIngest.service.ts`).
+// ---------------------------------------------------------------------------
+
+/**
+ * @route GET /api/assets/service/app/imports/:importId
+ * @desc A large import of this application's (answered `202` by the import
+ *       routes) as it stands: `{ importId, status: 'importing' | 'verifying' |
+ *       'completed' | 'failed', source: { host, fetchedAt?, etag?,
+ *       lastModified? }, file?, outcome?: 'downloaded', deduplicated?,
+ *       reference?, error?: { status, code, message } }`. Kept a week after it
+ *       finished. Another application's import is 404.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.get(
+  '/service/app/imports/:importId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: ingestImportParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:app:write']);
+    const row = await fileIngestService.load(
+      req.params.importId,
+      'import',
+      { kind: 'application', applicationId: appId },
+      appId,
+    );
+    sendSuccess(res, serializeImportJob(await fileIngestService.view(row), 'application'));
+  }),
+);
+
+/**
+ * @route GET /api/assets/service/user-media/imports/:importId
+ * @desc As `GET /service/app/imports/:importId`, for a large import into an
+ *       account's files (`x-owner-user-id`), by the application that started it.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.get(
+  '/service/user-media/imports/:importId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: ingestImportParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const ownerUserId = await requireUserMediaOwner(req);
+    const appId = req.serviceApp?.appId;
+    if (typeof appId !== 'string' || appId.length === 0) {
+      throw new ForbiddenError('Service token carries no application id');
+    }
+    const row = await fileIngestService.load(
+      req.params.importId,
+      'import',
+      { kind: 'account', userId: ownerUserId },
+      appId,
+    );
+    sendSuccess(res, serializeImportJob(await fileIngestService.view(row), 'account'));
+  }),
+);
+
+type RecordingTargetBody = z.infer<typeof appRecordingTargetBodySchema>;
+
+/** A recording target as its creator sees it; credentials only in `create`'s answer. */
+function serializeRecordingTarget(view: IngestView, kind: IngestOwner['kind']) {
+  return {
+    targetId: view.id,
+    status: view.status,
+    expiresAt: view.expiresAt,
+    ...(view.size === null ? {} : { size: view.size }),
+    ...(view.file
+      ? {
+          file:
+            kind === 'application'
+              ? serializeApplicationFile(view.file)
+              : serializeUserMediaFile(view.file),
+          deduplicated: view.deduplicated ?? false,
+          ...(view.reference ? { reference: { result: view.reference } } : {}),
+        }
+      : {}),
+    ...(view.error ? { error: { code: view.error.code, message: view.error.message } } : {}),
+  };
+}
+
+/** The S3 configuration a recording target hands out — LiveKit's `S3Upload`, and the generic one. */
+function recordingCredentials(req: express.Request, row: FileIngestRow, secret: string) {
+  const host = req.get('host') ?? '';
+  const endpoint = `${req.protocol}://${host}${req.baseUrl}/recording-ingest`;
+  const filepath = fileIngestService.recordingFilepath(row);
+  return {
+    filepath,
+    s3: {
+      accessKey: row.id,
+      secret,
+      region: RECORDING_REGION,
+      endpoint,
+      bucket: RECORDING_BUCKET,
+      forcePathStyle: true,
+    },
+    livekit: {
+      filepath,
+      s3: {
+        access_key: row.id,
+        secret,
+        region: RECORDING_REGION,
+        endpoint,
+        bucket: RECORDING_BUCKET,
+        force_path_style: true,
+      },
+    },
+  };
+}
+
+/** The creator's owner and application for a recording target route family. */
+type RecordingAdmission = (
+  req: ServiceAuthRequest,
+  wantsReference: boolean,
+) => Promise<{ owner: IngestOwner; creatorApplicationId: string }>;
+
+const admitAppRecording: RecordingAdmission = async (req, wantsReference) => {
+  const appId = await admitAppImport(req, wantsReference);
+  return { owner: { kind: 'application', applicationId: appId }, creatorApplicationId: appId };
+};
+
+const admitUserMediaRecording: RecordingAdmission = async (req, wantsReference) => {
+  const ownerUserId = await requireUserMediaOwner(req);
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  if (wantsReference) await requireActiveApplication(req, ['files:references:write']);
+  return { owner: { kind: 'account', userId: ownerUserId }, creatorApplicationId: appId };
+};
+
+/** The four recording-target handlers for one owner family (mounted below, each documented). */
+function recordingTargetHandlers(
+  kind: IngestOwner['kind'],
+  admit: RecordingAdmission,
+  defaultVisibility: FileVisibility | null,
+) {
+  const load = async (req: ServiceAuthRequest) => {
+    const { owner, creatorApplicationId } = await admit(req, false);
+    return fileIngestService.load(req.params.targetId, 'recording', owner, creatorApplicationId);
+  };
+  return {
+    create: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const body = req.body as RecordingTargetBody;
+      const { owner, creatorApplicationId } = await admit(req, body.reference !== undefined);
+      const visibility = body.visibility ?? defaultVisibility;
+      if (!visibility) throw new BadRequestError('visibility is required');
+      const { row, secret } = await fileIngestService.createRecordingTarget({
+        owner,
+        creatorApplicationId,
+        visibility,
+        ...(body.filename ? { filename: body.filename } : {}),
+        // `metadata.svg` and `metadata.audioOptions` are the server's records, never the caller's.
+        ...(withAudioOptions(withoutServerSvgMetadata(body.metadata), body.audio)
+          ? { metadata: withAudioOptions(withoutServerSvgMetadata(body.metadata), body.audio) }
+          : {}),
+        ...(body.reference ? { reference: body.reference } : {}),
+        ...(body.maxBytes ? { maxBytes: body.maxBytes } : {}),
+        ...(body.expiresInSeconds ? { expiresInSeconds: body.expiresInSeconds } : {}),
+      });
+      res.setHeader('Cache-Control', 'no-store');
+      sendSuccess(
+        res,
+        {
+          ...serializeRecordingTarget(await fileIngestService.view(row), kind),
+          ...recordingCredentials(req, row, secret),
+        },
+        201,
+      );
+    }),
+    describe: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendSuccess(res, serializeRecordingTarget(await fileIngestService.view(row), kind));
+    }),
+    complete: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      const view = await fileIngestService.view(await fileIngestService.completeRecording(row));
+      if ((view.status === 'failed' || view.status === 'aborted') && view.error) {
+        throw new ApiError(view.error.status, view.error.message, view.error.code, {
+          targetId: view.id,
+        });
+      }
+      sendSuccess(
+        res,
+        serializeRecordingTarget(view, kind),
+        view.status === 'verifying' ? 202 : 200,
+      );
+    }),
+    abort: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      const view = await fileIngestService.view(await fileIngestService.abort(row));
+      sendSuccess(res, serializeRecordingTarget(view, kind));
+    }),
+  };
+}
+
+const appRecordingTarget = recordingTargetHandlers('application', admitAppRecording, null);
+const userMediaRecordingTarget = recordingTargetHandlers(
+  'account',
+  admitUserMediaRecording,
+  'private',
+);
+
+/**
+ * @route POST /api/assets/service/app/recording-targets
+ * @desc A place a LiveKit egress (or any S3 client) records into, for a file
+ *       the CALLING APPLICATION will own (ADR 0042 stage 4c). Body `{
+ *       visibility, filename?, metadata?, reference?, maxBytes? (≤ 8 GiB,
+ *       default 8 GiB), expiresInSeconds? (60–604800, default 86400), audio? }`
+ *       → 201 `{ targetId, status: 'awaiting_upload', expiresAt, filepath, s3:
+ *       { accessKey, secret, region, endpoint, bucket, forcePathStyle }, livekit:
+ *       { filepath, s3: { access_key, secret, region, endpoint, bucket,
+ *       force_path_style } } }` — `livekit` is exactly an `EncodedFileOutput`'s
+ *       `filepath` and `s3`. The credentials are an S3-compatible endpoint of
+ *       Oxy's own (`/assets/recording-ingest`, path-style, SigV4) that accepts
+ *       ONE recording under `filepath` (the egress appends its extension;
+ *       audio or video) plus small side objects such as its manifest, which
+ *       are discarded; `PutObject` and the multipart calls the AWS SDK makes.
+ *       The bytes never touch `public/`; once the object is complete Oxy
+ *       hashes it and stores it as a file through the large-upload
+ *       finalization (dedupe, blocklist, a third-party application's plan),
+ *       with the `reference` asked for. The secret is shown only here.
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         for `reference`), on an active application
+ */
+router.post(
+  '/service/app/recording-targets',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appRecordingTargetBodySchema }),
+  appRecordingTarget.create,
+);
+
+/**
+ * @route GET /api/assets/service/app/recording-targets/:targetId
+ * @desc A recording target as it stands: `status` (`awaiting_upload` |
+ *       `receiving` | `verifying` | `completed` | `failed` | `aborted`),
+ *       `size`, the `file` once completed, the `error` once failed. Another
+ *       application's target is 404.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.get(
+  '/service/app/recording-targets/:targetId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: recordingTargetParams }),
+  appRecordingTarget.describe,
+);
+
+/**
+ * @route POST /api/assets/service/app/recording-targets/:targetId/complete
+ * @desc Wait for the recording to be a file (Oxy finalizes it on its own once
+ *       the object is complete; this is how the creator learns the outcome):
+ *       200 `{ status: 'completed', file, deduplicated, reference? }`, 202 `{
+ *       status: 'verifying' }` after 20 s (call again or poll the GET), 409
+ *       `RECORDING_NOT_RECEIVED` before the object is complete, a failed
+ *       target's own error (451 `CONTENT_BLOCKED`, 413
+ *       `STORAGE_QUOTA_EXCEEDED` / `PAYLOAD_TOO_LARGE`, 410 `EXPIRED` /
+ *       `ABORTED` / `OWNER_GONE`, 422 `EMPTY_RECORDING`). Idempotent.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/recording-targets/:targetId/complete',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ params: recordingTargetParams }),
+  appRecordingTarget.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/app/recording-targets/:targetId
+ * @desc Abort a recording target nothing was recorded into yet (or whose
+ *       upload is in progress): its credentials stop working and what it
+ *       received is deleted. 409 while it is being verified.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.delete(
+  '/service/app/recording-targets/:targetId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: recordingTargetParams }),
+  appRecordingTarget.abort,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/recording-targets
+ * @desc The account-owned twin of `POST /service/app/recording-targets`, with
+ *       `/service/user-media`'s authority and owner (`x-owner-user-id` on
+ *       EVERY call); `visibility` defaults to `private`. The recording becomes
+ *       the person's file, which the creating application may read back
+ *       until the person revokes that (ADR 0042 stage 4c).
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/recording-targets',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ body: userMediaRecordingTargetBodySchema }),
+  userMediaRecordingTarget.create,
+);
+
+/**
+ * @route GET /api/assets/service/user-media/recording-targets/:targetId
+ * @desc As `GET /service/app/recording-targets/:targetId`, for an account's target.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.get(
+  '/service/user-media/recording-targets/:targetId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: recordingTargetParams }),
+  userMediaRecordingTarget.describe,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/recording-targets/:targetId/complete
+ * @desc As `POST /service/app/recording-targets/:targetId/complete`, for an account's target.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/recording-targets/:targetId/complete',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ params: recordingTargetParams }),
+  userMediaRecordingTarget.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/user-media/recording-targets/:targetId
+ * @desc As `DELETE /service/app/recording-targets/:targetId`, for an account's target.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.delete(
+  '/service/user-media/recording-targets/:targetId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: recordingTargetParams }),
+  userMediaRecordingTarget.abort,
+);
+
+// ---------------------------------------------------------------------------
+// Large uploads (ADR 0042 stage 4b): any type, up to 8 GiB, resumable. The
 // client PUTs parts to S3 on presigned URLs; the API verifies the assembled
 // bytes against the declared SHA-256 before they become a file
 // (`services/fileUploadSession.service.ts`).
@@ -1872,8 +2446,11 @@ function largeUploadHandlers(
     open: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
       const body = req.body as LargeUploadBody;
       const { owner, uploaderApplicationId } = await admit(req, body.reference !== undefined);
+      const { audio, metadata, ...rest } = body;
+      const withAudio = withAudioOptions(metadata, audio);
       const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
-        ...body,
+        ...rest,
+        ...(withAudio ? { metadata: withAudio } : {}),
         visibility: body.visibility ?? 'public',
       });
       sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
@@ -2776,9 +3353,11 @@ const assetLinkedUrlLimiter = rateLimit({
   },
 });
 
-// The linked-url predicate — the file's own owner attached it to the calling
-// application (ADR 0021) — is `isOwnerReferencedToApp` in
-// `services/fileReference.service.ts`, shared with the reference routes.
+// The linked-url predicate — the application's own file, or a person's file
+// the person consented to it reading (it stored the file for them, or they
+// attached it to it — ADR 0021 — and never after they revoked it; ADR 0042
+// stage 4c) — is `mayApplicationRead` in `services/fileReference.service.ts`,
+// shared with the reference routes and play sessions.
 
 /**
  * @openapi
@@ -2789,14 +3368,17 @@ const assetLinkedUrlLimiter = rateLimit({
  *     summary: Mint short-lived download URLs for files linked to the calling app
  *     description: >
  *       Service-token-only. Given up to 25 file ids, returns a short-lived
- *       direct download URL for each file that THE FILE'S OWN OWNER attached to
- *       the calling application — i.e. a `file_references` row whose
+ *       direct download URL for each of the caller's OWN files (ADR 0042) and
+ *       for each person's file the person consented to the calling application
+ *       reading (ADR 0042 stage 4c): one the application stored for them
+ *       (`/service/user-media` upload, import, large upload or recording), or
+ *       one THE FILE'S OWN OWNER attached to it (a `file_references` row whose
  *       `application_id` is the caller's and whose `created_by_user_id` is the
- *       file's `owner_user_id` — and for each of the caller's OWN files (ADR
- *       0043). Any other id is silently OMITTED from `data`: unknown, deleted,
- *       system-owned, not referenced for this app, or referenced by somebody
- *       other than the owner (an application's own service-made reference
- *       never qualifies). The
+ *       file's `owner_user_id`) — unless the person revoked the application's
+ *       access (`DELETE /assets/{id}/access/{applicationId}`). Any other id is
+ *       silently OMITTED from `data`: unknown, not active, system-owned,
+ *       another application's, not consented, or revoked (an application's own
+ *       service-made reference never qualifies). The
  *       batch never 404s as a whole and never returns a placeholder or an empty
  *       string for a refused id, so a caller cannot tell "no such file" from
  *       "not yours" — and must treat absence as "no URL", never as an error to
@@ -2884,8 +3466,8 @@ router.post(
 
     const data = await Promise.all(
       files
-        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
-        .filter((file) => isServableStatus(file) && isOwnerReferencedToApp(file, appId))
+        // Only an `active` file is ever served (ADR 0042 D5): trash is not.
+        .filter((file) => isServableStatus(file) && mayApplicationRead(file, appId))
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
@@ -3054,6 +3636,407 @@ router.post(
   }),
 );
 
+// ---------------------------------------------------------------------------
+// Play sessions (ADR 0042 stage 4c): per-play, revocable access to a file's
+// HLS ladder, optionally AES-128 encrypted with a key the product authorizes.
+// `services/playSession.service.ts` and `services/hlsStreamServing.ts`.
+// ---------------------------------------------------------------------------
+
+/** Per-application ceiling for opening and revoking play sessions. */
+const PLAY_SESSION_MAX_PER_MINUTE = 600;
+
+const playSessionLimiter = rateLimit({
+  prefix: 'rl:asset-play-session:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: PLAY_SESSION_MAX_PER_MINUTE,
+  message: 'Too many play session requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-play-session:${serviceApp.appId}`;
+    }
+    return `asset-play-session:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * The public stream surface is exempt from the per-address browser limiters
+ * (`middleware/security.isCapabilityUrlPath`): a player is machine-paced and
+ * many listeners share an address. These two are its budgets instead — a
+ * per-address flood ceiling, then a per-session one (a few segments a second
+ * is far above any real player).
+ */
+const streamObjectAddressLimiter = rateLimit({
+  prefix: 'rl:asset-stream-object:ip:',
+  windowMs: 15 * 60 * 1000,
+  max: 60_000,
+  message: 'Too many stream requests from this address.',
+  keyGenerator: (req: express.Request) => `asset-stream-object:ip:${hashedIpKey(req)}`,
+});
+
+const streamObjectSessionLimiter = rateLimit({
+  prefix: 'rl:asset-stream-object:session:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: 600,
+  message: 'Too many requests for this play session.',
+  keyGenerator: (req: express.Request) => {
+    const token = typeof req.params.token === 'string' ? req.params.token : '';
+    const dot = token.indexOf('.');
+    return `asset-stream-object:session:${dot > 0 ? token.slice(0, Math.min(dot, 64)) : 'malformed'}`;
+  },
+});
+
+/** The stored ladder's playlists, read from storage once per task (immutable objects). */
+const readStoredPlaylist = cachedPlaylistReader((key) => s3Service.downloadBuffer(key));
+
+function playlistBasename(key: string): string {
+  return key.slice(key.lastIndexOf('/') + 1);
+}
+
+function variantBandwidth(variant: FileVariantRecord): number | null {
+  const bandwidth = variant.metadata?.bandwidth;
+  return typeof bandwidth === 'number' && Number.isFinite(bandwidth) ? bandwidth : null;
+}
+
+/**
+ * A session as its application sees it. The URLs exist only in the answer
+ * that opened it (`base`): the URL secret is not stored.
+ */
+function serializePlaySession(row: FilePlaySessionRow, file: FileRecord | null, base?: string) {
+  return {
+    sessionId: row.id,
+    fileId: row.fileId,
+    kind: file?.mime.startsWith('audio/') ? 'audio' : 'video',
+    status: playSessionStatus(row),
+    encryption: row.encryption,
+    keyAuthorization: row.keyAuthorization,
+    endUserId: row.endUserId,
+    expiresAt: row.expiresAt,
+    ...(row.revokedAt ? { revokedAt: row.revokedAt } : {}),
+    ...(base && file
+      ? {
+          masterUrl: `${base}${MASTER_PLAYLIST_NAME}`,
+          renditions: readyRenditions(file).map((variant) => ({
+            type: variant.type,
+            url: `${base}${playlistBasename(variant.key)}`,
+            bandwidth: variantBandwidth(variant),
+          })),
+          ...(file.variants.some((variant) => variant.type === 'preview' && variant.readyAt)
+            ? { previewUrl: `${base}${PREVIEW_NAME}` }
+            : {}),
+          ...(file.variants.some((variant) => variant.type === 'waveform' && variant.readyAt)
+            ? { waveformUrl: `${base}${WAVEFORM_NAME}` }
+            : {}),
+        }
+      : {}),
+  };
+}
+
+/**
+ * @route POST /api/assets/service/streams
+ * @desc Open a play session over a file's HLS ladder (ADR 0042 stage 4c): a
+ *       short-lived, revocable set of URLs for ONE file, optionally for one
+ *       end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default
+ *       3600), encryption? ('aes-128' default | 'none'), keyAuthorization?
+ *       ('none' default | 'webhook') }`. The file must be the calling
+ *       application's own, or a person's file the application may read (it
+ *       stored it for them, or they attached it to it, and did not revoke
+ *       that — `files:linked:read`); anything else is 404, like no file. 409
+ *       `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,
+ *       fileId, kind: 'video' | 'audio', status: 'active', encryption,
+ *       keyAuthorization, endUserId, expiresAt, masterUrl, renditions: [{
+ *       type, url, bandwidth }], previewUrl?, waveformUrl? }` — the URLs are
+ *       bearer authority for this session only and are shown once. Every
+ *       request under them re-checks the session, so revoking it (`DELETE`),
+ *       the owner revoking the application's access, or the file leaving
+ *       `active` stops the next segment. With `aes-128` the segments are
+ *       encrypted as served under a key of this session, released at
+ *       `<base>/key`; with `keyAuthorization: 'webhook'` only after the
+ *       application's verified file-events endpoint answers `{ "allow": true
+ *       }` to a signed `stream.key_authorization` request (409
+ *       `FILES_WEBHOOK_REQUIRED` without one).
+ * @access Service token only: `files:linked:read` (a person's file) or
+ *         `files:app:write` (the application's own), on an active application
+ */
+router.post(
+  '/service/streams',
+  serviceAuthMiddleware,
+  playSessionLimiter,
+  validate({ body: playSessionBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:linked:read', 'files:app:write']);
+    const body = req.body as z.infer<typeof playSessionBodySchema>;
+    const file = await assetService.getFile(body.fileId);
+    const consent = file && isServableStatus(file) ? applicationReadConsent(file, appId) : null;
+    if (!file || !consent) throw new NotFoundError('File not found');
+    // Reading a PERSON's file is `files:linked:read`'s authority, never `files:app:write`'s.
+    if (consent !== 'owner') requireServiceScope(req, 'files:linked:read');
+    if (!readyMasterPlaylist(file)) {
+      throw new ApiError(409, 'This file has no streaming renditions yet', 'STREAM_NOT_READY');
+    }
+    const { row, secret } = await openPlaySession({
+      file,
+      applicationId: appId,
+      endUserId: body.endUserId ?? null,
+      ttlSeconds: body.ttlSeconds ?? PLAY_SESSION_DEFAULT_TTL_SECONDS,
+      encryption: body.encryption ?? 'aes-128',
+      keyAuthorization: body.keyAuthorization ?? 'none',
+    });
+    const host = req.get('host') ?? '';
+    const base = `${req.protocol}://${host}${req.baseUrl}/streams/${row.id}.${secret}/`;
+    res.setHeader('Cache-Control', 'no-store');
+    sendSuccess(res, serializePlaySession(row, file, base), 201);
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/streams/revoke
+ * @desc Revoke every live play session of the calling application for a file
+ *       and/or an end user: `{ fileId?, endUserId? }` (at least one) → `{
+ *       revoked }`, the number ended. Effective on every API task at once.
+ * @access Service token only: `files:linked:read` or `files:app:write`, on an active application
+ */
+router.post(
+  '/service/streams/revoke',
+  serviceAuthMiddleware,
+  playSessionLimiter,
+  validate({ body: revokePlaySessionsBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:linked:read', 'files:app:write']);
+    const body = req.body as z.infer<typeof revokePlaySessionsBodySchema>;
+    const revoked = await revokePlaySessionsWhere(appId, body, 'application');
+    sendSuccess(res, { revoked });
+  }),
+);
+
+/**
+ * @route GET /api/assets/service/streams/:sessionId
+ * @desc One of the calling application's play sessions: `status` (`active` |
+ *       `revoked` | `expired`), `revokedAt`, `expiresAt`. The URLs are not
+ *       shown again. Another application's session is 404.
+ * @access Service token only: `files:linked:read` or `files:app:write`, on an active application
+ */
+router.get(
+  '/service/streams/:sessionId',
+  serviceAuthMiddleware,
+  playSessionLimiter,
+  validate({ params: playSessionParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:linked:read', 'files:app:write']);
+    const row = await loadApplicationPlaySession(req.params.sessionId, appId);
+    sendSuccess(res, serializePlaySession(row, await assetService.getFile(row.fileId)));
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/streams/:sessionId
+ * @desc Revoke one of the calling application's play sessions NOW: the next
+ *       playlist, segment or key request under its URLs is refused, on every
+ *       API task. Idempotent: `{ sessionId, revoked: true }`. Another
+ *       application's session is 404.
+ * @access Service token only: `files:linked:read` or `files:app:write`, on an active application
+ */
+router.delete(
+  '/service/streams/:sessionId',
+  serviceAuthMiddleware,
+  playSessionLimiter,
+  validate({ params: playSessionParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:linked:read', 'files:app:write']);
+    const row = await loadApplicationPlaySession(req.params.sessionId, appId);
+    await revokePlaySession(row, 'application');
+    sendSuccess(res, { sessionId: row.id, revoked: true });
+  }),
+);
+
+/** A session object request that is not (or no longer) servable — said the same for every cause. */
+function invalidPlaySession(): ApiError {
+  return new ApiError(404, 'This play session is not valid', 'PLAY_SESSION_INVALID');
+}
+
+/**
+ * @route GET /api/assets/streams/:token/:name
+ * @desc What a play session's URLs name (ADR 0042 stage 4c): `master.m3u8`,
+ *       a rendition playlist, a segment it lists, `key` (the AES-128 key, 16
+ *       bytes), `preview.m4a` and `waveform.json` (audio). The token is
+ *       `<sessionId>.<secret>`; every request checks the session (live, not
+ *       revoked, not expired), the file (`active`) and that the application
+ *       may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An
+ *       encrypted session's rendition playlists declare the key and its
+ *       segments are AES-128-CBC encrypted as served (IV = media sequence
+ *       number). The key with key authorization: 403
+ *       `KEY_AUTHORIZATION_DENIED` unless the application allowed it. CORS is
+ *       open (`*`, no credentials): the URL is the credential.
+ * @access Public — the URL token is the authority
+ */
+router.get(
+  '/streams/:token/:name',
+  mediaHeadersMiddleware,
+  streamObjectAddressLimiter,
+  validate({ params: streamObjectParams }),
+  streamObjectSessionLimiter,
+  asyncHandler(async (req: express.Request, res: express.Response) => {
+    // The URL is the credential: any origin may play it, and no cookie or
+    // bearer is ever involved.
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.removeHeader('Access-Control-Allow-Credentials');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+
+    const session = await resolveServingSession(req.params.token);
+    const file = session ? await assetService.getFile(session.row.fileId) : null;
+    if (
+      !session ||
+      !file ||
+      !isServableStatus(file) ||
+      !mayApplicationRead(file, session.row.applicationId)
+    ) {
+      res.setHeader('Cache-Control', 'no-store');
+      throw invalidPlaySession();
+    }
+    const object = await resolveStreamObject(file, req.params.name, readStoredPlaylist);
+    if (!object) {
+      res.setHeader('Cache-Control', 'no-store');
+      throw new NotFoundError('Not part of this stream');
+    }
+
+    if (object.kind === 'key') {
+      res.setHeader('Cache-Control', 'no-store');
+      if (!session.contentKey) throw new NotFoundError('This stream is not encrypted');
+      if (!(await authorizeKeyRelease(session))) {
+        throw new ApiError(
+          403,
+          'The application did not authorize this key',
+          'KEY_AUTHORIZATION_DENIED',
+        );
+      }
+      res.setHeader('Content-Type', streamContentType(object));
+      res.setHeader('Content-Length', String(session.contentKey.length));
+      return res.status(200).end(session.contentKey);
+    }
+
+    if (object.kind === 'master' || object.kind === 'rendition') {
+      const playlist = await readStoredPlaylist(object.variant.key);
+      const text =
+        object.kind === 'rendition' && session.contentKey
+          ? encryptedRenditionPlaylist(playlist.text)
+          : playlist.text;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Type', streamContentType(object));
+      return res.status(200).end(text);
+    }
+
+    const key = object.kind === 'segment' ? object.key : object.variant.key;
+    const encrypt = object.kind === 'segment' && session.contentKey !== null;
+    const rangeHeader =
+      !encrypt && typeof req.headers.range === 'string' ? req.headers.range : undefined;
+    let stored: Awaited<ReturnType<typeof s3Service.getObjectStreamRange>>;
+    try {
+      stored = await s3Service.getObjectStreamRange(key, rangeHeader);
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      if (name === 'NoSuchKey' || name === 'NotFound') throw new NotFoundError('Not found');
+      throw error;
+    }
+    res.setHeader('Content-Type', streamContentType(object, stored.contentType));
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    if (encrypt && object.kind === 'segment' && session.contentKey) {
+      if (stored.contentLength != null) {
+        res.setHeader('Content-Length', String(encryptedLength(stored.contentLength)));
+      }
+      res.status(200);
+      const cipher = segmentCipher(session.contentKey, object.mediaSequence);
+      const body = stored.body as unknown as NodeJS.ReadableStream;
+      body.on('error', (error: Error) => cipher.destroy(error));
+      cipher.on('error', (error: Error) => {
+        logger.error('Encrypted segment stream failed', { error: error.message });
+        res.destroy(error);
+      });
+      body.pipe(cipher).pipe(res);
+      return;
+    }
+    if (stored.contentLength != null) res.setHeader('Content-Length', String(stored.contentLength));
+    if (stored.contentRange) res.setHeader('Content-Range', stored.contentRange);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.status(stored.statusCode);
+    stored.body.on('error', (error: Error) => {
+      logger.error('Stream session object failed', { error: error.message });
+      res.destroy(error);
+    });
+    stored.body.pipe(res);
+  }),
+);
+
+/**
+ * @route GET /api/assets/:id/access
+ * @desc The applications that can read the caller's file with their service
+ *       token right now (ADR 0042 stage 4c), for "Apps with access": `{
+ *       fileId, applications: [{ applicationId, name, icon, via: ('upload' |
+ *       'link')[], since }] }` — `upload`: the application stored the file
+ *       for you; `link`: you attached the file to it. Anybody but the owner
+ *       gets 404.
+ * @access Private — the file's owner only
+ */
+router.get(
+  '/:id/access',
+  authMiddleware,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    if (!req.user?._id) throw new UnauthorizedError('Authentication required');
+    const file = await assetService.getFile(req.params.id);
+    if (!file || file.status === 'deleted' || !(await sessionOwnsFile(req, file))) {
+      throw new NotFoundError('File not found');
+    }
+    const access = await listApplicationAccess(file);
+    sendSuccess(res, {
+      fileId: file.id,
+      applications: access.map((entry) => ({ ...entry, since: entry.since.toISOString() })),
+    });
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/:id/access/:applicationId
+ * @desc The owner withdraws an application's access to their file (ADR 0042
+ *       stage 4c): whatever gave it — the application stored it for them, or
+ *       they attached it to it — the application can no longer read it
+ *       (`/service/linked-url`, play sessions), and every play session it
+ *       holds for the file ends now. It stays withdrawn when the application
+ *       uploads the same bytes again; attaching the file to that application
+ *       again (`POST /assets/{id}/links`) gives it back. References the
+ *       application holds are kept: they record its USE, which is not access.
+ *       Idempotent: `{ fileId, applicationId, revoked: true, streamsRevoked }`.
+ *       404 for anybody but the owner, and for an unknown application.
+ * @access Private — the file's owner only
+ */
+router.delete(
+  '/:id/access/:applicationId',
+  authMiddleware,
+  validate({ params: fileAccessParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    if (!req.user?._id) throw new UnauthorizedError('Authentication required');
+    const { id: fileId, applicationId } = req.params;
+    const file = await assetService.getFile(fileId);
+    if (!file || file.status === 'deleted' || !(await sessionOwnsFile(req, file))) {
+      throw new NotFoundError('File not found');
+    }
+    if (!(await applicationExists(applicationId))) {
+      throw new NotFoundError('Application not found');
+    }
+    const { streamsRevoked } = await revokeApplicationAccess(
+      file.id,
+      applicationId,
+      req.user._id.toString(),
+    );
+    logger.info('Owner revoked an application’s access to a file', {
+      fileId: file.id,
+      applicationId,
+      streamsRevoked,
+    });
+    sendSuccess(res, { fileId: file.id, applicationId, revoked: true, streamsRevoked });
+  }),
+);
+
 /**
  * The application a signed-in session's reference is recorded under (ADR 0043
  * D4, the compatibility surface).
@@ -3141,6 +4124,12 @@ router.post(
       // `webhookUrl` in the body is ignored (ADR 0043 D9): file events go to
       // the application's own verified endpoint.
     });
+    // Attaching their file to the application is the owner's explicit consent
+    // for it to read the file (ADR 0021), which lifts an earlier revocation of
+    // that application's access (ADR 0042 stage 4c).
+    if (target.ownerUserId) {
+      await restoreAccessByOwner(fileId, applicationId, user._id.toString());
+    }
 
     logger.info('File linked successfully', {
       userId: user._id,
@@ -3567,6 +4556,7 @@ router.get(
       if (fallback === 'placeholderVisible' || fallback === 'icon') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Content-Security-Policy', SVG_PLACEHOLDER_CSP);
         res.setHeader('Cache-Control', 'no-store');
         return res.status(200).end(svg);
       }
@@ -3587,6 +4577,7 @@ router.get(
       if (fallback === 'placeholderVisible' || fallback === 'icon') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Content-Security-Policy', SVG_PLACEHOLDER_CSP);
         res.setHeader('Cache-Control', 'no-store');
         return res.status(200).end(svg);
       }
@@ -3618,6 +4609,7 @@ router.get(
         if (fallback === 'icon' || fallback === 'placeholderVisible') {
           const svg = generateMissingFilePlaceholder(fileId);
           res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Content-Security-Policy', SVG_PLACEHOLDER_CSP);
           res.setHeader('Cache-Control', 'no-store');
           return res.status(200).end(svg);
         }
@@ -3663,6 +4655,7 @@ router.get(
       if (fallback === 'icon' || fallback === 'placeholderVisible') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Content-Security-Policy', SVG_PLACEHOLDER_CSP);
         res.setHeader('Cache-Control', 'no-store');
         return res.status(200).end(svg);
       }
@@ -3711,13 +4704,21 @@ router.get(
         res.setHeader('Content-Type', streamInfo.contentType);
       }
       // Only media a browser renders without running anything is inline; any
-      // other type (HTML, SVG, XML… a mail attachment, a large upload) is a
+      // other type (HTML, XML… a mail attachment, a large upload) is a
       // download, and sandboxed in case a browser renders it anyway — it must
-      // never run as this origin (ADR 0043 stage 4b, `fileContentPolicy.ts`).
-      if (contentDispositionFor(streamInfo.contentType ?? file.mime) === 'attachment') {
-        res.setHeader('Content-Disposition', 'attachment');
-        res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-      }
+      // never run as this origin (ADR 0042 stage 4b, `fileContentPolicy.ts`).
+      // An SVG is inline only when Oxy sanitized it (stage 4c) — with a CSP
+      // that loads nothing and sandboxes a direct navigation; any other SVG
+      // (a mail attachment kept byte for byte, a legacy row) is a download.
+      const servedType = streamInfo.contentType ?? file.mime;
+      const servedSvg = isSvgType(servedType) || servedType.toLowerCase().startsWith('image/svg');
+      const inline = servedSvg
+        ? isSanitizedSvgFile(file) && storageKey === file.storageKey
+        : contentDispositionFor(servedType) === 'inline';
+      const policy = inline ? contentSecurityPolicyFor(servedType) : ATTACHMENT_CSP;
+      if (!inline) res.setHeader('Content-Disposition', 'attachment');
+      if (policy) res.setHeader('Content-Security-Policy', policy);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       if (streamInfo.contentLength != null) {
         res.setHeader('Content-Length', String(streamInfo.contentLength));
       }
@@ -3760,6 +4761,7 @@ router.get(
         if (fallback === 'icon' || fallback === 'placeholderVisible') {
           const svg = generateMissingFilePlaceholder(fileId);
           res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Content-Security-Policy', SVG_PLACEHOLDER_CSP);
           res.setHeader('Cache-Control', 'no-store');
           return res.status(200).end(svg);
         }

@@ -4,11 +4,14 @@
  */
 
 import {
+  ATTACHMENT_CONTENT_SECURITY_POLICY,
   contentDispositionFor,
+  contentSecurityPolicyFor,
   fileNameExtension,
   isDeniedUploadType,
   isInlineServableType,
   LARGE_UPLOAD_MAX_BYTES,
+  SVG_CONTENT_SECURITY_POLICY,
   LARGE_UPLOAD_MAX_PARTS,
   largeUploadPartSize,
   normalizeContentType,
@@ -29,7 +32,9 @@ describe('isDeniedUploadType', () => {
   it.each([
     ['text/html'],
     ['application/xhtml+xml'],
-    ['image/svg+xml'],
+    // Every SVG spelling but `image/svg+xml`, which is sanitized (stage 4c).
+    ['image/svg'],
+    ['image/svg-xml'],
     ['application/javascript'],
     ['text/xml'],
     ['application/x-msdownload'],
@@ -43,6 +48,14 @@ describe('isDeniedUploadType', () => {
     expect(isDeniedUploadType('application/octet-stream', 'Setup.EXE')).toBe(true);
     expect(isDeniedUploadType('application/zip', 'page.html')).toBe(true);
     expect(isDeniedUploadType('text/plain', 'run.sh')).toBe(true);
+    // A `.svg` name is an SVG only when declared as one (then sanitized); a
+    // compressed `.svgz` never is.
+    expect(isDeniedUploadType('application/octet-stream', 'logo.svg')).toBe(true);
+    expect(isDeniedUploadType('image/svg+xml', 'logo.SVGZ')).toBe(true);
+  });
+
+  it('admits image/svg+xml, which every path sanitizes', () => {
+    expect(isDeniedUploadType('image/svg+xml', 'logo.svg')).toBe(false);
   });
 
   it.each([
@@ -61,12 +74,25 @@ describe('serving', () => {
     for (const type of ['image/png', 'video/mp4', 'audio/mpeg', 'application/pdf', 'text/plain']) {
       expect({ type, inline: isInlineServableType(type) }).toEqual({ type, inline: true });
     }
-    for (const type of ['image/svg+xml', 'text/html', 'application/zip', 'application/json']) {
+    for (const type of ['image/svg', 'text/html', 'application/zip', 'application/json']) {
       expect({ type, disposition: contentDispositionFor(type) }).toEqual({
         type,
         disposition: 'attachment',
       });
     }
+  });
+
+  it('serves a (sanitized) SVG inline under a CSP that loads nothing and sandboxes navigation', () => {
+    expect(contentDispositionFor('image/svg+xml')).toBe('inline');
+    expect(contentSecurityPolicyFor('image/svg+xml; charset=utf-8')).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    );
+    expect(SVG_CONTENT_SECURITY_POLICY).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    );
+    expect(contentSecurityPolicyFor('application/zip')).toBe(ATTACHMENT_CONTENT_SECURITY_POLICY);
+    expect(contentSecurityPolicyFor('text/html')).toBe("sandbox; default-src 'none'");
+    expect(contentSecurityPolicyFor('image/png')).toBeNull();
   });
 });
 

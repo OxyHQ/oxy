@@ -36,7 +36,7 @@
  */
 
 import express from 'express';
-import http from 'http';
+import type http from 'http';
 import type { AddressInfo } from 'net';
 
 const OWNER_ID = '64a0000000000000000000a1';
@@ -134,6 +134,7 @@ function fileRow(
     originalName: `${id}.stl`,
     links: options.links,
     variants: [],
+    accessGrants: [],
   };
 }
 

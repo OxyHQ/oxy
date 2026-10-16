@@ -52,6 +52,10 @@ const mockS3 = {
     mockObjects.set(key, { bytes: Buffer.concat(chunks), contentType: options?.contentType });
     return {};
   }),
+  uploadBuffer: jest.fn(async (key: string, bytes: Buffer, options?: { contentType?: string }) => {
+    mockObjects.set(key, { bytes: Buffer.from(bytes), contentType: options?.contentType });
+    return {};
+  }),
   fileExists: jest.fn(async (key: string) => mockObjects.has(key)),
   headObject: jest.fn(async (key: string) => {
     const object = mockObjects.get(key);
@@ -453,6 +457,53 @@ describe('POST /assets/service/app/uploads — any type, verified', () => {
     expect(mockObjects.has(session.stagingKey)).toBe(false);
   });
 
+  it('stores an SVG only as its sanitized document, hashed as such (stage 4c)', async () => {
+    const appId = await application();
+    actAs(appId);
+    const raw = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4" onload="alert(1)"><script>alert(2)</script><rect width="4" height="4" fill="#123456"/></svg>',
+    );
+
+    const { open, complete } = await uploadWhole('/assets/service/app/uploads', raw, {
+      mime: 'image/svg+xml',
+      visibility: 'public',
+      filename: 'logo.svg',
+      metadata: { svg: { sanitizer: 'dompurify@spoofed', originalSha256: 'x' } },
+    });
+
+    expect(open.status).toBe(201);
+    expect(complete.status).toBe(200);
+    const stored = await fileRow(complete.body.data.file.id);
+    const bytes = mockObjects.get(stored.storageKey)?.bytes as Buffer;
+    expect(bytes.toString()).not.toMatch(/script|onload|alert/);
+    expect(bytes.toString()).toContain('fill="#123456"');
+    expect(stored.sha256).toBe(sha(bytes));
+    expect(stored.sha256).not.toBe(sha(raw));
+    expect(stored.mime).toBe('image/svg+xml');
+    expect(stored.metadata).toMatchObject({
+      svg: { originalSha256: sha(raw), sanitizer: expect.stringMatching(/^dompurify@\d/) },
+    });
+    // Neither the bytes as uploaded nor the sanitized staging copy is left.
+    const session = await sessionRow(open.body.data.uploadId);
+    expect(mockObjects.has(session.stagingKey)).toBe(false);
+    expect([...mockObjects.values()].some((object) => object.bytes.equals(raw))).toBe(false);
+  });
+
+  it('fails an upload whose SVG is not an SVG document, leaving nothing', async () => {
+    actAs(await application());
+    const raw = Buffer.from('<html><body>not an svg</body></html>');
+    const { open, complete } = await uploadWhole('/assets/service/app/uploads', raw, {
+      mime: 'image/svg+xml',
+      visibility: 'private',
+    });
+
+    expect(complete.status).toBe(415);
+    expect(complete.body.error).toBe('INVALID_SVG');
+    const session = await sessionRow(open.body.data.uploadId);
+    expect(session).toMatchObject({ status: 'failed', errorCode: 'INVALID_SVG', fileId: null });
+    expect(mockObjects.has(session.stagingKey)).toBe(false);
+  });
+
   it('refuses bytes that do not hash to the declared sha256: no row, no object', async () => {
     actAs(await application());
     const declared = randomBytes(1024);
@@ -490,7 +541,10 @@ describe('POST /assets/service/app/uploads — any type, verified', () => {
       });
 
     expect((await open({ mime: 'text/html' })).status).toBe(415);
-    expect((await open({ mime: 'image/svg+xml' })).status).toBe(415);
+    // Every SVG spelling but image/svg+xml (sanitized, stage 4c), and an SVG
+    // over the sanitizer's 5 MiB.
+    expect((await open({ mime: 'image/svg' })).status).toBe(415);
+    expect((await open({ mime: 'image/svg+xml', size: 5 * 1024 * 1024 + 1 })).status).toBe(413);
     expect((await open({ mime: 'application/x-msdownload' })).status).toBe(415);
     expect((await open({ mime: 'application/octet-stream', filename: 'setup.EXE' })).status).toBe(
       415,

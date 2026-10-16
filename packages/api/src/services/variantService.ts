@@ -39,13 +39,47 @@ import {
   upsertVariant,
 } from './fileRepository';
 import { playlistSiblingKey } from './hlsPlaylist';
+import { isSvgType } from '../utils/svgSanitizer';
+import os from 'node:os';
+import {
+  audioFfmpegTimeoutMs,
+  audioMasterPlaylist,
+  audioProfileOf,
+  audioProfileSegment,
+  audioProtocolWhitelist,
+  AUDIO_HLS_SEGMENT_SECONDS,
+  AUDIO_PREVIEW_FADE_SECONDS,
+  AUDIO_SAMPLE_RATE,
+  LOUDNORM_FILTER,
+  measureBandwidth,
+  mediaPlaylistSegments,
+  previewStem,
+  previewWindow,
+  runFfmpeg,
+  sameAudioProfile,
+  selectAudioRungs,
+  WaveformAccumulator,
+  WAVEFORM_SAMPLE_RATE,
+  type AudioProbe,
+  type AudioProfile,
+  type AudioRung,
+} from './audioRenditions';
 
 /**
  * `files.metadata` keys that describe the BYTES (written by generation from the
  * decode pass), as opposed to what an uploader or application said about its
  * row. Only these travel between rows for the same content.
  */
-const INTRINSIC_METADATA_KEYS: ReadonlySet<string> = new Set(['media', 'image', 'video']);
+const INTRINSIC_METADATA_KEYS: ReadonlySet<string> = new Set(['media', 'image', 'video', 'audio']);
+
+/** Cap on a preview clip's bytes buffered from ffmpeg (30 s of AAC is ~0.5 MiB). */
+const AUDIO_PREVIEW_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+/** Whether `twin`'s rendition set may stand for `file`'s: always, unless both are audio processed differently. */
+function sameRenditionProfile(file: FileRecord, twin: FileRecord): boolean {
+  if (!file.mime.startsWith('audio/')) return true;
+  return sameAudioProfile(audioProfileOf(file), audioProfileOf(twin));
+}
 
 // FFprobe metadata interfaces for type safety
 interface FFprobeStream {
@@ -54,6 +88,9 @@ interface FFprobeStream {
   width?: number;
   height?: number;
   r_frame_rate?: string;
+  sample_rate?: string;
+  channels?: number;
+  bit_rate?: string;
 }
 
 interface FFprobeFormat {
@@ -291,6 +328,33 @@ export interface VideoVariantConfig {
  * 0043 D5, D10) is not on the CDN, and a rendition generated for it must not
  * put it back there.
  */
+/** The most pixels an SVG is rendered to, whatever its declared size (a sanitized SVG is still a decompression bomb candidate). */
+const SVG_RENDER_PIXEL_LIMIT = 64_000_000;
+/** librsvg's density bounds (dpi); 72 renders an SVG at its intrinsic size. */
+const SVG_BASE_DENSITY = 72;
+const SVG_MAX_DENSITY = 2400;
+
+/**
+ * Sharp's input options for a stored image. An SVG (always a sanitized one,
+ * ADR 0042 stage 4c — it references nothing outside itself, and librsvg loads
+ * nothing for an in-memory buffer) is a vector: given the rendition's
+ * `targetWidth` it is rasterized at the density that draws it at that width,
+ * so a 24-pixel icon renders a crisp 2048-pixel rendition rather than an
+ * upscaled blur; the pixels rendered are bounded either way.
+ */
+function imageInputOptions(
+  mime: string,
+  render: { intrinsicWidth?: number; targetWidth?: number } = {},
+): sharp.SharpOptions {
+  if (!isSvgType(mime)) return { failOn: 'none' };
+  const { intrinsicWidth, targetWidth } = render;
+  const density =
+    intrinsicWidth && targetWidth
+      ? Math.min(SVG_MAX_DENSITY, Math.max(1, (SVG_BASE_DENSITY * targetWidth) / intrinsicWidth))
+      : SVG_BASE_DENSITY;
+  return { failOn: 'none', density, limitInputPixels: SVG_RENDER_PIXEL_LIMIT };
+}
+
 function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {
   return isServedPublicly(file) ? 'public' : 'private';
 }
@@ -461,7 +525,13 @@ export class VariantService {
         ? null
         : await findVariantTwin(file.sha256, file.id, spellingOf(file));
 
-      if (existingFile && existingFile.variants.length > 0) {
+      if (
+        existingFile &&
+        existingFile.variants.length > 0 &&
+        // An audio twin processed differently (loudness, preview start) has a
+        // different set: this row renders its own (`audioRenditions.ts`).
+        sameRenditionProfile(file, existingFile)
+      ) {
         await this.copyVariantSet(existingFile, file);
         logger.info('Reused existing variants for duplicate content', {
           fileId,
@@ -481,6 +551,8 @@ export class VariantService {
           });
       } else if (file.mime.startsWith('video/')) {
         await this.generateVideoVariants(file);
+      } else if (file.mime.startsWith('audio/')) {
+        await this.generateAudioVariants(file);
       } else if (file.mime === 'application/pdf') {
         await this.generatePdfVariants(file);
       }
@@ -549,6 +621,7 @@ export class VariantService {
         spellingOf(file),
         twins,
       )) {
+        if (!sameRenditionProfile(twin, file)) continue;
         await this.copyVariantSet(file, twin);
       }
     } catch (error) {
@@ -650,7 +723,7 @@ export class VariantService {
     if (file.mime.startsWith('image/')) {
       if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) return false;
       const originalBuffer = await this.s3Service.downloadBuffer(file.storageKey);
-      const meta = await sharp(originalBuffer, { failOn: 'none' }).metadata();
+      const meta = await sharp(originalBuffer, imageInputOptions(file.mime)).metadata();
       const width = typeof meta.width === 'number' && meta.width > 0 ? meta.width : undefined;
       const height = typeof meta.height === 'number' && meta.height > 0 ? meta.height : undefined;
       if (!width || !height) {
@@ -676,7 +749,7 @@ export class VariantService {
       logger.info('Generating image variants', { fileId: file.id });
 
       const originalBuffer = await this.s3Service.downloadBuffer(file.storageKey);
-      const base = sharp(originalBuffer, { failOn: 'none' });
+      const base = sharp(originalBuffer, imageInputOptions(file.mime));
       const meta = await base.metadata();
 
       // Only renditions generated by THIS run are committed; a reused ready row
@@ -698,7 +771,10 @@ export class VariantService {
 
         const width = config.width || meta.width || 1280;
         const height = config.height; // let sharp maintain aspect by only setting width unless both provided
-        let pipeline = sharp(originalBuffer, { failOn: 'none' }).rotate();
+        let pipeline = sharp(
+          originalBuffer,
+          imageInputOptions(file.mime, { intrinsicWidth: meta.width, targetWidth: width }),
+        ).rotate();
         pipeline = pipeline.resize({ width, height, fit: 'inside', withoutEnlargement: true });
 
         // Set format and quality
@@ -884,6 +960,482 @@ export class VariantService {
       logger.error('Error generating video variants:', error);
       throw error;
     }
+  }
+
+  /**
+   * Audio renditions (ADR 0042 stage 4c, `audioRenditions.ts`): an audio-only
+   * AAC HLS ladder (`hls_a64` always, `hls_a128`/`hls_a256` when the source
+   * carries that much), its `hls_master`, a `waveform` of peaks and a 30-second
+   * `preview` clip — loudness-normalized (EBU R128) when the owner asked for it
+   * (`files.metadata.audioOptions.normalizeLoudness`), in a key directory of
+   * its own so it never overwrites a plain ladder of the same bytes.
+   *
+   * Like video (issue #759): one rung failing does not lose the others, what
+   * did encode is committed, and the job fails AFTER the commit when every
+   * rung failed, so the loss is visible and retried. A waveform or preview
+   * failure is logged and does not fail a job whose ladder encoded.
+   */
+  private async generateAudioVariants(file: FileRecord): Promise<void> {
+    await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'generateAudioVariants');
+    logger.info('Generating audio variants with FFmpeg', { fileId: file.id });
+
+    const probe = await this.probeAudio(
+      await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600),
+    );
+    if (!probe) {
+      throw new Error(`No audio stream could be read from file ${file.id}`);
+    }
+
+    const profile = audioProfileOf(file);
+    const visibility = spellingOf(file);
+    const segment = audioProfileSegment(profile);
+    const rungs = selectAudioRungs(probe);
+    const variants: NewFileVariant[] = [];
+    const renditions: Array<{ playlistKey: string; bandwidth: number; averageBandwidth: number }> =
+      [];
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'oxy-audio-'));
+    try {
+      for (const rung of rungs) {
+        try {
+          const produced = await this.encodeAudioRung(file, rung, probe, profile, tempDir);
+          if (produced) {
+            variants.push(produced.variant);
+            renditions.push(produced.rendition);
+          }
+        } catch (error) {
+          logger.error('Audio HLS rendition failed', {
+            fileId: file.id,
+            variant: rung.type,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (renditions.length > 0) {
+        const masterKey = this.generateVariantKey(
+          file.sha256,
+          'hls_master',
+          'm3u8',
+          visibility,
+          segment,
+        );
+        await this.s3Service.uploadBuffer(masterKey, Buffer.from(audioMasterPlaylist(renditions)), {
+          contentType: 'application/vnd.apple.mpegurl',
+          cacheControl: HLS_MASTER_PLAYLIST_CACHE_CONTROL,
+        });
+        variants.push({
+          type: 'hls_master',
+          key: masterKey,
+          readyAt: new Date(),
+          metadata: {
+            format: 'hls',
+            kind: 'audio',
+            codecs: 'mp4a.40.2',
+            variantCount: renditions.length,
+            variants: variants.filter((v) => v.type.startsWith('hls_a')).map((v) => v.type),
+            loudnessNormalized: profile.normalizeLoudness,
+          },
+        });
+      }
+
+      try {
+        variants.push(await this.generateWaveform(file, probe, profile));
+      } catch (error) {
+        logger.warn('Audio waveform failed', {
+          fileId: file.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      try {
+        variants.push(await this.generateAudioPreview(file, probe, profile));
+      } catch (error) {
+        logger.warn('Audio preview failed', {
+          fileId: file.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } finally {
+      await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+
+    file.metadata = {
+      ...(file.metadata ?? {}),
+      audio: {
+        ...(probe.duration !== undefined ? { duration: probe.duration } : {}),
+        ...(probe.codec ? { codec: probe.codec } : {}),
+        ...(probe.sampleRate ? { sampleRate: probe.sampleRate } : {}),
+        ...(probe.channels ? { channels: probe.channels } : {}),
+        ...(probe.bitrate ? { bitrate: probe.bitrate } : {}),
+      },
+    };
+    applyCanonicalMediaMetadata(file, { durationSec: probe.duration });
+
+    await this.commitVariants(file, variants);
+
+    if (renditions.length === 0) {
+      throw new Error(
+        `All ${rungs.length} audio HLS rendition(s) failed to encode for file ${file.id}`,
+      );
+    }
+    logger.info('Audio variants generated', {
+      fileId: file.id,
+      rungs: renditions.length,
+      variantCount: variants.length,
+      loudnessNormalized: profile.normalizeLoudness,
+    });
+  }
+
+  /** ffprobe the source's first audio stream; `null` when it has none or cannot be read. */
+  private async probeAudio(audioUrl: string): Promise<AudioProbe | null> {
+    this.validateMediaPath(audioUrl);
+    let stdout = '';
+    const result = await new Promise<number | null>((resolve) => {
+      const child = spawn(
+        ffprobePath,
+        [
+          '-v',
+          'quiet',
+          '-protocol_whitelist',
+          audioProtocolWhitelist(audioUrl),
+          '-print_format',
+          'json',
+          '-show_format',
+          '-show_streams',
+          audioUrl,
+        ],
+        { timeout: 60_000, killSignal: 'SIGKILL' },
+      );
+      child.stdout.on('data', (data: Buffer) => {
+        if (stdout.length < 1024 * 1024) stdout += data.toString();
+      });
+      child.on('close', (code) => resolve(code));
+      child.on('error', () => resolve(-1));
+    });
+    if (result !== 0) {
+      logger.warn('FFprobe failed for audio', { code: result });
+      return null;
+    }
+    try {
+      const metadata = JSON.parse(stdout) as FFprobeMetadata;
+      const stream = metadata.streams?.find((s) => s.codec_type === 'audio');
+      if (!stream) return null;
+      const positive = (value: string | number | undefined) => {
+        const parsed = typeof value === 'number' ? value : Number.parseFloat(value ?? '');
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+      };
+      const duration = positive(metadata.format?.duration);
+      const streamBitrate = positive(stream.bit_rate);
+      // The container's rate counts cover art too: only when the stream says nothing.
+      const bitrate = streamBitrate ?? positive(metadata.format?.bit_rate);
+      return {
+        ...(duration !== undefined ? { duration } : {}),
+        ...(stream.codec_name ? { codec: stream.codec_name } : {}),
+        ...(positive(stream.sample_rate) ? { sampleRate: positive(stream.sample_rate) } : {}),
+        ...(positive(stream.channels) ? { channels: positive(stream.channels) } : {}),
+        ...(bitrate !== undefined ? { bitrate: Math.round(bitrate) } : {}),
+      };
+    } catch (error) {
+      logger.warn('Error parsing FFprobe output for audio', { error });
+      return null;
+    }
+  }
+
+  /** The ffmpeg audio-output options every audio rendition shares. */
+  private audioOutputArgs(probe: AudioProbe, filters: string[]): string[] {
+    const channels = probe.channels ? Math.min(probe.channels, 2) : 2;
+    return [
+      '-map',
+      '0:a:0',
+      '-vn',
+      '-sn',
+      '-dn',
+      '-c:a',
+      'aac',
+      '-ac',
+      String(channels),
+      '-ar',
+      String(AUDIO_SAMPLE_RATE),
+      ...(filters.length > 0 ? ['-af', filters.join(',')] : []),
+    ];
+  }
+
+  /** The ffmpeg input options: a fresh presigned URL, protocols restricted to its own scheme. */
+  private async audioInputArgs(file: FileRecord, seekSeconds = 0): Promise<string[]> {
+    const url = await this.s3Service.getPresignedDownloadUrl(file.storageKey, 3600);
+    this.validateMediaPath(url);
+    return [
+      '-loglevel',
+      'error',
+      '-nostdin',
+      '-protocol_whitelist',
+      audioProtocolWhitelist(url),
+      ...(seekSeconds > 0 ? ['-ss', String(seekSeconds)] : []),
+      '-i',
+      url,
+    ];
+  }
+
+  /**
+   * Encode one rung of the audio ladder into `tempDir`, then upload its
+   * segments (each next to its playlist, under the name the playlist lists)
+   * and the playlist last, so a stored playlist never lists a missing segment.
+   * `null` when ffmpeg fails.
+   */
+  private async encodeAudioRung(
+    file: FileRecord,
+    rung: AudioRung,
+    probe: AudioProbe,
+    profile: AudioProfile,
+    tempDir: string,
+  ): Promise<{
+    variant: NewFileVariant;
+    rendition: { playlistKey: string; bandwidth: number; averageBandwidth: number };
+  } | null> {
+    const rungDir = path.join(tempDir, rung.type);
+    await fs.promises.mkdir(rungDir, { recursive: true });
+    const playlistPath = path.join(rungDir, 'stream.m3u8');
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
+        ...(await this.audioInputArgs(file)),
+        ...this.audioOutputArgs(probe, profile.normalizeLoudness ? [LOUDNORM_FILTER] : []),
+        '-profile:a',
+        'aac_low',
+        '-b:a',
+        rung.bitrate,
+        '-f',
+        'hls',
+        '-hls_time',
+        String(AUDIO_HLS_SEGMENT_SECONDS),
+        '-hls_playlist_type',
+        'vod',
+        '-hls_list_size',
+        '0',
+        '-hls_segment_type',
+        'mpegts',
+        '-hls_flags',
+        'independent_segments',
+        '-hls_segment_filename',
+        path.join(rungDir, `${rung.segmentStem}_%03d.ts`),
+        '-y',
+        playlistPath,
+      ],
+      { timeoutMs: audioFfmpegTimeoutMs(probe.duration) },
+    );
+    if (run.code !== 0) {
+      logger.error('Audio HLS rendition failed to encode', {
+        fileId: file.id,
+        variant: rung.type,
+        code: run.code,
+        signal: run.signal,
+        timedOut: run.timedOut,
+        error: run.stderrTail.slice(-500),
+      });
+      return null;
+    }
+
+    const visibility = spellingOf(file);
+    const playlistKey = this.generateVariantKey(
+      file.sha256,
+      rung.type,
+      'm3u8',
+      visibility,
+      audioProfileSegment(profile),
+    );
+    // URIs as basenames: a segment is its playlist's sibling (RFC 8216 §4.3.4.2).
+    const playlist = (await fs.promises.readFile(playlistPath, 'utf8'))
+      .split('\n')
+      .map((line) => {
+        const trimmed = line.trim();
+        return trimmed.length > 0 && !trimmed.startsWith('#') ? path.basename(trimmed) : line;
+      })
+      .join('\n');
+    const segments = mediaPlaylistSegments(playlist);
+    if (segments.length === 0) {
+      logger.error('Audio HLS rendition produced no segments', {
+        fileId: file.id,
+        variant: rung.type,
+      });
+      return null;
+    }
+    const measured: Array<{ duration: number; bytes: number }> = [];
+    for (const segment of segments) {
+      const bytes = await fs.promises.readFile(path.join(rungDir, segment.uri));
+      await this.s3Service.uploadBuffer(playlistSiblingKey(playlistKey, segment.uri), bytes, {
+        contentType: 'video/mp2t',
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+      });
+      measured.push({ duration: segment.duration, bytes: bytes.length });
+      await fs.promises.unlink(path.join(rungDir, segment.uri)).catch(() => undefined);
+    }
+    await this.s3Service.uploadBuffer(playlistKey, Buffer.from(playlist), {
+      contentType: 'application/vnd.apple.mpegurl',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    const bandwidth = measureBandwidth(measured, rung.bitsPerSecond);
+    return {
+      variant: {
+        type: rung.type,
+        key: playlistKey,
+        readyAt: new Date(),
+        metadata: {
+          format: 'hls',
+          kind: 'audio',
+          bitrate: rung.bitrate,
+          bandwidth: bandwidth.peak,
+          averageBandwidth: bandwidth.average,
+          codec: 'aac',
+          codecs: 'mp4a.40.2',
+          segments: segments.length,
+          loudnessNormalized: profile.normalizeLoudness,
+        },
+      },
+      rendition: {
+        playlistKey,
+        bandwidth: bandwidth.peak,
+        averageBandwidth: bandwidth.average,
+      },
+    };
+  }
+
+  /**
+   * The `waveform` variant: audiowaveform-format JSON peaks, decoded to mono
+   * 8 kHz PCM through a pipe and folded into buckets as it arrives — the PCM
+   * is never held whole.
+   */
+  private async generateWaveform(
+    file: FileRecord,
+    probe: AudioProbe,
+    profile: AudioProfile,
+  ): Promise<NewFileVariant> {
+    const accumulator = new WaveformAccumulator(probe.duration);
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
+        ...(await this.audioInputArgs(file)),
+        '-map',
+        '0:a:0',
+        '-vn',
+        ...(profile.normalizeLoudness ? ['-af', LOUDNORM_FILTER] : []),
+        '-ac',
+        '1',
+        '-ar',
+        String(WAVEFORM_SAMPLE_RATE),
+        '-acodec',
+        'pcm_s16le',
+        '-f',
+        's16le',
+        'pipe:1',
+      ],
+      {
+        timeoutMs: audioFfmpegTimeoutMs(probe.duration),
+        onStdout: (chunk) => accumulator.push(chunk),
+      },
+    );
+    if (run.code !== 0) {
+      throw new Error(`Waveform decode failed (code ${run.code}): ${run.stderrTail.slice(-200)}`);
+    }
+    const waveform = accumulator.finish();
+    if (waveform.length === 0) throw new Error('Waveform decode produced no samples');
+    const body = Buffer.from(JSON.stringify(waveform));
+    const key = this.generateVariantKey(
+      file.sha256,
+      'waveform',
+      'json',
+      spellingOf(file),
+      audioProfileSegment(profile),
+    );
+    await this.s3Service.uploadBuffer(key, body, {
+      contentType: 'application/json',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    return {
+      type: 'waveform',
+      key,
+      readyAt: new Date(),
+      size: body.length,
+      metadata: {
+        format: 'json',
+        peaks: waveform.length,
+        samplesPerPeak: waveform.samplesPerPeak,
+        sampleRate: WAVEFORM_SAMPLE_RATE,
+        loudnessNormalized: profile.normalizeLoudness,
+      },
+    };
+  }
+
+  /**
+   * The `preview` variant: 30 seconds of AAC 128 kb/s in fragmented mp4 from
+   * `audioOptions.previewStartSeconds` (clamped so a whole clip fits; the whole
+   * file when shorter), fading out over its last 2 s when it cuts the audio.
+   */
+  private async generateAudioPreview(
+    file: FileRecord,
+    probe: AudioProbe,
+    profile: AudioProfile,
+  ): Promise<NewFileVariant> {
+    const window = previewWindow(probe.duration, profile.previewStartSeconds);
+    const filters = [
+      ...(profile.normalizeLoudness ? [LOUDNORM_FILTER] : []),
+      ...(window.truncated
+        ? [
+            `afade=t=out:st=${Math.max(0, window.durationSeconds - AUDIO_PREVIEW_FADE_SECONDS)}:d=${AUDIO_PREVIEW_FADE_SECONDS}`,
+          ]
+        : []),
+    ];
+    const chunks: Buffer[] = [];
+    const run = await runFfmpeg(
+      ffmpegPath,
+      [
+        ...(await this.audioInputArgs(file, window.startSeconds)),
+        '-t',
+        String(window.durationSeconds),
+        ...this.audioOutputArgs(probe, filters),
+        '-b:a',
+        '128k',
+        '-movflags',
+        'frag_keyframe+empty_moov',
+        '-f',
+        'mp4',
+        'pipe:1',
+      ],
+      {
+        timeoutMs: audioFfmpegTimeoutMs(probe.duration),
+        maxStdoutBytes: AUDIO_PREVIEW_MAX_OUTPUT_BYTES,
+        onStdout: (chunk) => chunks.push(chunk),
+      },
+    );
+    if (run.overflowed) throw new Error('Preview output exceeded the maximum allowed size');
+    if (run.code !== 0) {
+      throw new Error(`Preview encode failed (code ${run.code}): ${run.stderrTail.slice(-200)}`);
+    }
+    const body = Buffer.concat(chunks);
+    if (body.length === 0) throw new Error('Preview encode produced no bytes');
+    const key = this.generateVariantKey(
+      file.sha256,
+      previewStem(window.startSeconds),
+      'm4a',
+      spellingOf(file),
+      audioProfileSegment(profile),
+    );
+    await this.s3Service.uploadBuffer(key, body, {
+      contentType: 'audio/mp4',
+      cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+    });
+    return {
+      type: 'preview',
+      key,
+      readyAt: new Date(),
+      size: body.length,
+      metadata: {
+        format: 'm4a',
+        codec: 'aac',
+        bitrate: '128k',
+        startSeconds: window.startSeconds,
+        durationSeconds: window.durationSeconds,
+        loudnessNormalized: profile.normalizeLoudness,
+      },
+    };
   }
 
   /**
@@ -1630,6 +2182,7 @@ export class VariantService {
     variantType: string,
     format: string,
     visibility: FileVisibility,
+    profile?: string,
   ): string {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -1638,7 +2191,11 @@ export class VariantService {
     // Variants inherit their parent file's visibility: public variants land
     // under the CDN-reachable `public/` prefix, private/unlisted variants stay
     // private to S3 (served only through the access-gated origin stream route).
-    const baseKey = `variants/${year}/${month}/${prefix}/${sha256}/${variantType}.${format}`;
+    // A processing `profile` (an audio ladder normalized for loudness) gets a
+    // directory of its own, so two differently processed sets of the same
+    // bytes never overwrite each other.
+    const directory = profile ? `${sha256}/${profile}` : sha256;
+    const baseKey = `variants/${year}/${month}/${prefix}/${directory}/${variantType}.${format}`;
     return storageKeyForVisibility(baseKey, visibility);
   }
 
@@ -1808,12 +2365,22 @@ export class VariantService {
     sourceBuffer: Buffer,
   ): Promise<NewFileVariant> {
     const format = config.format || 'webp';
-    let pipeline = sharp(sourceBuffer, { failOn: 'none' }).rotate().resize({
-      width: config.width,
-      height: config.height,
-      fit: 'inside',
-      withoutEnlargement: true,
-    });
+    // A vector source is rendered AT the rendition's size, not scaled up from
+    // its intrinsic one (`imageInputOptions`).
+    const intrinsicWidth = isSvgType(file.mime)
+      ? (await sharp(sourceBuffer, imageInputOptions(file.mime)).metadata()).width
+      : undefined;
+    let pipeline = sharp(
+      sourceBuffer,
+      imageInputOptions(file.mime, { intrinsicWidth, targetWidth: config.width }),
+    )
+      .rotate()
+      .resize({
+        width: config.width,
+        height: config.height,
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
     if (format === 'webp') pipeline = pipeline.webp({ quality: config.quality ?? 82 });
     if (format === 'jpeg') pipeline = pipeline.jpeg({ quality: config.quality ?? 82 });
     if (format === 'png') pipeline = pipeline.png();

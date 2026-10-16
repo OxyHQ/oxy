@@ -194,6 +194,7 @@ const PRIVATE_FILE = {
   status: 'active' as const,
   storageKey: 'content/2026/06/aa/secret.png',
   variants: [],
+  accessGrants: [],
 };
 
 let server: http.Server;
@@ -257,6 +258,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
       status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
+      accessGrants: [],
     });
     mockGetFileUrl.mockResolvedValue('https://cloud.oxy.so/content/2026/06/aa/pub.png');
 
@@ -286,6 +288,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
       status: 'active' as const,
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
+      accessGrants: [],
     });
     mockGetFileUrl.mockRejectedValue(
       new Error('Failed to download buffer from S3: NoSuchKey: The specified key does not exist.'),
@@ -387,6 +390,7 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
     storageKey: 'public/content/2026/06/aa/pub.png',
     mime: 'image/png',
     variants: [],
+    accessGrants: [],
   };
 
   beforeEach(() => {

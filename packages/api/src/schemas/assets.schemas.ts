@@ -306,10 +306,25 @@ const importReferenceSchema = z
   })
   .strict();
 
+/**
+ * How an audio file's renditions are made (ADR 0042 stage 4c): EBU R128
+ * loudness normalization of the HLS ladder and preview, and where the 30-second
+ * preview starts. Stored as the file's server-owned `metadata.audioOptions`.
+ */
+export const audioOptionsSchema = z
+  .object({
+    normalizeLoudness: z.boolean().optional(),
+    previewStartSeconds: z.number().finite().min(0).max(86_400).optional(),
+  })
+  .strict();
+
+export type AudioOptions = z.infer<typeof audioOptionsSchema>;
+
 const importItemShape = {
   sourceUrl: z.string().trim().min(1).max(2048),
   reference: importReferenceSchema.optional(),
   revalidate: z.boolean().optional(),
+  audio: audioOptionsSchema.optional(),
 };
 
 // POST /assets/service/app/import — the calling application imports a file by
@@ -360,6 +375,7 @@ const largeUploadShape = {
   filename: z.string().trim().min(1).max(255).optional(),
   metadata: z.record(z.unknown()).optional(),
   reference: importReferenceSchema.optional(),
+  audio: audioOptionsSchema.optional(),
 };
 
 // POST /assets/service/app/uploads — the calling application will own the file.
@@ -398,3 +414,80 @@ export const appAdoptBodySchema = z
     reference: importReferenceSchema.optional(),
   })
   .strict();
+
+// ---------------------------------------------------------------------------
+// Stage 4c: consent, play sessions, recording targets, large imports.
+// ---------------------------------------------------------------------------
+
+// DELETE /assets/:id/access/:applicationId — the owner revokes an application's access.
+export const fileAccessParams = z.object({
+  id: z.string().trim().min(1).max(64),
+  applicationId: z.string().trim().min(1).max(64),
+});
+
+// POST /assets/service/streams — open a play session over a file's HLS ladder.
+export const playSessionBodySchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64),
+    endUserId: z.string().trim().min(1).max(64).optional(),
+    ttlSeconds: z.number().int().min(60).max(43_200).optional(),
+    encryption: z.enum(['aes-128', 'none']).optional(),
+    keyAuthorization: z.enum(['none', 'webhook']).optional(),
+  })
+  .strict();
+
+export const playSessionParams = z.object({
+  sessionId: z.string().trim().uuid(),
+});
+
+// POST /assets/service/streams/revoke — every live session for a file and/or an end user.
+export const revokePlaySessionsBodySchema = z
+  .object({
+    fileId: z.string().trim().min(1).max(64).optional(),
+    endUserId: z.string().trim().min(1).max(64).optional(),
+  })
+  .strict()
+  .refine((body) => body.fileId !== undefined || body.endUserId !== undefined, {
+    message: 'Name a fileId, an endUserId, or both',
+  });
+
+// GET /assets/streams/:token/:name — a session's playlist, segment, key, preview or waveform.
+export const streamObjectParams = z.object({
+  token: z.string().min(1).max(200),
+  name: z.string().min(1).max(128),
+});
+
+const recordingTargetShape = {
+  filename: z.string().trim().min(1).max(255).optional(),
+  metadata: z.record(z.unknown()).optional(),
+  reference: importReferenceSchema.optional(),
+  maxBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(8 * 1024 ** 3)
+    .optional(),
+  expiresInSeconds: z.number().int().min(60).max(604_800).optional(),
+  audio: audioOptionsSchema.optional(),
+};
+
+// POST /assets/service/app/recording-targets — the calling application will own the recording.
+export const appRecordingTargetBodySchema = z
+  .object({ ...recordingTargetShape, visibility: z.enum(['private', 'public', 'unlisted']) })
+  .strict();
+
+// POST /assets/service/user-media/recording-targets — an account will own it (x-owner-user-id).
+export const userMediaRecordingTargetBodySchema = z
+  .object({
+    ...recordingTargetShape,
+    visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  })
+  .strict();
+
+export const recordingTargetParams = z.object({
+  targetId: z.string().trim().uuid(),
+});
+
+export const ingestImportParams = z.object({
+  importId: z.string().trim().uuid(),
+});

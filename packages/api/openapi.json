@@ -8522,6 +8522,9 @@
           },
           "401": {
             "description": "Missing or invalid bearer token."
+          },
+          "415": {
+            "description": "`SVG_UPLOAD_REQUIRES_SANITIZATION` — an SVG is never uploaded by presigned PUT (Oxy must read it to sanitize it); use `POST /assets/upload`.\n"
           }
         },
         "operationId": "postAssetsInit"
@@ -8532,8 +8535,8 @@
         "tags": [
           "Files"
         ],
-        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes",
-        "description": "as the body (not multipart); `Content-Type` must be an image or video\n      type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0043 D2/D3).",
+        "summary": "Stream-upload a file the CALLING APPLICATION owns (ADR 0042). Raw bytes",
+        "description": "as the body (not multipart); `Content-Type` must be an image, video or\n      audio type (an SVG is stored as its sanitized document), at most 40\n      MiB; `x-audio-options` (JSON `{ normalizeLoudness?,\n      previewStartSeconds? }`) shapes an audio file's renditions. `x-visibility` (`public` | `unlisted` |\n      `private`) is REQUIRED — an application's file has no default audience.\n      Optional `x-original-name` and `x-media-metadata` (JSON) as on\n      `/service/user-media`. Idempotent per (application, bytes): a re-upload\n      answers 200 with the existing file, `deduplicated: true`, and its\n      visibility unchanged. A third-party application's bytes count toward\n      its developer account's storage plan, and over it the upload is refused\n      with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);\n      Oxy's own applications are not metered (ADR 0043 D2/D3).",
         "parameters": [],
         "responses": {
           "200": {
@@ -8802,7 +8805,7 @@
           "Files"
         ],
         "summary": "Import a file by URL; the CALLING APPLICATION owns it (ADR 0043 D7).",
-        "description": "Body `{ sourceUrl, visibility, reference?: { entityType, entityId },\n      revalidate? }`. Oxy fetches `sourceUrl` itself — `https` only on every\n      hop, public addresses only, at most 5 redirects, no credentials, 40 MiB\n      and 60 s at most — and stores it through the ordinary upload pipeline\n      (image or video; deduplicated by content per application; variants).\n      The same URL imported again by the same application answers the\n      existing file without any request (`outcome: 'existing'`);\n      `revalidate: true` asks the source conditionally (ETag /\n      Last-Modified): `not_modified`, or `downloaded` with the new bytes as\n      a file of their own. `reference` registers this application's use of\n      the file in the same request (needs `files:references:write`), so an\n      import is never left unreferenced. Errors: 400 `INVALID_SOURCE_URL`,\n      422 `SOURCE_URL_REFUSED`, 502 `SOURCE_FETCH_FAILED`, 504\n      `SOURCE_FETCH_TIMEOUT`, 415 `UNSUPPORTED_MEDIA_TYPE`, 413\n      `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`.",
+        "description": "Body `{ sourceUrl, visibility, reference?: { entityType, entityId },\n      revalidate?, audio?: { normalizeLoudness?, previewStartSeconds? } }`.\n      Oxy fetches `sourceUrl` itself — `https` only on every hop, public\n      addresses only, at most 5 redirects, no credentials — and stores it\n      through the ordinary upload pipeline (image, video or audio; SVG\n      sanitized; deduplicated by content per application; variants). A\n      source of at most 40 MiB is stored within 60 s in the request. A\n      larger one (up to 8 GiB), or audio/video that declares no size,\n      answers `202 { importId, status: 'importing', source: { host } }` and\n      is fetched in the background (at most an hour, a minute without\n      bytes) by multipart streaming, hashed, then stored the same way: poll\n      `GET /assets/service/app/imports/{importId}`.\n      The same URL imported again by the same application answers the\n      existing file without any request (`outcome: 'existing'`);\n      `revalidate: true` asks the source conditionally (ETag /\n      Last-Modified): `not_modified`, or `downloaded` with the new bytes as\n      a file of their own. `reference` registers this application's use of\n      the file in the same request (needs `files:references:write`), so an\n      import is never left unreferenced. Errors: 400 `INVALID_SOURCE_URL`,\n      422 `SOURCE_URL_REFUSED`, 502 `SOURCE_FETCH_FAILED`, 504\n      `SOURCE_FETCH_TIMEOUT`, 415 `UNSUPPORTED_MEDIA_TYPE`, 413\n      `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`.",
         "parameters": [],
         "responses": {
           "200": {
@@ -8898,6 +8901,19 @@
                   "revalidate": {
                     "type": "boolean"
                   },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
+                  },
                   "visibility": {
                     "type": "string",
                     "enum": [
@@ -8924,7 +8940,7 @@
           "Files"
         ],
         "summary": "Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The",
-        "description": "batch is 200; each item answers on its own, in order: `{ index, ok:\n      true, file, outcome, deduplicated, source, reference? }` or `{ index,\n      ok: false, error: { status, code, message } }`.\n        when an item asks for a reference), on an active application",
+        "description": "batch is 200; each item answers on its own, in order: `{ index, ok:\n      true, file, outcome, deduplicated, source, reference? }`, a large\n      source still being fetched `{ index, ok: true, pending: true,\n      importId, status: 'importing', source }`, or `{ index, ok: false,\n      error: { status, code, message } }`.\n        when an item asks for a reference), on an active application",
         "parameters": [],
         "responses": {
           "200": {
@@ -9025,6 +9041,19 @@
                         "revalidate": {
                           "type": "boolean"
                         },
+                        "audio": {
+                          "type": "object",
+                          "properties": {
+                            "normalizeLoudness": {
+                              "type": "boolean"
+                            },
+                            "previewStartSeconds": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 86400
+                            }
+                          }
+                        },
                         "visibility": {
                           "type": "string",
                           "enum": [
@@ -9051,6 +9080,513 @@
           }
         },
         "operationId": "postAssetsServiceAppImportBatch"
+      }
+    },
+    "/assets/service/app/imports/{importId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "A large import of this application's (answered `202` by the import",
+        "description": "routes) as it stands: `{ importId, status: 'importing' | 'verifying' |\n      'completed' | 'failed', source: { host, fetchedAt?, etag?,\n      lastModified? }, file?, outcome?: 'downloaded', deduplicated?,\n      reference?, error?: { status, code, message } }`. Kept a week after it\n      finished. Another application's import is 404.",
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceAppImportsImportId"
+      }
+    },
+    "/assets/service/app/recording-targets": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "A place a LiveKit egress (or any S3 client) records into, for a file",
+        "description": "the CALLING APPLICATION will own (ADR 0042 stage 4c). Body `{\n      visibility, filename?, metadata?, reference?, maxBytes? (≤ 8 GiB,\n      default 8 GiB), expiresInSeconds? (60–604800, default 86400), audio? }`\n      → 201 `{ targetId, status: 'awaiting_upload', expiresAt, filepath, s3:\n      { accessKey, secret, region, endpoint, bucket, forcePathStyle }, livekit:\n      { filepath, s3: { access_key, secret, region, endpoint, bucket,\n      force_path_style } } }` — `livekit` is exactly an `EncodedFileOutput`'s\n      `filepath` and `s3`. The credentials are an S3-compatible endpoint of\n      Oxy's own (`/assets/recording-ingest`, path-style, SigV4) that accepts\n      ONE recording under `filepath` (the egress appends its extension;\n      audio or video) plus small side objects such as its manifest, which\n      are discarded; `PutObject` and the multipart calls the AWS SDK makes.\n      The bytes never touch `public/`; once the object is complete Oxy\n      hashes it and stores it as a file through the large-upload\n      finalization (dedupe, blocklist, a third-party application's plan),\n      with the `reference` asked for. The secret is shown only here.\n        for `reference`), on an active application",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "reference": {
+                    "type": "object",
+                    "properties": {
+                      "entityType": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "entityId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "entityType",
+                      "entityId"
+                    ]
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 8589934592
+                  },
+                  "expiresInSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800
+                  },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public",
+                      "unlisted"
+                    ]
+                  }
+                },
+                "required": [
+                  "visibility"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceAppRecordingTargets"
+      }
+    },
+    "/assets/service/app/recording-targets/{targetId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "A recording target as it stands: `status` (`awaiting_upload` |",
+        "description": "`receiving` | `verifying` | `completed` | `failed` | `aborted`),\n      `size`, the `file` once completed, the `error` once failed. Another\n      application's target is 404.",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceAppRecordingTargetsTargetId"
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Abort a recording target nothing was recorded into yet (or whose",
+        "description": "upload is in progress): its credentials stop working and what it\n      received is deleted. 409 while it is being verified.",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceAppRecordingTargetsTargetId"
+      }
+    },
+    "/assets/service/app/recording-targets/{targetId}/complete": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Wait for the recording to be a file (Oxy finalizes it on its own once",
+        "description": "the object is complete; this is how the creator learns the outcome):\n      200 `{ status: 'completed', file, deduplicated, reference? }`, 202 `{\n      status: 'verifying' }` after 20 s (call again or poll the GET), 409\n      `RECORDING_NOT_RECEIVED` before the object is complete, a failed\n      target's own error (451 `CONTENT_BLOCKED`, 413\n      `STORAGE_QUOTA_EXCEEDED` / `PAYLOAD_TOO_LARGE`, 410 `EXPIRED` /\n      `ABORTED` / `OWNER_GONE`, 422 `EMPTY_RECORDING`). Idempotent.",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "postAssetsServiceAppRecordingTargetsTargetIdComplete"
       }
     },
     "/assets/service/app/uploads": {
@@ -9168,6 +9704,19 @@
                       "entityType",
                       "entityId"
                     ]
+                  },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
                   },
                   "visibility": {
                     "type": "string",
@@ -10526,7 +11075,7 @@
           "Files"
         ],
         "summary": "Mint short-lived download URLs for files linked to the calling app",
-        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each file that THE FILE'S OWN OWNER attached to the calling application — i.e. a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id` — and for each of the caller's OWN files (ADR 0043). Any other id is silently OMITTED from `data`: unknown, deleted, system-owned, not referenced for this app, or referenced by somebody other than the owner (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
+        "description": "Service-token-only. Given up to 25 file ids, returns a short-lived direct download URL for each of the caller's OWN files (ADR 0042) and for each person's file the person consented to the calling application reading (ADR 0042 stage 4c): one the application stored for them (`/service/user-media` upload, import, large upload or recording), or one THE FILE'S OWN OWNER attached to it (a `file_references` row whose `application_id` is the caller's and whose `created_by_user_id` is the file's `owner_user_id`) — unless the person revoked the application's access (`DELETE /assets/{id}/access/{applicationId}`). Any other id is silently OMITTED from `data`: unknown, not active, system-owned, another application's, not consented, or revoked (an application's own service-made reference never qualifies). The batch never 404s as a whole and never returns a placeholder or an empty string for a refused id, so a caller cannot tell \"no such file\" from \"not yours\" — and must treat absence as \"no URL\", never as an error to retry.\nRequires the `files:linked:read` scope, which is NOT implied by `files:read`: that one is metadata-only and grants no authority over file contents. The returned URL is bearer authority over the bytes for `expiresIn` seconds with no further check, so it must not be logged, cached or handed to anyone the caller has not itself authorized.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -11252,13 +11801,401 @@
         "operationId": "postAssetsServiceReferencesReconcileSessionIdCommit"
       }
     },
+    "/assets/service/streams": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Open a play session over a file's HLS ladder (ADR 0042 stage 4c): a",
+        "description": "short-lived, revocable set of URLs for ONE file, optionally for one\n      end user. Body `{ fileId, endUserId?, ttlSeconds? (60–43200, default\n      3600), encryption? ('aes-128' default | 'none'), keyAuthorization?\n      ('none' default | 'webhook') }`. The file must be the calling\n      application's own, or a person's file the application may read (it\n      stored it for them, or they attached it to it, and did not revoke\n      that — `files:linked:read`); anything else is 404, like no file. 409\n      `STREAM_NOT_READY` until the ladder is made. 201 `{ sessionId,\n      fileId, kind: 'video' | 'audio', status: 'active', encryption,\n      keyAuthorization, endUserId, expiresAt, masterUrl, renditions: [{\n      type, url, bandwidth }], previewUrl?, waveformUrl? }` — the URLs are\n      bearer authority for this session only and are shown once. Every\n      request under them re-checks the session, so revoking it (`DELETE`),\n      the owner revoking the application's access, or the file leaving\n      `active` stops the next segment. With `aes-128` the segments are\n      encrypted as served under a key of this session, released at\n      `<base>/key`; with `keyAuthorization: 'webhook'` only after the\n      application's verified file-events endpoint answers `{ \"allow\": true\n      }` to a signed `stream.key_authorization` request (409\n      `FILES_WEBHOOK_REQUIRED` without one).\n        `files:app:write` (the application's own), on an active application",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "endUserId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 43200
+                  },
+                  "encryption": {
+                    "type": "string",
+                    "enum": [
+                      "aes-128",
+                      "none"
+                    ]
+                  },
+                  "keyAuthorization": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "webhook"
+                    ]
+                  }
+                },
+                "required": [
+                  "fileId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceStreams"
+      }
+    },
+    "/assets/service/streams/revoke": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Revoke every live play session of the calling application for a file",
+        "description": "and/or an end user: `{ fileId?, endUserId? }` (at least one) → `{\n      revoked }`, the number ended. Effective on every API task at once.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "endUserId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceStreamsRevoke"
+      }
+    },
+    "/assets/service/streams/{sessionId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "One of the calling application's play sessions: `status` (`active` |",
+        "description": "`revoked` | `expired`), `revokedAt`, `expiresAt`. The URLs are not\n      shown again. Another application's session is 404.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceStreamsSessionId"
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "Revoke one of the calling application's play sessions NOW: the next",
+        "description": "playlist, segment or key request under its URLs is refused, on every\n      API task. Idempotent: `{ sessionId, revoked: true }`. Another\n      application's session is 404.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceStreamsSessionId"
+      }
+    },
     "/assets/service/user-media": {
       "post": {
         "tags": [
           "Files"
         ],
-        "summary": "Stream-upload durable media into a normal public file owned by an",
-        "description": "existing local Oxy user. Used by Mention MCP intent-media when the\n      caller authenticates with an MCP JWT (no Oxy session bearer).\n        files:write together with federation:write",
+        "summary": "Stream-upload durable media into a file owned by an existing local Oxy",
+        "description": "user (`x-owner-user-id`), e.g. Mention MCP intent-media or a product\n      storing what a person made in it. Raw bytes as the body; image, video\n      or audio (SVG is sanitized first), at most 40 MiB. `x-visibility`\n      (`public` default | `unlisted` | `private`): a private file is never\n      under `public/` or on the CDN. The calling application may read the\n      file back (`/service/linked-url`, play sessions) because it stored it\n      for the person (ADR 0042 stage 4c) — until the person revokes that.\n      `x-audio-options` (JSON `{ normalizeLoudness?, previewStartSeconds?\n      }`) shapes an audio file's renditions. Rows are per owner: bytes the\n      person already holds answer that file, its visibility unchanged.\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -11319,7 +12256,7 @@
           "Files"
         ],
         "summary": "Import a file by URL into an ACCOUNT's files (ADR 0043 D7): the",
-        "description": "account-owned equivalent of `/service/app/import`, with the authority\n      and owner of `/service/user-media` — `x-owner-user-id` names an\n      existing local user. Body `{ sourceUrl, visibility? (default public),\n      reference?, revalidate? }`; the same fetch, policies, once-per-URL\n      memory (per account) and answers. `reference` registers the CALLING\n      application's use of the file (needs `files:references:write`).\n        files:write together with federation:write",
+        "description": "account-owned equivalent of `/service/app/import`, with the authority\n      and owner of `/service/user-media` — `x-owner-user-id` names an\n      existing local user. Body `{ sourceUrl, visibility? (default public),\n      reference?, revalidate?, audio? }`; the same fetch, policies,\n      once-per-URL memory (per account) and answers, a large source\n      included (`202`, poll `GET /assets/service/user-media/imports/{importId}`).\n      `reference` registers the CALLING application's use of the file\n      (needs `files:references:write`). The calling application may read the\n      file back (ADR 0042 stage 4c) until the person revokes that.\n        files:write together with federation:write",
         "parameters": [],
         "responses": {
           "200": {
@@ -11415,6 +12352,19 @@
                   "revalidate": {
                     "type": "boolean"
                   },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
+                  },
                   "visibility": {
                     "type": "string",
                     "enum": [
@@ -11432,6 +12382,510 @@
           }
         },
         "operationId": "postAssetsServiceUserMediaImport"
+      }
+    },
+    "/assets/service/user-media/imports/{importId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "As `GET /service/app/imports/:importId`, for a large import into an",
+        "description": "account's files (`x-owner-user-id`), by the application that started it.\n        files:write together with federation:write",
+        "parameters": [
+          {
+            "name": "importId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceUserMediaImportsImportId"
+      }
+    },
+    "/assets/service/user-media/recording-targets": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The account-owned twin of `POST /service/app/recording-targets`, with",
+        "description": "`/service/user-media`'s authority and owner (`x-owner-user-id` on\n      EVERY call); `visibility` defaults to `private`. The recording becomes\n      the person's file, which the creating application may read back\n      until the person revokes that (ADR 0042 stage 4c).\n        files:write together with federation:write",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "reference": {
+                    "type": "object",
+                    "properties": {
+                      "entityType": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "entityId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "entityType",
+                      "entityId"
+                    ]
+                  },
+                  "maxBytes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 8589934592
+                  },
+                  "expiresInSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800
+                  },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "public",
+                      "unlisted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postAssetsServiceUserMediaRecordingTargets"
+      }
+    },
+    "/assets/service/user-media/recording-targets/{targetId}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "As `GET /service/app/recording-targets/:targetId`, for an account's target.",
+        "description": "files:write together with federation:write",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "getAssetsServiceUserMediaRecordingTargetsTargetId"
+      },
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "As `DELETE /service/app/recording-targets/:targetId`, for an account's target.",
+        "description": "files:write together with federation:write",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsServiceUserMediaRecordingTargetsTargetId"
+      }
+    },
+    "/assets/service/user-media/recording-targets/{targetId}/complete": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "As `POST /service/app/recording-targets/:targetId/complete`, for an account's target.",
+        "description": "files:write together with federation:write",
+        "parameters": [
+          {
+            "name": "targetId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          }
+        ],
+        "operationId": "postAssetsServiceUserMediaRecordingTargetsTargetIdComplete"
       }
     },
     "/assets/service/user-media/uploads": {
@@ -11549,6 +13003,19 @@
                       "entityType",
                       "entityId"
                     ]
+                  },
+                  "audio": {
+                    "type": "object",
+                    "properties": {
+                      "normalizeLoudness": {
+                        "type": "boolean"
+                      },
+                      "previewStartSeconds": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 86400
+                      }
+                    }
                   },
                   "visibility": {
                     "type": "string",
@@ -11962,6 +13429,86 @@
         "operationId": "postAssetsServiceUserMediaUploadsUploadIdParts"
       }
     },
+    "/assets/streams/{token}/{name}": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "What a play session's URLs name (ADR 0042 stage 4c): `master.m3u8`,",
+        "description": "a rendition playlist, a segment it lists, `key` (the AES-128 key, 16\n      bytes), `preview.m4a` and `waveform.json` (audio). The token is\n      `<sessionId>.<secret>`; every request checks the session (live, not\n      revoked, not expired), the file (`active`) and that the application\n      may still read it — anything else is 404 `PLAY_SESSION_INVALID`. An\n      encrypted session's rendition playlists declare the key and its\n      segments are AES-128-CBC encrypted as served (IV = media sequence\n      number). The key with key authorization: 403\n      `KEY_AUTHORIZATION_DENIED` unless the application allowed it. CORS is\n      open (`*`, no credentials): the URL is the credential.",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "operationId": "getAssetsStreamsTokenName"
+      }
+    },
     "/assets/upload": {
       "post": {
         "tags": [
@@ -12112,6 +13659,159 @@
           }
         ],
         "operationId": "deleteAssetsId"
+      }
+    },
+    "/assets/{id}/access": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The applications that can read the caller's file with their service",
+        "description": "token right now (ADR 0042 stage 4c), for \"Apps with access\": `{\n      fileId, applications: [{ applicationId, name, icon, via: ('upload' |\n      'link')[], since }] }` — `upload`: the application stored the file\n      for you; `link`: you attached the file to it. Anybody but the owner\n      gets 404.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getAssetsIdAccess"
+      }
+    },
+    "/assets/{id}/access/{applicationId}": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "The owner withdraws an application's access to their file (ADR 0042",
+        "description": "stage 4c): whatever gave it — the application stored it for them, or\n      they attached it to it — the application can no longer read it\n      (`/service/linked-url`, play sessions), and every play session it\n      holds for the file ends now. It stays withdrawn when the application\n      uploads the same bytes again; attaching the file to that application\n      again (`POST /assets/{id}/links`) gives it back. References the\n      application holds are kept: they record its USE, which is not access.\n      Idempotent: `{ fileId, applicationId, revoked: true, streamsRevoked }`.\n      404 for anybody but the owner, and for an unknown application.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/assets.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "deleteAssetsIdAccessApplicationId"
       }
     },
     "/assets/{id}/download": {

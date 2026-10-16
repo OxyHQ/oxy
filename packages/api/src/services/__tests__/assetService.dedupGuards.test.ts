@@ -188,6 +188,7 @@ describe('getPublicCdnUrl status gate (trashed/deleted CDN exposure regression)'
         ...row,
         links: [],
         variants: [],
+        accessGrants: [],
       });
 
       expect(url).toBeNull();
@@ -214,6 +215,7 @@ describe('getPublicCdnUrl status gate (trashed/deleted CDN exposure regression)'
       ...row,
       links: [],
       variants: [],
+      accessGrants: [],
     });
 
     expect(url).not.toBeNull();

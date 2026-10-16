@@ -62,20 +62,54 @@ export async function resolveReferenceApplicationId(app: string): Promise<string
 }
 
 /**
- * True when the file's own OWNER attached it to `appId` — ADR 0021's grant, and
- * the whole authorization of `/service/linked-url`.
+ * True when the file's own OWNER attached it to `appId` — ADR 0021's grant.
  *
  * `created_by_user_id = owner_user_id` is not attacker-supplied: the session
  * route writes the caller's own id and admits only the file's owner, and a
- * service-made reference has a NULL creator, which equals nothing. An
- * application's OWN file needs no reference: the caller is its owner.
+ * service-made reference has a NULL creator, which equals nothing.
  */
 export function isOwnerReferencedToApp(file: FileRecord, appId: string): boolean {
-  if (file.ownerApplicationId) return file.ownerApplicationId === appId;
   if (!file.ownerUserId) return false;
   return file.links.some(
     (link) => link.applicationId === appId && link.createdByUserId === file.ownerUserId,
   );
+}
+
+/** How an application came to be able to read a person's file (ADR 0042 stage 4c). */
+export type ApplicationReadConsent = 'owner' | 'upload' | 'link';
+
+/**
+ * Why application `appId` may read `file` with its service token, or `null`
+ * when it may not (ADR 0042 stage 4c) — the whole authorization of
+ * `/service/linked-url` and of a play session:
+ *
+ * - `owner`: the application's OWN file;
+ * - for a person's file, the person's consent (`file_access_grants`): a
+ *   `revoked` row refuses whatever else holds; a `granted` row admits
+ *   (`upload` — the application stored the file for the person — or a
+ *   re-consent by the person); with no row, a reference the OWNER made to
+ *   this application ({@link isOwnerReferencedToApp}) admits (`link`).
+ *
+ * A platform namespace's file and another application's file are never
+ * readable this way. Status is the caller's business (only `active` is served).
+ */
+export function applicationReadConsent(
+  file: FileRecord,
+  appId: string,
+): ApplicationReadConsent | null {
+  if (file.ownerApplicationId) return file.ownerApplicationId === appId ? 'owner' : null;
+  if (!file.ownerUserId) return null;
+  const grant = file.accessGrants.find((row) => row.applicationId === appId);
+  if (grant) {
+    if (grant.state !== 'granted') return null;
+    return grant.source === 'upload' ? 'upload' : 'link';
+  }
+  return isOwnerReferencedToApp(file, appId) ? 'link' : null;
+}
+
+/** Whether application `appId` may read `file`'s bytes ({@link applicationReadConsent}). */
+export function mayApplicationRead(file: FileRecord, appId: string): boolean {
+  return applicationReadConsent(file, appId) !== null;
 }
 
 /**
@@ -85,8 +119,9 @@ export function isOwnerReferencedToApp(file: FileRecord, appId: string): boolean
  * - its OWN file, live (a trashed one comes back to `active`);
  * - any owner's `public` or `unlisted` file that is `active` — whoever has the
  *   link can read it anyway;
- * - an account's `active` private file whose owner attached it to this
- *   application ({@link isOwnerReferencedToApp}).
+ * - an account's `active` private file this application may read
+ *   ({@link mayApplicationRead}: it stored it for the person, or the person
+ *   attached it to it — never after the person revoked it).
  *
  * Never another application's private file, never a trashed or deleted file it
  * does not own. A refusal answers exactly like a missing file.
@@ -97,5 +132,5 @@ export function mayApplicationReference(file: FileRecord, appId: string): boolea
   if (file.status !== 'active') return false;
   if (file.visibility !== 'private') return true;
   if (file.ownerApplicationId) return false;
-  return isOwnerReferencedToApp(file, appId);
+  return mayApplicationRead(file, appId);
 }
