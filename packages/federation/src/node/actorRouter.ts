@@ -1,4 +1,3 @@
-import { discoveryCacheControl } from './httpCacheControl';
 /**
  * The ActivityPub actor + inbox + follow-graph router.
  *
@@ -24,6 +23,7 @@ import { Router, type Request, type Response } from 'express';
 import type { AccountKind } from '@oxy.so/contracts';
 import type { User } from '@oxy.so/core';
 import { AP_CONTEXT } from '../apContext';
+import { discoveryCacheControl } from './httpCacheControl';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';

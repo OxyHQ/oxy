@@ -1,6 +1,5 @@
 # Oxy federation
 
-
 ## Authorizing outbound delivery
 
 `createDeliveryService({ authorizeDelivery })` optionally checks live application
