@@ -1,5 +1,27 @@
 # Changelog: `@oxy.so/contracts`
 
+## 4.20.0
+
+Additive only: no export removed. ADR 0042 (agent requester ceilings) and Alia
+ADR 0020 (every agent is the same agent).
+
+### Added
+
+- `agentRequesterCeilingWriteSchema` / `AgentRequesterCeilingWrite` and
+  `agentRequesterCeilingSchema` / `AgentRequesterCeiling`: what an agent may do
+  in one app for whoever uses it, published by an operator of its bot. Its
+  autonomy is one of `AGENT_REQUESTER_CEILING_AUTONOMY` (`read_only` |
+  `autonomous`, Alia's "Ver" / "Ver y actuar").
+- `capabilityTicketClaimsSchema.ceilingId` and `policyDecisionSchema.ceilingId`.
+  A ticket carries a grant or a ceiling, never both, and a ceiling only for an
+  `agent` actor on the requester's own authority (`ownerAccountId ===
+  requesterAccountId`) at an account root.
+- `appCapabilityCatalogSchema.features` (`catalogFeatureSchema` /
+  `CatalogFeature`): a feature an agent may gate on, answered by an
+  internal-only read `checkTool` and optionally spent by an internal-only,
+  idempotency-required `consumeTool`.
+- `appCapabilityCatalogSchema.internalTransport` (`CATALOG_INTERNAL_TRANSPORTS`:
+  `http` | `mcp`): how a coordinator reaches the catalogue's internal tools.
 ## 4.19.0
 
 Additive only: no export removed or changed in the root entry.

@@ -43,6 +43,8 @@ export {
 } from './connections';
 export type { OxyMcpAccountLink } from './connections';
 export { OxyMcpRequestError, postOxyServiceJson } from './serviceRequest';
+export { capabilityCatalogDigest, registerCapabilityCatalog } from './catalogRegistration';
+export type { RegisterCapabilityCatalogOptions } from './catalogRegistration';
 export type { OxyMcpServiceRequestOptions } from './serviceRequest';
 export {
   buildProtectedResourceMetadata,

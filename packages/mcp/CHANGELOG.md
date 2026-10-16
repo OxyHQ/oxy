@@ -1,5 +1,23 @@
 # Changelog: `@oxy.so/mcp`
 
+## 1.3.0
+
+### Added
+
+- `registerCapabilityCatalog(catalog, options)`: register the catalogue this
+  process serves at startup and get back the binding
+  `createInternalCatalogMcpHttpService` requires. It refuses a registration
+  whose version or digest is not this catalogue's. This is Mention's
+  `catalog-registration.ts`, lifted so every app has one copy.
+- `capabilityCatalogDigest(catalog)`: the digest Oxy and the internal transport
+  both compute.
+
+### Changed
+
+- `OxyMcpRequestError.message` carries Oxy's `{ error, message }` refusal text
+  (bounded) when there is no OAuth `error_description`, instead of only the
+  code.
+
 ## 1.2.0
 
 ### Added

@@ -1,5 +1,14 @@
 # Changelog — `@oxy.so/core`
 
+## 4.16.0
+
+Needs `@oxy.so/contracts` 4.20.0.
+
+### Added
+
+- `CreateExecutionAuthorizationInput.ceilingId` (`OxyServer.agency.createExecutionAuthorization`):
+  name the agent owner's published ceiling that bounds the authority (ADR 0042),
+  for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
 Needs `@oxy.so/contracts` 4.19.0. Additive: nothing existing changes behaviour.

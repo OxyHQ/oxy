@@ -265,6 +265,18 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
       'catalog-declared numeric maxima and exact booleans for one authorized tool; no strings, arrays or tool arguments',
   },
   {
+    table: 'agent_requester_ceilings',
+    column: 'limits',
+    holds:
+      "catalog-declared numeric maxima and exact booleans an agent owner's ceiling sets per tool (ADR 0042); no strings, arrays or tool arguments",
+  },
+  {
+    table: 'agent_requester_ceilings',
+    column: 'toolOverrides',
+    holds:
+      "a ceiling's per-tool allow/deny decisions: objects of exactly a catalogue tool name and 'allow' | 'deny', never a tool argument",
+  },
+  {
     table: 'delegation_limits',
     column: 'value',
     holds:

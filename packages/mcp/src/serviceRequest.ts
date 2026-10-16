@@ -44,6 +44,8 @@ const oauthErrorSchema = z
   .object({
     error: z.string().trim().min(1),
     error_description: z.string().trim().min(1).optional(),
+    /** Oxy's non-OAuth refusals (`{ error, message }`), e.g. a catalogue it could not parse. */
+    message: z.string().trim().min(1).optional(),
   })
   .passthrough();
 
@@ -99,7 +101,9 @@ export async function postOxyServiceJson(
         response.status,
         parsed.success ? parsed.data.error : 'request_failed',
         parsed.success
-          ? (parsed.data.error_description ?? parsed.data.error)
+          ? (parsed.data.error_description ??
+              parsed.data.message?.slice(0, 500) ??
+              parsed.data.error)
           : `Oxy MCP request failed (${response.status})`,
       );
     }
