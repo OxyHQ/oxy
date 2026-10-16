@@ -55,6 +55,8 @@ class FileCache {
   private recentInvalidations: Map<string, number> = new Map();
   private config: FileCacheConfig;
   private cleanupTimer: NodeJS.Timeout | null = null;
+  /** Caches DERIVED from a file's record (play sessions, ADR 0043 stage 4c), dropped with it. */
+  private readonly invalidationListeners = new Set<(fileIds: readonly string[]) => void>();
 
   constructor(config: Partial<FileCacheConfig> = {}) {
     this.config = {
@@ -108,10 +110,19 @@ class FileCache {
    * record back for the whole TTL. Returns whether it was cached.
    */
   setIfFresh(fileId: string, file: FileRecord, readStartedAt: number): boolean {
-    const invalidatedAt = this.recentInvalidations.get(fileId);
-    if (invalidatedAt !== undefined && invalidatedAt >= readStartedAt) return false;
+    if (this.wasInvalidatedSince(fileId, readStartedAt)) return false;
     this.set(fileId, file);
     return true;
+  }
+
+  /**
+   * Whether `fileId` was invalidated here at or after `readStartedAt` — the
+   * same freshness rule as {@link setIfFresh}, for caches derived from a
+   * file's state ({@link onInvalidate}).
+   */
+  wasInvalidatedSince(fileId: string, readStartedAt: number): boolean {
+    const invalidatedAt = this.recentInvalidations.get(fileId);
+    return invalidatedAt !== undefined && invalidatedAt >= readStartedAt;
   }
 
   /**
@@ -148,17 +159,43 @@ class FileCache {
    */
   invalidateLocal(fileIds: Iterable<string>): void {
     const now = Date.now();
+    const dropped: string[] = [];
     for (const fileId of fileIds) {
       if (!fileId) continue;
+      dropped.push(fileId);
       this.cache.delete(fileId);
       this.recentInvalidations.delete(fileId);
       this.recentInvalidations.set(fileId, now);
+    }
+    if (dropped.length > 0) {
+      for (const listener of this.invalidationListeners) {
+        try {
+          listener(dropped);
+        } catch (error) {
+          logger.warn('fileCache: an invalidation listener failed', {
+            err: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
     }
     while (this.recentInvalidations.size > RECENT_INVALIDATION_MAX_ENTRIES) {
       const oldest = this.recentInvalidations.keys().next().value;
       if (oldest === undefined) break;
       this.recentInvalidations.delete(oldest);
     }
+  }
+
+  /**
+   * Run `listener` whenever files are dropped here — by this task's own
+   * {@link invalidate} or a peer's message — so a cache derived from a file's
+   * state rides the same cross-task channel instead of a second one. Returns
+   * the unsubscribe.
+   */
+  onInvalidate(listener: (fileIds: readonly string[]) => void): () => void {
+    this.invalidationListeners.add(listener);
+    return () => {
+      this.invalidationListeners.delete(listener);
+    };
   }
 
   private evictOldest(count = 1): void {

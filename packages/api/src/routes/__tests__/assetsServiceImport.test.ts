@@ -24,7 +24,7 @@
 import express from 'express';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { PassThrough, type Readable } from 'node:stream';
 import { and, eq } from 'drizzle-orm';
 
@@ -105,7 +105,17 @@ jest.mock('../../queue/assetVariants.queue', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { applications, fileReferences, fileSources, files, users } from '../../db/schema';
+import {
+  applications,
+  fileAccessGrants,
+  fileIngests,
+  fileReferences,
+  fileSources,
+  files,
+  users,
+} from '../../db/schema';
+import { fileIngestService } from '../../services/fileIngestSingleton';
+import { refetchLargeImport } from '../../services/fileImport.service';
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 import fileCache from '../../utils/fileCache';
@@ -435,15 +445,19 @@ describe('POST /assets/service/app/import', () => {
     });
     expect(redirected).toMatchObject({ status: 422, body: { error: 'SOURCE_URL_REFUSED' } });
 
+    // An SVG is imported only as its sanitized document (stage 4c): one that
+    // is not a real SVG document (no SVG namespace) is refused before storage.
     const svg = source(Buffer.from('<svg/>'), { 'content-type': 'image/svg+xml' });
     expect(
       await post('/assets/service/app/import', { sourceUrl: svg, visibility: 'public' }),
     ).toMatchObject({
       status: 415,
-      body: { error: 'UNSUPPORTED_MEDIA_TYPE' },
+      body: { error: 'INVALID_SVG' },
     });
 
-    const huge = source(png(), { 'content-length': String(41 * 1024 * 1024) });
+    // Up to 8 GiB is imported (stage 4c: a large source goes the background
+    // way); a source announcing more is refused before a byte is read.
+    const huge = source(png(), { 'content-length': String(9 * 1024 ** 3) });
     expect(
       await post('/assets/service/app/import', { sourceUrl: huge, visibility: 'public' }),
     ).toMatchObject({
@@ -609,5 +623,192 @@ describe('POST /assets/service/user-media/import', () => {
         )
       ).status,
     ).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Large sources (ADR 0043 stage 4c): > 40 MiB, or audio/video without a
+// declared size, are fetched in the background and stored the same way.
+// ---------------------------------------------------------------------------
+
+function get(path: string, headers: Record<string, string> = {}): Promise<Answer> {
+  const address = server.address() as AddressInfo;
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {} }),
+        );
+      },
+    );
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/** Poll an import until it is no longer importing (the background fetch is in this process). */
+async function settle(path: string, headers: Record<string, string> = {}): Promise<Answer> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const answer = await get(path, headers);
+    if (answer.body.data?.status !== 'importing' && answer.body.data?.status !== 'verifying') {
+      return answer;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`import at ${path} did not settle`);
+}
+
+/** A fresh source URL serving `body` as audio. */
+function audioSource(body: Buffer, headers: Record<string, string> = {}): string {
+  const url = `https://podcasts.example/${randomBytes(6).toString('hex')}/episode.mp3`;
+  mockSources.set(url, {
+    status: 200,
+    headers: { 'content-type': 'audio/mpeg', etag: '"ep1"', ...headers },
+    body,
+  });
+  return url;
+}
+
+describe('large imports by URL', () => {
+  it('imports a 41 MiB enclosure in the background, once, with its provenance', async () => {
+    const appId = await application();
+    actAs(appId, APP_SCOPES);
+    const bytes = randomBytes(41 * 1024 * 1024);
+    const url = audioSource(bytes, { 'content-length': String(bytes.length) });
+
+    const started = await post('/assets/service/app/import', {
+      sourceUrl: url,
+      visibility: 'private',
+      reference: { entityType: 'episode', entityId: 'ep-1' },
+      audio: { normalizeLoudness: true },
+    });
+    expect(started.status).toBe(202);
+    expect(started.body.data).toMatchObject({
+      status: 'importing',
+      source: { host: 'podcasts.example' },
+    });
+    const importId = started.body.data?.importId as string;
+
+    const done = await settle(`/assets/service/app/imports/${importId}`);
+    expect(done.status).toBe(200);
+    expect(done.body.data).toMatchObject({
+      importId,
+      status: 'completed',
+      outcome: 'downloaded',
+      deduplicated: false,
+      reference: { result: 'created' },
+      source: { host: 'podcasts.example', etag: '"ep1"' },
+      file: {
+        ownerApplicationId: appId,
+        mime: 'audio/mpeg',
+        visibility: 'private',
+        size: bytes.length,
+      },
+    });
+    const [stored] = await getDb()
+      .select()
+      .from(files)
+      .where(eq(files.id, done.body.data?.file.id as string));
+    expect(stored.sha256).toBe(createHash('sha256').update(bytes).digest('hex'));
+    expect(stored.storageKey.startsWith('public/')).toBe(false);
+    expect(stored.metadata).toMatchObject({
+      audioOptions: { normalizeLoudness: true },
+      source: 'import',
+    });
+    const [provenance] = await getDb()
+      .select()
+      .from(fileSources)
+      .where(eq(fileSources.fileId, stored.id));
+    expect(provenance).toMatchObject({ sourceHost: 'podcasts.example', etag: '"ep1"' });
+    expect(provenance.sourceUrlCiphertext).not.toContain('podcasts.example/');
+
+    // Once per URL: a repeat answers the file without fetching.
+    mockFetchLog.length = 0;
+    const again = await post('/assets/service/app/import', {
+      sourceUrl: url,
+      visibility: 'private',
+    });
+    expect(again).toMatchObject({ status: 200, body: { data: { outcome: 'existing' } } });
+    expect(mockFetchLog).toHaveLength(0);
+
+    // Another application cannot read the job.
+    actAs(await application(), APP_SCOPES);
+    expect((await get(`/assets/service/app/imports/${importId}`)).status).toBe(404);
+  });
+
+  it('streams audio that declares no size, into a person’s files, granting the importer', async () => {
+    const appId = await application();
+    const owner = await account();
+    actAs(appId, ['files:user-media:write']);
+    const bytes = randomBytes(300_000);
+    const url = audioSource(bytes);
+    const started = await post(
+      '/assets/service/user-media/import',
+      { sourceUrl: url, visibility: 'private' },
+      { 'x-owner-user-id': owner },
+    );
+    expect(started.status).toBe(202);
+    const done = await settle(`/assets/service/user-media/imports/${started.body.data?.importId}`, {
+      'x-owner-user-id': owner,
+    });
+    expect(done.body.data).toMatchObject({
+      status: 'completed',
+      file: { visibility: 'private', mime: 'audio/mpeg', size: bytes.length },
+    });
+    const [grant] = await getDb()
+      .select()
+      .from(fileAccessGrants)
+      .where(eq(fileAccessGrants.fileId, done.body.data?.file.id as string));
+    expect(grant).toMatchObject({ applicationId: appId, state: 'granted', source: 'upload' });
+  });
+
+  it('never stores a body cut short, and the worker fetches it again', async () => {
+    const appId = await application();
+    actAs(appId, APP_SCOPES);
+    const bytes = randomBytes(1024 * 1024);
+    const url = `https://podcasts.example/${randomBytes(6).toString('hex')}/cut.mp3`;
+    // Announces 41 MiB, sends 1 MiB.
+    mockSources.set(url, {
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg', 'content-length': String(41 * 1024 * 1024) },
+      body: bytes,
+    });
+    const started = await post('/assets/service/app/import', {
+      sourceUrl: url,
+      visibility: 'public',
+    });
+    expect(started.status).toBe(202);
+    const importId = started.body.data?.importId as string;
+    let row = (await getDb().select().from(fileIngests).where(eq(fileIngests.id, importId)))[0];
+    for (let attempt = 0; attempt < 200 && row.errorCode === null; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      row = (await getDb().select().from(fileIngests).where(eq(fileIngests.id, importId)))[0];
+    }
+    expect(row).toMatchObject({
+      status: 'receiving',
+      errorCode: 'SOURCE_FETCH_FAILED',
+      fileId: null,
+    });
+
+    // The source is whole again; the lease ran out; the worker's sweep resumes it.
+    const whole = randomBytes(41 * 1024 * 1024);
+    mockSources.set(url, {
+      status: 200,
+      headers: { 'content-type': 'audio/mpeg', 'content-length': String(whole.length) },
+      body: whole,
+    });
+    await getDb()
+      .update(fileIngests)
+      .set({ leaseExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(fileIngests.id, importId));
+    const swept = await fileIngestService.sweep(refetchLargeImport);
+    expect(swept.resumed).toBeGreaterThanOrEqual(1);
+    const done = await settle(`/assets/service/app/imports/${importId}`);
+    expect(done.body.data).toMatchObject({ status: 'completed', file: { size: whole.length } });
   });
 });

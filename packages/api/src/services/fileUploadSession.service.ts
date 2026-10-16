@@ -47,6 +47,7 @@ import { withContentHashLock } from './contentHashLock';
 import { assertContentNotBlocked, CONTENT_BLOCKED_CODE } from './contentClaims/contentBlocklist';
 import { findLiveFileBySha256ForOwner, isUniqueViolation } from './fileRepository';
 import { mayApplicationReference } from './fileReference.service';
+import { grantUploadAccess } from './fileAccessGrant.service';
 import { loadProductBillingCatalogue } from './productBillingCatalogue.service';
 import {
   releaseTerminalMultipartReservation,
@@ -64,6 +65,13 @@ import {
   storedExtensionFor,
 } from '../utils/fileContentPolicy';
 import { logger } from '../utils/logger';
+import {
+  isSvgType,
+  readBounded,
+  sanitizeSvg,
+  SVG_MAX_BYTES,
+  withoutServerSvgMetadata,
+} from '../utils/svgSanitizer';
 
 /** How long a presigned part URL is valid. */
 export const PART_URL_TTL_SECONDS = 60 * 60;
@@ -124,6 +132,8 @@ export interface LargeUploadView {
 /** The HTTP status a failed session's error answers with. */
 const FAILURE_STATUS: Record<string, number> = {
   CHECKSUM_MISMATCH: 422,
+  INVALID_SVG: 415,
+  PAYLOAD_TOO_LARGE: 413,
   SIZE_MISMATCH: 422,
   [CONTENT_BLOCKED_CODE]: 451,
   STORAGE_QUOTA_EXCEEDED: 413,
@@ -210,12 +220,16 @@ export class FileUploadSessionService {
     if (isDeniedUploadType(mime, request.filename)) {
       throw new ApiError(
         415,
-        'Executables, installers and active documents (HTML, SVG, XML, scripts) cannot be stored',
+        'Executables, installers and active documents (HTML, XML, scripts) cannot be stored',
         'UNSUPPORTED_MEDIA_TYPE',
       );
     }
     if (request.size > LARGE_UPLOAD_MAX_BYTES) {
       throw new ApiError(413, 'A file can be at most 8 GiB', 'PAYLOAD_TOO_LARGE');
+    }
+    // An SVG is sanitized once verified (stage 4c), in memory: it is bounded.
+    if (isSvgType(mime) && request.size > SVG_MAX_BYTES) {
+      throw new ApiError(413, 'An SVG can be at most 5 MiB', 'PAYLOAD_TOO_LARGE');
     }
     await assertContentNotBlocked(request.sha256);
 
@@ -224,6 +238,9 @@ export class FileUploadSessionService {
     if (own) {
       // The owner already holds these bytes: nothing to upload.
       const file = await this.assets.reuseOwnLiveFile(own, columns);
+      // A person's file the application is storing for them: it may read it
+      // back (ADR 0043 stage 4c), the bytes already being theirs included.
+      if (owner.kind === 'account') await grantUploadAccess(file.id, uploaderApplicationId);
       const reference = await this.addReference(file, request.reference, uploaderApplicationId);
       return {
         uploadId: null,
@@ -291,7 +308,8 @@ export class FileUploadSessionService {
           ext,
           originalName: request.filename ? normalizeInlineText(request.filename) : null,
           visibility: request.visibility,
-          metadata: request.metadata ?? null,
+          // `metadata.svg` is the server's record of a sanitization, never the caller's.
+          metadata: withoutServerSvgMetadata(request.metadata) ?? null,
           reference: request.reference ?? null,
           stagingKey,
           s3UploadId: uploadId,
@@ -525,7 +543,63 @@ export class FileUploadSessionService {
       return;
     }
 
+    if (isSvgType(row.mime)) {
+      await this.storeSanitizedSvg(row);
+      return;
+    }
     await this.store(row);
+  }
+
+  /**
+   * A verified SVG becomes a file only as its sanitized document (ADR 0043
+   * stage 4c): the uploaded bytes are read (bounded at open), sanitized, and
+   * the sanitized bytes written next to them (a key derived from the upload's,
+   * so a retried attempt rewrites the same object); the file's hash is the
+   * sanitized bytes', the declared one is kept as `metadata.svg.originalSha256`.
+   * The upload's reservation was for the declared bytes at another key: it is
+   * released, and the insert is admitted against the plan on its own. The
+   * upload's own object goes once the session is settled — a transient failure
+   * keeps it for the next attempt.
+   */
+  private async storeSanitizedSvg(row: FileUploadSessionRow): Promise<void> {
+    let sanitized: ReturnType<typeof sanitizeSvg>;
+    try {
+      const { body } = await this.s3.getObjectStreamRange(row.stagingKey);
+      sanitized = sanitizeSvg(await readBounded(body as AsyncIterable<Buffer>, SVG_MAX_BYTES));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        await this.fail(row, { code: error.code, message: error.message });
+      } else {
+        await this.retryLater(row, error);
+      }
+      return;
+    }
+    const stagingKey = `${row.stagingKey.replace(/\.svg$/i, '')}-sanitized${row.ext}`;
+    try {
+      await this.s3.uploadBuffer(stagingKey, sanitized.bytes, {
+        contentType: row.mime,
+        cacheControl: IMMUTABLE_ASSET_CACHE_CONTROL,
+      });
+    } catch (error) {
+      await this.retryLater(row, error);
+      return;
+    }
+    await this.releaseReservation(row.sha256, row.reservationId);
+    await this.store({
+      ...row,
+      sha256: sanitized.sha256,
+      size: sanitized.bytes.length,
+      stagingKey,
+      reservationId: null,
+      metadata: { ...(row.metadata ?? {}), svg: sanitized.record },
+    });
+    if ((await this.reload(row.id)).status === 'verifying') return;
+    await this.s3.deleteFile(row.stagingKey).catch((cause: unknown) => {
+      logger.warn('Large upload: could not delete an SVG as uploaded', {
+        uploadId: row.id,
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+    });
   }
 
   /** Make a verified session's bytes its owner's file, register its reference, and complete it. */
@@ -564,6 +638,9 @@ export class FileUploadSessionService {
       return;
     }
 
+    // A person's file the uploading application stored for them: it may read
+    // it back (ADR 0043 stage 4c).
+    if (row.kind === 'account') await grantUploadAccess(stored.file.id, row.uploaderApplicationId);
     const reference = await this.addReference(
       stored.file,
       row.reference ?? undefined,

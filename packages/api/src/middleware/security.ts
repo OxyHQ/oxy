@@ -106,6 +106,31 @@ export function isServiceTokenMintPath(path: string): boolean {
 }
 
 /**
+ * Paths whose URL itself is the credential and whose traffic is machine-paced
+ * (ADR 0043 stage 4c):
+ *   - `/assets/streams/<sessionId>.<secret>/…` — a play session's playlists,
+ *     segments and key: a player fetches a segment every few seconds, and many
+ *     listeners share one NAT address;
+ *   - `/assets/recording-ingest/…` — a recording target's S3-compatible ingest,
+ *     written by a LiveKit egress in 5 MiB parts, several at a time.
+ * Charged to the per-address browser budget (`rl:general`, 1000/15min) and the
+ * slowDown penalty (500 ms after 100), a single podcast episode would stall
+ * after a few minutes and a recording would upload at a crawl.
+ *
+ * MOUNT-ORDER INVARIANT: `rl:general` and `slowDown` skip these paths, so each
+ * route matched here MUST carry its own limiters — a per-address flood ceiling
+ * and a per-session (per-target) budget — in `routes/assets.ts` /
+ * `routes/recordingIngest.ts`. Both forms, with and without the `/api` prefix,
+ * are matched: the prefix is stripped after the global limiters run.
+ */
+export function isCapabilityUrlPath(path: string): boolean {
+  const stripped = path.startsWith('/api/') ? path.slice(4) : path;
+  return (
+    stripped.startsWith('/assets/streams/') || stripped.startsWith('/assets/recording-ingest/')
+  );
+}
+
+/**
  * NOTE — the token-gated BULK-PATH exemption that used to live here
  * (`SERVICE_TO_SERVICE_BULK_PATHS` + `isServiceToServiceBulkRequest`) is gone,
  * subsumed by {@link isFirstPartyServiceRequest}: a valid service credential is
@@ -316,6 +341,7 @@ const rateLimiter = rateLimit({
     isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
+    isCapabilityUrlPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 
@@ -454,6 +480,7 @@ const bruteForceProtection = slowDown({
     isSessionHeaderValidationPath(req.path) ||
     isFederationServiceToServicePath(req.path) ||
     isServiceTokenMintPath(req.path) ||
+    isCapabilityUrlPath(req.path) ||
     isFirstPartyServiceRequest(req),
 });
 

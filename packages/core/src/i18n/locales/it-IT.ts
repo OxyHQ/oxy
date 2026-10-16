@@ -413,6 +413,30 @@ const dict = {
     },
     moveToTrash: 'Sposta nel cestino',
     moveToTrashCount: 'Sposta nel cestino ({{count}})',
+    appAccess: {
+      title: 'App con accesso',
+      description:
+        "Queste app possono aprire il file da sole. Revoca un'app per toglierle questo accesso.",
+      empty: 'Nessuna app può aprire questo file da sola.',
+      loadError: 'Impossibile caricare le app che possono aprire questo file',
+      via: {
+        upload: 'Ha salvato questo file per te',
+        link: "L'hai condiviso tu",
+      },
+      revoke: 'Revoca',
+      confirm: {
+        title: 'Revocare {{name}}?',
+        message:
+          "{{name}} non potrà più aprire questo file e qualsiasi riproduzione avviata dall'app si interrompe ora.",
+      },
+      toasts: {
+        revoked: '{{name}} non può più aprire questo file',
+        revokeFailed: "Impossibile revocare l'accesso di {{name}}",
+      },
+      a11y: {
+        revoke: "Revoca l'accesso di {{name}} a questo file",
+      },
+    },
     trashView: {
       title: 'Cestino',
       subtitle: 'Ripristina i file o eliminali definitivamente',

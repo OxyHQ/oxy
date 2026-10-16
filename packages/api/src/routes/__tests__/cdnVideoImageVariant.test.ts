@@ -246,7 +246,7 @@ async function seedVideoFile(): Promise<FileRecord> {
       ownerUserId: owner.id,
     })
     .returning();
-  return { ...row, links: [], variants: [] };
+  return { ...row, links: [], variants: [], accessGrants: [] };
 }
 
 /** The key `generateVariantKey` derives for one rendition of this clip. */

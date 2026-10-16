@@ -1,5 +1,96 @@
 # Changelog — `@oxy.so/core`
 
+## 4.21.0
+
+Needs the Oxy API with ADR 0043 stage 4c — private person media and consent
+grants, play sessions, audio renditions, recording targets, large imports by
+URL and sanitized SVG (migration `0180_file_access_streams_ingests`). Same
+`@oxy.so/contracts` (4.24.0). (First prepared as 4.19.0, then 4.20.0, which
+#1721 and #1770 took.)
+
+### Changed
+
+- `OxyServer.assets.importAppFile`, `importAppFiles` and `importUserMedia`
+  accept sources up to 8 GiB (ADR 0043 stage 4c): Oxy fetches one over 40 MiB
+  in the background and the API answers `202 { importId, status, source }`;
+  the SDK waits for it (polling `GET /assets/service/{app,user-media}/imports/:importId`,
+  2 s backing off to 10 s, `waitMs` default 60 min, `signal` honoured) and
+  resolves to the same import result as before. A failed import rejects with
+  the `OxyApiError` of its status and code (`details.importId`); a wait that
+  runs out rejects with `IMPORT_WAIT_TIMEOUT`. In a batch, such an item is
+  waited for and answers like the others (`ok: false` with its error when it
+  fails). `FileImportOptions` gains `audio` and `waitMs`.
+- Uploads and imports by a service accept audio as well as images and videos,
+  and SVG, which Oxy sanitizes and stores sanitized (its `sha256` is the
+  sanitized bytes'). `oxy.assets.uploadLarge` sends an `image/svg+xml` Blob
+  through `assets.upload` (the API refuses SVG on `/assets/init` with 415
+  `SVG_UPLOAD_REQUIRES_SANITIZATION`, since presigned bytes never pass through
+  it) and answers in its own shape, `deduplicated: false`.
+- `OxyServer.assets.linkedDownloadUrls` also answers a person's file THIS
+  application stored for them (a user-media upload, import, large upload or
+  recording), unless the person revoked that; nothing changes in its shape.
+- `fileEvents.ts`: the signature check is shared with key authorization
+  (`verifyOxySignature`, internal); `verifyFileEventSignature` behaves as
+  before and refuses a `stream.key_authorization` request.
+
+### Added
+
+- Stage 4c of ADR 0043 on `OxyServer.assets`:
+  - **A person's private media from a service**: `uploadUserMedia(ownerUserId,
+    bytes, mime, { visibility?, audio?, … })` sends `x-visibility` (default
+    `public`); a `private` file never reaches the CDN, and only its person and
+    the application that stored it can read it. `uploadAppFile` and
+    `uploadUserMedia` send `audio` as `x-audio-options`; imports, large
+    uploads and recording targets send it as `audio`.
+    `AudioRenditionOptions` (`{ normalizeLoudness?, previewStartSeconds? }`):
+    an audio file gets an audio-only HLS ladder (AAC 64k/128k/256k), a
+    waveform and a 30-second preview.
+  - **Play sessions**: `streams.create(fileId, { endUserId?, ttlSeconds?,
+    encryption?, keyAuthorization? })` → `PlaySession` (`{ sessionId,
+    masterUrl, renditions, previewUrl?, waveformUrl?, expiresAt, … }`,
+    `POST /assets/service/streams`), `streams.get(sessionId)`,
+    `streams.revoke(sessionId)` and `streams.revokeWhere({ fileId?,
+    endUserId? })`. A session is one file's HLS ladder for at most 12 hours;
+    every playlist, segment and key is checked against it, so revoking stops
+    playback at the next request. `aes-128` (default) encrypts the segments
+    with a key served only inside the session; `keyAuthorization: 'webhook'`
+    asks the application's file-events endpoint first. `ttlSeconds` outside
+    60–43200 is a `RangeError` before any request. Types `PlaySession`,
+    `PlaySessionOptions`.
+  - `verifyStreamKeyAuthorization(rawBody, headers, secret, { toleranceSeconds?, now? })`
+    → `StreamKeyAuthorizationRequest` (`{ id, type, occurredAt, session: {
+    id, fileId, endUserId, expiresAt } }`), with
+    `STREAM_KEY_AUTHORIZATION_EVENT_TYPE`, `StreamKeyAuthorizationAnswer`
+    (`{ allow }`) and `StreamKeyAuthorizationVerificationError`, from
+    `@oxy.so/core/server`: the synchronous `stream.key_authorization` request,
+    signed like a file event; answer `{ allow: true }` within 3 s.
+  - **Recording targets (LiveKit egress)**: `createAppRecordingTarget({
+    visibility, filename?, metadata?, reference?, maxBytes?, expiresInSeconds?,
+    audio? })` and `createUserRecordingTarget(ownerUserId, { … })` →
+    `CreatedRecordingTarget` (`{ targetId, filepath, s3, livekit, expiresAt }`
+    — `livekit` is LiveKit's `EncodedFileOutput` `{ filepath, s3 }` as it is;
+    S3-compatible credentials that accept exactly that one object);
+    `getRecordingTarget(targetId, { ownerUserId? })`,
+    `completeRecordingTarget(targetId, { ownerUserId?, waitMs?, signal? })`
+    (waits while Oxy verifies, default 10 min; `RECORDING_WAIT_TIMEOUT`;
+    rejects with the target's own error once it failed) and
+    `abortRecordingTarget(targetId, { ownerUserId? })`. Types
+    `RecordingTarget`, `RecordingTargetOptions`, `RecordingTargetCredentials`,
+    `CreatedRecordingTarget`.
+  - `getImport(importId, { ownerUserId? })` → `FileImportState`: a background
+    import as it stands. `PendingFileImport` is the `202` it answers first.
+- `oxy.assets.listAppAccess(fileId)` → `FileApplicationAccess[]` (`{
+  applicationId, name, icon, via: ('upload' | 'link')[], since }`) and
+  `oxy.assets.revokeAppAccess(fileId, applicationId)` →
+  `FileApplicationAccessRevocation` (`{ fileId, applicationId, revoked,
+  streamsRevoked }`): the applications that can read one of the signed-in
+  person's files with their own token, and taking that away (`GET` /
+  `DELETE /assets/:id/access…`, ADR 0043 stage 4c). A revocation stops the
+  application's play sessions of the file at once and holds when it stores
+  the same bytes again; attaching the file to it yourself (`assets.link`)
+  restores it.
+- `fileManagement.appAccess.*` strings in all eleven locales, for the file
+  manager's "Apps with access".
 ## 4.20.0
 
 Needs `@oxy.so/contracts` 4.24.0. Additive: nothing existing changes behaviour.

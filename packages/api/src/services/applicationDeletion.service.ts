@@ -34,10 +34,12 @@
  * deleted application with nothing left matches nothing.
  */
 
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { applyPublicPrefix } from '../config/cdn';
 import { type DatabaseOrTransaction, getDb, type Transaction } from '../config/postgres';
 import { applications } from '../db/schema/applications';
+import { fileIngests } from '../db/schema/fileIngests';
+import { filePlaySessions } from '../db/schema/filePlaySessions';
 import fileCache from '../utils/fileCache';
 import { logger } from '../utils/logger';
 import { recordFilesStorageDeletion } from './accountStorageDeletion.service';
@@ -58,6 +60,11 @@ export interface DeletedApplicationContent {
   }>;
   /** `storage_object_deletions` rows armed, to work off right away. */
   ledgerIds: string[];
+  /**
+   * Files whose play sessions this application held were revoked (ADR 0043
+   * stage 4c): their cached sessions are dropped on every task after commit.
+   */
+  playSessionFileIds: string[];
 }
 
 /**
@@ -84,9 +91,30 @@ export async function deleteApplicationContent(
     'file.deleted',
     tombstoned.map((file) => file.id),
   );
+  // Stage 4c: the application's play sessions end now, and the large imports
+  // and recording targets it created are expired — the upload worker aborts
+  // them and deletes what they staged (a verifying one fails at finalization,
+  // where `insertFile` refuses a deleted application's file).
+  const revokedSessions = await tx
+    .update(filePlaySessions)
+    .set({ revokedAt: sql`now()`, revokedBy: 'oxy' })
+    .where(
+      and(eq(filePlaySessions.applicationId, applicationId), isNull(filePlaySessions.revokedAt)),
+    )
+    .returning({ fileId: filePlaySessions.fileId });
+  await tx
+    .update(fileIngests)
+    .set({ expiresAt: sql`now()` })
+    .where(
+      and(
+        eq(fileIngests.creatorApplicationId, applicationId),
+        inArray(fileIngests.status, ['awaiting_upload', 'receiving']),
+      ),
+    );
   return {
     applicationId,
     referencesRemoved,
+    playSessionFileIds: [...new Set(revokedSessions.map((row) => row.fileId))],
     files: tombstoned.map((file) => ({
       id: file.id,
       visibility: file.visibility,
@@ -224,7 +252,10 @@ export async function purgeDeletedApplicationContent(
  */
 export function invalidateDeletedApplicationFiles(content: DeletedApplicationContent): void {
   try {
-    fileCache.invalidateMany(content.files.map((file) => file.id));
+    fileCache.invalidateMany([
+      ...content.files.map((file) => file.id),
+      ...content.playSessionFileIds,
+    ]);
     const queue = getCdnInvalidationQueue();
     for (const file of content.files) {
       if (file.visibility !== 'public') continue;

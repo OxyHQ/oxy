@@ -64,7 +64,7 @@ async function asset(ownerUserId: string) {
       visibility: 'public',
     })
     .returning();
-  return { ...row, links: [], variants: [] };
+  return { ...row, links: [], variants: [], accessGrants: [] };
 }
 it('blocks and restricts through either alias, then restores original-only policy after revocation', async () => {
   const { a, b, viewer, ig } = await pair();

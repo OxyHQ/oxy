@@ -80,6 +80,13 @@ import fileCache from '../utils/fileCache';
 import { BadRequestError } from '../utils/error';
 import { isDeclaredImageContentValid } from '../utils/imageContentSignature';
 import {
+  isSvgType,
+  readBounded,
+  sanitizeSvg,
+  SVG_MAX_BYTES,
+  withoutServerSvgMetadata,
+} from '../utils/svgSanitizer';
+import {
   deleteFileReference,
   deleteVariant,
   findFileById,
@@ -116,6 +123,46 @@ import { isHlsRenditionVariant, playlistSiblingKey, playlistUris } from './hlsPl
  * client disconnects; `Readable`'s own typings do not declare that event, so
  * we widen the listener overloads here instead of casting.
  */
+/**
+ * An uploaded SVG as it is stored: the sanitized document, with the server's
+ * record of the sanitization (`metadata.svg`) replacing anything the caller sent
+ * under that key (ADR 0043 stage 4c, `utils/svgSanitizer.ts`).
+ */
+function sanitizedSvgUpload(
+  bytes: Buffer,
+  metadata: Record<string, unknown> | undefined,
+): { bytes: Buffer; metadata: Record<string, unknown> } {
+  const sanitized = sanitizeSvg(bytes);
+  return {
+    bytes: sanitized.bytes,
+    metadata: { ...(withoutServerSvgMetadata(metadata) ?? {}), svg: sanitized.record },
+  };
+}
+
+/** The presigned two-step upload never carries an SVG: the API must read it to sanitize it. */
+export function svgRequiresSanitizationError(): ApiError {
+  return new ApiError(
+    415,
+    "An SVG must be uploaded through POST /assets/upload (the SDK's assets.upload), which sanitizes it; the presigned upload stores bytes Oxy never reads",
+    'SVG_UPLOAD_REQUIRES_SANITIZATION',
+  );
+}
+
+/** {@link sanitizedSvgUpload} for a streamed upload: read it (bounded), then stream the sanitized bytes. */
+async function sanitizedSvgStream(
+  source: AbortableReadable,
+  maxBytes: number,
+  options: StreamedMediaOptions,
+): Promise<{ source: AbortableReadable; maxBytes: number; options: StreamedMediaOptions }> {
+  const raw = await readBounded(source, Math.min(maxBytes, SVG_MAX_BYTES));
+  const { bytes, metadata } = sanitizedSvgUpload(raw, options.metadata);
+  return {
+    source: Readable.from([bytes]) as AbortableReadable,
+    maxBytes: bytes.length,
+    options: { ...options, metadata },
+  };
+}
+
 type AbortableReadable = Readable & {
   on(event: 'aborted', listener: () => void): AbortableReadable;
   removeListener(event: 'aborted', listener: () => void): AbortableReadable;
@@ -631,6 +678,14 @@ export class AssetService {
       return variant;
     }
 
+    if (fileObj.mime.startsWith('audio/')) {
+      // Audio renditions (the HLS ladder, `waveform`, `preview`) are made by
+      // the upload pipeline's queued job only (ADR 0043 stage 4c). Never here:
+      // public routes reach this, and an on-demand encode would let any caller
+      // spend FFmpeg CPU. A size name has no meaning for audio either.
+      throw new Error(`Audio rendition ${variantType} is not available`);
+    }
+
     throw new Error(`Variant ${variantType} not supported for mime ${fileObj.mime}`);
   }
 
@@ -676,6 +731,8 @@ export class AssetService {
     expectedSize: number,
     expectedMime: string,
   ): Promise<AssetInitResponse> {
+    // The bytes go straight to storage, unread: never an SVG (stage 4c).
+    if (expectedMime.toLowerCase().startsWith('image/svg')) throw svgRequiresSanitizationError();
     const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
     try {
       // The declared hash IS the content: the presigned PUT carries it as a
@@ -856,12 +913,21 @@ export class AssetService {
    */
   async uploadFileDirect(
     userId: string,
-    fileBuffer: Buffer,
+    uploadedBuffer: Buffer,
     mimeType: string,
     originalName: string,
     visibility?: FileVisibility,
-    metadata?: Record<string, unknown>,
+    uploadedMetadata?: Record<string, unknown>,
+    options: { svg?: 'sanitize' | 'preserve' } = {},
   ): Promise<FileRecord> {
+    // An SVG a person uploads is stored only as its sanitized document (ADR
+    // 0043 stage 4c); the hash below is the hash of THOSE bytes. `preserve`
+    // keeps a mail attachment byte for byte — it is then served as a
+    // download, never inline. Either way `metadata.svg` is the server's.
+    const { bytes: fileBuffer, metadata } =
+      options.svg === 'sanitize' && isSvgType(mimeType)
+        ? sanitizedSvgUpload(uploadedBuffer, uploadedMetadata)
+        : { bytes: uploadedBuffer, metadata: withoutServerSvgMetadata(uploadedMetadata) };
     try {
       // Calculate SHA256 hash on backend
       const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
@@ -1665,12 +1731,26 @@ export class AssetService {
   }
 
   private async uploadStreamedMediaDetailed(
-    source: AbortableReadable,
+    uploadedSource: AbortableReadable,
     mimeType: string,
     originalName: string,
-    maxBytes: number,
-    options: StreamedMediaOptions,
+    uploadedMaxBytes: number,
+    uploadedOptions: StreamedMediaOptions,
   ): Promise<StreamedMediaResult> {
+    // Every streamed path (service uploads, imports, the federation and media
+    // caches, stickers) stores an SVG only as its sanitized document (ADR 0043
+    // stage 4c): read it (bounded), sanitize, and store those bytes. The
+    // metadata's `svg` key is the server's on every path.
+    const { source, maxBytes, options } = isSvgType(mimeType)
+      ? await sanitizedSvgStream(uploadedSource, uploadedMaxBytes, uploadedOptions)
+      : {
+          source: uploadedSource,
+          maxBytes: uploadedMaxBytes,
+          options: {
+            ...uploadedOptions,
+            metadata: withoutServerSvgMetadata(uploadedOptions.metadata) ?? {},
+          },
+        };
     if (
       (await loadProductBillingCatalogue()).storageAdapter &&
       (await meteredOwnerId(options.owner))
@@ -1955,6 +2035,12 @@ export class AssetService {
       if (existing.ownerUserId !== requestingUserId) {
         throw new ForbiddenError('You do not own this file');
       }
+      // The presigned PUT stores bytes the API never saw, so they cannot have
+      // been sanitized: an SVG is stored only through a path that reads it
+      // (ADR 0043 stage 4c).
+      if (isSvgType(request.mime) || request.mime.toLowerCase().startsWith('image/svg')) {
+        throw svgRequiresSanitizationError();
+      }
 
       // Verify file exists in storage
       const exists = await this.s3Service.fileExists(existing.storageKey);
@@ -1987,7 +2073,7 @@ export class AssetService {
         originalName: normalizeInlineText(request.originalName),
         size: admittedSize,
         mime: request.mime,
-        metadata: request.metadata ?? {},
+        metadata: withoutServerSvgMetadata(request.metadata) ?? {},
         ...(request.visibility ? { visibility: request.visibility } : {}),
       });
       if (!file) {

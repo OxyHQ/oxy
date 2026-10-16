@@ -696,6 +696,32 @@ export class S3Service {
     });
   }
 
+  /**
+   * Upload one part of a multipart upload FROM the API (a recording target's
+   * S3-compatible ingest, ADR 0043 stage 4c): `body` is streamed, never
+   * buffered, and must be exactly `contentLength` bytes. Returns S3's ETag.
+   */
+  async uploadPart(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    body: Readable,
+    contentLength: number,
+  ): Promise<{ etag: string }> {
+    const result = await this.s3Client.send(
+      new UploadPartCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        UploadId: uploadId,
+        PartNumber: partNumber,
+        ContentLength: contentLength,
+        Body: body,
+      }),
+    );
+    if (!result.ETag) throw new Error('S3 returned no ETag for the part');
+    return { etag: result.ETag };
+  }
+
   /** Every part S3 holds for an open multipart upload, in part order; `null` if the upload is gone. */
   async listParts(
     key: string,

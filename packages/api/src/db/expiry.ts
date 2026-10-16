@@ -74,6 +74,8 @@ import {
   FILE_UPLOAD_SESSION_RETENTION_SECONDS,
   fileUploadSessions,
 } from './schema/fileUploadSessions';
+import { FILE_INGEST_RETENTION_SECONDS, fileIngests } from './schema/fileIngests';
+import { PLAY_SESSION_RETENTION_SECONDS, filePlaySessions } from './schema/filePlaySessions';
 import {
   CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
   contentClaimClaimants,
@@ -455,6 +457,25 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'stage 4b) — stays readable by its uploader for a week, so a client that ' +
       'lost the answer still learns the outcome, then goes. An open session has ' +
       'no `finished_at` and is never swept here: the upload worker aborts it.',
+  },
+  {
+    table: fileIngests,
+    column: fileIngests.finishedAt,
+    retentionSeconds: FILE_INGEST_RETENTION_SECONDS,
+    reason:
+      'A large import or a recording target that finished — a file, a failure or an ' +
+      'abort (ADR 0043 stage 4c) — stays readable by its creator for a week, so a ' +
+      'client that lost the answer still learns the outcome, then goes. An open ingest ' +
+      'has no `finished_at` and is never swept here: the ingest worker aborts it.',
+  },
+  {
+    table: filePlaySessions,
+    column: filePlaySessions.expiresAt,
+    retentionSeconds: PLAY_SESSION_RETENTION_SECONDS,
+    reason:
+      'A play session (ADR 0043 stage 4c) is dead at `expires_at` — every serving ' +
+      'request checks it — and is kept a day longer so the application reading it ' +
+      'learns "expired" rather than "unknown". Housekeeping only.',
   },
   {
     table: contentClaimClaimants,

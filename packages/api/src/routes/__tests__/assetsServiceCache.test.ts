@@ -83,11 +83,22 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+const mockGrantUploadAccess = jest.fn(async () => undefined);
+jest.mock('../../services/fileAccessGrant.service', () => ({
+  ...jest.requireActual('../../services/fileAccessGrant.service'),
+  grantUploadAccess: (...args: unknown[]) => mockGrantUploadAccess(...(args as [])),
+}));
+
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     uploadCachedMediaStream: (...args: unknown[]) => mockUploadCachedMediaStream(...args),
     uploadFederatedMediaStream: (...args: unknown[]) => mockUploadFederatedMediaStream(...args),
-    uploadUserMediaStream: (...args: unknown[]) => mockUploadUserMediaStream(...args),
+    // Since ADR 0043 stage 4c the route calls the detailed variant (visibility,
+    // deduplicated); the file it stores is still what this mock resolves.
+    uploadUserMediaStreamDetailed: async (...args: unknown[]) => ({
+      file: await mockUploadUserMediaStream(...args),
+      deduplicated: false,
+    }),
     deleteCachedMedia: (...args: unknown[]) => mockDeleteCachedMedia(...args),
     uploadFileDirect: (...args: unknown[]) => mockUploadFileDirect(...args),
     getDeletionSummary: (...args: unknown[]) => mockGetDeletionSummary(...args),
@@ -316,8 +327,21 @@ describe('POST /assets/service/cache', () => {
     expect(mockUploadCachedMediaStream).not.toHaveBeenCalled();
   });
 
-  it('rejects an SVG upload with 415 (stored-XSS vector) and never touches S3', async () => {
+  it('rejects an SVG under any spelling but image/svg+xml with 415 and never touches S3', async () => {
     const res = await requestRaw(
+      server,
+      'POST',
+      '/assets/service/cache',
+      { 'content-type': 'image/svg', 'content-length': '14' },
+      Buffer.from('<svg></svg>...'),
+    );
+
+    expect(res.status).toBe(415);
+    expect(mockUploadCachedMediaStream).not.toHaveBeenCalled();
+  });
+
+  it('hands an image/svg+xml upload to the pipeline, which stores it only sanitized (stage 4c)', async () => {
+    await requestRaw(
       server,
       'POST',
       '/assets/service/cache',
@@ -325,8 +349,12 @@ describe('POST /assets/service/cache', () => {
       Buffer.from('<svg></svg>...'),
     );
 
-    expect(res.status).toBe(415);
-    expect(mockUploadCachedMediaStream).not.toHaveBeenCalled();
+    expect(mockUploadCachedMediaStream).toHaveBeenCalledWith(
+      expect.anything(),
+      'image/svg+xml',
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('streams a >1 MiB body intact through the real parser chain to the service', async () => {
@@ -468,6 +496,10 @@ describe('POST /assets/service/user-media', () => {
     expect(res.body.data?.file?.id).toBe(USER_FILE_ID);
     expect(mockUploadUserMediaStream).toHaveBeenCalledTimes(1);
     expect(mockUploadUserMediaStream.mock.calls[0][4]).toBe(LOCAL_OWNER_ID);
+    // Public unless the caller says otherwise, and the uploading application
+    // may read back what it stored for the person (ADR 0043 stage 4c).
+    expect(mockUploadUserMediaStream.mock.calls[0][5]).toBe('public');
+    expect(mockGrantUploadAccess).toHaveBeenCalledWith(USER_FILE_ID, 'mention-app');
   });
 
   it('rejects owners that are not existing local users', async () => {
@@ -593,13 +625,13 @@ describe('POST /assets/service/user-media', () => {
     expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
   });
 
-  it('rejects an SVG upload with 415 (stored-XSS vector) and never touches S3', async () => {
+  it('rejects an SVG under any spelling but image/svg+xml with 415 and never touches S3', async () => {
     const res = await requestRaw(
       server,
       'POST',
       '/assets/service/user-media',
       {
-        'content-type': 'image/svg+xml',
+        'content-type': 'image/svg',
         'content-length': '14',
         'x-owner-user-id': LOCAL_OWNER_ID,
       },

@@ -20,6 +20,7 @@ function makeFile(partial: Partial<FileRecord>): FileRecord {
     purpose: 'user',
     links: [],
     variants: [],
+    accessGrants: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...partial,

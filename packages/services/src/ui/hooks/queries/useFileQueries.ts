@@ -9,8 +9,13 @@
  * infinite scroll, pull-to-refresh, and optimistic upload reconciliation.
  */
 
-import { useInfiniteQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query';
-import type { FileMetadata } from '@oxy.so/core';
+import {
+  useInfiniteQuery,
+  useQuery,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
+import type { FileApplicationAccess, FileMetadata } from '@oxy.so/core';
 import { useOxy } from '../../context/OxyContext';
 import { queryKeys } from './queryKeys';
 
@@ -184,4 +189,41 @@ export function patchFileMetadataInCache(
         )
       : data,
   );
+}
+
+// --- Applications with access (ADR 0043 stage 4c) ---------------------------
+
+/**
+ * The applications that can open one of the owner's files with their own
+ * token: one that stored it for the person, or one the person attached it to.
+ * Fetched when `enabled` (the owner's own file); `staleTime: 0` re-reads it
+ * every time the details open, since an application can gain access at any
+ * time (a new upload on the person's behalf).
+ */
+export const useFileAppAccess = (fileId: string, enabled = true) => {
+  const { oxyServices } = useOxy();
+  return useQuery<FileApplicationAccess[], Error>({
+    queryKey: queryKeys.files.appAccess(fileId),
+    queryFn: () => oxyServices.assets.listAppAccess(fileId),
+    enabled: enabled && fileId.length > 0,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+};
+
+/** Drop one application from a file's cached access list (the optimistic half of a revoke). */
+export function removeAppAccessFromCache(
+  queryClient: QueryClient,
+  fileId: string,
+  applicationId: string,
+): FileApplicationAccess[] | undefined {
+  const key = queryKeys.files.appAccess(fileId);
+  const previous = queryClient.getQueryData<FileApplicationAccess[]>(key);
+  if (previous) {
+    queryClient.setQueryData<FileApplicationAccess[]>(
+      key,
+      previous.filter((app) => app.applicationId !== applicationId),
+    );
+  }
+  return previous;
 }

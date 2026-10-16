@@ -302,6 +302,19 @@ function isCacheUploadRequest(req: express.Request): boolean {
   );
 }
 
+/**
+ * A recording target's S3-compatible ingest (ADR 0043 stage 4c): its bodies
+ * (media, a JSON manifest, multipart XML) are streamed and signed exactly as
+ * sent, so no global parser may consume them, and a part takes longer than the
+ * default timeout on a slow link.
+ */
+function isRecordingIngestRequest(req: express.Request): boolean {
+  return (
+    req.path.startsWith('/assets/recording-ingest/') ||
+    req.path.startsWith('/api/assets/recording-ingest/')
+  );
+}
+
 function isEmailInboundWebhookRequest(req: express.Request): boolean {
   return (
     req.method === 'POST' &&
@@ -340,12 +353,12 @@ app.use('/email/feedback/ses', feedbackRateLimit, express.text({ type: '*/*', li
 const jsonParser = express.json({ limit: '1mb' });
 const urlencodedParser = express.urlencoded({ extended: true, limit: '1mb' });
 app.use((req, res, next) =>
-  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req)
+  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req) || isRecordingIngestRequest(req)
     ? next()
     : jsonParser(req, res, next),
 );
 app.use((req, res, next) =>
-  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req)
+  isCacheUploadRequest(req) || isEmailInboundWebhookRequest(req) || isRecordingIngestRequest(req)
     ? next()
     : urlencodedParser(req, res, next),
 );
@@ -357,9 +370,10 @@ app.use((req, res, next) =>
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const CACHE_UPLOAD_REQUEST_TIMEOUT_MS = 5 * 60_000;
 app.use((req, res, next) => {
-  const timeoutMs = isCacheUploadRequest(req)
-    ? CACHE_UPLOAD_REQUEST_TIMEOUT_MS
-    : DEFAULT_REQUEST_TIMEOUT_MS;
+  const timeoutMs =
+    isCacheUploadRequest(req) || isRecordingIngestRequest(req)
+      ? CACHE_UPLOAD_REQUEST_TIMEOUT_MS
+      : DEFAULT_REQUEST_TIMEOUT_MS;
   req.setTimeout(timeoutMs, () => {
     if (!res.headersSent) {
       res.status(408).json({ error: 'REQUEST_TIMEOUT', message: 'Request timeout' });

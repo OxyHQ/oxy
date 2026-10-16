@@ -115,6 +115,11 @@ export const queryKeys = {
     list: (ownerId?: string) => [...queryKeys.files.all, 'list', ownerId || 'anonymous'] as const,
     /** The owner's trash (ADR 0043 D5) — under `files.all`, so one invalidation covers both. */
     trash: (ownerId?: string) => [...queryKeys.files.all, 'trash', ownerId || 'anonymous'] as const,
+    /**
+     * The applications that can read one file with their own token (ADR 0043
+     * stage 4c) — under `files.all`, so a library invalidation refreshes it too.
+     */
+    appAccess: (fileId: string) => [...queryKeys.files.all, 'appAccess', fileId] as const,
   },
 
   // Connected apps (OAuth grants the user has authorized)

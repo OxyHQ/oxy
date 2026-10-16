@@ -5,6 +5,25 @@ const { computeMaxWorkers } = require('./jest.workerCount.cjs');
 // limit and is the only place where it may be changed.
 const MAX_WORKERS = computeMaxWorkers();
 
+/** jsdom's ESM-only dependency closure (found by loading it under Jest), lowered to CommonJS below. */
+const JSDOM_ESM_PACKAGES = [
+  '@exodus/bytes',
+  'parse5',
+  'entities',
+  '@asamuzakjp/css-color',
+  '@asamuzakjp/generational-cache',
+  '@asamuzakjp/dom-selector',
+  '@csstools/css-tokenizer',
+  '@csstools/css-calc',
+  '@csstools/css-parser-algorithms',
+  '@csstools/css-color-parser',
+  '@csstools/color-helpers',
+];
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 module.exports = {
   maxWorkers: MAX_WORKERS,
   preset: 'ts-jest',
@@ -16,7 +35,7 @@ module.exports = {
   globalTeardown: '<rootDir>/jest.globalTeardown.ts',
   setupFiles: ['<rootDir>/jest.setupWorkerDatabase.cjs'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'js', 'mjs', 'json'],
   moduleNameMapper: {
     // Same rationale as @oxy.so/contracts and @oxy.so/protocol below: resolve
     // from SOURCE so the api-test job needs no prior build of this package.
@@ -139,10 +158,31 @@ module.exports = {
         },
       },
     ],
+    // jsdom (the DOM DOMPurify sanitizes SVG uploads in, `utils/svgSanitizer.ts`)
+    // and its dependencies below are published ESM-only; under bun, as the API
+    // runs, `require` loads them natively, but Jest's CJS runtime cannot, so
+    // they are lowered the same way.
+    [`^.+/node_modules/(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/.+\\.m?js$`]: [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: {
+          isolatedModules: true,
+          module: 'commonjs',
+          moduleResolution: 'node10',
+          allowJs: true,
+        },
+      },
+    ],
   },
-  // node_modules stays untransformed except @kaana.ai, whose ESM build needs
-  // the transform above (bun's isolated linker nests it under node_modules/.bun).
-  transformIgnorePatterns: ['/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/)'],
+  // node_modules stays untransformed except @kaana.ai and jsdom's ESM-only
+  // dependencies, whose builds need the transforms above (bun's isolated linker
+  // nests a package `@scope/name@x` under `node_modules/.bun/@scope+name@x/`).
+  transformIgnorePatterns: [
+    `/node_modules/(?!\\.bun/@kaana\\.ai\\+|@kaana\\.ai/|\\.bun/(${JSDOM_ESM_PACKAGES.map((name) =>
+      escapeRegExp(name.replace('/', '+')),
+    ).join('|')})@|(${JSDOM_ESM_PACKAGES.map(escapeRegExp).join('|')})/)`,
+  ],
   // Balances `--shard=i/N` by measured duration; changes which runner runs a
   // file, never whether it runs. See jest.shardSequencer.cjs.
   testSequencer: '<rootDir>/jest.shardSequencer.cjs',

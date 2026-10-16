@@ -395,7 +395,7 @@ describe('a private application file is readable by its application only', () =>
 
     const privateRow = await row(privateId);
     const access = await mediaPrivacyService.checkMediaAccess(
-      { ...privateRow, links: [], variants: [] },
+      { ...privateRow, links: [], variants: [], accessGrants: [] },
       owner,
     );
     expect(access).toEqual({ allowed: false, reason: 'application_private' });

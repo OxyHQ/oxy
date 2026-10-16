@@ -405,6 +405,28 @@ const dict = {
     },
     moveToTrash: '移到回收站',
     moveToTrashCount: '移到回收站（{{count}}）',
+    appAccess: {
+      title: '有访问权限的应用',
+      description: '这些应用可以自行打开此文件。撤销某个应用的访问权限即可收回。',
+      empty: '没有应用可以自行打开此文件。',
+      loadError: '无法加载可以打开此文件的应用',
+      via: {
+        upload: '为你保存了此文件',
+        link: '由你分享',
+      },
+      revoke: '撤销',
+      confirm: {
+        title: '撤销 {{name}} 的访问权限？',
+        message: '{{name}} 将无法再打开此文件，它启动的任何播放也会立即停止。',
+      },
+      toasts: {
+        revoked: '{{name}} 已无法打开此文件',
+        revokeFailed: '无法撤销 {{name}} 的访问权限',
+      },
+      a11y: {
+        revoke: '撤销 {{name}} 对此文件的访问权限',
+      },
+    },
     trashView: {
       title: '回收站',
       subtitle: '恢复文件或将其永久删除',

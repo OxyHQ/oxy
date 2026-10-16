@@ -415,6 +415,30 @@ const dict = {
     },
     moveToTrash: 'Mou a la paperera',
     moveToTrashCount: 'Mou a la paperera ({{count}})',
+    appAccess: {
+      title: 'Apps amb accés',
+      description:
+        'Aquestes apps poden obrir aquest fitxer pel seu compte. Revoca una app per treure-li aquest accés.',
+      empty: 'Cap app no pot obrir aquest fitxer pel seu compte.',
+      loadError: "No s'han pogut carregar les apps que poden obrir aquest fitxer",
+      via: {
+        upload: 'Va desar aquest fitxer per tu',
+        link: "L'has compartit tu",
+      },
+      revoke: 'Revoca',
+      confirm: {
+        title: 'Vols revocar {{name}}?',
+        message:
+          "{{name}} ja no podrà obrir aquest fitxer i qualsevol reproducció que hagi iniciat s'aturarà ara.",
+      },
+      toasts: {
+        revoked: '{{name}} ja no pot obrir aquest fitxer',
+        revokeFailed: "No s'ha pogut revocar l'accés de {{name}}",
+      },
+      a11y: {
+        revoke: "Revoca l'accés de {{name}} a aquest fitxer",
+      },
+    },
     trashView: {
       title: 'Paperera',
       subtitle: 'Restaura fitxers o elimina’ls definitivament',

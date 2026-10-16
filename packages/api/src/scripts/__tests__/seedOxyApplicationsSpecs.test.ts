@@ -233,6 +233,7 @@ describe('the canonical official-application registry', () => {
           'files:app:delete',
           'files:references:write',
           'files:user-media:write',
+          'files:linked:read',
         ],
         capabilities: ['catalog:homiio'],
       });
@@ -331,12 +332,15 @@ describe('the canonical official-application registry', () => {
       'files:app:delete',
       'files:references:write',
       'files:user-media:write',
+      'files:linked:read',
     ];
     const PRIVILEGED_SCOPES: readonly string[] = [
       'capabilities:read',
       ...DELEGATION_SCOPES,
-      // `files:read` is self-service; the four write scopes are staff-gated.
-      ...FILE_SCOPES.filter((scope) => scope !== 'files:read'),
+      // `files:read` and `files:linked:read` are self-service (the latter is
+      // bounded by the person's per-file consent); the four write scopes are
+      // staff-gated.
+      ...FILE_SCOPES.filter((scope) => scope !== 'files:read' && scope !== 'files:linked:read'),
     ];
 
     it('declares the argued set and nothing else', () => {
@@ -704,6 +708,7 @@ describe('the canonical official-application registry', () => {
           'files:app:delete',
           'files:references:write',
           'files:user-media:write',
+          'files:linked:read',
         ],
       ],
       [
@@ -714,6 +719,7 @@ describe('the canonical official-application registry', () => {
           'files:app:delete',
           'files:references:write',
           'files:user-media:write',
+          'files:linked:read',
         ],
       ],
       [
@@ -724,6 +730,7 @@ describe('the canonical official-application registry', () => {
           'files:app:delete',
           'files:references:write',
           'files:user-media:write',
+          'files:linked:read',
         ],
       ],
       [

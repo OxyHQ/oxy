@@ -27,6 +27,8 @@ import type {
   AssetMetadata,
   AssetUploadInput,
   BatchFileAccessResponse,
+  FileApplicationAccess,
+  FileApplicationAccessRevocation,
   FileVisibility,
   RNFileDescriptor,
 } from '../models/interfaces';
@@ -309,6 +311,7 @@ export class AssetsApi {
     const name =
       options.name ||
       (typeof File !== 'undefined' && blob instanceof File && blob.name ? blob.name : 'file');
+    if (isSvgType(mime)) return this.uploadSvgThroughApi(blob, mime, name, options);
     const report = (phase: LargeUploadProgress['phase'], loaded: number) =>
       options.onProgress?.({ phase, loaded, total: size });
 
@@ -340,6 +343,50 @@ export class AssetsApi {
       ...(options.metadata ? { metadata: options.metadata } : {}),
     });
     return { ...completed, deduplicated };
+  }
+
+  /**
+   * An SVG never takes the presigned path: those bytes reach storage without
+   * passing through the API, and an SVG is stored only as the API sanitized it
+   * (ADR 0043 stage 4c — `/assets/init` refuses it with 415
+   * `SVG_UPLOAD_REQUIRES_SANITIZATION`). It goes through {@link upload}, and
+   * the committed record is read back in `uploadLarge`'s shape. Its `sha256`
+   * is the SANITIZED bytes', so `deduplicated` is always `false` here.
+   */
+  private async uploadSvgThroughApi(
+    blob: Blob,
+    mime: string,
+    name: string,
+    options: LargeUploadOptions,
+  ): Promise<LargeUploadResult> {
+    options.onProgress?.({ phase: 'upload', loaded: 0, total: blob.size });
+    const body = blob.type === mime ? blob : blob.slice(0, blob.size, mime);
+    const uploaded = await this.upload(
+      typeof File !== 'undefined' ? new File([body], name, { type: mime }) : body,
+      {
+        ...(options.visibility ? { visibility: options.visibility } : {}),
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+      },
+    );
+    options.onProgress?.({ phase: 'upload', loaded: blob.size, total: blob.size });
+    const { file } = await this.get(uploaded.file.id);
+    return {
+      assetId: file.id,
+      file: {
+        id: file.id,
+        sha256: file.sha256,
+        size: file.size,
+        mime: file.mime,
+        status: file.status,
+        usageCount: file.usageCount,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        links: file.links,
+        variants: file.variants,
+        ...(file.originalName ? { originalName: file.originalName } : {}),
+      },
+      deduplicated: false,
+    };
   }
 
   /**
@@ -476,6 +523,43 @@ export class AssetsApi {
     );
     this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
     return res;
+  }
+
+  // ── Applications with access ─────────────────────────────────────────────
+
+  /**
+   * The applications that can read one of YOUR files with their own service
+   * token (ADR 0043 stage 4c): one that stored the file for you (`via:
+   * 'upload'` — an upload, import or recording it made on your behalf) or one
+   * you attached it to yourself (`'link'`). 404 for a file that is not yours.
+   */
+  async listAppAccess(fileId: string): Promise<FileApplicationAccess[]> {
+    const res = await this.ctx.request<{ fileId: string; applications: FileApplicationAccess[] }>(
+      'GET',
+      `/assets/${enc(fileId)}/access`,
+      undefined,
+      { cache: false },
+    );
+    return Array.isArray(res?.applications) ? res.applications : [];
+  }
+
+  /**
+   * Take an application's access to one of YOUR files away: it can no longer
+   * read it, and every playback it started stops at once (`streamsRevoked`).
+   * It stays revoked when the application stores the same bytes for you
+   * again; attaching the file to that application yourself ({@link link})
+   * gives it back. Revoking an application without access answers the same.
+   */
+  async revokeAppAccess(
+    fileId: string,
+    applicationId: string,
+  ): Promise<FileApplicationAccessRevocation> {
+    return this.ctx.request<FileApplicationAccessRevocation>(
+      'DELETE',
+      `/assets/${enc(fileId)}/access/${enc(applicationId)}`,
+      undefined,
+      { cache: false },
+    );
   }
 
   // ── Reads ────────────────────────────────────────────────────────────────
@@ -722,6 +806,11 @@ export class AssetsApi {
 }
 
 const enc = encodeURIComponent;
+
+/** Every spelling of the SVG type (`image/svg+xml`, with parameters or not). */
+function isSvgType(mime: string): boolean {
+  return mime.split(';')[0].trim().toLowerCase().startsWith('image/svg');
+}
 
 /**
  * Drop blank ids and collapse exact `(fileId, variant)` duplicates (first wins,

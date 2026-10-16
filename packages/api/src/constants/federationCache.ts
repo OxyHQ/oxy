@@ -53,12 +53,15 @@ export const FEDERATION_CACHE_ALLOWED_MIME_PREFIXES = ['image/', 'video/', 'audi
 
 /**
  * Content-type prefixes that are explicitly REJECTED even when they match an
- * allowed prefix. `image/svg+xml` (and any `image/svg*`) is an active document:
- * an SVG can embed `<script>` and execute in a browsing context, so caching
- * one and serving it back is a stored-XSS vector. SVG is therefore disallowed
- * despite matching the `image/` family.
+ * allowed prefix: every SVG spelling but `image/svg+xml`. An SVG is an active
+ * document (it can embed `<script>`), so it is stored only as the output of
+ * `utils/svgSanitizer.ts` — which every upload and import path runs on
+ * `image/svg+xml` (ADR 0043 stage 4c) — and never under another spelling.
  */
 export const DISALLOWED_CACHE_MIME_PREFIXES = ['image/svg'] as const;
+
+/** The one SVG type accepted — sanitized before it is stored. */
+export const SANITIZED_SVG_MIME = 'image/svg+xml';
 
 /**
  * True when `mime` is an SVG content-type (`image/svg+xml`, `image/svg`, …).
@@ -69,11 +72,12 @@ export function isSvgMime(mime: string): boolean {
 
 /**
  * True when `mime` is one of the allowed media families AND not an explicitly
- * disallowed type (e.g. SVG, which is rejected as a stored-XSS vector).
+ * disallowed type. `image/svg+xml` is allowed: the upload pipeline sanitizes it
+ * before anything is stored; any other SVG spelling is refused.
  */
 export function isAllowedCacheMime(mime: string): boolean {
   if (isSvgMime(mime)) {
-    return false;
+    return mime === SANITIZED_SVG_MIME;
   }
   return FEDERATION_CACHE_ALLOWED_MIME_PREFIXES.some((prefix) => mime.startsWith(prefix));
 }

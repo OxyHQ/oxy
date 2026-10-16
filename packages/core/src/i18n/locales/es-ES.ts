@@ -1427,6 +1427,30 @@ const dict = {
     removedAfterClaim: 'Retirado tras una reclamación legal',
     moveToTrash: 'Mover a la papelera',
     moveToTrashCount: 'Mover a la papelera ({{count}})',
+    appAccess: {
+      title: 'Apps con acceso',
+      description:
+        'Estas apps pueden abrir este archivo por su cuenta. Revoca una app para quitarle ese acceso.',
+      empty: 'Ninguna app puede abrir este archivo por su cuenta.',
+      loadError: 'No se pudieron cargar las apps que pueden abrir este archivo',
+      via: {
+        upload: 'Guardó este archivo por ti',
+        link: 'Lo compartiste tú',
+      },
+      revoke: 'Revocar',
+      confirm: {
+        title: '¿Revocar {{name}}?',
+        message:
+          '{{name}} ya no podrá abrir este archivo y cualquier reproducción que haya iniciado se detendrá ahora.',
+      },
+      toasts: {
+        revoked: '{{name}} ya no puede abrir este archivo',
+        revokeFailed: 'No se pudo revocar el acceso de {{name}}',
+      },
+      a11y: {
+        revoke: 'Revocar el acceso de {{name}} a este archivo',
+      },
+    },
     trashView: {
       title: 'Papelera',
       subtitle: 'Restaura archivos o elimínalos definitivamente',

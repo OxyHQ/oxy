@@ -421,6 +421,30 @@ const dict = {
     },
     moveToTrash: 'In den Papierkorb',
     moveToTrashCount: 'In den Papierkorb ({{count}})',
+    appAccess: {
+      title: 'Apps mit Zugriff',
+      description:
+        'Diese Apps können die Datei selbst öffnen. Widerrufe den Zugriff einer App, um ihr das zu entziehen.',
+      empty: 'Keine App kann diese Datei selbst öffnen.',
+      loadError: 'Die Apps mit Zugriff auf diese Datei konnten nicht geladen werden',
+      via: {
+        upload: 'Hat diese Datei für dich gespeichert',
+        link: 'Von dir geteilt',
+      },
+      revoke: 'Widerrufen',
+      confirm: {
+        title: 'Zugriff von {{name}} widerrufen?',
+        message:
+          '{{name}} kann diese Datei dann nicht mehr öffnen, und jede Wiedergabe, die die App gestartet hat, endet sofort.',
+      },
+      toasts: {
+        revoked: '{{name}} kann diese Datei nicht mehr öffnen',
+        revokeFailed: 'Der Zugriff von {{name}} konnte nicht widerrufen werden',
+      },
+      a11y: {
+        revoke: 'Zugriff von {{name}} auf diese Datei widerrufen',
+      },
+    },
     trashView: {
       title: 'Papierkorb',
       subtitle: 'Dateien wiederherstellen oder endgültig löschen',

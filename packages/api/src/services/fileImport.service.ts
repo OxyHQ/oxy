@@ -49,6 +49,10 @@ import { logger } from '../utils/logger';
 import { openSecret, sealSecret } from '../utils/secretBox';
 import type { AssetService } from './assetService';
 import { mayApplicationReference } from './fileReference.service';
+import { grantUploadAccess } from './fileAccessGrant.service';
+import type { FileIngestService } from './fileIngest.service';
+import type { FileIngestRow } from '../db/schema/fileIngests';
+import { LARGE_UPLOAD_MAX_BYTES } from '../utils/fileContentPolicy';
 
 export const IMPORT_MAX_REDIRECTS = 5;
 export const IMPORT_HEADERS_TIMEOUT_MS = 15_000;
@@ -69,6 +73,35 @@ export interface ImportRequest {
   revalidate?: boolean;
   /** Register the calling application's use of the file in the same request. */
   reference?: { entityType: string; entityId: string };
+  /** How an audio file's renditions are made (`metadata.audioOptions`, ADR 0043 stage 4c). */
+  audio?: { normalizeLoudness?: boolean; previewStartSeconds?: number };
+}
+
+/**
+ * A source too large to store within the request (ADR 0043 stage 4c): it is
+ * being fetched in the background as a `file_ingests` row; the route answers
+ * `202` with its id.
+ */
+export interface PendingImport {
+  pending: true;
+  ingest: FileIngestRow;
+}
+
+/** Whether an import's answer is still being fetched. */
+export function isPendingImport(result: ImportResult | PendingImport): result is PendingImport {
+  return (result as PendingImport).pending === true;
+}
+
+/**
+ * Whether a fetched source goes the large way: it declared more than the
+ * synchronous import stores, or — audio and video only — declared no size at
+ * all (a podcast enclosure served chunked). SVG never does: it is sanitized in
+ * memory, within the synchronous cap.
+ */
+function isLargeSource(mime: string, declaredLength: number | null): boolean {
+  if (mime.startsWith('image/svg')) return false;
+  if (declaredLength !== null) return declaredLength > USER_MEDIA_MAX_BYTES;
+  return mime.startsWith('audio/') || mime.startsWith('video/');
 }
 
 /**
@@ -180,6 +213,8 @@ type FetchedSource =
       kind: 'body';
       response: IncomingMessage;
       status: number;
+      /** The source's `Content-Length`, when it sent one. */
+      declaredLength: number | null;
       mime: string;
       etag: string | null;
       lastModified: string | null;
@@ -191,13 +226,14 @@ type FetchedSource =
  * `conditional` adds `If-None-Match` / `If-Modified-Since`. The caller owns the
  * returned response stream.
  */
-async function fetchSource(
+export async function fetchSource(
   url: string,
   signal: AbortSignal,
   conditional?: { etag: string | null; lastModified: string | null },
 ): Promise<FetchedSource> {
   const headers: Record<string, string> = {
-    Accept: 'image/avif,image/webp,image/png,image/jpeg,image/gif,image/*;q=0.8,video/*;q=0.7',
+    Accept:
+      'image/avif,image/webp,image/png,image/jpeg,image/gif,image/svg+xml;q=0.9,image/*;q=0.8,video/*;q=0.7,audio/*;q=0.7',
     'Accept-Encoding': 'identity',
     'User-Agent': IMPORT_USER_AGENT,
   };
@@ -258,16 +294,20 @@ async function fetchSource(
       throw new ApiError(502, 'The source sent an encoded body', 'SOURCE_FETCH_FAILED');
     }
     const mime = (header(response, 'content-type') ?? '').split(';')[0].trim().toLowerCase();
-    if (!(mime.startsWith('image/') || mime.startsWith('video/')) || !isAllowedCacheMime(mime)) {
+    if (
+      !(mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/')) ||
+      !isAllowedCacheMime(mime)
+    ) {
       response.destroy();
       throw new ApiError(
         415,
-        'The source is not a supported image or video',
+        'The source is not a supported image, video or audio file',
         'UNSUPPORTED_MEDIA_TYPE',
       );
     }
-    const declared = Number(header(response, 'content-length'));
-    if (Number.isFinite(declared) && declared > USER_MEDIA_MAX_BYTES) {
+    const declaredHeader = header(response, 'content-length');
+    const declared = declaredHeader === null ? null : Number(declaredHeader);
+    if (declared !== null && Number.isFinite(declared) && declared > LARGE_UPLOAD_MAX_BYTES) {
       response.destroy();
       throw new ApiError(413, 'The source exceeds the maximum file size', 'PAYLOAD_TOO_LARGE');
     }
@@ -275,6 +315,7 @@ async function fetchSource(
       kind: 'body',
       response,
       status,
+      declaredLength: declared !== null && Number.isFinite(declared) ? declared : null,
       mime,
       etag: header(response, 'etag'),
       lastModified: header(response, 'last-modified'),
@@ -310,7 +351,10 @@ function importUploadError(error: unknown, owner: ImportOwner, signal: AbortSign
 }
 
 export class FileImportService {
-  constructor(private readonly assets: AssetService) {}
+  constructor(
+    private readonly assets: AssetService,
+    private readonly ingests: FileIngestService,
+  ) {}
 
   /**
    * Import `request.sourceUrl` for `owner` (see the module header).
@@ -321,7 +365,7 @@ export class FileImportService {
     owner: ImportOwner,
     request: ImportRequest,
     referencingApplicationId: string,
-  ): Promise<ImportResult> {
+  ): Promise<ImportResult | PendingImport> {
     const source = normalizeSourceUrl(request.sourceUrl);
     const db = getDb();
 
@@ -350,7 +394,21 @@ export class FileImportService {
         },
       };
     } else {
-      result = await this.download(owner, source, request, reusable);
+      const downloaded = await this.download(
+        owner,
+        source,
+        request,
+        reusable,
+        referencingApplicationId,
+      );
+      if (isPendingImport(downloaded)) return downloaded;
+      result = downloaded;
+    }
+
+    // A person's file the calling application stored for them: it may read it
+    // back (ADR 0043 stage 4c).
+    if (owner.kind === 'account') {
+      await grantUploadAccess(result.file.id, referencingApplicationId);
     }
 
     const reference = request.reference
@@ -377,8 +435,37 @@ export class FileImportService {
     source: NormalizedSourceUrl,
     request: ImportRequest,
     reusable: FileSourceRow | undefined,
-  ): Promise<Omit<ImportResult, 'reference'>> {
-    const signal = AbortSignal.timeout(IMPORT_TOTAL_TIMEOUT_MS);
+    referencingApplicationId: string,
+  ): Promise<Omit<ImportResult, 'reference'> | PendingImport> {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), IMPORT_TOTAL_TIMEOUT_MS);
+    timer.unref?.();
+    try {
+      return await this.downloadWithin(
+        owner,
+        source,
+        request,
+        reusable,
+        referencingApplicationId,
+        controller,
+        timer,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async downloadWithin(
+    owner: ImportOwner,
+    source: NormalizedSourceUrl,
+    request: ImportRequest,
+    reusable: FileSourceRow | undefined,
+    referencingApplicationId: string,
+    controller: AbortController,
+    timer: ReturnType<typeof setTimeout>,
+  ): Promise<Omit<ImportResult, 'reference'> | PendingImport> {
+    const signal = controller.signal;
     const fetched = await fetchSource(
       source.url,
       signal,
@@ -412,7 +499,38 @@ export class FileImportService {
     }
 
     const originalName = nameFromUrl(fetched.finalUrl);
-    const metadata = { source: 'import', sourceHost: source.host };
+    const audioOptions =
+      request.audio && Object.keys(request.audio).length > 0 ? request.audio : undefined;
+
+    if (isLargeSource(fetched.mime, fetched.declaredLength)) {
+      // Too large for this request: the bytes are fetched in the background
+      // under the import's own, longer timeouts (`fileIngest.service.ts`).
+      clearTimeout(timer);
+      const ingest = await this.ingests.startLargeImport(
+        {
+          owner,
+          creatorApplicationId: referencingApplicationId,
+          source,
+          visibility: request.visibility,
+          ...(request.reference ? { reference: request.reference } : {}),
+          metadata: audioOptions ? { audioOptions } : {},
+          originalName,
+          mime: fetched.mime,
+          etag: fetched.etag,
+          lastModified: fetched.lastModified,
+          declaredLength: fetched.declaredLength,
+        },
+        fetched.response,
+        controller,
+      );
+      return { pending: true, ingest };
+    }
+
+    const metadata = {
+      source: 'import',
+      sourceHost: source.host,
+      ...(audioOptions ? { audioOptions } : {}),
+    };
     let stored: { file: FileRecord; deduplicated: boolean };
     try {
       stored =
@@ -503,4 +621,33 @@ export class FileImportService {
     });
     return created ? 'created' : 'exists';
   }
+}
+
+/**
+ * The upload worker's re-fetch of a large import whose fetcher died
+ * (`FileIngestService.resumeImport`): the same SSRF-safe, https-only fetch,
+ * unconditional, and a source that is no longer media is refused.
+ */
+export async function refetchLargeImport(
+  _row: FileIngestRow,
+  url: string,
+  signal: AbortSignal,
+): Promise<{
+  response: IncomingMessage;
+  mime: string;
+  etag: string | null;
+  lastModified: string | null;
+  declaredLength: number | null;
+}> {
+  const fetched = await fetchSource(url, signal);
+  if (fetched.kind !== 'body') {
+    throw new ApiError(502, 'The source answered HTTP 304', 'SOURCE_FETCH_FAILED');
+  }
+  return {
+    response: fetched.response,
+    mime: fetched.mime,
+    etag: fetched.etag,
+    lastModified: fetched.lastModified,
+    declaredLength: fetched.declaredLength,
+  };
 }

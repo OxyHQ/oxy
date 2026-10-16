@@ -246,6 +246,10 @@ export function seedApplicationLookupIdentity(
  *    reaches Alia (D9/D10).
  *  - `files:user-media:write` — store a file as owned by the PERSON it belongs
  *    to (an attachment they sent), never as Alia's.
+ *  - `files:linked:read` — read back the bytes of a person's file Alia stored
+ *    for them (or one they attached to Alia), private ones included, while
+ *    they have not revoked Alia's access (ADR 0043 stage 4c). Not privileged:
+ *    the person's consent per file is the bound, not the token.
  *
  * WITHHELD, each for its own reason rather than by omission:
  *
@@ -272,7 +276,7 @@ export function seedApplicationLookupIdentity(
  *
  * Nothing outside the `inference:*` family, `user:read`, `capabilities:read`,
  * `clarity:search`, `clarity:index`, those three delegation and coordination
- * scopes and the five file scopes is granted. Alia is not a federation peer, does not move reputation,
+ * scopes and the six file scopes is granted. Alia is not a federation peer, does not move reputation,
  * writes no signals, sends no notifications and touches no follow graph.
  *
  * These privileged entries — now eight: `capabilities:read`, the three
@@ -301,6 +305,7 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'files:app:delete',
   'files:references:write',
   'files:user-media:write',
+  'files:linked:read',
 ];
 
 /**
@@ -517,7 +522,9 @@ export const SEED_APPS: SeedAppSpec[] = [
     // ADR 0043: Homiio's own bucket (and its ~950 orphans) ends — listing
     // photos a person uploads are THAT person's (`files:user-media:write`),
     // platform artwork is the Homiio application's own (PRODUCT_FILE_SCOPES),
-    // and every listing records the files it shows (references).
+    // and every listing records the files it shows (references). Stage 4c: a
+    // person's private documents Homiio stored for them are read back with
+    // `files:linked:read`, bounded by that person's per-file consent.
     scopes: [
       'user:read',
       'reputation:write',
@@ -528,6 +535,7 @@ export const SEED_APPS: SeedAppSpec[] = [
       'capability-audit:write',
       ...PRODUCT_FILE_SCOPES,
       'files:user-media:write',
+      'files:linked:read',
     ],
     capabilities: [catalogApplicationCapability('homiio')],
   },
@@ -575,8 +583,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     redirectUris: ['https://syra.fm'],
     // ADR 0043 rollout stage 4: Syra's catalogue artwork moves out of its own
     // bucket into files the SYRA APPLICATION owns, and what a person uploads
-    // (a playlist cover) is that person's (`files:user-media:write`).
-    scopes: ['user:read', ...PRODUCT_FILE_SCOPES, 'files:user-media:write'],
+    // (a playlist cover) is that person's (`files:user-media:write`). Stage 4c:
+    // Syra plays a person's private audio it stored for them through play
+    // sessions and reads it back (`files:linked:read`, bounded by the person's
+    // per-file consent).
+    scopes: ['user:read', ...PRODUCT_FILE_SCOPES, 'files:user-media:write', 'files:linked:read'],
   },
   {
     name: 'TNP',

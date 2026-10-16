@@ -414,6 +414,30 @@ const dict = {
     },
     moveToTrash: 'ゴミ箱に移動',
     moveToTrashCount: 'ゴミ箱に移動（{{count}}）',
+    appAccess: {
+      title: 'アクセスできるアプリ',
+      description:
+        'これらのアプリはこのファイルを単独で開けます。アプリのアクセスを取り消すと、開けなくなります。',
+      empty: 'このファイルを単独で開けるアプリはありません。',
+      loadError: 'このファイルを開けるアプリを読み込めませんでした',
+      via: {
+        upload: 'あなたのためにこのファイルを保存しました',
+        link: 'あなたが共有しました',
+      },
+      revoke: '取り消す',
+      confirm: {
+        title: '{{name}} のアクセスを取り消しますか？',
+        message:
+          '{{name}} はこのファイルを開けなくなり、このアプリが開始した再生はすぐに停止します。',
+      },
+      toasts: {
+        revoked: '{{name}} はこのファイルを開けなくなりました',
+        revokeFailed: '{{name}} のアクセスを取り消せませんでした',
+      },
+      a11y: {
+        revoke: 'このファイルへの {{name}} のアクセスを取り消す',
+      },
+    },
     trashView: {
       title: 'ゴミ箱',
       subtitle: 'ファイルを復元するか、完全に削除します',

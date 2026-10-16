@@ -67,7 +67,7 @@ async function insertFile(values: Partial<typeof files.$inferInsert> = {}): Prom
       ...values,
     })
     .returning();
-  return { ...row, links: [], variants: [] };
+  return { ...row, links: [], variants: [], accessGrants: [] };
 }
 
 beforeAll(async () => {

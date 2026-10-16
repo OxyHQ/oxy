@@ -37,6 +37,7 @@ const VIDEO_FILE: FileRecord = {
   status: 'active',
   ownerUserId: 'user-1',
   variants: [],
+  accessGrants: [],
 };
 
 const RENDITION_ROW: FileVariantRecord = {

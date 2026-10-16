@@ -96,6 +96,7 @@ function row() {
     updatedAt: new Date(),
     links: [],
     variants: [],
+    accessGrants: [],
   };
 }
 

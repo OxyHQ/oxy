@@ -16,6 +16,8 @@
 import { getEnvBoolean, getEnvNumber } from '../config/env';
 import { logger } from '../utils/logger';
 import { fileUploadSessionService } from './fileUploadSessionSingleton';
+import { fileIngestService } from './fileIngestSingleton';
+import { refetchLargeImport } from './fileImport.service';
 
 const DEFAULT_INTERVAL_MS = 30_000;
 
@@ -29,6 +31,13 @@ async function tick(): Promise<void> {
     const result = await fileUploadSessionService.sweep();
     if (result.verified > 0 || result.expired > 0) {
       logger.info('[FileUploads] Sweep', result);
+    }
+    // Large imports and recording targets (ADR 0043 stage 4c) ride the same
+    // worker: verify what is due, re-fetch an import whose fetcher died, abort
+    // what expired.
+    const ingests = await fileIngestService.sweep(refetchLargeImport);
+    if (ingests.verified > 0 || ingests.resumed > 0 || ingests.expired > 0) {
+      logger.info('[FileUploads] Ingest sweep', ingests);
     }
   } catch (error) {
     logger.error(

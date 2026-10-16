@@ -84,6 +84,7 @@ import { federationKeyPairs } from './federationKeyPairs';
 import { fileReferenceReconciliationItems } from './fileReferenceReconciliations';
 import { fileReferences } from './fileReferences';
 import { fileEventDeliveries } from './fileEventDeliveries';
+import { fileIngests } from './fileIngests';
 import { fileUploadSessions } from './fileUploadSessions';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
@@ -897,6 +898,23 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'as `storage_byte_reservations.account_id` has none for the same reason; a session ' +
       'whose owner is gone fails at finalization, where `insertFile` refuses it.',
   })),
+  ...(['ownerUserId', 'ownerApplicationId', 'creatorApplicationId'] as const).map((key) => ({
+    table: fileIngests,
+    column: fileIngests[key],
+    reason:
+      'A large import or a recording target in progress (ADR 0043 stage 4c): as a large ' +
+      "upload's session, this row is what aborts its S3 multipart upload and deletes its " +
+      "staging object when nobody finishes it, and the owner's (or creator's) deletion must " +
+      'not take that cleanup away; an ingest whose owner is gone fails at finalization, ' +
+      'where `insertFile` refuses it.',
+  })),
+  {
+    table: fileIngests,
+    column: fileIngests.s3UploadId,
+    reason:
+      "S3's own `UploadId` of a recording's multipart upload — an opaque handle into the " +
+      'bucket, not a row of this database.',
+  },
   {
     table: fileUploadSessions,
     column: fileUploadSessions.s3UploadId,
