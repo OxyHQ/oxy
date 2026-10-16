@@ -410,6 +410,30 @@ const dict = {
     },
     moveToTrash: '휴지통으로 이동',
     moveToTrashCount: '휴지통으로 이동 ({{count}})',
+    appAccess: {
+      title: '액세스 권한이 있는 앱',
+      description:
+        '이 앱들은 이 파일을 직접 열 수 있습니다. 앱의 액세스를 취소하면 더 이상 열 수 없습니다.',
+      empty: '이 파일을 직접 열 수 있는 앱이 없습니다.',
+      loadError: '이 파일을 열 수 있는 앱을 불러오지 못했습니다',
+      via: {
+        upload: '나를 위해 이 파일을 저장함',
+        link: '내가 공유함',
+      },
+      revoke: '취소',
+      confirm: {
+        title: '{{name}}의 액세스를 취소할까요?',
+        message:
+          '{{name}}은(는) 더 이상 이 파일을 열 수 없으며, 이 앱이 시작한 재생은 즉시 중지됩니다.',
+      },
+      toasts: {
+        revoked: '{{name}}은(는) 더 이상 이 파일을 열 수 없습니다',
+        revokeFailed: '{{name}}의 액세스를 취소하지 못했습니다',
+      },
+      a11y: {
+        revoke: '이 파일에 대한 {{name}}의 액세스 취소',
+      },
+    },
     trashView: {
       title: '휴지통',
       subtitle: '파일을 복원하거나 영구적으로 삭제하세요',

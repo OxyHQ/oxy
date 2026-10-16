@@ -144,6 +144,16 @@ export {
   verifyFileEventSignature,
 } from './fileEvents';
 export type { FileEvent, FileEventType, FileWebhookChallenge } from './fileEvents';
+// Authorizing a play session's content key (ADR 0042 stage 4c), same signature.
+export {
+  STREAM_KEY_AUTHORIZATION_EVENT_TYPE,
+  StreamKeyAuthorizationVerificationError,
+  verifyStreamKeyAuthorization,
+} from './streamKeyAuthorization';
+export type {
+  StreamKeyAuthorizationAnswer,
+  StreamKeyAuthorizationRequest,
+} from './streamKeyAuthorization';
 export { LargeUploadFailedError } from './largeUpload';
 export type {
   LargeServiceUploadOptions,

@@ -35,9 +35,18 @@ import type {
   ApplicationFileImportBatchResult,
   ApplicationFilePage,
   ApplicationFileUpload,
+  AudioRenditionOptions,
+  CreatedRecordingTarget,
   FileImportOptions,
+  FileImportState,
   FileVisibility,
+  PendingFileImport,
   Notification,
+  PlaySession,
+  PlaySessionState,
+  PlaySessionOptions,
+  RecordingTarget,
+  RecordingTargetOptions,
   ServiceAssetMetadata,
   ServiceAssetMetadataBySha,
   ServiceFileReference,
@@ -55,7 +64,15 @@ import {
   type LargeServiceUploadResult,
   type LargeUploadSource,
 } from './largeUpload';
+import {
+  ASSET_JOB_POLL_INITIAL_MS,
+  isPendingImport,
+  nextPollInterval,
+  sleep,
+  waitForImport,
+} from './assetJobs';
 import { NotificationsApi } from '../api/notifications';
+import { OxyApiError } from '../OxyServices.errors';
 import { LinkedAccountsApi } from '../api/linkedAccounts';
 import {
   AgencyApi,
@@ -104,6 +121,8 @@ export interface ServiceUploadDescription {
   originalName?: string;
   /** Intrinsic media metadata (`x-media-metadata`), a JSON object. */
   metadata?: Record<string, unknown>;
+  /** How an audio file is rendered (`x-audio-options`); ignored for images and videos. */
+  audio?: AudioRenditionOptions;
   /** Abort the upload. */
   signal?: AbortSignal;
   /** Per-attempt timeout in ms; the SDK default is short for a file upload. */
@@ -121,7 +140,49 @@ function uploadHeaders(
       ? { 'x-original-name': description.originalName }
       : {}),
     ...(description.metadata ? { 'x-media-metadata': JSON.stringify(description.metadata) } : {}),
+    ...(description.audio ? { 'x-audio-options': JSON.stringify(description.audio) } : {}),
   };
+}
+
+/** A `202` import answer: the source is fetched in the background. */
+type PendingImportAnswer = PendingFileImport;
+
+/** One item of `/assets/service/app/import/batch` as the wire carries it. */
+type ImportBatchWireItem =
+  | ApplicationFileImportBatchResult
+  | ({ index: number; ok: true; pending: true } & PendingFileImport);
+
+/** Server-side bounds of a play session's lifetime. */
+const PLAY_SESSION_MIN_TTL_SECONDS = 60;
+const PLAY_SESSION_MAX_TTL_SECONDS = 43_200;
+/** How long `completeRecordingTarget` waits for verification by default. */
+const RECORDING_DEFAULT_WAIT_MS = 10 * 60_000;
+
+/** An import's JSON body: the options the server reads, never the SDK's own. */
+function importBody(
+  sourceUrl: string,
+  options: FileImportOptions & { visibility?: FileVisibility },
+) {
+  return {
+    sourceUrl,
+    ...(options.visibility ? { visibility: options.visibility } : {}),
+    ...(options.reference ? { reference: options.reference } : {}),
+    ...(options.revalidate !== undefined ? { revalidate: options.revalidate } : {}),
+    ...(options.audio ? { audio: options.audio } : {}),
+  };
+}
+
+/** The recording-target routes of one owner family, and the headers every call of it carries. */
+function recordingTargetRoute(ownerUserId?: string): {
+  base: string;
+  headers: Record<string, string> | undefined;
+} {
+  return ownerUserId
+    ? {
+        base: '/assets/service/user-media/recording-targets',
+        headers: { 'x-owner-user-id': ownerUserId },
+      }
+    : { base: '/assets/service/app/recording-targets', headers: undefined };
 }
 
 const REPUTATION_CACHE_PREFIX = 'GET:/reputation/';
@@ -214,6 +275,97 @@ export class ServerAssetsApi extends AssetsApi {
     ): Promise<ServiceReferenceReconcileResult> =>
       this.reconcileReferences(entityType, items, options),
   };
+
+  /**
+   * Per-play, revocable streaming access (ADR 0042 stage 4c). A play session
+   * is ONE file's HLS ladder (a video's, or an audio file's audio-only one)
+   * for a short time, optionally for one end user: `masterUrl` is what the
+   * player opens, and every playlist, segment and key it then fetches is
+   * checked against the session — {@link revoke} stops playback at the next
+   * request, on every Oxy server at once.
+   *
+   * Who may: this application's own file (`files:app:write` or
+   * `files:linked:read`), or a person's file this application may read
+   * (`files:linked:read`: the person attached it to this application, or this
+   * application stored it for them — unless they revoked that). Anything else
+   * is 404. A file with no ladder yet is 409 `STREAM_NOT_READY`.
+   *
+   * `encryption: 'aes-128'` (the default) encrypts every segment; the key is
+   * served only inside the session, and with `keyAuthorization: 'webhook'`
+   * only after your file-events endpoint allows it
+   * (`verifyStreamKeyAuthorization`; 409 `FILES_WEBHOOK_REQUIRED` without a
+   * verified endpoint).
+   */
+  readonly streams = {
+    create: (fileId: string, options: PlaySessionOptions = {}): Promise<PlaySession> =>
+      this.createPlaySession(fileId, options),
+    /** The session's state; its URLs are shown only by `create`. */
+    get: (sessionId: string): Promise<PlaySessionState> =>
+      lane(this.ctx).request<PlaySessionState>(
+        'GET',
+        `/assets/service/streams/${encodeURIComponent(sessionId)}`,
+        undefined,
+        { cache: false },
+      ),
+    /** Revoke one session at once; revoking a revoked or expired one answers the same. */
+    revoke: (sessionId: string): Promise<{ sessionId: string; revoked: true }> =>
+      lane(this.ctx).request<{ sessionId: string; revoked: true }>(
+        'DELETE',
+        `/assets/service/streams/${encodeURIComponent(sessionId)}`,
+        undefined,
+        { cache: false },
+      ),
+    /** Revoke every active session of this application for a file, an end user, or both. */
+    revokeWhere: (filter: { fileId?: string; endUserId?: string }): Promise<{ revoked: number }> =>
+      this.revokePlaySessionsWhere(filter),
+  };
+
+  private async createPlaySession(
+    fileId: string,
+    options: PlaySessionOptions,
+  ): Promise<PlaySession> {
+    if (
+      options.ttlSeconds !== undefined &&
+      (!Number.isInteger(options.ttlSeconds) ||
+        options.ttlSeconds < PLAY_SESSION_MIN_TTL_SECONDS ||
+        options.ttlSeconds > PLAY_SESSION_MAX_TTL_SECONDS)
+    ) {
+      throw new RangeError(
+        `ttlSeconds must be a whole number between ${PLAY_SESSION_MIN_TTL_SECONDS} and ${PLAY_SESSION_MAX_TTL_SECONDS}`,
+      );
+    }
+    return lane(this.ctx).request<PlaySession>(
+      'POST',
+      '/assets/service/streams',
+      {
+        fileId,
+        ...(options.endUserId ? { endUserId: options.endUserId } : {}),
+        ...(options.ttlSeconds !== undefined ? { ttlSeconds: options.ttlSeconds } : {}),
+        ...(options.encryption ? { encryption: options.encryption } : {}),
+        ...(options.keyAuthorization ? { keyAuthorization: options.keyAuthorization } : {}),
+      },
+      // Not retried: a lost answer would leave a second live session behind.
+      { cache: false, retry: false },
+    );
+  }
+
+  private async revokePlaySessionsWhere(filter: {
+    fileId?: string;
+    endUserId?: string;
+  }): Promise<{ revoked: number }> {
+    if (!filter.fileId && !filter.endUserId) {
+      throw new Error('revokeWhere needs a fileId, an endUserId, or both');
+    }
+    return lane(this.ctx).request<{ revoked: number }>(
+      'POST',
+      '/assets/service/streams/revoke',
+      {
+        ...(filter.fileId ? { fileId: filter.fileId } : {}),
+        ...(filter.endUserId ? { endUserId: filter.endUserId } : {}),
+      },
+      { cache: false },
+    );
+  }
 
   private async reconcileReferences(
     entityType: string,
@@ -334,12 +486,16 @@ export class ServerAssetsApi extends AssetsApi {
   }
 
   /**
-   * Mint short-lived direct download URLs for files the calling application's
-   * own users attached to it (`POST /assets/service/linked-url`, scope
-   * `files:linked:read`). The ONLY way a service token reaches file bytes.
+   * Mint short-lived direct download URLs for files the calling application
+   * may read (`POST /assets/service/linked-url`, scope `files:linked:read`).
+   * The way a service token reaches file bytes (besides {@link streams}).
    *
-   * A URL comes back only for a file whose OWN OWNER linked it to this
-   * application; every other id is omitted, and the route answers identically
+   * A URL comes back for this application's own files, and for a person's
+   * file the person consented to: they attached it to this application (ADR
+   * 0021), or this application stored it for them (a user-media upload,
+   * import, large upload or recording, ADR 0042 stage 4c) — unless they
+   * revoked this application's access in their file manager. Every other id
+   * is omitted, and the route answers identically
    * for "no such file" and "not yours". ABSENCE IS A REFUSAL, not a fact about
    * the file: decide what to tell your user from your own entitlement record.
    * A failed chunk throws {@link ServiceLinkedDownloadUrlError}; there is no
@@ -448,9 +604,10 @@ export class ServerAssetsApi extends AssetsApi {
    * `files:app:write`, ADR 0043) — content no person owns. The owner is
    * always the calling application. A third-party application's bytes count
    * toward its developer account's storage plan (over it: 413
-   * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image
-   * or video only, at most 40 MiB. Bytes taken down after a content claim are
-   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0043 D10) — here, by
+   * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image,
+   * video or audio (an SVG is sanitized and stored as sanitized), at most
+   * 40 MiB; `audio` sets how an audio file is rendered. Bytes taken down after a content claim are
+   * refused for every owner (451 `CONTENT_BLOCKED`, ADR 0042 D10) — here, by
    * the imports and by every other upload.
    *
    * `visibility` is required: `public` and `unlisted` are readable by anyone
@@ -484,11 +641,13 @@ export class ServerAssetsApi extends AssetsApi {
    * not match are refused (422 `CHECKSUM_MISMATCH`). Calling again for the
    * same bytes after a crash RESUMES: only the parts storage lacks are sent.
    * Bytes this application already holds answer at once (`deduplicated`).
-   * Refused: executables and active documents such as HTML or SVG (415), more
+   * Refused: executables and active documents such as HTML or XML (415), more
    * than 8 GiB (413), taken-down bytes (451 `CONTENT_BLOCKED`), a full plan
-   * for a third-party application (413 `STORAGE_QUOTA_EXCEEDED`). Non-media
+   * for a third-party application (413 `STORAGE_QUOTA_EXCEEDED`). An SVG (at
+   * most 5 MiB) is sanitized at verification and stored sanitized. Non-media
    * types are served as downloads. Renditions are made for images (up to
-   * 100 MiB) and videos only.
+   * 100 MiB; an SVG is rasterized), videos, and audio (an audio-only HLS
+   * ladder, a waveform and a 30-second preview; `audio` options).
    */
   async uploadAppFileLarge(
     source: LargeUploadSource,
@@ -507,7 +666,9 @@ export class ServerAssetsApi extends AssetsApi {
   /**
    * {@link uploadAppFileLarge} into an existing local user's files
    * (`/assets/service/user-media/uploads`, `files:user-media:write`): the
-   * account owns the file; public unless `visibility` says otherwise.
+   * account owns the file; public unless `visibility` says otherwise. This
+   * application may read the file (it stored it for the person) until the
+   * person revokes that.
    */
   async uploadUserMediaLarge(
     ownerUserId: string,
@@ -634,7 +795,10 @@ export class ServerAssetsApi extends AssetsApi {
    * Import a file by URL that THIS application owns
    * (`POST /assets/service/app/import`, `files:app:write`, ADR 0043 D7). Oxy
    * fetches `sourceUrl` itself — `https` only, public addresses only, bounded
-   * redirects, size and time — and stores it like {@link uploadAppFile}.
+   * redirects, size and time — and stores it like {@link uploadAppFile}
+   * (image, video or audio; SVG is sanitized). A source over 40 MiB (up to
+   * 8 GiB — a podcast enclosure) is fetched in the background: this call
+   * waits for it (`waitMs`, default 60 min) and resolves the same way.
    * Importing the same URL again answers the existing file without fetching
    * (`outcome: 'existing'`); `revalidate` asks the source conditionally.
    * `reference` registers this application's use of the file in the same
@@ -645,17 +809,25 @@ export class ServerAssetsApi extends AssetsApi {
     sourceUrl: string,
     options: FileImportOptions & { visibility: FileVisibility; signal?: AbortSignal },
   ): Promise<ApplicationFileImport> {
-    const { signal, ...rest } = options;
-    return lane(this.ctx).request<ApplicationFileImport>(
+    const { signal } = options;
+    const answer = await lane(this.ctx).request<ApplicationFileImport | PendingImportAnswer>(
       'POST',
       '/assets/service/app/import',
-      { sourceUrl, ...rest },
+      importBody(sourceUrl, options),
       {
         cache: false,
         retry: false,
         timeout: SERVICE_IMPORT_TIMEOUT_MS,
         ...(signal ? { signal } : {}),
       },
+    );
+    if (!isPendingImport(answer)) return answer;
+    return waitForImport<ApplicationFileImport>(
+      lane(this.ctx),
+      '/assets/service/app/imports',
+      answer.importId,
+      undefined,
+      { waitMs: options.waitMs, signal },
     );
   }
 
@@ -664,78 +836,288 @@ export class ServerAssetsApi extends AssetsApi {
    * (`POST /assets/service/app/import/batch`), 50 per request, in order. Each
    * item answers on its own — `{ ok: true, file, outcome, … }` or
    * `{ ok: false, error: { status, code, message } }` — with `index` into the
-   * array given here.
+   * array given here. An item whose source is over 40 MiB is waited for (up to
+   * `options.waitMs`, default 60 min) and answers like the others; one that
+   * fails or is not done in time answers `ok: false` with its error.
    */
   async importAppFiles(
     items: Array<FileImportOptions & { sourceUrl: string; visibility: FileVisibility }>,
+    options: { waitMs?: number; signal?: AbortSignal } = {},
   ): Promise<ApplicationFileImportBatchResult[]> {
     const results: ApplicationFileImportBatchResult[] = [];
     for (let start = 0; start < items.length; start += SERVICE_IMPORT_BATCH_SIZE) {
       const part = items
         .slice(start, start + SERVICE_IMPORT_BATCH_SIZE)
-        .map(({ sourceUrl, visibility, reference, revalidate }) => ({
-          sourceUrl,
-          visibility,
-          ...(reference ? { reference } : {}),
-          ...(revalidate !== undefined ? { revalidate } : {}),
-        }));
-      const res = await lane(this.ctx).request<{ results: ApplicationFileImportBatchResult[] }>(
+        .map(({ sourceUrl, ...rest }) => importBody(sourceUrl, rest));
+      const res = await lane(this.ctx).request<{ results: ImportBatchWireItem[] }>(
         'POST',
         '/assets/service/app/import/batch',
         { items: part },
-        { cache: false, retry: false, timeout: SERVICE_IMPORT_TIMEOUT_MS * 2 },
+        {
+          cache: false,
+          retry: false,
+          timeout: SERVICE_IMPORT_TIMEOUT_MS * 2,
+          ...(options.signal ? { signal: options.signal } : {}),
+        },
       );
-      results.push(...res.results.map((result) => ({ ...result, index: result.index + start })));
+      const settled = await Promise.all(
+        res.results.map((result) => this.settleBatchImport(result, options)),
+      );
+      results.push(...settled.map((result) => ({ ...result, index: result.index + start })));
     }
     return results;
+  }
+
+  /** A batch item Oxy is still fetching, waited for and answered like the others. */
+  private async settleBatchImport(
+    item: ImportBatchWireItem,
+    options: { waitMs?: number; signal?: AbortSignal },
+  ): Promise<ApplicationFileImportBatchResult> {
+    if (!(item.ok && 'pending' in item && item.pending === true)) {
+      return item as ApplicationFileImportBatchResult;
+    }
+    try {
+      const done = await waitForImport<ApplicationFileImport>(
+        lane(this.ctx),
+        '/assets/service/app/imports',
+        item.importId,
+        undefined,
+        options,
+      );
+      return { index: item.index, ok: true, ...done };
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      const failure =
+        error instanceof OxyApiError
+          ? { status: error.status, code: error.code, message: error.message }
+          : {
+              status: 502,
+              code: 'IMPORT_FAILED',
+              message: error instanceof Error ? error.message : 'The import failed',
+            };
+      return { index: item.index, ok: false, error: failure };
+    }
   }
 
   /**
    * Import a file by URL into an existing local user's files
    * (`POST /assets/service/user-media/import`, the staff-granted scope
-   * `files:user-media:write`, ADR 0043 D7) — the account-owned twin of
-   * {@link importAppFile}, public unless `visibility` says otherwise. The same
-   * URL imported again for the same user answers the existing file.
+   * `files:user-media:write`, ADR 0042 D7) — the account-owned twin of
+   * {@link importAppFile}, public unless `visibility` says otherwise (a
+   * `private` file reaches no CDN; this application can still read it — it
+   * stored it for the person — until the person revokes that). The same URL
+   * imported again for the same user answers the existing file. Sources over
+   * 40 MiB are waited for as in {@link importAppFile}.
    */
   async importUserMedia(
     ownerUserId: string,
     sourceUrl: string,
     options: FileImportOptions & { visibility?: FileVisibility; signal?: AbortSignal } = {},
   ): Promise<ServiceUserMediaImport> {
-    const { signal, ...rest } = options;
-    return lane(this.ctx).request<ServiceUserMediaImport>(
+    const { signal } = options;
+    const headers = { 'x-owner-user-id': ownerUserId };
+    const answer = await lane(this.ctx).request<ServiceUserMediaImport | PendingImportAnswer>(
       'POST',
       '/assets/service/user-media/import',
-      { sourceUrl, ...rest },
+      importBody(sourceUrl, options),
       {
-        headers: { 'x-owner-user-id': ownerUserId },
+        headers,
         cache: false,
         retry: false,
         timeout: SERVICE_IMPORT_TIMEOUT_MS,
         ...(signal ? { signal } : {}),
       },
     );
+    if (!isPendingImport(answer)) return answer;
+    return waitForImport<ServiceUserMediaImport>(
+      lane(this.ctx),
+      '/assets/service/user-media/imports',
+      answer.importId,
+      headers,
+      { waitMs: options.waitMs, signal },
+    );
   }
 
   /**
-   * Store a public file OWNED BY an existing local user
+   * One background import as it stands (`GET /assets/service/{app,user-media}/imports/:importId`)
+   * — to collect an import an earlier call stopped waiting for
+   * (`IMPORT_WAIT_TIMEOUT`). Pass `ownerUserId` for an import into a person's files.
+   */
+  async getImport(
+    importId: string,
+    options: { ownerUserId?: string } = {},
+  ): Promise<
+    FileImportState<ApplicationFile | (ServiceUserMediaFile & { status: AssetLiveStatus })>
+  > {
+    const base = options.ownerUserId
+      ? '/assets/service/user-media/imports'
+      : '/assets/service/app/imports';
+    return lane(this.ctx).request('GET', `${base}/${encodeURIComponent(importId)}`, undefined, {
+      cache: false,
+      ...(options.ownerUserId ? { headers: { 'x-owner-user-id': options.ownerUserId } } : {}),
+    });
+  }
+
+  // ── Recording targets (LiveKit egress) ──────────────────────────────────
+
+  /**
+   * An upload target a room recorder writes into (ADR 0042 stage 4c): Oxy
+   * answers S3-compatible credentials that accept exactly ONE object — the
+   * recording at `filepath` — and nothing else, for `expiresInSeconds`.
+   * Hand `livekit` to LiveKit's egress as its `EncodedFileOutput`
+   * (`{ filepath, s3 }`, as it is); any S3 client works with `s3` (path-style).
+   * Once the recording is written Oxy hashes it and it becomes THIS
+   * application's file (`visibility`), with `reference` registered
+   * (`files:references:write`). `files:app:write`. The secret is shown only
+   * in this answer.
+   */
+  async createAppRecordingTarget(
+    options: RecordingTargetOptions & { visibility: FileVisibility },
+  ): Promise<CreatedRecordingTarget> {
+    return this.createRecordingTarget(recordingTargetRoute(), options);
+  }
+
+  /**
+   * {@link createAppRecordingTarget} for a recording an existing local user
+   * will own (`files:user-media:write`): private unless `visibility` says
+   * otherwise; this application may read it (it stored it for the person)
+   * until the person revokes that.
+   */
+  async createUserRecordingTarget(
+    ownerUserId: string,
+    options: RecordingTargetOptions & { visibility?: FileVisibility } = {},
+  ): Promise<CreatedRecordingTarget> {
+    return this.createRecordingTarget(recordingTargetRoute(ownerUserId), options);
+  }
+
+  private async createRecordingTarget(
+    route: { base: string; headers: Record<string, string> | undefined },
+    options: RecordingTargetOptions & { visibility?: FileVisibility },
+  ): Promise<CreatedRecordingTarget> {
+    return lane(this.ctx).request<CreatedRecordingTarget>(
+      'POST',
+      route.base,
+      {
+        ...(options.visibility ? { visibility: options.visibility } : {}),
+        ...(options.filename ? { filename: options.filename } : {}),
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+        ...(options.reference ? { reference: options.reference } : {}),
+        ...(options.maxBytes !== undefined ? { maxBytes: options.maxBytes } : {}),
+        ...(options.expiresInSeconds !== undefined
+          ? { expiresInSeconds: options.expiresInSeconds }
+          : {}),
+        ...(options.audio ? { audio: options.audio } : {}),
+      },
+      // Not retried: each answer carries a new secret.
+      { cache: false, retry: false, ...(route.headers ? { headers: route.headers } : {}) },
+    );
+  }
+
+  /** A recording target as it stands. Pass `ownerUserId` for a person's recording. */
+  async getRecordingTarget(
+    targetId: string,
+    options: { ownerUserId?: string } = {},
+  ): Promise<RecordingTarget> {
+    const route = recordingTargetRoute(options.ownerUserId);
+    return lane(this.ctx).request<RecordingTarget>(
+      'GET',
+      `${route.base}/${encodeURIComponent(targetId)}`,
+      undefined,
+      { cache: false, ...(route.headers ? { headers: route.headers } : {}) },
+    );
+  }
+
+  /**
+   * Collect a recording once the recorder finished (Oxy also finalizes it on
+   * its own as soon as the object is written; this is idempotent): resolves to
+   * the completed target with its `file`, waiting while Oxy verifies (up to
+   * `waitMs`, default 10 min). Rejects with 409 `RECORDING_NOT_RECEIVED` while
+   * nothing was written, and with the target's own error once it failed.
+   */
+  async completeRecordingTarget(
+    targetId: string,
+    options: { ownerUserId?: string; waitMs?: number; signal?: AbortSignal } = {},
+  ): Promise<RecordingTarget> {
+    const route = recordingTargetRoute(options.ownerUserId);
+    const path = `${route.base}/${encodeURIComponent(targetId)}`;
+    const requestOptions = {
+      cache: false,
+      ...(route.headers ? { headers: route.headers } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    };
+    const complete = () =>
+      lane(this.ctx).request<RecordingTarget>('POST', `${path}/complete`, undefined, {
+        ...requestOptions,
+        retry: false,
+      });
+    let target = await complete();
+    const deadline = Date.now() + (options.waitMs ?? RECORDING_DEFAULT_WAIT_MS);
+    let interval = ASSET_JOB_POLL_INITIAL_MS;
+    while (target.status === 'verifying' || target.status === 'receiving') {
+      if (Date.now() + interval > deadline) {
+        throw new OxyApiError('Oxy is still verifying the recording; collect it later', {
+          status: 0,
+          code: 'RECORDING_WAIT_TIMEOUT',
+          details: { targetId },
+          timeout: true,
+        });
+      }
+      await sleep(interval, options.signal);
+      interval = nextPollInterval(interval);
+      target = await lane(this.ctx).request<RecordingTarget>(
+        'GET',
+        path,
+        undefined,
+        requestOptions,
+      );
+    }
+    // A target that failed while it was polled: `complete` answers its own
+    // error status (422, 451, 413, 410), which is the error to raise.
+    if (target.status === 'failed' || target.status === 'aborted') return complete();
+    return target;
+  }
+
+  /** Abandon a recording target: its credentials stop working and anything written goes. */
+  async abortRecordingTarget(
+    targetId: string,
+    options: { ownerUserId?: string } = {},
+  ): Promise<RecordingTarget> {
+    const route = recordingTargetRoute(options.ownerUserId);
+    return lane(this.ctx).request<RecordingTarget>(
+      'DELETE',
+      `${route.base}/${encodeURIComponent(targetId)}`,
+      undefined,
+      { cache: false, ...(route.headers ? { headers: route.headers } : {}) },
+    );
+  }
+
+  /**
+   * Store a file OWNED BY an existing local user
    * (`POST /assets/service/user-media`, the staff-granted scope
-   * `files:user-media:write`) — e.g. importing a person's media into their own
-   * file space. Image or video only, at most 40 MiB. Rows are per owner: bytes
-   * that user already holds return their existing file.
+   * `files:user-media:write`) — e.g. a person's media stored by your backend
+   * acting for them. Image, video or audio (SVG is sanitized), at most 40 MiB.
+   * `visibility` defaults to `public`; a `private` file never reaches the CDN
+   * and only its person — and this application, which stored it for them —
+   * can read it ({@link linkedDownloadUrls}, {@link streams}), until the
+   * person revokes this application's access. Rows are per owner: bytes that
+   * user already holds return their existing file.
    */
   async uploadUserMedia(
     ownerUserId: string,
     bytes: ServiceUploadBody,
     mime: string,
-    options: ServiceUploadDescription = {},
+    options: ServiceUploadDescription & { visibility?: FileVisibility } = {},
   ): Promise<ServiceUserMediaFile> {
     const res = await lane(this.ctx).request<{ file: ServiceUserMediaFile }>(
       'POST',
       '/assets/service/user-media',
       bytes,
       {
-        headers: { ...uploadHeaders(mime, options), 'x-owner-user-id': ownerUserId },
+        headers: {
+          ...uploadHeaders(mime, options),
+          ...(options.visibility ? { 'x-visibility': options.visibility } : {}),
+          'x-owner-user-id': ownerUserId,
+        },
         cache: false,
         retry: false,
         ...(options.signal ? { signal: options.signal } : {}),

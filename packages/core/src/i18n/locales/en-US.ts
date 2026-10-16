@@ -1421,6 +1421,29 @@ const dict = {
     removedAfterClaim: 'Removed after a legal claim',
     moveToTrash: 'Move to trash',
     moveToTrashCount: 'Move to trash ({{count}})',
+    appAccess: {
+      title: 'Apps with access',
+      description: 'These apps can open this file on their own. Revoke an app to take that away.',
+      empty: 'No app can open this file on its own.',
+      loadError: "Couldn't load the apps that can open this file",
+      via: {
+        upload: 'Stored this file for you',
+        link: 'You shared it',
+      },
+      revoke: 'Revoke',
+      confirm: {
+        title: 'Revoke {{name}}?',
+        message:
+          '{{name}} will no longer be able to open this file, and any playback it started stops now.',
+      },
+      toasts: {
+        revoked: '{{name}} can no longer open this file',
+        revokeFailed: "Couldn't revoke {{name}}'s access",
+      },
+      a11y: {
+        revoke: "Revoke {{name}}'s access to this file",
+      },
+    },
     trashView: {
       title: 'Trash',
       subtitle: 'Restore files or delete them permanently',

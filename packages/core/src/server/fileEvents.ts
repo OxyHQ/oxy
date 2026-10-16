@@ -27,6 +27,14 @@
  * that call's response): {@link verifyFileEventSignature} returns it without
  * checking the signature, so the receiver can echo `challenge`. Nothing else
  * may be done with it.
+ *
+ * The same endpoint also receives `stream.key_authorization` (ADR 0042 stage
+ * 4c) when the application starts a play session with
+ * `keyAuthorization: 'webhook'`: a SYNCHRONOUS request, signed the same way,
+ * that must be answered within 3 s with `{ "allow": true }` for the player to
+ * get the content key. It is not a file event — branch on the
+ * `oxy-event-type` header and verify it with `verifyStreamKeyAuthorization`
+ * (`./streamKeyAuthorization.ts`); {@link verifyFileEventSignature} refuses it.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -80,7 +88,7 @@ export const FILE_EVENT_SIGNATURE_HEADER = 'oxy-signature';
 /** Default replay window: five minutes either side of now. */
 export const FILE_EVENT_DEFAULT_TOLERANCE_SECONDS = 300;
 
-type HeaderBag =
+export type HeaderBag =
   | Headers
   | Record<string, string | string[] | undefined>
   | { get(name: string): string | null };
@@ -96,7 +104,7 @@ function readHeader(headers: HeaderBag, name: string): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function rawText(rawBody: string | Uint8Array | ArrayBuffer): string {
+export function rawText(rawBody: string | Uint8Array | ArrayBuffer): string {
   if (typeof rawBody === 'string') return rawBody;
   const bytes = rawBody instanceof Uint8Array ? rawBody : new Uint8Array(rawBody);
   return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -113,6 +121,44 @@ function parseSignatureHeader(value: string): { timestamp: number; signatures: s
     else if (key === 'v1' && /^[0-9a-f]{64}$/i.test(item)) signatures.push(item.toLowerCase());
   }
   return { timestamp, signatures };
+}
+
+/**
+ * Check `oxy-signature` over `text` (the raw body) with `secret`, inside the
+ * replay window — the one signature scheme of every request Oxy sends an
+ * application's file-events endpoint (file events, and the synchronous
+ * `stream.key_authorization`, `./streamKeyAuthorization.ts`). Throws `Failure`.
+ */
+export function verifyOxySignature(
+  text: string,
+  headers: HeaderBag,
+  secret: string,
+  options: { toleranceSeconds?: number; now?: Date },
+  Failure: new (message: string) => Error,
+): void {
+  if (typeof secret !== 'string' || secret.length === 0) {
+    throw new Failure('No signing secret configured');
+  }
+  const header = readHeader(headers, FILE_EVENT_SIGNATURE_HEADER);
+  if (!header) throw new Failure('Missing oxy-signature header');
+  const { timestamp, signatures } = parseSignatureHeader(header);
+  if (!Number.isFinite(timestamp) || signatures.length === 0) {
+    throw new Failure('Malformed oxy-signature header');
+  }
+  const tolerance = options.toleranceSeconds ?? FILE_EVENT_DEFAULT_TOLERANCE_SECONDS;
+  const nowSeconds = Math.floor((options.now ?? new Date()).getTime() / 1000);
+  if (Math.abs(nowSeconds - timestamp) > tolerance) {
+    throw new Failure('The signature timestamp is outside the replay window');
+  }
+  const expected = Buffer.from(
+    createHmac('sha256', secret).update(`${timestamp}.${text}`).digest('hex'),
+    'utf8',
+  );
+  const matches = signatures.some((signature) => {
+    const given = Buffer.from(signature, 'utf8');
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  });
+  if (!matches) throw new Failure('The signature does not match');
 }
 
 /**
@@ -156,29 +202,7 @@ export function verifyFileEventSignature(
     return { type: 'webhook.challenge', challenge: record.challenge };
   }
 
-  if (typeof secret !== 'string' || secret.length === 0) {
-    throw new FileEventVerificationError('No signing secret configured');
-  }
-  const header = readHeader(headers, FILE_EVENT_SIGNATURE_HEADER);
-  if (!header) throw new FileEventVerificationError('Missing oxy-signature header');
-  const { timestamp, signatures } = parseSignatureHeader(header);
-  if (!Number.isFinite(timestamp) || signatures.length === 0) {
-    throw new FileEventVerificationError('Malformed oxy-signature header');
-  }
-  const tolerance = options.toleranceSeconds ?? FILE_EVENT_DEFAULT_TOLERANCE_SECONDS;
-  const nowSeconds = Math.floor((options.now ?? new Date()).getTime() / 1000);
-  if (Math.abs(nowSeconds - timestamp) > tolerance) {
-    throw new FileEventVerificationError('The signature timestamp is outside the replay window');
-  }
-  const expected = Buffer.from(
-    createHmac('sha256', secret).update(`${timestamp}.${text}`).digest('hex'),
-    'utf8',
-  );
-  const matches = signatures.some((signature) => {
-    const given = Buffer.from(signature, 'utf8');
-    return given.length === expected.length && timingSafeEqual(given, expected);
-  });
-  if (!matches) throw new FileEventVerificationError('The signature does not match');
+  verifyOxySignature(text, headers, secret, options, FileEventVerificationError);
 
   const file = record.file as Record<string, unknown> | undefined;
   if (

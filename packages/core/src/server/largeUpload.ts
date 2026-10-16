@@ -15,7 +15,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { ServiceLane } from '../client/context';
-import type { FileVisibility } from '../models/interfaces';
+import type { AudioRenditionOptions, FileVisibility } from '../models/interfaces';
 
 /** What a large upload reads from: a Blob (`fs.openAsBlob(path)` for a file), bytes, or a file path. */
 export type LargeUploadSource = Blob | Uint8Array | ArrayBuffer | string;
@@ -28,8 +28,14 @@ export interface LargeUploadProgressEvent {
 }
 
 export interface LargeServiceUploadOptions {
-  /** The file's type. Executables and active documents (HTML, SVG, XML, scripts) are refused (415). */
+  /**
+   * The file's type. Executables and active documents (HTML, XML, scripts)
+   * are refused (415); an SVG (at most 5 MiB) is sanitized when Oxy verifies
+   * it, and the sanitized bytes are what is stored (ADR 0042 stage 4c).
+   */
   mime: string;
+  /** How an audio file is rendered (ignored for other types). */
+  audio?: AudioRenditionOptions;
   /** Stored as the original name; also how a type with no known extension gets one. */
   filename?: string;
   metadata?: Record<string, unknown>;
@@ -174,6 +180,7 @@ export async function runLargeUpload<TFile>(
     ...(options.filename ? { filename: options.filename } : {}),
     ...(options.metadata ? { metadata: options.metadata } : {}),
     ...(options.reference ? { reference: options.reference } : {}),
+    ...(options.audio ? { audio: options.audio } : {}),
   });
 
   if (session.status === 'uploading' && session.uploadId) {

@@ -929,6 +929,15 @@ export interface FileImportOptions {
   reference?: { entityType: string; entityId: string };
   /** Ask the source again (conditionally, ETag / Last-Modified) even if imported before. */
   revalidate?: boolean;
+  /** How an audio source is rendered (ignored for images and videos). */
+  audio?: AudioRenditionOptions;
+  /**
+   * How long to wait for a source over 40 MiB, which Oxy fetches in the
+   * background, in ms (default 60 min). Waiting longer than that rejects with
+   * `IMPORT_WAIT_TIMEOUT` (its `details.importId` names the import, which
+   * keeps running: collect it with `OxyServer.assets.getImport`).
+   */
+  waitMs?: number;
 }
 
 /** `POST /assets/service/app/import`: the application's file and how it was obtained. */
@@ -975,6 +984,177 @@ export interface ServiceUserMediaFile {
   size: number;
   mime: string;
   visibility: FileVisibility;
+}
+
+/**
+ * How Oxy renders an AUDIO file it stores (ADR 0042 stage 4c). Every audio
+ * file gets an audio-only HLS ladder (AAC 64k/128k/256k, a rung above the
+ * source's own bitrate is skipped), a waveform (`waveform`, peaks JSON) and a
+ * 30-second `preview` clip, made after the upload returns.
+ */
+export interface AudioRenditionOptions {
+  /** Normalize loudness (EBU R128, −16 LUFS) in the ladder and the preview. */
+  normalizeLoudness?: boolean;
+  /** Where the 30-second preview starts, in seconds (default 0; clamped to the file). */
+  previewStartSeconds?: number;
+}
+
+/**
+ * An import by URL Oxy is still running (ADR 0042 stage 4c): a source over
+ * 40 MiB is fetched in the background and answered `202` with this. The SDK's
+ * import methods wait for it and resolve to the ordinary import result.
+ */
+export interface PendingFileImport {
+  importId: string;
+  status: 'importing' | 'verifying';
+  source: { host: string };
+}
+
+/** `GET /assets/service/{app,user-media}/imports/:importId`. */
+export interface FileImportState<TFile> {
+  importId: string;
+  status: 'importing' | 'verifying' | 'completed' | 'failed';
+  source: { host: string; fetchedAt?: string; etag?: string; lastModified?: string };
+  file?: TFile;
+  outcome?: FileImportOutcome;
+  deduplicated?: boolean;
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+  error?: { status: number; code: string; message: string };
+}
+
+/**
+ * One application that can read one of your files with its service token
+ * (ADR 0042 stage 4c), from `GET /assets/:id/access`:
+ * - `upload`: the application stored the file for you (an upload, import or
+ *   recording it made on your behalf);
+ * - `link`: you attached the file to the application yourself (ADR 0021).
+ */
+export interface FileApplicationAccess {
+  applicationId: string;
+  name: string;
+  /** The application's logo: an asset id or a URL, as the app listings answer `icon`. */
+  icon: string | null;
+  via: Array<'upload' | 'link'>;
+  /** Since when (ISO 8601). */
+  since: string;
+}
+
+/** `DELETE /assets/:id/access/:applicationId`. */
+export interface FileApplicationAccessRevocation {
+  fileId: string;
+  applicationId: string;
+  revoked: true;
+  /** Play sessions of that application for the file that stopped at once. */
+  streamsRevoked: number;
+}
+
+/** Options of `OxyServer.assets.streams.create`. */
+export interface PlaySessionOptions {
+  /** The end user the play is for — passed to your key authorization and revocable by it. */
+  endUserId?: string;
+  /** Session lifetime in seconds, 60–43200 (default 3600). Choose at least the media's length. */
+  ttlSeconds?: number;
+  /** `aes-128` (default): segments are encrypted and the key is served only to this session. */
+  encryption?: 'aes-128' | 'none';
+  /**
+   * `webhook`: before the key is served, Oxy asks your verified file-events
+   * endpoint (`stream.key_authorization`, see `verifyStreamKeyAuthorization`).
+   */
+  keyAuthorization?: 'none' | 'webhook';
+}
+
+/** A revocable play session of one file (ADR 0042 stage 4c), `POST /assets/service/streams`. */
+export interface PlaySessionState {
+  sessionId: string;
+  fileId: string;
+  kind: 'video' | 'audio';
+  status: 'active' | 'revoked' | 'expired';
+  encryption: 'aes-128' | 'none';
+  keyAuthorization: 'none' | 'webhook';
+  endUserId: string | null;
+  expiresAt: string;
+  revokedAt?: string | null;
+}
+
+/**
+ * A play session as `streams.create` answers it: its state and its URLs. The
+ * URLs carry the session's secret, which Oxy does not keep — `streams.get`
+ * answers the state only ({@link PlaySessionState}).
+ */
+export interface PlaySession extends PlaySessionState {
+  /**
+   * The HLS master playlist for the player. Every playlist, segment and the
+   * key are resolved relative to it and checked against the session on every
+   * request: revoking it stops playback at the next request.
+   */
+  masterUrl: string;
+  renditions: Array<{ type: string; url: string; bandwidth: number | null }>;
+  /** Audio only: the 30-second preview clip. */
+  previewUrl?: string;
+  /** Audio only: the waveform peaks (audiowaveform JSON). */
+  waveformUrl?: string;
+}
+
+/** Options of a recording target (ADR 0042 stage 4c). */
+export interface RecordingTargetOptions {
+  /** Stored as the original name. */
+  filename?: string;
+  metadata?: Record<string, unknown>;
+  /** Register this application's use of the recording once stored (needs `files:references:write`). */
+  reference?: { entityType: string; entityId: string };
+  /** The largest recording accepted, in bytes (at most and by default 8 GiB). */
+  maxBytes?: number;
+  /** How long the credentials accept an upload, in seconds (60–604800, default 86400). */
+  expiresInSeconds?: number;
+  audio?: AudioRenditionOptions;
+}
+
+/** S3-compatible credentials scoped to ONE recording: shown only when the target is created. */
+export interface RecordingTargetCredentials {
+  accessKey: string;
+  secret: string;
+  region: string;
+  /** An `https://` S3-compatible endpoint (path-style). */
+  endpoint: string;
+  bucket: string;
+  forcePathStyle: true;
+}
+
+/** `POST /assets/service/{app,user-media}/recording-targets`. */
+export interface CreatedRecordingTarget {
+  targetId: string;
+  status: 'awaiting_upload';
+  expiresAt: string;
+  /** The object key the recording must be written at. */
+  filepath: string;
+  s3: RecordingTargetCredentials;
+  /**
+   * Exactly LiveKit's `EncodedFileOutput` fields (`filepath` and `s3`): pass
+   * them to an egress request as they are.
+   */
+  livekit: {
+    filepath: string;
+    s3: {
+      access_key: string;
+      secret: string;
+      region: string;
+      endpoint: string;
+      bucket: string;
+      force_path_style: true;
+    };
+  };
+}
+
+/** A recording target as it stands. */
+export interface RecordingTarget<TFile = ApplicationFile | ServiceUserMediaFile> {
+  targetId: string;
+  status: 'awaiting_upload' | 'receiving' | 'verifying' | 'completed' | 'failed' | 'aborted';
+  expiresAt: string;
+  size?: number;
+  file?: TFile;
+  deduplicated?: boolean;
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+  error?: { code: string; message: string };
 }
 
 /**

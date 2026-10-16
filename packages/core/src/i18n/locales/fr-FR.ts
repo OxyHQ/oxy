@@ -421,6 +421,30 @@ const dict = {
     },
     moveToTrash: 'Mettre à la corbeille',
     moveToTrashCount: 'Mettre à la corbeille ({{count}})',
+    appAccess: {
+      title: 'Apps ayant accès',
+      description:
+        'Ces apps peuvent ouvrir ce fichier par elles-mêmes. Révoquez une app pour lui retirer cet accès.',
+      empty: 'Aucune app ne peut ouvrir ce fichier par elle-même.',
+      loadError: 'Impossible de charger les apps qui peuvent ouvrir ce fichier',
+      via: {
+        upload: 'A enregistré ce fichier pour vous',
+        link: "Vous l'avez partagé",
+      },
+      revoke: 'Révoquer',
+      confirm: {
+        title: 'Révoquer {{name}} ?',
+        message:
+          "{{name}} ne pourra plus ouvrir ce fichier, et toute lecture lancée par l'app s'arrête maintenant.",
+      },
+      toasts: {
+        revoked: '{{name}} ne peut plus ouvrir ce fichier',
+        revokeFailed: "Impossible de révoquer l'accès de {{name}}",
+      },
+      a11y: {
+        revoke: "Révoquer l'accès de {{name}} à ce fichier",
+      },
+    },
     trashView: {
       title: 'Corbeille',
       subtitle: 'Restaurez des fichiers ou supprimez-les définitivement',

@@ -416,6 +416,30 @@ const dict = {
     },
     moveToTrash: 'Mover para o lixo',
     moveToTrashCount: 'Mover para o lixo ({{count}})',
+    appAccess: {
+      title: 'Apps com acesso',
+      description:
+        'Estas apps podem abrir este ficheiro por si. Revogue uma app para lhe retirar esse acesso.',
+      empty: 'Nenhuma app pode abrir este ficheiro por si.',
+      loadError: 'Não foi possível carregar as apps que podem abrir este ficheiro',
+      via: {
+        upload: 'Guardou este ficheiro por si',
+        link: 'Foi partilhado por si',
+      },
+      revoke: 'Revogar',
+      confirm: {
+        title: 'Revogar {{name}}?',
+        message:
+          '{{name}} deixará de poder abrir este ficheiro e qualquer reprodução que tenha iniciado termina agora.',
+      },
+      toasts: {
+        revoked: '{{name}} já não pode abrir este ficheiro',
+        revokeFailed: 'Não foi possível revogar o acesso de {{name}}',
+      },
+      a11y: {
+        revoke: 'Revogar o acesso de {{name}} a este ficheiro',
+      },
+    },
     trashView: {
       title: 'Lixo',
       subtitle: 'Restaure ficheiros ou elimine-os definitivamente',
