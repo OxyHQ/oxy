@@ -23,6 +23,7 @@ import { Router, type Request, type Response } from 'express';
 import type { AccountKind } from '@oxy.so/contracts';
 import type { User } from '@oxy.so/core';
 import { AP_CONTEXT } from '../apContext';
+import { discoveryCacheControl } from './httpCacheControl';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
 import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
@@ -121,6 +122,8 @@ export interface ActorRouterConfig {
     offset: number,
     limit: number,
   ): Promise<FollowPage>;
+  /** Actor HTTP response TTL in whole seconds, 0..86400. Defaults to 1800; 0 sends no-store. */
+  httpCacheTtlSeconds?: number;
   /** Diagnostics sink. */
   logger: ActorRouterLogger;
 }
@@ -158,6 +161,7 @@ function parseFollowOffset(raw: unknown): number {
 export function createActorRouter(config: ActorRouterConfig): Router {
   const router = Router();
   const { urls, domain, apContentType, logger } = config;
+  const httpCacheControl = discoveryCacheControl(config.httpCacheTtlSeconds, 1800);
 
   function wantsActivityPub(req: Request): boolean {
     return config.wantsActivityPub(req.headers.accept);
@@ -383,7 +387,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
           },
         };
         res.set('Content-Type', apContentType);
-        res.set('Cache-Control', 'max-age=1800');
+        res.set('Cache-Control', httpCacheControl);
         return res.json(actorObject);
       }
 
@@ -424,7 +428,7 @@ export function createActorRouter(config: ActorRouterConfig): Router {
       });
 
       res.set('Content-Type', apContentType);
-      res.set('Cache-Control', 'max-age=1800');
+      res.set('Cache-Control', httpCacheControl);
       return res.json({ '@context': AP_CONTEXT, ...actorObject });
     } catch (err) {
       logger.error('Actor endpoint error:', err);

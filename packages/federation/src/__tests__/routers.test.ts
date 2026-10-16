@@ -123,6 +123,52 @@ function makeActorApp(
 }
 
 describe('webfinger router', () => {
+  it('keeps the existing one-hour HTTP caching default', async () => {
+    const response = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(response.headers['cache-control']).toBe('max-age=3600');
+  });
+
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 86401])(
+    'rejects invalid HTTP cache TTL %s at construction',
+    (httpCacheTtlSeconds) => {
+      expect(() => makeWebfingerApp({ httpCacheTtlSeconds })).toThrow(RangeError);
+    },
+  );
+
+  it('makes fresh, cached and instance discovery noncacheable when TTL is zero', async () => {
+    const cacheGet = jest.fn(async () => null as { subject: string; links: [] } | null);
+    const app = makeWebfingerApp({
+      httpCacheTtlSeconds: 0,
+      cache: { get: cacheGet, set: () => {} },
+    });
+    const fresh = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(fresh.status).toBe(200);
+    expect(fresh.headers['cache-control']).toBe('no-store');
+    cacheGet.mockResolvedValue({ subject: 'acct:alice@mention.earth', links: [] });
+    const cached = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(cached.status).toBe(200);
+    expect(cached.headers['cache-control']).toBe('no-store');
+    expect(cached.body.links).toEqual([]);
+    const instance = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+    expect(instance.status).toBe(200);
+    expect(instance.headers['cache-control']).toBe('no-store');
+  });
+
+  it('accepts the documented maximum HTTP cache TTL', async () => {
+    const response = await request(makeWebfingerApp({ httpCacheTtlSeconds: 86400 }))
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:alice@mention.earth' });
+    expect(response.headers['cache-control']).toBe('max-age=86400');
+  });
+
   it('resolves acct:alice@mention.earth to the actor self link (200)', async () => {
     const res = await request(makeWebfingerApp())
       .get('/.well-known/webfinger')
@@ -329,6 +375,30 @@ describe('webfinger router — the instance (server) actor', () => {
 });
 
 describe('actor router — GET /ap/users/:username', () => {
+  it('keeps the existing half-hour actor caching default', async () => {
+    const response = await request(makeActorApp())
+      .get('/ap/users/alice')
+      .set('Accept', 'application/activity+json');
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('max-age=1800');
+  });
+  it.each(['alice', 'instance'])(
+    'serves %s without HTTP caching when TTL is zero',
+    async (username) => {
+      const response = await request(makeActorApp({ actorConfig: { httpCacheTtlSeconds: 0 } }))
+        .get(`/ap/users/${username}`)
+        .set('Accept', 'application/activity+json');
+      expect(response.status).toBe(200);
+      expect(response.headers['cache-control']).toBe('no-store');
+    },
+  );
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 86401])(
+    'rejects invalid actor cache TTL %s',
+    (httpCacheTtlSeconds) => {
+      expect(() => makeActorApp({ actorConfig: { httpCacheTtlSeconds } })).toThrow(RangeError);
+    },
+  );
+
   it('serves the actor as 200 (NOT a redirect) for an AP Accept', async () => {
     const res = await request(makeActorApp())
       .get('/ap/users/alice')
