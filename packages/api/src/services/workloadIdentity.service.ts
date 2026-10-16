@@ -1,5 +1,5 @@
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import crypto from 'node:crypto';
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 
 import { getDb } from '../config/postgres';

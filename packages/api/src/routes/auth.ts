@@ -1,4 +1,3 @@
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 /**
  * Authentication Routes
  *
@@ -16,6 +15,7 @@ import type {
 import {
   oauthAuthorizeCodeResponseSchema,
   oauthConsentDecisionSchema,
+  serviceTokenScopesSchema,
 } from '@oxy.so/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';

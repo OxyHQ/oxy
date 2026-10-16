@@ -1,5 +1,6 @@
 import { jwtDecode } from 'jwt-decode';
 import { serviceTokenScopesSchema } from '@oxy.so/contracts';
+
 /** Check the trusted mint response, never authenticate a caller from decoded claims. */
 export function assertRequestedServiceScopes(token: string, requested?: string[]): void {
   if (!requested) return;

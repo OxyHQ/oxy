@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 /** Omitted means the existing grant; an explicit set only narrows that authority. */
 export const serviceTokenScopesSchema = z
   .array(z.string().trim().min(1).max(128))

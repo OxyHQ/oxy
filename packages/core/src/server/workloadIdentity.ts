@@ -1,7 +1,7 @@
-import { assertRequestedServiceScopes } from './serviceTokenScopes';
-import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { createHash, createHmac } from 'node:crypto';
+import { serviceTokenScopesSchema } from '@oxy.so/contracts';
 import { trimTrailingSlashes } from '../utils/slashes';
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
 
 /**
  * Asking Oxy for a service token by proving what this process IS (ADR 0026).

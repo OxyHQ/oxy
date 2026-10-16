@@ -1,6 +1,6 @@
-import { assertRequestedServiceScopes } from './serviceTokenScopes';
-import { serviceTokenOptionsSchema, type ServiceTokenOptions } from '@oxy.so/contracts';
 import {
+  serviceTokenOptionsSchema,
+  type ServiceTokenOptions,
   subjectProductAccessQuerySchema,
   subjectProductGrantSnapshotSchema,
   type SubjectProductAccessQuery,
@@ -35,6 +35,7 @@ import {
  */
 import { jwtDecode } from 'jwt-decode';
 import { hasBoundedServiceTokenLifetime } from './serviceTokenLifetime';
+import { assertRequestedServiceScopes } from './serviceTokenScopes';
 
 /** Unverified cache metadata only: an old lifetime forces a new signed mint. */
 function reusableServiceToken(token: string): boolean {
