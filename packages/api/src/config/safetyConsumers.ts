@@ -1,4 +1,5 @@
 /** Exact deployed workload identities, reviewed from the 2026-10-15 read-only inventory. */
+// Oxy's root account is an organization (observed in production 2026-10-16), never a person.
 const root = '69b2d3df5d12f58c9800d651';
 export const SAFETY_CONSUMERS = {
   clarity: {
@@ -14,7 +15,7 @@ export const SAFETY_CONSUMERS = {
   mention: {
     applicationId: '6a2f851751b784a86fd0e916',
     ownerAccountId: root,
-    ownerKind: 'personal',
+    ownerKind: 'organization',
     type: 'first_party',
     roles: ['oxy-mention-task', 'oxy-mention-mcp-task'],
     candidateActions: ['profile', 'content', 'content-publication'],
@@ -22,7 +23,7 @@ export const SAFETY_CONSUMERS = {
   allo: {
     applicationId: '6a2f851751b784a86fd0e92b',
     ownerAccountId: root,
-    ownerKind: 'personal',
+    ownerKind: 'organization',
     type: 'first_party',
     roles: ['oxy-allo-task'],
     candidateActions: ['profile', 'messaging', 'messaging-delivery'],
@@ -30,7 +31,7 @@ export const SAFETY_CONSUMERS = {
   mercaria: {
     applicationId: '6a37d0cc5d4b5f15482a9340',
     ownerAccountId: root,
-    ownerKind: 'personal',
+    ownerKind: 'organization',
     type: 'first_party',
     roles: ['oxy-mercaria-task'],
     candidateActions: ['content', 'purchases'],
