@@ -218,3 +218,94 @@ describe('OxyServer.assets.references — the calling application’s uses of fi
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe('OxyServer.assets.references.reconcile — an inventory of one entity type (ADR 0041 D6)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const pair = (index: number) => ({ fileId: `file-${index}`, entityId: `listing-${index}` });
+  const committed = {
+    sessionId: 'session-1',
+    entityType: 'listing',
+    dryRun: false,
+    added: 1,
+    removed: 2,
+    unchanged: 3,
+    refused: 0,
+  };
+
+  function stubServer() {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const spy = jest
+      .spyOn(oxy, 'serviceRequest')
+      .mockImplementation(async (method: string, url: string) => {
+        if (method === 'POST' && url === '/assets/service/references/reconcile') {
+          return { sessionId: 'session-1', entityType: 'listing', expiresAt: 'x' };
+        }
+        if (method === 'POST' && url.endsWith('/commit')) return committed;
+        return { accepted: 0, total: 0 };
+      });
+    return { oxy, spy };
+  }
+
+  it('begins, pages an async iterable in pages of 1000, and commits', async () => {
+    const { oxy, spy } = stubServer();
+    async function* inventory() {
+      for (let index = 0; index < 2500; index += 1) yield pair(index);
+    }
+
+    await expect(oxy.assets.references.reconcile('listing', inventory())).resolves.toEqual(
+      committed,
+    );
+
+    const calls = spy.mock.calls.map(([method, url, body]) => ({ method, url, body }));
+    expect(calls[0]).toEqual({
+      method: 'POST',
+      url: '/assets/service/references/reconcile',
+      body: { entityType: 'listing' },
+    });
+    const pages = calls.filter((call) => call.method === 'PUT');
+    expect(pages.map((call) => (call.body as { items: unknown[] }).items.length)).toEqual([
+      1000, 1000, 500,
+    ]);
+    expect(
+      pages.every((call) => call.url === '/assets/service/references/reconcile/session-1'),
+    ).toBe(true);
+    expect(calls.at(-1)).toEqual({
+      method: 'POST',
+      url: '/assets/service/references/reconcile/session-1/commit',
+      body: { dryRun: false },
+    });
+    // The begin is never retried: a retry of one that succeeded would 409 on itself.
+    expect(spy.mock.calls[0][3].retry).toBe(false);
+  });
+
+  it('passes dryRun and sends only fileId and entityId', async () => {
+    const { oxy, spy } = stubServer();
+    const smuggled = { ...pair(1), applicationId: 'other' } as ReturnType<typeof pair>;
+
+    await oxy.assets.references.reconcile('listing', [smuggled], { dryRun: true });
+
+    const put = spy.mock.calls.find(([method]) => method === 'PUT');
+    expect(put?.[2]).toEqual({ items: [pair(1)] });
+    expect(spy.mock.calls.at(-1)?.[2]).toEqual({ dryRun: true });
+  });
+
+  it('releases the session when the inventory fails, then rethrows', async () => {
+    const { oxy, spy } = stubServer();
+    async function* failing() {
+      yield pair(1);
+      throw new Error('database went away');
+    }
+
+    await expect(oxy.assets.references.reconcile('listing', failing())).rejects.toThrow(
+      'database went away',
+    );
+    expect(spy.mock.calls.at(-1)?.slice(0, 2)).toEqual([
+      'DELETE',
+      '/assets/service/references/reconcile/session-1',
+    ]);
+    expect(spy.mock.calls.some(([, url]) => String(url).endsWith('/commit'))).toBe(false);
+  });
+});

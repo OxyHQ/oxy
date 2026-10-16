@@ -51,10 +51,30 @@ Needs `@oxy.so/contracts` 4.20.0.
   for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
-Needs the Oxy API with application-owned files and file references (ADR 0041,
-migrations `0167_application_owned_files` and `0168_file_references`).
+Needs the Oxy API with application-owned files, file references and the file
+lifecycle (ADR 0041, migrations `0167_application_owned_files`,
+`0168_file_references` and `0169_file_lifecycle`). (The work below was first
+prepared as 4.12.0; 4.12.0 was published from `main` without it.)
 
 ### Added
+
+- `OxyServer.assets.references.reconcile(entityType, items, { dryRun? })` →
+  `ServiceReferenceReconcileResult` (`{ sessionId, entityType, dryRun, added,
+  removed, unchanged, refused }`): reconciles the calling application's
+  references of one entity type with its real inventory (ADR 0041 D6, scope
+  `files:references:write`). `items` is an array or any (async) iterable of
+  `{ fileId, entityId }`, sent in pages of 1,000 over
+  `POST /assets/service/references/reconcile`, `PUT …/:sessionId`,
+  `POST …/:sessionId/commit`; on a failure while sending, the session is
+  released (`DELETE …/:sessionId`) before the error is rethrown. Stale
+  references are removed only when created before the reconciliation began,
+  and removing one never trashes a file. One reconciliation per entity type
+  at a time (409 `RECONCILIATION_IN_PROGRESS`).
+- Types `ServiceReferenceInventoryItem`, `ServiceReferenceReconcileResult`.
+- `Asset.inUse?`, `Asset.unreferencedSince?`, `Asset.trashedAt?` on the
+  owner's own view (`assets.list`, `assets.get`), and `assets.list({ inUse })`
+  to list only the files an application uses (`true`) or none does
+  (`false`). A file not in use is never removed for its owner (ADR 0041 D5).
 
 - `OxyServer.assets.references.add(references)` / `.remove(references)` →
   `ServiceFileReferenceResult[]`: the calling application records and removes
@@ -88,6 +108,12 @@ migrations `0167_application_owned_files` and `0168_file_references`).
 
 ### Changed
 
+- Removing the last reference to an account's file no longer moves it to
+  trash, on any path (`assets.unlink` included): it stays `active` and reads
+  `inUse: false`. Only its owner trashes or deletes it (ADR 0041 D5).
+- A file in trash is no longer served: `assets.url` / `assets.urls`, the
+  stream and download routes and `linkedDownloadUrls` answer it like a missing
+  file, and a public one leaves the CDN until it is restored.
 - `AssetLink.app` holds the using application's ID (also in the new
   `AssetLink.applicationId`), never a free-text name; `AssetLink.createdBy` is
   optional (absent on a reference an application made with its token);

@@ -36,6 +36,8 @@ import type {
   ServiceFileReference,
   ServiceFileReferenceResult,
   ServiceLinkedDownloadUrl,
+  ServiceReferenceInventoryItem,
+  ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
 } from '../models/interfaces';
 import { AssetsApi } from '../api/assets';
@@ -66,6 +68,8 @@ const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
 const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
 /** Server-side cap of `POST`/`DELETE /assets/service/references`. */
 const SERVICE_REFERENCES_CHUNK_SIZE = 100;
+/** Server-side cap of one `PUT /assets/service/references/reconcile/:sessionId` page. */
+const SERVICE_RECONCILE_PAGE_SIZE = 1000;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 /** A header value fetch accepts on every runtime: printable ASCII only. */
 const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
@@ -172,7 +176,69 @@ export class ServerAssetsApi extends AssetsApi {
       this.sendReferences('POST', references),
     remove: (references: ServiceFileReference[]): Promise<ServiceFileReferenceResult[]> =>
       this.sendReferences('DELETE', references),
+    /**
+     * Reconcile this application's references of ONE entity type with its
+     * real inventory (ADR 0041 D6) — the safety net for a reference a crash or
+     * an old bug never registered, and how existing data first enters the
+     * model. `items` is every `{ fileId, entityId }` the application uses for
+     * `entityType` (an array or any (async) iterable — stream a large table);
+     * it is sent in pages of 1,000 and committed: Oxy adds the missing
+     * references it may hold, removes the stale ones created before the
+     * reconciliation began (never trashing a file), and returns the counts.
+     * `dryRun` returns the counts and changes nothing. One reconciliation per
+     * entity type at a time (409 `RECONCILIATION_IN_PROGRESS`); if sending the
+     * inventory fails, the session is released before the error is rethrown.
+     */
+    reconcile: (
+      entityType: string,
+      items: Iterable<ServiceReferenceInventoryItem> | AsyncIterable<ServiceReferenceInventoryItem>,
+      options: { dryRun?: boolean } = {},
+    ): Promise<ServiceReferenceReconcileResult> =>
+      this.reconcileReferences(entityType, items, options),
   };
+
+  private async reconcileReferences(
+    entityType: string,
+    items: Iterable<ServiceReferenceInventoryItem> | AsyncIterable<ServiceReferenceInventoryItem>,
+    options: { dryRun?: boolean },
+  ): Promise<ServiceReferenceReconcileResult> {
+    const service = lane(this.ctx);
+    const { sessionId } = await service.request<{ sessionId: string }>(
+      'POST',
+      '/assets/service/references/reconcile',
+      { entityType },
+      // Not retried: a lost answer to a begin that succeeded would make the
+      // retry a 409 against its own session.
+      { cache: false, retry: false },
+    );
+    const path = `/assets/service/references/reconcile/${encodeURIComponent(sessionId)}`;
+    try {
+      let page: ServiceReferenceInventoryItem[] = [];
+      const flush = async () => {
+        if (page.length === 0) return;
+        const items = page;
+        page = [];
+        await service.request('PUT', path, { items }, { cache: false });
+      };
+      for await (const { fileId, entityId } of items) {
+        page.push({ fileId, entityId });
+        if (page.length === SERVICE_RECONCILE_PAGE_SIZE) await flush();
+      }
+      await flush();
+      return await service.request<ServiceReferenceReconcileResult>(
+        'POST',
+        `${path}/commit`,
+        { dryRun: options.dryRun === true },
+        { cache: false, retry: false },
+      );
+    } catch (error) {
+      // Release the slot so the next attempt need not wait for it to expire.
+      // Best effort: a commit that failed part-way left it open, and an
+      // already-committed or expired session answers 404, which is fine.
+      await service.request('DELETE', path, undefined, { cache: false }).catch(() => undefined);
+      throw error;
+    }
+  }
 
   private async sendReferences(
     method: 'POST' | 'DELETE',

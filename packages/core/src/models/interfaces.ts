@@ -467,6 +467,12 @@ export interface FileMetadata {
   length: number;
   chunkSize: number;
   uploadDate: string;
+  /**
+   * Whether any application uses the file. `false` is shown as "not in use";
+   * such a file is never removed for its owner (ADR 0041 D5). Absent when the
+   * server did not say.
+   */
+  inUse?: boolean;
   metadata?: {
     userId?: string;
     description?: string;
@@ -602,6 +608,17 @@ export interface Asset {
   status: 'active' | 'trash' | 'deleted';
   visibility: FileVisibility;
   usageCount: number;
+  /**
+   * Whether any application uses the file (has a reference to it). A file not
+   * in use is never removed for its owner (ADR 0041 D5). Present on the
+   * owner's own view (`assets.list`, `assets.get`) from the Oxy API with
+   * migration `0169_file_lifecycle`.
+   */
+  inUse?: boolean;
+  /** Since when no application uses the file (ISO 8601); `null` while one does. */
+  unreferencedSince?: string | null;
+  /** When the file entered trash (ISO 8601); `null` outside it. */
+  trashedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   links: AssetLink[];
@@ -833,6 +850,33 @@ export interface ServiceFileReference {
 export type ServiceFileReferenceResult = ServiceFileReference & {
   result: 'created' | 'exists' | 'removed' | 'not_found';
 };
+
+/** One pair of an inventory sent to `OxyServer.assets.references.reconcile`. */
+export interface ServiceReferenceInventoryItem {
+  fileId: string;
+  /** The entity's id in the application's own database. */
+  entityId: string;
+}
+
+/**
+ * What a reconciliation did (or, with `dryRun`, would do) to the calling
+ * application's references of one entity type (ADR 0041 D6):
+ * - `added`: references the inventory lists and Oxy did not hold;
+ * - `removed`: references Oxy held, created before the reconciliation began,
+ *   that the inventory does not list (a file is never trashed for it);
+ * - `unchanged`: in both;
+ * - `refused`: listed pairs whose file does not exist or that this application
+ *   may not reference — the rules of `references.add`.
+ */
+export interface ServiceReferenceReconcileResult {
+  sessionId: string;
+  entityType: string;
+  dryRun: boolean;
+  added: number;
+  removed: number;
+  unchanged: number;
+  refused: number;
+}
 
 /** `POST /assets/service/user-media`: the stored file, owned by the named user. */
 export interface ServiceUserMediaFile {

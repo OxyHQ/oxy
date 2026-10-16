@@ -360,6 +360,8 @@ export type {
   ApplicationFilePage,
   ServiceFileReference,
   ServiceFileReferenceResult,
+  ServiceReferenceInventoryItem,
+  ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
   AccountStorageCategoryUsage,
   AccountStorageUsageResponse,

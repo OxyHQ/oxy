@@ -488,13 +488,18 @@ export class AssetsApi {
     });
   }
 
-  /** The signed-in user's files, newest first. */
+  /**
+   * The signed-in user's files, newest first. Each says whether an application
+   * uses it (`inUse`); `inUse: false` lists only the files no application uses
+   * — never removed for you, shown so you can decide (ADR 0041 D5).
+   */
   async list(
-    params: { limit?: number; offset?: number } = {},
+    params: { limit?: number; offset?: number; inUse?: boolean } = {},
   ): Promise<{ files: AssetRecord[]; total: number; hasMore: boolean }> {
-    const query: Record<string, number> = {};
+    const query: Record<string, number | string> = {};
     if (params.limit) query.limit = params.limit;
     if (params.offset) query.offset = params.offset;
+    if (params.inUse !== undefined) query.inUse = String(params.inUse);
     return this.ctx.request('GET', '/assets', query, { cache: false });
   }
 

@@ -1423,6 +1423,7 @@ const dict = {
     totalSize: 'Tamaño total',
     total: 'Total',
     loadingMore: 'Cargando más...',
+    notInUse: 'Sin usar',
     loadingPhotoLayout: 'Cargando diseño de fotos...',
     uploading: 'Subiendo',
     upload: 'Subir',

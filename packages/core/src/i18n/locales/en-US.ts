@@ -1417,6 +1417,7 @@ const dict = {
     totalSize: 'Total Size',
     total: 'Total',
     loadingMore: 'Loading more...',
+    notInUse: 'Not in use',
     loadingPhotoLayout: 'Loading photo layout...',
     uploading: 'Uploading',
     upload: 'Upload',
