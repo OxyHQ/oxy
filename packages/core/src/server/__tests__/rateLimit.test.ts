@@ -14,6 +14,8 @@ interface CapturedRateLimitOptions {
   max: (req: Request) => number;
   keyGenerator: (req: Request) => string;
   skip: (req: Request) => boolean;
+  handler: (req: Request, res: Response) => void;
+  message?: unknown;
 }
 
 interface RateLimitTestRequest extends Request {
@@ -190,6 +192,53 @@ describe('@oxy.so/core/server rate limiter', () => {
     expect(req.observedKey).toMatch(HEX24);
     expect(req.observedKey).not.toContain('203.0.113.9');
     expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  describe('429 response', () => {
+    function captureOptions(options?: { message?: string; windowMs?: number }) {
+      createOxyRateLimit(
+        makeOxy((_req: Request, _res: Response, next: NextFunction) => next()),
+        options,
+      );
+      return rateLimitMock.mock.calls.at(-1)?.[0] as CapturedRateLimitOptions;
+    }
+
+    function makeResponse(retryAfter?: string) {
+      const res = {
+        getHeader: jest.fn(() => retryAfter),
+        status: jest.fn(() => res),
+        json: jest.fn(() => res),
+      };
+      return res;
+    }
+
+    it('answers with the API error envelope, never a plain-text body', () => {
+      const options = captureOptions({ message: 'Slow down.' });
+      const res = makeResponse('42');
+
+      options.handler(makeRequest(), res as unknown as Response);
+
+      expect(options.message).toBeUndefined();
+      expect(res.status).toHaveBeenCalledWith(429);
+      expect(res.json).toHaveBeenCalledWith({
+        error: { code: 'rate_limited', message: 'Slow down.', details: { retryAfterSeconds: 42 } },
+      });
+    });
+
+    it('falls back to the window length when Retry-After could not be set', () => {
+      const options = captureOptions({ windowMs: 60_000 });
+      const res = makeResponse(undefined);
+
+      options.handler(makeRequest(), res as unknown as Response);
+
+      expect(res.json).toHaveBeenCalledWith({
+        error: {
+          code: 'rate_limited',
+          message: 'Too many requests, please try again later.',
+          details: { retryAfterSeconds: 60 },
+        },
+      });
+    });
   });
 
   describe('anonymous key hashing', () => {

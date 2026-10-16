@@ -1,5 +1,15 @@
 # Changelog — `@oxy.so/core`
 
+## 4.11.0
+
+### Changed
+
+- `createOxyRateLimit` answers 429 with the API error envelope, as
+  `docs/api-conventions.md` requires, instead of a plain-text body:
+  `{ error: { code: 'rate_limited', message, details: { retryAfterSeconds } } }`,
+  with `retryAfterSeconds` equal to the `Retry-After` header. `message`
+  now sets `error.message`.
+
 ## 4.10.0
 
 Needs `@oxy.so/contracts` 4.16.0. One email may hold several accounts

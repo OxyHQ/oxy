@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { isIPv4, isIPv6 } from 'node:net';
-import type { Request, RequestHandler } from 'express';
+import type { Request, RequestHandler, Response } from 'express';
 import rateLimit, { type Store } from 'express-rate-limit';
 import type { AuthMiddlewareOptions } from './middleware';
 import { createOptionalOxyAuth, type OxyAuthHost } from './auth';
@@ -75,7 +75,11 @@ export interface OxyRateLimitOptions {
    * CORS preflight). Return `true` to skip limiting for the request.
    */
   exempt?: (req: Request) => boolean;
-  /** Response message body sent with a 429. */
+  /**
+   * Human-readable `error.message` of the 429. The body is always the API
+   * error envelope (`docs/api-conventions.md`):
+   * `{ error: { code: 'rate_limited', message, details: { retryAfterSeconds } } }`.
+   */
   message?: string;
   /**
    * Options forwarded to the internal `server.middleware.auth({ optional: true })` resolver
@@ -247,6 +251,20 @@ function resolveKey(req: OxyAuthedRequest): string {
 /**
  * Build the composed Oxy rate-limit middleware. See module docs for rationale.
  */
+/**
+ * Answer a 429 with the API error envelope. `express-rate-limit` has already
+ * set `Retry-After` (standard headers are on), so the body repeats that same
+ * number; the window length is the fallback if the header could not be set.
+ */
+function sendRateLimited(res: Response, message: string, windowMs: number): void {
+  const header = Number(res.getHeader('Retry-After'));
+  const retryAfterSeconds =
+    Number.isFinite(header) && header > 0 ? header : Math.ceil(windowMs / 1000);
+  res.status(429).json({
+    error: { code: 'rate_limited', message, details: { retryAfterSeconds } },
+  });
+}
+
 export function createOxyRateLimit(
   oxy: OxyAuthHost,
   options: OxyRateLimitOptions = {},
@@ -283,7 +301,9 @@ export function createOxyRateLimit(
         : anonymousMax;
     },
     keyGenerator: (req: Request): string => resolveKey(req as OxyAuthedRequest),
-    message,
+    handler: (_req: Request, res: Response): void => {
+      sendRateLimited(res, message, windowMs);
+    },
     standardHeaders: true,
     legacyHeaders: false,
     skip,
