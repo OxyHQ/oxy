@@ -51,16 +51,27 @@ Needs `@oxy.so/contracts` 4.20.0.
   for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
-Needs the Oxy API with application-owned files (ADR 0041, migration
-`0167_application_owned_files`).
+Needs the Oxy API with application-owned files and file references (ADR 0041,
+migrations `0167_application_owned_files` and `0168_file_references`).
 
 ### Added
+
+- `OxyServer.assets.references.add(references)` / `.remove(references)` →
+  `ServiceFileReferenceResult[]`: the calling application records and removes
+  its own uses of files (`POST`/`DELETE /assets/service/references`, scope
+  `files:references:write`). `references` is `ServiceFileReference[]`
+  (`{ fileId, entityType, entityId }`); the application is the service
+  token's and is never sent. Batches above 100 are split into ordered
+  requests. Per item: `created` / `exists` / `removed` / `not_found`.
+- Types `ServiceFileReference`, `ServiceFileReferenceResult`.
 
 - `OxyServer.assets.uploadAppFile(bytes, mime, { visibility, originalName?, metadata?, signal?, timeout? })`
   → `ApplicationFileUpload`: stores a file the CALLING APPLICATION owns
   (`POST /assets/service/app`, scope `files:app:write`). `visibility` is
   required; a re-upload of the same bytes returns the existing file,
-  `deduplicated: true`, visibility unchanged.
+  `deduplicated: true`, visibility unchanged. A third-party application's
+  bytes count toward its developer's storage plan (413
+  `STORAGE_QUOTA_EXCEEDED` over it); Oxy's own applications are not metered.
 - `OxyServer.assets.setAppFileVisibility(fileId, visibility)` → `ApplicationFile`,
   `deleteAppFile(fileId)` (`files:app:delete`; 404 for another application's
   file, 409 `FILE_IN_USE`), `listAppFiles({ limit?, cursor? })` →
@@ -77,6 +88,14 @@ Needs the Oxy API with application-owned files (ADR 0041, migration
 
 ### Changed
 
+- `AssetLink.app` holds the using application's ID (also in the new
+  `AssetLink.applicationId`), never a free-text name; `AssetLink.createdBy` is
+  optional (absent on a reference an application made with its token);
+  `AssetLink.webhookUrl` is typed and deprecated. `assets.link` takes an
+  application id or a legacy name (`goway`, `mercaria`, `nilo`, `oxy-mail`,
+  `profiles`) as `app`, and no longer changes the asset's visibility unless
+  `visibility` is passed. `assets.unlink` removes only references on your own
+  asset or ones you created.
 - `Asset.ownerUserId` is optional and nullable (`string | null`): a file owned
   by an application or a system namespace has no owning account. New
   `Asset.ownerApplicationId?` and `ServiceAssetMetadata.ownerApplicationId?`.

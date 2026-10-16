@@ -33,6 +33,8 @@ import type {
   Notification,
   ServiceAssetMetadata,
   ServiceAssetMetadataBySha,
+  ServiceFileReference,
+  ServiceFileReferenceResult,
   ServiceLinkedDownloadUrl,
   ServiceUserMediaFile,
 } from '../models/interfaces';
@@ -62,6 +64,8 @@ const SERVICE_ASSET_METADATA_CHUNK_SIZE = 100;
 const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
 /** Server-side cap of `POST /assets/service/linked-url`. */
 const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
+/** Server-side cap of `POST`/`DELETE /assets/service/references`. */
+const SERVICE_REFERENCES_CHUNK_SIZE = 100;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 /** A header value fetch accepts on every runtime: printable ASCII only. */
 const HEADER_SAFE_PATTERN = /^[\x20-\x7e]*$/;
@@ -150,6 +154,46 @@ function uniqueIds(ids: string[]): string[] {
 }
 
 export class ServerAssetsApi extends AssetsApi {
+  /**
+   * The calling application's own uses of files (`file_references`, ADR 0041
+   * D4; scope `files:references:write`). The application is always the service
+   * token's — never sent. Batches above 100 go as several requests, in order;
+   * the results come back in the order given.
+   *
+   * - `add`: this application's own files, any owner's active `public` or
+   *   `unlisted` file, and a person's private file that person attached to this
+   *   application. Never another application's private file. A reference never
+   *   changes the file's visibility.
+   * - `remove`: only references this application holds. Never trashes or
+   *   deletes the file.
+   */
+  readonly references = {
+    add: (references: ServiceFileReference[]): Promise<ServiceFileReferenceResult[]> =>
+      this.sendReferences('POST', references),
+    remove: (references: ServiceFileReference[]): Promise<ServiceFileReferenceResult[]> =>
+      this.sendReferences('DELETE', references),
+  };
+
+  private async sendReferences(
+    method: 'POST' | 'DELETE',
+    references: ServiceFileReference[],
+  ): Promise<ServiceFileReferenceResult[]> {
+    const results: ServiceFileReferenceResult[] = [];
+    for (let start = 0; start < references.length; start += SERVICE_REFERENCES_CHUNK_SIZE) {
+      const chunk = references
+        .slice(start, start + SERVICE_REFERENCES_CHUNK_SIZE)
+        .map(({ fileId, entityType, entityId }) => ({ fileId, entityType, entityId }));
+      const res = await lane(this.ctx).request<{ results: ServiceFileReferenceResult[] }>(
+        method,
+        '/assets/service/references',
+        { references: chunk },
+        { cache: false },
+      );
+      results.push(...res.results);
+    }
+    return results;
+  }
+
   /**
    * Resolve many asset ids to their content-addressed metadata (`sha256`,
    * `mime`, `size`, `status`) via `POST /assets/service/by-ids`, one call per
@@ -317,9 +361,11 @@ export class ServerAssetsApi extends AssetsApi {
 
   /**
    * Store a file THIS application owns (`POST /assets/service/app`, scope
-   * `files:app:write`, ADR 0041) — platform artwork no person owns. The owner
-   * is always the calling application; its bytes count against the account
-   * that owns the application. Image or video only, at most 40 MiB.
+   * `files:app:write`, ADR 0041) — content no person owns. The owner is
+   * always the calling application. A third-party application's bytes count
+   * toward its developer account's storage plan (over it: 413
+   * `STORAGE_QUOTA_EXCEEDED`); Oxy's own applications are not metered. Image
+   * or video only, at most 40 MiB.
    *
    * `visibility` is required: `public` and `unlisted` are readable by anyone
    * with the link; `private` by no person — only this application, through

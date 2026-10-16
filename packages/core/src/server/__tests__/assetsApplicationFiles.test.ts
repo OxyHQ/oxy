@@ -148,3 +148,73 @@ describe('OxyServer.assets.uploadUserMedia', () => {
     });
   });
 });
+
+describe('OxyServer.assets.references — the calling application’s uses of files', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  const reference = (index: number) => ({
+    fileId: `file-${index}`,
+    entityType: 'listing',
+    entityId: `listing-${index}`,
+  });
+
+  it('add POSTs the batch to /assets/service/references and returns the per-item results', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const results = [{ ...reference(1), result: 'created' }];
+    const spy = jest.spyOn(oxy, 'serviceRequest').mockResolvedValueOnce({ results });
+
+    await expect(oxy.assets.references.add([reference(1)])).resolves.toEqual(results);
+
+    const [method, url, body, options] = spy.mock.calls[0];
+    expect([method, url, body]).toEqual([
+      'POST',
+      '/assets/service/references',
+      { references: [reference(1)] },
+    ]);
+    expect(options.cache).toBe(false);
+  });
+
+  it('never sends an application: extra fields a caller passes are dropped', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const spy = jest.spyOn(oxy, 'serviceRequest').mockResolvedValueOnce({ results: [] });
+    const smuggled = { ...reference(1), applicationId: 'someone-else' } as ReturnType<
+      typeof reference
+    >;
+
+    await oxy.assets.references.remove([smuggled]);
+
+    const [method, url, body] = spy.mock.calls[0];
+    expect([method, url]).toEqual(['DELETE', '/assets/service/references']);
+    expect(body).toEqual({ references: [reference(1)] });
+  });
+
+  it('splits a batch above 100 into ordered requests and concatenates the results in order', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const items = Array.from({ length: 150 }, (_, index) => reference(index));
+    const spy = jest
+      .spyOn(oxy, 'serviceRequest')
+      .mockImplementation(async (_method, _url, body) => ({
+        results: (body as { references: typeof items }).references.map((item) => ({
+          ...item,
+          result: 'removed',
+        })),
+      }));
+
+    const results = await oxy.assets.references.remove(items);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect((spy.mock.calls[0][2] as { references: unknown[] }).references).toHaveLength(100);
+    expect((spy.mock.calls[1][2] as { references: unknown[] }).references).toHaveLength(50);
+    expect(results.map((item) => item.fileId)).toEqual(items.map((item) => item.fileId));
+  });
+
+  it('sends nothing for an empty batch', async () => {
+    const oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    const spy = jest.spyOn(oxy, 'serviceRequest');
+
+    await expect(oxy.assets.references.add([])).resolves.toEqual([]);
+    expect(spy).not.toHaveBeenCalled();
+  });
+});

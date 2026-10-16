@@ -358,6 +358,8 @@ export type {
   ApplicationFile,
   ApplicationFileUpload,
   ApplicationFilePage,
+  ServiceFileReference,
+  ServiceFileReferenceResult,
   ServiceUserMediaFile,
   AccountStorageCategoryUsage,
   AccountStorageUsageResponse,

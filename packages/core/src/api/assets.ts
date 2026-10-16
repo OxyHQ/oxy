@@ -193,6 +193,12 @@ async function sha256OfBlob(blob: Blob, onChunk?: (loaded: number) => void): Pro
 }
 
 export interface AssetLinkTarget {
+  /**
+   * The application that uses the file: its id, or a legacy name the Oxy API
+   * maps (`goway`, `mercaria`, `nilo`, `oxy-mail`, `profiles`). Any other
+   * string is refused (ADR 0041 D4). A session that belongs to one application
+   * is always recorded as that application.
+   */
   app: string;
   entityType: string;
   entityId: string;
@@ -429,7 +435,12 @@ export class AssetsApi {
 
   // ── Links ────────────────────────────────────────────────────────────────
 
-  /** Link an asset to an entity (what keeps it alive). */
+  /**
+   * Record that an application uses one of YOUR assets (what keeps it alive).
+   * The reference itself never changes the asset's visibility;
+   * `options.visibility` is an explicit change you, the owner, make with it.
+   * A backend should use `OxyServer.assets.references.add` instead.
+   */
   async link(
     fileId: string,
     target: AssetLinkTarget,
@@ -452,7 +463,10 @@ export class AssetsApi {
     return res;
   }
 
-  /** Remove an asset's link to an entity. */
+  /**
+   * Remove an application's use of an asset: any reference on your own asset,
+   * or one you created on somebody else's (404 otherwise).
+   */
   async unlink(fileId: string, target: AssetLinkTarget): Promise<{ file: AssetLinkState }> {
     const res = await this.ctx.request<{ file: AssetLinkState }>(
       'DELETE',

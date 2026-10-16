@@ -551,12 +551,23 @@ export type AssetUploadInput = File | Blob | RNFileDescriptor;
  */
 export type FileVisibility = 'private' | 'public' | 'unlisted';
 
+/**
+ * One application's use of an asset (`file_references`, ADR 0041 D4).
+ *
+ * `app` keeps its key but, since the Oxy API's `0168_file_references`, holds
+ * the using application's ID — the same value as `applicationId`, never a free
+ * text name. `createdBy` is absent on a reference an application made with its
+ * own service token.
+ */
 export interface AssetLink {
   app: string;
+  applicationId?: string;
   entityType: string;
   entityId: string;
-  createdBy: string;
+  createdBy?: string;
   createdAt: string;
+  /** @deprecated Per-reference webhooks move to the application (ADR 0041 D9). */
+  webhookUrl?: string;
 }
 
 export type AssetMetadata = Record<string, string | number | boolean | null | undefined>;
@@ -796,6 +807,32 @@ export interface ApplicationFilePage {
   /** Pass to the next call; absent on the last page. */
   nextCursor?: string;
 }
+
+/**
+ * One use of a file by the CALLING application, as `OxyServer.assets.references`
+ * adds or removes it (ADR 0041 D4). There is no application field: the
+ * application is always the service token's.
+ */
+export interface ServiceFileReference {
+  fileId: string;
+  /** The entity class in the application, e.g. `listing`, `place`. */
+  entityType: string;
+  /** The entity's id in the application's own database. */
+  entityId: string;
+}
+
+/**
+ * The outcome of one {@link ServiceFileReference} in a batch:
+ * - add: `created`, `exists` (already referenced), or `not_found` — the file
+ *   does not exist OR this application may not reference it (another
+ *   application's private file, a person's private file they did not attach
+ *   to this application, a trashed file it does not own); the two are
+ *   deliberately indistinguishable.
+ * - remove: `removed`, or `not_found` (this application held no such reference).
+ */
+export type ServiceFileReferenceResult = ServiceFileReference & {
+  result: 'created' | 'exists' | 'removed' | 'not_found';
+};
 
 /** `POST /assets/service/user-media`: the stored file, owned by the named user. */
 export interface ServiceUserMediaFile {
