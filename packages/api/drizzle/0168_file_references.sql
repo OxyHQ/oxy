@@ -16,7 +16,7 @@
 --    database first; it lists every distinct value and what it resolves to.
 --    Rows are copied with their own ids. Two rows that resolve to one
 --    reference (the same file, application, entity) collapse into the first.
---  * Until the post migration (0168) drops `file_links`, the image still
+--  * Until the post migration (`*_drop_file_links`) drops `file_links`, the image still
 --    serving writes links there: a trigger mirrors every insert, delete and
 --    file move into `file_references`, refusing an unmappable `app` exactly as
 --    the copy does. The new image writes only `file_references`, which the
@@ -94,7 +94,7 @@ JOIN (
 ) m ON m.app = fl.app
 ORDER BY fl.created_at, fl.id
 ON CONFLICT (file_id, application_id, entity_type, entity_id) DO NOTHING;--> statement-breakpoint
--- The rollout-window mirror. Dropped by 0168 with `file_links`.
+-- The rollout-window mirror. Dropped by `*_drop_file_links` with `file_links`.
 CREATE FUNCTION file_links_mirror_to_file_references() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE

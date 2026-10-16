@@ -1,5 +1,5 @@
 /**
- * Migrations 0167 (pre) and 0171 (post): `file_links` → `file_references`
+ * Migrations 0168 (pre) and `*_drop_file_links` (post): `file_links` → `file_references`
  * (ADR 0041 D4), run VERBATIM against a seeded legacy table.
  *
  * Both files are read from `drizzle/` and executed statement by statement in
@@ -9,7 +9,7 @@
  * ## Why its own databases
  *
  * The copy is unscoped — it reads EVERY `file_links` row — and the scenario
- * needs the schema as it stood BEFORE 0167: a `file_links` table and no
+ * needs the schema as it stood BEFORE 0168: a `file_links` table and no
  * `file_references`. Each describe takes a fully migrated throwaway database,
  * drops `file_references`, recreates `file_links` from the statements that
  * created it (`0004_nebulous_warbound.sql`), seeds it, and only then runs the
@@ -27,12 +27,12 @@
  *    deletes, and refuses an unmappable `app`;
  *  - an unmappable or ambiguous `app` FAILS the migration, names the value,
  *    and copies nothing;
- *  - 0171 drops `file_links`, the trigger and both functions, and keeps every
+ *  - the drop migration drops `file_links`, the trigger and both functions, and keeps every
  *    reference.
  */
 
 import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres, { type Sql } from 'postgres';
 import { createTestDatabase, dropTestDatabase } from '../../testDatabase';
@@ -41,6 +41,16 @@ import { LEGACY_FILE_LINK_APPLICATIONS } from '../../../utils/legacyFileLinkAppl
 jest.setTimeout(120_000);
 
 const DRIZZLE = join(__dirname, '..', '..', '..', '..', 'drizzle');
+
+/**
+ * The post migration that drops `file_links`. Every later stage puts its own
+ * `pre` migration in front of it, so its number moves; its name does not.
+ */
+const DROP_FILE_LINKS = (() => {
+  const found = readdirSync(DRIZZLE).filter((name) => name.endsWith('_drop_file_links.sql'));
+  if (found.length !== 1) throw new Error(`expected one *_drop_file_links.sql, found ${found.length}`);
+  return found[0];
+})();
 
 function statements(file: string): string[] {
   return readFileSync(join(DRIZZLE, file), 'utf8')
@@ -64,7 +74,7 @@ async function migrate(sql: Sql, file: string): Promise<void> {
   });
 }
 
-/** A fully migrated database put back to the shape 0167 meets: `file_links`, no `file_references`. */
+/** A fully migrated database put back to the shape 0168 meets: `file_links`, no `file_references`. */
 async function legacyDatabase(): Promise<{ url: string; sql: Sql }> {
   const url = await createTestDatabase({ assignEnv: false });
   const sql = postgres(url, { max: 1, onnotice: () => {} });
@@ -124,7 +134,7 @@ async function link(
 }
 
 describe('the migration table and the runtime table are one table', () => {
-  it('0167 resolves exactly the aliases `legacyFileLinkApplications.ts` lists', () => {
+  it('0168 resolves exactly the aliases `legacyFileLinkApplications.ts` lists', () => {
     const migration = readFileSync(join(DRIZZLE, '0168_file_references.sql'), 'utf8');
     const values = migration.slice(
       migration.indexOf('VALUES'),
@@ -148,7 +158,7 @@ describe('the migration table and the runtime table are one table', () => {
   });
 });
 
-describe('0167 + 0171 on links that all map', () => {
+describe('0168 + the drop on links that all map', () => {
   let url: string;
   let sql: Sql;
   const ids: Record<string, string> = {};
@@ -239,10 +249,10 @@ describe('0167 + 0171 on links that all map', () => {
     ).rejects.toThrow(/not-an-app/);
   });
 
-  it('0171 drops file_links, the trigger and both functions, and keeps every reference', async () => {
+  it('the drop removes file_links, the trigger and both functions, and keeps every reference', async () => {
     const before = await sql`select count(*)::int as n from file_references`;
 
-    await migrate(sql, '0172_drop_file_links.sql');
+    await migrate(sql, DROP_FILE_LINKS);
 
     const [{ n }] = await sql`select count(*)::int as n from file_references`;
     expect(n).toBe(before[0].n);
@@ -256,7 +266,7 @@ describe('0167 + 0171 on links that all map', () => {
   });
 });
 
-describe('0167 on links that do not all map', () => {
+describe('0168 on links that do not all map', () => {
   let url: string;
   let sql: Sql;
 
