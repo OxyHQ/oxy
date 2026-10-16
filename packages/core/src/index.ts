@@ -238,6 +238,7 @@ export type { TopicsApi, TopicListOptions } from './api/topics';
 export { OxyAppDataIdentifierError } from './api/appData';
 export type { AppDataApi } from './api/appData';
 export type { ContactsApi, ContactDiscoveryMatch, ContactDiscoveryResponse } from './api/contacts';
+export type { ContentClaimsApi } from './api/contentClaims';
 
 // ---------------------------------------------------------------------------
 // "Sign in with Oxy" delivery helpers

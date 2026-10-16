@@ -120,6 +120,11 @@ without it.)
   0041 stage 4b), sharing the stored object — no re-upload. Never more visible
   than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`); 404 for anything it
   cannot read; 451 for taken-down bytes.
+- `oxy.contentClaims.submitCounterNotice(notice)` (`ContentClaimsApi`): the
+  signed-in owner of content a claim took down disputes it
+  (`POST /content-claims/counter-notices`, ADR 0041 D10; body
+  `ContentClaimCounterNotice` from `@oxy.so/contracts` 4.19.0) →
+  `ContentClaimCounterNoticeResponse`.
 - `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
   → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
   Oxy fetches the URL itself (https only on every hop, public addresses only,
