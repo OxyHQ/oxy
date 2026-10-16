@@ -6,7 +6,7 @@ function fixture(): SafetyConsumerObservation {
     owner: {
       id: t.ownerAccountId,
       status: 'active',
-      kind: 'personal',
+      kind: t.ownerKind,
       reputation: 'standard',
       supervised: false,
     },
