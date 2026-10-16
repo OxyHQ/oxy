@@ -405,5 +405,62 @@ const dict = {
       row: 'サインイン時の 2 段階目の確認',
     },
   },
+  fileManagement: {
+    deleteFile: 'ファイルを削除',
+    confirm: '確認',
+    retry: '再試行',
+    loadError: {
+      description: '問題が発生しました。接続を確認してもう一度お試しください。',
+    },
+    moveToTrash: 'ゴミ箱に移動',
+    moveToTrashCount: 'ゴミ箱に移動（{{count}}）',
+    trashView: {
+      title: 'ゴミ箱',
+      subtitle: 'ファイルを復元するか、完全に削除します',
+      notice:
+        'ゴミ箱のファイルは、復元または削除するまで残り、引き続きストレージ容量に含まれます。',
+      emptyTitle: 'ゴミ箱は空です',
+      emptyDescription:
+        'ゴミ箱に移動したファイルはここに表示されます。復元することも、完全に削除することもできます。',
+      trashedOn: '{{date}}にゴミ箱に移動',
+      deleteForever: '完全に削除',
+      loadError: 'ゴミ箱を読み込めませんでした',
+      a11y: {
+        restore: '{{name}}を復元',
+        deleteForever: '{{name}}を完全に削除',
+      },
+    },
+    a11y: {
+      moveToTrash: '{{name}}をゴミ箱に移動',
+      deleteFile: '{{name}}を削除',
+      openTrash: 'ゴミ箱を開く',
+    },
+    toasts: {
+      movedToTrash: 'ゴミ箱に移動しました。ゴミ箱から復元できます。',
+      bulkMovedToTrash: '{{count}}件のファイルをゴミ箱に移動しました',
+      moveToTrashFailed: 'ファイルをゴミ箱に移動できませんでした',
+      restored: 'ファイルを復元しました',
+      notInTrash: 'このファイルはもうゴミ箱にありません。',
+      restoreFailed: 'ファイルを復元できませんでした',
+      deletedForever: 'ファイルを完全に削除しました',
+      deleteSuccess: 'ファイルを削除しました',
+      deleteFailed: 'ファイルを削除できませんでした',
+      fileNotFound: 'ファイルが見つかりません。すでに削除された可能性があります。',
+      noPermission: 'このファイルを削除する権限がありません。',
+      bulkDeleteSuccess: '{{count}}件のファイルを削除しました',
+      bulkDeleteFailed: '{{count}}件のファイルを削除できませんでした',
+      bulkDeleteError: 'ファイルを削除できませんでした',
+    },
+    confirms: {
+      deleteFile: '「{{filename}}」を削除してもよろしいですか？この操作は元に戻せません。',
+      moveToTrash:
+        '「{{filename}}」をゴミ箱に移動しますか？どこにも表示されなくなり、ゴミ箱から復元できます。',
+      moveFilesToTrash:
+        '{{count}}件のファイルをゴミ箱に移動しますか？どこにも表示されなくなり、ゴミ箱から復元できます。',
+      deleteForever: '「{{filename}}」を完全に削除しますか？この操作は元に戻せません。',
+      deleteForeverInUse:
+        '「{{filename}}」はアプリ内の{{count}}か所でまだ使われています。削除するとそこからも消えます。完全に削除しますか？',
+    },
+  },
 };
 export default dict;

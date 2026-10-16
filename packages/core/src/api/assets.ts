@@ -193,6 +193,12 @@ async function sha256OfBlob(blob: Blob, onChunk?: (loaded: number) => void): Pro
 }
 
 export interface AssetLinkTarget {
+  /**
+   * The application that uses the file: its id, or a legacy name the Oxy API
+   * maps (`goway`, `mercaria`, `nilo`, `oxy-mail`, `profiles`). Any other
+   * string is refused (ADR 0043 D4). A session that belongs to one application
+   * is always recorded as that application.
+   */
   app: string;
   entityType: string;
   entityId: string;
@@ -429,7 +435,12 @@ export class AssetsApi {
 
   // ── Links ────────────────────────────────────────────────────────────────
 
-  /** Link an asset to an entity (what keeps it alive). */
+  /**
+   * Record that an application uses one of YOUR assets (what keeps it alive).
+   * The reference itself never changes the asset's visibility;
+   * `options.visibility` is an explicit change you, the owner, make with it.
+   * A backend should use `OxyServer.assets.references.add` instead.
+   */
   async link(
     fileId: string,
     target: AssetLinkTarget,
@@ -452,7 +463,10 @@ export class AssetsApi {
     return res;
   }
 
-  /** Remove an asset's link to an entity. */
+  /**
+   * Remove an application's use of an asset: any reference on your own asset,
+   * or one you created on somebody else's (404 otherwise).
+   */
   async unlink(fileId: string, target: AssetLinkTarget): Promise<{ file: AssetLinkState }> {
     const res = await this.ctx.request<{ file: AssetLinkState }>(
       'DELETE',
@@ -474,13 +488,24 @@ export class AssetsApi {
     });
   }
 
-  /** The signed-in user's files, newest first. */
+  /**
+   * The signed-in user's files. Each says whether an application uses it
+   * (`inUse`); `inUse: false` lists only the files no application uses — never
+   * removed for you, shown so you can decide (ADR 0043 D5).
+   *
+   * By default the LIBRARY: `active` files and `blocked` ones (removed after a
+   * legal claim), newest first — never a file in trash. `status: 'trash'`
+   * lists the trash instead, most recently trashed first (`trashedAt`); each
+   * can be {@link restore}d or {@link delete}d for good.
+   */
   async list(
-    params: { limit?: number; offset?: number } = {},
+    params: { limit?: number; offset?: number; inUse?: boolean; status?: 'trash' } = {},
   ): Promise<{ files: AssetRecord[]; total: number; hasMore: boolean }> {
-    const query: Record<string, number> = {};
+    const query: Record<string, number | string> = {};
     if (params.limit) query.limit = params.limit;
     if (params.offset) query.offset = params.offset;
+    if (params.inUse !== undefined) query.inUse = String(params.inUse);
+    if (params.status) query.status = params.status;
     return this.ctx.request('GET', '/assets', query, { cache: false });
   }
 
@@ -609,14 +634,36 @@ export class AssetsApi {
     return res;
   }
 
-  /** Restore an asset from the trash. */
+  /**
+   * Move your own asset to the trash (ADR 0043 D5): it stops being served at
+   * once and is kept — an account's trash never expires — until you
+   * {@link restore} or {@link delete} it. Applications using it are told
+   * (`file.trashed`). Already in trash: answered as it is.
+   */
+  async trash(fileId: string): Promise<{
+    file: { id: string; status: Asset['status']; trashedAt: string | null; usageCount: number };
+  }> {
+    const res = await this.ctx.request<{
+      file: { id: string; status: Asset['status']; trashedAt: string | null; usageCount: number };
+    }>('POST', `/assets/${enc(fileId)}/trash`, undefined, { cache: false });
+    // Trash changes the record AND what may be served.
+    this.evict(fileId);
+    return res;
+  }
+
+  /**
+   * Restore an asset from the trash. A file not in trash — restored or deleted
+   * meanwhile, or `blocked` after a content claim — is refused with 409
+   * `FILE_NOT_IN_TRASH`.
+   */
   async restore(
     fileId: string,
   ): Promise<{ file: { id: string; status: Asset['status']; usageCount: number } }> {
     const res = await this.ctx.request<{
       file: { id: string; status: Asset['status']; usageCount: number };
     }>('POST', `/assets/${enc(fileId)}/restore`, undefined, { cache: false });
-    this.ctx.oxy.cache.delete(`GET:/assets/${enc(fileId)}`);
+    // Restoring changes the record AND what may be served, like trash.
+    this.evict(fileId);
     return res;
   }
 

@@ -90,6 +90,11 @@ import {
   type RecordedAccountStorageDeletion,
 } from './accountStorageDeletion.service';
 import fileCache from '../utils/fileCache';
+import {
+  deleteAccountApplications,
+  invalidateDeletedApplicationFiles,
+  type DeletedApplicationContent,
+} from './applicationDeletion.service';
 
 /**
  * The permission that authorises assuming an account's identity — what
@@ -829,6 +834,7 @@ export class AccountService {
 
     let recorded: RecordedAccountEvent | undefined;
     let storage: RecordedAccountStorageDeletion | undefined;
+    let deletedApplications: DeletedApplicationContent[] = [];
     await archiveAccountForRetention(accountId, {
       withinTransaction: async (tx) => {
         recorded = await recordAccountDeletedEvent(tx, {
@@ -836,6 +842,8 @@ export class AccountService {
           username: account.username ?? null,
           retained: true,
         });
+        // Its applications go first, the way a developer's delete does (ADR 0043 D8).
+        deletedApplications = await deleteAccountApplications(tx, accountId);
         storage = await recordAccountStorageDeletion(tx, accountId, { removeAssetRows: true });
       },
     });
@@ -848,7 +856,8 @@ export class AccountService {
       throw new NotFoundError('Account not found');
     }
     userCache.invalidate(accountId);
-    for (const fileId of storage?.fileIds ?? []) fileCache.invalidate(fileId);
+    fileCache.invalidateMany(storage?.fileIds ?? []);
+    for (const content of deletedApplications) invalidateDeletedApplicationFiles(content);
 
     logger.info('Account archived', {
       accountId,

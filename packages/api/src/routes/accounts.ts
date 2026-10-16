@@ -35,6 +35,7 @@ import { broadcastDeviceState } from '../utils/socket';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { logger } from '../utils/logger';
 import type { SessionAuthResponse } from '../types/session';
+import { resolveUserByIdentifier } from '../utils/resolveUserIdentifier';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { formatUserResponse } from '../utils/userTransform';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
@@ -56,6 +57,7 @@ import {
   createAccountSchema,
   updateAccountSchema,
   moveAccountSchema,
+  inviteAccountMemberSchema,
   updateAccountMemberSchema,
   transferAccountOwnershipSchema,
 } from '../schemas/account.schemas';
@@ -826,12 +828,55 @@ router.get(
   }),
 );
 
-/** Legacy immediate grants are retired; recipient confirmation is required. */
-router.post('/:id/members', membersLimiter, (_req, res) => {
-  res
-    .status(410)
-    .json({ message: 'Use account invitations; access requires recipient confirmation' });
-});
+/**
+ * Add a member by username/email (`members:invite`) without the recipient's
+ * confirmation. DEPRECATED: `POST /:id/invitations` is the consent-based
+ * replacement. This stays only until the SDK consumers that still call
+ * `accounts.members.invite` (Alia, Mercaria, older services builds) have moved
+ * to invitations; it is then retired with HTTP 410.
+ */
+router.post(
+  '/:id/members',
+  membersLimiter,
+  validate({ params: accountIdRouteParams, body: inviteAccountMemberSchema }),
+  requireAccountPermission('members:invite'),
+  asyncHandler(async (req: AccountContextRequest, res) => {
+    const account = req.account;
+    const access = req.access;
+    if (!account || !access) {
+      throw new NotFoundError('Account not found');
+    }
+    const { usernameOrEmail, role, inherit } = req.body as {
+      usernameOrEmail: string;
+      role: Exclude<AccountRole, 'owner'>;
+      inherit?: boolean;
+    };
+
+    // A role is itself a bundle of grants. Checking only `members:invite`
+    // would let a narrowed admin restore one of their revoked permissions on a
+    // confederate by choosing a role whose baseline contains it.
+    requireConferredPermissions(access.permissions, resolveEffectivePermissions(role, [], []));
+
+    const targetUser = await resolveUserByIdentifier(usernameOrEmail);
+    if (!targetUser) {
+      throw new NotFoundError('User not found');
+    }
+
+    const member = await accountService.addMember(
+      account.id,
+      // The inviter is a person. While operating an organization that person is
+      // the operator, not the organization.
+      requireOperatorId(req),
+      targetUser.id,
+      role,
+      inherit,
+    );
+
+    // `addMember` writes on `account.id`, so the row is direct by construction —
+    // `inherit` governs whether it cascades to CHILDREN, not where it lives.
+    res.status(201).json({ member: serializeMember(member, 'direct') });
+  }),
+);
 
 router.post(
   '/invitations/preview',

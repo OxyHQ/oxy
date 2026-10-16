@@ -401,5 +401,62 @@ const dict = {
       row: '로그인할 때 추가 확인 단계',
     },
   },
+  fileManagement: {
+    deleteFile: '파일 삭제',
+    confirm: '확인',
+    retry: '다시 시도',
+    loadError: {
+      description: '문제가 발생했습니다. 연결을 확인하고 다시 시도하세요.',
+    },
+    moveToTrash: '휴지통으로 이동',
+    moveToTrashCount: '휴지통으로 이동 ({{count}})',
+    trashView: {
+      title: '휴지통',
+      subtitle: '파일을 복원하거나 영구적으로 삭제하세요',
+      notice: '휴지통의 파일은 복원하거나 삭제할 때까지 남아 있으며, 계속 저장 공간에 포함됩니다.',
+      emptyTitle: '휴지통이 비어 있습니다',
+      emptyDescription:
+        '휴지통으로 이동한 파일이 여기에 표시됩니다. 복원하거나 영구적으로 삭제할 수 있습니다.',
+      trashedOn: '{{date}}에 휴지통으로 이동함',
+      deleteForever: '영구 삭제',
+      loadError: '휴지통을 불러올 수 없습니다',
+      a11y: {
+        restore: '{{name}} 복원',
+        deleteForever: '{{name}} 영구 삭제',
+      },
+    },
+    a11y: {
+      moveToTrash: '{{name}}을(를) 휴지통으로 이동',
+      deleteFile: '{{name}} 삭제',
+      openTrash: '휴지통 열기',
+    },
+    toasts: {
+      movedToTrash: '휴지통으로 이동했습니다. 휴지통에서 복원할 수 있습니다.',
+      bulkMovedToTrash: '파일 {{count}}개를 휴지통으로 이동했습니다',
+      moveToTrashFailed: '파일을 휴지통으로 이동하지 못했습니다',
+      restored: '파일을 복원했습니다',
+      notInTrash: '이 파일은 더 이상 휴지통에 없습니다.',
+      restoreFailed: '파일을 복원하지 못했습니다',
+      deletedForever: '파일을 영구적으로 삭제했습니다',
+      deleteSuccess: '파일을 삭제했습니다',
+      deleteFailed: '파일을 삭제하지 못했습니다',
+      fileNotFound: '파일을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.',
+      noPermission: '이 파일을 삭제할 권한이 없습니다.',
+      bulkDeleteSuccess: '파일 {{count}}개를 삭제했습니다',
+      bulkDeleteFailed: '파일 {{count}}개를 삭제하지 못했습니다',
+      bulkDeleteError: '파일을 삭제하지 못했습니다',
+    },
+    confirms: {
+      deleteFile: '"{{filename}}"을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+      moveToTrash:
+        '"{{filename}}"을(를) 휴지통으로 이동하시겠습니까? 더 이상 어디에도 표시되지 않으며, 휴지통에서 복원할 수 있습니다.',
+      moveFilesToTrash:
+        '파일 {{count}}개를 휴지통으로 이동하시겠습니까? 더 이상 어디에도 표시되지 않으며, 휴지통에서 복원할 수 있습니다.',
+      deleteForever:
+        '"{{filename}}"을(를) 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+      deleteForeverInUse:
+        '"{{filename}}"은(는) 앱의 {{count}}곳에서 아직 사용 중입니다. 삭제하면 그곳에서도 사라집니다. 영구적으로 삭제하시겠습니까?',
+    },
+  },
 };
 export default dict;

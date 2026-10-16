@@ -1,5 +1,5 @@
 {
-  "id": "4fb7bc8d-687f-47bd-b86f-9c6ab34361ff",
+  "id": "a49f4b2d-e41a-4c10-a033-ae1b0f28fd9b",
   "prevId": "7f10683c-128d-4643-87a9-cc2f5f633a89",
   "version": "7",
   "dialect": "postgresql",
@@ -253,228 +253,6 @@
         "account_capability_policies_autonomy_check": {
           "name": "account_capability_policies_autonomy_check",
           "value": "\"account_capability_policies\".\"maximum_autonomy\" in ('read_only', 'draft', 'execute_on_request', 'autonomous')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.agent_requester_ceilings": {
-      "name": "agent_requester_ceilings",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "agent_account_id": {
-          "name": "agent_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "app_slug": {
-          "name": "app_slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "catalog_registration_id": {
-          "name": "catalog_registration_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capability_packages": {
-          "name": "capability_packages",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "capabilities": {
-          "name": "capabilities",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "tool_overrides": {
-          "name": "tool_overrides",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "limits": {
-          "name": "limits",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "maximum_autonomy": {
-          "name": "maximum_autonomy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_user_id": {
-          "name": "updated_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "agent_requester_ceilings_live_key": {
-          "name": "agent_requester_ceilings_live_key",
-          "columns": [
-            {
-              "expression": "agent_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "app_slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"agent_requester_ceilings\".\"revoked_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_requester_ceilings_catalog_registration_idx": {
-          "name": "agent_requester_ceilings_catalog_registration_idx",
-          "columns": [
-            {
-              "expression": "catalog_registration_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "agent_requester_ceilings_agent_account_id_users_id_fk": {
-          "name": "agent_requester_ceilings_agent_account_id_users_id_fk",
-          "tableFrom": "agent_requester_ceilings",
-          "tableTo": "users",
-          "columnsFrom": [
-            "agent_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk": {
-          "name": "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk",
-          "tableFrom": "agent_requester_ceilings",
-          "tableTo": "app_capability_catalog_registrations",
-          "columnsFrom": [
-            "catalog_registration_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "agent_requester_ceilings_created_by_user_id_users_id_fk": {
-          "name": "agent_requester_ceilings_created_by_user_id_users_id_fk",
-          "tableFrom": "agent_requester_ceilings",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_requester_ceilings_updated_by_user_id_users_id_fk": {
-          "name": "agent_requester_ceilings_updated_by_user_id_users_id_fk",
-          "tableFrom": "agent_requester_ceilings",
-          "tableTo": "users",
-          "columnsFrom": [
-            "updated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "agent_requester_ceilings_autonomy_check": {
-          "name": "agent_requester_ceilings_autonomy_check",
-          "value": "\"agent_requester_ceilings\".\"maximum_autonomy\" in ('read_only', 'autonomous')"
-        },
-        "agent_requester_ceilings_packages_check": {
-          "name": "agent_requester_ceilings_packages_check",
-          "value": "\"agent_requester_ceilings\".\"capability_packages\" <@ array['read', 'create', 'publish', 'communicate', 'administer', 'finance', 'security', 'delegate']::text[]"
-        },
-        "agent_requester_ceilings_version_check": {
-          "name": "agent_requester_ceilings_version_check",
-          "value": "\"agent_requester_ceilings\".\"version\" > 0"
-        },
-        "agent_requester_ceilings_overrides_check": {
-          "name": "agent_requester_ceilings_overrides_check",
-          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"tool_overrides\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.decision) || (@.decision != \"allow\" && @.decision != \"deny\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"decision\")')"
-        },
-        "agent_requester_ceilings_limits_check": {
-          "name": "agent_requester_ceilings_limits_check",
-          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"limits\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.key) || @.key.type() != \"string\" || !exists(@.value) || (@.value.type() != \"number\" && @.value.type() != \"boolean\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"key\" && @.key != \"value\")')"
         }
       },
       "isRLSEnabled": false
@@ -4317,7 +4095,7 @@
         },
         "application_credentials_scopes_check": {
           "name": "application_credentials_scopes_check",
-          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch']::text[]"
+          "value": "\"application_credentials\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete']::text[]"
         },
         "application_credentials_rotated_from_not_self_check": {
           "name": "application_credentials_rotated_from_not_self_check",
@@ -4350,346 +4128,6 @@
         "application_credentials_workload_identity_only_check": {
           "name": "application_credentials_workload_identity_only_check",
           "value": "\"application_credentials\".\"type\" = 'workload' or \"application_credentials\".\"workload_identity_id\" is null"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.application_role_grants": {
-      "name": "application_role_grants",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "permission_id": {
-          "name": "permission_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "granted_by_user_id": {
-          "name": "granted_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "grant_reason": {
-          "name": "grant_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "revoked_at": {
-          "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoked_by_user_id": {
-          "name": "revoked_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "revoke_reason": {
-          "name": "revoke_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "application_role_grants_live_idx": {
-          "name": "application_role_grants_live_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "permission_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"application_role_grants\".\"revoked_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "application_role_grants_permission_id_created_at_idx": {
-          "name": "application_role_grants_permission_id_created_at_idx",
-          "columns": [
-            {
-              "expression": "permission_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "application_role_grants_permission_id_application_role_permissions_id_fk": {
-          "name": "application_role_grants_permission_id_application_role_permissions_id_fk",
-          "tableFrom": "application_role_grants",
-          "tableTo": "application_role_permissions",
-          "columnsFrom": [
-            "permission_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "application_role_grants_user_id_users_id_fk": {
-          "name": "application_role_grants_user_id_users_id_fk",
-          "tableFrom": "application_role_grants",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "application_role_grants_granted_by_user_id_users_id_fk": {
-          "name": "application_role_grants_granted_by_user_id_users_id_fk",
-          "tableFrom": "application_role_grants",
-          "tableTo": "users",
-          "columnsFrom": [
-            "granted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "application_role_grants_revoked_by_user_id_users_id_fk": {
-          "name": "application_role_grants_revoked_by_user_id_users_id_fk",
-          "tableFrom": "application_role_grants",
-          "tableTo": "users",
-          "columnsFrom": [
-            "revoked_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "application_role_grants_revocation_check": {
-          "name": "application_role_grants_revocation_check",
-          "value": "\"application_role_grants\".\"revoked_at\" is not null or (\"application_role_grants\".\"revoked_by_user_id\" is null and \"application_role_grants\".\"revoke_reason\" is null)"
-        },
-        "application_role_grants_reason_length_check": {
-          "name": "application_role_grants_reason_length_check",
-          "value": "(\"application_role_grants\".\"grant_reason\" is null or char_length(\"application_role_grants\".\"grant_reason\") between 1 and 500) and (\"application_role_grants\".\"revoke_reason\" is null or char_length(\"application_role_grants\".\"revoke_reason\") between 1 and 500)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.application_role_permissions": {
-      "name": "application_role_permissions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "application_id": {
-          "name": "application_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "declared_by_user_id": {
-          "name": "declared_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retired_at": {
-          "name": "retired_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "retired_by_user_id": {
-          "name": "retired_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "application_role_permissions_live_key_idx": {
-          "name": "application_role_permissions_live_key_idx",
-          "columns": [
-            {
-              "expression": "application_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"application_role_permissions\".\"retired_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "application_role_permissions_application_id_created_at_idx": {
-          "name": "application_role_permissions_application_id_created_at_idx",
-          "columns": [
-            {
-              "expression": "application_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "application_role_permissions_application_id_applications_id_fk": {
-          "name": "application_role_permissions_application_id_applications_id_fk",
-          "tableFrom": "application_role_permissions",
-          "tableTo": "applications",
-          "columnsFrom": [
-            "application_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "application_role_permissions_declared_by_user_id_users_id_fk": {
-          "name": "application_role_permissions_declared_by_user_id_users_id_fk",
-          "tableFrom": "application_role_permissions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "declared_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "application_role_permissions_retired_by_user_id_users_id_fk": {
-          "name": "application_role_permissions_retired_by_user_id_users_id_fk",
-          "tableFrom": "application_role_permissions",
-          "tableTo": "users",
-          "columnsFrom": [
-            "retired_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "application_role_permissions_key_check": {
-          "name": "application_role_permissions_key_check",
-          "value": "\"application_role_permissions\".\"key\" ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$' and char_length(\"application_role_permissions\".\"key\") <= 64"
-        },
-        "application_role_permissions_description_check": {
-          "name": "application_role_permissions_description_check",
-          "value": "char_length(\"application_role_permissions\".\"description\") between 1 and 280"
-        },
-        "application_role_permissions_retired_by_check": {
-          "name": "application_role_permissions_retired_by_check",
-          "value": "\"application_role_permissions\".\"retired_by_user_id\" is null or \"application_role_permissions\".\"retired_at\" is not null"
         }
       },
       "isRLSEnabled": false
@@ -4803,7 +4241,7 @@
       "checkConstraints": {
         "application_workload_identities_scopes_check": {
           "name": "application_workload_identities_scopes_check",
-          "value": "\"application_workload_identities\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch']::text[]"
+          "value": "\"application_workload_identities\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete']::text[]"
         }
       },
       "isRLSEnabled": false
@@ -5200,7 +4638,7 @@
         },
         "applications_scopes_check": {
           "name": "applications_scopes_check",
-          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch']::text[]"
+          "value": "\"applications\".\"scopes\" <@ array['files:read', 'files:linked:read', 'files:write', 'files:delete', 'user:read', 'webhooks:receive', 'inference:invoke', 'alia:chat', 'inference:models:read', 'inference:usage:read', 'inference:routing:read', 'inference:routing:write', 'inference:providers:read', 'inference:providers:write', 'inference:byok:validate', 'clarity:search', 'clarity:index', 'clarity:sites:manage', 'clarity:usage:read', 'updates:publish', 'federation:write', 'signals:write', 'reputation:write', 'reputation:lease:write', 'reputation:moderation:apply', 'reputation:binding:register', 'notifications:write', 'capabilities:read', 'catalogs:write', 'capability-tickets:issue', 'capability-audit:write', 'capability-events:publish', 'payments:read', 'payments:write', 'follows:read', 'follows:write', 'follows:context:write', 'follows:manage', 'follows:events', 'follow-targets:register', 'chains:write', 'organizations:import', 'safety:decide', 'chains:read', 'acting-as:offline', 'accounts:act-as-session', 'accounts:membership:read', 'podcasts:write', 'linked-accounts:read', 'files:user-media:write', 'federation:identities:resolve', 'federation:instance-fetch', 'files:app:write', 'files:app:delete']::text[]"
         }
       },
       "isRLSEnabled": false
@@ -11236,6 +10674,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "owner_application_id": {
+          "name": "owner_application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -11331,6 +10775,28 @@
           ],
           "isUnique": true,
           "where": "\"files\".\"status\" in ('active', 'trash') and \"files\".\"system_owner\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "files_owner_application_id_sha256_live_key": {
+          "name": "files_owner_application_id_sha256_live_key",
+          "columns": [
+            {
+              "expression": "owner_application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sha256",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"files\".\"status\" in ('active', 'trash') and \"files\".\"owner_application_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -11466,6 +10932,34 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "files_owner_application_id_created_at_idx": {
+          "name": "files_owner_application_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "owner_application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"files\".\"owner_application_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -11480,6 +10974,19 @@
             "id"
           ],
           "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "files_owner_application_id_applications_id_fk": {
+          "name": "files_owner_application_id_applications_id_fk",
+          "tableFrom": "files",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "owner_application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
           "onUpdate": "no action"
         }
       },
@@ -11505,7 +11012,7 @@
         },
         "files_owner_exclusive_check": {
           "name": "files_owner_exclusive_check",
-          "value": "(\"files\".\"owner_user_id\" is null) <> (\"files\".\"system_owner\" is null)"
+          "value": "num_nonnulls(\"files\".\"owner_user_id\", \"files\".\"system_owner\", \"files\".\"owner_application_id\") = 1"
         },
         "files_size_check": {
           "name": "files_size_check",
@@ -33032,12 +32539,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "preference_display_currency": {
-          "name": "preference_display_currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "theme_preference_mode": {
           "name": "theme_preference_mode",
           "type": "text",
@@ -33457,10 +32958,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "users_display_currency_check": {
-          "name": "users_display_currency_check",
-          "value": "\"users\".\"preference_display_currency\" IN ('USD', 'EUR', 'FAIR')"
-        },
         "users_kind_check": {
           "name": "users_kind_check",
           "value": "\"users\".\"kind\" in ('personal', 'organization', 'project', 'bot', 'channel')"
@@ -36804,8 +36301,7 @@
           "nullsNotDistinct": false,
           "columns": [
             "source_segment_id",
-            "benefit_index",
-            "period_start"
+            "benefit_index"
           ]
         }
       },
@@ -38618,12 +38114,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "renewal_source_id": {
-          "name": "renewal_source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "offer_id": {
           "name": "offer_id",
           "type": "text",
@@ -38677,13 +38167,6 @@
           "type": "bigint",
           "primaryKey": false,
           "notNull": true
-        },
-        "billing_interval": {
-          "name": "billing_interval",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'month'"
         },
         "price_valid_from": {
           "name": "price_valid_from",
@@ -38956,19 +38439,6 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "personal_plan_checkout_intents_renewal_source_id_access_subscription_sources_id_fk": {
-          "name": "personal_plan_checkout_intents_renewal_source_id_access_subscription_sources_id_fk",
-          "tableFrom": "personal_plan_checkout_intents",
-          "tableTo": "access_subscription_sources",
-          "columnsFrom": [
-            "renewal_source_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
         "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk": {
           "name": "personal_plan_checkout_intents_fulfilled_source_id_access_subscription_sources_id_fk",
           "tableFrom": "personal_plan_checkout_intents",
@@ -39004,10 +38474,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "personal_checkout_interval": {
-          "name": "personal_checkout_interval",
-          "value": "\"personal_plan_checkout_intents\".\"billing_interval\" IN ('month', 'year') AND (\"personal_plan_checkout_intents\".\"price_kind\" <> 'oxy_one' OR \"personal_plan_checkout_intents\".\"billing_interval\" = 'month')"
-        },
         "personal_checkout_namespace": {
           "name": "personal_checkout_namespace",
           "value": "(\"personal_plan_checkout_intents\".\"mode\" = 'live' and \"personal_plan_checkout_intents\".\"environment\" = 'production') or (\"personal_plan_checkout_intents\".\"mode\" = 'test' and \"personal_plan_checkout_intents\".\"environment\" in ('test', 'staging', 'development'))"
@@ -39018,7 +38484,7 @@
         },
         "personal_checkout_price": {
           "name": "personal_checkout_price",
-          "value": "((\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one') or (\"personal_plan_checkout_intents\".\"offer_kind\" = 'individual' and \"personal_plan_checkout_intents\".\"price_kind\" = 'existing_product')) and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
+          "value": "\"personal_plan_checkout_intents\".\"offer_kind\" = 'bundle' and \"personal_plan_checkout_intents\".\"price_kind\" = 'oxy_one' and \"personal_plan_checkout_intents\".\"price_provider\" in ('stripe', 'peable') and \"personal_plan_checkout_intents\".\"currency\" ~ '^[a-z]{3}$' and \"personal_plan_checkout_intents\".\"amount_minor_units\" > 0 and (\"personal_plan_checkout_intents\".\"price_valid_until\" is null or \"personal_plan_checkout_intents\".\"price_valid_until\" > \"personal_plan_checkout_intents\".\"price_valid_from\")"
         },
         "personal_checkout_authority_complete": {
           "name": "personal_checkout_authority_complete",
@@ -39924,6 +39390,670 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.application_role_grants": {
+      "name": "application_role_grants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "permission_id": {
+          "name": "permission_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_by_user_id": {
+          "name": "granted_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "grant_reason": {
+          "name": "grant_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by_user_id": {
+          "name": "revoked_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoke_reason": {
+          "name": "revoke_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "application_role_grants_live_idx": {
+          "name": "application_role_grants_live_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "permission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"application_role_grants\".\"revoked_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "application_role_grants_permission_id_created_at_idx": {
+          "name": "application_role_grants_permission_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "permission_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "application_role_grants_permission_id_application_role_permissions_id_fk": {
+          "name": "application_role_grants_permission_id_application_role_permissions_id_fk",
+          "tableFrom": "application_role_grants",
+          "tableTo": "application_role_permissions",
+          "columnsFrom": [
+            "permission_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "application_role_grants_user_id_users_id_fk": {
+          "name": "application_role_grants_user_id_users_id_fk",
+          "tableFrom": "application_role_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "application_role_grants_granted_by_user_id_users_id_fk": {
+          "name": "application_role_grants_granted_by_user_id_users_id_fk",
+          "tableFrom": "application_role_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "granted_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "application_role_grants_revoked_by_user_id_users_id_fk": {
+          "name": "application_role_grants_revoked_by_user_id_users_id_fk",
+          "tableFrom": "application_role_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "revoked_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "application_role_grants_revocation_check": {
+          "name": "application_role_grants_revocation_check",
+          "value": "\"application_role_grants\".\"revoked_at\" is not null or (\"application_role_grants\".\"revoked_by_user_id\" is null and \"application_role_grants\".\"revoke_reason\" is null)"
+        },
+        "application_role_grants_reason_length_check": {
+          "name": "application_role_grants_reason_length_check",
+          "value": "(\"application_role_grants\".\"grant_reason\" is null or char_length(\"application_role_grants\".\"grant_reason\") between 1 and 500) and (\"application_role_grants\".\"revoke_reason\" is null or char_length(\"application_role_grants\".\"revoke_reason\") between 1 and 500)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.application_role_permissions": {
+      "name": "application_role_permissions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "declared_by_user_id": {
+          "name": "declared_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_by_user_id": {
+          "name": "retired_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "application_role_permissions_live_key_idx": {
+          "name": "application_role_permissions_live_key_idx",
+          "columns": [
+            {
+              "expression": "application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"application_role_permissions\".\"retired_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "application_role_permissions_application_id_created_at_idx": {
+          "name": "application_role_permissions_application_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "application_role_permissions_application_id_applications_id_fk": {
+          "name": "application_role_permissions_application_id_applications_id_fk",
+          "tableFrom": "application_role_permissions",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "application_role_permissions_declared_by_user_id_users_id_fk": {
+          "name": "application_role_permissions_declared_by_user_id_users_id_fk",
+          "tableFrom": "application_role_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "declared_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "application_role_permissions_retired_by_user_id_users_id_fk": {
+          "name": "application_role_permissions_retired_by_user_id_users_id_fk",
+          "tableFrom": "application_role_permissions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "retired_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "application_role_permissions_key_check": {
+          "name": "application_role_permissions_key_check",
+          "value": "\"application_role_permissions\".\"key\" ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,3}$' and char_length(\"application_role_permissions\".\"key\") <= 64"
+        },
+        "application_role_permissions_description_check": {
+          "name": "application_role_permissions_description_check",
+          "value": "char_length(\"application_role_permissions\".\"description\") between 1 and 280"
+        },
+        "application_role_permissions_retired_by_check": {
+          "name": "application_role_permissions_retired_by_check",
+          "value": "\"application_role_permissions\".\"retired_by_user_id\" is null or \"application_role_permissions\".\"retired_at\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.agent_requester_ceilings": {
+      "name": "agent_requester_ceilings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "agent_account_id": {
+          "name": "agent_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_slug": {
+          "name": "app_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catalog_registration_id": {
+          "name": "catalog_registration_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_packages": {
+          "name": "capability_packages",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "capabilities": {
+          "name": "capabilities",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "tool_overrides": {
+          "name": "tool_overrides",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "limits": {
+          "name": "limits",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "maximum_autonomy": {
+          "name": "maximum_autonomy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "agent_requester_ceilings_live_key": {
+          "name": "agent_requester_ceilings_live_key",
+          "columns": [
+            {
+              "expression": "agent_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"agent_requester_ceilings\".\"revoked_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agent_requester_ceilings_catalog_registration_idx": {
+          "name": "agent_requester_ceilings_catalog_registration_idx",
+          "columns": [
+            {
+              "expression": "catalog_registration_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agent_requester_ceilings_agent_account_id_users_id_fk": {
+          "name": "agent_requester_ceilings_agent_account_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "agent_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk": {
+          "name": "agent_requester_ceilings_catalog_registration_id_app_capability_catalog_registrations_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "app_capability_catalog_registrations",
+          "columnsFrom": [
+            "catalog_registration_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_created_by_user_id_users_id_fk": {
+          "name": "agent_requester_ceilings_created_by_user_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "agent_requester_ceilings_updated_by_user_id_users_id_fk": {
+          "name": "agent_requester_ceilings_updated_by_user_id_users_id_fk",
+          "tableFrom": "agent_requester_ceilings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agent_requester_ceilings_autonomy_check": {
+          "name": "agent_requester_ceilings_autonomy_check",
+          "value": "\"agent_requester_ceilings\".\"maximum_autonomy\" in ('read_only', 'autonomous')"
+        },
+        "agent_requester_ceilings_packages_check": {
+          "name": "agent_requester_ceilings_packages_check",
+          "value": "\"agent_requester_ceilings\".\"capability_packages\" <@ array['read', 'create', 'publish', 'communicate', 'administer', 'finance', 'security', 'delegate']::text[]"
+        },
+        "agent_requester_ceilings_version_check": {
+          "name": "agent_requester_ceilings_version_check",
+          "value": "\"agent_requester_ceilings\".\"version\" > 0"
+        },
+        "agent_requester_ceilings_overrides_check": {
+          "name": "agent_requester_ceilings_overrides_check",
+          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"tool_overrides\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.decision) || (@.decision != \"allow\" && @.decision != \"deny\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"tool_overrides\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"decision\")')"
+        },
+        "agent_requester_ceilings_limits_check": {
+          "name": "agent_requester_ceilings_limits_check",
+          "value": "jsonb_typeof(\"agent_requester_ceilings\".\"limits\") = 'array'\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() != \"object\" || !exists(@.tool) || @.tool.type() != \"string\" || !exists(@.key) || @.key.type() != \"string\" || !exists(@.value) || (@.value.type() != \"number\" && @.value.type() != \"boolean\"))')\n        and not jsonb_path_exists(\"agent_requester_ceilings\".\"limits\", '$[*] ? (@.type() == \"object\").keyvalue() ? (@.key != \"tool\" && @.key != \"key\" && @.key != \"value\")')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.supervision_contacts": {
+      "name": "supervision_contacts",
+      "schema": "",
+      "columns": {
+        "child_account_id": {
+          "name": "child_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_account_id": {
+          "name": "contact_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_by_account_id": {
+          "name": "approved_by_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "supervision_contacts_contact_idx": {
+          "name": "supervision_contacts_contact_idx",
+          "columns": [
+            {
+              "expression": "contact_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk": {
+          "name": "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "supervision_profiles",
+          "columnsFrom": [
+            "child_account_id"
+          ],
+          "columnsTo": [
+            "child_account_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_contacts_contact_account_id_users_id_fk": {
+          "name": "supervision_contacts_contact_account_id_users_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "contact_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "supervision_contacts_approved_by_account_id_users_id_fk": {
+          "name": "supervision_contacts_approved_by_account_id_users_id_fk",
+          "tableFrom": "supervision_contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "approved_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "supervision_contacts_child_account_id_contact_account_id_pk": {
+          "name": "supervision_contacts_child_account_id_contact_account_id_pk",
+          "columns": [
+            "child_account_id",
+            "contact_account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.supervision_audit": {
       "name": "supervision_audit",
       "schema": "",
@@ -40049,108 +40179,6 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.supervision_contacts": {
-      "name": "supervision_contacts",
-      "schema": "",
-      "columns": {
-        "child_account_id": {
-          "name": "child_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "contact_account_id": {
-          "name": "contact_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved_by_account_id": {
-          "name": "approved_by_account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "supervision_contacts_contact_idx": {
-          "name": "supervision_contacts_contact_idx",
-          "columns": [
-            {
-              "expression": "contact_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk": {
-          "name": "supervision_contacts_child_account_id_supervision_profiles_child_account_id_fk",
-          "tableFrom": "supervision_contacts",
-          "tableTo": "supervision_profiles",
-          "columnsFrom": [
-            "child_account_id"
-          ],
-          "columnsTo": [
-            "child_account_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "supervision_contacts_contact_account_id_users_id_fk": {
-          "name": "supervision_contacts_contact_account_id_users_id_fk",
-          "tableFrom": "supervision_contacts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "contact_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "supervision_contacts_approved_by_account_id_users_id_fk": {
-          "name": "supervision_contacts_approved_by_account_id_users_id_fk",
-          "tableFrom": "supervision_contacts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "approved_by_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "supervision_contacts_child_account_id_contact_account_id_pk": {
-          "name": "supervision_contacts_child_account_id_contact_account_id_pk",
-          "columns": [
-            "child_account_id",
-            "contact_account_id"
-          ]
-        }
-      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -40808,177 +40836,6 @@
         "supervision_purchase_lines_amounts_check": {
           "name": "supervision_purchase_lines_amounts_check",
           "value": "\"supervision_purchase_lines\".\"unit_amount_minor\" between 0 and 9007199254740991 and \"supervision_purchase_lines\".\"line_amount_minor\" between 0 and 9007199254740991"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.account_invitations": {
-      "name": "account_invitations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "account_id": {
-          "name": "account_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "invited_by_user_id": {
-          "name": "invited_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "inherit": {
-          "name": "inherit",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "cancelled_at": {
-          "name": "cancelled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_at": {
-          "name": "accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_by_user_id": {
-          "name": "accepted_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {
-        "account_invitations_account_id_idx": {
-          "name": "account_invitations_account_id_idx",
-          "columns": [
-            {
-              "expression": "account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "account_invitations_expires_at_idx": {
-          "name": "account_invitations_expires_at_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "account_invitations_account_id_users_id_fk": {
-          "name": "account_invitations_account_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "account_invitations_invited_by_user_id_users_id_fk": {
-          "name": "account_invitations_invited_by_user_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "invited_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "account_invitations_accepted_by_user_id_users_id_fk": {
-          "name": "account_invitations_accepted_by_user_id_users_id_fk",
-          "tableFrom": "account_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "accepted_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "account_invitations_token_hash_key": {
-          "name": "account_invitations_token_hash_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "account_invitations_role_check": {
-          "name": "account_invitations_role_check",
-          "value": "\"account_invitations\".\"role\" in ('admin', 'editor', 'developer', 'billing', 'viewer')"
         }
       },
       "isRLSEnabled": false

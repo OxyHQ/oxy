@@ -119,6 +119,16 @@ export const NATIVE_PRODUCT_AGENTS = {
         webhookUrl: 'https://api.clarity.surf/webhooks/oxy/account-events',
         type: 'internal',
         scopes: ['user:read', 'inference:invoke'],
+        /**
+         * ADR 0043: Clarity's crawler image cache leaves its own sweep for
+         * files the CLARITY BACKEND application owns, collected by Oxy's file
+         * lifecycle when no indexed page references them any more (D5). Oxy's
+         * own (`internal`), so not metered (D2). Granted by the bootstrap as a
+         * reviewed ADDITION to `scopes`, exactly as Homiio's import scope is:
+         * on the application and on the backend's live workload binding (a
+         * workload token carries the intersection of the two).
+         */
+        fileScopes: ['files:read', 'files:app:write', 'files:app:delete', 'files:references:write'],
       },
       /** Clarity's backend ECS task role, bound to `backendApplication` (ADR 0026). */
       workload: {

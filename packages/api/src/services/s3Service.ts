@@ -6,6 +6,12 @@ import {
   ListObjectsV2Command,
   CopyObjectCommand,
   HeadObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  UploadPartCopyCommand,
+  ListPartsCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -38,6 +44,29 @@ export interface UploadOptions extends S3UploadOptions {
 /** Told about every successful object delete, so the CDN can forget the object too. */
 export interface DeletedObjectListener {
   enqueueDeletedKey(key: string): void;
+}
+
+/** The most one `CopyObject` copies; larger objects are copied by parts. */
+export const SINGLE_COPY_MAX_BYTES = 5 * 1024 ** 3;
+/** Part size of a multipart copy (S3 allows 5 MiB – 5 GiB per part). */
+const COPY_PART_BYTES = 512 * 1024 ** 2;
+const COPY_CONCURRENCY = 4;
+
+function s3ErrorName(error: unknown): string {
+  const record = error as { name?: string; Code?: string; code?: string } | null;
+  return record?.name || record?.Code || record?.code || '';
+}
+
+function isCopySourceTooLarge(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    s3ErrorName(error) === 'InvalidRequest' &&
+    /larger than the maximum allowable size|maximum allowable size for a copy/i.test(message)
+  );
+}
+
+function isNoSuchUpload(error: unknown): boolean {
+  return s3ErrorName(error) === 'NoSuchUpload';
 }
 
 export class S3Service {
@@ -523,7 +552,19 @@ export class S3Service {
   /**
    * Copy file from one key to another
    */
-  async copyFile(sourceKey: string, destinationKey: string): Promise<void> {
+  async copyFile(
+    sourceKey: string,
+    destinationKey: string,
+    options: { sizeHint?: number } = {},
+  ): Promise<void> {
+    // `CopyObject` copies at most 5 GiB in one request; a larger object (a large
+    // upload, ADR 0043 stage 4b) is copied part by part. The size is known to
+    // most callers (the file row); one that does not know it learns it from
+    // S3's refusal and retries the multipart way.
+    if (options.sizeHint !== undefined && options.sizeHint > SINGLE_COPY_MAX_BYTES) {
+      await this.copyLargeObject(sourceKey, destinationKey, options.sizeHint);
+      return;
+    }
     try {
       const command = new CopyObjectCommand({
         Bucket: this.bucketName,
@@ -533,7 +574,190 @@ export class S3Service {
 
       await this.s3Client.send(command);
     } catch (error) {
+      if (isCopySourceTooLarge(error)) {
+        const head = await this.headObject(sourceKey);
+        if (head && head.size > SINGLE_COPY_MAX_BYTES) {
+          await this.copyLargeObject(sourceKey, destinationKey, head.size);
+          return;
+        }
+      }
       throw new Error(`Failed to copy file in S3: ${error}`);
+    }
+  }
+
+  /**
+   * Server-side copy of an object larger than one `CopyObject` allows, by
+   * `UploadPartCopy` ranges. The destination keeps the source's Content-Type,
+   * Content-Disposition and Cache-Control (what `MetadataDirective: COPY`
+   * gives a single copy). An interrupted copy is aborted, leaving nothing.
+   */
+  private async copyLargeObject(
+    sourceKey: string,
+    destinationKey: string,
+    size: number,
+  ): Promise<void> {
+    const head = await this.s3Client.send(
+      new HeadObjectCommand({ Bucket: this.bucketName, Key: sourceKey }),
+    );
+    const created = await this.s3Client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucketName,
+        Key: destinationKey,
+        ContentType: head.ContentType,
+        ContentDisposition: head.ContentDisposition,
+        CacheControl: head.CacheControl,
+        Metadata: head.Metadata,
+      }),
+    );
+    const uploadId = created.UploadId;
+    if (!uploadId) throw new Error('S3 returned no UploadId for a multipart copy');
+    const partSize = Math.max(COPY_PART_BYTES, Math.ceil(size / 10_000));
+    const partCount = Math.ceil(size / partSize);
+    try {
+      const parts: { PartNumber: number; ETag: string }[] = new Array(partCount);
+      let next = 0;
+      const work = async () => {
+        while (next < partCount) {
+          const index = next++;
+          const start = index * partSize;
+          const end = Math.min(size, start + partSize) - 1;
+          const copied = await this.s3Client.send(
+            new UploadPartCopyCommand({
+              Bucket: this.bucketName,
+              Key: destinationKey,
+              UploadId: uploadId,
+              PartNumber: index + 1,
+              CopySource: `${this.bucketName}/${sourceKey}`,
+              CopySourceRange: `bytes=${start}-${end}`,
+            }),
+          );
+          const etag = copied.CopyPartResult?.ETag;
+          if (!etag) throw new Error(`S3 returned no ETag for copied part ${index + 1}`);
+          parts[index] = { PartNumber: index + 1, ETag: etag };
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(COPY_CONCURRENCY, partCount) }, work));
+      await this.s3Client.send(
+        new CompleteMultipartUploadCommand({
+          Bucket: this.bucketName,
+          Key: destinationKey,
+          UploadId: uploadId,
+          MultipartUpload: { Parts: parts },
+        }),
+      );
+    } catch (error) {
+      await this.abortMultipartUpload(destinationKey, uploadId).catch(() => undefined);
+      throw new Error(`Failed to copy a large file in S3: ${error}`);
+    }
+  }
+
+  /**
+   * Open a multipart upload the client fills through presigned part URLs
+   * (ADR 0043 stage 4b). Content-Type, Content-Disposition and Cache-Control
+   * are set HERE, by the server, so they are not the client's to choose.
+   */
+  async createMultipartUpload(
+    key: string,
+    options: { contentType: string; contentDisposition?: string; cacheControl?: string },
+  ): Promise<string> {
+    const created = await this.s3Client.send(
+      new CreateMultipartUploadCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        ContentType: options.contentType,
+        ContentDisposition: options.contentDisposition,
+        CacheControl: options.cacheControl,
+      }),
+    );
+    if (!created.UploadId) throw new Error('S3 returned no UploadId');
+    return created.UploadId;
+  }
+
+  /**
+   * A presigned `UploadPart` URL. `contentLength` is signed, so a part of any
+   * other size is refused by S3 itself.
+   */
+  async getPresignedUploadPartUrl(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    options: { expiresIn: number; contentLength: number },
+  ): Promise<string> {
+    const command = new UploadPartCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+      ContentLength: options.contentLength,
+    });
+    return getSignedUrl(this.s3Client, command, {
+      expiresIn: options.expiresIn,
+      signableHeaders: new Set(['content-length']),
+    });
+  }
+
+  /** Every part S3 holds for an open multipart upload, in part order; `null` if the upload is gone. */
+  async listParts(
+    key: string,
+    uploadId: string,
+  ): Promise<{ partNumber: number; size: number; etag: string }[] | null> {
+    const parts: { partNumber: number; size: number; etag: string }[] = [];
+    let marker: string | undefined;
+    try {
+      for (;;) {
+        const page = await this.s3Client.send(
+          new ListPartsCommand({
+            Bucket: this.bucketName,
+            Key: key,
+            UploadId: uploadId,
+            PartNumberMarker: marker,
+          }),
+        );
+        for (const part of page.Parts ?? []) {
+          if (part.PartNumber === undefined || !part.ETag) continue;
+          parts.push({
+            partNumber: part.PartNumber,
+            size: Number(part.Size ?? 0),
+            etag: part.ETag,
+          });
+        }
+        if (!page.IsTruncated) break;
+        marker = page.NextPartNumberMarker;
+        if (!marker) break;
+      }
+    } catch (error) {
+      if (isNoSuchUpload(error)) return null;
+      throw error;
+    }
+    return parts.sort((a, b) => a.partNumber - b.partNumber);
+  }
+
+  async completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    parts: { partNumber: number; etag: string }[],
+  ): Promise<void> {
+    await this.s3Client.send(
+      new CompleteMultipartUploadCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        UploadId: uploadId,
+        MultipartUpload: {
+          Parts: parts.map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })),
+        },
+      }),
+    );
+  }
+
+  /** Discard an open multipart upload and every part it holds. An upload already gone is not an error. */
+  async abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+    try {
+      await this.s3Client.send(
+        new AbortMultipartUploadCommand({ Bucket: this.bucketName, Key: key, UploadId: uploadId }),
+      );
+    } catch (error) {
+      if (isNoSuchUpload(error)) return;
+      throw error;
     }
   }
 

@@ -30,6 +30,7 @@
  * Env: DATABASE_URL (required), BATCH_SIZE (default 200).
  */
 
+import { INBOX_APPLICATION_ID } from '../config/inboxInference';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { messageAttachments } from '../db/schema/messageAttachments';
@@ -102,7 +103,11 @@ export async function purgeAlternativeBodyAttachments(options: {
         // rows under the RFC Message-ID — `deleteMessageAttachments` unlinks both.
         for (const entityId of new Set([row.messageRowId, row.rfcMessageId])) {
           try {
-            await assetService.unlinkFile(row.fileId, 'oxy-mail', 'message', entityId);
+            await assetService.unlinkFile(row.fileId, {
+              applicationId: INBOX_APPLICATION_ID,
+              entityType: 'message',
+              entityId,
+            });
           } catch (error) {
             // A missing link under one of the two ids is expected; the row goes regardless.
             logger.warn('Could not unlink an alternative-body attachment file', {

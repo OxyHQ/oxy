@@ -67,7 +67,7 @@ import {
   appListings,
   appListingScreenshots,
   applications,
-  fileLinks,
+  fileReferences,
   files,
   fileVariants,
   mailboxes,
@@ -202,6 +202,24 @@ async function insertFile(options: FixtureOptions) {
   return { id: row.id, sha256, storageKey, variantDir, variantKeys };
 }
 
+/**
+ * A `file_references` row on `fileId`, created by `createdByUserId` from inside
+ * a real application (ADR 0043 D4: the using application is a row, never text).
+ */
+async function insertReference(fileId: string, createdByUserId: string): Promise<void> {
+  const [app] = await getDb()
+    .insert(applications)
+    .values({ name: `App ${randomUUID().slice(0, 8)}`, ownerAccountId: createdByUserId })
+    .returning({ id: applications.id });
+  await getDb().insert(fileReferences).values({
+    fileId,
+    applicationId: app.id,
+    entityType: 'post',
+    entityId: randomUUID(),
+    createdByUserId,
+  });
+}
+
 async function statusOf(id: string): Promise<string | undefined> {
   const [row] = await getDb().select({ status: files.status }).from(files).where(eq(files.id, id));
   return row?.status;
@@ -334,13 +352,7 @@ describe('DELETE /assets/service/federation/:id — the uploading app deletes it
 
   it('a link the OWNER created does not block the delete', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
-    await getDb().insert(fileLinks).values({
-      fileId: file.id,
-      app: 'mention',
-      entityType: 'post',
-      entityId: randomUUID(),
-      createdBy: federatedOwner,
-    });
+    await insertReference(file.id, federatedOwner);
 
     const res = await call('DELETE', `/assets/service/federation/${file.id}`);
 
@@ -419,13 +431,7 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
 
   it('keeps an asset a LOCAL user linked (dedup handed them the federated row)', async () => {
     const file = await fixture({ ownerUserId: federatedOwner });
-    await getDb().insert(fileLinks).values({
-      fileId: file.id,
-      app: 'mention',
-      entityType: 'avatar',
-      entityId: randomUUID(),
-      createdBy: otherLocal,
-    });
+    await insertReference(file.id, otherLocal);
     await expectKept(file);
   });
 
@@ -487,13 +493,7 @@ describe('DELETE /assets/service/federation/:id — another account holds it (in
       ownerUserId: federatedOwner,
       metadata: { source: 'federation', serviceAppId: OTHER_APP_ID },
     });
-    await getDb().insert(fileLinks).values({
-      fileId: file.id,
-      app: 'mention',
-      entityType: 'post',
-      entityId: randomUUID(),
-      createdBy: otherLocal,
-    });
+    await insertReference(file.id, otherLocal);
 
     const res = await call('DELETE', `/assets/service/federation/${file.id}`);
     expect(res.status).toBe(403);
@@ -597,13 +597,7 @@ describe('POST /assets/service/federation/delete — batch', () => {
   it('returns one result per distinct id, in order, deleting only what qualifies', async () => {
     const mine = await fixture({ ownerUserId: federatedOwner });
     const held = await fixture({ ownerUserId: federatedOwner });
-    await getDb().insert(fileLinks).values({
-      fileId: held.id,
-      app: 'mention',
-      entityType: 'post',
-      entityId: randomUUID(),
-      createdBy: otherLocal,
-    });
+    await insertReference(held.id, otherLocal);
     const local = await fixture({ ownerUserId: localOwner });
     const theirs = await fixture({
       ownerUserId: federatedOwner,

@@ -27,6 +27,12 @@ export interface RawUserFile {
   createdAt?: string;
   metadata?: Record<string, unknown>;
   variants?: unknown[];
+  /** Whether any application uses the file (ADR 0043 D5). */
+  inUse?: boolean;
+  /** `blocked`: taken down after a content claim (ADR 0043 D10). */
+  status?: string;
+  /** When the owner moved it to trash (ADR 0043 D5). */
+  trashedAt?: string | null;
 }
 
 /** One page of the infinite file list. */
@@ -48,31 +54,52 @@ export function mapRawFileToMetadata(raw: RawUserFile): FileMetadata {
     length: raw.size ?? 0,
     chunkSize: 0,
     uploadDate: raw.createdAt ?? '',
+    ...(typeof raw.inUse === 'boolean' ? { inUse: raw.inUse } : {}),
+    ...(raw.status === 'active' || raw.status === 'trash' || raw.status === 'blocked'
+      ? { status: raw.status }
+      : {}),
+    ...(typeof raw.trashedAt === 'string' ? { trashedAt: raw.trashedAt } : {}),
     metadata: raw.metadata ?? {},
     variants: (raw.variants ?? []) as FileMetadata['variants'],
   };
 }
 
+/** Which of the owner's files a page lists: the library, or the trash (ADR 0043 D5). */
+export type UserFilesListing = 'library' | 'trash';
+
+/** Map one `oxyServices.assets.list` response onto a page. */
+export function toUserFilesPage(
+  response: { files?: unknown[]; total?: number; hasMore?: boolean },
+  offset: number,
+): UserFilesPage {
+  const files = ((response.files ?? []) as RawUserFile[]).map(mapRawFileToMetadata);
+  return {
+    files,
+    total: response.total ?? offset + files.length,
+    hasMore: Boolean(response.hasMore),
+    nextOffset: offset + FILES_PAGE_SIZE,
+  };
+}
+
 /**
- * Infinite-paginated list of the owner's files. Fires on mount and whenever
- * `ownerId` changes (a new key); `staleTime: 0` reloads on every open. The
- * rendered list is `data.pages.flatMap(p => p.files)`.
+ * Infinite-paginated list of the owner's files: the LIBRARY (active files, and
+ * blocked ones shown as removed after a claim) or, with `listing: 'trash'`,
+ * what the owner moved to trash, most recently trashed first. Fires on mount
+ * and whenever `ownerId` changes (a new key); `staleTime: 0` reloads on every
+ * open. The rendered list is `data.pages.flatMap(p => p.files)`.
  */
-export const useUserFilesInfinite = (ownerId?: string) => {
+export const useUserFilesInfinite = (ownerId?: string, listing: UserFilesListing = 'library') => {
   const { oxyServices } = useOxy();
   return useInfiniteQuery<UserFilesPage, Error>({
-    queryKey: queryKeys.files.list(ownerId),
+    queryKey: listing === 'trash' ? queryKeys.files.trash(ownerId) : queryKeys.files.list(ownerId),
     queryFn: async ({ pageParam }) => {
       const offset = typeof pageParam === 'number' ? pageParam : 0;
-      const response = await oxyServices.assets.list({ limit: FILES_PAGE_SIZE, offset });
-      const raw = (response.files ?? []) as RawUserFile[];
-      const files = raw.map(mapRawFileToMetadata);
-      return {
-        files,
-        total: response.total ?? offset + files.length,
-        hasMore: Boolean(response.hasMore),
-        nextOffset: offset + FILES_PAGE_SIZE,
-      };
+      const response = await oxyServices.assets.list({
+        limit: FILES_PAGE_SIZE,
+        offset,
+        ...(listing === 'trash' ? { status: 'trash' as const } : {}),
+      });
+      return toUserFilesPage(response, offset);
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextOffset : undefined),
@@ -114,13 +141,15 @@ export function prependFileToCache(
   });
 }
 
-/** Remove a file (by id) from every page. */
+/** Remove a file (by id) from every page of the library, or of the trash. */
 export function removeFileFromCache(
   queryClient: QueryClient,
   ownerId: string | undefined,
   fileId: string,
+  listing: UserFilesListing = 'library',
 ): void {
-  queryClient.setQueryData<UserFilesInfinite>(fileListKey(ownerId), (data) =>
+  const key = listing === 'trash' ? queryKeys.files.trash(ownerId) : fileListKey(ownerId);
+  queryClient.setQueryData<UserFilesInfinite>(key, (data) =>
     data ? mapPages(data, (files) => files.filter((f) => f.id !== fileId)) : data,
   );
 }

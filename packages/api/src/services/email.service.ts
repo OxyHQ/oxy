@@ -7,6 +7,7 @@
  * Email addresses are always derived: {username}@oxy.so — never stored independently.
  */
 
+import { INBOX_APPLICATION_ID } from '../config/inboxInference';
 import {
   and,
   asc,
@@ -2606,10 +2607,10 @@ class EmailService {
       for (const { fileId } of uploadedFiles) {
         try {
           await assetService.linkFile(fileId, {
-            app: 'oxy-mail',
+            applicationId: INBOX_APPLICATION_ID,
             entityType: 'message',
             entityId: msgIdForLink,
-            createdBy: userId,
+            createdByUserId: userId,
           });
         } catch (err) {
           logger.warn('Failed to link inbound attachment to message', {
@@ -4369,10 +4370,10 @@ class EmailService {
         for (const importedFileId of importedFileIds) {
           try {
             await assetService.linkFile(importedFileId, {
-              app: 'oxy-mail',
+              applicationId: INBOX_APPLICATION_ID,
               entityType: 'message',
               entityId: msgId,
-              createdBy: userId,
+              createdByUserId: userId,
             });
           } catch (linkErr) {
             logger.warn('Failed to link imported attachment to message', {
@@ -5329,7 +5330,11 @@ class EmailService {
     for (const { fileId } of fileIds) {
       for (const entityId of entityIds) {
         try {
-          await assetService.unlinkFile(fileId, 'oxy-mail', 'message', entityId);
+          await assetService.unlinkFile(fileId, {
+            applicationId: INBOX_APPLICATION_ID,
+            entityType: 'message',
+            entityId,
+          });
         } catch (error) {
           logger.error(
             'Failed to unlink attachment file from message',

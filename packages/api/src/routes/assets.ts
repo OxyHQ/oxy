@@ -6,6 +6,15 @@ import { AssetService } from '../services/assetService';
 import { s3Service } from '../services/s3ServiceSingleton';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
+import { resolveOperatorId } from '../middleware/operator';
+import { requireStaff } from '../middleware/requireStaff';
+import {
+  abandonReconciliation,
+  beginReconciliation,
+  commitReconciliation,
+  putReconciliationItems,
+} from '../services/fileReferenceReconciliation.service';
+import { fileLifecycleMode, listFileLifecycleSweeps } from '../services/fileLifecycle.worker';
 import { mediaHeadersMiddleware } from '../middleware/mediaHeaders';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -22,7 +31,7 @@ import {
 } from '../utils/error';
 import { z } from 'zod';
 import type {
-  FileLinkRecord,
+  FileReferenceRecord,
   FileRecord,
   FileVariantRecord,
   FileVisibility,
@@ -32,6 +41,11 @@ import { validate } from '../middleware/validate';
 import {
   assetIdParams,
   listAssetsQuerySchema,
+  listLifecycleSweepsQuerySchema,
+  beginReconcileBodySchema,
+  commitReconcileBodySchema,
+  reconcilePageBodySchema,
+  reconcileSessionParams,
   assetUrlQuerySchema,
   updateVisibilitySchema,
   batchAccessSchema,
@@ -45,12 +59,35 @@ import {
   type federatedAssetDeleteResponse,
   type federatedAssetBatchDeleteResponse,
   type federatedMediaUploadResponse,
+  listApplicationFilesQuerySchema,
+  serviceReferencesBodySchema,
+  appImportBodySchema,
+  appImportBatchBodySchema,
+  MAX_IMPORT_BATCH_ITEMS,
+  userMediaImportBodySchema,
+  appLargeUploadBodySchema,
+  userMediaLargeUploadBodySchema,
+  largeUploadParams,
+  largeUploadPartsBodySchema,
+  appAdoptBodySchema,
 } from '../schemas/assets.schemas';
+import type { LargeUploadOwner, LargeUploadView } from '../services/fileUploadSession.service';
+import { fileUploadSessionService } from '../services/fileUploadSessionSingleton';
+import { ContentBlockedError } from '../services/contentClaims/contentBlocklist';
+import { contentDispositionFor } from '../utils/fileContentPolicy';
+import { FileImportService, type ImportResult } from '../services/fileImport.service';
+import {
+  isOwnerReferencedToApp,
+  mayApplicationReference,
+  resolveReferenceApplicationId,
+} from '../services/fileReference.service';
+import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import {
   buildCdnUrl,
   stripPublicPrefix,
   isPublicKey,
+  isServableStatus,
   CDN_REDIRECT_CACHE_CONTROL,
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
@@ -67,7 +104,7 @@ import {
 } from '../constants/federationCache';
 import { and, eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { users } from '../db/schema';
+import { applications, users } from '../db/schema';
 import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
 import { singleQueryValue } from '../utils/queryString';
 import type { ApplicationScope } from '../utils/applicationScopes';
@@ -77,6 +114,8 @@ interface AuthenticatedRequest extends express.Request {
     _id: string;
     [key: string]: any;
   };
+  /** Set by `authMiddleware`: the application the session is bound to, if any. */
+  oxyToken?: AccessTokenIdentity;
 }
 
 const router = express.Router();
@@ -86,25 +125,31 @@ const ownAssetAuth: express.RequestHandler = (req, res, next) => {
   res.locals.supervisedSelfOperation = true;
   return authMiddleware(req, res, next);
 };
+/** Import by URL (ADR 0043 D7), over the shared AssetService. */
+const fileImportService = new FileImportService(assetService);
 
 /**
  * Project a link/variant row onto the wire shape clients already receive.
  *
  * Two differences would otherwise ship silently. The wire shape carries NO id
- * and no parent pointer — the `file_links.id` / `file_variants.id` / `file_id`
+ * and no parent pointer — the `file_references.id` / `file_variants.id` / `file_id`
  * columns are internal, and must not leak. And the wire OMITS an unset optional
  * field, where a Postgres row spells it `null`; `JSON.stringify` drops
  * `undefined` but preserves `null`, so passing rows through verbatim would turn
  * "absent" into an explicit `null` for every consumer in the ecosystem.
  */
-function serializeLink(link: FileLinkRecord) {
+function serializeLink(link: FileReferenceRecord) {
   return {
-    app: link.app,
+    // `app` keeps its key for the clients that read it; since ADR 0043 D4 it
+    // holds the using application's id, which `applicationId` also names.
+    app: link.applicationId,
+    applicationId: link.applicationId,
     entityType: link.entityType,
     entityId: link.entityId,
-    createdBy: link.createdBy,
+    // Absent for a reference an application made with its service token.
+    ...(link.createdByUserId === null ? {} : { createdBy: link.createdByUserId }),
     createdAt: link.createdAt,
-    ...(link.webhookUrl === null ? {} : { webhookUrl: link.webhookUrl }),
+    // The per-reference `webhook_url` is no longer read or shown (ADR 0043 D9).
   };
 }
 
@@ -118,6 +163,35 @@ function serializeVariant(variant: FileVariantRecord) {
     ...(variant.size === null ? {} : { size: variant.size }),
     ...(variant.metadata === null ? {} : { metadata: variant.metadata }),
   };
+}
+
+/**
+ * Whether any application uses the file, and since when none has (ADR 0043
+ * D5). The owner's view: an account's file not in use is shown as such and
+ * never removed for them; `trashedAt` is when it entered trash.
+ */
+function serializeLifecycle(file: FileRecord) {
+  return {
+    inUse: file.links.length > 0,
+    unreferencedSince: file.links.length > 0 ? null : (file.unreferencedSince ?? null),
+    trashedAt: file.trashedAt ?? null,
+  };
+}
+
+/**
+ * Whether the session may act on `file` as its OWNER: the file's account is
+ * the session's subject, or the human operating that session (an operated
+ * session speaks as a managed account, but its authority is the operator's —
+ * `middleware/operator.ts`). A file no account owns (a system namespace, an
+ * application) has no owner a session can be.
+ *
+ * The operator is read only when the subject does not match, so an ordinary
+ * request costs no session lookup.
+ */
+async function sessionOwnsFile(req: AuthenticatedRequest, file: FileRecord): Promise<boolean> {
+  if (!file.ownerUserId || !req.user?._id) return false;
+  if (file.ownerUserId === req.user._id.toString()) return true;
+  return file.ownerUserId === (await resolveOperatorId(req));
 }
 
 /**
@@ -181,7 +255,12 @@ function parseMediaAccessContext(raw: unknown): MediaAccessContext | undefined {
 
 // Validation schemas
 const initUploadSchema = z.object({
-  sha256: z.string().length(64, 'SHA256 must be 64 characters'),
+  // Hex, and lowercased: it is the content's identity (dedupe, the presigned
+  // PUT's enforced checksum, the takedown blocklist).
+  sha256: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'SHA256 must be 64 hexadecimal characters')
+    .transform((value) => value.toLowerCase()),
   size: z.number().positive('Size must be positive'),
   mime: z.string().min(1, 'MIME type is required'),
 });
@@ -205,8 +284,27 @@ const completeUploadSchema = z.object({
  *     description: >
  *       Paginated list of files owned by the authenticated user, including
  *       upload status, deduplication info (`sha256`), variants (thumbnails,
- *       resized renditions), and any entity links.
+ *       resized renditions), and any entity links. Each file says whether an
+ *       application uses it (`inUse`) and, when none does, since when
+ *       (`unreferencedSince`) — a file not in use is never removed for you
+ *       (ADR 0043 D5). `inUse=false` lists only those. The list is your
+ *       library — `active` files, and `blocked` ones removed after a legal
+ *       claim — newest first; `status=trash` lists instead the files you moved
+ *       to trash (`trashedAt`, most recently trashed first), which you can
+ *       restore (`POST /assets/{id}/restore`) or delete for good.
  *     parameters:
+ *       - name: status
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: ['trash']
+ *       - name: inUse
+ *         in: query
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: ['true', 'false']
  *       - name: limit
  *         in: query
  *         required: false
@@ -253,8 +351,14 @@ router.get(
 
     const limit = Math.max(1, Math.min(100, Number(req.query.limit) || 50));
     const offset = Math.max(0, Number(req.query.offset) || 0);
+    const inUseQuery = singleQueryValue(req.query.inUse);
+    const inUse = inUseQuery === undefined ? undefined : inUseQuery === 'true';
+    const listing = singleQueryValue(req.query.status) === 'trash' ? 'trash' : 'library';
 
-    const { files, total } = await assetService.listFilesByUser(user._id, limit, offset);
+    const { files, total } = await assetService.listFilesByUser(user._id, limit, offset, {
+      inUse,
+      listing,
+    });
 
     sendSuccess(res, {
       files: files.map((file) => ({
@@ -267,6 +371,7 @@ router.get(
         ownerUserId: file.ownerUserId,
         status: file.status,
         usageCount: file.links.length,
+        ...serializeLifecycle(file),
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
         links: file.links.map(serializeLink),
@@ -275,6 +380,44 @@ router.get(
       })),
       total,
       hasMore: offset + files.length < total,
+    });
+  }),
+);
+
+/**
+ * @route GET /api/assets/admin/lifecycle/sweeps
+ * @desc The file lifecycle sweep's newest runs (ADR 0043 D5): per step
+ *       (`purge`, `purgeBlocked`, `trash`, `staleUploads`,
+ *       `unpublishTrashed`) how many files were DUE at the run's instant and
+ *       how many were acted on, with up to 100 named per step; the
+ *       `deletedApplications` step (D8 for an application deleted before D8
+ *       shipped) counts and names applications, with the files and
+ *       references each still has. In `report` mode nothing is acted on: this is what
+ *       an operator reviews before switching the sweep to `enforce`. `limit`
+ *       1–50, default 10.
+ * @access Oxy platform staff
+ */
+router.get(
+  '/admin/lifecycle/sweeps',
+  authMiddleware,
+  requireStaff,
+  validate({ query: listLifecycleSweepsQuerySchema }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const rawLimit = singleQueryValue(req.query.limit);
+    const limit = Math.min(Math.max(rawLimit ? Number.parseInt(rawLimit, 10) : 10, 1), 50);
+    const sweeps = await listFileLifecycleSweeps(limit);
+    sendSuccess(res, {
+      mode: fileLifecycleMode(),
+      sweeps: sweeps.map((sweep) => ({
+        id: sweep.id,
+        mode: sweep.mode,
+        status: sweep.status,
+        startedAt: sweep.startedAt,
+        finishedAt: sweep.finishedAt,
+        counts: sweep.counts,
+        samples: sweep.samples,
+        ...(sweep.error ? { error: sweep.error } : {}),
+      })),
     });
   }),
 );
@@ -961,6 +1104,45 @@ router.post(
 );
 
 /**
+ * The account a `/service/user-media*` call writes into, after the act-as
+ * authority check — shared by the upload and the import (ADR 0043 D7), so the
+ * two can never disagree on who may attribute a file to a person.
+ *
+ * Attributing a file to a user is cross-tenant act-as authority, not ordinary
+ * application-owned file access, so it always needs a staff-granted scope. Two
+ * grants carry it:
+ *  - `files:user-media:write` — exactly this authority and nothing else (Oxy
+ *    Move imports a user's media with it);
+ *  - `files:write` + `federation:write` — the original pair, kept unchanged for
+ *    Mention's MCP intent-media.
+ * `files:write` alone is self-grantable and never enough. The owner is the
+ * `x-owner-user-id` header, an existing LOCAL user.
+ */
+async function requireUserMediaOwner(req: ServiceAuthRequest): Promise<string> {
+  if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
+    requireServiceScope(req, 'files:write');
+    requireServiceScope(req, 'federation:write');
+  }
+
+  const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
+  if (!ownerUserId) {
+    throw new BadRequestError('x-owner-user-id must be a valid user id');
+  }
+
+  // Same reasoning as `/service/federation` above: a malformed id matches no
+  // row and gets the endpoint's existing "not an existing local user" 403.
+  const [owner] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, ownerUserId), eq(users.type, 'local')))
+    .limit(1);
+  if (!owner) {
+    throw new ForbiddenError('User media owner must be an existing local user');
+  }
+  return ownerUserId;
+}
+
+/**
  * @route POST /api/assets/service/user-media
  * @desc Stream-upload durable media into a normal public file owned by an
  *       existing local Oxy user. Used by Mention MCP intent-media when the
@@ -973,34 +1155,7 @@ router.post(
   serviceAuthMiddleware,
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
-    // Attributing a public file to a user is cross-tenant act-as authority, not
-    // ordinary application-owned file access, so it always needs a
-    // staff-granted scope. Two grants carry it:
-    //  - `files:user-media:write` — exactly this authority and nothing else
-    //    (Oxy Move imports a user's media with it);
-    //  - `files:write` + `federation:write` — the original pair, kept unchanged
-    //    for Mention's MCP intent-media.
-    // `files:write` alone is self-grantable and never enough.
-    if (!(req.serviceApp?.scopes ?? []).includes(USER_MEDIA_WRITE_SCOPE)) {
-      requireServiceScope(req, 'files:write');
-      requireServiceScope(req, 'federation:write');
-    }
-
-    const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
-    if (!ownerUserId) {
-      throw new BadRequestError('x-owner-user-id must be a valid user id');
-    }
-
-    // Same reasoning as `/service/federation` above: a malformed id matches no
-    // row and gets the endpoint's existing "not an existing local user" 403.
-    const [owner] = await getDb()
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.id, ownerUserId), eq(users.type, 'local')))
-      .limit(1);
-    if (!owner) {
-      throw new ForbiddenError('User media owner must be an existing local user');
-    }
+    const ownerUserId = await requireUserMediaOwner(req);
 
     const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
     if (!mime) {
@@ -1072,6 +1227,1170 @@ router.post(
       }
       throw error;
     }
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Application-owned files (ADR 0043)
+//
+// Files an Oxy APPLICATION owns — platform artwork no person owns. The owner
+// is ALWAYS the verified service token's `appId`: no header, body field or
+// query parameter names it, so a token can only ever reach its own
+// application's files. Another application's file answers exactly like no file
+// (404), so an id is never an ownership oracle.
+// ---------------------------------------------------------------------------
+
+/** Per-app ceiling for application-file uploads: an S3 write, like the cache's. */
+const appFileUploadLimiter = rateLimit({
+  prefix: 'rl:asset-app:upload:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_UPLOAD_MAX_PER_MINUTE,
+  message: 'Too many application file uploads. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:upload:${serviceApp.appId}`;
+    }
+    return `asset-app:upload:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/** Per-app ceiling for the cheaper application-file reads and writes. */
+const appFileManageLimiter = rateLimit({
+  prefix: 'rl:asset-app:manage:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many application file requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:manage:${serviceApp.appId}`;
+    }
+    return `asset-app:manage:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/** Rows per `GET /service/app` page. */
+const APP_FILE_LIST_DEFAULT_LIMIT = 50;
+const APP_FILE_LIST_MAX_LIMIT = 100;
+
+/**
+ * The calling application, admitted to act on its own files or references: it
+ * holds one of `scopes` AND, read live rather than from the hour-old token, it
+ * is `active`. The scope alone is not enough — a suspended application keeps a
+ * valid token until it expires.
+ *
+ * Any application type may hold these scopes (ADR 0043 D11): staff grant them
+ * to Oxy's own applications, a third-party application grants them to itself
+ * and its files count against its developer's plan (D3). The application is
+ * always the verified token's `appId` — never a header, body or query field.
+ */
+async function requireActiveApplication(
+  req: ServiceAuthRequest,
+  scopes: readonly ApplicationScope[],
+): Promise<string> {
+  const granted = req.serviceApp?.scopes ?? [];
+  if (!scopes.some((scope) => granted.includes(scope))) {
+    throw new ForbiddenError(`Missing required scope: ${scopes.join(' or ')}`);
+  }
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  const [application] = await getDb()
+    .select({ status: applications.status })
+    .from(applications)
+    .where(eq(applications.id, appId))
+    .limit(1);
+  if (application?.status !== 'active') {
+    throw new ForbiddenError('This application is not active');
+  }
+  return appId;
+}
+
+/** The wire shape of one application-owned file. */
+function serializeApplicationFile(file: FileRecord) {
+  return {
+    id: file.id,
+    sha256: file.sha256,
+    size: file.size,
+    mime: file.mime,
+    ext: file.ext,
+    ...(file.originalName === null ? {} : { originalName: file.originalName }),
+    ownerApplicationId: file.ownerApplicationId,
+    status: file.status,
+    visibility: file.visibility,
+    createdAt: file.createdAt,
+    updatedAt: file.updatedAt,
+  };
+}
+
+/** `<created_at ISO>|<id>`, base64url — opaque to callers, total order with the id tiebreak. */
+function encodeApplicationFileCursor(file: FileRecord): string {
+  return Buffer.from(`${file.createdAt.toISOString()}|${file.id}`, 'utf8').toString('base64url');
+}
+
+function decodeApplicationFileCursor(cursor: string): { createdAt: Date; id: string } {
+  const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+  const separator = decoded.indexOf('|');
+  const createdAt = new Date(decoded.slice(0, separator));
+  const id = decoded.slice(separator + 1);
+  if (separator <= 0 || id.length === 0 || Number.isNaN(createdAt.getTime())) {
+    throw new BadRequestError('Invalid cursor');
+  }
+  return { createdAt, id };
+}
+
+/**
+ * @route POST /api/assets/service/app
+ * @desc Stream-upload a file the CALLING APPLICATION owns (ADR 0043). Raw bytes
+ *       as the body (not multipart); `Content-Type` must be an image or video
+ *       type, at most 40 MiB. `x-visibility` (`public` | `unlisted` |
+ *       `private`) is REQUIRED — an application's file has no default audience.
+ *       Optional `x-original-name` and `x-media-metadata` (JSON) as on
+ *       `/service/user-media`. Idempotent per (application, bytes): a re-upload
+ *       answers 200 with the existing file, `deduplicated: true`, and its
+ *       visibility unchanged. A third-party application's bytes count toward
+ *       its developer account's storage plan, and over it the upload is refused
+ *       with 413 `STORAGE_QUOTA_EXCEEDED` (existing files keep being served);
+ *       Oxy's own applications are not metered (ADR 0043 D2/D3).
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:app:write']);
+
+    const visibility = getSingleHeader(req, 'x-visibility')?.trim();
+    const parsedVisibility = updateVisibilitySchema.shape.visibility.safeParse(visibility);
+    if (!parsedVisibility.success) {
+      throw new BadRequestError('x-visibility must be one of: public, unlisted, private');
+    }
+
+    const mime = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+    if (!mime) {
+      throw new BadRequestError('Content-Type header is required');
+    }
+    if (!(mime.startsWith('image/') || mime.startsWith('video/')) || !isAllowedCacheMime(mime)) {
+      throw new ApiError(
+        415,
+        'Unsupported media type for an application file',
+        'UNSUPPORTED_MEDIA_TYPE',
+      );
+    }
+
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > USER_MEDIA_MAX_BYTES) {
+      throw new ApiError(
+        413,
+        'Application file exceeds the maximum allowed size',
+        'PAYLOAD_TOO_LARGE',
+      );
+    }
+
+    const originalNameHeader = getSingleHeader(req, 'x-original-name');
+    const originalName =
+      originalNameHeader && originalNameHeader.trim().length > 0
+        ? originalNameHeader.trim().slice(0, 255)
+        : 'application-file';
+
+    const metadataHeader = getSingleHeader(req, 'x-media-metadata');
+    let metadata: Record<string, unknown> | undefined;
+    if (metadataHeader) {
+      try {
+        const parsed: unknown = JSON.parse(metadataHeader);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+          throw new Error('not an object');
+        }
+        metadata = parsed as Record<string, unknown>;
+      } catch {
+        throw new BadRequestError('x-media-metadata must be a JSON object');
+      }
+    }
+
+    try {
+      const { file, deduplicated } = await assetService.uploadApplicationFileStream(
+        req,
+        mime,
+        originalName,
+        USER_MEDIA_MAX_BYTES,
+        appId,
+        parsedVisibility.data,
+        metadata,
+      );
+
+      logger.info('Application file persisted', {
+        appId,
+        appName: req.serviceApp?.appName,
+        fileId: file.id,
+        deduplicated,
+        mime,
+        size: file.size,
+      });
+
+      sendSuccess(res, { file: serializeApplicationFile(file), deduplicated });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.name === 'CacheMediaTooLargeError' ||
+          (error instanceof ApiError && error.code === 'STORAGE_STREAM_TOO_LARGE'))
+      ) {
+        throw new ApiError(
+          413,
+          'Application file exceeds the maximum allowed size',
+          'PAYLOAD_TOO_LARGE',
+        );
+      }
+      // Only a third-party application is metered (ADR 0043 D3): say whose
+      // plan is full, so its developer knows where to look.
+      if (error instanceof ApiError && error.code === 'STORAGE_QUOTA_EXCEEDED') {
+        throw new ApiError(
+          413,
+          "This application's files count toward its developer account's storage plan, which is full. Existing files are still served.",
+          'STORAGE_QUOTA_EXCEEDED',
+        );
+      }
+      throw error;
+    }
+  }),
+);
+
+/**
+ * @route GET /api/assets/service/app
+ * @desc One page of the calling application's own live files, newest first.
+ *       `limit` (1–100, default 50) and the opaque `cursor` a previous page
+ *       returned as `nextCursor` (absent on the last page).
+ * @access Service token only: `files:app:write` or `files:app:delete`
+ */
+router.get(
+  '/service/app',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ query: listApplicationFilesQuerySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:app:write', 'files:app:delete']);
+    const rawLimit = singleQueryValue(req.query.limit);
+    const limit = Math.min(
+      Math.max(rawLimit ? Number.parseInt(rawLimit, 10) : APP_FILE_LIST_DEFAULT_LIMIT, 1),
+      APP_FILE_LIST_MAX_LIMIT,
+    );
+    const rawCursor = singleQueryValue(req.query.cursor);
+    const after = rawCursor ? decodeApplicationFileCursor(rawCursor) : undefined;
+
+    // One row past the page says whether another page exists.
+    const rows = await assetService.listApplicationFiles(appId, limit + 1, after);
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+
+    sendSuccess(res, {
+      files: page.map(serializeApplicationFile),
+      ...(rows.length > limit && last ? { nextCursor: encodeApplicationFileCursor(last) } : {}),
+    });
+  }),
+);
+
+/**
+ * @route PATCH /api/assets/service/app/:id/visibility
+ * @desc Change the visibility of one of the calling application's own files.
+ *       The objects are copied to the matching key spelling (`public/` or not)
+ *       and the old spelling is owed a delete, exactly as for an account's
+ *       file. 404 for any file that is not this application's live file.
+ * @access Service token only: `files:app:write`
+ */
+router.patch(
+  '/service/app/:id/visibility',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: assetIdParams, body: updateVisibilitySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:app:write']);
+    const { visibility } = req.body as z.infer<typeof updateVisibilitySchema>;
+
+    const file = await assetService.setApplicationFileVisibility(req.params.id, appId, visibility);
+    if (!file) {
+      throw new NotFoundError('File not found');
+    }
+
+    logger.info('Application file visibility updated', {
+      appId,
+      fileId: file.id,
+      visibility: file.visibility,
+    });
+
+    sendSuccess(res, { file: serializeApplicationFile(file) });
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/app/:id
+ * @desc Delete one of the calling application's own files: the row is
+ *       tombstoned and its storage owed in the same transaction, then purged
+ *       (`storage_object_deletions`, account `app:<appId>`). 404 for any file
+ *       that is not this application's live file; 409 `FILE_IN_USE` when
+ *       somebody else holds it (a link, a mail attachment, a listing
+ *       screenshot), which is kept.
+ * @access Service token only: `files:app:delete`
+ */
+router.delete(
+  '/service/app/:id',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:app:delete']);
+    const fileId = req.params.id;
+
+    const result = await assetService.deleteApplicationFile(fileId, appId);
+    logger.info('Audit: application file delete', {
+      event: 'application_file_delete',
+      appId,
+      credentialId: req.serviceApp?.credentialId,
+      fileId,
+      result,
+    });
+
+    if (result === 'not_found') {
+      throw new NotFoundError('File not found');
+    }
+    if (result === 'in_use') {
+      throw new ApiError(409, 'File is still in use', 'FILE_IN_USE');
+    }
+    sendSuccess(res, { id: fileId, result });
+  }),
+);
+
+/** Concurrent fetches one import batch runs at a time. */
+const IMPORT_BATCH_CONCURRENCY = 4;
+
+/** The source part of an import's answer: never the URL itself, which the caller sent. */
+function serializeImportSource(result: ImportResult) {
+  return {
+    host: result.source.host,
+    fetchedAt: result.source.fetchedAt,
+    ...(result.source.etag === null ? {} : { etag: result.source.etag }),
+    ...(result.source.lastModified === null ? {} : { lastModified: result.source.lastModified }),
+  };
+}
+
+function serializeAppImport(result: ImportResult) {
+  return {
+    file: serializeApplicationFile(result.file),
+    outcome: result.outcome,
+    deduplicated: result.deduplicated,
+    source: serializeImportSource(result),
+    ...(result.reference ? { reference: { result: result.reference } } : {}),
+  };
+}
+
+function serializeUserMediaImport(result: ImportResult) {
+  return {
+    file: {
+      id: result.file.id,
+      sha256: result.file.sha256,
+      size: result.file.size,
+      mime: result.file.mime,
+      visibility: result.file.visibility,
+      status: result.file.status,
+    },
+    outcome: result.outcome,
+    deduplicated: result.deduplicated,
+    source: serializeImportSource(result),
+    ...(result.reference ? { reference: { result: result.reference } } : {}),
+  };
+}
+
+type AppImportItem = z.infer<typeof appImportBodySchema>;
+
+/**
+ * Admit an application import: `files:app:write` on an active application,
+ * and `files:references:write` too when it asks for a reference — the same
+ * rule as `POST /assets/service/references` (ADR 0043 D7).
+ */
+async function admitAppImport(req: ServiceAuthRequest, wantsReference: boolean): Promise<string> {
+  const appId = await requireActiveApplication(req, ['files:app:write']);
+  if (wantsReference) await requireActiveApplication(req, ['files:references:write']);
+  return appId;
+}
+
+/**
+ * @route POST /api/assets/service/app/import
+ * @desc Import a file by URL; the CALLING APPLICATION owns it (ADR 0043 D7).
+ *       Body `{ sourceUrl, visibility, reference?: { entityType, entityId },
+ *       revalidate? }`. Oxy fetches `sourceUrl` itself — `https` only on every
+ *       hop, public addresses only, at most 5 redirects, no credentials, 40 MiB
+ *       and 60 s at most — and stores it through the ordinary upload pipeline
+ *       (image or video; deduplicated by content per application; variants).
+ *       The same URL imported again by the same application answers the
+ *       existing file without any request (`outcome: 'existing'`);
+ *       `revalidate: true` asks the source conditionally (ETag /
+ *       Last-Modified): `not_modified`, or `downloaded` with the new bytes as
+ *       a file of their own. `reference` registers this application's use of
+ *       the file in the same request (needs `files:references:write`), so an
+ *       import is never left unreferenced. Errors: 400 `INVALID_SOURCE_URL`,
+ *       422 `SOURCE_URL_REFUSED`, 502 `SOURCE_FETCH_FAILED`, 504
+ *       `SOURCE_FETCH_TIMEOUT`, 415 `UNSUPPORTED_MEDIA_TYPE`, 413
+ *       `PAYLOAD_TOO_LARGE` / `STORAGE_QUOTA_EXCEEDED`.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/import',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appImportBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const body = req.body as AppImportItem;
+    const appId = await admitAppImport(req, body.reference !== undefined);
+    const result = await fileImportService.importFromUrl(
+      { kind: 'application', applicationId: appId },
+      body,
+      appId,
+    );
+    sendSuccess(res, serializeAppImport(result));
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/app/import/batch
+ * @desc Up to 50 imports as above, `{ items: [...] }`, run 4 at a time. The
+ *       batch is 200; each item answers on its own, in order: `{ index, ok:
+ *       true, file, outcome, deduplicated, source, reference? }` or `{ index,
+ *       ok: false, error: { status, code, message } }`.
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         when an item asks for a reference), on an active application
+ */
+router.post(
+  '/service/app/import/batch',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appImportBatchBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const { items: requested } = req.body as { items: unknown };
+    // The schema already bounds the batch; restated here so the loop below is
+    // bounded by a real array of at most MAX_IMPORT_BATCH_ITEMS, never by a
+    // length the request body claims.
+    if (!Array.isArray(requested) || requested.length > MAX_IMPORT_BATCH_ITEMS) {
+      throw new BadRequestError(`items must be an array of at most ${MAX_IMPORT_BATCH_ITEMS}`);
+    }
+    const items: AppImportItem[] = requested;
+    const appId = await admitAppImport(
+      req,
+      items.some((item) => item.reference !== undefined),
+    );
+
+    const results: Array<Record<string, unknown>> = new Array(items.length);
+    let next = 0;
+    const work = async () => {
+      while (next < items.length) {
+        const index = next++;
+        try {
+          const result = await fileImportService.importFromUrl(
+            { kind: 'application', applicationId: appId },
+            items[index],
+            appId,
+          );
+          results[index] = { index, ok: true, ...serializeAppImport(result) };
+        } catch (error) {
+          if (!(error instanceof ApiError)) {
+            logger.error('Application import batch item failed', {
+              appId,
+              index,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          results[index] = {
+            index,
+            ok: false,
+            error:
+              error instanceof ApiError
+                ? { status: error.statusCode, code: error.code, message: error.message }
+                : { status: 500, code: 'INTERNAL_ERROR', message: 'The import failed' },
+          };
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(IMPORT_BATCH_CONCURRENCY, items.length) }, work),
+    );
+
+    logger.info('Application import batch', {
+      appId,
+      requested: items.length,
+      failed: results.filter((item) => item.ok === false).length,
+    });
+    sendSuccess(res, { results });
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/user-media/import
+ * @desc Import a file by URL into an ACCOUNT's files (ADR 0043 D7): the
+ *       account-owned equivalent of `/service/app/import`, with the authority
+ *       and owner of `/service/user-media` — `x-owner-user-id` names an
+ *       existing local user. Body `{ sourceUrl, visibility? (default public),
+ *       reference?, revalidate? }`; the same fetch, policies, once-per-URL
+ *       memory (per account) and answers. `reference` registers the CALLING
+ *       application's use of the file (needs `files:references:write`).
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/import',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ body: userMediaImportBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const ownerUserId = await requireUserMediaOwner(req);
+    const body = req.body as z.infer<typeof userMediaImportBodySchema>;
+    const appId = req.serviceApp?.appId;
+    if (typeof appId !== 'string' || appId.length === 0) {
+      throw new ForbiddenError('Service token carries no application id');
+    }
+    if (body.reference) await requireActiveApplication(req, ['files:references:write']);
+
+    const result = await fileImportService.importFromUrl(
+      { kind: 'account', userId: ownerUserId },
+      { ...body, visibility: body.visibility ?? 'public' },
+      appId,
+    );
+    logger.info('User media imported by URL', {
+      appId,
+      ownerUserId,
+      fileId: result.file.id,
+      outcome: result.outcome,
+    });
+    sendSuccess(res, serializeUserMediaImport(result));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Large uploads (ADR 0043 stage 4b): any type, up to 8 GiB, resumable. The
+// client PUTs parts to S3 on presigned URLs; the API verifies the assembled
+// bytes against the declared SHA-256 before they become a file
+// (`services/fileUploadSession.service.ts`).
+// ---------------------------------------------------------------------------
+
+type LargeUploadBody = z.infer<typeof appLargeUploadBodySchema>;
+
+function serializeUserMediaFile(file: FileRecord) {
+  return {
+    id: file.id,
+    sha256: file.sha256,
+    size: file.size,
+    mime: file.mime,
+    visibility: file.visibility,
+    status: file.status,
+  };
+}
+
+/** The wire view of an upload: `file` in the shape of the route family's other answers. */
+function serializeLargeUpload(view: LargeUploadView, kind: LargeUploadOwner['kind']) {
+  return {
+    uploadId: view.uploadId,
+    status: view.status,
+    size: view.size,
+    ...(view.partSize === undefined ? {} : { partSize: view.partSize, partCount: view.partCount }),
+    ...(view.expiresAt && (view.status === 'uploading' || view.status === 'verifying')
+      ? { expiresAt: view.expiresAt }
+      : {}),
+    ...(view.parts ? { parts: view.parts } : {}),
+    ...(view.uploadedParts ? { uploadedParts: view.uploadedParts } : {}),
+    ...(view.file
+      ? {
+          file:
+            kind === 'application'
+              ? serializeApplicationFile(view.file)
+              : serializeUserMediaFile(view.file),
+          deduplicated: view.deduplicated ?? false,
+        }
+      : {}),
+    ...(view.reference ? { reference: { result: view.reference } } : {}),
+    ...(view.error ? { error: { code: view.error.code, message: view.error.message } } : {}),
+  };
+}
+
+/**
+ * `complete`'s answer: 200 with the file, 202 while it is still being
+ * verified, and a failed upload's own error (422 `CHECKSUM_MISMATCH` /
+ * `SIZE_MISMATCH`, 451 `CONTENT_BLOCKED`, 413 `STORAGE_QUOTA_EXCEEDED`, 410
+ * `EXPIRED` / `ABORTED` / `OWNER_GONE`).
+ */
+function sendLargeUploadOutcome(
+  res: express.Response,
+  view: LargeUploadView,
+  kind: LargeUploadOwner['kind'],
+): void {
+  if ((view.status === 'failed' || view.status === 'aborted') && view.error) {
+    throw new ApiError(view.error.status, view.error.message, view.error.code, {
+      uploadId: view.uploadId,
+    });
+  }
+  sendSuccess(res, serializeLargeUpload(view, kind), view.status === 'verifying' ? 202 : 200);
+}
+
+/** The calling application, admitted to its own large uploads (and their reference). */
+async function admitAppLargeUpload(
+  req: ServiceAuthRequest,
+  wantsReference: boolean,
+): Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }> {
+  const appId = await admitAppImport(req, wantsReference);
+  return { owner: { kind: 'application', applicationId: appId }, uploaderApplicationId: appId };
+}
+
+/** An account's large uploads: `/service/user-media`'s authority and owner, by the calling application. */
+async function admitUserMediaLargeUpload(
+  req: ServiceAuthRequest,
+  wantsReference: boolean,
+): Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }> {
+  const ownerUserId = await requireUserMediaOwner(req);
+  const appId = req.serviceApp?.appId;
+  if (typeof appId !== 'string' || appId.length === 0) {
+    throw new ForbiddenError('Service token carries no application id');
+  }
+  if (wantsReference) await requireActiveApplication(req, ['files:references:write']);
+  return { owner: { kind: 'account', userId: ownerUserId }, uploaderApplicationId: appId };
+}
+
+/**
+ * The five large-upload handlers for one owner family. Both families share
+ * every rule; only who owns the file (and so who may continue the upload)
+ * differs. Mounted below with literal paths, each documented.
+ */
+function largeUploadHandlers(
+  kind: LargeUploadOwner['kind'],
+  admit: (
+    req: ServiceAuthRequest,
+    wantsReference: boolean,
+  ) => Promise<{ owner: LargeUploadOwner; uploaderApplicationId: string }>,
+) {
+  const load = async (req: ServiceAuthRequest) => {
+    const { owner, uploaderApplicationId } = await admit(req, false);
+    return fileUploadSessionService.load(req.params.uploadId, owner, uploaderApplicationId);
+  };
+  return {
+    open: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const body = req.body as LargeUploadBody;
+      const { owner, uploaderApplicationId } = await admit(req, body.reference !== undefined);
+      const view = await fileUploadSessionService.open(owner, uploaderApplicationId, {
+        ...body,
+        visibility: body.visibility ?? 'public',
+      });
+      sendSuccess(res, serializeLargeUpload(view, kind), view.uploadId ? 201 : 200);
+    }),
+    describe: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendSuccess(res, serializeLargeUpload(await fileUploadSessionService.describe(row), kind));
+    }),
+    parts: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      const { partNumbers } = req.body as { partNumbers: number[] };
+      const view = await fileUploadSessionService.requestPartUrls(row, partNumbers);
+      sendSuccess(res, serializeLargeUpload(view, kind));
+    }),
+    complete: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendLargeUploadOutcome(res, await fileUploadSessionService.complete(row), kind);
+    }),
+    abort: asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+      const row = await load(req);
+      sendSuccess(res, serializeLargeUpload(await fileUploadSessionService.abort(row), kind));
+    }),
+  };
+}
+
+const appLargeUpload = largeUploadHandlers('application', admitAppLargeUpload);
+const userMediaLargeUpload = largeUploadHandlers('account', admitUserMediaLargeUpload);
+
+/**
+ * @route POST /api/assets/service/app/uploads
+ * @desc Open (or resume) a large upload of a file the CALLING APPLICATION will
+ *       own (ADR 0043 stage 4b). Body `{ sha256, size, mime, visibility,
+ *       filename?, metadata?, reference? }`: any type but executables,
+ *       installers and active documents (HTML, SVG, XML, scripts — 415), at
+ *       most 8 GiB (413), never blocked bytes (451), within a third-party
+ *       application's developer plan (413 `STORAGE_QUOTA_EXCEEDED`, D3).
+ *       201 `{ uploadId, status: 'uploading', partSize, partCount, expiresAt,
+ *       parts: [{ partNumber, url, size }] }` — the first 100 part URLs; PUT
+ *       exactly `size` bytes to each. The same bytes already open answer that
+ *       session, with the parts storage holds (`uploadedParts`) and URLs for
+ *       the missing ones. Bytes the application already owns answer 200
+ *       `{ uploadId: null, status: 'completed', file, deduplicated: true }`.
+ *       An upload not completed within a day of its last part-URL request (a
+ *       week at most) is aborted. Non-media types are stored and served with
+ *       `Content-Disposition: attachment`.
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         for `reference`), on an active application
+ */
+router.post(
+  '/service/app/uploads',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appLargeUploadBodySchema }),
+  appLargeUpload.open,
+);
+
+/**
+ * @route GET /api/assets/service/app/uploads/:uploadId
+ * @desc One of this application's large uploads as it stands: `status`
+ *       (`uploading` | `verifying` | `completed` | `failed` | `aborted`), the
+ *       parts storage holds while uploading (`uploadedParts`), the `file` once
+ *       completed, the `error` once failed. Poll it after a 202 `complete`.
+ *       Another application's upload is 404.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.get(
+  '/service/app/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.describe,
+);
+
+/**
+ * @route POST /api/assets/service/app/uploads/:uploadId/parts
+ * @desc Presigned part URLs: `{ partNumbers }` (1–100) → `{ parts: [{
+ *       partNumber, url, size }] }`, valid an hour; also slides the upload's
+ *       idle deadline. 409 once the upload is no longer `uploading`.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/uploads/:uploadId/parts',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams, body: largeUploadPartsBodySchema }),
+  appLargeUpload.parts,
+);
+
+/**
+ * @route POST /api/assets/service/app/uploads/:uploadId/complete
+ * @desc Assemble the parts, then VERIFY: Oxy hashes the assembled file and
+ *       only bytes matching the declared `sha256` become a file. 200 `{
+ *       status: 'completed', file, deduplicated, reference? }`; 202 `{ status:
+ *       'verifying' }` when it takes longer (poll the GET); 409
+ *       `UPLOAD_INCOMPLETE` naming missing or mis-sized parts (the upload stays
+ *       open); a failed upload's own error — 422 `CHECKSUM_MISMATCH` /
+ *       `SIZE_MISMATCH`, 451 `CONTENT_BLOCKED`, 413 `STORAGE_QUOTA_EXCEEDED`,
+ *       410 `EXPIRED` / `ABORTED` / `OWNER_GONE`. Idempotent.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.post(
+  '/service/app/uploads/:uploadId/complete',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/app/uploads/:uploadId
+ * @desc Abort an unfinished large upload: storage discards its parts and any
+ *       reservation is released. 409 while it is being verified.
+ * @access Service token only: `files:app:write`, on an active application
+ */
+router.delete(
+  '/service/app/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  appLargeUpload.abort,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads
+ * @desc The account-owned twin of `POST /service/app/uploads`, with
+ *       `/service/user-media`'s authority and owner: `x-owner-user-id` names an
+ *       existing local user, on EVERY call of the upload; `visibility`
+ *       defaults to `public`. Only the application that opened an upload can
+ *       continue it, for that owner.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ body: userMediaLargeUploadBodySchema }),
+  userMediaLargeUpload.open,
+);
+
+/**
+ * @route GET /api/assets/service/user-media/uploads/:uploadId
+ * @desc As `GET /service/app/uploads/:uploadId`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.get(
+  '/service/user-media/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.describe,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads/:uploadId/parts
+ * @desc As `POST /service/app/uploads/:uploadId/parts`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads/:uploadId/parts',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams, body: largeUploadPartsBodySchema }),
+  userMediaLargeUpload.parts,
+);
+
+/**
+ * @route POST /api/assets/service/user-media/uploads/:uploadId/complete
+ * @desc As `POST /service/app/uploads/:uploadId/complete`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.post(
+  '/service/user-media/uploads/:uploadId/complete',
+  serviceAuthMiddleware,
+  cacheUploadLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.complete,
+);
+
+/**
+ * @route DELETE /api/assets/service/user-media/uploads/:uploadId
+ * @desc As `DELETE /service/app/uploads/:uploadId`, for an account's upload.
+ * @access Privileged service token only: files:user-media:write, or
+ *         files:write together with federation:write
+ */
+router.delete(
+  '/service/user-media/uploads/:uploadId',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ params: largeUploadParams }),
+  userMediaLargeUpload.abort,
+);
+
+/** How widely each visibility shows a file: an adopted copy may not show it wider. */
+const VISIBILITY_REACH: Record<FileVisibility, number> = { private: 0, unlisted: 1, public: 2 };
+
+/**
+ * @route POST /api/assets/service/app/adopt
+ * @desc The CALLING APPLICATION takes ownership of a file it can read,
+ *       without uploading it again (ADR 0043 stage 4b): `{ fileId,
+ *       visibility, reference? }` → its own row of the same bytes (the stored
+ *       object is shared; a server-side copy only when the spelling the
+ *       visibility needs does not exist yet). Readable means what a reference
+ *       may name: any owner's active `public` or `unlisted` file, an account's
+ *       private file its owner attached to this application (ADR 0021), or the
+ *       application's own file (answered as it is). The copy may not be MORE
+ *       visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`): a
+ *       person's private file shared with the application stays private.
+ *       Anything else is 404, like no file; blocked bytes are 451. The
+ *       application's existing file of the same bytes answers
+ *       `deduplicated: true`, visibility unchanged. Answer `{ file, outcome:
+ *       'adopted' | 'existing', deduplicated, reference? }`. The adopted file
+ *       is the application's: it outlives the source (whose owner may delete
+ *       it), is collected when unused (D5) and counts toward a third-party
+ *       application's plan (D3).
+ * @access Service token only: `files:app:write` (and `files:references:write`
+ *         for `reference`), on an active application
+ */
+router.post(
+  '/service/app/adopt',
+  serviceAuthMiddleware,
+  appFileUploadLimiter,
+  validate({ body: appAdoptBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const body = req.body as z.infer<typeof appAdoptBodySchema>;
+    const appId = await admitAppImport(req, body.reference !== undefined);
+
+    const source = await assetService.getFile(body.fileId);
+    if (!source || source.status === 'deleted') throw new NotFoundError('File not found');
+    // Taken-down bytes answer as such whoever holds them (ADR 0043 D10).
+    if (
+      source.status === 'blocked' &&
+      mayApplicationReference({ ...source, status: 'active' }, appId)
+    ) {
+      throw new ContentBlockedError();
+    }
+    if (!mayApplicationReference(source, appId)) throw new NotFoundError('File not found');
+
+    let result: { file: FileRecord; deduplicated: boolean };
+    let outcome: 'adopted' | 'existing';
+    if (source.ownerApplicationId === appId) {
+      result = {
+        file: await assetService.reuseOwnLiveFile(source, {
+          ownerUserId: null,
+          systemOwner: null,
+          ownerApplicationId: appId,
+        }),
+        deduplicated: true,
+      };
+      outcome = 'existing';
+    } else {
+      if (VISIBILITY_REACH[body.visibility] > VISIBILITY_REACH[source.visibility]) {
+        throw new ApiError(
+          400,
+          `The adopted file cannot be more visible than the source (${source.visibility})`,
+          'VISIBILITY_WIDER_THAN_SOURCE',
+        );
+      }
+      result = await assetService.adoptFileForApplication(source, appId, body.visibility);
+      outcome = result.deduplicated ? 'existing' : 'adopted';
+    }
+
+    let reference: 'created' | 'exists' | 'not_found' | undefined;
+    if (body.reference) {
+      if (mayApplicationReference(result.file, appId)) {
+        const { created } = await assetService.linkFile(result.file.id, {
+          applicationId: appId,
+          entityType: body.reference.entityType,
+          entityId: body.reference.entityId,
+          createdByUserId: null,
+        });
+        reference = created ? 'created' : 'exists';
+        result.file = (await assetService.getFile(result.file.id)) ?? result.file;
+      } else {
+        reference = 'not_found';
+      }
+    }
+
+    logger.info('Application file adopted', {
+      appId,
+      sourceFileId: source.id,
+      fileId: result.file.id,
+      outcome,
+    });
+    sendSuccess(res, {
+      file: serializeApplicationFile(result.file),
+      outcome,
+      deduplicated: result.deduplicated,
+      ...(reference ? { reference: { result: reference } } : {}),
+    });
+  }),
+);
+
+/** One item of a reference batch, as the body names it. */
+type ServiceReferenceItem = { fileId: string; entityType: string; entityId: string };
+
+/**
+ * @route POST /api/assets/service/references
+ * @desc The calling application records that it uses files (ADR 0043 D4):
+ *       `{ references: [{ fileId, entityType, entityId }] }`, 1–100. The
+ *       application is the token's `appId`; a body naming one is refused.
+ *       Allowed: the application's OWN file (a trashed one comes back to
+ *       `active`); any owner's `active` `public` or `unlisted` file; an
+ *       account's `active` private file its owner attached to this
+ *       application (ADR 0021). Never another application's private file.
+ *       A reference never changes the file's visibility.
+ *
+ *       Per item: `created`, `exists` (already referenced, nothing changed) or
+ *       `not_found` — a file that does not exist and one the application may
+ *       not reference answer alike. The batch itself is 200.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.post(
+  '/service/references',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ body: serviceReferencesBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { references } = req.body as { references: ServiceReferenceItem[] };
+
+    const files = new Map(
+      (await assetService.getFilesByIds([...new Set(references.map((item) => item.fileId))])).map(
+        (file) => [file.id, file],
+      ),
+    );
+
+    const results: Array<ServiceReferenceItem & { result: 'created' | 'exists' | 'not_found' }> =
+      [];
+    for (const item of references) {
+      const file = files.get(item.fileId);
+      if (!file || !mayApplicationReference(file, appId)) {
+        results.push({ ...item, result: 'not_found' });
+        continue;
+      }
+      const { file: updated, created } = await assetService.linkFile(item.fileId, {
+        applicationId: appId,
+        entityType: item.entityType,
+        entityId: item.entityId,
+        createdByUserId: null,
+      });
+      files.set(updated.id, updated);
+      results.push({ ...item, result: created ? 'created' : 'exists' });
+    }
+
+    logger.info('Application references added', {
+      appId,
+      requested: references.length,
+      created: results.filter((item) => item.result === 'created').length,
+      refused: results.filter((item) => item.result === 'not_found').length,
+    });
+
+    sendSuccess(res, { results });
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/references
+ * @desc The calling application stops using files (ADR 0043 D4): the same
+ *       body as POST. Removes only references THIS application holds — never
+ *       another application's, never a person's from another application.
+ *       Removing a reference never trashes, deletes or re-publishes the file.
+ *
+ *       Per item: `removed` or `not_found` (no such reference for this
+ *       application). The batch itself is 200.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.delete(
+  '/service/references',
+  serviceAuthMiddleware,
+  appFileManageLimiter,
+  validate({ body: serviceReferencesBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { references } = req.body as { references: ServiceReferenceItem[] };
+
+    const results: Array<ServiceReferenceItem & { result: 'removed' | 'not_found' }> = [];
+    for (const item of references) {
+      let removed = false;
+      try {
+        ({ removed } = await assetService.unlinkFile(item.fileId, {
+          applicationId: appId,
+          entityType: item.entityType,
+          entityId: item.entityId,
+        }));
+      } catch (error) {
+        if (!(error instanceof Error && error.message === 'File not found')) throw error;
+      }
+      results.push({ ...item, result: removed ? 'removed' : 'not_found' });
+    }
+
+    logger.info('Application references removed', {
+      appId,
+      requested: references.length,
+      removed: results.filter((item) => item.result === 'removed').length,
+    });
+
+    sendSuccess(res, { results });
+  }),
+);
+
+/**
+ * Its own limiter: an inventory of a large entity type is hundreds of pages,
+ * and must not starve the same application's per-write reference calls.
+ */
+const appReferenceReconcileLimiter = rateLimit({
+  prefix: 'rl:asset-app:reconcile:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: CACHE_DELETE_MAX_PER_MINUTE,
+  message: 'Too many reconciliation requests. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-app:reconcile:${serviceApp.appId}`;
+    }
+    return `asset-app:reconcile:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * @route POST /api/assets/service/references/reconcile
+ * @desc Begin reconciling the calling application's references of ONE entity
+ *       type (ADR 0043 D6): `{ entityType }` → `{ sessionId, entityType,
+ *       expiresAt }`. Then send the full inventory with `PUT
+ *       …/reconcile/:sessionId` and apply it with `POST …/commit`. One session
+ *       per (application, entity type) at a time: 409
+ *       `RECONCILIATION_IN_PROGRESS` while another is open. A session expires
+ *       an hour after its last page.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.post(
+  '/service/references/reconcile',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ body: beginReconcileBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { entityType } = req.body as z.infer<typeof beginReconcileBodySchema>;
+    const session = await beginReconciliation(appId, entityType);
+    logger.info('Reference reconciliation begun', { appId, entityType, sessionId: session.id });
+    sendSuccess(res, {
+      sessionId: session.id,
+      entityType: session.entityType,
+      expiresAt: session.expiresAt,
+    });
+  }),
+);
+
+/**
+ * @route PUT /api/assets/service/references/reconcile/:sessionId
+ * @desc One page of the inventory: `{ items: [{ fileId, entityId }] }`, 1–1000
+ *       pairs. A pair sent twice counts once. Answers `{ accepted, total,
+ *       expiresAt }`; each page moves the deadline an hour ahead. 404 for no
+ *       such session of this application, 410 `RECONCILIATION_EXPIRED`, 409
+ *       `RECONCILIATION_NOT_OPEN` once committed, 413 past 500,000 pairs.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.put(
+  '/service/references/reconcile/:sessionId',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams, body: reconcilePageBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { items } = req.body as z.infer<typeof reconcilePageBodySchema>;
+    const result = await putReconciliationItems(appId, req.params.sessionId, items);
+    sendSuccess(res, { sessionId: req.params.sessionId, ...result });
+  }),
+);
+
+/**
+ * @route POST /api/assets/service/references/reconcile/:sessionId/commit
+ * @desc Diff the inventory against this application's references of the
+ *       session's entity type and apply it: add each missing reference the
+ *       application may hold (the rules of `POST /assets/service/references`;
+ *       a file it may not reference, or none, is `refused`), remove each
+ *       reference created before the session began that the inventory does
+ *       not list — which never trashes or deletes a file — and count the rest
+ *       `unchanged`. `{ dryRun: true }` counts the same and changes nothing,
+ *       leaving the session open. Answers `{ sessionId, entityType, dryRun,
+ *       added, removed, unchanged, refused }`.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.post(
+  '/service/references/reconcile/:sessionId/commit',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams, body: commitReconcileBodySchema }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    const { dryRun } = req.body as z.infer<typeof commitReconcileBodySchema>;
+    const result = await commitReconciliation(appId, req.params.sessionId, { dryRun });
+    sendSuccess(res, result);
+  }),
+);
+
+/**
+ * @route DELETE /api/assets/service/references/reconcile/:sessionId
+ * @desc Release an open session without committing it, so the next `begin`
+ *       for its entity type need not wait for it to expire. 404 when this
+ *       application holds no such open session.
+ * @access Service token only: `files:references:write`, on an active application
+ */
+router.delete(
+  '/service/references/reconcile/:sessionId',
+  serviceAuthMiddleware,
+  appReferenceReconcileLimiter,
+  validate({ params: reconcileSessionParams }),
+  asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
+    const appId = await requireActiveApplication(req, ['files:references:write']);
+    if (!(await abandonReconciliation(appId, req.params.sessionId))) {
+      throw new NotFoundError('Reconciliation session not found');
+    }
+    sendSuccess(res, { sessionId: req.params.sessionId, status: 'abandoned' });
   }),
 );
 
@@ -1314,10 +2633,17 @@ router.post(
  *                       ownerUserId:
  *                         type: [string, "null"]
  *                         description: >
- *                           The owning Oxy user (null for a system-owned file).
+ *                           The owning Oxy user (null for a system- or
+ *                           application-owned file).
  *                           Present ONLY for Oxy's own applications (internal-tier
  *                           service tokens), so a first-party service can check an
  *                           attached asset belongs to the acting user.
+ *                       ownerApplicationId:
+ *                         type: string
+ *                         description: >
+ *                           The owning application, for an application-owned
+ *                           file only (ADR 0043). Revealed on the same terms as
+ *                           `ownerUserId`.
  *       400:
  *         description: Validation failed (empty array or more than 100 ids).
  *       401:
@@ -1384,6 +2710,9 @@ router.post(
           ...(media.orientation !== undefined ? { orientation: media.orientation } : {}),
           ...(media.aspectRatio !== undefined ? { aspectRatio: media.aspectRatio } : {}),
           ...(revealOwner ? { ownerUserId: file.ownerUserId ?? null } : {}),
+          ...(revealOwner && file.ownerApplicationId
+            ? { ownerApplicationId: file.ownerApplicationId }
+            : {}),
         };
       });
 
@@ -1447,36 +2776,9 @@ const assetLinkedUrlLimiter = rateLimit({
   },
 });
 
-/**
- * True when `file` was attached to `appId` BY ITS OWN OWNER.
- *
- * This predicate is the whole authorization of the route below, so it is worth
- * being explicit about what it is NOT. It is not "the app holds a service
- * token" — every caller here does. It is not "a link for this app exists":
- * `assetService.linkFile` performs no ownership check at all, so any
- * authenticated user can link any file id they can name into any app, and a
- * bare link test would make this route "read any file whose id you can guess,
- * after one call you make yourself". And it is not the file's `visibility`,
- * which says who may VIEW it in Oxy's own surfaces and has nothing to say about
- * a third-party service.
- *
- * It is the conjunction, and the conjunction is not forgeable by anyone but the
- * owner: `file_links.created_by` is always `req.user._id` at the one route that
- * writes it, so a link satisfying `created_by = owner_user_id` can only have
- * been created by someone holding the owner's own credentials. A user who
- * attaches their own file to an application has performed the act a consent
- * screen would have asked about, per file, revocably (they can unlink it).
- *
- * System-owned files (`owner_user_id is null`, the federation namespaces) can
- * never satisfy it: `null === link.createdBy` is false for every link, because
- * `created_by` is NOT NULL. That is the correct answer rather than an edge case
- * to handle — nobody consented to a federation cache entry leaving the platform,
- * and there is no owner who could.
- */
-function isOwnerLinkedToApp(file: FileRecord, appId: string): boolean {
-  if (!file.ownerUserId) return false;
-  return file.links.some((link) => link.app === appId && link.createdBy === file.ownerUserId);
-}
+// The linked-url predicate — the file's own owner attached it to the calling
+// application (ADR 0021) — is `isOwnerReferencedToApp` in
+// `services/fileReference.service.ts`, shared with the reference routes.
 
 /**
  * @openapi
@@ -1488,10 +2790,13 @@ function isOwnerLinkedToApp(file: FileRecord, appId: string): boolean {
  *     description: >
  *       Service-token-only. Given up to 25 file ids, returns a short-lived
  *       direct download URL for each file that THE FILE'S OWN OWNER attached to
- *       the calling application — i.e. a `file_links` row whose `app` is the
- *       caller's and whose `created_by` is the file's `owner_user_id`. Any other
- *       id is silently OMITTED from `data`: unknown, deleted, system-owned, not
- *       linked to this app, or linked by somebody other than the owner. The
+ *       the calling application — i.e. a `file_references` row whose
+ *       `application_id` is the caller's and whose `created_by_user_id` is the
+ *       file's `owner_user_id` — and for each of the caller's OWN files (ADR
+ *       0043). Any other id is silently OMITTED from `data`: unknown, deleted,
+ *       system-owned, not referenced for this app, or referenced by somebody
+ *       other than the owner (an application's own service-made reference
+ *       never qualifies). The
  *       batch never 404s as a whole and never returns a placeholder or an empty
  *       string for a refused id, so a caller cannot tell "no such file" from
  *       "not yours" — and must treat absence as "no URL", never as an error to
@@ -1579,7 +2884,8 @@ router.post(
 
     const data = await Promise.all(
       files
-        .filter((file) => file.status !== 'deleted' && isOwnerLinkedToApp(file, appId))
+        // Only an `active` file is ever served (ADR 0043 D5): trash is not.
+        .filter((file) => isServableStatus(file) && isOwnerReferencedToApp(file, appId))
         .map(async (file) => ({
           id: file.id,
           url: await s3Service.getPresignedDownloadUrl(file.storageKey, LINKED_URL_TTL_SECONDS),
@@ -1749,9 +3055,44 @@ router.post(
 );
 
 /**
+ * The application a signed-in session's reference is recorded under (ADR 0043
+ * D4, the compatibility surface).
+ *
+ * A session bound to ONE application (an untrusted OAuth client's) is that
+ * application, whatever the body says; a body naming a different application
+ * is refused. The shared device session every official app uses cannot say
+ * which app it is (`sessions.application_id` is NULL by design), so for it the
+ * body's `app` is all there is: an application id, or one of the legacy
+ * strings migration 0171 maps (`utils/legacyFileLinkApplications.ts`). A
+ * string that names no single active application is refused — a reference is
+ * never recorded against free text again.
+ */
+async function resolveSessionReferenceApplication(
+  req: AuthenticatedRequest,
+  app: string,
+): Promise<string> {
+  const bound = req.oxyToken?.applicationId ?? null;
+  const named = await resolveReferenceApplicationId(app);
+  if (bound) {
+    if (named !== null && named !== bound) {
+      throw new ForbiddenError('This session belongs to a different application');
+    }
+    return bound;
+  }
+  if (!named) {
+    throw new BadRequestError(`"${app}" names no application`);
+  }
+  return named;
+}
+
+/**
  * @route POST /api/assets/:id/links
- * @desc Link file to an entity
- * @access Private
+ * @desc Record that an application uses the caller's file (`file_references`,
+ *       ADR 0043 D4). Compatibility surface: an application should use
+ *       `POST /assets/service/references` with its own token. `visibility`,
+ *       when sent, is an explicit change by the owner — a reference itself
+ *       never changes visibility.
+ * @access Private — the file's owner only; anybody else gets 403
  */
 router.post(
   '/:id/links',
@@ -1774,18 +3115,38 @@ router.post(
       throw error;
     }
 
-    const linkRequest = {
-      ...validatedData,
-      createdBy: user._id,
-      webhookUrl: validatedData.webhookUrl,
-    };
+    // A reference is a USE of the file and pulls it out of trash, and the
+    // body may change its visibility. Naming someone else's id used to do all
+    // of that to their file.
+    const target = await assetService.getFile(fileId);
+    if (!target) {
+      throw new NotFoundError('File not found');
+    }
+    if (!(await sessionOwnsFile(req, target))) {
+      throw new ForbiddenError('You do not own this file');
+    }
 
-    const file = await assetService.linkFile(fileId, linkRequest);
+    const applicationId = await resolveSessionReferenceApplication(req, validatedData.app);
+
+    // The owner's explicit choice, never inferred from the entity type.
+    if (validatedData.visibility && validatedData.visibility !== target.visibility) {
+      await assetService.updateFileVisibility(fileId, validatedData.visibility);
+    }
+
+    const { file } = await assetService.linkFile(fileId, {
+      applicationId,
+      entityType: validatedData.entityType,
+      entityId: validatedData.entityId,
+      createdByUserId: user._id.toString(),
+      // `webhookUrl` in the body is ignored (ADR 0043 D9): file events go to
+      // the application's own verified endpoint.
+    });
 
     logger.info('File linked successfully', {
       userId: user._id,
       fileId,
-      linkRequest,
+      applicationId,
+      entityType: validatedData.entityType,
     });
 
     sendSuccess(res, {
@@ -1802,7 +3163,14 @@ router.post(
 
 /**
  * @route DELETE /api/assets/:id/links
- * @desc Remove link from file
+ * @desc Remove one application's use of a file. The file's OWNER may remove
+ *       any reference to it; anybody else only a reference they created
+ *       themselves (404 otherwise). Removing a reference never trashes or
+ *       deletes the file — not even the owner's last one (ADR 0043 D5): the
+ *       file stays `active` and is reported `inUse: false`.
+ *       An application removes the references it holds with its own token
+ *       (`DELETE /assets/service/references`) — how GoWay must withdraw a
+ *       contributor's photo from a place (ADR 0043 D12).
  * @access Private
  */
 router.delete(
@@ -1816,34 +3184,59 @@ router.delete(
     }
 
     const { id: fileId } = req.params;
-    let validatedData;
+    let validatedData: z.infer<typeof unlinkFileSchema>;
     try {
       validatedData = unlinkFileSchema.parse(req.body);
-    } catch (error: any) {
-      if (error.name === 'ZodError') {
+    } catch (error) {
+      if (error instanceof z.ZodError) {
         throw new ValidationError('Invalid request data', { details: error.errors });
       }
       throw error;
     }
 
-    const file = await assetService.unlinkFile(
+    const target = await assetService.getFile(fileId);
+    if (!target) {
+      throw new NotFoundError('File not found');
+    }
+    const isOwner = await sessionOwnsFile(req, target);
+    const applicationId = await resolveSessionReferenceApplication(req, validatedData.app);
+
+    // A non-owner removes only what it made: the subject's own references,
+    // or its operator's. It used to remove anybody's link on anybody's file.
+    const operatorId = isOwner ? null : await resolveOperatorId(req);
+    const creators = [user._id.toString(), ...(operatorId ? [operatorId] : [])];
+    const { file, removed } = await assetService.unlinkFile(
       fileId,
-      validatedData.app,
-      validatedData.entityType,
-      validatedData.entityId,
+      {
+        applicationId,
+        entityType: validatedData.entityType,
+        entityId: validatedData.entityId,
+      },
+      isOwner ? {} : { createdByUserIds: creators },
     );
+    if (!isOwner && !removed) {
+      throw new NotFoundError('Reference not found');
+    }
 
     logger.info('File unlinked successfully', {
       userId: user._id,
       fileId,
-      unlinkRequest: validatedData,
+      applicationId,
+      removed,
     });
+
+    // A non-owner sees only its own references, as on `GET /assets/:id`.
+    const visibleLinks = isOwner
+      ? file.links
+      : file.links.filter(
+          (link) => link.createdByUserId !== null && creators.includes(link.createdByUserId),
+        );
 
     sendSuccess(res, {
       file: {
         id: file.id,
         usageCount: file.links.length,
-        links: file.links.map(serializeLink),
+        links: visibleLinks.map(serializeLink),
         status: file.status,
       },
     });
@@ -1859,9 +3252,12 @@ router.delete(
  *     summary: Get file metadata
  *     description: >
  *       Return metadata for the file (size, MIME, SHA-256, variants, links,
- *       usage count, status). Only the owner can fetch metadata; signed
- *       URLs (`/assets/:id/url` or `/assets/:id/stream`) are the public
- *       access path.
+ *       usage count, status). The owner (the session's subject or its
+ *       operator) gets every link. Anybody else gets a `public` or `unlisted`
+ *       file — one already readable by whoever has its link — with only the
+ *       links they created themselves, and a 404 for a `private` one. Signed
+ *       URLs (`/assets/:id/url` or `/assets/:id/stream`) are the access path
+ *       for bytes.
  *     parameters:
  *       - name: id
  *         in: path
@@ -1889,12 +3285,34 @@ router.get(
     const { id: fileId } = req.params;
     const file = await assetService.getFile(fileId);
 
-    if (!file) {
+    // A PRIVATE application-owned file (ADR 0043) is readable by no person:
+    // only its owning application, through its own service token. Its
+    // metadata — variant keys, links, original name — is not served to a
+    // session either; to a session it does not exist.
+    if (!file || (file.ownerApplicationId && file.visibility === 'private')) {
       throw new NotFoundError('File not found');
     }
 
+    // Somebody else's PRIVATE file does not exist to this caller. A public or
+    // unlisted one may be described — whoever has the link can read the bytes
+    // anyway, and Mercaria's catalog check reads a store's or a manufacturer's
+    // public file this way — but its links are the owner's record of where it
+    // is used (other people's entity ids, webhook URLs), so a non-owner sees
+    // only the links it created itself.
+    const isOwner = await sessionOwnsFile(req, file);
+    if (!isOwner && file.visibility === 'private') {
+      throw new NotFoundError('File not found');
+    }
     if (!(await assetService.canUserAccessFile(file, user._id)))
       throw new ForbiddenError('Access denied');
+    const operatorId = isOwner ? null : await resolveOperatorId(req);
+    const visibleLinks = isOwner
+      ? file.links
+      : file.links.filter(
+          (link) =>
+            link.createdByUserId !== null &&
+            (link.createdByUserId === user._id.toString() || link.createdByUserId === operatorId),
+        );
 
     logger.debug('File metadata retrieved', {
       userId: user._id,
@@ -1911,12 +3329,17 @@ router.get(
         ext: file.ext,
         originalName: file.originalName,
         ownerUserId: file.ownerUserId,
+        // Present only on an application-owned file (ADR 0043), so an
+        // account's file keeps exactly the wire shape it always had.
+        ...(!file.ownerApplicationId ? {} : { ownerApplicationId: file.ownerApplicationId }),
         status: file.status,
         visibility: file.visibility,
         usageCount: file.links.length,
+        // The owner's record of whether the file is in use; not anybody else's.
+        ...(isOwner ? serializeLifecycle(file) : {}),
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
-        links: file.links.map(serializeLink),
+        links: visibleLinks.map(serializeLink),
         variants: file.variants.map(serializeVariant),
         metadata: file.metadata,
       },
@@ -1991,7 +3414,8 @@ router.get(
     const expiry = typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : 3600;
 
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // A file in trash (or deleted) is never served, so it has no URL (ADR 0043 D5).
+    if (!file || !isServableStatus(file)) {
       throw new NotFoundError('File not found');
     }
 
@@ -2047,7 +3471,7 @@ router.get(
 /**
  * @route GET /api/assets/:id/exists
  * @desc Debug: return storageKey and existence of the underlying object
- * @access Private
+ * @access Private — the file's owner only; any other caller gets 404
  */
 router.get(
   '/:id/exists',
@@ -2061,7 +3485,9 @@ router.get(
 
     const { id: fileId } = req.params;
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // The storage key is storage detail of somebody's file, and an answer at
+    // all says the id exists: neither is any caller's business but the owner's.
+    if (!file || !(await sessionOwnsFile(req, file))) {
       throw new NotFoundError('File not found');
     }
 
@@ -2133,7 +3559,11 @@ router.get(
     const fallback = typeof req.query.fallback === 'string' ? req.query.fallback : '';
 
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    // Only an `active` file is served — never one in trash or deleted, by
+    // origin OR by the CDN redirect below (ADR 0043 D5, OxyHQ/oxy#1284: the
+    // fast path used to redirect a trashed public file to the CDN). It answers
+    // exactly like a missing one.
+    if (!file || !isServableStatus(file)) {
       if (fallback === 'placeholderVisible' || fallback === 'icon') {
         const svg = generateMissingFilePlaceholder(fileId);
         res.setHeader('Content-Type', 'image/svg+xml');
@@ -2280,6 +3710,14 @@ router.get(
       if (streamInfo.contentType) {
         res.setHeader('Content-Type', streamInfo.contentType);
       }
+      // Only media a browser renders without running anything is inline; any
+      // other type (HTML, SVG, XML… a mail attachment, a large upload) is a
+      // download, and sandboxed in case a browser renders it anyway — it must
+      // never run as this origin (ADR 0043 stage 4b, `fileContentPolicy.ts`).
+      if (contentDispositionFor(streamInfo.contentType ?? file.mime) === 'attachment') {
+        res.setHeader('Content-Disposition', 'attachment');
+        res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+      }
       if (streamInfo.contentLength != null) {
         res.setHeader('Content-Length', String(streamInfo.contentLength));
       }
@@ -2349,9 +3787,9 @@ router.get(
     const { id: fileId } = req.params;
     const { variant, expiresIn } = req.query;
 
-    // Get file and check permissions
+    // Get file and check permissions. Never a file in trash or deleted (D5).
     const file = await assetService.getFile(fileId);
-    if (!file) {
+    if (!file || !isServableStatus(file)) {
       throw new NotFoundError('File not found');
     }
 
@@ -2398,13 +3836,19 @@ router.get(
 );
 
 /**
- * @route POST /api/assets/:id/restore
- * @desc Restore file from trash
- * @access Private
+ * @route POST /api/assets/:id/trash
+ * @desc The owner moves their own file to trash (ADR 0043 D5): it stops being
+ *       served at once (and leaves the CDN), stays in the owner's files with
+ *       `status: 'trash'` and `trashedAt`, and is kept until the owner
+ *       restores (`POST /:id/restore`) or deletes it — an account's trash
+ *       never expires. Every application using the file is told
+ *       `file.trashed` (D9). Already in trash: answered as it is. Any other
+ *       caller, and a deleted file, get 404.
+ * @access Private — the file's owner only
  */
 router.post(
-  '/:id/restore',
-  authMiddleware,
+  '/:id/trash',
+  ownAssetAuth,
   validate({ params: assetIdParams }),
   asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
     const user = req.user;
@@ -2413,6 +3857,60 @@ router.post(
     }
 
     const { id: fileId } = req.params;
+    const existing = await assetService.getFile(fileId);
+    if (!existing || existing.status === 'deleted' || !(await sessionOwnsFile(req, existing))) {
+      throw new NotFoundError('File not found');
+    }
+    // `existing.ownerUserId` is set: `sessionOwnsFile` admits only an account's file.
+    const ownerUserId = existing.ownerUserId as string;
+    const file =
+      existing.status === 'trash'
+        ? existing
+        : ((await assetService.trashFile(fileId, ownerUserId)) ??
+          (await assetService.getFile(fileId)));
+    if (!file || file.status !== 'trash') {
+      throw new NotFoundError('File not found');
+    }
+
+    logger.info('File moved to trash', { userId: user._id, fileId });
+
+    sendSuccess(res, {
+      file: {
+        id: file.id,
+        status: file.status,
+        trashedAt: file.trashedAt ?? null,
+        usageCount: file.links.length,
+      },
+    });
+  }),
+);
+
+/**
+ * @route POST /api/assets/:id/restore
+ * @desc Restore the owner's file from trash: `active` again, served again,
+ *       `file.restored` to every application using it. 409
+ *       `FILE_NOT_IN_TRASH` (with the file's `status`) for a file that is not
+ *       in trash — restored or deleted meanwhile, or `blocked` after a content
+ *       claim, which only a reinstated claim brings back (ADR 0043 D10).
+ * @access Private — the file's owner only; any other caller gets 404
+ */
+router.post(
+  '/:id/restore',
+  ownAssetAuth,
+  validate({ params: assetIdParams }),
+  asyncHandler(async (req: AuthenticatedRequest, res: express.Response) => {
+    const user = req.user;
+    if (!user?._id) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    const { id: fileId } = req.params;
+    // Trash is the owner's: restoring is re-activating a file nobody else can
+    // decide to bring back, and an answer at all would say the id exists.
+    const existing = await assetService.getFile(fileId);
+    if (!existing || !(await sessionOwnsFile(req, existing))) {
+      throw new NotFoundError('File not found');
+    }
     const file = await assetService.restoreFile(fileId);
 
     logger.info('File restored from trash', {
@@ -2604,7 +4102,8 @@ router.post(
     await Promise.all(
       requests.map(async ({ fileId, variant }) => {
         const file = filesById.get(fileId);
-        if (!file) {
+        // A file in trash or deleted is never served (ADR 0043 D5).
+        if (!file || !isServableStatus(file)) {
           results[fileId] = { allowed: false, error: 'File not found' };
           return;
         }

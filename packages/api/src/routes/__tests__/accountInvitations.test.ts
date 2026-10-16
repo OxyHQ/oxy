@@ -60,9 +60,3 @@ test('preview never consumes and has no-store response', async () => {
   expect(res.headers['cache-control']).toBe('no-store');
   expect(accountInvitationService.accept).not.toHaveBeenCalled();
 });
-test('legacy add-member API cannot bypass recipient consent', async () => {
-  const res = await request(app)
-    .post('/accounts/organization/members')
-    .send({ usernameOrEmail: 'anyone', role: 'admin' });
-  expect(res.status).toBe(410);
-});

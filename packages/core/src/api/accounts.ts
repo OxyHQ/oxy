@@ -391,8 +391,9 @@ export class AccountMembersApi {
   }
 
   /**
-   * @deprecated The API returns 410. Use accounts.invitations.create with an email.
-   * Access is granted only after recipient confirmation.
+   * @deprecated Grants access without the recipient's confirmation and is being
+   * retired. Use `accounts.invitations.create` with an email: access is granted
+   * only after the recipient confirms.
    * @param accountId - The account's `_id`.
    * @param data - Target user's username or email and role (never `owner`).
    *   The server resolves `usernameOrEmail` to a personal account; an unknown

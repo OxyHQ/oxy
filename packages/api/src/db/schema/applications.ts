@@ -132,6 +132,28 @@ export const applications = pgTable(
     webhookUrl: text(),
     webhookSecret: text(),
     devWebhookUrl: text(),
+    /**
+     * Where this application is told about the files it uses (ADR 0043 D9):
+     * `file.deleted`, `file.trashed`, `file.restored`,
+     * `file.visibility_changed` (and `file.blocked`/`file.unblocked` from stage
+     * 4). Separate from `webhook_url`, which receives account events as signed
+     * Security Event Tokens at an endpoint built for those; file events are
+     * JSON signed with HMAC-SHA256 under {@link filesWebhookSecretCiphertext}.
+     *
+     * Set only through `PUT /applications/:appId/files-webhook`, which requires
+     * `https` and a public address and stores it only after the endpoint
+     * echoed a challenge — so a non-NULL value with
+     * {@link filesWebhookVerifiedAt} is a verified endpoint.
+     */
+    filesWebhookUrl: text(),
+    /**
+     * The HMAC signing secret for file events, sealed by `utils/secretBox.ts`
+     * (context `files-webhook|<application id>`): Oxy must read it back to sign,
+     * so it cannot be a hash. Shown to the developer once, when set or rotated.
+     */
+    filesWebhookSecretCiphertext: text(),
+    /** When the endpoint last answered the verification challenge. */
+    filesWebhookVerifiedAt: timestamptz(),
 
     // ---- ownership ---------------------------------------------------------
     /**
@@ -199,6 +221,11 @@ export const applications = pgTable(
     check(
       'applications_scopes_check',
       sql`${t.scopes} <@ ${sql.raw(textArrayLiteral(APPLICATION_SCOPES))}`,
+    ),
+    // A file-events endpoint is never stored without the secret that signs for it.
+    check(
+      'applications_files_webhook_secret_check',
+      sql`${t.filesWebhookUrl} is null or (${t.filesWebhookSecretCiphertext} is not null and ${t.filesWebhookVerifiedAt} is not null)`,
     ),
   ],
 );

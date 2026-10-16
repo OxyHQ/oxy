@@ -1,8 +1,13 @@
-import { assertPhysicalStoragePathSupported } from './storageQuota.service';
+import {
+  assertPhysicalStoragePathSupported,
+  meteredOwnerId,
+  storageAccountForOwner,
+} from './storageQuota.service';
 import {
   reserveStorageBytes,
   reserveStorageBytesWithinTransaction,
   assertStorageReservationWritable,
+  releaseTerminalMultipartReservation,
   releaseUnwrittenStorageReservation,
 } from './storageByteReservation.service';
 import { createWriteStream, createReadStream } from 'fs';
@@ -21,7 +26,7 @@ import type { S3Service } from './s3Service';
 import { FEDERATION_MEDIA_CACHE_PURPOSE, isAllowedCacheMime } from '../constants/federationCache';
 import { VariantService } from './variantService';
 import { getDb, type Transaction } from '../config/postgres';
-import { files as filesTable } from '../db/schema/files';
+import { FILE_LIVE_STATUS_SQL_LIST, files as filesTable } from '../db/schema/files';
 import { storageByteReservations } from '../db/schema/storageByteReservations';
 import {
   recordFileStorageDeletion,
@@ -29,6 +34,12 @@ import {
 } from './accountStorageDeletion.service';
 import { runStorageDeletionBatch } from './accountStorageDeletion.worker';
 import { withContentHashLock } from './contentHashLock';
+import {
+  ContentBlockedError,
+  assertContentNotBlocked,
+  isContentBlocked,
+  refuseBlockedFile,
+} from './contentClaims/contentBlocklist';
 import { enqueueAssetVariantGeneration } from '../queue/assetVariants.queue';
 import {
   buildCdnUrl,
@@ -36,9 +47,16 @@ import {
   applyPublicPrefix,
   stripPublicPrefix,
   isPublicKey,
+  isServedPublicly,
   storageKeyForVisibility,
   IMMUTABLE_ASSET_CACHE_CONTROL,
 } from '../config/cdn';
+import { getCdnInvalidationQueue } from './cdnInvalidation';
+import { recordFileEvents } from './fileEvents.service';
+import {
+  invalidateDeletedApplicationFiles,
+  type DeletedApplicationContent,
+} from './applicationDeletion.service';
 import { logger } from '../utils/logger';
 import { ApiError, ForbiddenError } from '../utils/error';
 import type {
@@ -62,7 +80,7 @@ import fileCache from '../utils/fileCache';
 import { BadRequestError } from '../utils/error';
 import { isDeclaredImageContentValid } from '../utils/imageContentSignature';
 import {
-  deleteFileLink,
+  deleteFileReference,
   deleteVariant,
   findFileById,
   findFilesByIds,
@@ -71,12 +89,22 @@ import {
   findLiveStorageSourceBySha256,
   insertFile,
   isStorageKeyUsedByOtherLiveRow,
-  insertFileLink,
+  insertFileReference,
   isUniqueViolation,
   listFilesByOwner,
+  classifyApplicationFileDeleteRefusal,
   classifyFederatedDeleteRefusal,
+  listFilesByApplication,
+  reactivateTrashedFile,
+  tombstoneApplicationFile,
   tombstoneFederatedFileForApp,
   tombstoneFile,
+  tombstoneFileIfDue,
+  trashAccountFile,
+  trashUnreferencedApplicationFile,
+  type ApplicationFileCursor,
+  type FileReferenceKey,
+  type OwnerFileListing,
   updateFile,
   updateVariantKey,
 } from './fileRepository';
@@ -141,6 +169,9 @@ function isSameFederatedUpload(file: FileRecord, options: StreamedMediaOptions):
     file.metadata?.serviceAppId === appId
   );
 }
+
+/** Outcome of {@link AssetService.deleteApplicationFile}. */
+export type ApplicationFileDeleteOutcome = 'deleted' | 'not_found' | 'in_use';
 
 /** Outcome of {@link AssetService.deleteFederatedMediaForApp} for one id. */
 export type FederatedMediaDeleteOutcome = 'deleted' | 'not_found' | 'in_use' | 'forbidden';
@@ -495,7 +526,10 @@ export class AssetService {
       },
     );
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'stream key-spelling repair copy');
+    await assertPhysicalStoragePathSupported(
+      await meteredOwnerId(file),
+      'stream key-spelling repair copy',
+    );
     await this.s3Service.copyFile(sourceKey, file.storageKey);
     this.cacheFile(file);
     return true;
@@ -510,6 +544,9 @@ export class AssetService {
    * route would refuse it).
    */
   private assertStreamedDedupeAllowed(file: FileRecord, options: StreamedMediaOptions): void {
+    // The owner's existing row of taken-down bytes is blocked (ADR 0043 D10):
+    // handing it back would answer an upload of blocked content with success.
+    refuseBlockedFile(file);
     if (options.dedupeScope === 'federated' && !isSameFederatedUpload(file, options)) {
       throw new ApiError(
         409,
@@ -519,14 +556,25 @@ export class AssetService {
     }
   }
 
-  /** A reused federated row that had fallen to `trash` (unlinked) is in use again. */
+  /**
+   * A reused row that had fallen to `trash` is in use again when its uploader
+   * sends the same bytes back: a federated row from the same application (it
+   * was unlinked), and an APPLICATION's own file (the lifecycle sweep trashed
+   * it, ADR 0043 D5) — which also restarts its 24-hour clock, as a new upload
+   * would. It is published again if it is public.
+   */
   private async prepareExistingStreamedMediaFile(
     file: FileRecord,
     options: StreamedMediaOptions,
   ): Promise<FileRecord> {
-    if (file.status === 'trash' && isSameFederatedUpload(file, options)) {
-      const reactivated = await updateFile(file.id, { status: 'active' });
-      return reactivated ? this.cacheFile(reactivated) : file;
+    const ownApplicationFile =
+      file.ownerApplicationId !== null &&
+      file.ownerApplicationId === (options.owner.ownerApplicationId ?? null);
+    if (file.status === 'trash' && (ownApplicationFile || isSameFederatedUpload(file, options))) {
+      const reactivated = await reactivateTrashedFile(file.id, {
+        restartUnreferencedClock: ownApplicationFile,
+      });
+      return reactivated ? this.enterServing(reactivated) : file;
     }
     return file;
   }
@@ -593,9 +641,10 @@ export class AssetService {
     userId: string,
     limit = 50,
     offset = 0,
+    options: { inUse?: boolean; listing?: OwnerFileListing } = {},
   ): Promise<{ files: FileRecord[]; total: number }> {
     try {
-      return await listFilesByOwner(userId, limit, offset);
+      return await listFilesByOwner(userId, limit, offset, options);
     } catch (error) {
       logger.error('Error listing files by user:', error);
       throw error;
@@ -629,6 +678,10 @@ export class AssetService {
   ): Promise<AssetInitResponse> {
     const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
     try {
+      // The declared hash IS the content: the presigned PUT carries it as a
+      // checksum S3 enforces (`presignAdmittedUpload`), so refusing it here
+      // refuses the bytes (ADR 0043 D10).
+      await assertContentNotBlocked(expectedSha256);
       const own = await findLiveFileBySha256ForOwner(expectedSha256, owner);
       if (own) {
         return await this.initUploadForExistingOwnRow(own, userId, expectedMime);
@@ -641,6 +694,8 @@ export class AssetService {
         // re-spells a shared object, and the insert are one step against a
         // purge of the same bytes (`contentHashLock.ts`).
         created = await withContentHashLock(expectedSha256, async (tx) => {
+          // Before the copy below writes anything for these bytes.
+          await assertContentNotBlocked(expectedSha256, tx);
           const source = await findLiveStorageSourceBySha256(expectedSha256, 'private', tx);
           let storageKey = this.generateStorageKey(expectedSha256, expectedMime);
           let needsUpload = true;
@@ -654,7 +709,9 @@ export class AssetService {
               shared !== source.storageKey &&
               (await this.s3Service.fileExists(source.storageKey))
             ) {
-              await this.s3Service.copyFile(source.storageKey, shared);
+              await this.s3Service.copyFile(source.storageKey, shared, {
+                sizeHint: expectedSize,
+              });
               storageKey = shared;
               needsUpload = false;
             } else {
@@ -705,6 +762,9 @@ export class AssetService {
         sha256: expectedSha256,
       };
     } catch (error) {
+      // A refusal the caller must see as such (a takedown's 451, a quota's
+      // 413) is not an internal failure.
+      if (error instanceof ApiError) throw error;
       logger.error('Error initializing asset upload:', error);
       throw new Error('Failed to initialize asset upload');
     }
@@ -732,11 +792,14 @@ export class AssetService {
     const uploadUrl = await this.s3Service.getPresignedUploadUrl(file.storageKey, {
       contentType,
       expiresIn: configured ? 60 : 3600,
+      // The declared SHA-256 is enforced on EVERY presigned PUT, not only an
+      // admitted one: the row, its dedupe and the takedown blocklist (ADR 0043
+      // D10) all trust it, so bytes that do not hash to it must not land.
+      checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
       ...(configured
         ? {
             contentLength: file.size,
             ifNoneMatch: '*' as const,
-            checksumSHA256: Buffer.from(file.sha256, 'hex').toString('base64'),
           }
         : {}),
     });
@@ -748,6 +811,7 @@ export class AssetService {
     userId: string,
     expectedMime: string,
   ): Promise<AssetInitResponse> {
+    refuseBlockedFile(own);
     let upload: Pick<AssetInitResponse, 'uploadUrl' | 'requiredHeaders'> = { uploadUrl: '' };
     if (!(await this.s3Service.fileExists(own.storageKey))) {
       if (await isStorageKeyUsedByOtherLiveRow(own.sha256, own.storageKey, own.id)) {
@@ -817,6 +881,7 @@ export class AssetService {
         throw new BadRequestError('Uploaded file content does not match the declared image type');
       }
 
+      await assertContentNotBlocked(sha256);
       const owner: FileOwner = { ownerUserId: userId, systemOwner: null };
       const own = await findLiveFileBySha256ForOwner(sha256, owner);
       if (own) {
@@ -840,7 +905,10 @@ export class AssetService {
               ext,
               ...owner,
               status: 'active',
-              storageKey: await this.sharedStorageKeyFor(tx, sha256, mimeType, resolvedVisibility),
+              // Blocked bytes are refused before `sharedStorageKeyFor` may copy them.
+              storageKey: await assertContentNotBlocked(sha256, tx).then(() =>
+                this.sharedStorageKeyFor(tx, sha256, mimeType, resolvedVisibility),
+              ),
               originalName: normalizeInlineText(originalName),
               visibility: resolvedVisibility,
               metadata: metadata ?? {},
@@ -904,6 +972,7 @@ export class AssetService {
     mimeType: string,
     logLabel: string,
   ): Promise<FileRecord> {
+    refuseBlockedFile(own);
     const { file, restored } = await this.restoreMissingDirectUploadContent(
       own,
       fileBuffer,
@@ -1004,17 +1073,374 @@ export class AssetService {
     ownerUserId: string,
     metadata?: Record<string, unknown>,
   ): Promise<FileRecord> {
-    return this.uploadStreamedMedia(source, mimeType, originalName, maxBytes, {
+    return (
+      await this.uploadUserMediaStreamDetailed(
+        source,
+        mimeType,
+        originalName,
+        maxBytes,
+        ownerUserId,
+        'public',
+        { source: 'mention-service', ...(metadata ?? {}) },
+      )
+    ).file;
+  }
+
+  /**
+   * {@link uploadUserMediaStream} with the visibility chosen by the caller and
+   * whether the owner already held these bytes — the account-owned import by
+   * URL (ADR 0043 D7). Rows are per owner: bytes the account already holds come
+   * back as that file, `deduplicated: true`, its visibility unchanged.
+   */
+  async uploadUserMediaStreamDetailed(
+    source: AbortableReadable,
+    mimeType: string,
+    originalName: string,
+    maxBytes: number,
+    ownerUserId: string,
+    visibility: FileVisibility,
+    metadata: Record<string, unknown>,
+  ): Promise<StreamedMediaResult> {
+    return this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, {
       owner: { ownerUserId, systemOwner: null },
       purpose: 'user',
-      visibility: 'public',
-      metadata: {
-        source: 'mention-service',
-        ...(metadata ?? {}),
-      },
+      visibility,
+      metadata,
       tempPrefix: 'user/incoming',
       logLabel: 'User media',
     });
+  }
+
+  /**
+   * Stream-upload a file the calling APPLICATION owns (ADR 0043) — platform
+   * artwork no person owns. The owner is the verified service token's `appId`
+   * and nothing else; its bytes are metered against the application's owning
+   * account.
+   *
+   * Idempotent per (application, bytes): the application's own live row for
+   * these bytes comes back with `deduplicated: true`, AS IT IS — its
+   * visibility is not rewritten by a re-upload asking for another one, because
+   * a visibility change is a relocation with its own route and its own
+   * consequences (`setApplicationFileVisibility`).
+   */
+  async uploadApplicationFileStream(
+    source: AbortableReadable,
+    mimeType: string,
+    originalName: string,
+    maxBytes: number,
+    applicationId: string,
+    visibility: FileVisibility,
+    metadata?: Record<string, unknown>,
+  ): Promise<StreamedMediaResult> {
+    return this.uploadStreamedMediaDetailed(source, mimeType, originalName, maxBytes, {
+      owner: { ownerUserId: null, systemOwner: null, ownerApplicationId: applicationId },
+      purpose: 'user',
+      visibility,
+      metadata: {
+        ...(metadata ?? {}),
+        serviceAppId: applicationId,
+      },
+      tempPrefix: 'application/incoming',
+      logLabel: 'Application file',
+    });
+  }
+
+  /** One page of an application's own live files, newest first. */
+  async listApplicationFiles(
+    applicationId: string,
+    limit: number,
+    after?: ApplicationFileCursor,
+  ): Promise<FileRecord[]> {
+    return listFilesByApplication(applicationId, limit, after);
+  }
+
+  /**
+   * Change the visibility of one of `applicationId`'s own files. `null` when
+   * the file is not that application's live file — another application's file
+   * and no file answer the same, so an id is never an ownership oracle.
+   */
+  async setApplicationFileVisibility(
+    fileId: string,
+    applicationId: string,
+    visibility: FileVisibility,
+  ): Promise<FileRecord | null> {
+    const file = await findFileById(fileId);
+    if (!file || file.status === 'deleted' || file.ownerApplicationId !== applicationId) {
+      return null;
+    }
+    return this.updateFileVisibility(fileId, visibility);
+  }
+
+  /**
+   * Tombstone one of `applicationId`'s own files and owe its storage, through
+   * the same durable, shared-content-guarded purge as every other delete
+   * ({@link tombstoneAndOwePurge}). The authorization is the conditional write
+   * itself ({@link tombstoneApplicationFile}).
+   *
+   * `not_found`: no such live file of THIS application (another application's
+   * file included). `in_use`: somebody else holds it (a link, a mail
+   * attachment, a listing screenshot) — kept, nothing owed.
+   */
+  async deleteApplicationFile(
+    fileId: string,
+    applicationId: string,
+  ): Promise<ApplicationFileDeleteOutcome> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneApplicationFile(tx, fileId, applicationId),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return classifyApplicationFileDeleteRefusal(fileId, applicationId);
+    return 'deleted';
+  }
+
+  /**
+   * Where a large upload's parts are assembled (ADR 0043 stage 4b): a key of the
+   * upload's own (`…/<sha>-<random><ext>`), ALWAYS in the private spelling —
+   * bytes not yet verified are never under `public/`, which the CDN serves.
+   */
+  largeUploadStagingKey(sha256: string, ext: string): string {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `content/${now.getFullYear()}/${month}/${sha256.substring(0, 2)}/${sha256}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+  }
+
+  /** The key a large upload's row ends at when it keeps its own object: the staging key, spelled for `visibility`. */
+  largeUploadFinalKey(stagingKey: string, visibility: FileVisibility): string {
+    return this.targetKeyForVisibility(stagingKey, visibility);
+  }
+
+  /**
+   * An owner's existing live row for bytes it uploads or adopts again: refused
+   * when blocked (ADR 0043 D10), and an application's own file in trash comes
+   * back to `active` with a fresh 24-hour clock, as a re-upload does.
+   */
+  async reuseOwnLiveFile(file: FileRecord, owner: FileOwner): Promise<FileRecord> {
+    refuseBlockedFile(file);
+    return this.prepareExistingStreamedMediaFile(file, {
+      owner,
+      purpose: 'user',
+      visibility: file.visibility,
+      metadata: {},
+      tempPrefix: '',
+      logLabel: 'Existing file',
+    });
+  }
+
+  /**
+   * Turn a VERIFIED large upload into its owner's file (ADR 0043 stage 4b): the
+   * assembled object at `stagingKey` hashed to `sha256` (the caller checked).
+   *
+   * Under the content-hash lock, with the blocklist re-checked there: the
+   * owner's existing row for these bytes is returned (`deduplicated`); else the
+   * row shares the object of another owner's live row in the spelling its
+   * visibility needs, or keeps the upload's own object — copied to its
+   * `public/` spelling for a public file, after verification, never before.
+   * An object the row does not end up using is deleted (the staging key is the
+   * upload's own: nobody else's row names it).
+   *
+   * `reservation` (storage admission on, a metered owner) was taken for
+   * {@link largeUploadFinalKey}; when the row ends on another key — or is a
+   * duplicate — it is released inside the same transaction, BEFORE the insert
+   * is admitted, so the bytes are never counted twice.
+   */
+  async finalizeLargeUpload(upload: {
+    owner: FileOwner;
+    sha256: string;
+    size: number;
+    mime: string;
+    ext: string;
+    originalName: string | null;
+    visibility: FileVisibility;
+    metadata: Record<string, unknown>;
+    stagingKey: string;
+    reservationId: string | null;
+  }): Promise<StreamedMediaResult> {
+    const finalKey = this.largeUploadFinalKey(upload.stagingKey, upload.visibility);
+    const objectsToDrop = new Set<string>();
+    const releaseReservation = async (tx: Transaction) => {
+      if (upload.reservationId) await releaseTerminalMultipartReservation(tx, upload.reservationId);
+    };
+    let outcome: { kind: 'existing'; file: FileRecord } | { kind: 'created'; file: FileRecord };
+    try {
+      outcome = await withContentHashLock(upload.sha256, async (tx) => {
+        await assertContentNotBlocked(upload.sha256, tx);
+        const own = await findLiveFileBySha256ForOwner(upload.sha256, upload.owner, tx);
+        if (own) {
+          await releaseReservation(tx);
+          return { kind: 'existing' as const, file: own };
+        }
+        const source = await findLiveStorageSourceBySha256(upload.sha256, upload.visibility, tx);
+        const shared = source
+          ? this.targetKeyForVisibility(source.storageKey, upload.visibility)
+          : null;
+        let storageKey: string;
+        if (shared && shared !== finalKey && (await this.s3Service.fileExists(shared))) {
+          storageKey = shared;
+          await releaseReservation(tx);
+        } else {
+          storageKey = finalKey;
+          if (finalKey !== upload.stagingKey) {
+            await this.s3Service.copyFile(upload.stagingKey, finalKey, { sizeHint: upload.size });
+          }
+        }
+        const file = await insertFile(
+          {
+            sha256: upload.sha256,
+            size: upload.size,
+            mime: upload.mime,
+            ext: upload.ext,
+            ...upload.owner,
+            purpose: 'user',
+            status: 'active',
+            storageKey,
+            originalName: upload.originalName ? normalizeInlineText(upload.originalName) : null,
+            visibility: upload.visibility,
+            metadata: upload.metadata,
+          },
+          tx,
+        );
+        return { kind: 'created' as const, file };
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // The same owner raced itself (an import or upload of the same bytes).
+      const raced = await findLiveFileBySha256ForOwner(upload.sha256, upload.owner);
+      if (!raced) throw error;
+      if (upload.reservationId) {
+        const reservationId = upload.reservationId;
+        await withContentHashLock(upload.sha256, (tx) =>
+          releaseTerminalMultipartReservation(tx, reservationId),
+        );
+      }
+      outcome = { kind: 'existing', file: raced };
+    }
+
+    if (outcome.file.storageKey !== upload.stagingKey) objectsToDrop.add(upload.stagingKey);
+    if (outcome.kind === 'existing' && finalKey !== upload.stagingKey) {
+      // A copy this attempt may have made before losing a race is its own key too.
+      if (outcome.file.storageKey !== finalKey) objectsToDrop.add(finalKey);
+    }
+    for (const key of objectsToDrop) {
+      await this.s3Service.deleteFile(key).catch((error: unknown) => {
+        logger.warn('Large upload: failed to delete an object the file does not use', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+
+    if (outcome.kind === 'existing') {
+      return { file: await this.reuseOwnLiveFile(outcome.file, upload.owner), deduplicated: true };
+    }
+    this.queueVariantGeneration(outcome.file);
+    logger.info('Large upload stored', {
+      fileId: outcome.file.id,
+      sha256: upload.sha256,
+      size: upload.size,
+      mime: upload.mime,
+      sharedStorage: outcome.file.storageKey !== finalKey,
+    });
+    return { file: outcome.file, deduplicated: false };
+  }
+
+  /**
+   * Give `applicationId` its own row of the bytes `source` holds (ADR 0043
+   * stage 4b), without moving a byte through the API: the row shares the
+   * stored object (content-addressed), in the spelling `visibility` needs —
+   * copied server-side when no object of that spelling exists yet. The CALLER
+   * decided the application may read `source`.
+   *
+   * The application's existing live row of these bytes is returned instead
+   * (`deduplicated`, visibility unchanged), as a re-upload would. Blocked
+   * bytes are refused (451), under the content-hash lock. With storage
+   * admission on and a metered (third-party) application, a copy is reserved
+   * against its developer's plan first, as an upload is (D3).
+   */
+  async adoptFileForApplication(
+    source: FileRecord,
+    applicationId: string,
+    visibility: FileVisibility,
+  ): Promise<StreamedMediaResult> {
+    const owner: FileOwner = {
+      ownerUserId: null,
+      systemOwner: null,
+      ownerApplicationId: applicationId,
+    };
+    let outcome: { kind: 'existing' | 'created'; file: FileRecord };
+    try {
+      outcome = await withContentHashLock(source.sha256, async (tx) => {
+        await assertContentNotBlocked(source.sha256, tx);
+        const own = await findLiveFileBySha256ForOwner(source.sha256, owner, tx);
+        if (own) return { kind: 'existing' as const, file: own };
+
+        const holder = await findLiveStorageSourceBySha256(source.sha256, visibility, tx);
+        const target = this.targetKeyForVisibility(
+          holder?.storageKey ?? source.storageKey,
+          visibility,
+        );
+        if (!(await this.s3Service.fileExists(target))) {
+          const from = (await this.s3Service.fileExists(source.storageKey))
+            ? source.storageKey
+            : holder && (await this.s3Service.fileExists(holder.storageKey))
+              ? holder.storageKey
+              : null;
+          if (!from) {
+            throw new ApiError(
+              409,
+              "The file's stored content is unavailable; it cannot be adopted",
+              'FILE_CONTENT_UNAVAILABLE',
+            );
+          }
+          const catalogue = await loadProductBillingCatalogue();
+          const accountId = catalogue.storageAdapter
+            ? await storageAccountForOwner(tx, owner)
+            : null;
+          if (accountId) {
+            await reserveStorageBytesWithinTransaction(tx, {
+              accountId,
+              sha256: source.sha256,
+              objectKey: target,
+              size: source.size,
+              kind: 'server',
+            });
+          }
+          await this.s3Service.copyFile(from, target, { sizeHint: source.size });
+        }
+        const file = await insertFile(
+          {
+            sha256: source.sha256,
+            size: source.size,
+            mime: source.mime,
+            ext: source.ext,
+            ...owner,
+            purpose: 'user',
+            status: 'active',
+            storageKey: target,
+            originalName: source.originalName,
+            visibility,
+            metadata: { serviceAppId: applicationId, adoptedFromFileId: source.id },
+          },
+          tx,
+        );
+        return { kind: 'created' as const, file };
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      const raced = await findLiveFileBySha256ForOwner(source.sha256, owner);
+      if (!raced) throw error;
+      outcome = { kind: 'existing', file: raced };
+    }
+    if (outcome.kind === 'existing') {
+      return { file: await this.reuseOwnLiveFile(outcome.file, owner), deduplicated: true };
+    }
+    this.queueVariantGeneration(outcome.file);
+    logger.info('Application adopted a file', {
+      applicationId,
+      fileId: outcome.file.id,
+      sourceFileId: source.id,
+      visibility,
+    });
+    return { file: outcome.file, deduplicated: false };
   }
 
   /**
@@ -1079,10 +1505,16 @@ export class AssetService {
     let writtenKey: string | undefined;
     let unwrittenReservation: { id: string; sha256: string } | undefined;
     let committed = false;
+    // The account the bytes are metered against: the owner itself, or a
+    // third-party application's owning account (ADR 0043 D3). Only a metered
+    // owner reaches this path.
+    const accountId = await storageAccountForOwner(getDb(), options.owner);
+    if (!accountId) throw new Error('A metered upload resolved to no storage account');
     try {
       await pipeline(source, meter, createWriteStream(staged, { flags: 'wx' }));
       if (!size) throw new BadRequestError('Cannot store an empty file');
       const sha256 = hash.digest('hex');
+      await assertContentNotBlocked(sha256);
       const own = await findLiveFileBySha256ForOwner(sha256, options.owner);
       if (own) {
         this.assertStreamedDedupeAllowed(own, options);
@@ -1110,18 +1542,25 @@ export class AssetService {
             .from(storageByteReservations)
             .where(
               and(
-                eq(storageByteReservations.accountId, options.owner.ownerUserId!),
+                eq(storageByteReservations.accountId, accountId),
                 eq(storageByteReservations.sha256, sha256),
                 eq(storageByteReservations.size, size),
                 eq(storageByteReservations.kind, 'server'),
                 isNull(storageByteReservations.cleanedAt),
                 sql`(${storageByteReservations.objectKey} like 'content/%' or ${storageByteReservations.objectKey} like 'public/content/%')`,
+                // In flight means no live row stores it yet. A written hold
+                // stays uncleaned after its row commits, and one account now
+                // meters several owners (itself and its applications), so
+                // without this another owner's finished upload of the same
+                // bytes would read as in progress until recovery swept it.
+                sql`not exists (select 1 from "files" f where f.storage_key = ${storageByteReservations.objectKey}
+                  and f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)}))`,
               ),
             )
             .limit(1);
           if (pending) return { kind: 'pending' as const };
           const reservation = await reserveStorageBytesWithinTransaction(tx, {
-            accountId: options.owner.ownerUserId!,
+            accountId,
             sha256,
             objectKey: key,
             size,
@@ -1232,7 +1671,10 @@ export class AssetService {
     maxBytes: number,
     options: StreamedMediaOptions,
   ): Promise<StreamedMediaResult> {
-    if (options.owner.ownerUserId && (await loadProductBillingCatalogue()).storageAdapter)
+    if (
+      (await loadProductBillingCatalogue()).storageAdapter &&
+      (await meteredOwnerId(options.owner))
+    )
       return this.uploadAdmittedOwnerStream(source, mimeType, originalName, maxBytes, options);
     const hash = crypto.createHash('sha256');
     let size = 0;
@@ -1315,6 +1757,13 @@ export class AssetService {
 
     const sha256 = hash.digest('hex');
 
+    // Taken-down bytes (ADR 0043 D10): refused for every owner, and the temp
+    // object they were streamed into goes.
+    if (await isContentBlocked(sha256)) {
+      await deleteTempKey('Failed to delete temp key of blocked content');
+      throw new ContentBlockedError();
+    }
+
     // Dedup, per OWNER: the uploader's own live row for these bytes is reused
     // and the temp object dropped. Another owner's row is never returned — the
     // uploader gets its own row below, sharing that row's stored object.
@@ -1346,6 +1795,8 @@ export class AssetService {
     let file: FileRecord;
     try {
       file = await withContentHashLock(sha256, async (tx) => {
+        // Before the promotion writes a content-addressed object (ADR 0043 D10).
+        await assertContentNotBlocked(sha256, tx);
         const storageKey = await this.sharedStorageKeyFor(tx, sha256, mimeType, options.visibility);
         if (!(await this.s3Service.fileExists(storageKey))) {
           await this.s3Service.copyFile(tempKey, storageKey);
@@ -1528,7 +1979,7 @@ export class AssetService {
         ];
         if (keys.some((key) => this.targetKeyForVisibility(key, visibility) !== key))
           await assertPhysicalStoragePathSupported(
-            existing.ownerUserId,
+            await meteredOwnerId(existing),
             'visibility relocation copy',
           );
       }
@@ -1568,9 +2019,24 @@ export class AssetService {
   }
 
   /**
-   * Link file to an entity
+   * Record that an application uses a file (`file_references`, ADR 0043 D4).
+   *
+   * A reference NEVER changes the file's visibility — it used to: linking
+   * re-derived it from the entity type, so a non-avatar link silently made a
+   * public file private (Mercaria's review media) and an avatar link made a
+   * private one public. Only the owner changes visibility, explicitly
+   * (`updateFileVisibility`). A trashed file is brought back to `active`, as a
+   * link always did, and served again (`enterServing`); the reference clears
+   * its `unreferenced_since` in the same transaction (D5).
+   *
+   * Authorization is the caller's: the session route admits only the file's
+   * owner, the service route only what ADR 0043 D4 lets an application use.
+   * `created` says whether a reference was added (false: it already existed).
    */
-  async linkFile(fileId: string, linkRequest: AssetLinkRequest): Promise<FileRecord> {
+  async linkFile(
+    fileId: string,
+    request: AssetLinkRequest,
+  ): Promise<{ file: FileRecord; created: boolean }> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
@@ -1581,51 +2047,44 @@ export class AssetService {
         throw new Error('Cannot link to deleted file');
       }
 
-      // `(file_id, app, entity_type, entity_id)` is UNIQUE, so a duplicate is
-      // refused by the database rather than by a read-then-write two concurrent
-      // requests could both pass — which mattered because a duplicate would
-      // inflate the link count that decides `trash` vs `active`.
-      const created = await insertFileLink(fileId, {
-        app: linkRequest.app,
-        entityType: linkRequest.entityType,
-        entityId: linkRequest.entityId,
-        createdBy: linkRequest.createdBy,
-        webhookUrl: linkRequest.webhookUrl,
+      // `(file_id, application_id, entity_type, entity_id)` is UNIQUE, so a
+      // duplicate is refused by the database rather than by a read-then-write
+      // two concurrent requests could both pass — which matters because a
+      // duplicate would inflate the usage count that decides `trash`.
+      const { created, restored, ownerRecorded } = await insertFileReference(fileId, {
+        applicationId: request.applicationId,
+        entityType: request.entityType,
+        entityId: request.entityId,
+        createdByUserId: request.createdByUserId,
       });
 
       if (!created) {
-        logger.warn('Link already exists', { fileId, linkRequest });
-        return file;
+        logger.debug('Reference already exists', {
+          fileId,
+          applicationId: request.applicationId,
+          ownerRecorded,
+        });
+        if (!ownerRecorded) return { file, created: false };
+        // The application's own reference now records its owner as creator:
+        // a cached copy would still show it creator-less.
+        const reread = await findFileById(fileId);
+        return { file: reread ? this.cacheFile(reread) : file, created: false };
       }
 
-      // Auto-set visibility based on entity type
-      const previousVisibility = file.visibility;
-      const visibility =
-        linkRequest.visibility ??
-        this.inferVisibilityFromEntityType(linkRequest.app, linkRequest.entityType);
-
-      const updated = await updateFile(fileId, {
-        visibility,
-        ...(file.status === 'trash' ? { status: 'active' } : {}),
-      });
-      if (!updated) {
+      const reread = await findFileById(fileId);
+      if (!reread) {
         throw new Error('File not found');
       }
-      this.cacheFile(updated);
+      const updated = restored ? await this.enterServing(reread) : this.cacheFile(reread);
 
-      // Linking an asset to a public entity (e.g. an avatar) flips its
-      // visibility to `public`; relocate its bytes under the CDN-reachable
-      // `public/` prefix so the new public asset serves from the CDN.
-      const relocated =
-        visibility !== previousVisibility ? await this.relocateAllForVisibility(updated) : updated;
-
-      logger.info('File linked successfully', {
+      logger.info('File referenced', {
         fileId,
-        linkRequest,
-        totalLinks: relocated.links.length,
+        applicationId: request.applicationId,
+        entityType: request.entityType,
+        totalReferences: updated.links.length,
       });
 
-      return relocated;
+      return { file: updated, created: true };
     } catch (error) {
       logger.error('Error linking file:', error);
       throw error;
@@ -1633,113 +2092,47 @@ export class AssetService {
   }
 
   /**
-   * Send webhook notifications to links that have webhookUrl set.
-   * Non-blocking: failures are logged but do not throw.
-   */
-  private async notifyLinks(
-    file: FileRecord,
-    event: 'visibility_changed' | 'deleted',
-    details: Record<string, unknown>,
-  ): Promise<void> {
-    try {
-      const notifyPromises = file.links
-        .flatMap((link) => (link.webhookUrl ? [{ link, url: link.webhookUrl }] : []))
-        .map(async ({ link, url }) => {
-          const payload = {
-            event,
-            fileId: file.id,
-            visibility: file.visibility,
-            status: file.status,
-            link: {
-              app: link.app,
-              entityType: link.entityType,
-              entityId: link.entityId,
-            },
-            details,
-            timestamp: new Date().toISOString(),
-          };
-
-          try {
-            const result = await safeFetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-              headersTimeoutMs: 5000,
-              maxRedirects: 0,
-            });
-            result.response.resume();
-            logger.info('Webhook delivered', {
-              url,
-              fileId: file.id,
-              event,
-              status: result.status,
-            });
-          } catch (err) {
-            if (err instanceof SsrfRejection) {
-              logger.warn('Blocked SSRF webhook target', {
-                url,
-                fileId: file.id,
-                event,
-                reason: err.message,
-              });
-              return;
-            }
-            logger.warn('Failed to deliver webhook', {
-              url,
-              fileId: file.id,
-              event,
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        });
-
-      await Promise.allSettled(notifyPromises);
-    } catch (err) {
-      logger.error('Error in notifyLinks helper:', err);
-    }
-  }
-
-  /**
-   * Unlink file from an entity
+   * Remove one application's use of a file. `removed` says whether a
+   * reference was actually there.
+   *
+   * `createdByUserIds` narrows the removal to a reference one of those people
+   * created (a session that does not own the file).
+   *
+   * NEVER trashes or deletes the file, on any path (ADR 0043 D5). The last
+   * reference going stamps `unreferenced_since` in the same transaction: an
+   * account's file is then *not in use* for its person, who alone moves it to
+   * trash or deletes it; an application's file is collected 24 hours later by
+   * `fileLifecycle.worker.ts`. (Until stage 2 an owner's session removing the
+   * last link moved the file to trash.)
    */
   async unlinkFile(
     fileId: string,
-    app: string,
-    entityType: string,
-    entityId: string,
-  ): Promise<FileRecord> {
+    key: FileReferenceKey,
+    options: { createdByUserIds?: readonly string[] } = {},
+  ): Promise<{ file: FileRecord; removed: boolean }> {
     try {
       const file = await findFileById(fileId);
       if (!file) {
         throw new Error('File not found');
       }
 
-      await deleteFileLink(fileId, app, entityType, entityId);
+      const removed = await deleteFileReference(fileId, key, options.createdByUserIds);
 
-      const remaining = await findFileById(fileId);
-      if (!remaining) {
-        throw new Error('File not found');
-      }
-
-      // If no links remain, move to trash
-      const updated =
-        remaining.links.length === 0 && remaining.status === 'active'
-          ? await updateFile(fileId, { status: 'trash' })
-          : remaining;
+      const updated = await findFileById(fileId);
       if (!updated) {
         throw new Error('File not found');
       }
       this.cacheFile(updated);
 
-      logger.info('File unlinked successfully', {
+      logger.info('File reference removed', {
         fileId,
-        app,
-        entityType,
-        entityId,
-        remainingLinks: updated.links.length,
+        applicationId: key.applicationId,
+        entityType: key.entityType,
+        removed,
+        remainingReferences: updated.links.length,
       });
 
-      return updated;
+      return { file: updated, removed };
     } catch (error) {
       logger.error('Error unlinking file:', error);
       throw error;
@@ -1772,9 +2165,12 @@ export class AssetService {
         return cached;
       }
 
+      // An invalidation that arrives while this read is in flight (a write
+      // committed on this or another task) wins: the record read may predate it.
+      const readStartedAt = Date.now();
       const file = await findFileById(fileId);
       if (file) {
-        fileCache.set(fileId, file);
+        fileCache.setIfFresh(fileId, file, readStartedAt);
         return file;
       }
       return null;
@@ -1907,6 +2303,11 @@ export class AssetService {
     return visibility === 'public' ? applyPublicPrefix(key) : stripPublicPrefix(key);
   }
 
+  /** The spelling a key needs for how the file is SERVED (`isServedPublicly`). */
+  private targetKeyForServing(key: string, file: Pick<FileRecord, 'visibility' | 'status'>) {
+    return isServedPublicly(file) ? applyPublicPrefix(key) : stripPublicPrefix(key);
+  }
+
   /**
    * Make every key of the file (original and renditions) the spelling its
    * visibility needs — under `public/` for public, bare otherwise — so a
@@ -1926,7 +2327,9 @@ export class AssetService {
    * the row's key itself does not change.
    */
   private async relocateAllForVisibility(file: FileRecord): Promise<FileRecord> {
-    const wantPublic = file.visibility === 'public';
+    // The SERVED spelling: a public file outside `active` is off the CDN too
+    // (ADR 0043 D5, OxyHQ/oxy#1284) — its visibility is kept for its restore.
+    const wantPublic = isServedPublicly(file);
     const keys = [
       { variantId: null as string | null, key: file.storageKey, hlsRendition: false },
       ...file.variants.map((variant) => ({
@@ -1938,7 +2341,7 @@ export class AssetService {
     const moves = keys
       .map((entry) => ({
         ...entry,
-        target: this.targetKeyForVisibility(entry.key, file.visibility),
+        target: this.targetKeyForServing(entry.key, file),
       }))
       .filter((entry) => entry.target !== entry.key);
 
@@ -1968,8 +2371,15 @@ export class AssetService {
             });
             continue;
           }
-          await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
-          await this.s3Service.copyFile(move.key, move.target);
+          await assertPhysicalStoragePathSupported(
+            await meteredOwnerId(file),
+            'visibility relocation copy',
+          );
+          await this.s3Service.copyFile(
+            move.key,
+            move.target,
+            move.variantId === null ? { sizeHint: file.size } : {},
+          );
         }
         if (move.hlsRendition) await this.copyHlsSegments(file, move.key, move.target);
       }
@@ -2021,7 +2431,10 @@ export class AssetService {
   ): Promise<void> {
     const playlist = (await this.s3Service.downloadBuffer(toPlaylistKey)).toString('utf8');
     let missing = 0;
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+    await assertPhysicalStoragePathSupported(
+      await meteredOwnerId(file),
+      'visibility relocation copy',
+    );
     await Promise.all(
       playlistUris(playlist).map(async (uri) => {
         const target = playlistSiblingKey(toPlaylistKey, uri);
@@ -2134,7 +2547,7 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      const affectedApps = [...new Set(file.links.map((link) => link.app))];
+      const affectedApps = [...new Set(file.links.map((link) => link.applicationId))];
       const wouldDelete = file.links.length === 0;
       const variants = file.variants.map((v) => v.type);
 
@@ -2187,9 +2600,6 @@ export class AssetService {
         return;
       }
 
-      // Notify linked apps that file was deleted
-      await this.notifyLinks(tombstoned, 'deleted', { force });
-
       logger.info('File deleted permanently', {
         fileId,
         force,
@@ -2232,6 +2642,9 @@ export class AssetService {
         row,
         row.variants.map((variant) => variant.key),
       );
+      // Every application using the file, and its owning application, is
+      // told in the same commit (ADR 0043 D9).
+      await recordFileEvents(tx, 'file.deleted', [row.id]);
       return { row, ledgerIds };
     });
     if (!recorded) return null;
@@ -2246,6 +2659,21 @@ export class AssetService {
       void drain.finally(() => this.backgroundPurges.delete(drain));
     }
     return recorded.row;
+  }
+
+  /**
+   * After an application's deletion committed (ADR 0043 D8,
+   * `applicationDeletion.service.ts`): CDN and cache invalidation
+   * ({@link invalidateDeletedApplicationFiles}), then start working off the
+   * storage the commit owed — in the background; what this does not finish,
+   * the storage-deletion worker does. Never throws.
+   */
+  finishApplicationDeletion(content: DeletedApplicationContent): void {
+    invalidateDeletedApplicationFiles(content);
+    if (content.ledgerIds.length === 0) return;
+    const drain = this.drainStorageDeletion('application-deletion', [...content.ledgerIds]);
+    this.backgroundPurges.add(drain);
+    void drain.finally(() => this.backgroundPurges.delete(drain));
   }
 
   /** Purges started with `awaitPurge: false` and not yet finished. */
@@ -2323,13 +2751,28 @@ export class AssetService {
       return refusal;
     }
 
-    await this.notifyLinks(tombstoned, 'deleted', { reason: 'federated_source_deleted' });
-
     return 'deleted';
   }
 
   /**
-   * Restore file from trash
+   * The owner moves their own ACTIVE file to trash (ADR 0043 D5): it stops
+   * being served and leaves the CDN at once, and every application using it
+   * is told `file.trashed` (D9). Kept until the owner restores or deletes it —
+   * an account's trash never expires. `null` when it is not `ownerUserId`'s
+   * active file.
+   */
+  async trashFile(fileId: string, ownerUserId: string): Promise<FileRecord | null> {
+    const trashed = await trashAccountFile(fileId, ownerUserId);
+    if (!trashed) return null;
+    logger.info('File moved to trash by its owner', { fileId, ownerUserId });
+    return this.leaveServing(trashed);
+  }
+
+  /**
+   * Restore a file from trash. A file that is not in trash — restored or
+   * deleted meanwhile, or `blocked` after a content claim, which only a
+   * reinstated claim brings back (ADR 0043 D10) — is a 409
+   * `FILE_NOT_IN_TRASH`, never a server error.
    */
   async restoreFile(fileId: string): Promise<FileRecord> {
     try {
@@ -2338,15 +2781,14 @@ export class AssetService {
         throw new Error('File not found');
       }
 
-      if (file.status !== 'trash') {
-        throw new Error('File is not in trash');
+      const reactivated = file.status === 'trash' ? await reactivateTrashedFile(fileId) : null;
+      if (!reactivated) {
+        throw new ApiError(409, 'File is not in trash', 'FILE_NOT_IN_TRASH', {
+          status: (await findFileById(fileId))?.status ?? file.status,
+        });
       }
-
-      const restored = await updateFile(fileId, { status: 'active' });
-      if (!restored) {
-        throw new Error('File not found');
-      }
-      this.cacheFile(restored);
+      // Back under `public/` if it is public: trash had taken it off the CDN.
+      const restored = await this.enterServing(reactivated);
 
       logger.info('File restored from trash', { fileId });
 
@@ -2358,33 +2800,181 @@ export class AssetService {
   }
 
   /**
+   * The file just came back to `active` (a restore, a new reference, a
+   * re-upload): if it is public, move its objects back under `public/` so the
+   * CDN serves it again. Best effort — a failed copy is logged, and until it
+   * succeeds the origin stream route serves the bytes (a public object at a
+   * bare key is streamed through origin, never refused).
+   */
+  async enterServing(file: FileRecord): Promise<FileRecord> {
+    this.cacheFile(file);
+    if (!isServedPublicly(file)) return file;
+    try {
+      return await this.relocateAllForVisibility(file);
+    } catch (error) {
+      logger.error('Restored public file could not be republished to the CDN', {
+        fileId: file.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return file;
+    }
+  }
+
+  /**
+   * The file just left `active` (ADR 0043 D5): take its objects off the
+   * CDN-reachable `public/` prefix — the CDN's origin is the bucket, so an
+   * object left there is served whatever the row says — and invalidate every
+   * path the CDN may have cached for it: each `public/` spelling of its
+   * original and renditions, and the `/<id>` redirect `GET /cdn/:id` answers.
+   * The relocation owes the old spelling a delete through
+   * `storage_object_deletions`, whose `S3Service.deleteFile` queues the same
+   * invalidations again; queueing a path twice costs nothing.
+   *
+   * Best effort, never throws: the status is already committed and every read
+   * path refuses a non-active file, so what is left is CDN hygiene, which the
+   * sweep's `unpublishTrashed` step retries.
+   */
+  async leaveServing(file: FileRecord): Promise<FileRecord> {
+    fileCache.invalidate(file.id);
+    this.invalidateServedPaths(file);
+    try {
+      return await this.relocateAllForVisibility(file);
+    } catch (error) {
+      logger.error('File left active but its public objects could not be moved off the CDN', {
+        fileId: file.id,
+        status: file.status,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return file;
+    }
+  }
+
+  /**
+   * Queue a CloudFront invalidation for every path the CDN may hold for this
+   * file. Only a PUBLIC file was ever on the CDN (a private or unlisted one is
+   * streamed through origin), so only one costs invalidation paths.
+   */
+  private invalidateServedPaths(file: FileRecord): void {
+    if (file.visibility !== 'public') return;
+    const queue = getCdnInvalidationQueue();
+    for (const key of [file.storageKey, ...file.variants.map((variant) => variant.key)]) {
+      // A bare key may have a backfilled `public/` copy the CDN served.
+      queue.enqueueDeletedKey(applyPublicPrefix(key));
+    }
+    queue.enqueuePath(`/${file.id}`);
+  }
+
+  // -------------------------------------------------------------------------
+  // The lifecycle sweep's actions (ADR 0043 D5, `fileLifecycle.worker.ts`).
+  // Each is ONE conditional write that re-checks the step's whole condition
+  // at the moment it acts, so a reference, restore or upload that landed
+  // after the candidate was listed wins.
+  // -------------------------------------------------------------------------
+
+  /** An application's file unused for 24 hours → trash, off the CDN. `null`: no longer due. */
+  async trashUnusedApplicationFile(fileId: string, now: Date): Promise<FileRecord | null> {
+    const trashed = await trashUnreferencedApplicationFile(fileId, now);
+    if (!trashed) return null;
+    logger.info('Application file moved to trash: unused for 24 hours', {
+      fileId,
+      ownerApplicationId: trashed.ownerApplicationId,
+    });
+    return this.leaveServing(trashed);
+  }
+
+  /**
+   * An application's file in trash for 30 days → tombstoned, its storage owed
+   * and purged through the `storage_object_deletions` ledger. `false`: no
+   * longer due (restored, re-referenced, already gone).
+   */
+  async purgeTrashedApplicationFile(fileId: string, now: Date): Promise<boolean> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'purge', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return false;
+    this.invalidateServedPaths(tombstoned);
+    logger.info('Application file purged: 30 days in trash', {
+      fileId,
+      ownerApplicationId: tombstoned.ownerApplicationId,
+    });
+    return true;
+  }
+
+  /**
+   * An application's BLOCKED file nothing has used for 30 days, once no open
+   * claim holds its bytes (ADR 0043 D10) → tombstoned and purged directly,
+   * never through trash (a restore from trash would serve it). `false`: no
+   * longer due.
+   */
+  async purgeBlockedApplicationFile(fileId: string, now: Date): Promise<boolean> {
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'purgeBlocked', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return false;
+    logger.info('Blocked application file purged: unused, and no open claim holds it', {
+      fileId,
+      ownerApplicationId: tombstoned.ownerApplicationId,
+    });
+    return true;
+  }
+
+  /**
+   * An upload `POST /assets/init` created and nobody completed, 24 hours old:
+   * tombstoned when the store holds NO object at its key (ADR 0043 D5, "uploads
+   * that never completed"). One that does hold an object is the account's bytes
+   * and is left alone (`has_object`) — counted in the report, never deleted.
+   */
+  async sweepStaleUpload(
+    fileId: string,
+    now: Date,
+  ): Promise<'tombstoned' | 'has_object' | 'not_due'> {
+    const file = await findFileById(fileId);
+    if (!file) return 'not_due';
+    if (await this.s3Service.fileExists(file.storageKey)) return 'has_object';
+    const tombstoned = await this.tombstoneAndOwePurge(
+      (tx) => tombstoneFileIfDue(tx, fileId, 'staleUploads', now),
+      { awaitPurge: true },
+    );
+    if (!tombstoned) return 'not_due';
+    logger.info('Stale upload removed: initialised 24 hours ago, never completed, no object', {
+      fileId,
+      ownerUserId: tombstoned.ownerUserId,
+    });
+    return 'tombstoned';
+  }
+
+  /** Whether the store holds an object at this file's key (the stale-upload report). */
+  async storedObjectExists(fileId: string): Promise<boolean> {
+    const file = await findFileById(fileId);
+    return file ? this.s3Service.fileExists(file.storageKey) : false;
+  }
+
+  /**
+   * A public file in trash or blocked whose objects are still under
+   * `public/` (it left `active` before leaving took it off the CDN, or that
+   * move failed): move them off now. `false` when it is no longer such a file.
+   */
+  async unpublishTrashedFile(fileId: string): Promise<boolean> {
+    const file = await findFileById(fileId);
+    if (
+      !file ||
+      (file.status !== 'trash' && file.status !== 'blocked') ||
+      file.visibility !== 'public'
+    )
+      return false;
+    this.invalidateServedPaths(file);
+    // Throws on a failed copy: the sweep counts it as failed and retries.
+    await this.relocateAllForVisibility(file);
+    return true;
+  }
+
+  /**
    * Calculate SHA256 hash for content addressing
    */
   static calculateSHA256(buffer: Buffer): string {
     return crypto.createHash('sha256').update(buffer).digest('hex');
-  }
-
-  /**
-   * Infer file visibility based on entity type
-   * Automatically marks certain entity types as public (e.g., avatars, profile content)
-   */
-  private inferVisibilityFromEntityType(app: string, entityType: string): FileVisibility {
-    // Public entity types that should be accessible without authentication
-    const publicEntityTypes = [
-      'avatar',
-      'profile-avatar',
-      'user-avatar',
-      'profile-banner',
-      'profile-cover',
-      'public-profile-content',
-    ];
-
-    if (publicEntityTypes.includes(entityType.toLowerCase())) {
-      return 'public';
-    }
-
-    // Default to private for all other types
-    return 'private';
   }
 
   /**
@@ -2428,9 +3018,21 @@ export class AssetService {
       }
 
       if ((file.visibility === 'public') !== (visibility === 'public'))
-        await assertPhysicalStoragePathSupported(file.ownerUserId, 'visibility relocation copy');
+        await assertPhysicalStoragePathSupported(
+          await meteredOwnerId(file),
+          'visibility relocation copy',
+        );
 
-      const updated = await updateFile(fileId, { visibility });
+      // Every application using the file is told in the same transaction
+      // (ADR 0043 D9), so the change never commits without its events.
+      const updated = await updateFile(
+        fileId,
+        { visibility },
+        {
+          afterUpdate: (tx, record) =>
+            recordFileEvents(tx, 'file.visibility_changed', [record.id]).then(() => undefined),
+        },
+      );
       if (!updated) {
         throw new Error('File not found');
       }
@@ -2439,16 +3041,7 @@ export class AssetService {
       // Relocate the object + variants so their S3 prefix matches the new
       // visibility: a now-private asset's bytes leave the CDN-reachable
       // `public/` prefix; a now-public asset's bytes move under it.
-      const relocated = await this.relocateAllForVisibility(updated);
-
-      // Notify linked apps about visibility change
-      try {
-        await this.notifyLinks(relocated, 'visibility_changed', { visibility });
-      } catch (err) {
-        logger.error('Failed to notify links after visibility change', err);
-      }
-
-      return relocated;
+      return await this.relocateAllForVisibility(updated);
     } catch (error) {
       logger.error('Error updating file visibility:', error);
       throw error;

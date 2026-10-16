@@ -1,6 +1,7 @@
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { getDb, type DatabaseOrTransaction, type Transaction } from '../config/postgres';
 import { storageByteReservations } from '../db/schema';
+import { FILE_LIVE_STATUS_SQL_LIST } from '../db/schema/files';
 import { withContentHashLock } from './contentHashLock';
 import { withStorageQuota } from './storageQuota.service';
 import { ApiError } from '../utils/error';
@@ -127,6 +128,34 @@ export async function releaseUnwrittenStorageReservation(
 }
 
 /**
+ * Release a large upload's reservation (ADR 0043 stage 4b) once its upload is
+ * TERMINAL and the reserved key will never be written by it: the S3 multipart
+ * upload was aborted (S3 refuses every further part), or it was assembled and
+ * then deleted or stored under another key (a deduplicated or shared row).
+ * Unlike {@link releaseUnwrittenStorageReservation}, the proof is the
+ * multipart upload's own terminal state, which a single presigned PUT cannot
+ * give — hence `presigned` is accepted here and nowhere else. Caller holds the
+ * content-hash lock in `tx`.
+ */
+export async function releaseTerminalMultipartReservation(
+  tx: Transaction,
+  id: string,
+): Promise<void> {
+  const [current] = await tx
+    .select()
+    .from(storageByteReservations)
+    .where(eq(storageByteReservations.id, id))
+    .for('update');
+  if (!current || current.cleanedAt) return;
+  await withStorageQuota(tx, [current.accountId], async () => {
+    await tx
+      .update(storageByteReservations)
+      .set({ cleanedAt: new Date() })
+      .where(eq(storageByteReservations.id, id));
+  });
+}
+
+/**
  * Bounded recovery entrypoint for the existing storage worker/scheduler.
  * Does no live/provider work unless its caller supplies an object-deletion adapter.
  * Presigned rows stay counted: signature expiry cannot bound in-flight PUTs.
@@ -155,7 +184,7 @@ export async function recoverStorageByteReservations(
         ),
         // Referenced holds must not occupy every slot ahead of orphan recovery.
         // Recheck under the hash/account locks below: this is only candidate selection.
-        sql`not exists (select 1 from "files" f where f.status in ('active', 'trash')
+        sql`not exists (select 1 from "files" f where f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
         and (f.storage_key = ${storageByteReservations.objectKey} or exists (
           select 1 from "file_variants" v where v.file_id = f.id and v.key = ${storageByteReservations.objectKey}
         )))`,
@@ -193,7 +222,7 @@ export async function recoverStorageByteReservations(
         )
           return false;
         const claims =
-          await tx.execute(sql`select 1 from "files" f where f.status in ('active', 'trash')
+          await tx.execute(sql`select 1 from "files" f where f.status in (${sql.raw(FILE_LIVE_STATUS_SQL_LIST)})
           and (f.storage_key = ${current.objectKey} or exists (
             select 1 from "file_variants" v where v.file_id = f.id and v.key = ${current.objectKey}
           )) limit 1`);

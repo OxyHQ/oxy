@@ -32,6 +32,15 @@ describe('getSurfaceConfig presentation', () => {
     expect(config.frameSize).toEqual({ heightRatio: 0.9, maxWidth: 640 });
   });
 
+  it('hosts the file Trash as a morphing own-scroller sheet (it owns its list)', () => {
+    const config = getSurfaceConfig('FileTrash', {});
+    expect(config.presentation).toBe('sheet');
+    expect(config.scrollable).toBe(false);
+    expect(config.morph).toBe(true);
+    expect(config.stacks).toBe(false);
+    expect(config.header).toBe(true);
+  });
+
   it('morphs the surface for every route, the picker included', () => {
     // NAV-WITHIN: drilling into these swaps the content inside ONE surface,
     // which reshapes the panel instead of hard-cutting.

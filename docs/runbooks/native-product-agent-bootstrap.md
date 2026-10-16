@@ -55,6 +55,15 @@ retired credential carried, before the run that revokes that credential:
 `--scopes` replaces a binding's scope list, so a re-bind names everything the
 service already relies on, not only these.
 
+The Clarity backend also holds the ADR 0043 file grant (`files:read`,
+`files:app:write`, `files:app:delete`, `files:references:write`, declared as
+`clarity.backendApplication.fileScopes`). The bootstrap adds it — and only it —
+to an existing backend application and to its LIVE binding (`grant
+application-scope …` / `grant workload-scope …` in the plan), since a workload
+token carries the intersection of the two; any other scope on the application
+is still `live_state_drift`. A binding made after that run must name the four
+as well.
+
 `bind-workload-identity.ts --app-id <id> --list` shows what is bound. The
 bootstrap reads the binding through `resolveLiveAgencyWorkload` — the same live
 ceiling a Sindi requester-assertion mint re-reads — and refuses with

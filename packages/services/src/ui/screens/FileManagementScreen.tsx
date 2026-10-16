@@ -42,6 +42,12 @@ import { presentFileDetails } from '../components/fileManagement/FileDetailsModa
 import { UploadPreview } from '../components/fileManagement/UploadPreview';
 import { presentActionSheet } from '../components/surfaces/ActionSheetSurface';
 import { getErrorMessage } from './fileManagement/shared';
+import {
+  deletePermanently,
+  errorStatus,
+  libraryRemovalFor,
+  removeFromLibrary,
+} from './fileManagement/trashActions';
 import { useFileUploadState } from './fileManagement/hooks/useFileUploadState';
 import PhotoPickerView from './fileManagement/PhotoPickerSection';
 import FileListSection, { type FileListItem } from './fileManagement/FileListSection';
@@ -124,6 +130,10 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
   const invalidateFiles = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: queryKeys.files.list(targetUserId) });
   }, [queryClient, targetUserId]);
+  // A removal changes the library AND the trash (`files.all` holds both).
+  const invalidateAllFiles = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
+  }, [queryClient]);
 
   const { width: windowWidth } = useWindowDimensions();
   // Prefer an explicit sheet width from the router; fall back to the window
@@ -483,90 +493,142 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     t,
   });
 
-  const confirmFileDelete = useCallback(
-    async (fileId: string, filename: string) => {
-      const confirmed = await surfaces.confirm({
+  // Asks before deleting for good a file an application still uses (the API
+  // refuses it until the person says so — ADR 0043 D5).
+  const confirmStillUsed = useCallback(
+    (filename: string) => (uses: number) =>
+      surfaces.confirm({
         title: t('fileManagement.deleteFile') || 'Delete File',
-        description: t('fileManagement.confirms.deleteFile', { filename }),
-        confirmLabel: t('fileManagement.confirm') || 'Delete',
+        description: t('fileManagement.confirms.deleteForeverInUse', { filename, count: uses }),
+        confirmLabel: t('fileManagement.trashView.deleteForever'),
         cancelLabel: t('common.cancel') || 'Cancel',
         destructive: true,
-      });
+      }),
+    [t],
+  );
+
+  /**
+   * Remove one file from the library. It goes to TRASH — no longer served,
+   * restorable from Trash (ADR 0043 D5). A `blocked` file cannot be trashed
+   * (it is served to nobody already), so removing it is the permanent delete.
+   */
+  const confirmFileDelete = useCallback(
+    async (fileId: string, filename: string) => {
+      const file = files.find((candidate) => candidate.id === fileId);
+      const removal = libraryRemovalFor({ status: file?.status });
+      const confirmed = await surfaces.confirm(
+        removal === 'trash'
+          ? {
+              title: t('fileManagement.moveToTrash'),
+              description: t('fileManagement.confirms.moveToTrash', { filename }),
+              confirmLabel: t('fileManagement.moveToTrash'),
+              cancelLabel: t('common.cancel') || 'Cancel',
+            }
+          : {
+              title: t('fileManagement.deleteFile') || 'Delete File',
+              description: t('fileManagement.confirms.deleteFile', { filename }),
+              confirmLabel: t('fileManagement.confirm') || 'Delete',
+              cancelLabel: t('common.cancel') || 'Cancel',
+              destructive: true,
+            },
+      );
       if (!confirmed) return;
 
       try {
         setDeletingId(fileId);
-        await oxyServices.assets.delete(fileId);
+        if (removal === 'trash') {
+          await oxyServices.assets.trash(fileId);
+          toast.success(t('fileManagement.toasts.movedToTrash'));
+        } else {
+          const outcome = await deletePermanently(
+            oxyServices.assets,
+            fileId,
+            confirmStillUsed(filename),
+          );
+          if (outcome === 'cancelled') return;
+          if (outcome === 'deleted') toast.success(t('fileManagement.toasts.deleteSuccess'));
+        }
 
-        toast.success(t('fileManagement.toasts.deleteSuccess'));
-
-        // Remove from the query cache, then reconcile against the server.
+        // Remove from the library cache, then reconcile both lists (the file
+        // is now in the trash) against the server.
         removeFileFromCache(queryClient, targetUserId, fileId);
-        invalidateFiles();
+        invalidateAllFiles();
       } catch (error: unknown) {
-        // Provide specific error messages
-        if (
-          getErrorMessage(error)?.includes('File not found') ||
-          getErrorMessage(error)?.includes('404')
-        ) {
+        const status = errorStatus(error);
+        if (status === 404) {
           toast.error(t('fileManagement.toasts.fileNotFound'));
           // It's already gone server-side — reconcile the list.
-          invalidateFiles();
-        } else if (
-          getErrorMessage(error)?.includes('permission') ||
-          getErrorMessage(error)?.includes('403')
-        ) {
+          invalidateAllFiles();
+        } else if (status === 403) {
           toast.error(t('fileManagement.toasts.noPermission'));
         } else {
-          toast.error(getErrorMessage(error) || t('fileManagement.toasts.deleteFailed'));
+          toast.error(
+            getErrorMessage(error) ||
+              t(
+                removal === 'trash'
+                  ? 'fileManagement.toasts.moveToTrashFailed'
+                  : 'fileManagement.toasts.deleteFailed',
+              ),
+          );
         }
       } finally {
         setDeletingId(null);
       }
     },
-    [oxyServices, queryClient, targetUserId, invalidateFiles, t],
+    [files, oxyServices, queryClient, targetUserId, invalidateAllFiles, confirmStillUsed, t],
   );
 
   const confirmBulkDelete = useCallback(async () => {
     if (selectedIds.size === 0) return;
 
     const confirmed = await surfaces.confirm({
-      title: t('fileManagement.deleteFiles') || 'Delete Files',
-      description: t('fileManagement.confirms.deleteFiles', { count: selectedIds.size }),
-      confirmLabel: t('fileManagement.confirm') || 'Delete',
+      title: t('fileManagement.moveToTrash'),
+      description: t('fileManagement.confirms.moveFilesToTrash', { count: selectedIds.size }),
+      confirmLabel: t('fileManagement.moveToTrash'),
       cancelLabel: t('common.cancel') || 'Cancel',
-      destructive: true,
     });
     if (!confirmed) return;
 
     try {
-      const deletePromises = Array.from(selectedIds).map(async (fileId) => {
-        try {
-          await oxyServices.assets.delete(fileId);
-          removeFileFromCache(queryClient, targetUserId, fileId);
-          return { success: true, fileId };
-        } catch (error: unknown) {
-          return { success: false, fileId, error };
-        }
-      });
-
-      const results = await Promise.allSettled(deletePromises);
-      const successful = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
-      const failed = results.length - successful;
-
-      if (successful > 0) {
-        toast.success(t('fileManagement.toasts.bulkDeleteSuccess', { count: successful }));
+      const selected = Array.from(selectedIds).map(
+        (id) => files.find((file) => file.id === id) ?? { id, filename: '', status: undefined },
+      );
+      const result = await removeFromLibrary(oxyServices.assets, selected, (uses, filename) =>
+        confirmStillUsed(filename)(uses),
+      );
+      for (const fileId of [...result.trashed, ...result.deleted]) {
+        removeFileFromCache(queryClient, targetUserId, fileId);
       }
-      if (failed > 0) {
-        toast.error(t('fileManagement.toasts.bulkDeleteFailed', { count: failed }));
+
+      if (result.trashed.length > 0) {
+        toast.success(
+          t('fileManagement.toasts.bulkMovedToTrash', { count: result.trashed.length }),
+        );
+      }
+      if (result.deleted.length > 0) {
+        toast.success(
+          t('fileManagement.toasts.bulkDeleteSuccess', { count: result.deleted.length }),
+        );
+      }
+      if (result.failed.length > 0) {
+        toast.error(t('fileManagement.toasts.bulkDeleteFailed', { count: result.failed.length }));
       }
 
       setSelectedIds(new Set());
-      invalidateFiles();
+      invalidateAllFiles();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error) || t('fileManagement.toasts.bulkDeleteError'));
     }
-  }, [selectedIds, oxyServices, queryClient, targetUserId, invalidateFiles, t]);
+  }, [
+    selectedIds,
+    files,
+    oxyServices,
+    queryClient,
+    targetUserId,
+    invalidateAllFiles,
+    confirmStillUsed,
+    t,
+  ]);
 
   const handleBulkVisibilityChange = useCallback(
     async (visibility: 'private' | 'public' | 'unlisted') => {
@@ -912,7 +974,16 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             <Ionicons name={getFileIcon(file.contentType)} size={20} color={colors.primary} />
           ) : undefined),
         title: file.filename,
-        description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}`,
+        // "Not in use": no application references it. Informational only —
+        // the file is never removed for that (ADR 0043 D5). A file taken down
+        // after a content claim says so: it is served to nobody (D10).
+        description: `${formatFileSize(file.length)} • ${new Date(file.uploadDate).toLocaleDateString()}${
+          file.status === 'blocked'
+            ? ` • ${t('fileManagement.removedAfterClaim')}`
+            : file.inUse === false
+              ? ` • ${t('fileManagement.notInUse')}`
+              : ''
+        }`,
         onPress: () => {
           // Support selection in regular mode with long press or if already selecting
           if (!selectMode && selectedIds.size > 0) {
@@ -955,7 +1026,12 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
                 iconOnly
                 stopPropagation
                 loading={deletingId === file.id}
-                accessibilityLabel={`Delete ${file.filename}`}
+                accessibilityLabel={t(
+                  file.status === 'blocked'
+                    ? 'fileManagement.a11y.deleteFile'
+                    : 'fileManagement.a11y.moveToTrash',
+                  { name: file.filename },
+                )}
                 onPress={() => confirmFileDelete(file.id, file.filename)}
                 icon={<Ionicons name="trash" size={18} color={colors.error} />}
               />
@@ -974,6 +1050,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     thumbSourceFor,
     selectMode,
     selectedIds,
+    t,
   ]);
 
   // Browse-themed terminal load-failure state — DISTINCT from the empty state.
@@ -1122,7 +1199,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
               },
               {
                 key: 'delete',
-                label: t('fileManagement.delete', { count: selectedIds.size }),
+                label: t('fileManagement.moveToTrashCount', { count: selectedIds.size }),
                 onPress: confirmBulkDelete,
                 disabled: false,
               },
@@ -1387,6 +1464,11 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
         onClose={handleCloseFile}
         onDownload={handleFileDownload}
         onDelete={confirmFileDelete}
+        deleteLabel={
+          openedFile.status === 'blocked'
+            ? t('fileManagement.deleteFile')
+            : t('fileManagement.moveToTrash')
+        }
         isOwner={user?.id === targetUserId}
       />
     );
@@ -1494,6 +1576,17 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
             </View>
           }
         />
+        {user?.id === targetUserId && !selectMode && navigate && (
+          <Button
+            appearance="subtle"
+            tone="neutral"
+            size="sm"
+            iconOnly
+            onPress={() => navigate('FileTrash', userId ? { userId } : undefined)}
+            accessibilityLabel={t('fileManagement.a11y.openTrash')}
+            icon={<Ionicons name="trash-outline" size={20} color={colors.text} />}
+          />
+        )}
         {user?.id === targetUserId && (!selectMode || allowUploadInSelectMode) && (
           <Button
             iconOnly

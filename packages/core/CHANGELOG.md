@@ -1,5 +1,187 @@
 # Changelog — `@oxy.so/core`
 
+## 4.18.0
+
+Needs the Oxy API with application-owned files, file references, the file
+lifecycle, import by URL, application deletion, file events and content
+claims, large uploads, adoption and counter-notices (ADR 0043, migrations
+`0169_application_owned_files`, `0170_file_references`, `0171_file_lifecycle`,
+`0172_application_file_events`, `0173_content_claims`,
+`0174_file_upload_sessions` and `0175_content_claim_counter_notices`), and
+`@oxy.so/contracts` 4.22.0. (The work below was first prepared as 4.12.0,
+then 4.13.0, then 4.14.0, then 4.15.0, then 4.16.0, then 4.17.0; each of those was published or taken from `main`
+without it.)
+
+### Changed
+
+- `oxy.assets.list()` lists the signed-in person's LIBRARY — `active` files
+  and `blocked` ones — and no longer files in trash (it used to list every
+  file not deleted). `oxy.assets.list({ status: 'trash' })` lists the trash,
+  most recently trashed first, each with `trashedAt` (also new, optional, on
+  `FileMetadata`); restore one with
+  `assets.restore(id)` or delete it for good with `assets.delete(id)`.
+  `assets.restore` of a file that is not in trash (restored or deleted
+  meanwhile, or blocked after a claim) is a 409 `FILE_NOT_IN_TRASH` — it was
+  a 500 — and evicts the cached record and URLs like `trash` does.
+- A file can be `blocked`: taken down after a content claim (ADR 0043 D10).
+  `Asset.status` is `'active' | 'trash' | 'blocked' | 'deleted'`, and the
+  service views that list a live file (`ServiceAssetMetadata`,
+  `ServiceAssetMetadataBySha`, `ApplicationFile`, `ServiceUserMediaImport`)
+  carry the new `AssetLiveStatus` (`'active' | 'trash' | 'blocked'`). A
+  blocked file is never served; an exhaustive `switch` over the old unions
+  needs the new case. `FileEvent` delivers `file.blocked` and
+  `file.unblocked` (already in `FILE_EVENT_TYPES`) with `file.status:
+  'blocked'` / the restored status.
+- Every upload and import (`assets.upload`, `OxyServer.assets.uploadAppFile`,
+  `uploadUserMedia`, `importAppFile(s)`, `importUserMedia`) can answer 451
+  `CONTENT_BLOCKED`: those bytes were taken down and cannot be stored again,
+  by anyone.
+
+### Breaking
+
+- `oxy.apps.delete(applicationId, { confirmName })`: the second argument is
+  required. Deleting an application now deletes every file it owns and every
+  reference it registered at once (ADR 0043 D8), so the API refuses the delete
+  (400 `CONFIRM_NAME_MISMATCH`) unless `confirmName` is the application's
+  current name (trimmed, case-sensitive). Resolves to
+  `ApplicationDeleteResult` (`{ success, filesDeleted, referencesRemoved }`).
+
+### Added
+
+- `OxyServer.assets.uploadAppFileLarge(source, { mime, visibility, filename?, metadata?, reference?, sha256?, partConcurrency?, partAttempts?, verifyTimeoutMs?, onProgress?, signal? })`
+  and `uploadUserMediaLarge(ownerUserId, source, { … visibility? })` →
+  `LargeServiceUploadResult` (`{ file, deduplicated, uploadId, reference? }`):
+  a file of ANY type up to 8 GiB by a resumable multipart upload
+  (`/assets/service/app/uploads`, `/assets/service/user-media/uploads`, ADR
+  0043 stage 4b). `source` is a `Blob`, bytes, or a file path (Node 20+
+  `fs.openAsBlob`); it is hashed 8 MiB at a time, its parts PUT straight to
+  storage on presigned URLs (`partConcurrency`, default 4, each retried, an
+  expired URL refreshed), and Oxy verifies the assembled file against the
+  declared SHA-256 before it is one. Calling again for the same bytes resumes,
+  sending only the parts storage lacks. A verification that ends without a
+  file rejects with `LargeUploadFailedError` (`code`, `uploadId`); a refusal
+  at open or completion rejects with the API's error (415 for executables and
+  active documents, 413, 451 `CONTENT_BLOCKED`, 422 `CHECKSUM_MISMATCH`).
+  `abortAppFileUpload(uploadId)` / `abortUserMediaUpload(ownerUserId,
+  uploadId)` abandon one. Types `LargeUploadSource`,
+  `LargeServiceUploadOptions`, `LargeServiceUploadResult`,
+  `LargeUploadProgressEvent`, `LargeUploadSession` from `@oxy.so/core/server`.
+- `OxyServer.assets.adoptAppFile(fileId, { visibility, reference? })` →
+  `ApplicationFileAdoption` (`{ file, outcome: 'adopted' | 'existing',
+  deduplicated, reference? }`): the calling application takes its own file of
+  the bytes a file it can read holds (`POST /assets/service/app/adopt`, ADR
+  0043 stage 4b), sharing the stored object — no re-upload. Never more visible
+  than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`); 404 for anything it
+  cannot read; 451 for taken-down bytes.
+- `oxy.contentClaims.submitCounterNotice(notice)` (`ContentClaimsApi`): the
+  signed-in owner of content a claim took down disputes it
+  (`POST /content-claims/counter-notices`, ADR 0043 D10; body
+  `ContentClaimCounterNotice` from `@oxy.so/contracts` 4.22.0) →
+  `ContentClaimCounterNoticeResponse`.
+- `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
+  → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
+  Oxy fetches the URL itself (https only on every hop, public addresses only,
+  at most 5 redirects, 40 MiB, 60 s) and the calling application owns the file
+  (`POST /assets/service/app/import`, `files:app:write`, ADR 0043 D7). The same
+  URL imported again answers the existing file without fetching
+  (`outcome: 'existing'`); `revalidate` asks the source conditionally
+  (`not_modified`, or `downloaded` with the new bytes as a new file).
+  `reference` registers the application's use in the same request (needs
+  `files:references:write`).
+- `OxyServer.assets.importAppFiles(items)` → `ApplicationFileImportBatchResult[]`
+  (`POST /assets/service/app/import/batch`, 50 per request, each item
+  `{ index, ok: true, … }` or `{ index, ok: false, error }`).
+- `OxyServer.assets.importUserMedia(ownerUserId, sourceUrl, { visibility?, reference?, revalidate?, signal? })`
+  → `ServiceUserMediaImport` (`POST /assets/service/user-media/import`, the
+  authority of `uploadUserMedia`; public unless `visibility` says otherwise).
+- Types `FileImportOutcome`, `FileImportSource`, `FileImportOptions`,
+  `ApplicationFileImport`, `ApplicationFileImportBatchResult`,
+  `ServiceUserMediaImport`.
+- `verifyFileEventSignature(rawBody, headers, secret, { toleranceSeconds?, now? })`
+  from `@oxy.so/core/server` → `FileEvent | FileWebhookChallenge`: checks the
+  `oxy-signature: t=…,v1=…` HMAC-SHA256 over `<t>.<raw body>` and a 300-second
+  replay window, and hands back the endpoint challenge to echo. Also
+  `FILE_EVENT_TYPES`, `FILE_EVENT_SIGNATURE_HEADER`,
+  `FILE_EVENT_DEFAULT_TOLERANCE_SECONDS`, `FileEventVerificationError`, types
+  `FileEvent`, `FileEventType`, `FileWebhookChallenge` (ADR 0043 D9).
+- `oxy.apps.getFilesWebhook(appId)`, `setFilesWebhook(appId, url)` (verifies
+  the endpoint with a challenge; returns the new signing secret ONCE) and
+  `removeFilesWebhook(appId)`; `Application.filesWebhookUrl?`,
+  `Application.filesWebhookVerifiedAt?`; types `ApplicationFilesWebhook`,
+  `ApplicationDeleteResult`.
+- `oxy.assets.trash(fileId)`: the owner moves their own file to trash (not
+  served, kept until restored or deleted; ADR 0043 D5).
+
+- `OxyServer.assets.references.reconcile(entityType, items, { dryRun? })` →
+  `ServiceReferenceReconcileResult` (`{ sessionId, entityType, dryRun, added,
+  removed, unchanged, refused }`): reconciles the calling application's
+  references of one entity type with its real inventory (ADR 0043 D6, scope
+  `files:references:write`). `items` is an array or any (async) iterable of
+  `{ fileId, entityId }`, sent in pages of 1,000 over
+  `POST /assets/service/references/reconcile`, `PUT …/:sessionId`,
+  `POST …/:sessionId/commit`; on a failure while sending, the session is
+  released (`DELETE …/:sessionId`) before the error is rethrown. Stale
+  references are removed only when created before the reconciliation began,
+  and removing one never trashes a file. One reconciliation per entity type
+  at a time (409 `RECONCILIATION_IN_PROGRESS`).
+- Types `ServiceReferenceInventoryItem`, `ServiceReferenceReconcileResult`.
+- `Asset.inUse?`, `Asset.unreferencedSince?`, `Asset.trashedAt?` on the
+  owner's own view (`assets.list`, `assets.get`), and `assets.list({ inUse })`
+  to list only the files an application uses (`true`) or none does
+  (`false`). A file not in use is never removed for its owner (ADR 0043 D5).
+
+- `OxyServer.assets.references.add(references)` / `.remove(references)` →
+  `ServiceFileReferenceResult[]`: the calling application records and removes
+  its own uses of files (`POST`/`DELETE /assets/service/references`, scope
+  `files:references:write`). `references` is `ServiceFileReference[]`
+  (`{ fileId, entityType, entityId }`); the application is the service
+  token's and is never sent. Batches above 100 are split into ordered
+  requests. Per item: `created` / `exists` / `removed` / `not_found`.
+- Types `ServiceFileReference`, `ServiceFileReferenceResult`.
+
+- `OxyServer.assets.uploadAppFile(bytes, mime, { visibility, originalName?, metadata?, signal?, timeout? })`
+  → `ApplicationFileUpload`: stores a file the CALLING APPLICATION owns
+  (`POST /assets/service/app`, scope `files:app:write`). `visibility` is
+  required; a re-upload of the same bytes returns the existing file,
+  `deduplicated: true`, visibility unchanged. A third-party application's
+  bytes count toward its developer's storage plan (413
+  `STORAGE_QUOTA_EXCEEDED` over it); Oxy's own applications are not metered.
+- `OxyServer.assets.setAppFileVisibility(fileId, visibility)` → `ApplicationFile`,
+  `deleteAppFile(fileId)` (`files:app:delete`; 404 for another application's
+  file, 409 `FILE_IN_USE`), `listAppFiles({ limit?, cursor? })` →
+  `ApplicationFilePage`.
+- `OxyServer.assets.uploadUserMedia(ownerUserId, bytes, mime, { originalName?, metadata?, signal?, timeout? })`
+  → `ServiceUserMediaFile`, over the existing `POST /assets/service/user-media`
+  (`files:user-media:write`).
+- Types `ApplicationFile`, `ApplicationFileUpload`, `ApplicationFilePage`,
+  `ServiceUserMediaFile`; `ServiceUploadBody`, `ServiceUploadDescription` from
+  `@oxy.so/core/server`.
+- `HttpService` sends a `Uint8Array` / `ArrayBuffer` / `Blob` body as raw bytes
+  under the caller's `Content-Type` (default `application/octet-stream`)
+  instead of JSON-encoding it.
+
+### Changed
+
+- Removing the last reference to an account's file no longer moves it to
+  trash, on any path (`assets.unlink` included): it stays `active` and reads
+  `inUse: false`. Only its owner trashes or deletes it (ADR 0043 D5).
+- A file in trash is no longer served: `assets.url` / `assets.urls`, the
+  stream and download routes and `linkedDownloadUrls` answer it like a missing
+  file, and a public one leaves the CDN until it is restored.
+- `AssetLink.app` holds the using application's ID (also in the new
+  `AssetLink.applicationId`), never a free-text name; `AssetLink.createdBy` is
+  optional (absent on a reference an application made with its token);
+  `AssetLink.webhookUrl` is typed and deprecated — and no longer returned or
+  called: file events go to the application's own endpoint (D9). `assets.link` takes an
+  application id or a legacy name (`goway`, `mercaria`, `nilo`, `oxy-mail`,
+  `profiles`) as `app`, and no longer changes the asset's visibility unless
+  `visibility` is passed. `assets.unlink` removes only references on your own
+  asset or ones you created.
+- `Asset.ownerUserId` is optional and nullable (`string | null`): a file owned
+  by an application or a system namespace has no owning account. New
+  `Asset.ownerApplicationId?` and `ServiceAssetMetadata.ownerApplicationId?`.
+  Code that assumed `ownerUserId: string` must handle its absence.
+
 ## 4.17.0
 
 Needs `@oxy.so/contracts` 4.21.0.

@@ -1,4 +1,5 @@
 import { SafetyApi } from './api/safety';
+import { ContentClaimsApi } from './api/contentClaims';
 /**
  * `OxyServices` — the Oxy API client.
  *
@@ -207,6 +208,7 @@ export class OxyServices {
   private _topics?: TopicsApi;
   private _appData?: AppDataApi;
   private _contacts?: ContactsApi;
+  private _contentClaims?: ContentClaimsApi;
 
   /** This client's auth state (token, user id) and its server session. */
   get session(): SessionApi {
@@ -252,6 +254,11 @@ export class OxyServices {
   get safety(): SafetyApi {
     if (!this._safety) this._safety = new SafetyApi(this.context);
     return this._safety;
+  }
+  /** Content claims: an owner's counter-notice to a takedown (ADR 0043 D10). */
+  get contentClaims(): ContentClaimsApi {
+    if (!this._contentClaims) this._contentClaims = new ContentClaimsApi(this.context);
+    return this._contentClaims;
   }
 
   get organizations(): OrganizationsApi {

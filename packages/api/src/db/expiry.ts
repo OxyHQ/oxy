@@ -67,6 +67,28 @@ import {
   storageObjectDeletions,
 } from './schema/storageObjectDeletions';
 import {
+  FILE_EVENT_DELIVERY_RETENTION_SECONDS,
+  fileEventDeliveries,
+} from './schema/fileEventDeliveries';
+import {
+  FILE_UPLOAD_SESSION_RETENTION_SECONDS,
+  fileUploadSessions,
+} from './schema/fileUploadSessions';
+import {
+  CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
+  contentClaimClaimants,
+  contentClaimCounterNotices,
+  contentClaimNotifications,
+} from './schema/contentClaims';
+import {
+  FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
+  fileLifecycleSweeps,
+} from './schema/fileLifecycleSweeps';
+import {
+  FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+  fileReferenceReconciliations,
+} from './schema/fileReferenceReconciliations';
+import {
   CREDENTIAL_AUDIT_RETENTION_SECONDS,
   applicationCredentialAuditEvents,
 } from './schema/applicationCredentialAuditEvents';
@@ -385,5 +407,72 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
     column: accountInvitations.expiresAt,
     retentionSeconds: 30 * 86400,
     reason: 'Thirty days to manage expired invitations; acceptance always checks expiry itself.',
+  },
+  {
+    table: fileReferenceReconciliations,
+    column: fileReferenceReconciliations.expiresAt,
+    retentionSeconds: FILE_REFERENCE_RECONCILIATION_RETENTION_SECONDS,
+    reason:
+      'Housekeeping only — every read of a reconciliation session filters ' +
+      '`expires_at > now()` itself. The day of grace answers a late page ' +
+      '"expired" rather than "unknown"; its items go with it (CASCADE).',
+  },
+  {
+    table: fileEventDeliveries,
+    column: fileEventDeliveries.createdAt,
+    retentionSeconds: FILE_EVENT_DELIVERY_RETENTION_SECONDS,
+    reason:
+      'Thirty days of file events to applications (ADR 0043 D9), far past the ' +
+      'three-and-a-half-day retry window: a delivered or dead-lettered event ' +
+      'stays inspectable for support, then goes. Nothing reads an old row.',
+  },
+  {
+    table: fileUploadSessions,
+    column: fileUploadSessions.finishedAt,
+    retentionSeconds: FILE_UPLOAD_SESSION_RETENTION_SECONDS,
+    reason:
+      'A large upload that finished — a file, a failure or an abort (ADR 0043 ' +
+      'stage 4b) — stays readable by its uploader for a week, so a client that ' +
+      'lost the answer still learns the outcome, then goes. An open session has ' +
+      'no `finished_at` and is never swept here: the upload worker aborts it.',
+  },
+  {
+    table: contentClaimClaimants,
+    column: contentClaimClaimants.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      "A content claimant's identity and statement (ADR 0043 D10), set to expire " +
+      'three years after the claim closes (`CONTENT_CLAIMANT_RETENTION_SECONDS`); ' +
+      'NULL — kept — while the claim is open. Housekeeping only: every read ' +
+      'treats a row past `expires_at` as erased. The claim keeps its trail.',
+  },
+  {
+    table: contentClaimCounterNotices,
+    column: contentClaimCounterNotices.expiresAt,
+    retentionSeconds: 0,
+    reason:
+      "An owner's counter-notice — their identity, contact details and " +
+      "statement (ADR 0043 D10) — on the claimant statement's clock: set to " +
+      'expire three years after the claim closes, NULL — kept — while it is ' +
+      'open. Housekeeping only: every read treats a row past `expires_at` as ' +
+      'erased; its emails go with it (CASCADE).',
+  },
+  {
+    table: contentClaimNotifications,
+    column: contentClaimNotifications.createdAt,
+    retentionSeconds: CONTENT_CLAIM_NOTIFICATION_RETENTION_SECONDS,
+    reason:
+      'Ninety days of claim emails, far past the day-and-a-half retry window: ' +
+      'a sent or dead-lettered email stays inspectable for support, then goes. ' +
+      'The rows hold no address and no content.',
+  },
+  {
+    table: fileLifecycleSweeps,
+    column: fileLifecycleSweeps.createdAt,
+    retentionSeconds: FILE_LIFECYCLE_SWEEP_RETENTION_SECONDS,
+    reason:
+      'Ninety days of lifecycle-sweep reports, the record an operator reviews ' +
+      'before and after switching the sweep to enforce. The schedule reads only ' +
+      'the newest few rows.',
   },
 ];

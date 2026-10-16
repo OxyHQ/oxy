@@ -1,9 +1,9 @@
 /**
  * The stored-asset aggregate, as the application sees it.
  *
- * `files` and its two child tables (`file_links`, `file_variants`) are ONE
- * aggregate: nothing reads a link or a variant without the file it belongs to,
- * and `files.status` is decided by whether any link remains. So the row types
+ * `files` and its two child tables (`file_references`, `file_variants`) are ONE
+ * aggregate: nothing reads a reference or a variant without the file it belongs
+ * to, and `files.status` is decided by whether any reference remains. So the row types
  * are declared together here, and every read that returns a file returns the
  * whole aggregate.
  *
@@ -22,7 +22,7 @@ import type {
   FILE_STATUSES,
   FILE_SYSTEM_OWNERS,
   FILE_VISIBILITIES,
-  fileLinks,
+  fileReferences,
   fileVariants,
   files,
 } from '../db/schema';
@@ -57,20 +57,32 @@ export type FilePurpose = (typeof FILE_PURPOSES)[number];
 export type FileSystemOwner = (typeof FILE_SYSTEM_OWNERS)[number];
 
 /**
- * Who owns an asset: an account, or a system namespace — never both, never
- * neither.
+ * Who owns an asset: an account, a system namespace, or an application (ADR
+ * 0043) — exactly one, never two, never none.
  *
  * `files_owner_exclusive_check` says exactly this in SQL. Saying it in the type
  * too means a write path cannot even construct the ambiguous case, so the CHECK
  * is a backstop for raw SQL rather than the only thing standing between a
  * sentinel string and the user-id column.
+ *
+ * `ownerApplicationId` is optional on the first two arms so the account and
+ * namespace owners every existing path spells keep their shape; absent and
+ * `null` mean the same column value.
  */
 export type FileOwner =
-  | { ownerUserId: string; systemOwner: null }
-  | { ownerUserId: null; systemOwner: FileSystemOwner };
+  | { ownerUserId: string; systemOwner: null; ownerApplicationId?: null }
+  | { ownerUserId: null; systemOwner: FileSystemOwner; ownerApplicationId?: null }
+  | { ownerUserId: null; systemOwner: null; ownerApplicationId: string };
 
-/** One place an asset is used. */
-export type FileLinkRecord = typeof fileLinks.$inferSelect;
+/** The three owner columns of a stored row, as every reader sees them. */
+export type FileOwnerColumns = {
+  ownerUserId: string | null;
+  systemOwner: string | null;
+  ownerApplicationId: string | null;
+};
+
+/** One place an application uses an asset (`file_references`, ADR 0043 D4). */
+export type FileReferenceRecord = typeof fileReferences.$inferSelect;
 
 /** One derived rendition of an asset (thumbnail, `720p`, HLS playlist, …). */
 export type FileVariantRecord = typeof fileVariants.$inferSelect;
@@ -83,8 +95,13 @@ export type FileVariantRecord = typeof fileVariants.$inferSelect;
  */
 export type NewFileVariant = Omit<typeof fileVariants.$inferInsert, 'fileId'>;
 
-/** A stored asset together with every link and variant it owns. */
+/**
+ * A stored asset together with every reference and variant it owns.
+ *
+ * `links` keeps its name from `file_links`: it holds the file's
+ * `file_references` rows, and `links.length` is still its usage count.
+ */
 export type FileRecord = typeof files.$inferSelect & {
-  links: FileLinkRecord[];
+  links: FileReferenceRecord[];
   variants: FileVariantRecord[];
 };

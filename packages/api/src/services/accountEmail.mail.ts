@@ -9,7 +9,7 @@
 import type { ReauthAction } from '@oxy.so/contracts';
 import { getAuthWebOrigin } from '../config/env';
 
-async function sendSystem(message: {
+export async function sendSystem(message: {
   to: string;
   subject: string;
   text: string;
@@ -19,11 +19,11 @@ async function sendSystem(message: {
   await smtpOutbound.sendSystem(message);
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => `&#${character.charCodeAt(0)};`);
 }
 
-function htmlPage(paragraphs: string[], code?: string): string {
+export function htmlPage(paragraphs: string[], code?: string): string {
   const body = paragraphs.map(
     (paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph)}</p>`,
   );

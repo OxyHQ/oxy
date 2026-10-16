@@ -125,7 +125,8 @@ jest.mock('@oxy.so/federation', () => {
 import { and, asc, eq, inArray, or } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { blocks } from '../../db/schema/blocks';
-import { fileLinks } from '../../db/schema/fileLinks';
+import { applications } from '../../db/schema/applications';
+import { fileReferences } from '../../db/schema/fileReferences';
 import { files } from '../../db/schema/files';
 import { restrictions } from '../../db/schema/restrictions';
 import { userFollows } from '../../db/schema/userFollows';
@@ -708,12 +709,16 @@ describe('POST /federation/domain-purge — multi-tenancy', () => {
       { source: 'federation', serviceAppId: CALLER_APP_ID },
       100,
     );
-    await getDb().insert(fileLinks).values({
+    const [app] = await getDb()
+      .insert(applications)
+      .values({ name: `Mention ${domain}`, ownerAccountId: actor })
+      .returning({ id: applications.id });
+    await getDb().insert(fileReferences).values({
       fileId: linked,
-      app: 'mention',
+      applicationId: app.id,
       entityType: 'post',
       entityId: 'post-1',
-      createdBy: actor,
+      createdByUserId: actor,
     });
 
     const data = planOf(await purge({ domain, dryRun: false }));

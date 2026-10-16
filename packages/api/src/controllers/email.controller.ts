@@ -5,6 +5,7 @@
  * Delegates to emailService for business logic and emailDelivery for sending.
  */
 
+import { INBOX_APPLICATION_ID } from '../config/inboxInference';
 import type { Request, Response } from 'express';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { rfcMessageIdSchema } from '@oxy.so/contracts';
@@ -136,10 +137,10 @@ async function linkAttachmentsToMessage(
   for (const file of files) {
     try {
       await assetService.linkFile(file.id, {
-        app: 'oxy-mail',
+        applicationId: INBOX_APPLICATION_ID,
         entityType: 'message',
         entityId: messageId,
-        createdBy: userId,
+        createdByUserId: userId,
       });
     } catch (err) {
       logger.warn('Failed to link attachment file to email message', {

@@ -187,3 +187,29 @@ export const rotateCredentialSchema = z
 export const credentialAuditQuerySchema = z
   .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
   .strict();
+
+/**
+ * `DELETE /applications/:appId` (ADR 0043 D8): deleting an application deletes
+ * every file it owns at once, so the caller types the application's current
+ * name. Compared trimmed and case-sensitively in the route.
+ */
+export const deleteApplicationBodySchema = z
+  .object({
+    confirmName: z.string().max(500),
+  })
+  .strict();
+
+/**
+ * `PUT /applications/:appId/files-webhook` (ADR 0043 D9): the one endpoint
+ * the application is told about its files at. `https` only; the route also
+ * requires a public address and a challenge answered before it stores it.
+ */
+export const filesWebhookBodySchema = z
+  .object({
+    url: z
+      .string()
+      .max(2048)
+      .url()
+      .refine((value) => value.startsWith('https://'), 'The endpoint must be an https URL'),
+  })
+  .strict();

@@ -404,5 +404,63 @@ const dict = {
       row: 'Un secondo passaggio quando accedi',
     },
   },
+  fileManagement: {
+    deleteFile: 'Elimina file',
+    confirm: 'Conferma',
+    retry: 'Riprova',
+    loadError: {
+      description: 'Qualcosa è andato storto. Controlla la connessione e riprova.',
+    },
+    moveToTrash: 'Sposta nel cestino',
+    moveToTrashCount: 'Sposta nel cestino ({{count}})',
+    trashView: {
+      title: 'Cestino',
+      subtitle: 'Ripristina i file o eliminali definitivamente',
+      notice:
+        'I file restano nel cestino finché non li ripristini o li elimini, e continuano a contare per il tuo spazio di archiviazione.',
+      emptyTitle: 'Il cestino è vuoto',
+      emptyDescription:
+        'I file che sposti nel cestino compaiono qui. Puoi ripristinarli o eliminarli definitivamente.',
+      trashedOn: 'Spostato nel cestino il {{date}}',
+      deleteForever: 'Elimina definitivamente',
+      loadError: 'Impossibile caricare il cestino',
+      a11y: {
+        restore: 'Ripristina {{name}}',
+        deleteForever: 'Elimina definitivamente {{name}}',
+      },
+    },
+    a11y: {
+      moveToTrash: 'Sposta {{name}} nel cestino',
+      deleteFile: 'Elimina {{name}}',
+      openTrash: 'Apri il cestino',
+    },
+    toasts: {
+      movedToTrash: 'Spostato nel cestino. Puoi ripristinarlo dal cestino.',
+      bulkMovedToTrash: '{{count}} file spostati nel cestino',
+      moveToTrashFailed: 'Impossibile spostare il file nel cestino',
+      restored: 'File ripristinato',
+      notInTrash: 'Questo file non è più nel cestino.',
+      restoreFailed: 'Impossibile ripristinare il file',
+      deletedForever: 'File eliminato definitivamente',
+      deleteSuccess: 'File eliminato',
+      deleteFailed: 'Impossibile eliminare il file',
+      fileNotFound: 'File non trovato. Potrebbe essere già stato eliminato.',
+      noPermission: 'Non hai l’autorizzazione per eliminare questo file.',
+      bulkDeleteSuccess: '{{count}} file eliminati',
+      bulkDeleteFailed: 'Impossibile eliminare {{count}} file',
+      bulkDeleteError: 'Impossibile eliminare i file',
+    },
+    confirms: {
+      deleteFile: 'Vuoi davvero eliminare «{{filename}}»? Questa azione non può essere annullata.',
+      moveToTrash:
+        'Spostare «{{filename}}» nel cestino? Non verrà più mostrato da nessuna parte e potrai ripristinarlo dal cestino.',
+      moveFilesToTrash:
+        'Spostare {{count}} file nel cestino? Non verranno più mostrati da nessuna parte e potrai ripristinarli dal cestino.',
+      deleteForever:
+        'Eliminare «{{filename}}» definitivamente? Questa azione non può essere annullata.',
+      deleteForeverInUse:
+        '«{{filename}}» è ancora usato in {{count}} punti delle tue app. Eliminandolo, scompare anche da lì. Eliminarlo definitivamente?',
+    },
+  },
 };
 export default dict;

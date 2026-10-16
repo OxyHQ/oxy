@@ -30,6 +30,7 @@ import {
   mergePaymentsScopes,
 } from '@/lib/application-scopes';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
+import { isDeleteConfirmed } from '@/lib/application-delete';
 import { useDeleteApplication, useUpdateApplication } from '@/hooks/use-applications';
 
 function arraysEqual(a: Array<string>, b: Array<string>): boolean {
@@ -72,6 +73,10 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   );
   const [aliaMachineAccess, setAliaMachineAccess] = useState<boolean | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  // Deleting an application deletes every file it owns at once (ADR 0043 D8),
+  // so the person types its name; the API compares it the same way.
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const deleteConfirmed = isDeleteConfirmed(deleteConfirmName, application.name);
 
   const nextScopes = mergeAliaMachineScopes(
     mergePaymentsScopes(application.scopes, {
@@ -138,8 +143,12 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   };
 
   const handleDelete = async () => {
+    if (!deleteConfirmed) return;
     try {
-      await deleteApplication.mutateAsync(application._id);
+      await deleteApplication.mutateAsync({
+        appId: application._id,
+        confirmName: deleteConfirmName,
+      });
       setShowDeleteDialog(false);
       toast.success('Application deleted');
       navigate({ to: '/apps' });
@@ -393,7 +402,8 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
           <div>
             <h2 className="text-sm font-semibold text-destructive">Danger zone</h2>
             <p className="text-sm text-muted-foreground">
-              Deleting an application removes all members and credentials. This cannot be undone.
+              Deleting an application removes its credentials and deletes every file it owns. This
+              cannot be undone.
             </p>
           </div>
           <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
@@ -403,20 +413,43 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
         </section>
       )}
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          setShowDeleteDialog(open);
+          if (!open) setDeleteConfirmName('');
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete application</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{application.name}"? This removes all members,
-              credentials, and usage data. This action cannot be undone.
+              This deletes "{application.name}", its credentials, and every file it owns — at once,
+              with no trash to restore from. Files people uploaded stay theirs. This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="delete-confirm-name" className="text-sm">
+              Type <span className="font-semibold">{application.name}</span> to confirm
+            </Label>
+            <Input
+              id="delete-confirm-name"
+              value={deleteConfirmName}
+              onChange={(event) => setDeleteConfirmName(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleteApplication.isPending}
+              onClick={(event) => {
+                // Keep the dialog open until the request answers.
+                event.preventDefault();
+                void handleDelete();
+              }}
+              disabled={deleteApplication.isPending || !deleteConfirmed}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteApplication.isPending ? 'Deleting...' : 'Delete'}

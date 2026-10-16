@@ -325,6 +325,49 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
     column: 'metadata',
     holds: 'uploaded-file metadata: dimensions, duration, checksum',
   },
+  // ---- ADR 0043: the file lifecycle, reconciliation and file events -----------
+  {
+    table: 'file_lifecycle_sweeps',
+    column: 'counts',
+    holds:
+      'per sweep step, integer counters (due, acted, failed, withObject) of files the lifecycle sweep matched; no file content, no request',
+  },
+  {
+    table: 'file_lifecycle_sweeps',
+    column: 'samples',
+    holds:
+      'per sweep step, at most 100 file ids with their owner id, size and clock timestamp — the report an operator reviews; no file content, no request',
+  },
+  {
+    table: 'file_reference_reconciliations',
+    column: 'result',
+    holds:
+      "a committed reconciliation's integer counts (added, removed, unchanged, refused) and dryRun flag; no inventory item, no request",
+  },
+  {
+    table: 'content_claim_events',
+    column: 'details',
+    holds:
+      "the shape of one action on a content claim (ADR 0043 D10), composed by Oxy: target ids, counts of hashes, files and accounts a block reached, whether a claim is an erasure request — never the claimant's identity or statement (sealed in content_claim_claimants), no file content, no prompt, completion or credential",
+  },
+  {
+    table: 'file_event_deliveries',
+    column: 'payload',
+    holds:
+      "the file event Oxy itself composes for an application (ADR 0043 D9): event id, closed type, timestamp, file id, owner KIND, visibility and status, and that application's own (entityType, entityId) references — nothing a caller sent, no file content, no prompt, completion or credential",
+  },
+  {
+    table: 'file_upload_sessions',
+    column: 'metadata',
+    holds:
+      "a large upload's uploaded-file metadata (ADR 0043 stage 4b), copied to files.metadata when the session becomes a file — the same shape as that column; no file content, no prompt, completion or credential",
+  },
+  {
+    table: 'file_upload_sessions',
+    column: 'reference',
+    holds:
+      'the one (entityType ≤128 chars, entityId ≤256 chars) reference a large upload registers for its application once it is a file (ADR 0043 D4); strict schema, nothing else',
+  },
   {
     table: 'file_variants',
     column: 'metadata',

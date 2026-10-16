@@ -17,7 +17,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
-import { fileLinks } from '../fileLinks';
+import { applications } from '../applications';
+import { fileReferences } from '../fileReferences';
 import { FILE_LIVE_STATUSES, FILE_STATUSES, files } from '../files';
 import { fileVariants } from '../fileVariants';
 import { mailboxes } from '../mailboxes';
@@ -62,6 +63,15 @@ async function rejection(query: Promise<unknown>): Promise<unknown> {
 
 async function owner(): Promise<string> {
   const [row] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
+  return row.id;
+}
+
+/** A real application row — a reference names one, never free text. */
+async function application(): Promise<string> {
+  const [row] = await getDb()
+    .insert(applications)
+    .values({ name: `app-${unique()}`, ownerAccountId: await owner() })
+    .returning({ id: applications.id });
   return row.id;
 }
 
@@ -343,65 +353,107 @@ describe('files — usage count is derived, never stored', () => {
     expect(columns.map((row) => row.column_name)).not.toContain('usage_count');
 
     const userId = await owner();
+    const applicationId = await application();
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
     await getDb()
-      .insert(fileLinks)
+      .insert(fileReferences)
       .values([
-        { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
-        { fileId, app: 'mention', entityType: 'post', entityId: unique(), createdBy: userId },
+        { fileId, applicationId, entityType: 'post', entityId: unique(), createdByUserId: userId },
+        { fileId, applicationId, entityType: 'post', entityId: unique(), createdByUserId: null },
       ]);
 
     const [{ count }] = await getDb()
       .select({ count: sql<number>`count(*)::int` })
-      .from(fileLinks)
-      .where(eq(fileLinks.fileId, fileId));
+      .from(fileReferences)
+      .where(eq(fileReferences.fileId, fileId));
 
     expect(count).toBe(2);
   });
 });
 
-describe('file_links', () => {
-  it('refuses a duplicate link — the check `linkFile` does in application code', async () => {
+describe('file_references (ADR 0043 D4)', () => {
+  it('refuses a duplicate reference — the check `linkFile` does in application code', async () => {
     const userId = await owner();
+    const applicationId = await application();
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
     const entityId = unique();
 
     await getDb()
-      .insert(fileLinks)
-      .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy: userId });
+      .insert(fileReferences)
+      .values({ fileId, applicationId, entityType: 'post', entityId, createdByUserId: userId });
 
     const error = await rejection(
       getDb()
-        .insert(fileLinks)
-        .values({ fileId, app: 'mention', entityType: 'post', entityId, createdBy: await owner() }),
+        .insert(fileReferences)
+        .values({ fileId, applicationId, entityType: 'post', entityId, createdByUserId: null }),
     );
 
-    // A DIFFERENT creator, deliberately: `linkFile` ignores `createdBy` when it
-    // dedupes, so including it in the key would enforce something weaker.
-    expect(pgConstraint(error)).toBe('file_links_file_id_app_entity_key');
+    // A DIFFERENT creator (none: the application's own token), deliberately:
+    // the creator is not part of what identifies a use.
+    expect(pgConstraint(error)).toBe('file_references_file_id_application_id_entity_key');
   });
 
-  it('scopes the link to its creator with a real foreign key', async () => {
+  it('names a real application — never free text', async () => {
     const fileId = await insertFile({ sha256: unique() });
     const error = await rejection(
       getDb()
-        .insert(fileLinks)
+        .insert(fileReferences)
+        .values({ fileId, applicationId: 'mention', entityType: 'post', entityId: unique() }),
+    );
+
+    expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
+    expect(pgConstraint(error)).toBe('file_references_application_id_applications_id_fk');
+  });
+
+  it('scopes a person-made reference to its creator with a real foreign key', async () => {
+    const fileId = await insertFile({ sha256: unique() });
+    const error = await rejection(
+      getDb()
+        .insert(fileReferences)
         .values({
           fileId,
-          app: 'mention',
+          applicationId: await application(),
           entityType: 'post',
           entityId: unique(),
-          createdBy: `ghost-${unique()}`,
+          createdByUserId: `ghost-${unique()}`,
         }),
     );
 
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
   });
 
+  it('outlives its creator: the reference is the application’s, the person only attribution', async () => {
+    const fileOwner = await owner();
+    const creator = await owner();
+    const fileId = await insertFile({
+      sha256: unique(),
+      ownerUserId: fileOwner,
+      visibility: 'public',
+    });
+    const [reference] = await getDb()
+      .insert(fileReferences)
+      .values({
+        fileId,
+        applicationId: await application(),
+        entityType: 'post',
+        entityId: unique(),
+        createdByUserId: creator,
+      })
+      .returning({ id: fileReferences.id });
+
+    await getDb().delete(users).where(eq(users.id, creator));
+
+    const [after] = await getDb()
+      .select({ createdByUserId: fileReferences.createdByUserId })
+      .from(fileReferences)
+      .where(eq(fileReferences.id, reference.id));
+    expect(after).toEqual({ createdByUserId: null });
+  });
+
   it('is append-only — no updated_at', async () => {
     const columns = await getDb().execute<{ column_name: string }>(sql`
       select column_name from information_schema.columns
-      where table_schema = 'public' and table_name = 'file_links'
+      where table_schema = 'public' and table_name = 'file_references'
     `);
     const names = columns.map((row) => row.column_name);
 
@@ -409,24 +461,41 @@ describe('file_links', () => {
     expect(names).not.toContain('updated_at');
   });
 
-  it('goes with the file', async () => {
+  it('goes with the file, and with the application', async () => {
     const userId = await owner();
     const fileId = await insertFile({ sha256: unique(), ownerUserId: userId });
-    await getDb().insert(fileLinks).values({
-      fileId,
-      app: 'mention',
-      entityType: 'post',
-      entityId: unique(),
-      createdBy: userId,
-    });
+    const applicationId = await application();
+    const otherFileId = await insertFile({ sha256: unique(), ownerUserId: userId });
+    await getDb()
+      .insert(fileReferences)
+      .values([
+        { fileId, applicationId, entityType: 'post', entityId: unique(), createdByUserId: userId },
+        { fileId: otherFileId, applicationId, entityType: 'post', entityId: unique() },
+      ]);
 
     await getDb().delete(files).where(eq(files.id, fileId));
+    expect(
+      await getDb()
+        .select({ id: fileReferences.id })
+        .from(fileReferences)
+        .where(eq(fileReferences.fileId, fileId)),
+    ).toEqual([]);
 
-    const remaining = await getDb()
-      .select({ id: fileLinks.id })
-      .from(fileLinks)
-      .where(eq(fileLinks.fileId, fileId));
-    expect(remaining).toEqual([]);
+    await getDb().delete(applications).where(eq(applications.id, applicationId));
+    expect(
+      await getDb()
+        .select({ id: fileReferences.id })
+        .from(fileReferences)
+        .where(eq(fileReferences.fileId, otherFileId)),
+    ).toEqual([]);
+  });
+
+  it('has replaced file_links, which no longer exists', async () => {
+    const tables = await getDb().execute<{ table_name: string }>(sql`
+      select table_name from information_schema.tables
+      where table_schema = 'public' and table_name in ('file_links', 'file_references')
+    `);
+    expect(tables.map((row) => row.table_name)).toEqual(['file_references']);
   });
 });
 

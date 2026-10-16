@@ -4,9 +4,14 @@ import {
   IMAGE_VARIANT_QUALITY,
   type ImageVariantName,
 } from '@oxy.so/utils/image';
-import { assertPhysicalStoragePathSupported, uploadAdmittedVariant } from './storageQuota.service';
+import {
+  assertPhysicalStoragePathSupported,
+  meteredOwnerId,
+  uploadAdmittedVariant,
+} from './storageQuota.service';
 import type { S3Service } from './s3Service';
 import {
+  isServedPublicly,
   storageKeyForVisibility,
   HLS_MASTER_PLAYLIST_CACHE_CONTROL,
   IMMUTABLE_ASSET_CACHE_CONTROL,
@@ -240,6 +245,14 @@ const POSTER_FFMPEG_TIMEOUT_MS = 30_000;
 const POSTER_MAX_OUTPUT_BYTES = 32 * 1024 * 1024; // 32 MiB
 
 /**
+ * The largest image whose renditions are made. Sharp reads the original into
+ * memory, so a large upload of a huge image (ADR 0043 stage 4b allows 8 GiB)
+ * would take the task down; such an image is stored and served as it is, with
+ * no renditions (and a size request for it falls back like any missing one).
+ */
+export const IMAGE_VARIANT_MAX_SOURCE_BYTES = 100 * 1024 * 1024;
+
+/**
  * The protocols ffmpeg is allowed to open for a poster decode, derived from the
  * input URL's OWN scheme.
  *
@@ -269,6 +282,17 @@ export interface VideoVariantConfig {
   videoCodec?: string;
   audioCodec?: string;
   preset?: string; // FFmpeg preset (ultrafast, fast, medium, slow)
+}
+
+/**
+ * The spelling a file's renditions are written in: under `public/` only while
+ * the file is SERVED publicly (public AND `active`, `config/cdn.isServedPublicly`),
+ * exactly as its original's key is. A public file in trash or blocked (ADR
+ * 0043 D5, D10) is not on the CDN, and a rendition generated for it must not
+ * put it back there.
+ */
+function spellingOf(file: Pick<FileRecord, 'visibility' | 'status'>): FileVisibility {
+  return isServedPublicly(file) ? 'public' : 'private';
 }
 
 export class VariantService {
@@ -435,7 +459,7 @@ export class VariantService {
       // row's visibility needs gives them to this row without re-encoding.
       const existingFile = reencode
         ? null
-        : await findVariantTwin(file.sha256, file.id, file.visibility);
+        : await findVariantTwin(file.sha256, file.id, spellingOf(file));
 
       if (existingFile && existingFile.variants.length > 0) {
         await this.copyVariantSet(existingFile, file);
@@ -449,7 +473,12 @@ export class VariantService {
 
       // Generate new variants based on file type
       if (file.mime.startsWith('image/')) {
-        await this.generateImageVariants(file);
+        if (file.size <= IMAGE_VARIANT_MAX_SOURCE_BYTES) await this.generateImageVariants(file);
+        else
+          logger.info('Image too large for renditions; served as stored', {
+            fileId,
+            size: file.size,
+          });
       } else if (file.mime.startsWith('video/')) {
         await this.generateVideoVariants(file);
       } else if (file.mime === 'application/pdf') {
@@ -517,7 +546,7 @@ export class VariantService {
       for (const twin of await findSameSpellingTwins(
         file.sha256,
         file.id,
-        file.visibility,
+        spellingOf(file),
         twins,
       )) {
         await this.copyVariantSet(file, twin);
@@ -619,6 +648,7 @@ export class VariantService {
     }
 
     if (file.mime.startsWith('image/')) {
+      if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) return false;
       const originalBuffer = await this.s3Service.downloadBuffer(file.storageKey);
       const meta = await sharp(originalBuffer, { failOn: 'none' }).metadata();
       const width = typeof meta.width === 'number' && meta.width > 0 ? meta.width : undefined;
@@ -663,7 +693,7 @@ export class VariantService {
           file.sha256,
           config.type,
           config.format || 'webp',
-          file.visibility,
+          spellingOf(file),
         );
 
         const width = config.width || meta.width || 1280;
@@ -731,7 +761,7 @@ export class VariantService {
    * Generates poster frame, multiple bitrate variants, and HLS streams
    */
   private async generateVideoVariants(file: FileRecord): Promise<void> {
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generateVideoVariants');
+    await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'generateVideoVariants');
     try {
       logger.info('Generating video variants with FFmpeg', { fileId: file.id });
 
@@ -749,7 +779,7 @@ export class VariantService {
         file.storageKey, // Use S3 storage key directly - no temp files
         file.sha256,
         posterTime,
-        file.visibility,
+        spellingOf(file),
         metadata, // Pass metadata to preserve exact aspect ratio
       );
       variants.push(posterVariant);
@@ -784,7 +814,7 @@ export class VariantService {
           videoUrl, // Use S3 presigned URL directly - no temp files
           file.sha256,
           config,
-          file.visibility,
+          spellingOf(file),
         );
         if (variant) {
           renditionsSucceeded += 1;
@@ -797,7 +827,7 @@ export class VariantService {
         videoUrl, // Use S3 presigned URL directly - no temp files
         file.sha256,
         metadata,
-        file.visibility,
+        spellingOf(file),
       );
       variants.push(...hlsVariants);
 
@@ -1559,14 +1589,14 @@ export class VariantService {
    * Generate PDF variants (first page thumbnail)
    */
   private async generatePdfVariants(file: FileRecord): Promise<void> {
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'generatePdfVariants');
+    await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'generatePdfVariants');
     // This would use pdf2pic or similar to generate thumbnails
     // For now, this is a placeholder
 
     try {
       logger.info('Generating PDF variants (placeholder)', { fileId: file.id });
 
-      const thumbnailKey = this.generateVariantKey(file.sha256, 'thumb', 'jpg', file.visibility);
+      const thumbnailKey = this.generateVariantKey(file.sha256, 'thumb', 'jpg', spellingOf(file));
 
       // Placeholder variant
       const variants: NewFileVariant[] = [
@@ -1685,7 +1715,7 @@ export class VariantService {
       return existing;
     }
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
+    await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'video/HLS generation');
 
     const config = this.videoVariants.find((v) => v.type === variantType);
     if (!config) {
@@ -1712,7 +1742,12 @@ export class VariantService {
       );
     }
 
-    const variant = await this.generateVideoVariant(videoUrl, file.sha256, config, file.visibility);
+    const variant = await this.generateVideoVariant(
+      videoUrl,
+      file.sha256,
+      config,
+      spellingOf(file),
+    );
     if (!variant) {
       throw new Error(`Failed to generate video rendition: ${variantType}`);
     }
@@ -1729,7 +1764,7 @@ export class VariantService {
       return existing;
     }
 
-    await assertPhysicalStoragePathSupported(file.ownerUserId, 'video/HLS generation');
+    await assertPhysicalStoragePathSupported(await meteredOwnerId(file), 'video/HLS generation');
 
     // Generate poster frame directly from S3 - no temp files
     try {
@@ -1743,7 +1778,7 @@ export class VariantService {
         file.storageKey, // Use S3 storage key directly - no temp files
         file.sha256,
         posterTime,
-        file.visibility,
+        spellingOf(file),
         metadata, // Pass metadata to preserve exact aspect ratio
       );
 
@@ -1788,7 +1823,7 @@ export class VariantService {
     // its own `format` and the upload sets `contentType` explicitly, which is
     // what lets a `video/*` file own an `image/webp` variant (the `poster`
     // variant has always relied on the same property).
-    const key = this.generateVariantKey(file.sha256, config.type, format, file.visibility);
+    const key = this.generateVariantKey(file.sha256, config.type, format, spellingOf(file));
     const imgMeta = await sharp(out).metadata();
     return uploadAdmittedVariant(
       file,
@@ -1823,6 +1858,9 @@ export class VariantService {
     const config = this.imageVariants.find((v) => v.type === variantType);
     if (!config) {
       throw new Error(`Unsupported image variant: ${variantType}`);
+    }
+    if (file.size > IMAGE_VARIANT_MAX_SOURCE_BYTES) {
+      throw new Error(`Image too large for renditions: ${file.size} bytes`);
     }
 
     const sourceBuffer = await this.s3Service.downloadBuffer(file.storageKey);

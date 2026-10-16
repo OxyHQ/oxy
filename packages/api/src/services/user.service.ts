@@ -53,6 +53,10 @@ import {
 import type { FollowEventCause } from '../db/schema/followEvents';
 import { sanitizeProfileUpdate } from '../utils/sanitize';
 import {
+  resolveProfileMediaApplicationId,
+  syncProfileAvatarReference,
+} from './profileMediaReferences.service';
+import {
   normalizeLinks,
   normalizeLinksMetadata,
   normalizeLocations,
@@ -1129,11 +1133,36 @@ export class UserService {
       ? filteredUpdates.linksMetadata
       : undefined;
 
+    // The avatar is a use of a file by Oxy Accounts (ADR 0043 D4): resolved
+    // before the transaction, its reference moves inside it.
+    const avatarChanged = 'avatar' in columnUpdates;
+    const profileMediaApplicationId = avatarChanged
+      ? await resolveProfileMediaApplicationId()
+      : null;
+    if (avatarChanged && !profileMediaApplicationId) {
+      // The profile edit still lands; `reconcile-profile-media-references`
+      // repairs the reference once Oxy Accounts is seeded.
+      logger.error('Profile avatar reference skipped: Oxy Accounts names no single application', {
+        userId,
+      });
+    }
+
     // One transaction: the account row and its two child collections either all
     // move or none do. There is no non-transactional fallback.
     await db.transaction(async (tx) => {
       if (Object.keys(columnUpdates).length > 0) {
         await tx.update(users).set(columnUpdates).where(eq(users.id, userId));
+      }
+
+      // Under the row lock the update above took: exactly the new avatar file
+      // (when it is this account's own) is referenced, the replaced or cleared
+      // one is not — and only stops being in use, never trashed (D5).
+      if (profileMediaApplicationId) {
+        await syncProfileAvatarReference(tx, {
+          userId,
+          avatar: (columnUpdates.avatar as string | null | undefined) ?? null,
+          applicationId: profileMediaApplicationId,
+        });
       }
 
       if (locations) {
