@@ -113,7 +113,7 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  it('plans GoWay as a pinned public sign-in application without service authority', () => {
+  it('plans GoWay as a pinned public sign-in application whose only service authority is its file references', () => {
     const spec = specNamed('GoWay');
     expect(seedApplicationLookupIdentity(spec, PLATFORM_OWNER_ID)).toEqual({
       kind: 'id',
@@ -140,7 +140,8 @@ describe('the canonical official-application registry', () => {
       type: 'first_party',
       isOfficial: true,
       isInternal: false,
-      scopes: ['user:read'],
+      // ADR 0041 D12: claim withdrawal is GoWay's own reference removal.
+      scopes: ['user:read', 'files:references:write'],
       capabilities: [],
     });
     expect(spec.ownerAccountUsername).toBeUndefined();

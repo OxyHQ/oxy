@@ -687,7 +687,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://goway.to',
     type: 'first_party',
     redirectUris: ['https://goway.to'],
-    scopes: ['user:read'],
+    // `files:references:write`: GoWay records and withdraws its own uses of
+    // files (a contributor's photo on a place) with its service token — the
+    // claim withdrawal a business's session can no longer perform (ADR 0041
+    // D12) — and reconciles them (D6). Staff-granted: GoWay is Oxy's (D11).
+    scopes: ['user:read', 'files:references:write'],
   },
   {
     id: NILO_APPLICATION_ID,
