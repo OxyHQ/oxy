@@ -371,6 +371,7 @@ export type {
   FileImportOptions,
   ApplicationFileImport,
   ApplicationFileImportBatchResult,
+  ApplicationFileAdoption,
   ServiceUserMediaImport,
   AccountStorageCategoryUsage,
   AccountStorageUsageResponse,

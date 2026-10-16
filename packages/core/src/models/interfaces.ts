@@ -934,6 +934,19 @@ export interface ApplicationFileImport {
   reference?: { result: 'created' | 'exists' | 'not_found' };
 }
 
+/**
+ * `POST /assets/service/app/adopt` (ADR 0041 stage 4b): this application's own
+ * file of the bytes another file holds, sharing the stored object.
+ */
+export interface ApplicationFileAdoption {
+  file: ApplicationFile;
+  /** `existing`: the application already held these bytes (or the file was its own). */
+  outcome: 'adopted' | 'existing';
+  deduplicated: boolean;
+  /** Present when a reference was asked for: `not_found` when it was refused. */
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
 /** One item of `POST /assets/service/app/import/batch`, answered on its own. */
 export type ApplicationFileImportBatchResult =
   | ({ index: number; ok: true } & ApplicationFileImport)

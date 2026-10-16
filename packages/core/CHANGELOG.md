@@ -104,6 +104,13 @@ without it.)
   uploadId)` abandon one. Types `LargeUploadSource`,
   `LargeServiceUploadOptions`, `LargeServiceUploadResult`,
   `LargeUploadProgressEvent`, `LargeUploadSession` from `@oxy.so/core/server`.
+- `OxyServer.assets.adoptAppFile(fileId, { visibility, reference? })` →
+  `ApplicationFileAdoption` (`{ file, outcome: 'adopted' | 'existing',
+  deduplicated, reference? }`): the calling application takes its own file of
+  the bytes a file it can read holds (`POST /assets/service/app/adopt`, ADR
+  0041 stage 4b), sharing the stored object — no re-upload. Never more visible
+  than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`); 404 for anything it
+  cannot read; 451 for taken-down bytes.
 - `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
   → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
   Oxy fetches the URL itself (https only on every hop, public addresses only,

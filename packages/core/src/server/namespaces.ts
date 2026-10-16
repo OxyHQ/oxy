@@ -27,6 +27,7 @@ import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
   ApplicationFile,
+  ApplicationFileAdoption,
   AssetLiveStatus,
   ApplicationFileImport,
   ApplicationFileImportBatchResult,
@@ -590,6 +591,39 @@ export class ServerAssetsApi extends AssetsApi {
       'GET',
       `/assets/service/app${query ? `?${query}` : ''}`,
       undefined,
+      { cache: false },
+    );
+  }
+
+  /**
+   * Take ownership of a file this application can read, without uploading it
+   * again (`POST /assets/service/app/adopt`, `files:app:write`, ADR 0041 stage
+   * 4b): this application gets its OWN file of the same bytes — it outlives the
+   * source, whose owner may delete theirs — sharing the stored object. Readable
+   * means what a reference may name: any owner's active `public` or `unlisted`
+   * file, a person's private file its owner attached to this application (ADR
+   * 0021), or this application's own (answered as it is). The copy may not be
+   * more visible than the source (400 `VISIBILITY_WIDER_THAN_SOURCE`);
+   * anything else is 404, taken-down bytes 451. Idempotent per (application,
+   * bytes). `reference` registers the use in the same call (needs
+   * `files:references:write`). A third-party application's adoption counts
+   * toward its developer's plan.
+   */
+  async adoptAppFile(
+    fileId: string,
+    options: {
+      visibility: FileVisibility;
+      reference?: { entityType: string; entityId: string };
+    },
+  ): Promise<ApplicationFileAdoption> {
+    return lane(this.ctx).request<ApplicationFileAdoption>(
+      'POST',
+      '/assets/service/app/adopt',
+      {
+        fileId,
+        visibility: options.visibility,
+        ...(options.reference ? { reference: options.reference } : {}),
+      },
       { cache: false },
     );
   }

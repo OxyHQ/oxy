@@ -386,4 +386,33 @@ describe('OxyServer.assets — import by URL (ADR 0041 D7)', () => {
     ]);
     expect(options.headers).toEqual({ 'x-owner-user-id': 'user-1' });
   });
+
+  it('adoptAppFile POSTs the source id, visibility and reference, naming no owner', async () => {
+    const answer = {
+      file,
+      outcome: 'adopted',
+      deduplicated: false,
+      reference: { result: 'created' },
+    };
+    serviceRequestSpy.mockResolvedValueOnce(answer);
+
+    await expect(
+      oxy.assets.adoptAppFile('src-1', {
+        visibility: 'private',
+        reference: { entityType: 'deliverable', entityId: 'l-1' },
+      }),
+    ).resolves.toEqual(answer);
+
+    const [method, url, body, options] = serviceRequestSpy.mock.calls[0];
+    expect([method, url, body]).toEqual([
+      'POST',
+      '/assets/service/app/adopt',
+      {
+        fileId: 'src-1',
+        visibility: 'private',
+        reference: { entityType: 'deliverable', entityId: 'l-1' },
+      },
+    ]);
+    expect(options.headers ?? {}).not.toHaveProperty('x-owner-user-id');
+  });
 });
