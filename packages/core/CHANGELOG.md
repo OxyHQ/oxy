@@ -51,12 +51,56 @@ Needs `@oxy.so/contracts` 4.20.0.
   for an agent acting for the requester on the requester's own account root.
 ## 4.15.0
 
-Needs the Oxy API with application-owned files, file references and the file
-lifecycle (ADR 0041, migrations `0167_application_owned_files`,
-`0168_file_references` and `0169_file_lifecycle`). (The work below was first
-prepared as 4.12.0; 4.12.0 was published from `main` without it.)
+Needs the Oxy API with application-owned files, file references, the file
+lifecycle, import by URL, application deletion and file events (ADR 0041,
+migrations `0167_application_owned_files`, `0168_file_references`,
+`0169_file_lifecycle` and `0170_application_file_events`). (The work below was
+first prepared as 4.12.0; 4.12.0 was published from `main` without it.)
+
+### Breaking
+
+- `oxy.apps.delete(applicationId, { confirmName })`: the second argument is
+  required. Deleting an application now deletes every file it owns and every
+  reference it registered at once (ADR 0041 D8), so the API refuses the delete
+  (400 `CONFIRM_NAME_MISMATCH`) unless `confirmName` is the application's
+  current name (trimmed, case-sensitive). Resolves to
+  `ApplicationDeleteResult` (`{ success, filesDeleted, referencesRemoved }`).
 
 ### Added
+
+- `OxyServer.assets.importAppFile(sourceUrl, { visibility, reference?, revalidate?, signal? })`
+  → `ApplicationFileImport` (`{ file, outcome, deduplicated, source, reference? }`):
+  Oxy fetches the URL itself (https only on every hop, public addresses only,
+  at most 5 redirects, 40 MiB, 60 s) and the calling application owns the file
+  (`POST /assets/service/app/import`, `files:app:write`, ADR 0041 D7). The same
+  URL imported again answers the existing file without fetching
+  (`outcome: 'existing'`); `revalidate` asks the source conditionally
+  (`not_modified`, or `downloaded` with the new bytes as a new file).
+  `reference` registers the application's use in the same request (needs
+  `files:references:write`).
+- `OxyServer.assets.importAppFiles(items)` → `ApplicationFileImportBatchResult[]`
+  (`POST /assets/service/app/import/batch`, 50 per request, each item
+  `{ index, ok: true, … }` or `{ index, ok: false, error }`).
+- `OxyServer.assets.importUserMedia(ownerUserId, sourceUrl, { visibility?, reference?, revalidate?, signal? })`
+  → `ServiceUserMediaImport` (`POST /assets/service/user-media/import`, the
+  authority of `uploadUserMedia`; public unless `visibility` says otherwise).
+- Types `FileImportOutcome`, `FileImportSource`, `FileImportOptions`,
+  `ApplicationFileImport`, `ApplicationFileImportBatchResult`,
+  `ServiceUserMediaImport`.
+- `verifyFileEventSignature(rawBody, headers, secret, { toleranceSeconds?, now? })`
+  from `@oxy.so/core/server` → `FileEvent | FileWebhookChallenge`: checks the
+  `oxy-signature: t=…,v1=…` HMAC-SHA256 over `<t>.<raw body>` and a 300-second
+  replay window, and hands back the endpoint challenge to echo. Also
+  `FILE_EVENT_TYPES`, `FILE_EVENT_SIGNATURE_HEADER`,
+  `FILE_EVENT_DEFAULT_TOLERANCE_SECONDS`, `FileEventVerificationError`, types
+  `FileEvent`, `FileEventType`, `FileWebhookChallenge` (ADR 0041 D9).
+- `oxy.apps.getFilesWebhook(appId)`, `setFilesWebhook(appId, url)` (verifies
+  the endpoint with a challenge; returns the new signing secret ONCE) and
+  `removeFilesWebhook(appId)`; `Application.filesWebhookUrl?`,
+  `Application.filesWebhookVerifiedAt?`; types `ApplicationFilesWebhook`,
+  `ApplicationDeleteResult`.
+- `oxy.assets.trash(fileId)`: the owner moves their own file to trash (not
+  served, kept until restored or deleted; ADR 0041 D5).
 
 - `OxyServer.assets.references.reconcile(entityType, items, { dryRun? })` →
   `ServiceReferenceReconcileResult` (`{ sessionId, entityType, dryRun, added,
@@ -117,7 +161,8 @@ prepared as 4.12.0; 4.12.0 was published from `main` without it.)
 - `AssetLink.app` holds the using application's ID (also in the new
   `AssetLink.applicationId`), never a free-text name; `AssetLink.createdBy` is
   optional (absent on a reference an application made with its token);
-  `AssetLink.webhookUrl` is typed and deprecated. `assets.link` takes an
+  `AssetLink.webhookUrl` is typed and deprecated — and no longer returned or
+  called: file events go to the application's own endpoint (D9). `assets.link` takes an
   application id or a legacy name (`goway`, `mercaria`, `nilo`, `oxy-mail`,
   `profiles`) as `app`, and no longer changes the asset's visibility unless
   `visibility` is passed. `assets.unlink` removes only references on your own

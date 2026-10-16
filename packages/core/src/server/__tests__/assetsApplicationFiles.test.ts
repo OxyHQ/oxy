@@ -309,3 +309,81 @@ describe('OxyServer.assets.references.reconcile — an inventory of one entity t
     expect(spy.mock.calls.some(([, url]) => String(url).endsWith('/commit'))).toBe(false);
   });
 });
+
+describe('OxyServer.assets — import by URL (ADR 0041 D7)', () => {
+  let oxy: OxyServer;
+  let serviceRequestSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    oxy = new OxyServer({ baseURL: 'http://test.invalid' });
+    serviceRequestSpy = jest.spyOn(oxy, 'serviceRequest');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('importAppFile POSTs the source and options as JSON, not retried, with a long timeout', async () => {
+    const answer = {
+      file,
+      outcome: 'downloaded',
+      deduplicated: false,
+      source: { host: 'supplier.example', fetchedAt: '2026-10-16T00:00:00.000Z' },
+    };
+    serviceRequestSpy.mockResolvedValueOnce(answer);
+    await expect(
+      oxy.assets.importAppFile('https://supplier.example/a.png', {
+        visibility: 'public',
+        reference: { entityType: 'listing', entityId: 'l1' },
+        revalidate: true,
+      }),
+    ).resolves.toEqual(answer);
+    const [method, url, body, options] = serviceRequestSpy.mock.calls[0];
+    expect([method, url, body]).toEqual([
+      'POST',
+      '/assets/service/app/import',
+      {
+        sourceUrl: 'https://supplier.example/a.png',
+        visibility: 'public',
+        reference: { entityType: 'listing', entityId: 'l1' },
+        revalidate: true,
+      },
+    ]);
+    expect(options).toMatchObject({ retry: false, cache: false });
+    expect(options.timeout).toBeGreaterThan(60_000);
+  });
+
+  it('importAppFiles sends 50 per request and returns indexes into the whole list', async () => {
+    const items = Array.from({ length: 120 }, (_, i) => ({
+      sourceUrl: `https://supplier.example/${i}.png`,
+      visibility: 'public' as const,
+    }));
+    serviceRequestSpy.mockImplementation(
+      async (_m: string, _u: string, payload: { items: unknown[] }) => ({
+        results: payload.items.map((_, index) => ({
+          index,
+          ok: false,
+          error: { status: 502, code: 'X', message: 'x' },
+        })),
+      }),
+    );
+    const results = await oxy.assets.importAppFiles(items);
+    expect(
+      serviceRequestSpy.mock.calls.map((c) => (c[2] as { items: unknown[] }).items.length),
+    ).toEqual([50, 50, 20]);
+    expect(results.map((r) => r.index)).toEqual(items.map((_, i) => i));
+    expect(serviceRequestSpy.mock.calls[0][1]).toBe('/assets/service/app/import/batch');
+  });
+
+  it('importUserMedia names the owner in x-owner-user-id, as the upload does', async () => {
+    serviceRequestSpy.mockResolvedValueOnce({ file: {}, outcome: 'existing' });
+    await oxy.assets.importUserMedia('user-1', 'https://supplier.example/a.png');
+    const [method, url, body, options] = serviceRequestSpy.mock.calls[0];
+    expect([method, url, body]).toEqual([
+      'POST',
+      '/assets/service/user-media/import',
+      { sourceUrl: 'https://supplier.example/a.png' },
+    ]);
+    expect(options.headers).toEqual({ 'x-owner-user-id': 'user-1' });
+  });
+});

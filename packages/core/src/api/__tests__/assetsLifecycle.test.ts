@@ -47,6 +47,24 @@ describe('oxy.assets lifecycle', () => {
     expect(init.body).toBeUndefined();
   });
 
+  it('trash POSTs to the trash route and evicts the cached record (ADR 0041 D5)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ assetId: 'f1', file: { id: 'f1', status: 'active' } }))
+      .mockResolvedValueOnce(
+        jsonResponse({ file: { id: 'f1', status: 'trash', trashedAt: 'now', usageCount: 0 } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ assetId: 'f1', file: { id: 'f1', status: 'trash' } }));
+
+    await oxy.assets.get('f1');
+    const res = await oxy.assets.trash('f1');
+    expect(res.file.status).toBe('trash');
+    const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe('https://api.oxy.so/assets/f1/trash');
+    expect(init.method).toBe('POST');
+    await oxy.assets.get('f1');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('delete evicts the cached record and every cached URL of the asset', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ assetId: 'f1', file: { id: 'f1' } }))

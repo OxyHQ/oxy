@@ -161,6 +161,8 @@ export type {
   PublicApplication,
   ConnectedApp,
   ConnectedMcpClient,
+  ApplicationDeleteResult,
+  ApplicationFilesWebhook,
 } from './api/apps';
 export type { LinkedAccountsApi } from './api/linkedAccounts';
 export type {
@@ -363,6 +365,12 @@ export type {
   ServiceReferenceInventoryItem,
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
+  FileImportOutcome,
+  FileImportSource,
+  FileImportOptions,
+  ApplicationFileImport,
+  ApplicationFileImportBatchResult,
+  ServiceUserMediaImport,
   AccountStorageCategoryUsage,
   AccountStorageUsageResponse,
   SecurityEventType,

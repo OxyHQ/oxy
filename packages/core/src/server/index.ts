@@ -135,6 +135,16 @@ export type {
   SsrfCheckResult,
 } from './safeFetch';
 
+// Receiving Oxy's file events (ADR 0041 D9): signature + replay window.
+export {
+  FILE_EVENT_DEFAULT_TOLERANCE_SECONDS,
+  FILE_EVENT_SIGNATURE_HEADER,
+  FILE_EVENT_TYPES,
+  FileEventVerificationError,
+  verifyFileEventSignature,
+} from './fileEvents';
+export type { FileEvent, FileEventType, FileWebhookChallenge } from './fileEvents';
+
 // Strict CORS allowlist (Oxy apex family + explicit app origins).
 export { createOxyCors } from './cors';
 export type { OxyCorsOptions } from './cors';

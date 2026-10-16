@@ -63,7 +63,10 @@ function valueImports(source: string): string[] {
     if (names.length > 0 && names.every((n) => n.startsWith('type '))) continue;
     found.push(specifier);
   }
-  for (const match of code.matchAll(/import\s*'([^']+)'/g)) {
+  // A side-effect import is a statement of its own: anchored to the start of a
+  // line, so a string that merely ends in `import` ('/assets/service/app/import')
+  // is not read as one.
+  for (const match of code.matchAll(/^\s*import\s*'([^']+)'/gm)) {
     if (!match[1].startsWith('.') && !match[1].startsWith('node:')) found.push(match[1]);
   }
   return found;

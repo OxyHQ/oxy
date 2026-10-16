@@ -27,8 +27,11 @@ import type { RequestOptions } from '../HttpService';
 import type { OxyContext, ServiceLane } from '../client/context';
 import type {
   ApplicationFile,
+  ApplicationFileImport,
+  ApplicationFileImportBatchResult,
   ApplicationFilePage,
   ApplicationFileUpload,
+  FileImportOptions,
   FileVisibility,
   Notification,
   ServiceAssetMetadata,
@@ -39,6 +42,7 @@ import type {
   ServiceReferenceInventoryItem,
   ServiceReferenceReconcileResult,
   ServiceUserMediaFile,
+  ServiceUserMediaImport,
 } from '../models/interfaces';
 import { AssetsApi } from '../api/assets';
 import { NotificationsApi } from '../api/notifications';
@@ -68,6 +72,10 @@ const SERVICE_ASSET_METADATA_BY_SHA_CHUNK_SIZE = 100;
 const SERVICE_LINKED_DOWNLOAD_URL_CHUNK_SIZE = 25;
 /** Server-side cap of `POST`/`DELETE /assets/service/references`. */
 const SERVICE_REFERENCES_CHUNK_SIZE = 100;
+/** Server-side cap of `POST /assets/service/app/import/batch`. */
+const SERVICE_IMPORT_BATCH_SIZE = 50;
+/** An import fetches a remote source (up to 60 s server-side): a longer per-attempt timeout. */
+const SERVICE_IMPORT_TIMEOUT_MS = 90_000;
 /** Server-side cap of one `PUT /assets/service/references/reconcile/:sessionId` page. */
 const SERVICE_RECONCILE_PAGE_SIZE = 1000;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
@@ -500,6 +508,93 @@ export class ServerAssetsApi extends AssetsApi {
       `/assets/service/app${query ? `?${query}` : ''}`,
       undefined,
       { cache: false },
+    );
+  }
+
+  /**
+   * Import a file by URL that THIS application owns
+   * (`POST /assets/service/app/import`, `files:app:write`, ADR 0041 D7). Oxy
+   * fetches `sourceUrl` itself — `https` only, public addresses only, bounded
+   * redirects, size and time — and stores it like {@link uploadAppFile}.
+   * Importing the same URL again answers the existing file without fetching
+   * (`outcome: 'existing'`); `revalidate` asks the source conditionally.
+   * `reference` registers this application's use of the file in the same
+   * request (needs `files:references:write`). Not retried: a lost answer is
+   * safe to repeat by calling again.
+   */
+  async importAppFile(
+    sourceUrl: string,
+    options: FileImportOptions & { visibility: FileVisibility; signal?: AbortSignal },
+  ): Promise<ApplicationFileImport> {
+    const { signal, ...rest } = options;
+    return lane(this.ctx).request<ApplicationFileImport>(
+      'POST',
+      '/assets/service/app/import',
+      { sourceUrl, ...rest },
+      {
+        cache: false,
+        retry: false,
+        timeout: SERVICE_IMPORT_TIMEOUT_MS,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  /**
+   * Import many files by URL for THIS application
+   * (`POST /assets/service/app/import/batch`), 50 per request, in order. Each
+   * item answers on its own — `{ ok: true, file, outcome, … }` or
+   * `{ ok: false, error: { status, code, message } }` — with `index` into the
+   * array given here.
+   */
+  async importAppFiles(
+    items: Array<FileImportOptions & { sourceUrl: string; visibility: FileVisibility }>,
+  ): Promise<ApplicationFileImportBatchResult[]> {
+    const results: ApplicationFileImportBatchResult[] = [];
+    for (let start = 0; start < items.length; start += SERVICE_IMPORT_BATCH_SIZE) {
+      const part = items
+        .slice(start, start + SERVICE_IMPORT_BATCH_SIZE)
+        .map(({ sourceUrl, visibility, reference, revalidate }) => ({
+          sourceUrl,
+          visibility,
+          ...(reference ? { reference } : {}),
+          ...(revalidate !== undefined ? { revalidate } : {}),
+        }));
+      const res = await lane(this.ctx).request<{ results: ApplicationFileImportBatchResult[] }>(
+        'POST',
+        '/assets/service/app/import/batch',
+        { items: part },
+        { cache: false, retry: false, timeout: SERVICE_IMPORT_TIMEOUT_MS * 2 },
+      );
+      results.push(...res.results.map((result) => ({ ...result, index: result.index + start })));
+    }
+    return results;
+  }
+
+  /**
+   * Import a file by URL into an existing local user's files
+   * (`POST /assets/service/user-media/import`, the staff-granted scope
+   * `files:user-media:write`, ADR 0041 D7) — the account-owned twin of
+   * {@link importAppFile}, public unless `visibility` says otherwise. The same
+   * URL imported again for the same user answers the existing file.
+   */
+  async importUserMedia(
+    ownerUserId: string,
+    sourceUrl: string,
+    options: FileImportOptions & { visibility?: FileVisibility; signal?: AbortSignal } = {},
+  ): Promise<ServiceUserMediaImport> {
+    const { signal, ...rest } = options;
+    return lane(this.ctx).request<ServiceUserMediaImport>(
+      'POST',
+      '/assets/service/user-media/import',
+      { sourceUrl, ...rest },
+      {
+        headers: { 'x-owner-user-id': ownerUserId },
+        cache: false,
+        retry: false,
+        timeout: SERVICE_IMPORT_TIMEOUT_MS,
+        ...(signal ? { signal } : {}),
+      },
     );
   }
 

@@ -628,6 +628,23 @@ export class AssetsApi {
     return res;
   }
 
+  /**
+   * Move your own asset to the trash (ADR 0041 D5): it stops being served at
+   * once and is kept — an account's trash never expires — until you
+   * {@link restore} or {@link delete} it. Applications using it are told
+   * (`file.trashed`). Already in trash: answered as it is.
+   */
+  async trash(fileId: string): Promise<{
+    file: { id: string; status: Asset['status']; trashedAt: string | null; usageCount: number };
+  }> {
+    const res = await this.ctx.request<{
+      file: { id: string; status: Asset['status']; trashedAt: string | null; usageCount: number };
+    }>('POST', `/assets/${enc(fileId)}/trash`, undefined, { cache: false });
+    // Trash changes the record AND what may be served.
+    this.evict(fileId);
+    return res;
+  }
+
   /** Restore an asset from the trash. */
   async restore(
     fileId: string,

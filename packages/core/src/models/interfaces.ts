@@ -878,6 +878,60 @@ export interface ServiceReferenceReconcileResult {
   refused: number;
 }
 
+/**
+ * How an import by URL was answered (ADR 0041 D7):
+ * - `downloaded`: the bytes were fetched (first import, changed source, or a
+ *   source whose file was no longer active); `deduplicated` says whether the
+ *   owner already held them.
+ * - `existing`: this owner imported this URL before; nothing was fetched.
+ * - `not_modified`: revalidated; the source answered 304.
+ */
+export type FileImportOutcome = 'downloaded' | 'existing' | 'not_modified';
+
+/** What an import says about its source — never the URL, which the caller sent. */
+export interface FileImportSource {
+  host: string;
+  fetchedAt: string;
+  etag?: string;
+  lastModified?: string;
+}
+
+/** Options of an import by URL. */
+export interface FileImportOptions {
+  /**
+   * Register the CALLING application's use of the imported file in the same
+   * request (needs `files:references:write`), so a crash after the import never
+   * leaves it unreferenced.
+   */
+  reference?: { entityType: string; entityId: string };
+  /** Ask the source again (conditionally, ETag / Last-Modified) even if imported before. */
+  revalidate?: boolean;
+}
+
+/** `POST /assets/service/app/import`: the application's file and how it was obtained. */
+export interface ApplicationFileImport {
+  file: ApplicationFile;
+  outcome: FileImportOutcome;
+  deduplicated: boolean;
+  source: FileImportSource;
+  /** Present when a reference was asked for: `not_found` when it was refused. */
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
+/** One item of `POST /assets/service/app/import/batch`, answered on its own. */
+export type ApplicationFileImportBatchResult =
+  | ({ index: number; ok: true } & ApplicationFileImport)
+  | { index: number; ok: false; error: { status: number; code: string; message: string } };
+
+/** `POST /assets/service/user-media/import`: the account's file and how it was obtained. */
+export interface ServiceUserMediaImport {
+  file: ServiceUserMediaFile & { status: 'active' | 'trash' };
+  outcome: FileImportOutcome;
+  deduplicated: boolean;
+  source: FileImportSource;
+  reference?: { result: 'created' | 'exists' | 'not_found' };
+}
+
 /** `POST /assets/service/user-media`: the stored file, owned by the named user. */
 export interface ServiceUserMediaFile {
   id: string;
