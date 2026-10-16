@@ -2611,15 +2611,16 @@
         "tags": [
           "Users"
         ],
-        "summary": "Legacy immediate grants are retired; recipient confirmation is required.",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/accounts.ts` to fill in summary, description, request/response examples.",
+        "summary": "Deprecated: add a member by username/email (`members:invite`) immediately.",
+        "description": "Access is granted without the recipient's confirmation. `POST /:id/invitations`\nis the consent-based replacement. This stays only until the SDK consumers that\nstill call `accounts.members.invite` (Alia, Mercaria, older services builds)\nhave moved to invitations; it is then retired with HTTP 410.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -2683,6 +2684,39 @@
             "bearerAuth": []
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "usernameOrEmail": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "developer",
+                      "billing",
+                      "viewer"
+                    ]
+                  },
+                  "inherit": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "usernameOrEmail",
+                  "role"
+                ]
+              }
+            }
+          }
+        },
         "operationId": "postAccountsIdMembers"
       }
     },
@@ -59795,6 +59829,19 @@
                             "isFollowing",
                             "followsYou"
                           ]
+                        },
+                        "userPreferences": {
+                          "type": "object",
+                          "properties": {
+                            "displayCurrency": {
+                              "type": "string",
+                              "enum": [
+                                "USD",
+                                "EUR",
+                                "FAIR"
+                              ]
+                            }
+                          }
                         },
                         "themePreference": {
                           "type": "object",

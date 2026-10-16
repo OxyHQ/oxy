@@ -829,11 +829,12 @@ router.get(
 );
 
 /**
- * Add a member by username/email (`members:invite`) without the recipient's
- * confirmation. DEPRECATED: `POST /:id/invitations` is the consent-based
- * replacement. This stays only until the SDK consumers that still call
- * `accounts.members.invite` (Alia, Mercaria, older services builds) have moved
- * to invitations; it is then retired with HTTP 410.
+ * Deprecated: add a member by username/email (`members:invite`) immediately.
+ *
+ * Access is granted without the recipient's confirmation. `POST /:id/invitations`
+ * is the consent-based replacement. This stays only until the SDK consumers that
+ * still call `accounts.members.invite` (Alia, Mercaria, older services builds)
+ * have moved to invitations; it is then retired with HTTP 410.
  */
 router.post(
   '/:id/members',
