@@ -35,10 +35,10 @@ import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { emailVerifications } from '../db/schema/emailVerifications';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
-import { ApiError } from '../utils/error';
+import { ApiError, RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendVerificationCode } from './accountEmail.mail';
-import { reserveAttempt } from './loginLockout.service';
+import { type LockoutCheck, reserveAttempt } from './loginLockout.service';
 import { SMTP_RELAYS } from '../config/email.config';
 
 /** Mails one requester (hashed IP) may cause to one address per hour. */
@@ -128,7 +128,8 @@ export function assertMailConfigured(): void {
  * Reserve one mail to `emailHash` for `requesterKey` (a hashed IP, or the
  * signed-in account). Atomic (`reserveAttempt`: Redis `INCR`), counted per
  * requester AND per address, per budget group. Answers whether the mail may
- * go; the caller NEVER tells its caller which it was — an over-budget request
+ * go and, when not, when the budget that refused it resets. A public caller
+ * NEVER tells its caller which it was — an over-budget request
  * is answered exactly like any other and simply sends nothing, so the budget
  * is neither an enumeration oracle nor a switch a stranger can flip to stop
  * someone's mail (one requester exhausts only its own slice).
@@ -139,7 +140,7 @@ export async function reserveSendBudget(input: {
   requesterKey: string;
   /** The request proved a device this account is already signed in on. */
   knownDevice?: boolean;
-}): Promise<boolean> {
+}): Promise<{ readonly reserved: boolean; readonly retryAfterSeconds?: number }> {
   const address = serverHmacHex(SERVER_KEY_LABELS.mailBudget, `${input.group}|${input.emailHash}`);
   const perRequester = await reserveAttempt({
     scope: `mail-requester-${input.group}`,
@@ -147,22 +148,26 @@ export async function reserveSendBudget(input: {
     maxAttempts: input.group === 'reauth' ? REAUTH_SENDS_PER_HOUR : EMAIL_SENDS_PER_HOUR,
     windowSeconds: 60 * 60,
   });
-  if (perRequester.locked) return false;
+  if (perRequester.locked) return refusedBy(perRequester);
   const perAddress = await reserveAttempt({
     scope: `mail-address-${input.group}`,
     identifier: address,
     maxAttempts: EMAIL_SENDS_PER_ADDRESS_PER_HOUR,
     windowSeconds: 60 * 60,
   });
-  if (!perAddress.locked) return true;
-  if (!input.knownDevice) return false;
+  if (!perAddress.locked) return { reserved: true };
+  if (!input.knownDevice) return refusedBy(perAddress);
   const reserved = await reserveAttempt({
     scope: `mail-address-known-device-${input.group}`,
     identifier: address,
     maxAttempts: EMAIL_SENDS_RESERVED_FOR_KNOWN_DEVICE,
     windowSeconds: 60 * 60,
   });
-  return !reserved.locked;
+  return reserved.locked ? refusedBy(reserved) : { reserved: true };
+}
+
+function refusedBy(budget: LockoutCheck): { reserved: false; retryAfterSeconds?: number } {
+  return { reserved: false, retryAfterSeconds: budget.retryAfterSeconds };
 }
 
 /**
@@ -205,7 +210,7 @@ export async function startEmailVerification(
   assertMailConfigured();
   const emailHash = hashEmail(request.email);
   // Over budget: the same answer, a decoy row, and nothing sent.
-  const send = await reserveSendBudget({ group: 'public', emailHash, requesterKey });
+  const { reserved: send } = await reserveSendBudget({ group: 'public', emailHash, requesterKey });
 
   // A decoy's code is generated and hashed like a real one, and never sent.
   const { verificationId, code, expiresAt } = await recordVerification(
@@ -348,12 +353,11 @@ export async function confirmEmailVerification(
   return { ticket, expiresAt: expiresAt.getTime() };
 }
 
-function tooManyAttempts(): ApiError {
-  return new ApiError(
-    429,
-    'Too many wrong codes. Ask for a new one.',
-    EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts,
-  );
+/** The code is spent by wrong guesses: no wait helps, so no `Retry-After`. */
+function tooManyAttempts(): RateLimitedError {
+  return new RateLimitedError('Too many wrong codes. Ask for a new one.', {
+    code: EMAIL_VERIFICATION_ERROR_CODES.tooManyAttempts,
+  });
 }
 
 function liveTicket(ticket: string, purpose: EmailVerificationPurpose, now: Date) {

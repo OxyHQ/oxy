@@ -26,7 +26,7 @@ import { users } from '../db/schema/users';
 import { hashEmail } from '../utils/contactHash';
 import { SERVER_KEY_LABELS, serverHmacHex } from '../utils/serverKey';
 import { normalizeSignInIdentifier } from '../utils/signInIdentifier';
-import { ApiError, BadRequestError, ErrorCodes } from '../utils/error';
+import { ApiError, BadRequestError, RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import { sendReauthCode } from './accountEmail.mail';
 import {
@@ -65,15 +65,6 @@ function reauthInvalid(): ApiError {
   return new ApiError(401, 'That confirmation is not right.', SIGN_IN_ERROR_CODES.reauthInvalid);
 }
 
-function lockedOut(retryAfterSeconds?: number): ApiError {
-  return new ApiError(
-    429,
-    'Too many wrong attempts. Try again later.',
-    SIGN_IN_ERROR_CODES.locked,
-    retryAfterSeconds ? { retryAfterSeconds } : undefined,
-  );
-}
-
 async function accountEmail(
   userId: string,
 ): Promise<{ email: string | null; username: string | null }> {
@@ -103,8 +94,15 @@ export async function startReauthEmail(
   }
   const db = getDb();
   const emailHash = hashEmail(email);
-  if (!(await reserveSendBudget({ group: 'reauth', emailHash, requesterKey: `u:${userId}` }))) {
-    throw new ApiError(429, 'Too many codes. Try again in an hour.', ErrorCodes.RATE_LIMITED);
+  const budget = await reserveSendBudget({
+    group: 'reauth',
+    emailHash,
+    requesterKey: `u:${userId}`,
+  });
+  if (!budget.reserved) {
+    throw new RateLimitedError('Too many codes. Try again later.', {
+      retryAfterSeconds: budget.retryAfterSeconds,
+    });
   }
   const { verificationId, code, expiresAt } = await recordVerification(
     db,
@@ -140,7 +138,12 @@ async function checkPassword(userId: string, password: string): Promise<void> {
   // The attempt is reserved BEFORE the check, so parallel guesses cannot all
   // pass a read-only lockout test first. Past the cap nothing is hashed.
   const reservation = await reserveAttempt({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });
-  if (reservation.locked) throw lockedOut(reservation.retryAfterSeconds);
+  if (reservation.locked) {
+    throw new RateLimitedError('Too many wrong attempts. Try again later.', {
+      code: SIGN_IN_ERROR_CODES.locked,
+      retryAfterSeconds: reservation.retryAfterSeconds,
+    });
+  }
   const ok = await verifyPasswordOrDummy(password, await readPasswordHash(userId));
   if (!ok) throw reauthInvalid();
   await clearFailures({ scope: PASSWORD_LOCKOUT_SCOPE, identifier: key });

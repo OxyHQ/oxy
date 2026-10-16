@@ -1,10 +1,10 @@
 /**
  * Every HTTP rate limiter in oxy-api is built HERE, and only here: this is the
- * one module that imports `express-rate-limit` (`rateLimiterSingleSource.test.ts`).
+ * one module that imports `express-rate-limit` (`rateLimiterRefusal.test.ts`).
  *
  * So every limiter answers a refusal the same way: 429, a `Retry-After` stating
  * when the caller's window resets, and the API's error shape with the typed code
- * `RATE_LIMITED` (`ApiError.toJSON`), or the nested `rate_limited` shape for the
+ * `RATE_LIMITED` (`sendRateLimited`, `errorHandler.ts`), or the nested `rate_limited` shape for the
  * surfaces that opted into it. Before, the global limiters answered their
  * message as a bare text body: a machine caller (Kaana authorizing a grant) had
  * no code to read and could only guess that "something in front of Oxy" had
@@ -17,7 +17,8 @@ import type { RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../config/redis';
 import type { Request, Response } from 'express';
 import { hashedIpKey } from '../utils/ipKey';
-import { ApiError, ErrorCodes } from '../utils/error';
+import { RateLimitedError } from '../utils/error';
+import { sendRateLimited } from './errorHandler';
 
 interface RateLimitOptions {
   /**
@@ -82,31 +83,6 @@ export function rateLimitRetryAfterMs(req: Request, windowMs: number): number {
   return resetTime === undefined ? windowMs : Math.max(0, resetTime.getTime() - Date.now());
 }
 
-/**
- * Answer a request that is over a limit: 429, `Retry-After` in whole seconds
- * (never 0: "retry now" is not what a refusal means) and the typed error. For
- * every limiter here and for the hand-rolled budgets (device-secret lockouts)
- * that cannot be an express-rate-limit middleware.
- */
-export function sendRateLimited(
-  res: Response,
-  input: {
-    readonly message: string;
-    readonly retryAfterSeconds: number;
-    readonly format?: 'nested';
-  },
-): void {
-  const retryAfterSeconds = Math.max(1, Math.ceil(input.retryAfterSeconds));
-  res.setHeader('Retry-After', String(retryAfterSeconds));
-  res.status(429).json(
-    input.format === 'nested'
-      ? {
-          error: { code: 'rate_limited', message: input.message, details: { retryAfterSeconds } },
-        }
-      : new ApiError(429, input.message, ErrorCodes.RATE_LIMITED, { retryAfterSeconds }).toJSON(),
-  );
-}
-
 export function rateLimit(options: RateLimitOptions) {
   const message = options.message ?? DEFAULT_MESSAGE;
   return expressRateLimit({
@@ -116,11 +92,13 @@ export function rateLimit(options: RateLimitOptions) {
     handler:
       options.handler ??
       ((req: Request, res: Response) =>
-        sendRateLimited(res, {
-          message,
-          retryAfterSeconds: rateLimitRetryAfterMs(req, options.windowMs) / 1000,
-          format: options.errorFormat,
-        })),
+        sendRateLimited(
+          res,
+          new RateLimitedError(message, {
+            retryAfterSeconds: rateLimitRetryAfterMs(req, options.windowMs) / 1000,
+          }),
+          options.errorFormat,
+        )),
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,

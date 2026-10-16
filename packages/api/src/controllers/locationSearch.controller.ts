@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { logger } from '../utils/logger';
-import { sendRateLimited } from '../middleware/rateLimiter';
+import { sendRateLimited } from '../middleware/errorHandler';
 import locationService, {
   LocationRateLimitedError,
   LocationTimeoutError,
@@ -52,10 +52,7 @@ export class LocationSearchController {
       logger.error('Error searching locations:', error);
 
       if (error instanceof LocationRateLimitedError) {
-        return sendRateLimited(res, {
-          message: error.message,
-          retryAfterSeconds: error.retryAfterSeconds,
-        });
+        return sendRateLimited(res, error);
       }
       if (error instanceof LocationTimeoutError) {
         return res.status(408).json({
@@ -122,10 +119,7 @@ export class LocationSearchController {
       logger.error('Error getting location details:', error);
 
       if (error instanceof LocationRateLimitedError) {
-        return sendRateLimited(res, {
-          message: error.message,
-          retryAfterSeconds: error.retryAfterSeconds,
-        });
+        return sendRateLimited(res, error);
       }
 
       res.status(500).json({

@@ -1,4 +1,5 @@
 import { normalizeInlineText } from '@oxy.so/core';
+import { RateLimitedError } from '../utils/error';
 import { logger } from '../utils/logger';
 import locationCache from '../utils/locationCache';
 import { nominatimRateLimiter } from '../utils/apiRateLimiter';
@@ -42,9 +43,9 @@ class NominatimHttpError extends Error {
  * Nominatim is refusing our requests (429) until {@link retryAfterSeconds}
  * passes. The controller answers it as the API's typed `RATE_LIMITED`.
  */
-export class LocationRateLimitedError extends Error {
-  constructor(readonly retryAfterSeconds: number) {
-    super('Rate limit exceeded. Please try again in a moment.');
+export class LocationRateLimitedError extends RateLimitedError {
+  constructor(retryAfterSeconds: number) {
+    super('Rate limit exceeded. Please try again in a moment.', { retryAfterSeconds });
     this.name = 'LocationRateLimitedError';
   }
 }
