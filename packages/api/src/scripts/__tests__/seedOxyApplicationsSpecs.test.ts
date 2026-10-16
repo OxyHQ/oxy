@@ -215,7 +215,16 @@ describe('the canonical official-application registry', () => {
     it('pins the exact id and the narrow scopes its service credential needs', () => {
       expect(specNamed('Homiio')).toMatchObject({
         id: HOMIIO_APPLICATION_ID,
-        scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
+        scopes: [
+          'user:read',
+          'reputation:write',
+          'inference:invoke',
+          'acting-as:offline',
+          'catalogs:write',
+          'capabilities:read',
+          'capability-audit:write',
+        ],
+        capabilities: ['catalog:homiio'],
       });
       expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
     });

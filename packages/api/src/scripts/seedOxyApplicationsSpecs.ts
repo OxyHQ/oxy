@@ -463,7 +463,21 @@ export const SEED_APPS: SeedAppSpec[] = [
     // `reputation:write` is staff-gated — the seed script grants it to official apps.
     // Interactive Sindi uses Homiio's service token plus X-Oxy-User-Id. The
     // delegation verifier requires this app/credential ceiling explicitly.
-    scopes: ['user:read', 'reputation:write', 'inference:invoke', 'acting-as:offline'],
+    // - The `homiio` capability catalog (Alia ADR 0020, Homiio docs/sindi.md):
+    //   Homiio's API registers it at startup (`catalogs:write`, `catalog:homiio`)
+    //   and serves its internal MCP to Alia, re-authorising and auditing each
+    //   ticket (`capabilities:read`, `capability-audit:write`); its public OAuth
+    //   MCP is mcp.homiio.oxy.so.
+    scopes: [
+      'user:read',
+      'reputation:write',
+      'inference:invoke',
+      'acting-as:offline',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+    ],
+    capabilities: [catalogApplicationCapability('homiio')],
   },
   {
     name: 'Allo',
