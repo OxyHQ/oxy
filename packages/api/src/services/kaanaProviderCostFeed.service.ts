@@ -37,6 +37,7 @@ import {
 } from '../db/schema/inferenceProviderCostAttempts';
 import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { tracedFetch } from '../utils/tracedFetch';
 
 const ATTEMPT_FEED_PATH = '/internal/v1/provider-telemetry/attempts';
@@ -396,7 +397,7 @@ export async function syncProviderCostFeed(
 }
 
 /** Run {@link syncProviderCostFeed} on an interval in this API task. */
-export function startProviderCostFeedSchedule(): { stop(): void } | undefined {
+export function startProviderCostFeedSchedule(): PeriodicJob | undefined {
   const reader = createHttpKaanaProviderCostFeedReader();
   if (reader === undefined) {
     logger.info('inference.provider_cost_feed.not_configured', {
@@ -404,31 +405,14 @@ export function startProviderCostFeedSchedule(): { stop(): void } | undefined {
     });
     return undefined;
   }
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    syncProviderCostFeed(reader)
-      .then((result) => {
-        if (result.inserted > 0 || result.mismatches > 0) {
-          logger.info('inference.provider_cost_feed.synced', { ...result });
-        }
-      })
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.provider_cost_feed.failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const interval = setInterval(tick, PROVIDER_COST_FEED_INTERVAL_MS);
-  interval.unref();
-  return {
-    stop(): void {
-      clearInterval(interval);
+  return schedulePeriodicJob({
+    failureMessage: 'inference.provider_cost_feed.failed',
+    intervalMs: PROVIDER_COST_FEED_INTERVAL_MS,
+    run: async () => {
+      const result = await syncProviderCostFeed(reader);
+      if (result.inserted > 0 || result.mismatches > 0) {
+        logger.info('inference.provider_cost_feed.synced', { ...result });
+      }
     },
-  };
+  });
 }

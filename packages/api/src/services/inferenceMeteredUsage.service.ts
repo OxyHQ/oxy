@@ -47,6 +47,7 @@ import { internalCostCenters } from '../db/schema/internalCostCenters';
 import { usageUnitColumnValues, USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
 import { usageReceipts } from '../db/schema/usageReceipts';
 import { logger } from '../utils/logger';
+import { type PeriodicJob, schedulePeriodicJob } from '../utils/periodicJobs';
 import { quoteUnits } from './inferenceLedger.service';
 
 /* -------------------------------------------------------------------------- */
@@ -609,29 +610,14 @@ export async function reconcileMeteredReceipts(limit = 100): Promise<number> {
 }
 
 /** Recover committed receipts on every API task, without depending on Kaana configuration. */
-export function startMeteredReceiptReconciliationSchedule(): { stop(): void } {
-  let running = false;
-  const tick = (): void => {
-    if (running) return;
-    running = true;
-    reconcileMeteredReceipts()
-      .catch((error: unknown) =>
-        logger.error(
-          'inference.metered_usage.reconciliation_failed',
-          error instanceof Error ? error : new Error(String(error)),
-        ),
-      )
-      .finally(() => {
-        running = false;
-      });
-  };
-  const interval = setInterval(tick, 60_000);
-  interval.unref();
-  return {
-    stop(): void {
-      clearInterval(interval);
+export function startMeteredReceiptReconciliationSchedule(): PeriodicJob {
+  return schedulePeriodicJob({
+    failureMessage: 'inference.metered_usage.reconciliation_failed',
+    intervalMs: 60_000,
+    run: async () => {
+      await reconcileMeteredReceipts();
     },
-  };
+  });
 }
 
 /* -------------------------------------------------------------------------- */

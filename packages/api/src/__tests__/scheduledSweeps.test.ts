@@ -80,6 +80,22 @@ const SERVER_CODE = SERVER_SOURCE.replace(/\/\*[\s\S]*?\*\//g, '')
   .filter((line) => !line.trim().startsWith('//'))
   .join('\n');
 
+/**
+ * The `schedulePeriodicJob({ ... })` registration whose `intervalMs` is
+ * `intervalConstant`, or '' when there is none. Every sweep is one such call
+ * (`utils/periodicJobs.ts`), which is what lets shutdown stop them before it
+ * closes Postgres; asserting the CALL inside the registration, rather than
+ * anywhere in the file, keeps "the function is imported but no longer
+ * scheduled" red.
+ */
+function registrationOf(intervalConstant: string): string {
+  for (const block of SERVER_CODE.split('schedulePeriodicJob({').slice(1)) {
+    const body = block.slice(0, block.indexOf('\n  });'));
+    if (body.includes(`intervalMs: ${intervalConstant},`)) return body;
+  }
+  return '';
+}
+
 describe('the entrypoint this suite reads', () => {
   it('is the real one, and this read can see what is already in it', () => {
     // Not '' from a missing path, and not a stub.
@@ -89,8 +105,8 @@ describe('the entrypoint this suite reads', () => {
     // The positive control: sweeps that predate this issue and are known to be
     // registered. A read that cannot find these has found nothing, and every
     // assertion below would be reporting on its own blindness.
-    expect(SERVER_CODE).toContain('followExpirySweep.unref()');
-    expect(SERVER_CODE).toContain('autoRechargeSweep.unref()');
+    expect(registrationOf('FOLLOW_EXPIRY_SWEEP_INTERVAL_MS')).toContain('expireDueFollows()');
+    expect(registrationOf('AUTO_RECHARGE_SWEEP_INTERVAL_MS')).toContain('runAutoRechargeSweep()');
   });
 
   it('has comments stripped, and still has its code', () => {
@@ -133,9 +149,11 @@ describe('the reservation expiry sweep is registered', () => {
     );
     expect(SERVER_CODE).toContain('expireReservations()');
     expect(SERVER_CODE).toContain('RESERVATION_EXPIRY_SWEEP_INTERVAL_MS');
-    // Unref'd, like every other sweep: an interval that keeps the event loop
-    // alive hangs jest non-deterministically and blocks a graceful shutdown.
-    expect(SERVER_CODE).toContain('reservationExpirySweep.unref()');
+    // A periodic job: unref'd, never overlapping itself, and stopped by
+    // graceful shutdown before the pool it uses is closed.
+    expect(registrationOf('RESERVATION_EXPIRY_SWEEP_INTERVAL_MS')).toContain(
+      'expireReservations()',
+    );
   });
 
   it('releases a hold well inside the shortest deadline an edge would set', () => {
@@ -157,7 +175,9 @@ describe('the retention sweep is registered', () => {
     // enforces, which is the state this issue found.
     expect(SERVER_CODE).toContain('sweepAllExpiredRows(getDb(), EXPIRY_SWEEP_TARGETS)');
     expect(SERVER_CODE).toContain('EXPIRY_SWEEP_INTERVAL_MS');
-    expect(SERVER_CODE).toContain('retentionSweep.unref()');
+    expect(registrationOf('EXPIRY_SWEEP_INTERVAL_MS')).toContain(
+      'sweepAllExpiredRows(getDb(), EXPIRY_SWEEP_TARGETS)',
+    );
   });
 
   it('runs often enough for the shortest retention it enforces', () => {
@@ -188,7 +208,9 @@ describe('the reconciliation sweep is registered', () => {
     expect(SERVER_CODE).toContain("from './services/billingReconciliation.service'");
     expect(SERVER_CODE).toContain('runScheduledReconciliation()');
     expect(SERVER_CODE).toContain('RECONCILIATION_SWEEP_INTERVAL_MS');
-    expect(SERVER_CODE).toContain('reconciliationSweep.unref()');
+    expect(registrationOf('RECONCILIATION_SWEEP_INTERVAL_MS')).toContain(
+      'runScheduledReconciliation()',
+    );
   });
 
   it('ticks more often than the window it reconciles', () => {
@@ -224,7 +246,7 @@ describe('the spend-anomaly sweep is registered', () => {
     expect(SERVER_CODE).toContain("from './services/spendAnomaly.service'");
     expect(SERVER_CODE).toContain('sweepSpendAnomalies()');
     expect(SERVER_CODE).toContain('SPEND_ANOMALY_SWEEP_INTERVAL_MS');
-    expect(SERVER_CODE).toContain('spendAnomalySweep.unref()');
+    expect(registrationOf('SPEND_ANOMALY_SWEEP_INTERVAL_MS')).toContain('sweepSpendAnomalies()');
   });
 
   it('runs often enough to notice inside the hour it evaluates', () => {
@@ -256,15 +278,15 @@ describe('the token-anomaly sweep is registered', () => {
     expect(SERVER_CODE).toContain("from './services/tokenAnomaly.service'");
     expect(SERVER_CODE).toContain('sweepTokenAnomalies()');
     expect(SERVER_CODE).toContain('TOKEN_ANOMALY_SWEEP_INTERVAL_MS');
-    expect(SERVER_CODE).toContain('tokenAnomalySweep.unref()');
+    expect(registrationOf('TOKEN_ANOMALY_SWEEP_INTERVAL_MS')).toContain('sweepTokenAnomalies()');
   });
 
   it('is a SEPARATE registration from the spend sweep, not a rename of it', () => {
     // Both must be scheduled. A change that replaced one with the other would
     // satisfy either assertion alone while silently dropping half the signal, and
     // the two measure different things over different tables.
-    expect(SERVER_CODE).toContain('spendAnomalySweep.unref()');
-    expect(SERVER_CODE).toContain('tokenAnomalySweep.unref()');
+    expect(registrationOf('SPEND_ANOMALY_SWEEP_INTERVAL_MS')).toContain('sweepSpendAnomalies()');
+    expect(registrationOf('TOKEN_ANOMALY_SWEEP_INTERVAL_MS')).toContain('sweepTokenAnomalies()');
     expect(SERVER_CODE).toContain('sweepSpendAnomalies()');
     expect(SERVER_CODE).toContain('sweepTokenAnomalies()');
   });
