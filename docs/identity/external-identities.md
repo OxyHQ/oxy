@@ -224,17 +224,8 @@ no source binding is refused rather than silently adopted.
 
 ## Protected operations
 
-`.github/workflows/release-external-identity-packages.yml` releases only
-`@oxy.so/contracts@4.0.0`, followed by `@oxy.so/federation@2.2.0`. Dispatch from
-protected `main` with its full `expected_source_sha` and `dry_run=true` first.
-The job builds and packs each package in one command, runs its tests, validates
-all packed export targets, checks the existing npm credential, and records
-SHA-512 integrity. A later `dry_run=false` dispatch publishes only missing
-versions. An existing version must have exactly the prepared integrity;
-a mismatch is a failed run, never an overwrite. Both versions are checked
-before either is published, and published integrity is read back after each
-write. The existing organization `NPM_TOKEN` is available only to the release
-step. The artifact contains tarballs and public integrity reports, never a token.
+Package releases (`@oxy.so/contracts`, `@oxy.so/federation`, …) go through the one
+`.github/workflows/release-packages.yml` — `docs/engineering/package-rules.md#publishing`.
 
 `.github/workflows/reconcile-external-identities.yml` runs the fixed reconciler
 inside ECS. Its full `expected_source_sha` must identify the immutable ECR digest
