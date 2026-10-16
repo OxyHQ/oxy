@@ -33,7 +33,7 @@
     "react-native-qrcode-svg": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
-    "react-native-web": "^0.21.0",
+    "react-native-web": "^0.21.4",
     "shadcn": "catalog:",
     "socket.io-client": "catalog:",
     "tailwind-merge": "^3.4.0",
