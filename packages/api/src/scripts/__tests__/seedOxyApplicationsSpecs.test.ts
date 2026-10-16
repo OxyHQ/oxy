@@ -588,7 +588,7 @@ describe('the canonical official-application registry', () => {
   });
 
   describe('Mercaria owns its catalog and approved merchant billing authority', () => {
-    it('declares the scopes used by catalog registration, ticket introspection, audit and merchant billing', () => {
+    it('declares the scopes used by catalog registration, ticket introspection, audit, merchant billing and digital downloads', () => {
       expect(specNamed('Mercaria').scopes).toEqual([
         'user:read',
         'catalogs:write',
@@ -597,6 +597,7 @@ describe('the canonical official-application registry', () => {
         'payments:read',
         'payments:write',
         'files:user-media:write',
+        'files:linked:read',
       ]);
     });
 
