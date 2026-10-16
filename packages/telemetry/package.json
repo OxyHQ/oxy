@@ -96,7 +96,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/oxyhq/sdk",
+    "url": "git+https://github.com/OxyHQ/oxy.git",
     "directory": "packages/telemetry"
   },
   "license": "SEE LICENSE IN LICENSE",

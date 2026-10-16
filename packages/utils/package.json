@@ -97,7 +97,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/oxyhq/sdk",
+    "url": "git+https://github.com/OxyHQ/oxy.git",
     "directory": "packages/utils"
   },
   "license": "Apache-2.0",
