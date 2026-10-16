@@ -95,14 +95,19 @@ module.exports = {
           },
         },
       ],
-      // Dictation and voice calls with Alia (`@alia.onl/sdk`) recognise speech on
-      // the device; the plugin writes the two iOS purpose strings and the
-      // Android RECORD_AUDIO permission.
+      // Voice calls with Alia (`@alia.onl/sdk/voice`) capture and play audio through
+      // react-native-audio-api on iOS and Android; dictation records with expo-audio
+      // and is transcribed by Alia, so nothing is recognised on the device. The plugin
+      // writes the iOS purpose string and declares RECORD_AUDIO.
+      'expo-audio',
       [
-        'expo-speech-recognition',
+        'react-native-audio-api',
         {
-          microphonePermission: 'Allow Oxy Accounts to hear what you dictate and say to Alia.',
-          speechRecognitionPermission: 'Allow Oxy Accounts to turn your speech into text.',
+          iosMicrophonePermission:
+            'Allow Oxy Accounts to hear what you dictate and say in voice calls with Alia.',
+          iosBackgroundMode: false,
+          androidForegroundService: false,
+          androidPermissions: ['android.permission.RECORD_AUDIO'],
         },
       ],
       'expo-secure-store',

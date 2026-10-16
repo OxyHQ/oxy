@@ -12,9 +12,12 @@
  * client threw away the server-rendered markup on every visit with nothing but
  * a console error to show for it.
  *
- * Per-app CSP extensions still come from `oxy.pages-headers.json` in the caller
- * package (cwd). Hashes are never written there by hand — see
- * {@link buildOxyPagesHeaders}.
+ * Per-app CSP extensions come from the caller package (cwd): `oxy.pages-headers.json`
+ * when they are plain data, or `oxy.pages-headers.ts` (default export, the same
+ * options) when they are composed from another package's declaration — an app
+ * embedding the Alia SDK composes `withAliaSdkCsp` from `@alia.onl/sdk/csp` rather
+ * than copying its origins. Both at once is refused. Hashes are never written there
+ * by hand — see {@link buildOxyPagesHeaders}.
  *
  * Usage (from an app package, after the build):
  *   bun ../core/scripts/writePagesHeaders.ts dist
@@ -22,6 +25,7 @@
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   buildOxyPagesHeaders,
   type OxyCspExtensions,
@@ -34,10 +38,21 @@ interface PagesHeadersConfig {
   sensitive?: boolean;
 }
 
-function loadConfig(): OxyPagesHeadersOptions {
-  const configPath = resolve(process.cwd(), 'oxy.pages-headers.json');
-  if (!existsSync(configPath)) return {};
-  const raw = JSON.parse(readFileSync(configPath, 'utf8')) as PagesHeadersConfig;
+async function loadConfig(): Promise<OxyPagesHeadersOptions> {
+  const jsonPath = resolve(process.cwd(), 'oxy.pages-headers.json');
+  const modulePath = resolve(process.cwd(), 'oxy.pages-headers.ts');
+  if (existsSync(jsonPath) && existsSync(modulePath)) {
+    process.stderr.write(
+      'writePagesHeaders: both oxy.pages-headers.json and oxy.pages-headers.ts exist; keep one.\n',
+    );
+    process.exit(1);
+  }
+  const raw: PagesHeadersConfig | undefined = existsSync(modulePath)
+    ? ((await import(pathToFileURL(modulePath).href)) as { default: PagesHeadersConfig }).default
+    : existsSync(jsonPath)
+      ? (JSON.parse(readFileSync(jsonPath, 'utf8')) as PagesHeadersConfig)
+      : undefined;
+  if (raw === undefined) return {};
   return { csp: raw.csp, hsts: raw.hsts, sensitive: raw.sensitive };
 }
 
@@ -88,7 +103,7 @@ const outputPath = join(outputDir, '_headers');
 writeFileSync(
   outputPath,
   buildOxyPagesHeaders({
-    ...loadConfig(),
+    ...(await loadConfig()),
     html: htmlFiles.map((file) => readFileSync(file, 'utf8')),
   }),
   'utf8',
